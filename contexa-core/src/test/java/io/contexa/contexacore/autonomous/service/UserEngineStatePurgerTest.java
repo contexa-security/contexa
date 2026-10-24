@@ -39,13 +39,20 @@ class UserEngineStatePurgerTest {
     void purgeRemovesTheStateThatANewAccountWithTheSameNameWouldInherit() {
         seed(USER);
         seed(OTHER);
+        // docs/agent A5-1: an agent that acted for the user keeps its decisions under its own key.
+        actions.saveAction(USER + "::agent::report-agent", ZeroTrustAction.BLOCK, null);
+        actions.setBlockedFlag(USER + "::agent::report-agent");
+        actions.saveAction(OTHER + "::agent::report-agent", ZeroTrustAction.ALLOW, null);
 
         UserEngineStatePurgeResult result = purger(List.of()).purge(USER);
 
         assertThat(result.complete()).isTrue();
-        assertThat(result.purgedSteps()).containsExactly("sessions", "decision-state", "blocking-signal",
-                "block-mfa-state", "baseline", "security-context", "decision-history");
+        assertThat(result.purgedSteps()).containsExactly("sessions", "decision-state", "agent-decision-state",
+                "blocking-signal", "block-mfa-state", "baseline", "security-context", "decision-history");
         assertThat(actions.getCurrentAction(USER, "any-context")).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+        assertThat(actions.getCurrentAction(USER + "::agent::report-agent"))
+                .isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+        assertThat(actions.getCurrentAction(OTHER + "::agent::report-agent")).isEqualTo(ZeroTrustAction.ALLOW);
         assertThat(broadcaster.isBlocked(USER)).isFalse();
         assertThat(blockMfa.isVerified(USER)).isFalse();
         assertThat(baselines.getUserBaseline(USER)).isNull();

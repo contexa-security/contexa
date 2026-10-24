@@ -38,7 +38,11 @@ public class PromptInspectionPageController {
             Stream.of("selectLine", "matchedBy", "noFinding", "expected", "actual", "source", "reason", "unplaced",
                             "inspector", "stored.same", "stored.differs", "stored.other", "stored.none",
                             "changes.compared", "changes.disappeared", "changes.appeared", "changes.none")
-                    .map(word -> "promptInspection.detail." + word))
+                    .map(word -> "promptInspection.detail." + word),
+            // docs/agent OC-5: the replay section.
+            Stream.of("action", "reason", "codes", "model", "elapsed", "baselines", "baselines.GIVEN",
+                            "baselines.CURRENT", "failure", "secondPass", "confirm", "running", "failed", "unavailable")
+                    .map(word -> "promptInspection.replay." + word))
             .flatMap(keys -> keys)
             .toList();
 

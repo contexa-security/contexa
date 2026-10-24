@@ -43,6 +43,18 @@ describe('the guide captions', () => {
     ).toEqual(['The log below keeps each step', 'with its real time since the request arrived.']);
   });
 
+  it("keep a quoted name whole, while an apostrophe inside a word opens no quote", () => {
+    expect(captionLines("결과를 예상한 뒤 '에이전트에게 맡기기'를 누릅니다.", 28)).toEqual([
+      '결과를 예상한 뒤',
+      "'에이전트에게 맡기기'를 누릅니다.",
+    ]);
+    // Read as an opening quote, "agent's" would push the cut back to after "the".
+    expect(captionLines("Look at the agent's facts and then the rows", 32)).toEqual([
+      "Look at the agent's facts",
+      'and then the rows',
+    ]);
+  });
+
   it('give each line its share of the scene in turn, the last ending where the scene ends', () => {
     const text = vtt(
       [

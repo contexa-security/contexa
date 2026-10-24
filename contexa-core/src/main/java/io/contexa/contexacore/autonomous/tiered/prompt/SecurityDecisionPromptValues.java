@@ -30,6 +30,8 @@ import io.contexa.contexacore.autonomous.context.model.ContextTrustProfile;
 import io.contexa.contexacore.autonomous.context.policy.ContextSemanticBoundaryPolicy;
 import io.contexa.contexacore.autonomous.context.policy.ContextEvidenceGuidance;
 import io.contexa.contexacore.autonomous.context.prompt.PromptBlock;
+import io.contexa.contexacore.autonomous.context.prompt.PromptDictionaryEntry;
+import io.contexa.contexacore.autonomous.context.prompt.PromptDictionaryRenderer;
 import io.contexa.contexacore.autonomous.context.prompt.PromptEntryValues;
 import io.contexa.contexacore.autonomous.context.prompt.PromptListItem;
 import io.contexa.contexacore.autonomous.context.prompt.PromptSlotRenderer;
@@ -38,6 +40,7 @@ import io.contexa.contexacore.autonomous.context.prompt.PromptListOrder;
 import io.contexa.contexacore.autonomous.context.support.PastRecordCounts;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacore.autonomous.execution.ExecutionSubject;
+import io.contexa.contexacore.autonomous.execution.ExecutionSubjectTypes;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
 import io.contexa.contexacore.autonomous.learning.evidence.CurrentLearningContextSnapshot;
@@ -56,6 +59,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -106,7 +110,7 @@ final class SecurityDecisionPromptValues {
         userBaseline(sections, context, canonical, evidence, at, zone, values);
         session(context, canonical, at, zone, values);
         request(context, canonical, evidence, at, zone, values);
-        decisionFacts(sections, context, canonical, values);
+        decisionFacts(sections, context, canonical, at, values);
         pastRecords(sections, context, evidence, values);
         unknown(canonical, evidence != null ? evidence.baselineView() : null, values);
         untrustedText(sections, context, canonical, values);
@@ -149,6 +153,13 @@ final class SecurityDecisionPromptValues {
         values.value(BASELINE, "UsualDevices", usualDevices(view, personal));
         values.value(BASELINE, "UsualLoginMethods", names(view != null && !view.usualLoginMethods().isEmpty()
                 ? view.usualLoginMethods() : personalLoginMethods(personal)));
+        // v21.12 (A4-3, A4-1, A4-6): whose usual behaviour an agent's lines state, its usual order of operations and
+        // the clients it calls from; v21 entries only, and a person's request has no line.
+        if (values.has(BASELINE, "BaselineSubject")) {
+            values.value(BASELINE, "BaselineSubject", AgentLineValues.baselineSubject(canonical));
+            values.value(BASELINE, "UsualSequence", AgentLineValues.usualSequence(canonical));
+            values.value(BASELINE, "UsualClients", AgentLineValues.usualClients(canonical));
+        }
         CanonicalSecurityContext.WorkProfile workProfile = canonical != null ? canonical.getWorkProfile() : null;
         values.value(BASELINE, "SeasonalPattern", workProfile != null ? workProfile.getSeasonalBusinessProfile() : null);
         String peer = peerReference(sections, context, evidence);
@@ -187,6 +198,10 @@ final class SecurityDecisionPromptValues {
         if (narrative != null && narrative.getSessionDecisions() != null) {
             values.value(SESSION, "RequestsInSession",
                     requestsInSession(narrative.getSessionDecisions(), currentTarget(canonical), at, zone));
+            // A2-9: what an agent did so far in its session; a v21 entry only, a person's request has no line.
+            if (values.has(SESSION, "DelegationActivity")) {
+                values.value(SESSION, "DelegationActivity", AgentLineValues.delegationActivity(canonical, at));
+            }
             if (narrative.getSessionDecisions().stream().anyMatch(decision -> decision != null && decision.at() != null)) {
                 values.clocked(SESSION, "RequestsInSession");
             }
@@ -203,7 +218,18 @@ final class SecurityDecisionPromptValues {
         CurrentLearningContextSnapshot current = evidence != null ? evidence.current() : null;
         CanonicalSecurityContext.Resource resource = canonical != null ? canonical.getResource() : null;
         CanonicalSecurityContext.Session session = canonical != null ? canonical.getSession() : null;
-        values.value(REQUEST, "Subject", subject(context, canonical, at));
+        // A2-4: a v21 subject line names the agent apart from the account whose authority it uses.
+        values.value(REQUEST, "Subject", v21(values) ? subjectV21(context, canonical, at) : subject(context, canonical, at));
+        // A2-11: what the request's access token states; a v21 entry only, a session's request has no line.
+        if (values.has(REQUEST, "Credential")) {
+            values.value(REQUEST, "Credential",
+                    AgentLineValues.credential(canonical != null ? canonical.getAttributes() : null, at));
+        }
+        // docs/agent F-5: the confirmation the accountable person gave for this very request; a v21 entry only.
+        if (values.has(REQUEST, "Confirmation")) {
+            values.value(REQUEST, "Confirmation",
+                    AgentLineValues.confirmation(canonical != null ? canonical.getAttributes() : null));
+        }
         values.value(REQUEST, "Roles", rolesLine(canonical));
         values.value(REQUEST, "Permissions", permissionsLine(canonical));
         if (at != null) {
@@ -223,7 +249,7 @@ final class SecurityDecisionPromptValues {
     }
 
     private static void decisionFacts(SecurityDecisionPromptSections sections, SecurityPromptBuildContext context,
-                                      CanonicalSecurityContext canonical, PromptEntryValues.Builder values) {
+                                      CanonicalSecurityContext canonical, Instant at, PromptEntryValues.Builder values) {
         DecisionFacts facts = canonical != null ? canonical.getDecisionFacts() : null;
         // Without the computation the repeat and the differences are named unknown by withoutSource (N-INS-2).
         if (facts != null) {
@@ -263,9 +289,19 @@ final class SecurityDecisionPromptValues {
         // Dictionary 2.4: a request that is not delegated has no Delegation line (the v19 section says UNKNOWN).
         CanonicalSecurityContext.Delegation delegation = canonical != null ? canonical.getDelegation() : null;
         if (delegation != null && Boolean.TRUE.equals(delegation.getDelegated())) {
-            // TO-2 (Q-84): the delegation unknowns without the instruction after them.
-            values.value(FACTS, "Delegation", collapse(sections.buildDelegatedObjectiveContextSection(canonical),
-                    Set.of(), ContextEvidenceGuidance::factsOf));
+            // A2-4: the v21 line states the delegation by its fields, without its objective's free text (A2-5).
+            // TO-2 (Q-84): the v20 line, the delegation unknowns without the instruction after them.
+            values.value(FACTS, "Delegation", v21(values) ? AgentLineValues.delegation(canonical, at)
+                    : collapse(sections.buildDelegatedObjectiveContextSection(canonical), Set.of(),
+                    ContextEvidenceGuidance::factsOf));
+        }
+        // A2-12: whose company records the lines are, when they are another person's than the subject's.
+        if (values.has(FACTS, "RecordsHolder")) {
+            values.value(FACTS, "RecordsHolder", AgentLineValues.recordsHolder(canonical));
+        }
+        // A2-10: who wrote the records the request rests on, and when; a v21 entry only.
+        if (values.has(FACTS, "RecordProvenance")) {
+            values.value(FACTS, "RecordProvenance", AgentLineValues.recordProvenance(canonical, at));
         }
         values.value(FACTS, "ThreatMatch",
                 collapse(sections.buildThreatLearningSectionWithoutOutsideText(context.getBehaviorAnalysis())));
@@ -289,6 +325,11 @@ final class SecurityDecisionPromptValues {
         addUntrusted(items, UntrustedTextSources.RESOURCE_CATEGORY,
                 canonical != null ? untrustedCategory(canonical.getResource()) : null, limit);
         addUntrusted(items, UntrustedTextSources.REQUEST_BODY, sections.decodedPayload(context.getEvent()), limit);
+        boolean v21 = v21(values);
+        if (v21) {
+            // A2-8: what the caller passed to the protected method, as the publisher summarised it.
+            addUntrusted(items, UntrustedTextSources.CALL_ARGUMENTS, AgentLineValues.callArguments(canonical), limit);
+        }
         for (String text : sections.outsideThreatKnowledgeTexts(context.getBehaviorAnalysis())) {
             addUntrusted(items, UntrustedTextSources.THREAT_KNOWLEDGE, text, limit);
         }
@@ -300,6 +341,11 @@ final class SecurityDecisionPromptValues {
                         ? canonical.getRoleScopeProfile().getTemporaryElevationReason()
                         : null,
                 limit);
+        if (v21) {
+            // A2-5: the delegation's objective as the delegating person or the host wrote it.
+            addUntrusted(items, UntrustedTextSources.DELEGATION_OBJECTIVE, AgentLineValues.delegationObjective(canonical),
+                    limit);
+        }
         // N-INJ-1: the requester's own texts, in the plan's order (user agent, request path with its variables, the
         // session's earlier paths, tickets the requester names).
         LearningContextEvidence evidence = context.getLearningContextEvidence();
@@ -310,10 +356,48 @@ final class SecurityDecisionPromptValues {
                 firstText(resource != null ? resource.getRequestPath() : null, metadata(context.getEvent(), "requestPath")),
                 limit);
         addUntrusted(items, UntrustedTextSources.SESSION_REQUEST_PATHS, sessionPaths(canonical), limit);
+        if (v21) {
+            // A3-5: the targets of the past record lines drawn, as the requesters wrote them.
+            for (String target : pastRecordTargets(sections.pastRecordItems(context, PastRecordLines.TARGET_APART),
+                    sections.pastDeniedItems(context, true))) {
+                addUntrusted(items, UntrustedTextSources.PAST_RECORD_TARGET, target, limit);
+            }
+            // B3-3: the validated case memory's stored texts (an earlier analysis' summary, a threat signal's
+            // summary, matched threat knowledge).
+            for (String text : PastRecordLineValues.validatedCaseTexts(
+                    canonical != null ? canonical.getReasoningMemoryProfile() : null)) {
+                addUntrusted(items, UntrustedTextSources.VALIDATED_CASE_MEMORY, text, limit);
+            }
+        }
         for (String ticket : claimedTickets(canonical)) {
             addUntrusted(items, UntrustedTextSources.CLAIMED_TICKET, ticket, limit);
         }
         values.lines(UNTRUSTED, "UntrustedText{i}", items);
+    }
+
+    /**
+     * The targets of the past record and denied decision lines drawn (within each entry's list cap, in drawn order), each
+     * once (A3-5: shared with the inspector).
+     */
+    static List<String> pastRecordTargets(List<PromptListItem> records, List<PromptListItem> denied) {
+        Set<String> targets = new LinkedHashSet<>();
+        addTargets(targets, records, "PastRecord{i}");
+        addTargets(targets, denied, "PastDeniedDecision{i}");
+        return List.copyOf(targets);
+    }
+
+    private static void addTargets(Set<String> targets, List<PromptListItem> items, String entryName) {
+        PromptDictionaryEntry entry = SecurityDecisionPromptDictionary.V21_ENTRIES.stream()
+                .filter(candidate -> candidate.block() == PAST && entryName.equals(candidate.name()))
+                .findFirst().orElseThrow();
+        List<PromptListItem> sorted = entry.listOrder().sort(items);
+        int shown = PromptDictionaryRenderer.shownItems(entry, sorted.size());
+        for (int index = 0; index < shown; index++) {
+            PromptListItem item = sorted.get(index);
+            if (item.name() != null && !item.name().equals(item.text())) {
+                targets.add(item.name());
+            }
+        }
     }
 
     /** This request's target (the URL template's variables bound to the path), or null. */
@@ -379,7 +463,9 @@ final class SecurityDecisionPromptValues {
         else {
             values.unknown(PAST, "PastRecordCounts", PromptUnknownKind.UNAVAILABLE_NOW, countsUnknownReason(rag));
         }
-        List<PromptListItem> records = sections.pastRecordItems(context);
+        // A3-5: a v21 line writes the target apart; the target is an untrusted text.
+        boolean v21 = v21(values);
+        List<PromptListItem> records = sections.pastRecordItems(context, v21 ? PastRecordLines.TARGET_APART : null);
         values.lines(PAST, "PastRecord{i}", records);
         if (records.stream().anyMatch(record -> !record.text().startsWith(PastRecordLines.TIME_NOT_RECORDED))) {
             values.clocked(PAST, "PastRecord{i}");
@@ -390,7 +476,7 @@ final class SecurityDecisionPromptValues {
         }
         // W5-4 (Q-57 decision 4): the user's recent decisions that did not allow, facts only; without any the line
         // is left out.
-        List<PromptListItem> denied = sections.pastDeniedItems(context);
+        List<PromptListItem> denied = sections.pastDeniedItems(context, v21);
         values.lines(PAST, "PastDeniedDecision{i}", denied);
         if (denied.stream().anyMatch(item -> !item.text().startsWith(PastRecordLines.TIME_NOT_RECORDED))) {
             values.clocked(PAST, "PastDeniedDecision{i}");
@@ -401,13 +487,14 @@ final class SecurityDecisionPromptValues {
         values.value(PAST, "SupportingCases", supportingCases(evidence != null ? evidence.supportingComparableCount() : 0,
                 sections.buildSupportingLearningContextSection(context.getBehaviorAnalysis())));
         // W3-5 (Q-61 X15, X26, X27): the summary and the pack summary restate the lines below them, and the
-        // guardrails are instructions the system text holds.
+        // guardrails are instructions the system text holds. v21 (B3-3): the lines holding stored free text are
+        // untrusted texts.
         values.value(PAST, "ValidatedCases", collapse(sections.buildReasoningMemoryContextSection(
-                context.getCanonicalSecurityContext()), REMOVED_MEMORY_LINES));
+                context.getCanonicalSecurityContext()), v21(values) ? V21_REMOVED_MEMORY_LINES : REMOVED_MEMORY_LINES));
     }
 
     private static void unknown(CanonicalSecurityContext canonical, BaselineView view, PromptEntryValues.Builder values) {
-        String coverage = coverageLine(canonical, view);
+        String coverage = coverageLine(canonical, view, v21(values));
         if (coverage != null) {
             values.value(UNKNOWN, "Coverage", coverage);
         }
@@ -448,6 +535,15 @@ final class SecurityDecisionPromptValues {
      * (R1b-7: shared with the inspector).
      */
     static String coverageLine(CanonicalSecurityContext canonical, BaselineView view) {
+        return coverageLine(canonical, view, false);
+    }
+
+    /**
+     * The coverage line of a v20 or a v21 prompt. A2-6: a v21 line states the coverage after the delegation's records
+     * were read (the bridge's missing delegation and its hint are left out once the delegation is complete) and each
+     * warning with its fact only.
+     */
+    static String coverageLine(CanonicalSecurityContext canonical, BaselineView view, boolean v21) {
         ContextCoverageReport coverage = canonical != null ? canonical.getCoverage() : null;
         CanonicalSecurityContext.Bridge bridge = canonical != null ? canonical.getBridge() : null;
         if (coverage == null && bridge == null) {
@@ -458,18 +554,26 @@ final class SecurityDecisionPromptValues {
             // W3-5 (Q-73 T2): the level, without the fixed sentence that restates it; a missing bridge context is
             // one of the missing facts (ContextCoverageEvaluator.appendBridgeFacts).
             parts.add(coverageLevel(coverage));
-            String missing = missingFacts(coverage);
+            String missing = missingFacts(coverage, canonical, v21);
             if (missing != null) {
                 parts.add(missing);
             }
-            List<String> warnings = coverageWarnings(canonical, view);
+            List<String> warnings = v21
+                    ? coverageWarnings(canonical, view).stream().map(AgentLineValues::warningFact)
+                    .filter(warning -> AgentLineValues.keepsCoverageFact(warning, canonical)).toList()
+                    : coverageWarnings(canonical, view);
             if (!warnings.isEmpty()) {
                 parts.add("coverage warnings " + String.join("; ", warnings));
             }
         }
         parts.add(bridgeLevel(bridge));
-        if (bridge != null && bridge.getRemediationHints() != null && !bridge.getRemediationHints().isEmpty()) {
-            parts.add("hints " + String.join("; ", bridge.getRemediationHints()));
+        List<String> hints = bridge != null && bridge.getRemediationHints() != null
+                ? bridge.getRemediationHints().stream()
+                .filter(hint -> !v21 || AgentLineValues.keepsHint(hint, canonical))
+                .toList()
+                : List.of();
+        if (!hints.isEmpty()) {
+            parts.add("hints " + String.join("; ", hints));
         }
         return String.join("; ", parts);
     }
@@ -483,6 +587,21 @@ final class SecurityDecisionPromptValues {
     static String missingFacts(ContextCoverageReport coverage) {
         return coverage.missingCriticalFacts().isEmpty() ? null
                 : "missing " + String.join(", ", coverage.missingCriticalFacts());
+    }
+
+    /** {@code missing A, B} of a v20 or a v21 line (A2-6: shared with the inspector), or null. */
+    static String missingFacts(ContextCoverageReport coverage, CanonicalSecurityContext canonical, boolean v21) {
+        if (!v21) {
+            return missingFacts(coverage);
+        }
+        List<String> missing = coverage.missingCriticalFacts().stream()
+                .filter(fact -> AgentLineValues.keepsCoverageFact(fact, canonical)).toList();
+        return missing.isEmpty() ? null : "missing " + String.join(", ", missing);
+    }
+
+    /** Whether the entries are the v21 dictionary's: only it has the target scope (finding 7 of the v21 plan). */
+    private static boolean v21(PromptEntryValues.Builder values) {
+        return values.has(REQUEST, "TargetScope");
     }
 
     /** {@code bridge FULL}, or {@code bridge UNAVAILABLE} without a bridge or its level (R1b-2: shared). */
@@ -593,6 +712,16 @@ final class SecurityDecisionPromptValues {
     /** The reasoning memory lines the user removed (W3-5, Q-61 X15, X26, X27). */
     private static final Set<String> REMOVED_MEMORY_LINES =
             Set.of("ReasoningMemorySummary", "MemoryGuardrails", "CrossTenantObjectiveMisusePackSummary");
+
+    /** v21 (B3-3): also the lines that hold stored free text, which UNTRUSTED TEXT quotes. */
+    private static final Set<String> V21_REMOVED_MEMORY_LINES = union(REMOVED_MEMORY_LINES,
+            PastRecordLineValues.VALIDATED_CASE_TEXT_LINES);
+
+    private static Set<String> union(Set<String> first, Set<String> second) {
+        Set<String> all = new HashSet<>(first);
+        all.addAll(second);
+        return Set.copyOf(all);
+    }
 
     private static ContextTrustProfile trustProfile(CanonicalSecurityContext canonical, String key) {
         if (canonical == null || canonical.getContextTrustProfiles() == null) {
@@ -1127,6 +1256,12 @@ final class SecurityDecisionPromptValues {
                 canonical);
     }
 
+    private static String subjectV21(SecurityPromptBuildContext context, CanonicalSecurityContext canonical, Instant at) {
+        CanonicalSecurityContext.Actor actor = canonical != null ? canonical.getActor() : null;
+        return subjectLineV21(firstText(actor != null ? actor.getUserId() : null, context.getUserId()),
+                accountAge(actor, at), canonical);
+    }
+
     /**
      * {@code alice (HUMAN_USER, account 120 days, dept ...)}: the user with the sealed subject's type, the account part
      * and the sealed actor's details, or null without a user (R1b-7: shared with the inspector).
@@ -1135,11 +1270,44 @@ final class SecurityDecisionPromptValues {
         if (userId == null) {
             return null;
         }
+        ExecutionSubject subject = canonical != null ? canonical.getExecutionSubject() : null;
+        String type = subject != null && StringUtils.hasText(subject.subjectType()) ? subject.subjectType() : null;
+        return userId + " (" + String.join(", ", subjectParts(type, account, canonical)) + ")";
+    }
+
+    /**
+     * The v21 subject line (A2-4, shared with the inspector). A person's request reads as {@link #subjectLine}. A
+     * delegated agent's names the account whose authority it uses, a person's, and the agent:
+     * {@code alice (HUMAN_USER, account 400 days, dept ..., through agent report-agent, agent registration ACTIVE)}.
+     * An agent on its own is named by its registration with the client it signed in as:
+     * {@code report-agent (AGENT_RUNTIME, account age not known, client report-agent-client, sponsor bob, registration
+     * ACTIVE)}; on an account of its own the client part says so.
+     */
+    static String subjectLineV21(String userId, String account, CanonicalSecurityContext canonical) {
+        AgentLineValues.Agent agent = AgentLineValues.agent(canonical);
+        if (userId == null || agent == null) {
+            return subjectLine(userId, account, canonical);
+        }
+        if (agent.delegated()) {
+            List<String> parts = subjectParts(ExecutionSubjectTypes.HUMAN_USER, account, canonical);
+            parts.add("through agent " + agent.id());
+            addPart(parts, "agent sponsor ", agent.sponsorId());
+            addPart(parts, "agent registration ", agent.registration());
+            return userId + " (" + String.join(", ", parts) + ")";
+        }
+        List<String> parts = subjectParts(ExecutionSubjectTypes.AGENT_RUNTIME, account, canonical);
+        parts.add(agent.id().equals(userId) ? "the agent's own account" : "client " + userId);
+        addPart(parts, "sponsor ", agent.sponsorId());
+        addPart(parts, "registration ", agent.registration());
+        return agent.id() + " (" + String.join(", ", parts) + ")";
+    }
+
+    /** The parts of a subject line: the type, the account part and the sealed actor's details. */
+    private static List<String> subjectParts(String type, String account, CanonicalSecurityContext canonical) {
         CanonicalSecurityContext.Actor actor = canonical != null ? canonical.getActor() : null;
         List<String> parts = new ArrayList<>();
-        ExecutionSubject subject = canonical != null ? canonical.getExecutionSubject() : null;
-        if (subject != null && StringUtils.hasText(subject.subjectType())) {
-            parts.add(subject.subjectType());
+        if (type != null) {
+            parts.add(type);
         }
         parts.add(account);
         if (actor != null) {
@@ -1153,7 +1321,7 @@ final class SecurityDecisionPromptValues {
             addPart(parts, "external subject ", actor.getExternalSubjectId());
             addPart(parts, "bridge subject ", actor.getBridgeSubjectKey());
         }
-        return userId + " (" + String.join(", ", parts) + ")";
+        return parts;
     }
 
     /** {@code account 120 days} to the request time, or {@code account age not known} (R1b-7: shared with the inspector). */

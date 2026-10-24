@@ -82,6 +82,7 @@ export type LiveStatus =
   | 'CHALLENGE'
   | 'AWAITING'
   | 'BLOCKED'
+  | 'CONFIRMING'
   | 'COMPLETED'
   | 'FAILED'
   | 'EXPIRED';
@@ -122,6 +123,34 @@ export interface LiveBlockRecord {
   readonly unblockReason: string | null;
   readonly mfaVerified: boolean | null;
   readonly unblockRequestedAt: string | null;
+}
+
+/**
+ * docs/agent A7-3: a confirmation control D asked the delegating employee to give for the agent's request, and what
+ * the engine did after the visitor's answer: the confirmation's status and authorization record as the agent read
+ * them, and its answers to the request sent again with it, to the same once more and to another request.
+ */
+export interface LiveAgentConfirmation {
+  readonly stage: 'ASKED' | 'DONE' | 'EXPIRED' | 'ABANDONED' | 'FAILED';
+  readonly secondsLeft: number;
+  readonly stepNo: number;
+  readonly confirmationId: string | null;
+  /** Why the engine asked: DELEGATION_ENDED, DECISION_CHALLENGE, ... */
+  readonly trigger: string | null;
+  readonly expiresAt: string | null;
+  readonly method: string | null;
+  readonly target: string | null;
+  readonly decision: 'APPROVE' | 'REJECT' | null;
+  readonly cause: string | null;
+  readonly statusAfter: string | null;
+  readonly authorizationId: string | null;
+  readonly resendStatus: number | null;
+  readonly resendOutcome: string | null;
+  readonly resendDeliveredItems: number | null;
+  readonly reuseStatus: number | null;
+  readonly reuseRule: string | null;
+  readonly otherStatus: number | null;
+  readonly otherRule: string | null;
 }
 
 /** Milliseconds are counted from the moment the block came back. */
@@ -349,6 +378,8 @@ export interface LiveRunView {
   readonly awaitingStep?: number | null;
   /** The release of a block, once control D blocked the account. */
   readonly release?: LiveRelease | null;
+  /** docs/agent A7-3: the confirmation of the agent's request, once control D asked the delegating employee. */
+  readonly agentConfirmation?: LiveAgentConfirmation | null;
 }
 
 export interface LiveScenario {

@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class BridgeMirrorUserStatePurgeContributorTest {
 
     private final List<String> calls = new ArrayList<>();
+    private final List<Integer> propagations = new ArrayList<>();
 
     @Test
     void theMirrorsOfTheDeletedPrincipalAreRemovedProfileAndPermissionsFirstInOneTransaction() {
@@ -35,6 +36,20 @@ class BridgeMirrorUserStatePurgeContributorTest {
         assertThat(calls).containsExactly("begin", "find v0123456789ab-eng-k",
                 "permissions 41", "profile 41", "user 41",
                 "permissions 42", "profile 42", "user 42", "commit");
+    }
+
+    /**
+     * CF-21: the purge runs after the account deletion committed, so the deletes take a new transaction instead of
+     * joining the finished one (which ran them without a transaction: TransactionRequiredException on D).
+     */
+    @Test
+    void theMirrorsAreRemovedInANewTransactionAfterTheDeletionCommitted() {
+        BridgeMirrorUserStatePurgeContributor contributor = contributor(Map.of("agt-report", List.of(mirror(5L))));
+
+        contributor.purge("agt-report");
+
+        assertThat(propagations).containsExactly(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        assertThat(calls).containsExactly("begin", "find agt-report", "permissions 5", "profile 5", "user 5", "commit");
     }
 
     @Test
@@ -104,6 +119,7 @@ class BridgeMirrorUserStatePurgeContributorTest {
         @Override
         public TransactionStatus getTransaction(TransactionDefinition definition) {
             calls.add("begin");
+            propagations.add(definition.getPropagationBehavior());
             return new SimpleTransactionStatus();
         }
 

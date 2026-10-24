@@ -89,4 +89,13 @@ public interface BaselineDataStore {
         throw new UnsupportedOperationException(
                 "User baseline deletion is not supported by " + getClass().getSimpleName());
     }
+
+    /**
+     * docs/agent A3-8: removes the baselines of every learning key of the agent ({@code <user>::agent::<id>}), in all
+     * tenants; the number removed. Stores that cannot delete must fail loudly.
+     */
+    default int deleteAgentBaselines(String agentId) {
+        throw new UnsupportedOperationException(
+                "Agent baseline deletion is not supported by " + getClass().getSimpleName());
+    }
 }

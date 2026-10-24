@@ -30,6 +30,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -182,7 +183,9 @@ class OAuth2StateAdapterTest {
         when(applicationContext.getBean(OAuth2AuthorizationService.class)).thenReturn(authorizationService);
         when(applicationContext.getBean(RegisteredClientRepository.class)).thenReturn(registeredClientRepository);
         when(applicationContext.getBean(AuthorizationServerSettings.class)).thenReturn(authorizationServerSettings);
-        when(applicationContext.getBean(OAuth2TokenGenerator.class)).thenReturn(tokenGenerator);
+        ObjectProvider<OAuth2TokenGenerator> applicationGenerators = mock(ObjectProvider.class);
+        when(applicationGenerators.getIfUnique()).thenReturn(tokenGenerator);
+        when(applicationContext.getBeanProvider(OAuth2TokenGenerator.class)).thenReturn(applicationGenerators);
         when(applicationContext.getBean(UserRepository.class)).thenReturn(userRepository);
         when(applicationContext.getBean(OAuth2TokenService.class)).thenReturn(tokenService);
         when(applicationContext.getBean("compositeLogoutHandler", LogoutHandler.class)).thenReturn(logoutHandler);

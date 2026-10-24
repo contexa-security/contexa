@@ -5,6 +5,7 @@ import { useVisitor } from '../../api/queries';
 import { MainScreen } from '../../components/main/MainScreen';
 import { ThemePair } from '../../components/main/ThemePair';
 import { screenAt } from '../../journey/journey';
+import { AGENT_CASE } from '../../api/agentCase';
 import { MAIN_CASES } from '../main/mainCases';
 
 /** Contexa's business results that kept data in, wholly or after some left. */
@@ -78,6 +79,18 @@ function pastLine(group: number, runs: readonly RecapLine[] | undefined): PastLi
     const allPassed = EXISTING.every((control) => insider.business[control] === 'MISSED');
     return { key: allPassed ? 'cover.6.past.held' : 'cover.6.past.heldOnly', n: insider.exposedItems };
   }
+  if (group === 7) {
+    // docs/agent A7-3: the business agent's run, named by what the four existing approaches and Contexa did with it.
+    const agent = latestRun(runs, AGENT_CASE);
+    if (!agent) {
+      return { key: 'cover.7.past.none' };
+    }
+    if (!STOPPED_RESULTS.has(agent.business['D'] ?? '')) {
+      return { key: 'cover.7.past.through' };
+    }
+    const allPassed = EXISTING.every((control) => agent.business[control] === 'MISSED');
+    return { key: allPassed ? 'cover.7.past.held' : 'cover.7.past.heldOnly' };
+  }
   return { key: `cover.${group}.past` };
 }
 
@@ -129,8 +142,10 @@ export default function BriefingPage() {
           ))}
         </dl>
       </section>
-      {/* IN-6: the covers of the two themes carry the same card that sets them apart. */}
-      {group === 2 || group === 5 ? <ThemePair current={group === 2 ? 'outside' : 'inside'} /> : null}
+      {/* IN-6, docs/agent A7-3: the covers of the three themes carry the same card that sets them apart. */}
+      {group === 2 || group === 5 || group === 6 ? (
+        <ThemePair current={group === 2 ? 'outside' : group === 5 ? 'inside' : 'agent'} />
+      ) : null}
     </MainScreen>
   );
 }

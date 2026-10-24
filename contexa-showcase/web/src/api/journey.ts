@@ -42,7 +42,8 @@ export interface RecapLine {
 }
 
 export interface Prediction {
-  readonly experience: 'E1' | 'E2' | 'E3';
+  /** E4: the business agent group (docs/agent A7-3). */
+  readonly experience: 'E1' | 'E2' | 'E3' | 'E4';
   readonly engine?: EngineCall | null;
   readonly existing?: ExistingCall | null;
   readonly numberRule?: NumberRuleCall | null;

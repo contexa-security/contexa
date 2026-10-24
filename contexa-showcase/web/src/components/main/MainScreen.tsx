@@ -40,7 +40,7 @@ export interface MainScreenProps {
   /** What the footer says about the next screen, in place of its number and name. */
   readonly nextNote?: ReactNode;
   /**
-   * The way on waits behind the screen's own action (6-2 before its send): the link to the next screen is drawn as a
+   * The way on waits behind the screen's own action (7-2 before its send): the link to the next screen is drawn as a
    * quiet button, so one gold button asks to be pressed (L-38).
    */
   readonly quiet?: boolean;

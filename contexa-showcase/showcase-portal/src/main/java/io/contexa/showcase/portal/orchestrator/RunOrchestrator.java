@@ -12,6 +12,11 @@ import io.contexa.showcase.business.company.CompanyCalendar;
 import io.contexa.showcase.business.internal.InternalContextSigner;
 import io.contexa.showcase.business.run.RunFacts;
 import io.contexa.showcase.business.work.BusinessOperation;
+import io.contexa.showcase.portal.agent.AgentTaskProof;
+import io.contexa.showcase.portal.agent.AgentTasks;
+import io.contexa.showcase.portal.agent.AgentWork;
+import io.contexa.showcase.portal.agent.BusinessAgent;
+import io.contexa.showcase.portal.agent.BusinessAgentTools;
 import io.contexa.showcase.portal.anatomy.AnatomyStore;
 import io.contexa.showcase.portal.orchestrator.ControlEndpoints.Control;
 import io.contexa.showcase.portal.orchestrator.ControlSession.StepOutcome;
@@ -36,19 +41,28 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Orchestrator v0 (plan 3.3): one run is one fresh principal. It clones the protagonist's template into the engine,
@@ -78,6 +92,7 @@ public class RunOrchestrator {
     private final ScoringContract contract;
     private final ObjectMapper json;
     private final SecureRandom random = new SecureRandom();
+    private final AgentTasks agentTasks;
 
     public RunOrchestrator(ControlEndpoints endpoints, WorkloadAdmin admin, InternalContextSigner signer,
                            RunStore store, TemplateCurrency templates, ExecutionSpecStore specs, ScoringContract contract,
@@ -92,6 +107,16 @@ public class RunOrchestrator {
     public RunOrchestrator(ControlEndpoints endpoints, WorkloadAdmin admin, InternalContextSigner signer,
                            RunStore store, TemplateCurrency templates, ExecutionSpecStore specs, ScoringContract contract,
                            ObjectMapper json, AnatomyStore anatomies) {
+        this(endpoints, admin, signer, store, templates, specs, contract, json, anatomies, null);
+    }
+
+    /**
+     * @param agentTasks docs/agent A7-2b: the business agent of agent tasks; null when this portal runs none
+     */
+    public RunOrchestrator(ControlEndpoints endpoints, WorkloadAdmin admin, InternalContextSigner signer,
+                           RunStore store, TemplateCurrency templates, ExecutionSpecStore specs, ScoringContract contract,
+                           ObjectMapper json, AnatomyStore anatomies, AgentTasks agentTasks) {
+        this.agentTasks = agentTasks;
         this.anatomies = anatomies;
         this.endpoints = endpoints;
         this.admin = admin;
@@ -158,6 +183,8 @@ public class RunOrchestrator {
         boolean started = false;
         String organization = "org-" + runHex;
         RunApprover approver = null;
+        // docs/agent A7-0: the run's agent in control D, removed with the run.
+        RunAgent agent = null;
         try {
             checkRequestParts(scenario);
             JsonNode company = admin.company();
@@ -204,6 +231,19 @@ public class RunOrchestrator {
             principal.put("template", template.map(TemplateStore.ReadyTemplate::snapshot).orElse(null));
             admin.createEnginePrincipal(run, principal);
             stageStart = stage(stages, "enginePrincipal", stageStart);
+            approver = new RunApprover(admin, run, runHex, companyTime, () -> new ControlSession(Control.D,
+                    new WorkloadClient(endpoints.of(Control.D), signer, run, endpoints.requestTimeout()), json));
+            // docs/agent OC-2: the company's integration puts the protagonist's records (with the run's facts) and the
+            // company's rules and networks into the engine through its admin API; the engine judges with them.
+            approver.putCompanyRecords(admin.companyRecords(username, scenario.protagonist(), runId));
+            stageStart = stage(stages, "companyRecords", stageStart);
+            if (scenario.agent() != null) {
+                agent = new RunAgent(runHex, scenario.agent(), senders(scenario)
+                        .contains(ScenarioDefinition.Sender.AGENT_SESSION));
+                // docs/agent OC-3: the run's security administrator registers the agent through the engine's API.
+                agent.credentials(approver.registerAgent(agent.registration(username)));
+                stageStart = stage(stages, "agent", stageStart);
+            }
 
             String templateId = template.map(TemplateStore.ReadyTemplate::templateId).orElse(null);
             List<String> systemPromptHashes = new ArrayList<>();
@@ -218,19 +258,28 @@ public class RunOrchestrator {
                     stage(stages, "engineSignIn", stageStart);
                 }
             }
+            Map<ScenarioDefinition.Sender, ControlSession> agentSessions =
+                    agentSessions(agent, scenario, run, username, password, signInTime);
             listener.principalReady(stages);
-            approver = new RunApprover(admin, run, runHex, companyTime, () -> new ControlSession(Control.D,
-                    new WorkloadClient(endpoints.of(Control.D), signer, run, endpoints.requestTimeout()), json));
+            // docs/agent OC-1: the company's delegations reach the engine through its delegation admin API, as an
+            // application's integration imports them; the engine decides every agent request with them.
+            Map<String, String> delegationIds = recordDelegations(facts, agent, run, runHex, approver);
 
             // W7-4: the request id every control sent each step with, for a later step that sends it again.
             Map<Control, Map<Integer, String>> sent = new EnumMap<>(Control.class);
             // N-INJ-5: the session every step goes in; a step that starts a new one is signed in again before it.
             List<Integer> sessionOfStep = sessionNumbers(scenario);
+            // docs/agent A3-8: the security administrator's actions on what the agent learned, before their steps.
+            List<Map<String, Object>> learningActions = new ArrayList<>();
             for (int index = 0; index < scenario.steps().size(); index++) {
                 Step step = scenario.steps().get(index);
                 int stepNo = index + 1;
                 if (step.sentByVisitor() && !listener.awaitVisitor(stepNo)) {
                     break;
+                }
+                if (step.learningAction() != null) {
+                    learningActions.add(learningAction(step.learningAction(), stepNo, agent, facts, delegationIds,
+                            approver, username, scenario, run));
                 }
                 String path = path(step, runHex);
                 Instant stepTime = companyTime.plusSeconds(step.offsetSeconds());
@@ -241,54 +290,47 @@ public class RunOrchestrator {
                         sessions.put(control, signedIn(control, run, username, password,
                                 stepTime.minus(SIGN_IN_LEAD)));
                     }
+                    agentSessions = agentSessions(agent, scenario, run, username, password,
+                            stepTime.minus(SIGN_IN_LEAD));
                 }
                 Map<Control, ControlSession.RequestParts> parts = new EnumMap<>(Control.class);
                 for (Control control : Control.values()) {
                     parts.put(control, requestParts(json, step, sent.getOrDefault(control, Map.of())));
                 }
                 Map<Control, ControlResult> results = dispatch(new StepCall(runId, username, scenario, step, stepNo,
-                        path, stepTime, forcedAction, responder, listener, approver, parts), sessions);
+                        path, stepTime, forcedAction, responder, listener, approver, parts),
+                        sessionsOf(step, sessions, agentSessions));
                 for (Control control : Control.values()) {
                     sent.computeIfAbsent(control, ignored -> new LinkedHashMap<>())
                             .put(stepNo, results.get(control).outcome().requestId());
                 }
-                Map<String, String> outcomes = new LinkedHashMap<>();
-                for (Control control : Control.values()) {
-                    outcomes.put(control.name(), results.get(control).outcome().outcome());
-                }
-                StepOutcome engineOutcome = results.get(Control.D).outcome();
-                ControlSession.ChallengeTrace challenge = results.get(Control.D).challenge();
-                EngineDecision decision = engineDecision(step, engineOutcome);
-                store.decision(runId, stepNo, engineOutcome.requestId(), decision);
-                collectExchanges(runId, stepNo, engineOutcome.requestId());
-                ControlSession.ReleaseTrace release = results.get(Control.D).release();
-                if (release != null) {
-                    store.release(runId, stepNo, engineOutcome.requestId(), release);
-                }
-                ChallengeSummary challengeSummary = null;
-                if (challenge != null) {
-                    Boolean reanalysed = challenge.reissue() == null ? null : reanalysed(challenge.reissue());
-                    store.challenge(runId, stepNo, engineOutcome.requestId(), challenge, reanalysed);
-                    challengeSummary = summary(challenge, reanalysed);
-                }
-                for (JsonNode call : decision.raw().path("modelCalls")) {
-                    store.cost(runId, null, engineOutcome.requestId(), call);
-                    if (call.hasNonNull("systemPromptSha256")) {
-                        systemPromptHashes.add(call.path("systemPromptSha256").asText());
-                    }
-                }
-                if (!decision.raw().path("modelCalls").isEmpty()) {
-                    sealedRequests.add(engineOutcome.requestId());
-                }
-                summaries.add(new StepSummary(stepNo, step.operation().name(), path, outcomes, step.expected(),
-                        rulesAsExpected(step.expected(), outcomes), decision.finalAction(), decision.applied(),
-                        decision.unresolved(), engineOutcome.requestId(), firstPromptSha(decision),
-                        foreignPrincipals(decision, username), challengeSummary));
+                summaries.add(recordStep(runId, username, step, stepNo, path, results, systemPromptHashes,
+                        sealedRequests));
                 // In a live run a step the visitor sends goes when the visitor presses, not after the pacing wait.
                 if (scenario.pace() == ScenarioDefinition.Pace.PACED && index < scenario.steps().size() - 1
                         && !(scenario.steps().get(index + 1).sentByVisitor() && listener.liveVisitor() != null)) {
                     sleep(endpoints.allowWindow());
                 }
+            }
+            // docs/agent A7-2d: the business agent's work comes after the case's scripted steps (a stolen token is
+            // used after the agent's own work), its steps numbered after theirs.
+            if (scenario.task() != null) {
+                if (scenario.task().startsNewSession()) {
+                    // A work on a later day than the scripted steps goes in a session of its own, as a step that
+                    // starts one: the agent's earlier sessions are its history (docs/agent A4).
+                    Instant workTime = companyTime.plusSeconds(workOffset(scenario));
+                    for (Control control : Control.values()) {
+                        sessions.put(control, signedIn(control, run, username, password,
+                                workTime.minus(SIGN_IN_LEAD)));
+                    }
+                    agentSessions = agentSessions(agent, scenario, run, username, password,
+                            workTime.minus(SIGN_IN_LEAD));
+                }
+                agentTask(runId, username, scenario, companyTime, forcedAction, responder, listener, approver,
+                        sessions, agentSessions, summaries, systemPromptHashes, sealedRequests);
+            }
+            if (!learningActions.isEmpty()) {
+                cleanup.put("agentLearning", learningActions);
             }
             for (StepSummary summary : summaries) {
                 collectExchanges(runId, summary.stepNo(), summary.requestId());
@@ -330,6 +372,14 @@ public class RunOrchestrator {
             status = "FAILED";
             failure = e.getClass().getSimpleName() + ": " + e.getMessage();
         } finally {
+            if (agent != null) {
+                try {
+                    cleanup.put("agent", approver.removeAgent(agent.agentId()));
+                } catch (IOException | RuntimeException e) {
+                    log.error("Agent cleanup failed: runId={}", runId, e);
+                    cleanup.put("agentError", e.getMessage());
+                }
+            }
             cleanup.putAll(cleanup(runId, username));
             if (approver != null && approver.created()) {
                 try {
@@ -344,6 +394,412 @@ public class RunOrchestrator {
             }
         }
         return new RunSummary(runId, scenario.key(), username, organization, status, failure, summaries);
+    }
+
+    /**
+     * The records of a step every control answered: control D's decision, its model calls and sealed prompts, its
+     * additional check or release, and the step's summary. Shared by scripted steps and an agent's requests.
+     */
+    private StepSummary recordStep(String runId, String username, Step step, int stepNo, String path,
+                                   Map<Control, ControlResult> results, List<String> systemPromptHashes,
+                                   List<String> sealedRequests) throws IOException {
+        return recordStep(runId, username, step, stepNo, path, results, systemPromptHashes, sealedRequests, null);
+    }
+
+    /** @param decisionsBy the latest a decision record is waited for; null for the step's own wait from now */
+    private StepSummary recordStep(String runId, String username, Step step, int stepNo, String path,
+                                   Map<Control, ControlResult> results, List<String> systemPromptHashes,
+                                   List<String> sealedRequests, Instant decisionsBy) throws IOException {
+        Map<String, String> outcomes = new LinkedHashMap<>();
+        for (Control control : Control.values()) {
+            outcomes.put(control.name(), results.get(control).outcome().outcome());
+        }
+        StepOutcome engineOutcome = results.get(Control.D).outcome();
+        ControlSession.ChallengeTrace challenge = results.get(Control.D).challenge();
+        EngineDecision decision = engineDecision(step, engineOutcome, decisionsBy);
+        store.decision(runId, stepNo, engineOutcome.requestId(), decision);
+        collectExchanges(runId, stepNo, engineOutcome.requestId());
+        ControlSession.ReleaseTrace release = results.get(Control.D).release();
+        if (release != null) {
+            store.release(runId, stepNo, engineOutcome.requestId(), release);
+        }
+        ChallengeSummary challengeSummary = null;
+        if (challenge != null) {
+            Boolean reanalysed = challenge.reissue() == null ? null : reanalysed(challenge.reissue());
+            store.challenge(runId, stepNo, engineOutcome.requestId(), challenge, reanalysed);
+            challengeSummary = summary(challenge, reanalysed);
+        }
+        for (JsonNode call : decision.raw().path("modelCalls")) {
+            store.cost(runId, null, engineOutcome.requestId(), call);
+            if (call.hasNonNull("systemPromptSha256")) {
+                systemPromptHashes.add(call.path("systemPromptSha256").asText());
+            }
+        }
+        if (!decision.raw().path("modelCalls").isEmpty()) {
+            sealedRequests.add(engineOutcome.requestId());
+        }
+        return new StepSummary(stepNo, step.operation().name(), path, outcomes, step.expected(),
+                rulesAsExpected(step.expected(), outcomes), decision.finalAction(), decision.applied(),
+                decision.unresolved(), engineOutcome.requestId(), firstPromptSha(decision),
+                foreignPrincipals(decision, username), challengeSummary);
+    }
+
+    /** docs/agent A7-2b: who sends the case's requests: its steps' senders and its agent task's. */
+    static Set<ScenarioDefinition.Sender> senders(ScenarioDefinition scenario) {
+        Set<ScenarioDefinition.Sender> senders = EnumSet.noneOf(ScenarioDefinition.Sender.class);
+        scenario.steps().forEach(step -> senders.add(step.senderOrPerson()));
+        if (scenario.task() != null && scenario.task().sender() != null) {
+            senders.add(scenario.task().sender());
+        }
+        return senders;
+    }
+
+    /** One request an agent's work sent, as every control answered it, recorded once the work is done. */
+    private record SentStep(int stepNo, Step step, String path, Map<Control, ControlResult> results) {
+    }
+
+    /**
+     * docs/agent A7-2b: the case's business agent does the work the person gave it. Each of its tool calls is a step:
+     * one real request sent to every control at once (control D from the agent's sender, the rule controls from the
+     * person's session, as A7-0), at the company time the work has reached; the agent receives control D's answer.
+     * The decisions are recorded once the work is done, so the agent works at its own pace as a real agent would.
+     */
+    private void agentTask(String runId, String username, ScenarioDefinition scenario, Instant companyTime,
+                           String forcedAction, ChallengeResponder responder, RunListener listener, Approver approver,
+                           Map<Control, ControlSession> sessions,
+                           Map<ScenarioDefinition.Sender, ControlSession> agentSessions, List<StepSummary> summaries,
+                           List<String> systemPromptHashes, List<String> sealedRequests) throws IOException {
+        ScenarioDefinition.AgentTask task = scenario.task();
+        if (agentTasks == null) {
+            throw new IllegalStateException("This portal runs no business agent");
+        }
+        if (task.sender() == null || task.sender() == ScenarioDefinition.Sender.PERSON) {
+            throw new IllegalArgumentException("An agent task is sent by the case's agent");
+        }
+        Map<ScenarioDefinition.Sender, ControlSession> workSessions = new EnumMap<>(agentSessions);
+        if (task.runtime() != null) {
+            if (task.sender() == ScenarioDefinition.Sender.AGENT_SESSION) {
+                throw new IllegalArgumentException("Only an agent token can be used by another agent runtime");
+            }
+            workSessions.put(task.sender(), agentSessions.get(task.sender()).carriedTo(
+                    hostIn(task.runtime().network(), 10 + random.nextInt(200)), task.runtime().userAgent()));
+        }
+        ControlSession agentSession = workSessions.get(task.sender());
+        List<SentStep> sentSteps = Collections.synchronizedList(new ArrayList<>());
+        // docs/agent A7-3: the first request of the work control D asked the delegating person to confirm.
+        AtomicReference<PendingConfirmation> pending = new AtomicReference<>();
+        AtomicInteger steps = new AtomicInteger(scenario.steps().size());
+        long workOffset = workOffset(scenario);
+        Instant workStarted = Instant.now();
+        AgentWork.Sender sender = request -> {
+            int stepNo = steps.incrementAndGet();
+            Step step = new Step(request.operation(), null, request.project(), request.customer(), request.items(),
+                    workOffset + Duration.between(workStarted, Instant.now()).toSeconds(), Map.of(), null,
+                    request.grantee(), request.responsibility(), null, null, null, null, null, task.sender(), null);
+            String path = agentPath(request);
+            Map<Control, ControlResult> results = dispatch(new StepCall(runId, username, scenario, step, stepNo, path,
+                    companyTime.plusSeconds(step.offsetSeconds()), forcedAction, responder, listener, approver,
+                    noParts()), sessionsOf(step, sessions, workSessions));
+            sentSteps.add(new SentStep(stepNo, step, path, results));
+            String body = agentSession.lastBody();
+            if (ControlSession.agentConfirmationRequired(results.get(Control.D).outcome())) {
+                pending.compareAndSet(null, new PendingConfirmation(stepNo, step, path, body, Instant.now(),
+                        companyTime.plusSeconds(step.offsetSeconds())));
+            }
+            return answer(stepNo, path, results, body);
+        };
+        BusinessAgentTools tools = new BusinessAgentTools(sender, task.maxToolCalls() != null ? task.maxToolCalls()
+                : agentTasks.maxToolCalls());
+        Set<String> toolNames = task.tools().stream().map(BusinessAgentTools.TOOL_OF_OPERATION::get)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        String instruction = task.instruction().getOrDefault("en", task.instruction().values().stream().findFirst()
+                .orElse(""));
+        AgentWork.Transcript transcript = agentTasks.agent().run(agentTasks.models().modelOf(task.model()),
+                task.agentPrompt() != null ? task.agentPrompt() : BusinessAgent.DEFAULT_PROMPT, instruction, tools,
+                toolNames, task.maxSeconds() != null ? Duration.ofSeconds(task.maxSeconds()) : agentTasks.maxTime());
+        List<SentStep> recorded;
+        synchronized (sentSteps) {
+            recorded = List.copyOf(sentSteps);
+        }
+        // docs/agent A7-2 (real server 2026-10-23): a request answered by the decision in force for the session (an
+        // ALLOW still valid, N-SES-1) gets no decision record of its own, and an agent sends many within that window;
+        // the work's decisions are waited for once, from the end of the work, not once per request.
+        Instant decisionsBy = Instant.now().plus(endpoints.decisionWait());
+        for (SentStep sentStep : recorded) {
+            summaries.add(recordStep(runId, username, sentStep.step(), sentStep.stepNo(), sentStep.path(),
+                    sentStep.results(), systemPromptHashes, sealedRequests, decisionsBy));
+        }
+        AgentTaskProof.Proof proof = AgentTaskProof.of(task, transcript,
+                Arrays.stream(Control.values()).map(Control::name).toList());
+        store.agentTask(runId, task.sender().name(), transcript, proof);
+        // docs/agent A7-3: the delegating person answers the confirmation while the run's accounts still exist.
+        if (pending.get() != null) {
+            store.agentConfirmation(runId, pending.get().stepNo(), confirm(pending.get(), scenario, responder,
+                    agentSession, sessions.get(Control.D)));
+        }
+    }
+
+    /** docs/agent A7-3: a request of the agent's work control D asked its delegating person to confirm. */
+    private record PendingConfirmation(int stepNo, Step step, String path, String body, Instant askedAt,
+                                       Instant companyTime) {
+    }
+
+    /**
+     * docs/agent A7-3: the confirmation control D asked, answered by the delegating person in the person's own
+     * session of control D (or by nobody); the agent then sends the request again with it. The company time goes on
+     * from the request's as the real time does.
+     */
+    private ControlSession.AgentConfirmationTrace confirm(PendingConfirmation pending, ScenarioDefinition scenario,
+                                                          ChallengeResponder responder, ControlSession agent,
+                                                          ControlSession person) {
+        JsonNode body;
+        try {
+            body = json.readTree(pending.body() == null ? "{}" : pending.body());
+        } catch (IOException e) {
+            body = json.createObjectNode();
+        }
+        String id = text(body, "confirmationId");
+        String trigger = text(body, "trigger");
+        String expiresAt = text(body, "expiresAt");
+        if (id == null) {
+            // No person is accountable for the agent, so the engine asked nobody.
+            return ControlSession.AgentConfirmationTrace.notAsked(null, trigger, expiresAt, pending.askedAt())
+                    .unanswered("NO_CONFIRMATION");
+        }
+        Supplier<Instant> companyTime = () -> pending.companyTime()
+                .plus(Duration.between(pending.askedAt(), Instant.now()));
+        AgentConfirmationActions actions = agent.agentConfirmationActions(id, pending.step().operation(),
+                pending.path(), person, BusinessOperation.PROJECT_LIST, "/api/projects", companyTime);
+        return responder.confirmAgent(new ChallengeResponder.AgentConfirmation(
+                scenario.oracle().classification(), pending.stepNo(), id, trigger, expiresAt, pending.askedAt(),
+                ControlSession.method(pending.step().operation()), pending.path(), actions));
+    }
+
+    private static String text(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        return value == null || value.isNull() || value.asText().isBlank() ? null : value.asText();
+    }
+
+    /**
+     * docs/agent A7-2d: when the agent's work starts after the case's company time: when the case says, else a minute
+     * after its last scripted step, else at once.
+     */
+    static long workOffset(ScenarioDefinition scenario) {
+        if (scenario.task().offsetSeconds() != null) {
+            return scenario.task().offsetSeconds();
+        }
+        return scenario.steps().isEmpty() ? 0
+                : scenario.steps().get(scenario.steps().size() - 1).offsetSeconds() + 60;
+    }
+
+    private static Map<Control, ControlSession.RequestParts> noParts() {
+        Map<Control, ControlSession.RequestParts> parts = new EnumMap<>(Control.class);
+        for (Control control : Control.values()) {
+            parts.put(control, ControlSession.RequestParts.NONE);
+        }
+        return parts;
+    }
+
+    /** What every control answered to an agent's request, with control D's answer as the agent receives it. */
+    private static AgentWork.Answer answer(int stepNo, String path, Map<Control, ControlResult> results, String body) {
+        Map<String, String> outcomes = new LinkedHashMap<>();
+        Map<String, Integer> items = new LinkedHashMap<>();
+        Map<String, String> excerpts = new LinkedHashMap<>();
+        for (Control control : Control.values()) {
+            StepOutcome outcome = results.get(control).outcome();
+            outcomes.put(control.name(), outcome.outcome());
+            items.put(control.name(), outcome.deliveredItems());
+            excerpts.put(control.name(), outcome.excerpt());
+        }
+        StepOutcome engine = results.get(Control.D).outcome();
+        return new AgentWork.Answer(stepNo, path, engine.httpStatus() != null ? engine.httpStatus() : 0,
+                engine.outcome(), engine.ruleId(), body, outcomes, items, excerpts);
+    }
+
+    /** The path of an agent's request; what the agent names is sent as it named it, encoded. */
+    static String agentPath(AgentWork.Request request) {
+        return switch (request.operation()) {
+            case PROJECT_LIST -> "/api/projects";
+            case DOCUMENT_LIST -> "/api/projects/" + segment(request.project()) + "/documents"
+                    + query("type", request.type(), "q", request.query());
+            case DOCUMENT_READ -> "/api/documents/" + segment(request.document());
+            case DOCUMENT_DOWNLOAD -> "/api/documents/" + segment(request.document()) + "/download";
+            case EXPORT, EXPORT_ASYNC -> "/api/projects/" + segment(request.project())
+                    + (request.operation() == BusinessOperation.EXPORT_ASYNC ? "/exports/async" : "/exports")
+                    + "?items=" + (request.items() == null ? "" : request.items());
+            case EXPORT_STREAM -> "/api/projects/" + segment(request.project()) + "/exports/stream?items="
+                    + (request.items() == null ? "" : request.items());
+            case CUSTOMER_READ -> "/api/customers/" + segment(request.customer());
+            case ROLE_GRANT -> "/api/admin/role-grants" + query("project", request.project(), "grantee",
+                    request.grantee(), "responsibility", request.responsibility());
+        };
+    }
+
+    private static String segment(String value) {
+        return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8).replace("+", "%20");
+    }
+
+    private static String query(String... pairs) {
+        StringBuilder query = new StringBuilder();
+        for (int index = 0; index + 1 < pairs.length; index += 2) {
+            if (pairs[index + 1] == null || pairs[index + 1].isBlank()) {
+                continue;
+            }
+            query.append(query.isEmpty() ? '?' : '&').append(pairs[index]).append('=')
+                    .append(URLEncoder.encode(pairs[index + 1], StandardCharsets.UTF_8));
+        }
+        return query.toString();
+    }
+
+    /**
+     * docs/agent A3-8: the run's security administrator acts on what the case's agent learned, through the engine's
+     * administrator API, and the person's learning is read before and after: the action must leave it as it was.
+     * Recorded with the run (its clean-up record) with the engine's answer and the learning states of the agent's
+     * decision records after the action.
+     */
+    private Map<String, Object> learningAction(ScenarioDefinition.LearningAction action, int stepNo, RunAgent agent,
+                                               RunFacts facts, Map<String, String> delegationIds, Approver approver,
+                                               String username, ScenarioDefinition scenario, RunIdentity run)
+            throws IOException {
+        if (agent == null) {
+            throw new IllegalStateException("A learning action needs the case's agent: step " + stepNo);
+        }
+        String delegationId = null;
+        if (action.forDelegation()) {
+            if (facts.delegations().isEmpty()) {
+                throw new IllegalStateException("A delegation's learning action needs the case's delegation");
+            }
+            delegationId = delegationIds.get(facts.delegations().get(0).delegationKey());
+        }
+        JsonNode before = admin.snapshot(username, scenario.protagonist(), run.organization(), run.tenant());
+        Approver.LearningResult result = approver.agentLearning(agent.agentId(), delegationId, action.action(),
+                action.reason());
+        JsonNode after = admin.snapshot(username, scenario.protagonist(), run.organization(), run.tenant());
+        Map<String, Object> entry = new LinkedHashMap<>();
+        entry.put("beforeStep", stepNo);
+        entry.put("action", action.action());
+        entry.put("agentId", agent.agentId());
+        entry.put("delegationId", delegationId);
+        entry.put("status", result.status());
+        entry.put("answer", result.answer());
+        entry.put("personLearningUnchanged", personLearning(before).equals(personLearning(after)));
+        entry.put("personDocuments", personLearning(after).path("documents").size());
+        List<String> agentStates = new ArrayList<>();
+        for (JsonNode document : after.path("behaviourDocuments")) {
+            JsonNode metadata = document.path("metadata");
+            if (agent.agentId().equals(metadata.path("agentId").asText(null))) {
+                agentStates.add(metadata.path("learningState").asText("LEARNED"));
+            }
+        }
+        entry.put("agentRecordStatesAfter", agentStates);
+        if (result.status() != 200) {
+            throw new IOException("The learning action before step " + stepNo + " answered " + result.status());
+        }
+        return entry;
+    }
+
+    /**
+     * docs/agent OC-1: records the run's delegations through the engine's delegation admin API, with the company's
+     * times (who wrote each and when, the period); the engine's identifier of each by the run's delegation key.
+     */
+    private static Map<String, String> recordDelegations(RunFacts facts, RunAgent agent, RunIdentity run,
+                                                         String runHex, Approver approver) throws IOException {
+        Map<String, String> ids = new LinkedHashMap<>();
+        if (facts.delegations().isEmpty()) {
+            return ids;
+        }
+        if (agent == null) {
+            throw new IllegalStateException("A delegation fact needs the case's agent");
+        }
+        for (RunFacts.Delegation delegation : facts.delegations()) {
+            if (delegation.revoked()) {
+                throw new IllegalStateException("A revoked delegation fact has no import yet: "
+                        + delegation.delegationKey());
+            }
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("tenantId", run.tenant());
+            body.put("delegatorId", "v" + runHex + "-" + delegation.delegator());
+            body.put("agentId", agent.agentId());
+            body.put("objectiveId", delegation.objectiveId());
+            body.put("objectiveFamily", delegation.objectiveFamily());
+            body.put("objectiveSummary", delegation.summary());
+            body.put("allowedOperations", delegation.operations());
+            body.put("allowedResources", delegation.resources());
+            body.put("approvalRequired", delegation.approvalRequired());
+            body.put("validFrom", delegation.validFrom().toString());
+            body.put("expiresAt", delegation.expiresAt().toString());
+            body.put("recordedBy", delegation.recordedBy() != null ? "v" + runHex + "-" + delegation.recordedBy()
+                    : null);
+            body.put("recordedAt", delegation.recordedAt() != null ? delegation.recordedAt().toString() : null);
+            ids.put(delegation.delegationKey(), approver.recordDelegation(body));
+        }
+        return ids;
+    }
+
+    /** The person's own learning in a snapshot: the baseline, the work profile and the records of no agent. */
+    private JsonNode personLearning(JsonNode snapshot) {
+        ObjectNode learning = json.createObjectNode();
+        learning.set("userBaseline", snapshot.path("userBaseline"));
+        learning.set("workProfileObservations", snapshot.path("workProfileObservations"));
+        ArrayNode documents = learning.putArray("documents");
+        for (JsonNode document : snapshot.path("behaviourDocuments")) {
+            if (!document.path("metadata").hasNonNull("agentId")) {
+                documents.add(document);
+            }
+        }
+        return learning;
+    }
+
+    /**
+     * docs/agent A7-0: control D's session of each agent sender the case uses, from the agent's own network and user
+     * agent: the agent acting for the person (an exchanged token), on its own (its client credentials token) and with
+     * its own account. Empty for a case without an agent.
+     */
+    private Map<ScenarioDefinition.Sender, ControlSession> agentSessions(RunAgent agent, ScenarioDefinition scenario,
+                                                                         RunIdentity run, String username,
+                                                                         String password, Instant at)
+            throws IOException {
+        Map<ScenarioDefinition.Sender, ControlSession> agentSessions = new EnumMap<>(ScenarioDefinition.Sender.class);
+        if (agent == null) {
+            return agentSessions;
+        }
+        RunIdentity agentRun = new RunIdentity(run.runId(), run.organization(), run.tenant(),
+                hostIn(agent.definition().network(), 10 + random.nextInt(200)), agent.definition().userAgent());
+        WorkloadClient agentClient = new WorkloadClient(endpoints.of(Control.D), signer, agentRun,
+                endpoints.requestTimeout());
+        for (ScenarioDefinition.Sender sender : senders(scenario)) {
+            if (sender == ScenarioDefinition.Sender.PERSON || agentSessions.containsKey(sender)) {
+                continue;
+            }
+            agentSessions.put(sender, switch (sender) {
+                case DELEGATED_AGENT -> agent.delegated(agentClient.freshSession(run),
+                        agentClient.freshSession(agentRun), username, password, at, admin, json);
+                case AUTONOMOUS_AGENT -> agent.autonomous(agentClient.freshSession(agentRun), at, json);
+                case AGENT_SESSION -> agent.session(agentClient.freshSession(agentRun), at, admin, json);
+                case PERSON -> throw new IllegalStateException("The person has no agent session");
+            });
+        }
+        return agentSessions;
+    }
+
+    /**
+     * docs/agent A7-0: the sessions a step goes in. Control D receives it from its sender; the rule controls know no
+     * agents and receive every step from the person's session, as an agent using the person's credentials reaches
+     * them today.
+     */
+    static Map<Control, ControlSession> sessionsOf(Step step, Map<Control, ControlSession> sessions,
+                                                   Map<ScenarioDefinition.Sender, ControlSession> agentSessions) {
+        ScenarioDefinition.Sender sender = step.senderOrPerson();
+        if (sender == ScenarioDefinition.Sender.PERSON) {
+            return sessions;
+        }
+        ControlSession agentSession = agentSessions.get(sender);
+        if (agentSession == null) {
+            throw new IllegalStateException("The case sends a step as " + sender + " but has no agent");
+        }
+        Map<Control, ControlSession> stepSessions = new EnumMap<>(sessions);
+        stepSessions.put(Control.D, agentSession);
+        return stepSessions;
     }
 
     /** The run principal signed in to a control in a session of its own: the run's first, or one a step starts. */
@@ -423,13 +879,15 @@ public class RunOrchestrator {
         ControlSession.ChallengeTrace challenge = null;
         ControlSession.ReleaseTrace release = null;
         String email = call.username() + "@" + CompanyBlueprint.EMAIL_DOMAIN;
-        if (control == Control.D && ControlSession.challenged(outcome)) {
+        // docs/agent A7-0: an agent's step gets no person's one-time code and no person's release.
+        boolean personSends = call.step().senderOrPerson() == ScenarioDefinition.Sender.PERSON;
+        if (control == Control.D && personSends && ControlSession.challenged(outcome)) {
             challenge = call.responder().respond(new ChallengeResponder.Challenge(
                     call.scenario().oracle().classification(), call.scenario().oracle().ownerActs(),
                     outcome.sentAt().plusMillis(outcome.elapsedMs()),
                     session.challengeActions(call.username(), email, call.step().operation(), call.path(),
                             call.parts().get(control), call.stepTime(), admin)));
-        } else if (control == Control.D && ControlSession.blocked(outcome)) {
+        } else if (control == Control.D && personSends && ControlSession.blocked(outcome)) {
             release = call.responder().release(new ChallengeResponder.Release(
                     call.scenario().oracle().classification(),
                     outcome.sentAt().plusMillis(outcome.elapsedMs()), call.username(),
@@ -465,14 +923,15 @@ public class RunOrchestrator {
      * Control D's decision for a step. A synchronous step has its record before the response; an asynchronous one
      * gets it shortly after. A step the engine refused because of an earlier decision gets no record of its own.
      */
-    private EngineDecision engineDecision(Step step, StepOutcome outcome) throws IOException {
+    private EngineDecision engineDecision(Step step, StepOutcome outcome, Instant decisionsBy) throws IOException {
         if (step.operation() == BusinessOperation.PROJECT_LIST) {
             return EngineDecision.none(json.createObjectNode());
         }
         boolean synchronous = EngineDecision.synchronous(step.operation());
         Duration wait = "REFUSED".equals(outcome.outcome()) && !synchronous ? REFUSED_DECISION_WAIT
                 : endpoints.decisionWait();
-        Instant deadline = Instant.now().plus(wait);
+        Instant own = Instant.now().plus(wait);
+        Instant deadline = decisionsBy != null && decisionsBy.isBefore(own) ? decisionsBy : own;
         Instant settleBy = null;
         JsonNode evidence;
         do {
@@ -640,6 +1099,10 @@ public class RunOrchestrator {
             case CUSTOMER_READ -> "/api/customers/" + step.customer();
             case ROLE_GRANT -> "/api/admin/role-grants?project=" + step.project() + "&grantee=" + step.grantee()
                     + "&responsibility=" + (step.responsibility() == null ? "REVIEW" : step.responsibility());
+            // docs/agent A7-2a: the documents of a project, of one type when the step names it.
+            case DOCUMENT_LIST -> "/api/projects/" + step.project() + "/documents"
+                    + (step.document() != null && step.document().type() != null
+                    ? "?type=" + URLEncoder.encode(step.document().type(), StandardCharsets.UTF_8) : "");
         };
     }
 
@@ -788,6 +1251,7 @@ public class RunOrchestrator {
         List<RunFacts.Oncall> oncall = new ArrayList<>();
         List<RunFacts.TravelPlan> travel = new ArrayList<>();
         List<RunFacts.Document> documents = new ArrayList<>();
+        List<RunFacts.Delegation> delegations = new ArrayList<>();
         int number = 1;
         for (Fact fact : scenario.facts()) {
             if ("DOCUMENT".equals(fact.kind())) {
@@ -813,9 +1277,23 @@ public class RunOrchestrator {
             } else if ("TRAVEL".equals(fact.kind())) {
                 travel.add(new RunFacts.TravelPlan(factKey("TRV", runHex, number++), scenario.protagonist(),
                         fact.city(), fact.country(), fact.network(), from, until));
+            } else if ("DELEGATION".equals(fact.kind())) {
+                // docs/agent A7-0: the work the protagonist delegated to the run's agent.
+                if (scenario.agent() == null || fact.delegated() == null) {
+                    throw new IllegalArgumentException("A DELEGATION fact needs the case's agent and what it delegates");
+                }
+                ScenarioDefinition.Delegated delegated = fact.delegated();
+                String key = factKey("DLG", runHex, number++);
+                // A2-10: the protagonist wrote the record when the delegation began, or when the case says.
+                delegations.add(new RunFacts.Delegation(key, scenario.protagonist(),
+                        RunAgent.agentId(runHex, scenario.agent().name()), key, fact.purpose(),
+                        delegated.summary() != null ? delegated.summary().get("en") : null, delegated.operations(),
+                        delegated.resources(), delegated.approvalRequired(), from, until,
+                        "REVOKED".equals(fact.status()), scenario.protagonist(),
+                        fact.recordedAtOffset() == null ? from : companyTime.plus(fact.recordedAtOffset())));
             }
         }
-        return new RunFacts(tickets, approvals, oncall, travel, documents);
+        return new RunFacts(tickets, approvals, oncall, travel, documents, delegations);
     }
 
     static boolean rulesAsExpected(Map<String, String> expected, Map<String, String> outcomes) {

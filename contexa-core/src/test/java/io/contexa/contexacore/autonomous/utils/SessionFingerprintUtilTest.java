@@ -23,8 +23,16 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.context.SecurityContextImpl;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
@@ -120,5 +128,95 @@ class SessionFingerprintUtilTest {
 
         assertThat(next).isEqualTo(
                 SessionFingerprintUtil.generateContextBindingHash("session-xyz", "192.168.1.10", "Mozilla/5.0"));
+    }
+
+    @Test
+    @DisplayName("A1-11: agents on one network and one user agent get their own context binding")
+    void agentsOnOneNetworkGetTheirOwnBinding() {
+        try {
+            String first = bindingFor("report-client");
+            String second = bindingFor("batch-client");
+            SecurityContextHolder.clearContext();
+            MockHttpServletRequest person = new MockHttpServletRequest();
+            person.setRemoteAddr("10.0.0.5");
+            person.addHeader("User-Agent", "agent-runtime/1.0");
+            person.setRequestedSessionId("session-1");
+
+            assertThat(first).isNotEqualTo(second);
+            assertThat(SessionFingerprintUtil.generateContextBindingHash(person))
+                    .isEqualTo(SessionFingerprintUtil.generateContextBindingHash("session-1", "10.0.0.5", "agent-runtime/1.0"));
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    /**
+     * A session's security context is loaded on its first read, and loading it computes the binding (the zero trust
+     * check of AISessionSecurityContextRepository). The binding read the context to find an agent's session (A1-11),
+     * which loaded it again: the people's one-time code request failed with a StackOverflowError (A7-0).
+     */
+    @Test
+    @DisplayName("A1-11: computing the binding while the security context loads does not load it again")
+    void bindingWhileTheContextLoadsDoesNotLoadItAgain() {
+        MockHttpServletRequest request = agentRequest();
+        JwtAuthenticationToken agent = clientToken("report-client");
+        AtomicInteger loads = new AtomicInteger();
+        try {
+            SecurityContextHolder.setDeferredContext(() -> {
+                loads.incrementAndGet();
+                SessionFingerprintUtil.generateContextBindingHash(request);
+                return new SecurityContextImpl(agent);
+            });
+
+            String binding = SessionFingerprintUtil.generateContextBindingHash(request);
+
+            assertThat(loads).hasValue(1);
+            assertThat(binding).isEqualTo(SessionFingerprintUtil.generateContextBindingHash(agentRequest(), agent))
+                    .isNotEqualTo(SessionFingerprintUtil.generateContextBindingHash("session-1", "10.0.0.5",
+                            "agent-runtime/1.0"));
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    @DisplayName("A1-11: the binding of a given authentication never reads the security context")
+    void bindingOfAGivenAuthenticationDoesNotReadTheContext() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("10.0.0.5");
+        request.addHeader("User-Agent", "agent-runtime/1.0");
+        try {
+            SecurityContextHolder.setDeferredContext(() -> {
+                throw new AssertionError("the security context was read");
+            });
+
+            assertThat(SessionFingerprintUtil.generateContextBindingHash(request, clientToken("report-client")))
+                    .isNotNull();
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    private static MockHttpServletRequest agentRequest() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("10.0.0.5");
+        request.addHeader("User-Agent", "agent-runtime/1.0");
+        request.setRequestedSessionId("session-1");
+        return request;
+    }
+
+    private static JwtAuthenticationToken clientToken(String clientId) {
+        Instant now = Instant.now();
+        Jwt jwt = Jwt.withTokenValue("token").header("alg", "RS256").subject(clientId).claim("client_id", clientId)
+                .claim("jti", "token-1").issuedAt(now).expiresAt(now.plusSeconds(300)).build();
+        return new JwtAuthenticationToken(jwt, List.of());
+    }
+
+    private static String bindingFor(String clientId) {
+        SecurityContextHolder.getContext().setAuthentication(clientToken(clientId));
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("10.0.0.5");
+        request.addHeader("User-Agent", "agent-runtime/1.0");
+        return SessionFingerprintUtil.generateContextBindingHash(request);
     }
 }

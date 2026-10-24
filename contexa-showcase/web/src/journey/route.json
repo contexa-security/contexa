@@ -19,7 +19,14 @@
   { "number": "4-0", "id": "normal-cover", "path": "/normal", "act": 4, "type": "T0" },
   { "number": "4-1", "id": "normal-request", "path": "/normal/request", "act": 4, "type": "T3" },
   { "number": "4-2", "id": "normal-console", "path": "/normal/console", "act": 4, "type": "T4" },
-  { "number": "4-3", "id": "normal-diff", "path": "/normal/diff", "act": 4, "type": "T5", "serverTitle": true },
+  {
+    "number": "4-3",
+    "id": "normal-diff",
+    "path": "/normal/diff",
+    "act": 4,
+    "type": "T5",
+    "serverTitle": true
+  },
   {
     "number": "4-4",
     "id": "normal-check",
@@ -32,10 +39,29 @@
   { "number": "5-1", "id": "insider-request", "path": "/insider/request", "act": 5, "type": "T3" },
   { "number": "5-2", "id": "insider-console", "path": "/insider/console", "act": 5, "type": "T4" },
   { "number": "5-3", "id": "insider-reason", "path": "/insider/reason", "act": 5, "type": "T5" },
-  { "number": "6-0", "id": "compare-cover", "path": "/compare", "act": 6, "type": "T0" },
-  { "number": "6-1", "id": "compare-rule", "path": "/compare/rule", "act": 6, "type": "T7", "serverTitle": true },
-  { "number": "6-2", "id": "compare-change", "path": "/compare/change", "act": 6, "type": "T4" },
-  { "number": "6-3", "id": "compare-runs", "path": "/compare/runs", "act": 6, "type": "T5" },
-  { "number": "7-1", "id": "summary", "path": "/summary", "act": 7, "type": "T8" },
-  { "number": "7-2", "id": "summary-next", "path": "/summary/next", "act": 7, "type": "T8" }
+  { "number": "6-0", "id": "agent-cover", "path": "/agent", "act": 6, "type": "T0" },
+  { "number": "6-1", "id": "agent-request", "path": "/agent/request", "act": 6, "type": "T3" },
+  { "number": "6-2", "id": "agent-console", "path": "/agent/console", "act": 6, "type": "T4" },
+  { "number": "6-3", "id": "agent-reason", "path": "/agent/reason", "act": 6, "type": "T5" },
+  {
+    "number": "6-4",
+    "id": "agent-confirm",
+    "path": "/agent/confirm",
+    "act": 6,
+    "type": "T4",
+    "serverTitle": true
+  },
+  { "number": "7-0", "id": "compare-cover", "path": "/compare", "act": 7, "type": "T0" },
+  {
+    "number": "7-1",
+    "id": "compare-rule",
+    "path": "/compare/rule",
+    "act": 7,
+    "type": "T7",
+    "serverTitle": true
+  },
+  { "number": "7-2", "id": "compare-change", "path": "/compare/change", "act": 7, "type": "T4" },
+  { "number": "7-3", "id": "compare-runs", "path": "/compare/runs", "act": 7, "type": "T5" },
+  { "number": "8-1", "id": "summary", "path": "/summary", "act": 8, "type": "T8" },
+  { "number": "8-2", "id": "summary-next", "path": "/summary/next", "act": 8, "type": "T8" }
 ]

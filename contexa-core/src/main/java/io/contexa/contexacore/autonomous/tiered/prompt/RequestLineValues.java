@@ -76,6 +76,10 @@ public final class RequestLineValues {
     }
 
     /** The subject line of the user with the account part and the sealed subject's details, or null without a user. */
+    public static String subjectV21(String userId, String account, CanonicalSecurityContext context) {
+        return SecurityDecisionPromptValues.subjectLineV21(userId, account, context);
+    }
+
     public static String subject(String userId, String account, CanonicalSecurityContext context) {
         return SecurityDecisionPromptValues.subjectLine(userId, account, context);
     }

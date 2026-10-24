@@ -83,6 +83,13 @@
                    th:style="${category == 'ADMIN_OVERRIDE' ? 'background: rgba(99,102,241,0.3); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
                    style="text-decoration: none;" th:text="#{admin.security.monitor.filter.admin.override}">Admin Override</a>
                 <span class="mx-2" style="color: #334155;">|</span>
+                <!-- docs/agent A5-5 (AM-5): the decisions of one subject kind -->
+                <span class="text-sm" style="color: #94a3b8;" th:text="#{admin.security.monitor.subject}">Subject:</span>
+                <a th:each="kind : ${subjectKinds}"
+                   th:href="@{/contexa/admin/security-monitor(hours=${hours}, subject=${kind})}" class="text-xs px-3 py-1 rounded-full"
+                   th:style="${subject == kind ? 'background: rgba(99,102,241,0.3); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
+                   style="text-decoration: none;" th:text="#{${'admin.security.monitor.subject.' + kind}}">Person</a>
+                <span class="mx-2" style="color: #334155;">|</span>
                 <form th:action="@{/contexa/admin/security-monitor}" method="get" class="flex items-center gap-2" style="margin:0;">
                     <input type="hidden" name="hours" th:value="${hours}" />
                     <input type="hidden" name="category" th:value="${category}" />
@@ -148,11 +155,12 @@
                         <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);" th:text="#{admin.security.monitor.table.resource}">Resource</th>
                         <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);" th:text="#{admin.security.monitor.table.risk}">Risk</th>
                         <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);" th:text="#{admin.security.monitor.table.ip}">IP</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);" th:text="#{admin.security.monitor.table.integrity}">Integrity</th>
                     </tr>
                     </thead>
                     <tbody style="background: rgba(15,23,42,0.6);">
                     <tr th:if="${logPage.totalElements == 0}">
-                        <td colspan="7" class="text-center py-8" style="color: #64748b;" th:text="#{admin.security.monitor.no.events}">No security events for this period.</td>
+                        <td colspan="8" class="text-center py-8" style="color: #64748b;" th:text="#{admin.security.monitor.no.events}">No security events for this period.</td>
                     </tr>
                     <tr th:each="log : ${logPage.content}" style="border-bottom: 1px solid rgba(71,85,105,0.2); cursor: pointer;"
                         th:onclick="'window.location.href=\'/contexa/admin/security-monitor/' + ${log.id} + '\''"
@@ -169,7 +177,14 @@
                                               'background: rgba(71,85,105,0.2); color: #94a3b8;'}"
                                   th:text="${log.eventCategory ?: '-'}"></span>
                         </td>
-                        <td class="px-4 py-3 text-sm" style="color: #e2e8f0;" th:text="${log.principalName}"></td>
+                        <td class="px-4 py-3 text-sm" style="color: #e2e8f0;">
+                            <span th:text="${log.principalName}"></span>
+                            <span th:if="${log.subjectKind != null}" th:with="kind=${log.subjectKind}"
+                                  class="text-xs px-2 py-0.5 rounded ml-1" th:style="${kind == 'DELEGATED_AGENT' ? 'background: rgba(234,179,8,0.15); color: #facc15;' : kind == 'AUTONOMOUS_AGENT' ? 'background: rgba(56,189,248,0.15); color: #7dd3fc;' : 'background: rgba(71,85,105,0.2); color: #cbd5e1;'}"
+                                  th:text="#{${'admin.security.monitor.subject.' + kind}}">Person</span>
+                            <span th:if="${log.agentId != null}" class="block text-xs font-mono" style="color: #94a3b8;"
+                                  th:text="${log.agentId}"></span>
+                        </td>
                         <td class="px-4 py-3">
                             <span class="text-xs font-bold"
                                   th:style="${log.decision == 'ALLOW' ? 'color: #4ade80;' : log.decision == 'DENY' ? 'color: #f87171;' : log.decision == 'ERROR' ? 'color: #f87171;' : 'color: #fbbf24;'}"
@@ -184,6 +199,11 @@
                             <span th:if="${log.riskScore == null}" class="text-xs" style="color: #64748b;">-</span>
                         </td>
                         <td class="px-4 py-3 text-xs" style="color: #64748b;" th:text="${log.clientIp ?: '-'}"></td>
+                        <td class="px-4 py-3 text-xs" th:with="status=${integrity != null ? integrity[log.id] : null}">
+                            <span th:if="${status != null}" class="px-2 py-0.5 rounded" th:style="${status == 'VERIFIED' ? 'background: rgba(74,222,128,0.15); color: #4ade80;' : status == 'MISMATCH' ? 'background: rgba(248,113,113,0.15); color: #f87171;' : 'background: rgba(71,85,105,0.2); color: #94a3b8;'}"
+                                  th:text="#{${'admin.security.monitor.integrity.' + status}}">Verified</span>
+                            <span th:if="${status == null}" style="color: #64748b;">-</span>
+                        </td>
                     </tr>
                     </tbody>
                 </table>

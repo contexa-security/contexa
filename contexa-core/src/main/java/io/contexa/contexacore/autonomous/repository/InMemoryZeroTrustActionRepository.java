@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
+import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 
 
 /**
@@ -529,6 +530,21 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         mfaPendingExpiry.remove(userId);
         escalateRetries.remove(userId);
         decisionAuditPending.remove(userId);
+    }
+
+    @Override
+    public void removeAllAgentData(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+        String agentKeys = userId + LearningSubject.AGENT_KEY;
+        analysisStore.keySet().removeIf(key -> key.startsWith(agentKeys));
+        lastVerifiedStore.keySet().removeIf(key -> key.startsWith(agentKeys));
+        blockedUsers.removeIf(key -> key.startsWith(agentKeys));
+        mfaFailCounts.keySet().removeIf(key -> key.startsWith(agentKeys));
+        mfaPendingExpiry.keySet().removeIf(key -> key.startsWith(agentKeys));
+        escalateRetries.keySet().removeIf(key -> key.startsWith(agentKeys));
+        decisionAuditPending.keySet().removeIf(key -> key.startsWith(agentKeys));
     }
 
     @Override

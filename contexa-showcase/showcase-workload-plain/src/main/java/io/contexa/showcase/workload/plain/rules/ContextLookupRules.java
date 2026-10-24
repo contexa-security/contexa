@@ -49,7 +49,7 @@ public class ContextLookupRules {
         return switch (request.operation()) {
             case PROJECT_LIST -> RuleDecision.allow("C2-PASS", "Project list needs no business context", Map.of());
             case EXPORT, EXPORT_STREAM, EXPORT_ASYNC -> export(request, settings);
-            case DOCUMENT_READ, DOCUMENT_DOWNLOAD -> singleDocument(request, settings);
+            case DOCUMENT_READ, DOCUMENT_DOWNLOAD, DOCUMENT_LIST -> singleDocument(request, settings);
             case CUSTOMER_READ -> customer(request, settings);
             case ROLE_GRANT -> grant(request, settings);
         };

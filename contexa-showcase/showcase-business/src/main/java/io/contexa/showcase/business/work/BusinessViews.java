@@ -3,6 +3,7 @@ package io.contexa.showcase.business.work;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -27,6 +28,11 @@ public final class BusinessViews {
     }
 
     public record ExportedDocument(String documentKey, String title, String revision) {
+    }
+
+    /** One document of a project listing (docs/agent A7-2a): what it is, not what it says. */
+    public record DocumentSummary(String documentKey, String projectKey, String documentType, String title,
+                                  String revision, String sensitivity, LocalDate updatedOn) {
     }
 
     /**

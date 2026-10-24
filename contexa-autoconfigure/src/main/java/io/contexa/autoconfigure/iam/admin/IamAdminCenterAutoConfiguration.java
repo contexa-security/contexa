@@ -15,6 +15,8 @@
  */
 package io.contexa.autoconfigure.iam.admin;
 
+import io.contexa.contexacore.infra.redis.PolicyReloadBroadcaster;
+import org.springframework.beans.factory.ObjectProvider;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.center.PolicyCenterController;
 import io.contexa.contexaiam.admin.web.center.PolicyCenterOperationsController;
@@ -102,8 +104,9 @@ public class IamAdminCenterAutoConfiguration {
             PolicyVersionService policyVersionService,
             CustomDynamicAuthorizationManager authorizationManager,
             CentralAuditFacade centralAuditFacade,
-            MessageSource messageSource) {
-        return new PolicyCenterCommandService(
+            MessageSource messageSource,
+            ObjectProvider<PolicyReloadBroadcaster> policyReloadBroadcasterProvider) {
+        PolicyCenterCommandService service = new PolicyCenterCommandService(
                 resourceRegistryService,
                 policyService,
                 policyRepository,
@@ -117,6 +120,8 @@ public class IamAdminCenterAutoConfiguration {
                 authorizationManager,
                 centralAuditFacade,
                 messageSource);
+        policyReloadBroadcasterProvider.ifAvailable(service::setPolicyReloadBroadcaster);
+        return service;
     }
 
     @Bean

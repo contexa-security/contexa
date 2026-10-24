@@ -35,6 +35,9 @@ import java.util.List;
  * @param privilegedExportAllowed whether the work may export privileged data
  * @param containmentOnly         whether the agent may only read or contain, not change or export anything
  * @param expiresAt               when the delegation ends
+ * @param recordedBy              who wrote the record (A2-10): the delegator, an agent, an administrator; null when
+ *                                the host does not say
+ * @param recordedAt              when the record was written; null when the host does not say
  */
 public record DelegationRecord(
         String delegationId,
@@ -48,10 +51,21 @@ public record DelegationRecord(
         Boolean approvalRequired,
         Boolean privilegedExportAllowed,
         Boolean containmentOnly,
-        Instant expiresAt) {
+        Instant expiresAt,
+        String recordedBy,
+        Instant recordedAt) {
 
     public DelegationRecord {
         allowedOperations = allowedOperations == null ? List.of() : List.copyOf(allowedOperations);
         allowedResources = allowedResources == null ? List.of() : List.copyOf(allowedResources);
+    }
+
+    /** A record that does not say who wrote it or when (the form before A2-10). */
+    public DelegationRecord(String delegationId, String delegatorId, String agentId, String objectiveId,
+                            String objectiveFamily, String objectiveSummary, List<String> allowedOperations,
+                            List<String> allowedResources, Boolean approvalRequired, Boolean privilegedExportAllowed,
+                            Boolean containmentOnly, Instant expiresAt) {
+        this(delegationId, delegatorId, agentId, objectiveId, objectiveFamily, objectiveSummary, allowedOperations,
+                allowedResources, approvalRequired, privilegedExportAllowed, containmentOnly, expiresAt, null, null);
     }
 }

@@ -16,8 +16,10 @@
 package io.contexa.contexacore.autonomous.context.decision;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacommon.security.subject.SubjectKind;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
+import io.contexa.contexacore.autonomous.execution.ExecutionSubjectTypes;
 
 import java.util.List;
 import java.util.Locale;
@@ -41,11 +43,28 @@ public final class LearningPromotionPolicy {
     /** The canonical context the decision used, put on the event when the prompt is built. */
     public static final String DECIDED_CONTEXT = "sealedEvidence.canonicalContext";
 
-    /** The promotion switch and limits (contexa.security.zerotrust.baseline.promotion.*). */
-    public record Settings(boolean enabled, String minResourceClass, int minObservations, int minDistinctDays,
-                           boolean verifiedPromotes) {
+    /**
+     * docs/agent A3-7: the dimensions whose first value an agent's request holds back at any resource class. An agent can
+     * repeat a request fast enough to make its own usual behaviour, so a value it brings is learned once it is seen on
+     * enough days or verified. The time and the day are left out: an agent works at any hour.
+     */
+    private static final Set<DeviationDimension> AGENT = Set.of(DeviationDimension.TARGET, DeviationDimension.ACTION,
+            DeviationDimension.SIZE, DeviationDimension.RATE, DeviationDimension.NETWORK, DeviationDimension.DEVICE);
 
-        public static final Settings DEFAULTS = new Settings(true, "SENSITIVE", 2, 2, true);
+    /**
+     * The promotion switch and limits (contexa.security.zerotrust.baseline.promotion.*); {@code agentHold} is the
+     * agent rule's switch (A3-7, {@code promotion.agent.enabled}).
+     */
+    public record Settings(boolean enabled, String minResourceClass, int minObservations, int minDistinctDays,
+                           boolean verifiedPromotes, boolean agentHold) {
+
+        public static final Settings DEFAULTS = new Settings(true, "SENSITIVE", 2, 2, true, true);
+
+        /** The settings with the agent rule on. */
+        public Settings(boolean enabled, String minResourceClass, int minObservations, int minDistinctDays,
+                        boolean verifiedPromotes) {
+            this(enabled, minResourceClass, minObservations, minDistinctDays, verifiedPromotes, true);
+        }
     }
 
     private LearningPromotionPolicy() {
@@ -56,6 +75,12 @@ public final class LearningPromotionPolicy {
         Settings rules = settings != null ? settings : Settings.DEFAULTS;
         if (!rules.enabled() || context == null || context.getDecisionFacts() == null) {
             return List.of();
+        }
+        // A3-7: an agent's first value is held back at any resource class; a person's rule stays as it was.
+        if (rules.agentHold() && agentRequest(context)) {
+            return context.getDecisionFacts().unexplained().stream()
+                    .filter(deviation -> AGENT.contains(deviation.dimension()) && deviation.current() != null)
+                    .toList();
         }
         CanonicalSecurityContext.Resource resource = context.getResource();
         if (!atLeast(resource != null ? resource.getResourceClass() : null, rules.minResourceClass())) {
@@ -92,6 +117,17 @@ public final class LearningPromotionPolicy {
         int rank = normalized != null ? CLASS_ORDER.indexOf(normalized) : -1;
         int floor = CLASS_ORDER.indexOf(minimum != null ? minimum.trim().toUpperCase(Locale.ROOT) : "SENSITIVE");
         return rank >= 0 && floor >= 0 && rank >= floor;
+    }
+
+    /** Whether an agent sends the request, for a person or on its own (the publisher's subject kind or the subject). */
+    private static boolean agentRequest(CanonicalSecurityContext context) {
+        Object kind = context.getAttributes() != null ? context.getAttributes().get("executionSubjectKind") : null;
+        if (SubjectKind.DELEGATED_AGENT.name().equals(String.valueOf(kind))
+                || SubjectKind.AUTONOMOUS_AGENT.name().equals(String.valueOf(kind))) {
+            return true;
+        }
+        return context.getExecutionSubject() != null
+                && ExecutionSubjectTypes.AGENT_RUNTIME.equals(context.getExecutionSubject().subjectType());
     }
 
     /** The differences that hold back the request of the event, from the context its decision used. */

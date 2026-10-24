@@ -10,7 +10,7 @@
     <aside th:insert="~{contexa/fragments/admin-menu :: menu}"></aside>
 
     <main class="flex-1 p-6 lg:p-8 overflow-y-auto pi-page" data-pi-page="detail"
-          th:attr="data-api-root=@{/contexa/admin/api/prompt-inspection},data-page-root=@{/contexa/admin/prompt-inspection},data-package-id=${packageId}">
+          th:attr="data-api-root=@{/contexa/admin/api/prompt-inspection},data-page-root=@{/contexa/admin/prompt-inspection},data-package-id=${packageId},data-replay-root=@{/contexa/admin/api/sealed-decisions}">
         <div class="modern-card p-6 sm:p-8 rounded-xl pi-card">
             <section th:replace="~{contexa/admin/prompt-inspection/fragments :: pageTop(#{promptInspection.title.detail}, #{promptInspection.subtitle.detail})}"></section>
 
@@ -77,6 +77,21 @@
                         <div data-pi-changes-appeared></div>
                     </div>
                 </div>
+            </section>
+
+            <section class="pi-section" data-pi-replay>
+                <h2 class="pi-section-title" th:text="#{promptInspection.replay.title}">Replay with a bundle</h2>
+                <p class="pi-note" th:text="#{promptInspection.replay.note}">The sealed inputs drawn again with a bundle and asked once.</p>
+                <div class="pi-actions">
+                    <label class="pi-field"><span th:text="#{promptInspection.replay.bundle}">Bundle</span>
+                        <select data-pi-replay-bundle></select></label>
+                    <label class="pi-field"><span th:text="#{promptInspection.replay.models}">Second-pass models</span>
+                        <input type="text" data-pi-replay-models th:placeholder="#{promptInspection.replay.modelsHint}"></label>
+                    <button type="button" class="pi-button pi-button-primary" data-pi-replay-run
+                            th:text="#{promptInspection.replay.run}">Replay</button>
+                </div>
+                <p class="pi-status" data-pi-replay-status role="status" aria-live="polite"></p>
+                <dl class="pi-facts" data-pi-replay-result hidden></dl>
             </section>
 
             <section class="pi-section">

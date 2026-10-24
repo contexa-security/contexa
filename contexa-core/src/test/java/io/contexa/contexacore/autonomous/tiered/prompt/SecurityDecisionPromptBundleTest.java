@@ -264,8 +264,19 @@ class SecurityDecisionPromptBundleTest {
         boolean v21 = bundle.layout() == SecurityDecisionPromptBundles.UserPromptLayout.V21_BLOCKS;
         long secondPasses = rendered.size() - (long) golden.cases().size() * SecurityDecisionGoldenRender.PROFILES.size();
         List<PromptBundleElement> elements = new ArrayList<>();
-        elements.add(PromptBundleHashes.present("B1", systemTexts(rendered),
-                "rendered system text of the L1 and L2 budget profiles"));
+        // docs/agent A4-4: an agent's request leaves the automation client boundary out of the v19 and v20 texts.
+        String agentLeavesOut = switch (bundle.layout()) {
+            case V19_SECTIONS -> SecurityDecisionPromptSections.V19_AUTOMATION_BOUNDARY;
+            case V20_BLOCKS -> SecurityDecisionPromptSections.V20_AUTOMATION_CATEGORY
+                    + SecurityDecisionPromptSections.V20_AUTOMATION_BOUNDARY;
+            case V21_BLOCKS -> "";
+        };
+        elements.add(agentLeavesOut.isEmpty()
+                ? PromptBundleHashes.present("B1", systemTexts(rendered),
+                "rendered system text of the L1 and L2 budget profiles")
+                : PromptBundleHashes.present("B1", systemTexts(rendered) + "AGENT LEAVES OUT:\n" + agentLeavesOut,
+                "rendered system text of the L1 and L2 budget profiles and the part an agent's request leaves out"
+                        + " (docs/agent A4-4)"));
         elements.add(v21
                 ? PromptBundleHashes.present("B2", SecurityDecisionPromptDictionary.contentTextV21(), "prompt dictionary "
                         + SecurityDecisionPromptDictionary.V21_VERSION + ": every entry with all its fields, the block"

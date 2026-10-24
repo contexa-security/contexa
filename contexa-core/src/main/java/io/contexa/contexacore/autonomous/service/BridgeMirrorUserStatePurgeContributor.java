@@ -21,6 +21,7 @@ import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.repository.UserRolePermissionRepository;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -60,7 +61,11 @@ public class BridgeMirrorUserStatePurgeContributor implements UserStatePurgeCont
         }
         BridgeUserProfileRepository profileRepository = profiles.getIfAvailable();
         UserRolePermissionRepository rolePermissionRepository = rolePermissions.getIfAvailable();
-        new TransactionTemplate(transactions).executeWithoutResult(status -> {
+        // The purge runs after the deletion committed (UserAccountDeletionListener, AFTER_COMMIT), where joining the
+        // finished transaction would run the deletes without one (CF-21): the mirrors go in a transaction of their own.
+        TransactionTemplate template = new TransactionTemplate(transactions);
+        template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        template.executeWithoutResult(status -> {
             for (Users mirror : userRepository.findByExternalSubjectIdAndBridgeManagedTrue(userId)) {
                 Long id = mirror.getId();
                 if (rolePermissionRepository != null) {

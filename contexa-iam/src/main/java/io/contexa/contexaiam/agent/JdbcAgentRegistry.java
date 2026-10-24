@@ -95,6 +95,11 @@ public class JdbcAgentRegistry implements AgentRegistry {
             .expireAfterWrite(LOOKUP_CACHE_TTL)
             .maximumSize(10_000)
             .build();
+    /** Client lookups admit tokens, so every life cycle change clears them; a sighting changes no approval. */
+    private final Cache<String, Optional<AgentRegistration>> clientLookups = Caffeine.newBuilder()
+            .expireAfterWrite(LOOKUP_CACHE_TTL)
+            .maximumSize(10_000)
+            .build();
 
     public JdbcAgentRegistry(JdbcOperations jdbc) {
         this(jdbc, Clock.systemUTC());
@@ -114,6 +119,21 @@ public class JdbcAgentRegistry implements AgentRegistry {
             return Optional.empty();
         }
         return lookups.get(cacheKey(tenantId, agentId), key -> read(tenantId, agentId));
+    }
+
+    @Override
+    public Optional<AgentRegistration> findByClientId(String tenantId, String clientId) {
+        if (clientId == null || clientId.isBlank()) {
+            return Optional.empty();
+        }
+        String client = clientId.trim();
+        return clientLookups.get(cacheKey(tenantId, client), key -> {
+            List<AgentRegistration> rows = jdbc.query("select " + COLUMNS + " from agent_registration "
+                            + "where tenant_key = ? and (client_id = ? or agent_id = ?) "
+                            + "order by case when client_id = ? then 0 else 1 end, agent_id limit 1",
+                    ROW_MAPPER, AgentRegistrations.tenantKey(tenantId), client, client, client);
+            return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
+        });
     }
 
     @Override
@@ -160,11 +180,42 @@ public class JdbcAgentRegistry implements AgentRegistry {
     }
 
     @Override
+    public Optional<AgentRegistration> suspend(String tenantId, String agentId, String reason) {
+        if (agentId == null || agentId.isBlank()) {
+            return Optional.empty();
+        }
+        return read(tenantId, agentId.trim()).map(current -> save(AgentRegistrations.suspended(current, reason)));
+    }
+
+    @Override
+    public Optional<AgentRegistration> resume(String tenantId, String agentId, String reason) {
+        if (agentId == null || agentId.isBlank()) {
+            return Optional.empty();
+        }
+        return read(tenantId, agentId.trim()).map(current -> save(AgentRegistrations.resumed(current, reason)));
+    }
+
+    @Override
     public Optional<AgentRegistration> transferSponsor(String tenantId, String agentId, String sponsorId) {
         if (agentId == null || agentId.isBlank()) {
             return Optional.empty();
         }
         return read(tenantId, agentId.trim()).map(current -> save(AgentRegistrations.withSponsor(current, sponsorId)));
+    }
+
+    @Override
+    public Optional<AgentRegistration> remove(String tenantId, String agentId) {
+        if (agentId == null || agentId.isBlank()) {
+            return Optional.empty();
+        }
+        Optional<AgentRegistration> current = read(tenantId, agentId.trim());
+        current.ifPresent(registration -> {
+            jdbc.update("delete from agent_registration where tenant_key = ? and agent_id = ?",
+                    AgentRegistrations.tenantKey(tenantId), agentId.trim());
+            lookups.invalidate(cacheKey(tenantId, agentId.trim()));
+            clientLookups.invalidateAll();
+        });
+        return current;
     }
 
     private AgentRegistration save(AgentRegistration registration) {
@@ -186,6 +237,7 @@ public class JdbcAgentRegistry implements AgentRegistry {
                 registration.statusReason(),
                 Timestamp.from(clock.instant()));
         lookups.invalidate(cacheKey(registration.tenantId(), registration.agentId()));
+        clientLookups.invalidateAll();
         return read(registration.tenantId(), registration.agentId()).orElseThrow();
     }
 

@@ -21,6 +21,7 @@ import io.contexa.contexacore.autonomous.execution.ExecutionProtocolTypes;
 import io.contexa.contexacore.autonomous.execution.ExecutionSubjectTypes;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -120,6 +121,28 @@ class CanonicalExecutionContextResolverTest {
         CanonicalExecutionBinding binding = resolver.resolveBinding(context("SERVICE_CLIENT", null, "UNKNOWN"));
 
         assertThat(binding.executionSubject().subjectType()).isEqualTo(ExecutionSubjectTypes.SERVICE_CLIENT);
+    }
+
+    /**
+     * A2-3: the delegation's end reaches the execution window. The publisher states it as {@code delegationExpiresAt}
+     * in an instant's form ({@code ...Z}); the window read a key nobody wrote ({@code expiresAt}) with a parser that
+     * refuses the zone, so a delegated run was never time bound.
+     */
+    @Test
+    void theDelegationsEndBoundsTheExecutionWindow() {
+        CanonicalSecurityContext fromDelegation = context("EMPLOYEE", CanonicalSecurityContext.Delegation.builder()
+                .delegated(true).agentId("agent-7").expiresAt("2026-10-22T20:42:24Z").build(), "UNKNOWN");
+        CanonicalSecurityContext fromPublisher = context("EMPLOYEE", CanonicalSecurityContext.Delegation.builder()
+                .delegated(true).agentId("agent-7").build(), "UNKNOWN");
+        fromPublisher.getAttributes().put("delegationExpiresAt", "2026-10-22T20:42:24+09:00");
+        CanonicalSecurityContext undelegated = context("EMPLOYEE", null, "UNKNOWN");
+
+        assertThat(resolver.resolveBinding(fromDelegation).executionEnvelope().executionWindow().expiresAt())
+                .isEqualTo(LocalDateTime.of(2026, 10, 22, 20, 42, 24));
+        assertThat(resolver.resolveBinding(fromPublisher).executionEnvelope().executionWindow().expiresAt())
+                .isEqualTo(LocalDateTime.of(2026, 10, 22, 11, 42, 24));
+        assertThat(resolver.resolveBinding(fromDelegation).executionEnvelope().executionWindow().timeBound()).isTrue();
+        assertThat(resolver.resolveBinding(undelegated).executionEnvelope().executionWindow().expiresAt()).isNull();
     }
 
     private CanonicalSecurityContext context(String principalType, CanonicalSecurityContext.Delegation delegation,

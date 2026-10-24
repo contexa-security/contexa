@@ -16,12 +16,14 @@
 package io.contexa.contexacore.autonomous.baseline.store;
 
 import io.contexa.contexacommon.security.baseline.BaselineVector;
+import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -171,9 +173,34 @@ public class RedisBaselineDataStore implements BaselineDataStore {
                 .count(500).build())) {
             cursor.forEachRemaining(tenantKeys::add);
         }
+        // docs/agent A3-1: the baselines of the agents acting for the user, in every tenant.
+        String agentKeys = ZeroTrustRedisKeys.globLiteral(userId) + LearningSubject.AGENT_KEY + "*";
+        for (String pattern : List.of(BASELINE_KEY_PREFIX + agentKeys,
+                BASELINE_KEY_PREFIX + "*" + TENANT_SEPARATOR + agentKeys)) {
+            try (Cursor<String> cursor = redisTemplate.scan(ScanOptions.scanOptions().match(pattern).count(500).build())) {
+                cursor.forEachRemaining(tenantKeys::add);
+            }
+        }
         for (String key : tenantKeys) {
             deleteUserBaselineKey(key.substring(BASELINE_KEY_PREFIX.length()));
         }
+    }
+
+    @Override
+    public int deleteAgentBaselines(String agentId) {
+        if (agentId == null || agentId.isBlank()) {
+            return 0;
+        }
+        List<String> keys = new ArrayList<>();
+        try (Cursor<String> cursor = redisTemplate.scan(ScanOptions.scanOptions()
+                .match(BASELINE_KEY_PREFIX + "*" + LearningSubject.AGENT_KEY + ZeroTrustRedisKeys.globLiteral(agentId))
+                .count(500).build())) {
+            cursor.forEachRemaining(keys::add);
+        }
+        for (String key : keys) {
+            deleteUserBaselineKey(key.substring(BASELINE_KEY_PREFIX.length()));
+        }
+        return keys.size();
     }
 
     @Override
@@ -222,6 +249,13 @@ public class RedisBaselineDataStore implements BaselineDataStore {
         if (baseline.getElementFrequencies() != null && !baseline.getElementFrequencies().isEmpty()) {
             data.put("elementFrequencies", baseline.getElementFrequencies());
         }
+        // docs/agent A3-4: when each value was last seen and which values a verification gave, for the expiry.
+        if (baseline.getElementLastSeen() != null && !baseline.getElementLastSeen().isEmpty()) {
+            data.put("elementLastSeen", new HashMap<>(baseline.getElementLastSeen()));
+        }
+        if (baseline.getVerifiedElements() != null && !baseline.getVerifiedElements().isEmpty()) {
+            data.put("verifiedElements", new ArrayList<>(baseline.getVerifiedElements()));
+        }
         return data;
     }
 
@@ -255,6 +289,8 @@ public class RedisBaselineDataStore implements BaselineDataStore {
                 .frequentActionFamilies(toStringArray(data.get("frequentActionFamilies")))
                 .frequentResourceFamilies(toStringArray(data.get("frequentResourceFamilies")))
                 .elementFrequencies(toFrequencyMap(data.get("elementFrequencies")))
+                .elementLastSeen(toFrequencyMap(data.get("elementLastSeen")))
+                .verifiedElements(toStringSet(data.get("verifiedElements")))
                 .vocabularyVersion(data.get("vocabularyVersion") != null ? data.get("vocabularyVersion").toString() : null)
                 .learnedDates(toStringArray(data.get("learnedDates")))
                 .recentNovelty(data.get("recentNovelty") != null ? data.get("recentNovelty").toString() : null)
@@ -361,6 +397,11 @@ public class RedisBaselineDataStore implements BaselineDataStore {
     }
 
     @SuppressWarnings("unchecked")
+    private Set<String> toStringSet(Object value) {
+        String[] values = toStringArray(value);
+        return values != null ? new HashSet<>(Arrays.asList(values)) : new HashSet<>();
+    }
+
     private Map<String, Long> toFrequencyMap(Object value) {
         if (value == null) {
             return new HashMap<>();

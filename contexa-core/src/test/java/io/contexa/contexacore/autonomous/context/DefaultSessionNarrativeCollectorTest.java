@@ -16,6 +16,8 @@
 package io.contexa.contexacore.autonomous.context;
 
 import io.contexa.contexacore.autonomous.store.SessionDecisionRecord;
+import io.contexa.contexacore.autonomous.baseline.AgentBaselineView;
+import io.contexa.contexacommon.security.bridge.CredentialFacts;
 import java.time.Instant;
 import io.contexa.contexacore.autonomous.context.support.SessionStart;
 import java.time.ZoneId;
@@ -417,6 +419,47 @@ class DefaultSessionNarrativeCollectorTest {
     }
 
     @Test
+    @DisplayName("docs/agent A4-6: an agent session compares the agent's client; a person's line stays as it was")
+    void collect_anAgentSessionStatesAChangeOfTheAgentsClientAndKeepsAPersonsLine() {
+        SecurityEvent first = agentClientEvent("agent:sid:taken", 0, "report-agent/1.0", "10.60.1.43");
+        collect(first);
+        String client = "report-client #" + AgentBaselineView.digest("report-agent/1.0");
+        assertThat(dataStore.getSessionFirstClient("agent:sid:taken"))
+                .isEqualTo("UA|||10.60.1.0/24|CORPORATE|" + client);
+
+        SessionNarrativeSnapshot same = collect(agentClientEvent("agent:sid:taken", 1, "report-agent/1.0", "10.60.1.44"))
+                .orElseThrow();
+        SessionNarrativeSnapshot taken = collect(agentClientEvent("agent:sid:taken", 2, "python-httpx/0.27.2",
+                "203.0.113.9")).orElseThrow();
+
+        assertThat(same.getSessionDeviceChange()).isNull();
+        assertThat(taken.getSessionDeviceChange()).as("the stolen token's runtime names no browser either")
+                .isEqualTo(client + " -> report-client #" + AgentBaselineView.digest("python-httpx/0.27.2"));
+        assertThat(taken.getSessionNetworkChange()).isEqualTo("10.60.1.0/24 (CORPORATE) -> 203.0.113.0/24");
+
+        // A person's two script clients stay uncompared and the person's line keeps its five parts.
+        SecurityEvent person = clientEvent("session-person-script", 0, "curl/8.5", "10.40.12.7", null);
+        person.setUserId("alice");
+        collect(person);
+        SecurityEvent personLater = clientEvent("session-person-script", 1, "python-requests/2.31", "10.40.12.7", null);
+        personLater.setUserId("alice");
+        assertThat(collect(personLater).orElseThrow().getSessionDeviceChange()).isNull();
+        assertThat(dataStore.getSessionFirstClient("session-person-script")).isEqualTo("UA|||10.40.12.0/24|");
+    }
+
+    @Test
+    @DisplayName("docs/agent A4-6: a line stored before an agent's client was kept is read as before")
+    void collect_aLineStoredWithoutTheAgentsClientIsComparedAsBefore() {
+        dataStore.setSessionFirstClientIfAbsent("agent:sid:older", "UA|||10.60.1.0/24|CORPORATE");
+
+        SessionNarrativeSnapshot later = collect(agentClientEvent("agent:sid:older", 1, "python-httpx/0.27.2",
+                "10.60.1.43")).orElseThrow();
+
+        assertThat(later.getSessionDeviceChange()).isNull();
+        assertThat(later.getSessionNetworkChange()).isNull();
+    }
+
+    @Test
     @DisplayName("the first client follows the session to the id it gets at a step-up (W2-14)")
     void collect_comparesWithTheFirstClientAfterTheSessionIdChanges() {
         collect(clientEvent("session-before-step-up", 0, WINDOWS_CHROME, "10.40.12.7", null));
@@ -465,6 +508,16 @@ class DefaultSessionNarrativeCollectorTest {
         if (zone != null) {
             event.addMetadata("networkZone", zone);
         }
+        return event;
+    }
+
+    private SecurityEvent agentClientEvent(String sessionId, int minute, String userAgent, String sourceIp) {
+        SecurityEvent event = clientEvent(sessionId, minute, userAgent, sourceIp,
+                sourceIp.startsWith("10.60.") ? "CORPORATE" : null);
+        event.setUserId("alice");
+        event.addMetadata("executionSubjectKind", "DELEGATED_AGENT");
+        event.addMetadata("agentId", "report-agent");
+        event.addMetadata(CredentialFacts.CLIENT_ID, "report-client");
         return event;
     }
 

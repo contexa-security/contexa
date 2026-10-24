@@ -33,6 +33,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -220,6 +221,56 @@ class OAuth2ClientSecretLifecycleTest {
         assertUserTokenIssued(configuration, updated, internalClient(configuration, updated));
     }
 
+    /**
+     * docs/agent A7-0 (CF-12): the internal client was stored while the application issued no tokens, with a secret
+     * nobody configured. Adding an OAuth2 flow later started a server whose every OAuth2 sign-in failed with
+     * invalid_client; startup now stops and says what to change, without rewriting the stored client.
+     */
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void storedClientWithAnotherSecretPreventsStartupWhenContexaIssuesTokens(boolean upgraded) {
+        RegisteredClientRepository original = seedClient("{noop}secret-stored-before-oauth2");
+        if (upgraded) {
+            new ClientSecretAuthenticationProvider(original, new InMemoryOAuth2AuthorizationService())
+                    .authenticate(clientRequest("default-client", "secret-stored-before-oauth2"));
+            assertThat(original.findByClientId("default-client").getClientSecret()).startsWith("{bcrypt}");
+        }
+        String originalSecret = original.findByClientId("default-client").getClientSecret();
+
+        assertThatThrownBy(() -> configuration(properties(true)).registeredClientRepository(jdbcTemplate))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("does not accept the configured contexa.auth.oauth2.client-secret")
+                .hasMessageNotContaining(CONFIGURED_SECRET)
+                .hasMessageNotContaining("secret-stored-before-oauth2");
+        assertThat(original.findByClientId("default-client").getClientSecret())
+                .as("startup rejection must not silently rewrite an existing client")
+                .isEqualTo(originalSecret);
+    }
+
+    @Test
+    void storedClientWithTheConfiguredSecretStartsAfterSpringUpgradedIt() {
+        RegisteredClientRepository original = seedClient("{noop}" + CONFIGURED_SECRET);
+        new ClientSecretAuthenticationProvider(original, new InMemoryOAuth2AuthorizationService())
+                .authenticate(clientRequest("default-client", CONFIGURED_SECRET));
+        assertThat(original.findByClientId("default-client").getClientSecret()).startsWith("{bcrypt}");
+        IdentityOAuth2AutoConfiguration configuration = configuration(properties(true));
+
+        RegisteredClientRepository repository = configuration.registeredClientRepository(jdbcTemplate);
+
+        assertUserTokenIssued(configuration, repository, internalClient(configuration, repository));
+    }
+
+    @Test
+    void sessionOnlyApplicationStartsWithAStoredClientOfAnotherSecret() {
+        seedClient("{noop}secret-stored-before-oauth2");
+        PlatformConfig platform = PlatformConfig.builder().addFlow(AuthenticationFlowConfig.builder("form")
+                .stepConfigs(List.of(new AuthenticationStepConfig("FORM", 0)))
+                .stateConfig(new StateConfig("session", StateType.SESSION)).build()).build();
+
+        assertThat(configuration(properties(true), platform).registeredClientRepository(jdbcTemplate)
+                .findByClientId("default-client")).isNotNull();
+    }
+
     @Test
     void restartWithChangedTokenValidityUpdatesOnlyTheStoredTokenSettings() {
         AuthContextProperties first = properties(true);
@@ -317,7 +368,7 @@ class OAuth2ClientSecretLifecycleTest {
 
         JWKSource<SecurityContext> keys = configuration.jwkSource();
         JwtGenerator jwtGenerator = new JwtGenerator(configuration.jwtEncoder(keys));
-        jwtGenerator.setJwtCustomizer(configuration.tokenCustomizer());
+        jwtGenerator.setJwtCustomizer(configuration.tokenCustomizer(none(), none()));
         AuthenticatedUserGrantAuthenticationProvider provider = new AuthenticatedUserGrantAuthenticationProvider(
                 authorizations, new DelegatingOAuth2TokenGenerator(jwtGenerator, new OAuth2RefreshTokenGenerator()),
                 users, transactionTemplate);
@@ -330,5 +381,11 @@ class OAuth2ClientSecretLifecycleTest {
         assertThat(result.getRefreshToken()).isNotNull();
         assertThat(authorizations.findByToken(result.getAccessToken().getTokenValue(), OAuth2TokenType.ACCESS_TOKEN))
                 .isNotNull();
+    }
+
+    /** docs/agent OC-1: no delegation registry and no agent directory, so no delegation claim. */
+    @SuppressWarnings("unchecked")
+    private static <T> ObjectProvider<T> none() {
+        return mock(ObjectProvider.class);
     }
 }

@@ -48,6 +48,7 @@ import org.springframework.core.Ordered;
 import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
 import org.springframework.security.web.util.matcher.AnyRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -314,6 +315,45 @@ class SecurityFilterChainRegistrarTest {
             assertThat(result).isNotNull();
             // No AuthContextProperties lookup for handler replacement
             verify(applicationContext, never()).getBean(AuthContextProperties.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("Unreachable flow report (A1-10)")
+    class UnreachableFlowTests {
+
+        private final RequestMatcher tokenRequests = request -> request.getHeader("Authorization") != null;
+
+        @Test
+        @DisplayName("A flow after one that takes every request is reported")
+        void flowAfterAnyRequestFlowIsReported() {
+            List<String> problems = SecurityFilterChainRegistrar.unreachableFlows(List.of(
+                    new SecurityFilterChainRegistrar.BuiltFlow("mfa", 200, AnyRequestMatcher.INSTANCE),
+                    new SecurityFilterChainRegistrar.BuiltFlow("rest_flow", 200, tokenRequests)));
+
+            assertThat(problems).singleElement().asString()
+                    .contains("'rest_flow' is never reached", "'mfa'", "TOKEN_REQUESTS");
+        }
+
+        @Test
+        @DisplayName("A token-scoped flow ordered before the session flow is not reported")
+        void tokenScopedFlowFirstIsFine() {
+            assertThat(SecurityFilterChainRegistrar.unreachableFlows(List.of(
+                    new SecurityFilterChainRegistrar.BuiltFlow("mfa", 200, AnyRequestMatcher.INSTANCE),
+                    new SecurityFilterChainRegistrar.BuiltFlow("rest_flow", 150, tokenRequests)))).isEmpty();
+            assertThat(SecurityFilterChainRegistrar.unreachableFlows(List.of(
+                    new SecurityFilterChainRegistrar.BuiltFlow("mfa", 200, AnyRequestMatcher.INSTANCE)))).isEmpty();
+        }
+
+        @Test
+        @DisplayName("registerSecurityFilterChains reports nothing for a single flow")
+        void registrationWithOneFlowStillRegisters() throws Exception {
+            FlowContext fc = createMockFlowContext("FORM", 0, List.of());
+            when(fc.http().build()).thenReturn(new DefaultSecurityFilterChain(AnyRequestMatcher.INSTANCE, List.of()));
+
+            registrar.registerSecurityFilterChains(List.of(fc), applicationContext);
+
+            verify(beanFactory).registerBeanDefinition(eq("FORMSecurityFilterChain1"), any(BeanDefinition.class));
         }
     }
 

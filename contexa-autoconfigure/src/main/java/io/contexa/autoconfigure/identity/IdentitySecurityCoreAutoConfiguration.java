@@ -62,6 +62,12 @@ import io.contexa.contexaidentity.security.utils.JsonAuthResponseWriter;
 import io.contexa.contexaidentity.security.zerotrust.ChallengeMfaInitializer;
 import io.contexa.contexaidentity.security.zerotrust.ZeroTrustAccessControlFilter;
 import io.contexa.contexaidentity.security.zerotrust.ZeroTrustChallengeFilter;
+import io.contexa.contexacore.autonomous.agent.AgentContainmentService;
+import io.contexa.contexaidentity.security.zerotrust.AgentConfirmationGate;
+import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
+import io.contexa.contexacore.autonomous.agent.AgentConfirmationService;
+import io.contexa.contexacore.autonomous.agent.AgentCallGuard;
+import io.contexa.contexacore.autonomous.agent.AgentScopeService;
 import jakarta.servlet.Filter;
 import java.util.Collections;
 import java.util.List;
@@ -386,13 +392,32 @@ public class IdentitySecurityCoreAutoConfiguration {
             MfaFlowUrlRegistry mfaFlowUrlRegistry,
             ZeroTrustActionRepository actionRepository,
             SecurityZeroTrustProperties securityZeroTrustProperties,
-            ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder) {
+            ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder,
+            ObjectProvider<AgentConfirmationService> agentConfirmations,
+            ObjectProvider<DelegationRegistry> delegationRegistry,
+            ObjectProvider<AgentScopeService> agentScopes,
+            ObjectProvider<AgentCallGuard> agentCallGuard) {
 
         ZeroTrustChallengeFilter filter = new ZeroTrustChallengeFilter(
                 challengeMfaInitializer, responseWriter, authUrlProvider,
                 sessionRepository, stateMachineIntegrator, lockService, mfaFlowUrlRegistry, actionRepository,
                 securityZeroTrustProperties);
         filter.setUnanalysedRequestRecorder(unanalysedRequestRecorder.getIfAvailable());
+        // docs/agent A5-2, A5-9, F-2: agents' requests meet their accountable person's confirmation.
+        AgentConfirmationService confirmations = agentConfirmations.getIfAvailable();
+        if (confirmations != null) {
+            SecurityZeroTrustProperties.AgentSettings agent = securityZeroTrustProperties.getAgent();
+            AgentConfirmationGate gate = new AgentConfirmationGate(confirmations, actionRepository, responseWriter,
+                    agent.getConfirmationMaxBodyBytes(), agent.getConfirmationLinkBaseUrl(), null);
+            gate.setDelegationRegistry(delegationRegistry.getIfAvailable());
+            // docs/agent A5-4: a request outside an agent's narrowed scope is refused.
+            gate.setScopes(agentScopes.getIfAvailable());
+            // docs/agent A5-7: the call limits and the denial alarm of agents.
+            gate.setCallGuard(agentCallGuard.getIfAvailable());
+            // docs/agent G-9: in the report-only mode the gate records and lets the request on.
+            gate.setEnforcing(securityZeroTrustProperties::isEnforcementEnabled);
+            filter.setAgentConfirmationGate(gate);
+        }
         return filter;
     }
 
@@ -423,11 +448,14 @@ public class IdentitySecurityCoreAutoConfiguration {
             BlockingSignalBroadcaster blockingDecisionRegistry,
             SecurityZeroTrustProperties securityZeroTrustProperties,
             MfaFlowUrlRegistry mfaFlowUrlRegistry,
-            ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder) {
+            ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder,
+            ObjectProvider<AgentContainmentService> agentContainment) {
         ZeroTrustAccessControlFilter filter = new ZeroTrustAccessControlFilter(actionRedisRepository, responseWriter,
                 blockedUserRecorder, challengeMfaInitializer, authUrlProvider, blockingDecisionRegistry,
                 securityZeroTrustProperties.getMaxBlockMfaAttempts(), mfaFlowUrlRegistry);
         filter.setUnanalysedRequestRecorder(unanalysedRequestRecorder.getIfAvailable());
+        // docs/agent A5-3: an agent whose escalation turns into a block is stopped.
+        agentContainment.ifAvailable(filter::setAgentContainment);
         return filter;
     }
 

@@ -410,4 +410,70 @@ abstract class AbstractSecurityContextDataStoreContractTest {
         assertThat(store.isMfaVerified("dave")).isTrue();
         assertThat(store.getRecentRoleScopeObservations("tenant-a", "engineering", 10)).isNotEmpty();
     }
+
+    @Test
+    @DisplayName("docs/agent A3-1: deleting a user removes what the agents acting for it learned, in every tenant")
+    void deleteUserData_removesTheLearningOfTheAgentsActingForTheUser() {
+        store.addWorkProfileObservation(null, "erin::agent::agt-1", "{\"path\":\"/documents\"}");
+        store.addWorkProfileObservation("tenant-a", "erin::agent::agt-2", "{\"path\":\"/exports\"}");
+        store.addWorkProfileObservation("tenant-a", "frank::agent::agt-1", "{\"path\":\"/exports\"}");
+        store.holdPromotionLearning("erin::agent::agt-1", "request-1", "{}");
+        store.holdPromotionLearning("frank::agent::agt-1", "request-2", "{}");
+
+        store.deleteUserData("erin");
+
+        assertThat(store.getRecentWorkProfileObservations(null, "erin::agent::agt-1", 10)).isEmpty();
+        assertThat(store.getRecentWorkProfileObservations("tenant-a", "erin::agent::agt-2", 10)).isEmpty();
+        assertThat(store.promotionLearning("erin::agent::agt-1")).isEmpty();
+        assertThat(store.getRecentWorkProfileObservations("tenant-a", "frank::agent::agt-1", 10)).hasSize(1);
+        assertThat(store.promotionLearning("frank::agent::agt-1")).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("docs/agent F-6 (CF-27): deleting a user removes the authorization state of the agents acting for it")
+    void deleteUserData_removesTheAuthorizationStateOfTheAgentsActingForTheUser() {
+        store.addPermissionChangeObservation(null, "erin::agent::agt-1", "{\"role\":\"SCOPE_READ\"}");
+        store.addPermissionChangeObservation("tenant-a", "erin::agent::agt-2", "{\"role\":\"SCOPE_READ\"}");
+        store.setAuthorizationScopeState("tenant-a", "erin::agent::agt-1", "{\"scope\":\"read\"}");
+        store.setAuthorizationScopeState("tenant-a", "frank::agent::agt-1", "{\"scope\":\"read\"}");
+
+        store.deleteUserData("erin");
+
+        assertThat(store.getRecentPermissionChangeObservations(null, "erin::agent::agt-1", 10)).isEmpty();
+        assertThat(store.getRecentPermissionChangeObservations("tenant-a", "erin::agent::agt-2", 10)).isEmpty();
+        assertThat(store.getAuthorizationScopeState("tenant-a", "erin::agent::agt-1")).isNull();
+        assertThat(store.getAuthorizationScopeState("tenant-a", "frank::agent::agt-1")).isNotNull();
+    }
+
+    @Test
+    @DisplayName("docs/agent A3-8: a learning quarantine is kept, listed and released per scope")
+    void learningQuarantine_isKeptListedAndReleased() {
+        store.setLearningQuarantined("agent:agt-1", true);
+        store.setLearningQuarantined("delegation:dlg-1", true);
+
+        assertThat(store.learningQuarantined("agent:agt-1")).isTrue();
+        assertThat(store.learningQuarantined("agent:agt-2")).isFalse();
+        assertThat(store.learningQuarantineScopes()).containsExactlyInAnyOrder("agent:agt-1", "delegation:dlg-1");
+
+        store.setLearningQuarantined("agent:agt-1", false);
+
+        assertThat(store.learningQuarantined("agent:agt-1")).isFalse();
+        assertThat(store.learningQuarantineScopes()).containsExactly("delegation:dlg-1");
+    }
+
+    @Test
+    @DisplayName("docs/agent A3-8: deleting an agent's learning removes its observations under every learning key only")
+    void deleteAgentLearning_removesOnlyThatAgentsObservations() {
+        store.addWorkProfileObservation(null, "carol::agent::agt-1", "{\"path\":\"/documents\"}");
+        store.addWorkProfileObservation("tenant-a", "dave::agent::agt-1", "{\"path\":\"/exports\"}");
+        store.addWorkProfileObservation("tenant-a", "carol::agent::agt-10", "{\"path\":\"/exports\"}");
+        store.addWorkProfileObservation("tenant-a", "carol", "{\"path\":\"/exports\"}");
+
+        assertThat(store.deleteAgentLearning("agt-1")).isEqualTo(2);
+
+        assertThat(store.getRecentWorkProfileObservations(null, "carol::agent::agt-1", 10)).isEmpty();
+        assertThat(store.getRecentWorkProfileObservations("tenant-a", "dave::agent::agt-1", 10)).isEmpty();
+        assertThat(store.getRecentWorkProfileObservations("tenant-a", "carol::agent::agt-10", 10)).hasSize(1);
+        assertThat(store.getRecentWorkProfileObservations("tenant-a", "carol", 10)).hasSize(1);
+    }
 }

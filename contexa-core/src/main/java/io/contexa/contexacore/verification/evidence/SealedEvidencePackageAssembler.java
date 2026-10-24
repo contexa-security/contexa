@@ -182,12 +182,18 @@ public class SealedEvidencePackageAssembler {
                 // Section 7: Decision -- from ProcessingResult (set by ProcessingExecutionHandler)
                 .decisionJson(decisionJson)
 
-                .schemaVersion(2)
+                .schemaVersion(integrity.signs() ? SealedEvidencePackageIntegrity.LINKED_SCHEMA_VERSION : 2)
                 .sealed(true)
                 .expiresAt(Instant.now().plus(retention))
                 .build();
 
-        pkg.setPackageHash(integrity.computeHash(pkg));
+        // docs/agent A5-6: with a signer, sealed and signed here and linked by the store after the package it stored
+        // before it; without one, hashed as before (schema 2).
+        if (integrity.signs()) {
+            integrity.seal(pkg, null);
+        } else {
+            pkg.setPackageHash(integrity.computeHash(pkg));
+        }
         return pkg;
     }
 

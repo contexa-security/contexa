@@ -71,6 +71,15 @@ public class BlockedUserService implements IBlockedUserRecorder {
     public void recordBlock(String requestId, String userId, String username,
                             String action, String reasoning,
                             String sourceIp, String userAgent) {
+        recordBlock(requestId, userId, username, action, reasoning, sourceIp, userAgent, null);
+    }
+
+    /** docs/agent A3-3 (R-01): the block with the tenant of the blocked request, for the release's learning. */
+    @Override
+    @Transactional(transactionManager = "contexaTransactionManager")
+    public void recordBlock(String requestId, String userId, String username,
+                            String action, String reasoning,
+                            String sourceIp, String userAgent, String tenantId) {
         int blockCount = blockedUserJpaRepository.countByUserId(userId) + 1;
 
         Optional<BlockedUser> existingOpt = blockedUserJpaRepository
@@ -86,6 +95,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
             existing.setBlockCount(blockCount);
             existing.setSourceIp(sourceIp);
             existing.setUserAgent(userAgent);
+            existing.setTenantId(tenantId);
             blockedUserJpaRepository.save(existing);
         } else {
             BlockedUser blockedUser = BlockedUser.builder()
@@ -100,6 +110,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
                     .status(BlockedUserStatus.BLOCKED)
                     .sourceIp(sourceIp)
                     .userAgent(userAgent)
+                    .tenantId(tenantId)
                     .build();
             blockedUserJpaRepository.save(blockedUser);
         }
@@ -152,6 +163,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
         String username = blocked.getUsername();
         String sourceIp = blocked.getSourceIp();
         String userAgent = blocked.getUserAgent();
+        String tenantId = blocked.getTenantId();
 
         runAfterCommit(() -> syncAdminOverride(
                 requestId,
@@ -159,6 +171,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
                 username,
                 sourceIp,
                 userAgent,
+                tenantId,
                 adminId,
                 resolvedAction,
                 reason
@@ -384,6 +397,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
             String username,
             String sourceIp,
             String userAgent,
+            String tenantId,
             String adminId,
             String resolvedAction,
             String reason
@@ -405,6 +419,10 @@ public class BlockedUserService implements IBlockedUserRecorder {
                     .timestamp(Instant.now())
                     .description("Admin approved unblock - learning from block context")
                     .build();
+            // A3-3 (R-01): the block context learns within the blocked request's tenant, as its baseline is read.
+            if (heldRequest == null && tenantId != null && !tenantId.isBlank()) {
+                blockEvent.addMetadata("tenantId", tenantId);
+            }
 
             adminOverrideService.approve(
                     requestId,

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.context.collector;
 
+import io.contexa.contexacore.autonomous.baseline.AgentBaselineView;
 import io.contexa.contexacore.autonomous.baseline.BaselineView;
 import lombok.Builder;
 import lombok.Value;
@@ -43,4 +44,6 @@ public class ProtectableWorkProfileSnapshot implements ContextSnapshot {
     ContextTrustProfile trustProfile;
     /** The usual behaviour this snapshot's values come from (W2-3). */
     BaselineView baselineView;
+    /** docs/agent A4-1, A4-6: an agent's usual operation order and client; none for a person's request. */
+    AgentBaselineView agentBaseline;
 }

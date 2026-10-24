@@ -6,6 +6,7 @@ import io.contexa.showcase.business.work.BusinessRequest;
 import io.contexa.showcase.business.work.BusinessService;
 import io.contexa.showcase.business.work.BusinessViews.CustomerView;
 import io.contexa.showcase.business.work.BusinessViews.DocumentFile;
+import io.contexa.showcase.business.work.BusinessViews.DocumentSummary;
 import io.contexa.showcase.business.work.BusinessViews.DocumentView;
 import io.contexa.showcase.business.work.BusinessViews.ExportResult;
 import io.contexa.showcase.business.work.BusinessViews.ExportStream;
@@ -40,6 +41,14 @@ public class ContexaBusinessOperations implements BusinessOperations {
         return delegate.listProjects(request);
     }
 
+    /** docs/agent A7-2a: finding the documents to read is reading the project's documents. */
+    @Override
+    @Protectable(category = DOCUMENTS, actions = "READ")
+    public List<DocumentSummary> listDocuments(BusinessRequest request, String projectKey, String type, String query,
+                                               int limit) {
+        return delegate.listDocuments(request, projectKey, type, query, limit);
+    }
+
     @Override
     @Protectable(category = DOCUMENTS, actions = "READ")
     public DocumentView readDocument(BusinessRequest request, String documentKey) {
@@ -47,7 +56,8 @@ public class ContexaBusinessOperations implements BusinessOperations {
     }
 
     @Override
-    @Protectable(category = DOCUMENTS, actions = "READ")
+    /** docs/agent OC-2: a download is its own action, so the company's tickets can cover a read and not a download. */
+    @Protectable(category = DOCUMENTS, actions = "DOWNLOAD")
     public DocumentFile downloadDocument(BusinessRequest request, String documentKey) {
         return delegate.downloadDocument(request, documentKey);
     }

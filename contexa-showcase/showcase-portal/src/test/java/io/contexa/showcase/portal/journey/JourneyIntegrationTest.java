@@ -73,11 +73,21 @@ class JourneyIntegrationTest {
         assertThat(journey.update(VISITOR, new JourneyViews.Update(null, null, "Scene/1", null, null))).isEmpty();
         assertThat(journey.view(VISITOR).state().step()).as("an invalid change stores nothing").isEqualTo("predict");
 
-        // One route and seven groups (최종화면-구현계획 F0-1, IN-6): the concept path and an eighth group are refused.
+        // One route and eight groups (최종화면-구현계획 F0-1, IN-6, docs/agent A7-3): the concept path and a ninth group
+        // are refused.
         assertThat(journey.update(VISITOR, new JourneyViews.Update("INTRO", null, null, null, null))).isEmpty();
-        assertThat(journey.update(VISITOR, new JourneyViews.Update(null, 8, null, null, null))).isEmpty();
-        journey.update(VISITOR, new JourneyViews.Update("DEFAULT", 7, "summary", null, null)).orElseThrow();
-        assertThat(journey.view(VISITOR).state().act()).as("the seventh group is a place").isEqualTo(7);
+        assertThat(journey.update(VISITOR, new JourneyViews.Update(null, 9, null, null, null))).isEmpty();
+        journey.update(VISITOR, new JourneyViews.Update("DEFAULT", 8, "summary", null, null)).orElseThrow();
+        assertThat(journey.view(VISITOR).state().act()).as("the eighth group is a place").isEqualTo(8);
+
+        // docs/agent A7-3: the agent group's experience is the business agent case T5, apart from the catalog.
+        journey.update(VISITOR, new JourneyViews.Update(null, 6, "agent-request", null,
+                new JourneyViews.Prediction("E4", "BLOCK", null, null))).orElseThrow();
+        assertThat(journey.view(VISITOR).predictions()).filteredOn(score -> "E4".equals(score.experience()))
+                .singleElement().satisfies(score -> {
+                    assertThat(score.caseKey()).isEqualTo("T5");
+                    assertThat(score.engineRight()).as("a stop is among the case's right answers").isTrue();
+                });
 
         jdbc.update("delete from visitor where visitor_hash = ?", VISITOR);
         assertThat(jdbc.queryForObject("select count(*) from visitor_journey where visitor_hash = ?", Integer.class,

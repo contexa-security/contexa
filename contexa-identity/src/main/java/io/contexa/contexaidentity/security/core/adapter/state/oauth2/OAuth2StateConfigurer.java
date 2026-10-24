@@ -23,17 +23,30 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2TokenExchangeAuthenticationProvider;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenGenerator;
+import org.springframework.security.oauth2.server.authorization.web.authentication.OAuth2TokenExchangeAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import io.contexa.contexacommon.enums.TokenTransportType;
+import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
+import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
@@ -46,6 +59,10 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
     private static final String OAUTH2_CSRF_PROPERTY = "contexa.auth.oauth2-csrf";
 
     private final OAuth2ServerMode mode;
+    private OAuth2RequestScope requestScope = OAuth2RequestScope.ALL_REQUESTS;
+    private final List<RequestMatcher> tokenScopeRequests = new ArrayList<>();
+    private BearerTokenResolver tokenResolver;
+    private OAuth2AuthorizationServerConfigurer authorizationServer;
 
     public OAuth2StateConfigurer() {
         this(OAuth2ServerMode.COMBINED);
@@ -59,6 +76,28 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
         return mode;
     }
 
+    /**
+     * Which requests this flow's chain takes (A1-10). {@link OAuth2RequestScope#TOKEN_REQUESTS} lets a session flow
+     * ordered after this one serve every other request; the default takes every request the flow covers.
+     */
+    public OAuth2StateConfigurer requestScope(OAuth2RequestScope requestScope) {
+        this.requestScope = Objects.requireNonNull(requestScope, "requestScope cannot be null");
+        return this;
+    }
+
+    public OAuth2RequestScope getRequestScope() {
+        return requestScope;
+    }
+
+    /**
+     * Further requests the chain takes with {@link OAuth2RequestScope#TOKEN_REQUESTS}, such as a protected resource
+     * metadata path that clients read before they hold a token.
+     */
+    public OAuth2StateConfigurer tokenScopeRequests(RequestMatcher... requests) {
+        this.tokenScopeRequests.addAll(Arrays.asList(requests));
+        return this;
+    }
+
     @Override
     public void init(HttpSecurity http) throws Exception {
         if (mode.includesResourceServer()) {
@@ -67,12 +106,47 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
         if (mode.includesAuthorizationServer()) {
             configureAuthorizationServer(http);
         }
+        configureRequestScope(http);
+    }
+
+    /** Narrows the chain to the token requests when the flow asks for it; otherwise the chain stays as it is. */
+    void configureRequestScope(HttpSecurity http) {
+        if (requestScope != OAuth2RequestScope.TOKEN_REQUESTS) {
+            return;
+        }
+        ApplicationContext appContext = http.getSharedObject(ApplicationContext.class);
+        AuthenticationFlowConfig flow = http.getSharedObject(AuthenticationFlowConfig.class);
+        String refreshUri = mode.includesAuthorizationServer() && appContext != null
+                ? appContext.getBean(AuthContextProperties.class).getInternal().getRefreshUri()
+                : null;
+        Set<String> paths = TokenRequestScope.flowPaths(flow, mfaUrls(appContext, flow), refreshUri);
+        http.securityMatcher(TokenRequestScope.matcher(
+                mode.includesResourceServer() ? tokenResolver : null,
+                authorizationServer != null ? authorizationServer.getEndpointsMatcher() : null,
+                paths, List.copyOf(tokenScopeRequests)));
+        log.info("OAuth2 flow '{}' takes token requests only: access tokens, {}authentication paths {}{}; "
+                        + "other requests pass to the next flow",
+                flow != null ? flow.getTypeName() : "?",
+                authorizationServer != null ? "authorization server endpoints, " : "", paths,
+                tokenScopeRequests.isEmpty() ? "" : " and " + tokenScopeRequests);
+    }
+
+    private AuthUrlProvider mfaUrls(ApplicationContext appContext, AuthenticationFlowConfig flow) {
+        if (appContext == null || flow == null || !MfaFlowTypeUtils.isMfaFlow(flow.getTypeName())) {
+            return null;
+        }
+        try {
+            return appContext.getBean(MfaFlowUrlRegistry.class).getProvider(flow.getTypeName());
+        } catch (NoSuchBeanDefinitionException ignored) {
+            return null;
+        }
     }
 
     private void configureResourceServer(HttpSecurity http) throws Exception {
         ApplicationContext appContext = getBuilder().getSharedObject(ApplicationContext.class);
         OAuth2AuthenticationEntryPoint entryPoint = new OAuth2AuthenticationEntryPoint();
         OAuth2CookieTokenSupport cookieTokenSupport = resolveCookieTokenSupport(http, appContext);
+        tokenResolver = chainTokenResolver(appContext, cookieTokenSupport);
 
         http.oauth2ResourceServer(oauth2 -> {
             oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(new OAuth2JwtAuthenticationConverter(http)))
@@ -119,6 +193,17 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
         }
     }
 
+    /** The resolver the bearer token filter of this chain reads tokens with. */
+    private BearerTokenResolver chainTokenResolver(ApplicationContext appContext, OAuth2CookieTokenSupport cookieTokenSupport) {
+        if (cookieTokenSupport != null) {
+            return new OAuth2AccessTokenResolver(cookieTokenSupport.tokenService());
+        }
+        BearerTokenResolver applicationResolver = appContext != null
+                ? appContext.getBeanProvider(BearerTokenResolver.class).getIfUnique()
+                : null;
+        return applicationResolver != null ? applicationResolver : new DefaultBearerTokenResolver();
+    }
+
     /**
      * Returns the cookie token handling when access tokens travel in cookies and the application has not
      * defined its own {@link BearerTokenResolver}; otherwise {@code null}.
@@ -147,7 +232,7 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
                     "OAuth2AuthorizationService and RegisteredClientRepository are required for AUTHORIZATION_SERVER mode");
         }
 
-        OAuth2AuthorizationServerConfigurer authorizationServer = new OAuth2AuthorizationServerConfigurer();
+        authorizationServer = new OAuth2AuthorizationServerConfigurer();
         ApplicationContext appContext = getBuilder().getSharedObject(ApplicationContext.class);
         http.with(authorizationServer, configurer -> {
             configurer.authorizationService(authorizationService).registeredClientRepository(clientRepository);
@@ -158,14 +243,24 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
             TransactionTemplate transactionTemplate = getOptionalBean(
                     appContext, "contexaTransactionTemplate", TransactionTemplate.class);
             if (transactionTemplate != null) {
-                if (tokenGenerator == null || userRepository == null) {
-                    throw new IllegalStateException(
-                            "OAuth2TokenGenerator and UserRepository are required for the authenticated-user grant");
+                if (userRepository == null) {
+                    throw new IllegalStateException("UserRepository is required for the authenticated-user grant");
                 }
                 configurer.tokenEndpoint(endpoint -> endpoint
                         .accessTokenRequestConverter(new AuthenticatedUserGrantAuthenticationConverter())
                         .authenticationProvider(new AuthenticatedUserGrantAuthenticationProvider(
-                                authorizationService, tokenGenerator, userRepository, transactionTemplate)));
+                                authorizationService, chainTokenGenerator(http, tokenGenerator), userRepository,
+                                transactionTemplate)));
+            }
+
+            if (!tokenExchangeEnabled(appContext)) {
+                // Off: Spring's token exchange grant is taken out, so every client's request is refused as an
+                // unsupported grant type (A1-12).
+                configurer.tokenEndpoint(endpoint -> endpoint
+                        .accessTokenRequestConverters(converters ->
+                                converters.removeIf(OAuth2TokenExchangeAuthenticationConverter.class::isInstance))
+                        .authenticationProviders(providers ->
+                                providers.removeIf(OAuth2TokenExchangeAuthenticationProvider.class::isInstance)));
             }
 
             configurer.tokenEndpoint(endpoint -> {
@@ -195,6 +290,35 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
             // refresh request cannot block the renewal.
             http.addFilterBefore(new OAuth2TokenRefreshFilter(properties.getInternal().getRefreshUri(), tokenService,
                     properties.getTokenTransportType(), responseWriter), BearerTokenAuthenticationFilter.class);
+        }
+    }
+
+    /**
+     * The generator the authenticated-user grant issues with: the application's own, or else the one the authorization
+     * server builds for this chain (Spring's default claims and Contexa's token customizer, CF-06), resolved on first
+     * use because the authorization server builds it after this configurer.
+     */
+    private static OAuth2TokenGenerator<?> chainTokenGenerator(HttpSecurity http, OAuth2TokenGenerator<?> applicationGenerator) {
+        if (applicationGenerator != null) {
+            return applicationGenerator;
+        }
+        return context -> {
+            OAuth2TokenGenerator<?> generator = http.getSharedObject(OAuth2TokenGenerator.class);
+            if (generator == null) {
+                throw new IllegalStateException("The authorization server built no token generator for this chain");
+            }
+            return generator.generate(context);
+        };
+    }
+
+    private boolean tokenExchangeEnabled(ApplicationContext appContext) {
+        if (appContext == null) {
+            return false;
+        }
+        try {
+            return appContext.getBean(AuthContextProperties.class).getOauth2().isTokenExchangeEnabled();
+        } catch (NoSuchBeanDefinitionException noSettings) {
+            return false;
         }
     }
 

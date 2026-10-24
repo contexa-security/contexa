@@ -181,6 +181,32 @@ class LearningPromotionServiceTest {
                 Deviation.Explanation.UNEXPLAINED, null);
     }
 
+    /**
+     * docs/agent A3-7: an agent's held requests are kept apart from the person's (under the agent's learning key) and,
+     * promoted, are learned as the requests of their own user, the agent's own key coming from the request.
+     */
+    @Test
+    void anAgentsHeldRequestsAreKeptApartAndPromotedAsTheirOwnUsers() {
+        SecurityEvent first = agent(event("a-1", "2026-09-29T06:00:00Z", "NORMAL", device(DEVICE)));
+        SecurityEvent second = agent(event("a-2", "2026-09-30T06:00:00Z", "NORMAL", device(DEVICE)));
+
+        service.hold(first);
+        assertThat(store.promotionLearning("alice::agent::report-agent")).hasSize(1);
+        assertThat(store.promotionLearning("alice")).isEmpty();
+        service.hold(second);
+
+        verify(learning, times(2)).learnPromoted(eq("alice"), any(), any());
+        assertThat(store.promotionLearning("alice::agent::report-agent")).isEmpty();
+    }
+
+    private static SecurityEvent agent(SecurityEvent event) {
+        event.addMetadata("executionSubjectKind", "DELEGATED_AGENT");
+        event.addMetadata("agentId", "report-agent");
+        ((CanonicalSecurityContext) event.getMetadata().get(LearningPromotionPolicy.DECIDED_CONTEXT)).getAttributes()
+                .put("executionSubjectKind", "DELEGATED_AGENT");
+        return event;
+    }
+
     private static SecurityEvent event(String requestId, String at, String resourceClass, Deviation... deviations) {
         CanonicalSecurityContext.Resource resource = new CanonicalSecurityContext.Resource();
         resource.setResourceClass(resourceClass);

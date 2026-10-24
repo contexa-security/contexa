@@ -57,6 +57,19 @@ public class AuditRecord {
 
     private final String correlationId;
 
+    /** docs/agent A5-5: the decision record fields of an agent request (null for a record that is no decision). */
+    private final String subjectKind;
+    private final String agentId;
+    private final String delegatorId;
+    private final String delegationId;
+    private final String targetAction;
+    private final String riskState;
+    private final String enforcementAction;
+    private final String enforcementCause;
+    private final String requestContextHash;
+    /** docs/agent A5-6: the tenant of the decided request. */
+    private final String tenantId;
+
     /**
      * Convert this record to a persistent AuditLog entity.
      */
@@ -80,6 +93,16 @@ public class AuditRecord {
                 .riskScore(riskScore)
                 .eventSource(eventSource)
                 .correlationId(correlationId)
+                .subjectKind(subjectKind)
+                .agentId(truncate(agentId, 255))
+                .delegatorId(truncate(delegatorId, 255))
+                .delegationId(truncate(delegationId, 255))
+                .targetAction(truncate(targetAction, 100))
+                .riskState(truncate(riskState, 1024))
+                .enforcementAction(truncate(enforcementAction, 255))
+                .enforcementCause(truncate(enforcementCause, 1024))
+                .requestContextHash(requestContextHash)
+                .tenantId(truncate(tenantId, 255))
                 .build();
     }
 

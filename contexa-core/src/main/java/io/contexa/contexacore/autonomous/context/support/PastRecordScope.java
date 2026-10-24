@@ -22,17 +22,29 @@ import java.util.Objects;
  * Which past records a request is compared with (W3-18): the user's own allowed records stored for the retrieval
  * purpose, of the request's action family, outside the request's session (under any id it had, W2-8) and not held
  * back. The action family, not the protected method, is the scope, so another entry point of the same work is counted.
+ * docs/agent A3-1, A3-2: the records of the request's tenant as the document authorization reads a tenant (a record of
+ * no tenant or organization is bound to none), and of the request's subject: an agent's records for an agent's request,
+ * no agent's records for a person's.
  *
  * @param userId             the requesting user
  * @param retrievalPurpose   the retrieval purpose the records were stored for
  * @param actionFamily       the request's action family
  * @param excludedSessionIds the ids of the request's session
+ * @param tenantId           the request's tenant, or null
+ * @param organizationId     the request's organization, or null
+ * @param agentId            the agent of an agent's request, or null for a person's
  */
-public record PastRecordScope(String userId, String retrievalPurpose, String actionFamily, List<String> excludedSessionIds) {
+public record PastRecordScope(String userId, String retrievalPurpose, String actionFamily, List<String> excludedSessionIds,
+                              String tenantId, String organizationId, String agentId) {
 
     public PastRecordScope {
         Objects.requireNonNull(userId, "userId");
         Objects.requireNonNull(actionFamily, "actionFamily");
         excludedSessionIds = excludedSessionIds == null ? List.of() : List.copyOf(excludedSessionIds);
+    }
+
+    /** A person's request of no tenant or organization. */
+    public PastRecordScope(String userId, String retrievalPurpose, String actionFamily, List<String> excludedSessionIds) {
+        this(userId, retrievalPurpose, actionFamily, excludedSessionIds, null, null, null);
     }
 }

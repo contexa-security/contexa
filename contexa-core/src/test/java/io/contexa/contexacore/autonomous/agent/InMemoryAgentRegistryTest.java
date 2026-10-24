@@ -30,6 +30,22 @@ class InMemoryAgentRegistryTest {
 
     private final InMemoryAgentRegistry registry = new InMemoryAgentRegistry(Clock.fixed(NOW, ZoneOffset.UTC));
 
+    /** docs/agent OC-3: removal takes the agent and its history away; another agent and tenant stay. */
+    @Test
+    void aRemovedAgentIsGoneWithItsHistory() {
+        registry.register(new AgentRegistrationRequest("tenant-acme", "agent-7", "Report", null, "agent-client",
+                "carol", true));
+        registry.register(new AgentRegistrationRequest("tenant-acme", "agent-8", "Other", null, "other-client",
+                "carol", true));
+
+        assertThat(registry.remove("tenant-acme", "agent-7")).isPresent();
+
+        assertThat(registry.find("tenant-acme", "agent-7")).isEmpty();
+        assertThat(registry.findByClientId("tenant-acme", "agent-client")).isEmpty();
+        assertThat(registry.find("tenant-acme", "agent-8")).isPresent();
+        assertThat(registry.remove("tenant-acme", "agent-7")).isEmpty();
+    }
+
     @Test
     void theFirstRequestOfAnUnknownAgentRegistersItAsObserved() {
         AgentRegistration observed = registry.observe(new AgentSighting(
@@ -129,5 +145,61 @@ class InMemoryAgentRegistryTest {
         assertThat(registry.list("tenant-a", 10)).extracting(AgentRegistration::agentId).containsExactly("agent-2", "agent-1");
         assertThat(registry.list(null, 2)).extracting(AgentRegistration::agentId).containsExactly("agent-2", "agent-1");
         assertThat(registry.list(null, 2)).extracting(AgentRegistration::tenantId).containsExactly("tenant-a", "tenant-b");
+    }
+
+    @Test
+    void anAgentIsFoundByTheClientItsTokensAreIssuedToOrByAnIdentifierThatIsTheClient() {
+        registry.register(new AgentRegistrationRequest(null, "report-bot", "Report bot", null, "report-client", "carol", null));
+        registry.register(new AgentRegistrationRequest(null, "sync-bot", "Sync bot", null, null, "dave", null));
+        registry.register(new AgentRegistrationRequest("tenant-acme", "acme-bot", "Acme bot", null, "shared-client", "erin", null));
+
+        assertThat(registry.findByClientId(null, "report-client")).map(AgentRegistration::agentId).contains("report-bot");
+        assertThat(registry.findByClientId(null, "sync-bot")).map(AgentRegistration::agentId).contains("sync-bot");
+        assertThat(registry.findByClientId(null, "shared-client")).isEmpty();
+        assertThat(registry.findByClientId("tenant-acme", "shared-client")).map(AgentRegistration::agentId).contains("acme-bot");
+        assertThat(registry.findByClientId(null, "unknown-client")).isEmpty();
+        assertThat(registry.findByClientId(null, " ")).isEmpty();
+    }
+
+    @Test
+    void aClientMatchComesBeforeAnAgentWhoseIdentifierIsTheSameText() {
+        registry.register(new AgentRegistrationRequest(null, "worker", "Named like a client", null, null, "carol", null));
+        registry.register(new AgentRegistrationRequest(null, "worker-agent", "Issued to worker", null, "worker", "dave", null));
+
+        assertThat(registry.findByClientId(null, "worker")).map(AgentRegistration::agentId).contains("worker-agent");
+    }
+
+    /**
+     * docs/agent A5-3: a suspension keeps its reason and shows on the agent's client at once; a resumption ends only a
+     * suspension, a deregistered agent is not suspended, and an unknown agent is neither.
+     */
+    @Test
+    void aSuspensionKeepsItsReasonAndOnlyAResumptionEndsIt() {
+        registry.register(new AgentRegistrationRequest("tenant-acme", "agent-7", "Report", null, "agent-client",
+                "carol", true));
+        registry.register(new AgentRegistrationRequest("tenant-acme", "agent-8", "Gone", null, "gone-client",
+                "carol", true));
+        registry.deregister("tenant-acme", "agent-8", "retired");
+
+        assertThat(registry.suspend("tenant-acme", "agent-7", "BLOCK: exported every document"))
+                .map(AgentRegistration::status).contains(AgentStatus.SUSPENDED);
+        assertThat(registry.findByClientId("tenant-acme", "agent-client")).map(AgentRegistration::statusReason)
+                .contains("BLOCK: exported every document");
+        // A provider's re-registration does not lift a security decision.
+        registry.register(new AgentRegistrationRequest("tenant-acme", "agent-7", "Report", null, "agent-client",
+                "carol", true));
+        assertThat(registry.find("tenant-acme", "agent-7")).map(AgentRegistration::status)
+                .contains(AgentStatus.SUSPENDED);
+
+        assertThat(registry.resume("tenant-acme", "agent-7", "RELEASED: reviewed")).map(AgentRegistration::status)
+                .contains(AgentStatus.ACTIVE);
+        assertThat(registry.find("tenant-acme", "agent-7")).map(AgentRegistration::statusReason)
+                .contains("RELEASED: reviewed");
+        assertThat(registry.resume("tenant-acme", "agent-7", "again")).map(AgentRegistration::statusReason)
+                .contains("RELEASED: reviewed");
+        assertThat(registry.suspend("tenant-acme", "agent-8", "BLOCK: late")).map(AgentRegistration::status)
+                .contains(AgentStatus.DEREGISTERED);
+        assertThat(registry.suspend("tenant-acme", "agent-9", "BLOCK: unknown")).isEmpty();
+        assertThat(registry.resume("tenant-other", "agent-7", "wrong tenant")).isEmpty();
     }
 }

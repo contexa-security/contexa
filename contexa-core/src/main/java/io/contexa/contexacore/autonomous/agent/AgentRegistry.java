@@ -30,6 +30,13 @@ public interface AgentRegistry {
 
     Optional<AgentRegistration> find(String tenantId, String agentId);
 
+    /**
+     * The tenant's agent whose tokens are issued to the client, or else the agent whose identifier is the client's
+     * (A1-2): how a client's own token is matched to an agent. The tenant is matched exactly; {@code null} is the
+     * single-tenant deployment's. The answer reflects a suspension or deregistration at once, since it admits tokens.
+     */
+    Optional<AgentRegistration> findByClientId(String tenantId, String clientId);
+
     /** The tenant's agents (every tenant's for {@code null}), latest seen first, at most {@code limit}. */
     List<AgentRegistration> list(String tenantId, int limit);
 
@@ -44,4 +51,25 @@ public interface AgentRegistry {
 
     /** The person accountable for the agent changed. Empty when the registry does not know it. */
     Optional<AgentRegistration> transferSponsor(String tenantId, String agentId, String sponsorId);
+
+    /**
+     * docs/agent A5-3: stops the agent (a BLOCK on its own requests, an operator, the kill switch): its own tokens and
+     * the tokens issued to it for people are refused until it is resumed. Empty when the registry does not know it.
+     */
+    default Optional<AgentRegistration> suspend(String tenantId, String agentId, String reason) {
+        throw new UnsupportedOperationException("Agent suspension is not supported by " + getClass().getSimpleName());
+    }
+
+    /** docs/agent A5-3: ends the agent's suspension. Empty when the registry does not know it. */
+    default Optional<AgentRegistration> resume(String tenantId, String agentId, String reason) {
+        throw new UnsupportedOperationException("Agent suspension is not supported by " + getClass().getSimpleName());
+    }
+
+    /**
+     * docs/agent OC-3: removes the agent and its history for good (a mistaken registration, the deletion of personal
+     * data); a deregistration keeps both. Empty when the registry does not know it.
+     */
+    default Optional<AgentRegistration> remove(String tenantId, String agentId) {
+        throw new UnsupportedOperationException("Agent removal is not supported by " + getClass().getSimpleName());
+    }
 }

@@ -15,8 +15,11 @@
  */
 package io.contexa.contexacore.autonomous.context.collector;
 
+import io.contexa.contexacore.autonomous.agent.AgentLearningControl;
+import io.contexa.contexacore.autonomous.baseline.AgentBaselineView;
 import io.contexa.contexacore.autonomous.baseline.BaselineView;
 import io.contexa.contexacore.autonomous.baseline.BaselineViewCalculator;
+import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 import io.contexa.contexacore.autonomous.context.support.ActionFamily;
 import io.contexa.contexacore.autonomous.context.support.ActionFamilyResolver;
 import io.contexa.contexacore.autonomous.context.support.MetadataValueResolver;
@@ -25,6 +28,7 @@ import io.contexa.contexacore.autonomous.context.support.VocabularyVersion;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacommon.domain.EventTimeZone;
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacommon.security.bridge.CredentialFacts;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import org.springframework.util.StringUtils;
@@ -73,6 +77,8 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
     private static final String SERIALIZATION_VERSION_V4 = "v4";
     private static final String SERIALIZATION_VERSION_V5 = "v5";
     private static final String SERIALIZATION_VERSION_V6 = "v6";
+    /** docs/agent A4-1, A4-6: an agent's observation is the v6 form with the agent's facts after it. */
+    private static final String SERIALIZATION_VERSION_V7 = "v7";
     private static final String PROFILE_KEY = "PERSONAL_WORK_PROFILE";
     private static final String COLLECTOR_ID = "PROTECTABLE_WORK_PROFILE_COLLECTOR";
 
@@ -110,16 +116,24 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
             return resolved;
         }
 
-        WorkProfileObservation currentObservation = createObservation(event);
-        if (currentObservation == null) {
+        WorkProfileObservation createdObservation = createObservation(event);
+        if (createdObservation == null) {
             return Optional.empty();
         }
 
         String tenantId = resolveTenantId(event);
         String userId = event.getUserId().trim();
+        // docs/agent A3-1: an agent's request reads and learns the work profile of the agent, never the person's.
+        LearningSubject subject = LearningSubject.of(event, userId);
+        // docs/agent A4-1, A4-6: an agent's observation also states its client and the operation before it.
+        WorkProfileObservation currentObservation = subject != null && subject.agent()
+                ? createdObservation.withAgent(agentFacts(event, createdObservation)) : createdObservation;
+        String learningKey = subject != null ? subject.key() : userId;
+        // docs/agent A3-8: a quarantined agent's work profile is neither read nor learned.
+        boolean quarantined = AgentLearningControl.learningQuarantined(dataStore, subject);
         // The usual behaviour is compared with the activity period of this request, so it leaves that period out.
         List<WorkProfileObservation> history = BaselineViewCalculator.withoutCurrentSessionPeriod(
-                loadHistory(tenantId, userId, currentObservation.timestampMs()),
+                quarantined ? List.of() : loadHistory(tenantId, learningKey, currentObservation.timestampMs()),
                 WorkProfileObservation::timestampMs,
                 WorkProfileObservation::sessionKey,
                 sessionKeysOf(event, currentObservation.sessionKey()),
@@ -133,13 +147,18 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                 currentObservation.timestampMs(),
                 EventTimeZone.get(),
                 viewObservation(currentObservation));
-        Optional<ProtectableWorkProfileSnapshot> snapshot = buildSnapshot(tenantId, userId, baseline, view);
+        AgentBaselineView agentBaseline = subject != null && subject.agent()
+                ? AgentBaselineView.calculate(history.stream().map(WorkProfileObservation::agent).toList(),
+                currentObservation.agent())
+                : null;
+        Optional<ProtectableWorkProfileSnapshot> snapshot = buildSnapshot(tenantId, userId, baseline, view,
+                agentBaseline);
 
-        String observation = shouldPersist(currentObservation) ? serialize(currentObservation) : null;
+        String observation = shouldPersist(currentObservation) && !quarantined ? serialize(currentObservation) : null;
         recorder.stage(event, ContextObservationRecorder.WORK_PROFILE, snapshot.orElse(null), commit -> {
             // A request the enforcement holds for promotion is learned when it is promoted, not here (W5-1).
             if (observation != null && commit.learnable() && !heldForPromotion(event)) {
-                commit.dataStore().addWorkProfileObservation(tenantId, userId, observation);
+                commit.dataStore().addWorkProfileObservation(tenantId, learningKey, observation);
             }
         });
         return snapshot;
@@ -200,8 +219,15 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
         if (!shouldPersist(observation)) {
             return;
         }
-        dataStore.addWorkProfileObservation(resolveTenantId(event), event.getUserId().trim(),
-                serialize(observation.withWeight(weight)));
+        // docs/agent A3-1: an agent's verified request is the agent's usual behaviour, never the person's.
+        LearningSubject subject = LearningSubject.of(event);
+        if (AgentLearningControl.learningQuarantined(dataStore, subject)) {
+            return;
+        }
+        WorkProfileObservation learned = subject != null && subject.agent()
+                ? observation.withAgent(agentFacts(event, observation)) : observation;
+        dataStore.addWorkProfileObservation(resolveTenantId(event),
+                subject != null ? subject.key() : event.getUserId().trim(), serialize(learned.withWeight(weight)));
     }
 
     /**
@@ -225,7 +251,8 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
             String tenantId,
             String userId,
             List<WorkProfileObservation> observations,
-            BaselineView view) {
+            BaselineView view,
+            AgentBaselineView agentBaseline) {
         if (observations == null || observations.isEmpty()) {
             return Optional.empty();
         }
@@ -300,6 +327,7 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                         view.counts().dayObservations()))
                 .trustProfile(trustProfile)
                 .baselineView(withFieldCautions(view, trustProfile))
+                .agentBaseline(agentBaseline)
                 .build());
     }
 
@@ -774,6 +802,26 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
     }
 
     /**
+     * docs/agent A4-1, A4-6: what an agent's request states beyond a person's: its OAuth client (the credential's
+     * client id, none for an agent signed in with its own account), the digest of its user agent and the operation
+     * before it in its session (the session narrative's latest recorded operation; this request's own is recorded
+     * once its decision is known).
+     */
+    private AgentBaselineView.Facts agentFacts(SecurityEvent event, WorkProfileObservation observation) {
+        Map<String, Object> metadata = event.getMetadata();
+        String clientId = firstText(metadata != null ? metadata.get(CredentialFacts.CLIENT_ID) : null);
+        String previous = null;
+        if (StringUtils.hasText(event.getSessionId())) {
+            List<String> recent = dataStore.getRecentSessionNarrativeActionFamilies(event.getSessionId().trim(), 1);
+            if (recent != null && !recent.isEmpty()) {
+                previous = ActionFamily.nameOrRaw(recent.get(recent.size() - 1));
+            }
+        }
+        return new AgentBaselineView.Facts(clientId, AgentBaselineView.digest(event.getUserAgent()), previous,
+                observation.actionFamily());
+    }
+
+    /**
      * The vocabulary the observation's values are in and its request's network, device and login, read the way the
      * baseline learns them (W5-7, W5-9).
      */
@@ -1045,7 +1093,8 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
      */
     private String serialize(WorkProfileObservation observation) {
         WorkProfileObservation.Identity identity = observation.identity();
-        return SERIALIZATION_VERSION_V6
+        AgentBaselineView.Facts agent = observation.agent();
+        return (agent != null ? SERIALIZATION_VERSION_V7 : SERIALIZATION_VERSION_V6)
                 + "|" + encodeNullable(observation.observationId())
                 + "|" + observation.timestampMs()
                 + "|" + encodeNullableBoolean(observation.protectable())
@@ -1072,7 +1121,12 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                 + "|" + encodeNullable(identity.vocabularyVersion())
                 + "|" + encodeNullable(identity.network())
                 + "|" + encodeNullable(identity.device())
-                + "|" + encodeNullable(identity.loginMethod());
+                + "|" + encodeNullable(identity.loginMethod())
+                + (agent != null
+                ? "|" + encodeNullable(agent.clientId())
+                + "|" + encodeNullable(agent.userAgentDigest())
+                + "|" + encodeNullable(agent.previousActionFamily())
+                : "");
     }
 
     private WorkProfileObservation deserialize(String raw) {
@@ -1083,7 +1137,8 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
         try {
             // v3 adds the URL template and the session key, v4 the item count, v5 the weight of a request learned
             // after a verification (W5-2); older observations read without them, counted whole.
-            boolean v6 = SERIALIZATION_VERSION_V6.equals(parts[0]) && parts.length == 27;
+            boolean v7 = SERIALIZATION_VERSION_V7.equals(parts[0]) && parts.length == 30;
+            boolean v6 = v7 || SERIALIZATION_VERSION_V6.equals(parts[0]) && parts.length == 27;
             boolean v5 = v6 || SERIALIZATION_VERSION_V5.equals(parts[0]) && parts.length == 23;
             boolean v4 = v5 || SERIALIZATION_VERSION_V4.equals(parts[0]) && parts.length == 22;
             boolean v3 = v4 || SERIALIZATION_VERSION_V3.equals(parts[0]) && parts.length == 21;
@@ -1113,7 +1168,11 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                         v5 ? Double.parseDouble(parts[22]) : 1.0,
                         v6 ? new WorkProfileObservation.Identity(decodeNullable(parts[23]), decodeNullable(parts[24]),
                                 decodeNullable(parts[25]), decodeNullable(parts[26]))
-                                : WorkProfileObservation.Identity.NONE);
+                                : WorkProfileObservation.Identity.NONE,
+                        v7 ? new AgentBaselineView.Facts(decodeNullable(parts[27]), decodeNullable(parts[28]),
+                                ActionFamily.nameOrRaw(decodeNullable(parts[29])),
+                                ActionFamily.nameOrRaw(decodeNullable(parts[11])))
+                                : null);
             }
             if (parts.length == 7) {
                 String fingerprint = String.join("|", parts);
@@ -1370,7 +1429,8 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
             String sessionKey,
             Integer requestedItems,
             double weight,
-            Identity identity) {
+            Identity identity,
+            AgentBaselineView.Facts agent) {
 
         /**
          * The vocabulary of the observation's values and its request's network, device and login (W5-7, W5-9); none
@@ -1378,6 +1438,22 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
          */
         private record Identity(String vocabularyVersion, String network, String device, String loginMethod) {
             private static final Identity NONE = new Identity(null, null, null, null);
+        }
+
+        /** An observation of a person, or of an agent stored before docs/agent A4-1. */
+        private WorkProfileObservation(String observationId, long timestampMs, String requestPath,
+                                       String requestPathSourceKey, boolean requestPathFallback, String resourceFamily,
+                                       String resourceFamilySourceKey, boolean resourceFamilyFallback,
+                                       String actionFamily, String actionFamilySourceKey, boolean actionFamilyFallback,
+                                       String sensitivity, String sensitivitySourceKey, boolean sensitivityFallback,
+                                       String decisionState, Boolean protectable, String protectableSourceKey,
+                                       boolean protectableFallback, String pathTemplate, String sessionKey,
+                                       Integer requestedItems, double weight, Identity identity) {
+            this(observationId, timestampMs, requestPath, requestPathSourceKey, requestPathFallback, resourceFamily,
+                    resourceFamilySourceKey, resourceFamilyFallback, actionFamily, actionFamilySourceKey,
+                    actionFamilyFallback, sensitivity, sensitivitySourceKey, sensitivityFallback, decisionState,
+                    protectable, protectableSourceKey, protectableFallback, pathTemplate, sessionKey, requestedItems,
+                    weight, identity, null);
         }
 
         /** An observation counted whole. */
@@ -1401,7 +1477,7 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                     requestPathFallback, resourceFamily, resourceFamilySourceKey, resourceFamilyFallback, actionFamily,
                     actionFamilySourceKey, actionFamilyFallback, sensitivity, sensitivitySourceKey,
                     sensitivityFallback, decisionState, protectable, protectableSourceKey, protectableFallback,
-                    pathTemplate, sessionKey, requestedItems, weight, identity);
+                    pathTemplate, sessionKey, requestedItems, weight, identity, agent);
         }
 
         private WorkProfileObservation withIdentity(Identity stated) {
@@ -1409,7 +1485,15 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                     requestPathFallback, resourceFamily, resourceFamilySourceKey, resourceFamilyFallback, actionFamily,
                     actionFamilySourceKey, actionFamilyFallback, sensitivity, sensitivitySourceKey,
                     sensitivityFallback, decisionState, protectable, protectableSourceKey, protectableFallback,
-                    pathTemplate, sessionKey, requestedItems, weight, stated != null ? stated : Identity.NONE);
+                    pathTemplate, sessionKey, requestedItems, weight, stated != null ? stated : Identity.NONE, agent);
+        }
+
+        private WorkProfileObservation withAgent(AgentBaselineView.Facts facts) {
+            return new WorkProfileObservation(observationId, timestampMs, requestPath, requestPathSourceKey,
+                    requestPathFallback, resourceFamily, resourceFamilySourceKey, resourceFamilyFallback, actionFamily,
+                    actionFamilySourceKey, actionFamilyFallback, sensitivity, sensitivitySourceKey,
+                    sensitivityFallback, decisionState, protectable, protectableSourceKey, protectableFallback,
+                    pathTemplate, sessionKey, requestedItems, weight, identity, facts);
         }
     }
 

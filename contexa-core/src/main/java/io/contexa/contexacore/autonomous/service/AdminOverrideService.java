@@ -162,6 +162,12 @@ public class AdminOverrideService {
                     .analysisTime(System.currentTimeMillis())
                     .build();
 
+            // docs/agent A3-4: what an administrator released is verified, so its values never expire.
+            if (event != null && (event.getMetadata() == null
+                    || event.getMetadata().get(VerificationLearningService.VERIFIED_BY) == null)) {
+                event.addMetadata(VerificationLearningService.VERIFIED_BY,
+                        VerificationLearningService.Verification.ADMIN_RELEASE.name());
+            }
             // The baseline learning takes the user's update lock itself (W5-8). The lock is not re-entrant, so the
             // approval does not hold it around the learning.
             securityLearningService.learnAndStore(userId, adminApprovedDecision, event);

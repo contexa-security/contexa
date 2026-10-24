@@ -67,7 +67,9 @@ public class PortalSecurityConfiguration {
                                 "/api/runs/*/steps/*/facts", "/api/runs/*/steps/*/quality", "/api/lab/runs/*/delta",
                                 "/api/benchmark/prompt-quality", "/api/runs/*/steps/*/other-bundle",
                                 // BM-S8: the decision quality an operator published for a setting.
-                                "/api/benchmark/decision-quality")
+                                "/api/benchmark/decision-quality",
+                                // docs/agent A7-3: the business agent group's case and a run's agent work.
+                                "/api/agent-cases/*", "/api/runs/*/agent")
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/predictions", "/api/shares",
                                 "/api/runs/*/steps/*/assessment", "/api/rules/evaluate", "/api/journey",

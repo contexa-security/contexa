@@ -28,7 +28,7 @@ import styles from './CheckPage.module.css';
 export const CHECK_CASE = 'S14';
 
 /** The run states during which the screen still follows the run. */
-const GOING = new Set(['QUEUED', 'STARTING', 'RUNNING', 'CHALLENGE', 'AWAITING', 'BLOCKED']);
+const GOING = new Set(['QUEUED', 'STARTING', 'RUNNING', 'CHALLENGE', 'AWAITING', 'BLOCKED', 'CONFIRMING']);
 
 /** The check stages in which the visitor still has something to do. */
 const CHECK_OPEN = new Set(['WAITING', 'CODE_SHOWN', 'VERIFYING', 'CANCELLED']);

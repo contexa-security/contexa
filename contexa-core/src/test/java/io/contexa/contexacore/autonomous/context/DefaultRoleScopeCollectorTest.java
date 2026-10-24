@@ -429,6 +429,40 @@ class DefaultRoleScopeCollectorTest {
         return eventBy("bob", timestamp, effectiveRoles, scopeTags, permissions, actionFamily, resourceFamily, granted);
     }
 
+    /**
+     * docs/agent F-6 (CF-27): an agent acting for alice holds a token with scopes of its own. Its authorization is
+     * compared with its own earlier one, never with alice's session, and it changes nothing of alice's: neither the
+     * agent's first request nor alice's next one shows a permission change; the agent's own later change does.
+     */
+    @Test
+    void anAgentsAuthorizationIsComparedWithItsOwnAndNeverChangesThePersons() {
+        collect(event(LocalDateTime.of(2026, 3, 26, 9, 0), List.of("ROLE_ANALYST"), List.of("customer_data"),
+                List.of("report.read"), "READ", "REPORT", true));
+
+        RoleScopeSnapshot agentFirst = collect(agentEvent(LocalDateTime.of(2026, 3, 26, 9, 10),
+                List.of("SCOPE_READ"), List.of("report"), List.of("SC.ANALYST"))).orElseThrow();
+        RoleScopeSnapshot personNext = collect(event(LocalDateTime.of(2026, 3, 26, 9, 20), List.of("ROLE_ANALYST"),
+                List.of("customer_data"), List.of("report.read"), "READ", "REPORT", true)).orElseThrow();
+        RoleScopeSnapshot agentChanged = collect(agentEvent(LocalDateTime.of(2026, 3, 26, 9, 30),
+                List.of("SCOPE_READ", "SCOPE_EXPORT"), List.of("report"), List.of("SC.ANALYST"))).orElseThrow();
+
+        assertThat(agentFirst.getRecentPermissionChanges()).isNullOrEmpty();
+        assertThat(agentFirst.getTemporaryElevation()).isNotEqualTo(Boolean.TRUE);
+        assertThat(personNext.getRecentPermissionChanges()).isNullOrEmpty();
+        assertThat(agentChanged.getRecentPermissionChanges()).isNotEmpty();
+        assertThat(dataStore.getRecentPermissionChangeObservations("tenant-acme", "alice", 10)).isEmpty();
+        assertThat(dataStore.getAuthorizationScopeState("tenant-acme", "alice::agent::report-agent")).isNotNull();
+    }
+
+    /** A request of an agent acting for alice, with its own token's authorities. */
+    private SecurityEvent agentEvent(LocalDateTime timestamp, List<String> roles, List<String> scopeTags,
+                                     List<String> permissions) {
+        SecurityEvent event = event(timestamp, roles, scopeTags, permissions, "READ", "REPORT", true);
+        event.addMetadata("executionSubjectKind", "DELEGATED_AGENT");
+        event.addMetadata("agentId", "report-agent");
+        return event;
+    }
+
     private SecurityEvent eventBy(
             String userId,
             LocalDateTime timestamp,

@@ -115,7 +115,7 @@
 
 .groups {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: var(--space-2);
   margin: 0;
   padding: var(--space-2) var(--frame-gutter) var(--space-3);
@@ -286,7 +286,7 @@
   }
 
   .groups {
-    grid-template-columns: repeat(7, auto);
+    grid-template-columns: repeat(8, auto);
     justify-content: start;
   }
 

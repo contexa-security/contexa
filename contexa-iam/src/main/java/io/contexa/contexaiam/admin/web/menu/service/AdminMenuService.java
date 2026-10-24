@@ -78,6 +78,7 @@ public class AdminMenuService {
             createMenu("menu.zerotrust.blacklist", "/contexa/admin/blacklist", "", securityId, 2, "CORE", "blacklist");
             createMenu("menu.security.sessions", "/contexa/admin/session-management", "", securityId, 3, "CORE", "session-management");
             createMenu("menu.security.ip", "/contexa/admin/ip-management", "", securityId, 4, "CORE", "ip-management");
+            createMenu("menu.security.company.records", "/contexa/admin/company-records", "", securityId, 5, "CORE", "company-records");
             createMenu("menu.agents.list", "/contexa/admin/agents", "", agentsId, 1, "CORE", "agents-list");
             createMenu("menu.aiMonitor.overview", "/contexa/admin/ai-monitor", "", aiMonitorId, 1, "CORE", "ai-monitor-overview");
             createMenu("menu.aiMonitor.llm", "/contexa/admin/ai-monitor/llm", "", aiMonitorId, 2, "CORE", "ai-monitor-llm");

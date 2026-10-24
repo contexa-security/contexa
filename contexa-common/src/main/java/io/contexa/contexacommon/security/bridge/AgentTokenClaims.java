@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacommon.security.bridge;
 
+import io.contexa.contexacommon.security.subject.AgentClientDirectory;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -31,8 +33,9 @@ import java.util.Optional;
  *     subject is the party it acts for.</li>
  *     <li>{@link #FORM_DELEGATION_CLAIMS}: an agent ID claim or a delegation marker claim.</li>
  *     <li>{@link #FORM_AGENT_CLIENT}: the agent as the client the token was issued to and the user as the subject
- *     (IETF WIMSE AIMS, Microsoft Entra Agent ID), recognised by an agent marker claim or a client ID registered as an
- *     agent. The subject type claim tells an agent acting for a person from one acting on its own.</li>
+ *     (IETF WIMSE AIMS, Microsoft Entra Agent ID), recognised by an agent marker claim, a client ID the settings list as
+ *     an agent, or a client the {@link AgentClientDirectory} names as an approved agent. The subject type claim tells
+ *     an agent acting for a person from one acting on its own.</li>
  * </ol>
  * Every claim name comes from {@link BridgeProperties.Delegation.Token}.
  */
@@ -63,15 +66,26 @@ public final class AgentTokenClaims {
     /** The agent the claims name; empty for a token that names no agent (a person's token, a plain client token). */
     public static Optional<Agent> agent(Map<String, Object> claims, String fallbackSubject,
                                         BridgeProperties.Delegation.Token config) {
+        return agent(claims, fallbackSubject, config, AgentClientDirectory.NONE);
+    }
+
+    /**
+     * The agent the claims name, also recognising a client the directory names as an approved agent; that agent is
+     * named by its registered identifier, also when it is the actor of an exchanged token.
+     */
+    public static Optional<Agent> agent(Map<String, Object> claims, String fallbackSubject,
+                                        BridgeProperties.Delegation.Token config, AgentClientDirectory directory) {
         if (claims == null || claims.isEmpty() || config == null) {
             return Optional.empty();
         }
         Map<String, Object> actor = firstMap(claims, config.getActorClaims());
         String clientId = firstText(claims, config.getClientIdClaims());
         String agentIdClaim = firstText(claims, config.getAgentIdClaims());
+        String registeredAgentId = registeredAgent(claims, clientId, config, directory);
         boolean delegatedMarked = matchesMarker(claims, config.getDelegatedMarkers());
         boolean agentMarked = matchesMarker(claims, config.getAgentActorMarkers())
-                || (clientId != null && config.getAgentClientIds() != null && config.getAgentClientIds().contains(clientId));
+                || (clientId != null && config.getAgentClientIds() != null && config.getAgentClientIds().contains(clientId))
+                || registeredAgentId != null;
 
         String form;
         if (actor != null) {
@@ -86,9 +100,16 @@ public final class AgentTokenClaims {
 
         String subject = firstNonBlank(text(claims.get("sub")), fallbackSubject);
         String subjectType = firstText(claims, config.getSubjectTypeClaims());
-        String agentId = actor != null
-                ? firstNonBlank(text(actor.get("sub")), text(actor.get("client_id")), agentIdClaim, clientId)
-                : firstNonBlank(agentIdClaim, clientId);
+        String agentId;
+        if (actor != null) {
+            // The actor of an exchanged token is named by its actor token's subject: for an agent's own token, its
+            // client, which an approved agent is registered under (A1-12).
+            String actorParty = firstNonBlank(text(actor.get("sub")), text(actor.get("client_id")));
+            agentId = firstNonBlank(registeredAgent(claims, actorParty, config, directory), actorParty, agentIdClaim,
+                    clientId);
+        } else {
+            agentId = firstNonBlank(agentIdClaim, registeredAgentId, clientId);
+        }
 
         boolean delegated;
         if (actor != null || delegatedMarked) {
@@ -100,6 +121,22 @@ public final class AgentTokenClaims {
             delegated = subject != null && !subject.equals(agentId) && !subject.equals(clientId);
         }
         return Optional.of(new Agent(form, subject, agentId, delegated, clientId, subjectType, actor));
+    }
+
+    /** The tenant the token names, by the configured tenant claims; {@code null} when it names none. */
+    public static String tenant(Map<String, Object> claims, BridgeProperties.Delegation.Token config) {
+        return config == null ? null : firstText(claims, config.getTenantClaims());
+    }
+
+    /** The registered identifier of the approved agent the token's client is, or {@code null}. */
+    static String registeredAgent(Map<String, Object> claims, String clientId,
+                                  BridgeProperties.Delegation.Token config, AgentClientDirectory directory) {
+        if (clientId == null || directory == null) {
+            return null;
+        }
+        return directory.activeAgentForClient(tenant(claims, config), clientId)
+                .map(AgentTokenClaims::text)
+                .orElse(null);
     }
 
     /**

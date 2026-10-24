@@ -21,7 +21,7 @@ beforeEach(async () => {
       const bodies: Record<string, unknown> = {
         '/api/visitor': { predictions: {} },
         '/api/journey': {
-          state: { route: 'DEFAULT', act: 7, step: 'next', differences: [] },
+          state: { route: 'DEFAULT', act: 8, step: 'next', differences: [] },
           runs: [],
           predictions: [],
         },

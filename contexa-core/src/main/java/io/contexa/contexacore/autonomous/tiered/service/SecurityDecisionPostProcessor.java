@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.autonomous.tiered.service;
 
+import io.contexa.contexacore.autonomous.agent.AgentLearningControl;
+import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 import io.contexa.contexacore.autonomous.context.decision.LearningPromotionPolicy;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
@@ -45,6 +47,8 @@ import org.springframework.ai.document.Document;
 public class SecurityDecisionPostProcessor {
 
     private final SecurityContextDataStore dataStore;
+    /** docs/agent A3-8: the learning state a quarantined record had (PgVectorPastRecordQuery). */
+    private static final String STATE_BEFORE_QUARANTINE = "learningStateBeforeQuarantine";
     private final UnifiedVectorService unifiedVectorService;
 
     private LearningPromotionPolicy.Settings learningPromotionSettings = LearningPromotionPolicy.Settings.DEFAULTS;
@@ -157,7 +161,9 @@ public class SecurityDecisionPostProcessor {
             Map<String, Object> metadata = buildEnrichedMetadata(event, decision, VectorDocumentType.BEHAVIOR.getValue());
             // A request held for promotion is not retrieved as a past record until it is promoted (W5-1).
             if (!LearningPromotionPolicy.heldDifferences(event, learningPromotionSettings).isEmpty()) {
-                metadata.put(VectorDocumentMetadata.LEARNING_STATE, VectorDocumentMetadata.LEARNING_STATE_HELD);
+                // A3-8: a quarantined record keeps its hold for the release.
+                metadata.put(metadata.containsKey(STATE_BEFORE_QUARANTINE) ? STATE_BEFORE_QUARANTINE
+                        : VectorDocumentMetadata.LEARNING_STATE, VectorDocumentMetadata.LEARNING_STATE_HELD);
             }
 
             Document document = new Document(content, metadata);
@@ -433,6 +439,23 @@ public class SecurityDecisionPostProcessor {
         }
         if (event.getUserId() != null) {
             metadata.put("userId", event.getUserId());
+            // docs/agent A3-1: an agent's record is the agent's, so that it is never read as the person's.
+            LearningSubject subject = LearningSubject.of(event);
+            if (subject != null && subject.subjectKind() != null) {
+                metadata.put(LearningSubject.SUBJECT_KIND, subject.subjectKind());
+            }
+            if (subject != null && subject.agent()) {
+                metadata.put(LearningSubject.AGENT_ID, subject.agentId());
+                if (subject.delegationId() != null) {
+                    metadata.put(LearningSubject.DELEGATION_ID, subject.delegationId());
+                }
+                // docs/agent A3-8: what a quarantined agent or delegation does is stored quarantined, never read.
+                if (AgentLearningControl.recordsQuarantined(dataStore, subject)) {
+                    metadata.put(VectorDocumentMetadata.LEARNING_STATE,
+                            VectorDocumentMetadata.LEARNING_STATE_QUARANTINED);
+                    metadata.put(STATE_BEFORE_QUARANTINE, "");
+                }
+            }
             String organizationId = resolveOrganizationId(event);
             if (organizationId != null) {
                 metadata.put(VectorDocumentMetadata.ORGANIZATION_ID, organizationId);

@@ -111,6 +111,31 @@ class ZeroTrustEventListenerTest {
      * verification probe path or scenario is filtered like any other; nothing in it forces an analysis.
      */
     @Test
+    @DisplayName("docs/agent A5-1: an agent acting for the user is answered by its own decision, not the user's")
+    void anAgentsRequestIsAnsweredByTheAgentsOwnDecision() {
+        ZeroTrustSpringEvent event = ZeroTrustSpringEvent.builder("test")
+                .category(ZeroTrustEventCategory.AUTHORIZATION)
+                .eventType("METHOD")
+                .userId("alice")
+                .sessionId("agent:delegation:abc")
+                .clientIp("10.60.1.43")
+                .userAgent("report-agent/1.0")
+                .payload(new HashMap<>(Map.of("executionSubjectKind", "DELEGATED_AGENT", "agentId", "report-agent",
+                        "contextBindingHash", "ctx-agent")))
+                .build();
+        when(actionRepository.getCurrentAction("alice", "ctx-agent")).thenReturn(ZeroTrustAction.ALLOW);
+        when(actionRepository.getCurrentAction("alice::agent::report-agent", "ctx-agent"))
+                .thenReturn(ZeroTrustAction.PENDING_ANALYSIS);
+
+        assertThat(listener.shouldPublishAuthorizationEvent(event))
+                .as("the person's ALLOW does not answer the agent's request").isTrue();
+
+        when(actionRepository.getCurrentAction("alice::agent::report-agent", "ctx-agent"))
+                .thenReturn(ZeroTrustAction.ALLOW);
+        assertThat(listener.shouldPublishAuthorizationEvent(event)).isFalse();
+    }
+
+    @Test
     void anAuthorizationEventNamingTheProbePathIsFilteredLikeAnyOther() {
         ZeroTrustSpringEvent event = ZeroTrustSpringEvent.builder("test")
                 .category(ZeroTrustEventCategory.AUTHORIZATION)
@@ -172,6 +197,45 @@ class ZeroTrustEventListenerTest {
 
         // then
         assertThat(shouldPublish).isFalse();
+    }
+
+    /**
+     * docs/agent A7-2 (2026-10-23, user approval): an ALLOW in force answers an asynchronous request of its session
+     * without analysis (N-SES-1) but not a synchronous one, which is decided itself; a restriction in force answers
+     * both, and a decision waiting for its audit record is not asked again for either.
+     */
+    @Test
+    @DisplayName("an ALLOW in force answers an asynchronous request, not a synchronous one")
+    void allowInForce_answersAsynchronousRequestsOnly() {
+        ZeroTrustSpringEvent event = ZeroTrustSpringEvent.builder("test")
+                .category(ZeroTrustEventCategory.AUTHORIZATION)
+                .eventType("METHOD")
+                .userId("user-agent-burst")
+                .sessionId("session-agent-burst")
+                .clientIp("10.60.1.42")
+                .userAgent("report-agent/1.0")
+                .build();
+        String contextBindingHash = listener.generateAuthorizationContextBindingHash(event);
+
+        when(actionRepository.getCurrentAction("user-agent-burst", contextBindingHash)).thenReturn(ZeroTrustAction.ALLOW);
+        assertThat(listener.shouldPublishAuthorizationEvent(event)).isFalse();
+        assertThat(listener.shouldPublishSynchronousAuthorizationEvent(event)).isTrue();
+
+        when(actionRepository.isDecisionAuditPending("user-agent-burst", contextBindingHash)).thenReturn(true);
+        assertThat(listener.shouldPublishSynchronousAuthorizationEvent(event)).isFalse();
+        when(actionRepository.isDecisionAuditPending("user-agent-burst", contextBindingHash)).thenReturn(false);
+
+        for (ZeroTrustAction restriction : new ZeroTrustAction[] {ZeroTrustAction.BLOCK, ZeroTrustAction.CHALLENGE,
+                ZeroTrustAction.ESCALATE}) {
+            when(actionRepository.getCurrentAction("user-agent-burst", contextBindingHash)).thenReturn(restriction);
+            assertThat(listener.shouldPublishAuthorizationEvent(event)).as(restriction.name()).isFalse();
+            assertThat(listener.shouldPublishSynchronousAuthorizationEvent(event)).as(restriction.name()).isFalse();
+        }
+
+        when(actionRepository.getCurrentAction("user-agent-burst", contextBindingHash))
+                .thenReturn(ZeroTrustAction.PENDING_ANALYSIS);
+        assertThat(listener.shouldPublishAuthorizationEvent(event)).isTrue();
+        assertThat(listener.shouldPublishSynchronousAuthorizationEvent(event)).isTrue();
     }
 
     @Test

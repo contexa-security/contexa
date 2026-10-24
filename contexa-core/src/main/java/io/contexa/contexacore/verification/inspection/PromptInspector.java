@@ -29,6 +29,7 @@ import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleElementSt
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleManifest;
 import io.contexa.contexacore.verification.evidence.CanonicalSecurityContextSerializer;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
+import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
@@ -83,7 +84,7 @@ public final class PromptInspector {
      * registry adds the bundle trace check to these.
      */
     public static List<PromptInspectionCheck> coreChecks() {
-        return List.of(new SealIntegrityCheck(), new DictionaryContractCheck(), new DecisionFactMatchCheck(),
+        return List.of(new SealIntegrityCheck(new SealedEvidencePackageIntegrity()), new DictionaryContractCheck(), new DecisionFactMatchCheck(),
                 new FactAccuracyCheck(), new UnknownDeclaredCheck(), new PastRecordNotationCheck(), new SameFactCheck(),
                 new ReasonMatchCheck());
     }

@@ -63,6 +63,23 @@ public final class PastRecordNotationCheck implements PromptInspectionCheck {
     private static final String SEALED_DENIED = PromptExecutionMetadata.PROMPT_PAST_DENIED_DECISIONS;
     private static final String DENIED_SOURCE = "executionMetadata." + SEALED_DENIED;
 
+    /** Whether the check reads a v21 package, whose record lines write their targets apart (docs/agent A3-5). */
+    private final boolean v21;
+
+    public PastRecordNotationCheck() {
+        this(false);
+    }
+
+    private PastRecordNotationCheck(boolean v21) {
+        this.v21 = v21;
+    }
+
+    /** The check of a v21 package: its record and denied decision lines write their targets apart (A3-5). */
+    @Override
+    public PromptInspectionCheck forV21() {
+        return new PastRecordNotationCheck(true);
+    }
+
     @Override
     public String code() {
         return CODE;
@@ -117,9 +134,9 @@ public final class PastRecordNotationCheck implements PromptInspectionCheck {
         }
         count(tally, state, drawn, hidden);
         order(tally, drawn);
-        sources(tally, state);
+        sources(tally, state, v21);
         counts(tally, counts);
-        denied(tally);
+        denied(tally, v21);
     }
 
     /**
@@ -127,7 +144,7 @@ public final class PastRecordNotationCheck implements PromptInspectionCheck {
      * draws them, in order, times measured from the sealed request time (W5-4). Decisions sealed without their lines
      * are lines the prompt left out; a drawn line of a package that seals none cannot be compared.
      */
-    private static void denied(PromptInspectionTally tally) {
+    private static void denied(PromptInspectionTally tally, boolean v21) {
         List<InspectedPrompt.Line> lines = new ArrayList<>();
         for (InspectedPrompt.Line line : tally.subject().prompt().lines()) {
             if (line.kind() == InspectedPrompt.Kind.ENTRY && line.block() == PromptBlock.PAST_RECORDS
@@ -158,7 +175,7 @@ public final class PastRecordNotationCheck implements PromptInspectionCheck {
             return;
         }
         List<PromptListItem> wanted = PastDeniedLines.items(sealed,
-                LocalDateTime.ofInstant(context.getRequestObservedAt(), zone));
+                LocalDateTime.ofInstant(context.getRequestObservedAt(), zone), v21);
         for (int index = 0; index < Math.max(wanted.size(), lines.size()); index++) {
             String expected = index < wanted.size() ? wanted.get(index).text() : null;
             InspectedPrompt.Line line = index < lines.size() ? lines.get(index) : null;
@@ -222,7 +239,7 @@ public final class PastRecordNotationCheck implements PromptInspectionCheck {
      * and cap, with the same-target field sealed with each record), and the state line counts the records the render
      * saw. A package that seals no retrieval state of the render or no event clock cannot be compared.
      */
-    private static void sources(PromptInspectionTally tally, InspectedPrompt.Line state) {
+    private static void sources(PromptInspectionTally tally, InspectedPrompt.Line state, boolean v21) {
         List<InspectedPrompt.Line> lines = new ArrayList<>();
         for (InspectedPrompt.Line line : tally.subject().prompt().lines()) {
             if (line.kind() == InspectedPrompt.Kind.ENTRY && line.block() == PromptBlock.PAST_RECORDS
@@ -274,7 +291,8 @@ public final class PastRecordNotationCheck implements PromptInspectionCheck {
                     Object sameTarget = document.getMetadata().get("sameTarget");
                     return sameTarget != null ? sameTarget.toString() : PastRecordRelevance.NOT_KNOWN;
                 },
-                requestTimeSealed ? LocalDateTime.ofInstant(context.getRequestObservedAt(), zone) : null);
+                requestTimeSealed ? LocalDateTime.ofInstant(context.getRequestObservedAt(), zone) : null,
+                v21 ? PastRecordLineValues.TARGET_APART : null);
         for (int index = 0; index < Math.max(lines.size(), expected.size()); index++) {
             InspectedPrompt.Line line = index < lines.size() ? lines.get(index) : null;
             String wanted = index < expected.size() ? expected.get(index) : null;

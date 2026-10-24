@@ -254,7 +254,7 @@ public class JdbcBusinessContextLookup implements BusinessContextLookup {
         String key = switch (operation) {
             case ROLE_GRANT -> "ROLE_GRANT_APPROVAL";
             case CUSTOMER_READ -> "CUSTOMER_ACCESS_APPROVAL";
-            case DOCUMENT_READ, DOCUMENT_DOWNLOAD -> "DOCUMENT_ACCESS_APPROVAL";
+            case DOCUMENT_READ, DOCUMENT_DOWNLOAD, DOCUMENT_LIST -> "DOCUMENT_ACCESS_APPROVAL";
             default -> throw new IllegalArgumentException("No access approval policy for " + operation);
         };
         return database.jdbc().query("""

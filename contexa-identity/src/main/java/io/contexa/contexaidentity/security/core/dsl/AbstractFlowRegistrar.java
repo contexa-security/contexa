@@ -128,7 +128,8 @@ public abstract class AbstractFlowRegistrar<H extends HttpSecurityBuilder<H>> im
     }
 
     private final class StateSetter implements IdentityStateDsl {
-        private void replaceLastState(StateType stateType) {
+        /** Puts the last flow in the state, keeping the DSL's customizer for the state adapter to apply. */
+        private void replaceLastState(StateType stateType, Customizer<?> customizer) {
             List<AuthenticationFlowConfig> currentFlows = platformBuilder.getModifiableFlows();
             if (currentFlows.isEmpty()) {
                 log.warn("AbstractFlowRegistrar.StateSetter: No flow to replace state for. State type '{}' will not be applied.", stateType);
@@ -136,19 +137,20 @@ public abstract class AbstractFlowRegistrar<H extends HttpSecurityBuilder<H>> im
             }
             int lastIndex = currentFlows.size() - 1;
             AuthenticationFlowConfig lastFlow = currentFlows.get(lastIndex);
-            AuthenticationFlowConfig updatedFlow = lastFlow.withStateConfig(new StateConfig(stateType.name().toLowerCase(), stateType));
+            AuthenticationFlowConfig updatedFlow = lastFlow.withStateConfig(
+                    new StateConfig(stateType.name().toLowerCase(), stateType), customizer);
             currentFlows.set(lastIndex, updatedFlow);
                     }
 
         @Override
         public IdentityAuthDsl session(Customizer<SessionStateConfigurer> customizer) {
-            replaceLastState(StateType.SESSION);
+            replaceLastState(StateType.SESSION, customizer);
             return AbstractFlowRegistrar.this;
         }
 
         @Override
         public IdentityAuthDsl oauth2(Customizer<OAuth2StateConfigurer> customizer) {
-            replaceLastState(StateType.OAUTH2);
+            replaceLastState(StateType.OAUTH2, customizer);
             return AbstractFlowRegistrar.this;
         }
     }

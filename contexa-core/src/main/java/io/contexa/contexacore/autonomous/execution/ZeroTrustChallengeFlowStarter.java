@@ -37,4 +37,16 @@ public interface ZeroTrustChallengeFlowStarter {
      *         start already in progress, or a failure)
      */
     Optional<String> start(HttpServletRequest request, HttpServletResponse response);
+
+    /**
+     * docs/agent A5-2: answers an agent's request a CHALLENGE decided in the request stopped, as the request filters
+     * answer one in force: the agent's accountable person is asked to confirm that very request and the agent is
+     * told how to wait for it. An agent cannot step up, so {@link #start} starts no flow for it.
+     *
+     * @return whether the answer was written; when not, the plain CHALLENGE answer goes out and the agent meets the
+     *         confirmation when it sends the request again
+     */
+    default boolean answerAgentChallenge(HttpServletRequest request, HttpServletResponse response) {
+        return false;
+    }
 }

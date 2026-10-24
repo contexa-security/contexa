@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.baseline;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
@@ -587,6 +588,81 @@ class BaselineLearningServiceTest {
     }
 
     @Test
+    @DisplayName("docs/agent A3-1: an agent's request learns and reads under the agent's key, never the person's")
+    void anAgentsRequestLearnsAndReadsUnderTheAgentsKey() {
+        InMemoryBaselineDataStore store = new InMemoryBaselineDataStore(Duration.ofDays(30));
+        store.saveUserBaseline("user-p", BaselineVector.builder()
+                .userId("user-p")
+                .updateCount(5L)
+                .avgTrustScore(0.9)
+                .normalAccessHours(new Integer[]{9})
+                .build());
+        BaselineLearningService learning = new BaselineLearningService(store, zeroTrustProperties);
+        SecurityEvent agent = tenantEvent("tenant-a", 10);
+        agent.addMetadata("executionSubjectKind", "DELEGATED_AGENT");
+        agent.addMetadata("agentId", "report-agent");
+        agent.addMetadata("organizationId", "org-a");
+
+        // The person's baseline, under its earlier key too, is never read as the agent's.
+        assertThat(learning.getPersonalBaseline("user-p", agent)).isNull();
+        learning.learnIfNormal("user-p", allowDecision(), agent);
+
+        assertThat(store.getUserBaseline("tenant-a::user-p::agent::report-agent")).isNotNull()
+                .extracting(BaselineVector::getUpdateCount).isEqualTo(1L);
+        assertThat(learning.getPersonalBaseline("user-p", agent).getUpdateCount()).isEqualTo(1L);
+        // The person's baseline stays where it was, and the organization learns nothing of the agent.
+        assertThat(store.getUserBaseline("user-p").getUpdateCount()).isEqualTo(5L);
+        assertThat(store.getUserBaseline("tenant-a::user-p")).isNull();
+        assertThat(store.getOrganizationBaseline("org-a")).isNull();
+    }
+
+    @Test
+    @DisplayName("docs/agent A3-4: a value learned without a verification leaves when it is not seen within the expiry")
+    void anUnverifiedValueLeavesWhenItIsNotSeenWithinTheExpiry() {
+        InMemoryBaselineDataStore store = new InMemoryBaselineDataStore(Duration.ofDays(400));
+        BaselineLearningService learning = new BaselineLearningService(store, zeroTrustProperties);
+        Instant start = Instant.parse("2026-03-01T10:00:00Z");
+
+        learning.learnIfNormal("user-x", allowDecision(), networkEvent("10.0.0.1", start, false));
+        learning.learnIfNormal("user-x", allowDecision(), networkEvent("10.0.1.1", start, true));
+        SecurityEvent later = networkEvent("10.0.2.1", start.plus(Duration.ofDays(40)), false);
+
+        // Read for a decision 40 days on, the unverified network is gone and the verified one stays.
+        assertThat(learning.getPersonalBaseline("user-x", later).getNormalIpBands())
+                .containsExactly("10.0.1.0/24");
+        learning.learnIfNormal("user-x", allowDecision(), later);
+
+        BaselineVector stored = store.getUserBaseline("user-x");
+        assertThat(stored.getNormalIpBands()).containsExactlyInAnyOrder("10.0.1.0/24", "10.0.2.0/24");
+        assertThat(stored.getElementFrequencies()).doesNotContainKey("ipBand:10.0.0.0/24");
+        assertThat(stored.getVerifiedElements()).contains("ipBand:10.0.1.0/24").doesNotContain("ipBand:10.0.2.0/24");
+        assertThat(stored.getElementLastSeen()).containsEntry("ipBand:10.0.2.0/24",
+                start.plus(Duration.ofDays(40)).toEpochMilli());
+    }
+
+    @Test
+    @DisplayName("docs/agent A3-4: when a dimension is full, the value whose frequency counts least after its age leaves")
+    void theValueWhoseAgedFrequencyCountsLeastGivesUpItsPlace() {
+        InMemoryBaselineDataStore store = new InMemoryBaselineDataStore(Duration.ofDays(400));
+        BaselineLearningService learning = new BaselineLearningService(store, zeroTrustProperties);
+        Instant start = Instant.parse("2026-03-01T10:00:00Z");
+        // Seen three times 28 days before: 3 halved twice counts 0.75, less than a value seen once yesterday.
+        for (int time = 0; time < 3; time++) {
+            learning.learnIfNormal("user-y", allowDecision(), networkEvent("10.0.0.1", start, true));
+        }
+        Instant yesterday = start.plus(Duration.ofDays(27));
+        for (int network = 1; network <= 4; network++) {
+            learning.learnIfNormal("user-y", allowDecision(), networkEvent("10.0." + network + ".1", yesterday, true));
+        }
+
+        learning.learnIfNormal("user-y", allowDecision(),
+                networkEvent("10.0.9.1", start.plus(Duration.ofDays(28)), true));
+
+        assertThat(store.getUserBaseline("user-y").getNormalIpBands()).containsExactlyInAnyOrder(
+                "10.0.9.0/24", "10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24", "10.0.4.0/24");
+    }
+
+    @Test
     @DisplayName("A baseline learned before the tenant key is read and moved under it (W5-10 D9)")
     void aBaselineLearnedBeforeTheTenantKeyIsReadAndMovedUnderIt() {
         InMemoryBaselineDataStore store = new InMemoryBaselineDataStore(Duration.ofDays(30));
@@ -781,6 +857,18 @@ class BaselineLearningServiceTest {
                 .userAgent(CHROME_UA)
                 .timestamp(time.atZone(ZoneId.systemDefault()).toInstant())
                 .build();
+    }
+
+    private static SecurityEvent networkEvent(String ip, Instant at, boolean verified) {
+        SecurityEvent event = SecurityEvent.builder()
+                .sourceIp(ip)
+                .userAgent(CHROME_UA)
+                .timestamp(at)
+                .build();
+        if (verified) {
+            event.addMetadata("verifiedBy", "STEP_UP");
+        }
+        return event;
     }
 
     private static SecurityEvent tenantEvent(String tenantId, int hour) {

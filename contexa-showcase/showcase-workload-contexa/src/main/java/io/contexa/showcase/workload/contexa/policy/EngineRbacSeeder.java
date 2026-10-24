@@ -10,6 +10,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Stream;
 import java.util.stream.Collectors;
 
 /**
@@ -79,8 +80,11 @@ public class EngineRbacSeeder implements ApplicationRunner {
             }
             int priority = FIRST_PRIORITY;
             for (RbacPolicy.Rule rule : RbacPolicy.RULES) {
-                String roles = rule.roles().stream().sorted()
-                        .map(role -> "'" + engineRole(role) + "'")
+                // docs/agent A7-0: an agent's own token holds the role's scope instead of the role.
+                String roles = Stream.concat(
+                                rule.roles().stream().sorted().map(EngineRbacSeeder::engineRole),
+                                rule.roles().stream().sorted().map(role -> "SCOPE_" + RbacPolicy.agentScope(role)))
+                        .map(authority -> "'" + authority + "'")
                         .collect(Collectors.joining(","));
                 insertPolicy(POLICY_PREFIX + rule.operation().name(), priority++, rule.pattern(), rule.method(),
                         "hasAnyAuthority(" + roles + ")",

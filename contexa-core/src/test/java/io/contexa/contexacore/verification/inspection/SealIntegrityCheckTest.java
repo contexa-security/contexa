@@ -32,7 +32,7 @@ import static org.mockito.Mockito.when;
 class SealIntegrityCheckTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
-    private static final PromptInspector INSPECTOR = new PromptInspector(List.of(new SealIntegrityCheck()), JSON);
+    private static final PromptInspector INSPECTOR = new PromptInspector(List.of(new SealIntegrityCheck(new SealedEvidencePackageIntegrity())), JSON);
 
     private final SealedEvidencePromptTraceStore traceStore = new SealedEvidencePromptTraceStore();
     private final SealedEvidencePackageIntegrity integrity = new SealedEvidencePackageIntegrity();
@@ -394,7 +394,7 @@ class SealIntegrityCheckTest {
 
     @Test
     void theCheckRunsOnEveryLayout() {
-        assertThat(new SealIntegrityCheck().dictionaryPromptOnly()).isFalse();
+        assertThat(new SealIntegrityCheck(new SealedEvidencePackageIntegrity()).dictionaryPromptOnly()).isFalse();
     }
 
     private static PromptInspectionCheckResult check(SealedEvidencePackage sealed) {

@@ -17,15 +17,18 @@ package io.contexa.autoconfigure.identity;
 
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.security.subject.AgentClientDirectory;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.MfaPageGeneratingConfigurer;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.policy.AIAdaptiveMfaPolicyProvider;
 import io.contexa.contexaidentity.security.core.mfa.policy.DefaultMfaPolicyProvider;
+import io.contexa.contexaidentity.security.core.mfa.policy.evaluator.AgentAccountMfaPolicyEvaluator;
 import io.contexa.contexaidentity.security.core.mfa.policy.evaluator.CompositeMfaPolicyEvaluator;
 import io.contexa.contexaidentity.security.core.mfa.policy.evaluator.DefaultMfaPolicyEvaluator;
 import io.contexa.contexaidentity.security.core.mfa.policy.evaluator.MfaPolicyEvaluator;
 import io.contexa.contexaidentity.security.core.mfa.policy.evaluator.ZeroTrustPolicyEvaluator;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -65,6 +68,15 @@ public class IdentityMfaAutoConfiguration {
             SecurityZeroTrustProperties zeroTrustProperties) {
         return new ZeroTrustPolicyEvaluator(
                 userRepository, applicationContext, actionRedisRepository, zeroTrustProperties);
+    }
+
+    /** A1-13: an approved agent's own account signs in by Contexa's zero trust action alone, never with factors. */
+    @Bean
+    @ConditionalOnMissingBean
+    public AgentAccountMfaPolicyEvaluator agentAccountMfaPolicyEvaluator(
+            ZeroTrustActionRepository actionRedisRepository,
+            ObjectProvider<AgentClientDirectory> agentClientDirectory) {
+        return new AgentAccountMfaPolicyEvaluator(actionRedisRepository, agentClientDirectory);
     }
 
     @Bean

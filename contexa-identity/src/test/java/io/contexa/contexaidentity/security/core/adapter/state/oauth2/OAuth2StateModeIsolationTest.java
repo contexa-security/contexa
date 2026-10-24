@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -27,6 +28,7 @@ import org.springframework.security.oauth2.server.authorization.settings.Authori
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenGenerator;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -87,7 +89,9 @@ class OAuth2StateModeIsolationTest {
         when(applicationContext.getBean(OAuth2AuthorizationService.class)).thenReturn(authorizationService);
         when(applicationContext.getBean(RegisteredClientRepository.class)).thenReturn(clientRepository);
         when(applicationContext.getBean(AuthorizationServerSettings.class)).thenReturn(settings);
-        when(applicationContext.getBean(OAuth2TokenGenerator.class)).thenReturn(tokenGenerator);
+        ObjectProvider<OAuth2TokenGenerator> applicationGenerators = mock(ObjectProvider.class);
+        when(applicationGenerators.getIfUnique()).thenReturn(tokenGenerator);
+        when(applicationContext.getBeanProvider(OAuth2TokenGenerator.class)).thenReturn(applicationGenerators);
         when(applicationContext.getBean(UserRepository.class)).thenReturn(userRepository);
 
         new OAuth2StateAdapter().apply(http, platformContext);
@@ -95,5 +99,25 @@ class OAuth2StateModeIsolationTest {
         verify(applicationContext, never()).getBean(JwtDecoder.class);
         verify(http).setSharedObject(JwtEncoder.class, encoder);
         verify(http).with(any(OAuth2StateConfigurer.class), any(Customizer.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void withoutAnApplicationTokenGeneratorTheAuthorizationServerBuildsSpringsOwn() throws Exception {
+        // CF-06: Spring's generator applies Spring's default claims (act, cnf) before Contexa's token customizer.
+        AuthContextProperties properties = new AuthContextProperties();
+        properties.setOauth2ServerMode(OAuth2ServerMode.AUTHORIZATION_SERVER);
+        ObjectProvider<OAuth2TokenGenerator> noApplicationGenerator = mock(ObjectProvider.class);
+        when(applicationContext.getBean(AuthContextProperties.class)).thenReturn(properties);
+        when(applicationContext.getBean(JwtEncoder.class)).thenReturn(mock(JwtEncoder.class));
+        when(applicationContext.getBean(OAuth2AuthorizationService.class)).thenReturn(mock(OAuth2AuthorizationService.class));
+        when(applicationContext.getBean(RegisteredClientRepository.class)).thenReturn(mock(RegisteredClientRepository.class));
+        when(applicationContext.getBean(AuthorizationServerSettings.class)).thenReturn(mock(AuthorizationServerSettings.class));
+        when(applicationContext.getBean(UserRepository.class)).thenReturn(mock(UserRepository.class));
+        when(applicationContext.getBeanProvider(OAuth2TokenGenerator.class)).thenReturn(noApplicationGenerator);
+
+        new OAuth2StateAdapter().apply(http, platformContext);
+
+        verify(http, never()).setSharedObject(eq(OAuth2TokenGenerator.class), any());
     }
 }

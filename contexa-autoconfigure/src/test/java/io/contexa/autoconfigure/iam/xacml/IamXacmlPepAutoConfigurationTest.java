@@ -85,13 +85,13 @@ class IamXacmlPepAutoConfigurationTest {
         }
 
         @Test
-        @DisplayName("Should define exactly 3 bean methods")
-        void shouldHaveThreeBeanMethods() {
+        @DisplayName("Should define exactly 5 bean methods (A1-8 added the delegator authority)")
+        void shouldHaveFiveBeanMethods() {
             long beanCount = Arrays.stream(IamXacmlPepAutoConfiguration.class.getDeclaredMethods())
                     .filter(m -> m.getAnnotation(Bean.class) != null)
                     .count();
 
-            assertThat(beanCount).isEqualTo(4);
+            assertThat(beanCount).isEqualTo(5);
         }
     }
 }

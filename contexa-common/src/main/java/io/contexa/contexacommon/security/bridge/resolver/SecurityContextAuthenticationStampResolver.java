@@ -25,6 +25,7 @@ import io.contexa.contexacommon.security.bridge.OAuth2AuthenticationSupport;
 import io.contexa.contexacommon.security.subject.SubjectKind;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
+import io.contexa.contexacommon.security.subject.AgentClientDirectory;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -40,6 +41,17 @@ import java.util.Map;
 import java.util.Optional;
 
 public class SecurityContextAuthenticationStampResolver implements AuthenticationStampResolver {
+
+    private final AgentClientDirectory agentClientDirectory;
+
+    public SecurityContextAuthenticationStampResolver() {
+        this(AgentClientDirectory.NONE);
+    }
+
+    /** A resolver that does not take an approved agent's own token for a service client (A1-2). */
+    public SecurityContextAuthenticationStampResolver(AgentClientDirectory agentClientDirectory) {
+        this.agentClientDirectory = agentClientDirectory != null ? agentClientDirectory : AgentClientDirectory.NONE;
+    }
 
     @Override
     public Optional<AuthenticationStamp> resolve(HttpServletRequest request, RequestContextSnapshot requestContext, BridgeProperties properties) {
@@ -96,7 +108,7 @@ public class SecurityContextAuthenticationStampResolver implements Authenticatio
         String authenticationAssurance = SecurityContextStampSupport.extractString(authentication, config.getAuthenticationAssuranceKeys());
         String principalType = SecurityContextStampSupport.extractString(authentication, config.getPrincipalTypeKeys());
         String principalTypeEvidenceState = BridgeSemanticBoundaryPolicy.EXPLICIT_CUSTOMER_SIGNAL;
-        if (principalType == null && isClientsOwnToken(authentication, properties)) {
+        if (principalType == null && isClientsOwnToken(authentication, properties, agentClientDirectory)) {
             // A1-3: a client's own token (client credentials) stands for no person, so it is not recorded as one. An
             // agent's own token is left to the delegation channel, which names the agent.
             principalType = SubjectKind.SERVICE_CLIENT.subjectType();
@@ -129,8 +141,9 @@ public class SecurityContextAuthenticationStampResolver implements Authenticatio
         ));
     }
 
-    /** A validated access token whose subject is the client it was issued to and that names no agent. */
-    private static boolean isClientsOwnToken(Authentication authentication, BridgeProperties properties) {
+    /** A validated access token whose subject is the client it was issued to and that names no agent, approved ones included. */
+    private static boolean isClientsOwnToken(Authentication authentication, BridgeProperties properties,
+                                             AgentClientDirectory directory) {
         Map<String, Object> claims = OAuth2AuthenticationSupport.tokenClaims(authentication);
         if (claims.isEmpty()) {
             return false;
@@ -140,7 +153,7 @@ public class SecurityContextAuthenticationStampResolver implements Authenticatio
                 ? properties.getDelegation().getToken()
                 : new BridgeProperties.Delegation.Token();
         return AgentTokenClaims.isClientOwnToken(claims, token)
-                && AgentTokenClaims.agent(claims, authentication.getName(), token).isEmpty();
+                && AgentTokenClaims.agent(claims, authentication.getName(), token, directory).isEmpty();
     }
 
     private BridgeProperties.Authentication.SecurityContext resolveConfig(BridgeProperties properties) {

@@ -15,11 +15,15 @@
  */
 package io.contexa.contexaidentity.security.zerotrust;
 
+import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.execution.ZeroTrustChallengeFlowStarter;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
+import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
@@ -56,6 +60,9 @@ import java.util.UUID;
 @Slf4j
 public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements ZeroTrustChallengeFlowStarter {
 
+    /** The answer to an agent under CHALLENGE: its accountable party confirms, it never steps up like a person (A1-13). */
+    public static final String AGENT_CONFIRMATION_REQUIRED = "AGENT_CONFIRMATION_REQUIRED";
+
     private static final String LOCK_KEY_PREFIX = "mfa:challenge:init:";
     private static final Duration DEFAULT_LOCK_WAIT_TIME = Duration.ZERO;
     private static final Duration DEFAULT_LOCK_LEASE_TIME = Duration.ofSeconds(30);
@@ -71,6 +78,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
     private final ZeroTrustActionRepository actionRepository;
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
     private UnanalysedRequestRecorder unanalysedRequestRecorder;
+    private AgentConfirmationGate agentConfirmationGate;
     private volatile boolean challengeProcedureAvailable = true;
 
     public ZeroTrustChallengeFilter(
@@ -111,6 +119,11 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
     /** Keeps a request this filter stops under the decision in force in its session (N-SES-1). */
     public void setUnanalysedRequestRecorder(UnanalysedRequestRecorder unanalysedRequestRecorder) {
         this.unanalysedRequestRecorder = unanalysedRequestRecorder;
+    }
+
+    /** docs/agent A5-2: where agents' requests meet the confirmation of the person accountable for them. */
+    public void setAgentConfirmationGate(AgentConfirmationGate agentConfirmationGate) {
+        this.agentConfirmationGate = agentConfirmationGate;
     }
 
     public void setChallengeProcedureAvailable(boolean challengeProcedureAvailable) {
@@ -159,6 +172,11 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
             return true;
         }
 
+        // docs/agent A5-2: the agent polls its confirmation while its request waits for it.
+        if (requestUri.startsWith("/contexa/api/agent-confirmations")) {
+            return true;
+        }
+
         if (requestUri.startsWith("/.well-known/")) {
             return true;
         }
@@ -192,7 +210,21 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
 
         String userId = extractUserId(auth);
         String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request);
-        ZeroTrustAction currentAction = actionRepository.getCurrentAction(userId, contextBindingHash);
+        // docs/agent A5-1: an agent acting for the user reads its own decision, not the user's.
+        ZeroTrustSubject subject = ZeroTrustSubject.of(userId, delegationStamp(request),
+                RequestInfoExtractor.extractTenantId(request));
+        ZeroTrustAction currentAction = subject != null
+                ? subject.currentAction(actionRepository, contextBindingHash)
+                : actionRepository.getCurrentAction(userId, contextBindingHash);
+
+        // docs/agent A5-2, F-2: an agent's request meets its accountable person's confirmation, not a person's MFA.
+        if (agentConfirmationGate != null && subject != null && isAgentRequest(request)) {
+            boolean went = agentConfirmationGate.filter(request, response, filterChain, subject, currentAction);
+            if (!went && currentAction == ZeroTrustAction.CHALLENGE && unanalysedRequestRecorder != null) {
+                unanalysedRequestRecorder.recordRequest(auth, ZeroTrustAction.CHALLENGE);
+            }
+            return;
+        }
 
         if (currentAction != ZeroTrustAction.CHALLENGE) {
             filterChain.doFilter(request, response);
@@ -202,6 +234,11 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
         // Every way on from here stops the request; the session keeps it under the CHALLENGE (N-SES-1).
         if (unanalysedRequestRecorder != null) {
             unanalysedRequestRecorder.recordRequest(auth, ZeroTrustAction.CHALLENGE);
+        }
+
+        if (isAgentRequest(request)) {
+            writeAgentConfirmationRequired(response, request);
+            return;
         }
 
         if (!challengeProcedureAvailable) {
@@ -244,6 +281,27 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
     }
 
     /**
+     * docs/agent A5-2: an agent's request a CHALLENGE decided in the request stopped meets the confirmation gate, as
+     * a request under a CHALLENGE in force does: the gate asks the accountable person and writes the answer.
+     */
+    @Override
+    public boolean answerAgentChallenge(HttpServletRequest request, HttpServletResponse response) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (agentConfirmationGate == null || auth == null || !auth.isAuthenticated() || !isAgentRequest(request)) {
+            return false;
+        }
+        ZeroTrustSubject subject = ZeroTrustSubject.of(extractUserId(auth), delegationStamp(request),
+                RequestInfoExtractor.extractTenantId(request));
+        try {
+            return agentConfirmationGate.answerDecidedChallenge(request, response, subject);
+        } catch (IOException | RuntimeException e) {
+            log.error("Could not ask for the confirmation of an agent's request: agentId={}",
+                    subject != null ? subject.agentId() : null, e);
+            return false;
+        }
+    }
+
+    /**
      * Starts the step-up flow for a CHALLENGE decided inside the request (a synchronous {@code @Protectable}), with
      * the same lock and the same reuse of an already started flow as a request this filter challenges, and returns the
      * MFA page the user continues on. The caller writes its own answer, so nothing is written here.
@@ -251,7 +309,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
     @Override
     public Optional<String> start(HttpServletRequest request, HttpServletResponse response) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || !challengeProcedureAvailable) {
+        if (auth == null || !auth.isAuthenticated() || !challengeProcedureAvailable || isAgentRequest(request)) {
             return Optional.empty();
         }
         FactorContext started = startedChallengeContext(request);
@@ -404,6 +462,37 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
         } else {
             response.sendRedirect(challengeNoticeUrl);
         }
+    }
+
+    /** The delegation the bridge stamped on the request, or null. */
+    private static DelegationStamp delegationStamp(HttpServletRequest request) {
+        return request.getAttribute(BridgeRequestAttributes.DELEGATION_STAMP) instanceof DelegationStamp stamp
+                ? stamp : null;
+    }
+
+    /** Whether the bridge named an agent for the request; the bridge filter runs before this one in every chain. */
+    private static boolean isAgentRequest(HttpServletRequest request) {
+        return request.getAttribute(BridgeRequestAttributes.DELEGATION_STAMP) instanceof DelegationStamp stamp
+                && stamp.agentId() != null && !stamp.agentId().isBlank();
+    }
+
+    /**
+     * An agent cannot answer the factors made for people, so a CHALLENGE stops its request until the agent's
+     * accountable party (its delegator, or its sponsor when it acts on its own) confirms it (A5-2).
+     */
+    private void writeAgentConfirmationRequired(HttpServletResponse response, HttpServletRequest request)
+            throws IOException {
+        Map<String, Object> responseBody = new HashMap<>();
+        responseBody.put("error", AGENT_CONFIRMATION_REQUIRED);
+        responseBody.put("message", "The agent's accountable party must confirm this request");
+        responseWriter.writeErrorResponse(
+                response,
+                HttpServletResponse.SC_FORBIDDEN,
+                AGENT_CONFIRMATION_REQUIRED,
+                "The agent's accountable party must confirm this request",
+                request.getRequestURI(),
+                responseBody
+        );
     }
 
     /** A host without an MFA flow cannot step the user up, so the request is refused without opening a procedure. */

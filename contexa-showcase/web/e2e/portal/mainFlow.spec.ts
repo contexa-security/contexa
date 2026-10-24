@@ -346,8 +346,14 @@ for (const language of ['ko', 'en'] as const) {
       page,
       `/api/runs/${normal.runId}/steps/1/input-changes?against=${attack.runId}`,
     );
+    // One changed engine input is named (V-34), as the screen does.
+    const [onlyChange] = changes;
     await expect(page.locator('[data-guide]')).toContainText(
-      format(m['main.4-3.intro'] ?? '', { n: changes.length }),
+      changes.length === 1 && onlyChange
+        ? format(m['main.4-3.intro.one'] ?? '', {
+            name: onlyChange.key.startsWith('dim.') ? (m[onlyChange.key] ?? onlyChange.key) : onlyChange.key,
+          })
+        : format(m['main.4-3.intro'] ?? '', { n: changes.length }),
     );
     // The two cases are defined alike but for the device (IN-6), so the headline names that row.
     await expect(page.locator('main h1')).toHaveText(
@@ -449,10 +455,48 @@ for (const language of ['ko', 'en'] as const) {
     }
     await checkScreen(page, '5-3');
 
-    // 6-0 to 6-3: the rule switch, one condition changed and sent for real, every run.
+    // 6-0 to 6-4 (docs/agent A7-3): the business agent sends its own requests live; control D asks the delegating
+    // employee, whom the visitor answers as, and the agent sends the request again with the confirmation.
+    await mainButton(page).click();
+    await page.waitForURL(/\/agent$/);
+    await expect(page.locator('main h1')).toHaveText(m['cover.6.question'] ?? '');
+    await checkScreen(page, '6-0');
+    await mainButton(page).click();
+    await page.waitForURL(/\/agent\/request/);
+    await expect(page.locator('main')).toContainText(m['main.6-1.source'] ?? '');
+    await checkScreen(page, '6-1');
+    await page.getByText(m['main.6-1.call.BLOCK'] ?? '', { exact: true }).click();
+    await mainButton(page).click();
+    await page.waitForURL(/\/agent\/console/);
+    await expect(mainButton(page)).toHaveText(new RegExp(m['main.6-2.cta'] ?? ''), { timeout: RUN_TIMEOUT });
+    const agentRun = await api<{
+      runId: string;
+      status: string;
+      agentConfirmation?: { stage: string } | null;
+    }>(page, '/api/live/runs/current');
+    await checkScreen(page, '6-2');
+    await mainButton(page).click();
+    await page.waitForURL(/\/agent\/reason/);
+    await checkScreen(page, '6-3');
+    await mainButton(page).click();
+    await page.waitForURL(/\/agent\/confirm/);
+    if (agentRun.agentConfirmation?.stage === 'ASKED') {
+      await page.getByRole('button', { name: m['main.6-4.approve'] ?? '' }).click();
+      await expect(page.locator('main h1')).toHaveText(m['main.6-4.title.approved'] ?? '', {
+        timeout: RUN_TIMEOUT,
+      });
+      const stored = await api<{
+        confirmation: { decision: string; reuse: { httpStatus: number } | null } | null;
+      }>(page, `/api/runs/${agentRun.runId}/agent`);
+      expect(stored.confirmation?.decision).toBe('APPROVE');
+      expect(stored.confirmation?.reuse?.httpStatus).toBe(403);
+    }
+    await checkScreen(page, '6-4');
+
+    // 7-0 to 7-3: the rule switch, one condition changed and sent for real, every run.
     await mainButton(page).click();
     await page.waitForURL(/\/compare$/);
-    await checkScreen(page, '6-0');
+    await checkScreen(page, '7-0');
     await mainButton(page).click();
     await page.waitForURL(/\/compare\/rule/);
     const visited = await api<{ runs: readonly { scenarioKey: string; business: Record<string, string> }[] }>(
@@ -467,16 +511,16 @@ for (const language of ['ko', 'en'] as const) {
         : ownAttack['C1'] === 'MISSED' && ['PASSED', 'PASSED_AFTER_CHECK'].includes(ownWork['C1'] ?? '')
           ? '.blind'
           : 'Plain';
-    await expect(page.locator('main h1')).toHaveText(m[`main.6-1.title${variant}`] ?? '');
+    await expect(page.locator('main h1')).toHaveText(m[`main.7-1.title${variant}`] ?? '');
     const switcher = page.getByRole('switch');
     await expect(switcher).toBeChecked();
     await switcher.uncheck();
-    await expect(page.locator('main')).toContainText(m['main.6-1.off'] ?? '');
+    await expect(page.locator('main')).toContainText(m['main.7-1.off'] ?? '');
     await switcher.check();
-    await checkScreen(page, '6-1');
+    await checkScreen(page, '7-1');
     await mainButton(page).click();
     await page.waitForURL(/\/compare\/change/);
-    await page.getByRole('button', { name: m['main.6-2.send'] ?? '' }).click();
+    await page.getByRole('button', { name: m['main.7-2.send'] ?? '' }).click();
     await page.waitForURL(/sent=/, { timeout: 30_000 });
     await expect(page.locator('li[data-control="D"]')).toContainText(
       new RegExp(
@@ -505,7 +549,7 @@ for (const language of ['ko', 'en'] as const) {
     for (const line of delta.steps.find((step) => step.stepNo === 1)?.changed ?? []) {
       await expect.soft(page.locator('main')).toContainText(`+ ${line.label}`, { timeout: 30_000 });
     }
-    await checkScreen(page, '6-2');
+    await checkScreen(page, '7-2');
     await mainButton(page).click();
     await page.waitForURL(/\/compare\/runs/);
     const scored = (classification: string) =>
@@ -518,12 +562,12 @@ for (const language of ['ko', 'en'] as const) {
       await expect
         .soft(page.locator('main'))
         .toContainText(
-          format(m['main.6-3.rowSum'] ?? '', { missed: control.missed, falseBlock: control.falseBlock.hits }),
+          format(m['main.7-3.rowSum'] ?? '', { missed: control.missed, falseBlock: control.falseBlock.hits }),
         );
     }
-    await checkScreen(page, '6-3');
+    await checkScreen(page, '7-3');
 
-    // 7-1 and 7-2: the three numbers from their records, and the three ways on.
+    // 8-1 and 8-2: the three numbers from their records, and the three ways on.
     await mainButton(page).click();
     await page.waitForURL(/\/summary$/);
     const contexa = benchmark.controls.find((score) => score.control === 'D');
@@ -541,13 +585,13 @@ for (const language of ['ko', 'en'] as const) {
       `${count(promptQuality.reasonMatch.hits, language)} / ${count(promptQuality.reasonMatch.total, language)}`,
       { timeout: 5_000 },
     );
-    await checkScreen(page, '7-1');
+    await checkScreen(page, '8-1');
     await mainButton(page).click();
     await page.waitForURL(/\/summary\/next/);
     for (const to of ['/adopt', '/benchmark', '/more']) {
       await expect(page.locator(`main a[href="${to}"]`)).toBeVisible();
     }
-    await checkScreen(page, '7-2');
+    await checkScreen(page, '8-2');
   });
 }
 

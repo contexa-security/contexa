@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.autonomous.context;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import io.contexa.contexacore.autonomous.baseline.AgentBaselineView;
 import io.contexa.contexacore.autonomous.baseline.BaselineView;
 import io.contexa.contexacore.autonomous.context.decision.DecisionFacts;
 import io.contexa.contexacore.autonomous.context.model.ContextCoverageReport;
@@ -429,6 +431,9 @@ public class CanonicalSecurityContext {
         private List<String> longTailLegitimateTasks = new ArrayList<>();
         /** The usual behaviour the values above come from, when the work profile collector computed one (W2-3). */
         private BaselineView baselineView;
+        /** docs/agent A4-1, A4-6: an agent's usual operation order and client; none for a person's request. */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        private AgentBaselineView agentBaseline;
     }
 
     @Data
@@ -542,6 +547,13 @@ public class CanonicalSecurityContext {
          */
         @Builder.Default
         private List<String> checkedRecordKinds = new ArrayList<>();
+        /**
+         * docs/agent A2-12: whose records these are, as the host looked them up (RecordsHolder): the request's subject,
+         * or for an agent's request the person it acts for or its sponsor. Null when the host does not say.
+         */
+        private String recordsHolderId;
+        /** How the records' holder stands to the request: SUBJECT, DELEGATOR or SPONSOR (RecordsHolder). */
+        private String recordsHolderRelation;
 
     }
 
@@ -566,6 +578,10 @@ public class CanonicalSecurityContext {
         private Instant validUntil;
         /** When the decision was recorded; null when the record does not say or nothing is decided yet. */
         private Instant decidedAt;
+        /** Who wrote the record (A2-10): a person, an agent, a system; null when the host does not say. */
+        private String recordedBy;
+        /** When the record was written (A2-10); null when the host does not say. */
+        private Instant recordedAt;
         @Builder.Default
         private List<String> pendingApprovers = new ArrayList<>();
         private Boolean breakGlass;
@@ -594,6 +610,10 @@ public class CanonicalSecurityContext {
         private Boolean claimedByRequester;
         /** For a claimed ticket: whether it exists for the requester. */
         private Boolean exists;
+        /** Who wrote the ticket (A2-10): a person, an agent, a system; null when the host does not say. */
+        private String recordedBy;
+        /** When the ticket was written (A2-10); null when the host does not say. */
+        private Instant recordedAt;
         private Boolean hostCovers;
         @Builder.Default
         private List<String> hostMismatches = new ArrayList<>();

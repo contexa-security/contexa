@@ -108,11 +108,11 @@ describe('thread devices', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows the seven groups, the finished ones ticked and the current one named, and the rest in the menu (F0-2)', async () => {
+  it('shows the eight groups, the finished ones ticked and the current one named, and the rest in the menu (F0-2)', async () => {
     placeAt('/normal/request', []);
     at('/normal/request', <AppHeader />);
     const groups = screen.getByRole('list', { name: '체험 진행' });
-    expect(groups.querySelectorAll('li')).toHaveLength(7);
+    expect(groups.querySelectorAll('li')).toHaveLength(8);
     expect(groups.querySelectorAll('[data-state="done"]')).toHaveLength(3);
     expect(groups.querySelector('[aria-current="step"]')).toHaveTextContent('정상 사용 체험');
     await userEvent.click(screen.getByRole('button', { name: '메뉴' }));

@@ -6,18 +6,22 @@ import { THEMES } from '../../components/main/themes';
 import { MAIN_CASES } from './mainCases';
 import styles from './IntroMapPage.module.css';
 
-/** The topics after the start by group number (설계서 1-2, IN-6): the two themes, then trying and the summary. */
-const TOPICS = [2, 3, 4, 5, 6, 7] as const;
+/**
+ * The topics after the start by group number (설계서 1-2, IN-6, docs/agent A7-3): the three themes, then trying and
+ * the summary.
+ */
+const TOPICS = [2, 3, 4, 5, 6, 7, 8] as const;
 type Topic = (typeof TOPICS)[number];
 
-/** The groups that tell each theme (IN-6): the stolen account over three groups, the insider in one. */
+/** The groups that tell each theme (IN-6): the stolen account over three groups, the insider and the agent in one each. */
 const THEME_GROUPS: Readonly<Record<(typeof THEMES)[number]['id'], readonly Topic[]>> = {
   outside: [2, 3, 4],
   inside: [5],
+  agent: [6],
 };
 
-/** The groups after the two themes: shaking the conditions yourself, then the summary. */
-const AFTER: readonly Topic[] = [6, 7];
+/** The groups after the three themes: shaking the conditions yourself, then the summary. */
+const AFTER: readonly Topic[] = [7, 8];
 
 /** Contexa's right runs of a case over its scored runs in the current measurement ("측정 5/5"). */
 function measuredLine(
@@ -53,8 +57,10 @@ export default function IntroMapPage() {
       t,
       cases.find((found) => found.key === MAIN_CASES.insider),
     ),
-    6: runs === null ? null : t('main.1-2.badge.runs', { runs }),
-    7: t('main.1-2.badge.cost'),
+    // docs/agent A7-3: the agent case is in no measurement protocol; its card has no measured badge.
+    6: null,
+    7: runs === null ? null : t('main.1-2.badge.runs', { runs }),
+    8: t('main.1-2.badge.cost'),
   };
   const card = (group: Topic) => (
     <li

@@ -25,6 +25,14 @@ import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationContext;
 import org.springframework.beans.factory.ObjectProvider;
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.enums.OAuth2ServerMode;
+import io.contexa.contexacommon.security.bridge.BridgeProperties;
+import io.contexa.contexacommon.security.subject.AgentClientDirectory;
+import org.springframework.security.oauth2.server.resource.InvalidBearerTokenException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import java.util.Map;
+import java.util.Optional;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.GrantedAuthority;
@@ -138,6 +146,108 @@ class OAuth2JwtAuthenticationConverterTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    void anApprovedAgentClientsOwnTokenAuthenticatesWithTheTokensScopesOnly() {
+        OAuth2JwtAuthenticationConverter clientAware = converterWith(new AuthContextProperties(),
+                (tenantId, clientId) -> "report-client".equals(clientId) ? Optional.of("report-bot") : Optional.empty());
+        when(userDetailsService.loadUserByUsername("report-client")).thenThrow(new UsernameNotFoundException("none"));
+
+        Jwt withRoleClaim = Jwt.withTokenValue("token")
+                .header("alg", "RS256")
+                .claims(claims -> claims.putAll(Map.of("sub", "report-client", "client_id", "report-client",
+                        "scope", "reports.read", "roles", List.of("ADMIN"))))
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(300))
+                .build();
+        AbstractAuthenticationToken token = clientAware.convert(withRoleClaim);
+
+        assertThat(token).isInstanceOf(JwtAuthenticationToken.class);
+        assertThat(token.getName()).isEqualTo("report-client");
+        assertThat(extractAuthorityStrings(token)).containsExactly("SCOPE_reports.read");
+    }
+
+    @Test
+    void theInternalClientsOwnTokenIsRefusedEvenWhenTheDirectoryWouldNameIt() {
+        OAuth2JwtAuthenticationConverter clientAware = converterWith(new AuthContextProperties(),
+                (tenantId, clientId) -> Optional.of("any-agent"));
+        when(userDetailsService.loadUserByUsername("default-client")).thenThrow(new UsernameNotFoundException("none"));
+
+        assertThatThrownBy(() -> clientAware.convert(clientJwt("default-client", "default-client", "read")))
+                .isInstanceOf(UsernameNotFoundException.class);
+    }
+
+    @Test
+    void aClientNeitherApprovedNorListedIsRefused() {
+        OAuth2JwtAuthenticationConverter clientAware = converterWith(new AuthContextProperties(), AgentClientDirectory.NONE);
+        when(userDetailsService.loadUserByUsername("stray-client")).thenThrow(new UsernameNotFoundException("none"));
+
+        assertThatThrownBy(() -> clientAware.convert(clientJwt("stray-client", "stray-client", "read")))
+                .isInstanceOf(UsernameNotFoundException.class);
+    }
+
+    @Test
+    void aServiceClientListedInTheSettingsAuthenticatesWithItsScopes() {
+        AuthContextProperties properties = new AuthContextProperties();
+        properties.getOauth2().setServiceClientIds(List.of("batch-client"));
+        OAuth2JwtAuthenticationConverter clientAware = converterWith(properties, AgentClientDirectory.NONE);
+        when(userDetailsService.loadUserByUsername("batch-client")).thenThrow(new UsernameNotFoundException("none"));
+
+        AbstractAuthenticationToken token = clientAware.convert(clientJwt("batch-client", "batch-client", "jobs.run"));
+
+        assertThat(token.getName()).isEqualTo("batch-client");
+        assertThat(extractAuthorityStrings(token)).containsExactly("SCOPE_jobs.run");
+    }
+
+    @Test
+    void aDelegatedTokenWhoseUserHasNoAccountIsRefused() {
+        OAuth2JwtAuthenticationConverter clientAware = converterWith(new AuthContextProperties(),
+                (tenantId, clientId) -> Optional.of("report-bot"));
+        when(userDetailsService.loadUserByUsername("ghost")).thenThrow(new UsernameNotFoundException("none"));
+
+        assertThatThrownBy(() -> clientAware.convert(clientJwt("ghost", "report-client", "reports.read")))
+                .isInstanceOf(UsernameNotFoundException.class);
+    }
+
+    @Test
+    void aUsersTokenStillTakesTheUsersAuthoritiesWhenClientPrincipalsAreConfigured() {
+        OAuth2JwtAuthenticationConverter clientAware = converterWith(new AuthContextProperties(),
+                (tenantId, clientId) -> Optional.of("report-bot"));
+        stubUserDetails("alice", List.of(new SimpleGrantedAuthority("ROLE_USER")));
+
+        AbstractAuthenticationToken token = clientAware.convert(clientJwt("alice", "report-client", "reports.read"));
+
+        assertThat(extractAuthorityStrings(token)).contains("ROLE_USER", "SCOPE_reports.read");
+    }
+
+    /**
+     * docs/agent A5-3: every token of a suspended agent is refused, its own and those it holds for a person; a person's
+     * token through another client still works.
+     */
+    @Test
+    void everyTokenOfASuspendedAgentIsRefused() {
+        AgentClientDirectory directory = new AgentClientDirectory() {
+            @Override
+            public Optional<String> activeAgentForClient(String tenantId, String clientId) {
+                return "sync-client".equals(clientId) || "report-client".equals(clientId)
+                        ? Optional.of(clientId.replace("-client", "-agent")) : Optional.empty();
+            }
+
+            @Override
+            public boolean suspendedAgentClient(String tenantId, String clientId) {
+                return "sync-client".equals(clientId);
+            }
+        };
+        OAuth2JwtAuthenticationConverter clientAware = converterWith(new AuthContextProperties(), directory);
+        stubUserDetails("alice", List.of(new SimpleGrantedAuthority("ROLE_USER")));
+
+        assertThatThrownBy(() -> clientAware.convert(clientJwt("sync-client", "sync-client", "sync.run")))
+                .isInstanceOf(InvalidBearerTokenException.class);
+        assertThatThrownBy(() -> clientAware.convert(clientJwt("alice", "sync-client", "reports.read")))
+                .isInstanceOf(InvalidBearerTokenException.class);
+        assertThat(extractAuthorityStrings(clientAware.convert(clientJwt("alice", "report-client", "reports.read"))))
+                .contains("ROLE_USER", "SCOPE_reports.read");
+    }
+
     // -- helper methods --
 
     private Jwt buildJwt(String subject, String claimName, List<String> claimValues) {
@@ -145,6 +255,35 @@ class OAuth2JwtAuthenticationConverterTest {
                 .header("alg", "RS256")
                 .subject(subject)
                 .claim(claimName, claimValues)
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(300))
+                .build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private OAuth2JwtAuthenticationConverter converterWith(AuthContextProperties properties,
+                                                          AgentClientDirectory directory) {
+        properties.setOauth2ServerMode(OAuth2ServerMode.RESOURCE_SERVER);
+        ApplicationContext context = mock(ApplicationContext.class);
+        HttpSecurity http = mock(HttpSecurity.class);
+        when(http.getSharedObject(ApplicationContext.class)).thenReturn(context);
+        when(context.getBean(UserDetailsService.class)).thenReturn(userDetailsService);
+        ObjectProvider<AuthContextProperties> propertiesProvider = mock(ObjectProvider.class);
+        when(propertiesProvider.getIfAvailable()).thenReturn(properties);
+        when(context.getBeanProvider(AuthContextProperties.class)).thenReturn(propertiesProvider);
+        ObjectProvider<AgentClientDirectory> directoryProvider = mock(ObjectProvider.class);
+        when(directoryProvider.getIfAvailable()).thenReturn(directory);
+        when(context.getBeanProvider(AgentClientDirectory.class)).thenReturn(directoryProvider);
+        ObjectProvider<BridgeProperties> bridgeProvider = mock(ObjectProvider.class);
+        when(bridgeProvider.getIfAvailable()).thenReturn(new BridgeProperties());
+        when(context.getBeanProvider(BridgeProperties.class)).thenReturn(bridgeProvider);
+        return new OAuth2JwtAuthenticationConverter(http);
+    }
+
+    private Jwt clientJwt(String subject, String clientId, String scope) {
+        return Jwt.withTokenValue("token")
+                .header("alg", "RS256")
+                .claims(claims -> claims.putAll(Map.of("sub", subject, "client_id", clientId, "scope", scope)))
                 .issuedAt(Instant.now())
                 .expiresAt(Instant.now().plusSeconds(300))
                 .build();

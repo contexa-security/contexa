@@ -140,14 +140,14 @@ export function isScored(result: string | undefined): boolean {
   return result !== undefined && SCORED.has(result);
 }
 
-/** The prompt lines each condition of 6-2 speaks to: the changed value and the engine's comparison with the usual. */
+/** The prompt lines each condition of 7-2 speaks to: the changed value and the engine's comparison with the usual. */
 const CHANGE_LINES: Readonly<Record<'time' | 'size' | 'device', readonly string[]>> = {
   time: ['Time', 'DeviationsFromBaseline', 'SameAsBaseline'],
   size: ['Size', 'DeviationsFromBaseline', 'SameAsBaseline'],
   device: ['Device', 'DeviationsFromBaseline', 'SameAsBaseline'],
 };
 
-/** The changed prompt lines of 6-2 split into those the changed condition speaks to and the others, each in order. */
+/** The changed prompt lines of 7-2 split into those the changed condition speaks to and the others, each in order. */
 export function splitChanged<L extends { readonly label: string }>(
   changed: readonly L[],
   change: 'time' | 'size' | 'device',
@@ -180,7 +180,7 @@ export function resultChip(result: string | undefined): { readonly key: string; 
 
 /**
  * How a lane of an existing approach ended for the case, in the console's words (설계서 용어: 미탐 · 오탐). A run with no
- * ground truth (`threat` null: a condition changed on 6-2) is named by what the approach did, the same words for every
+ * ground truth (`threat` null: a condition changed on 7-2) is named by what the approach did, the same words for every
  * approach, never as missed or a false alarm.
  */
 export function laneChip(

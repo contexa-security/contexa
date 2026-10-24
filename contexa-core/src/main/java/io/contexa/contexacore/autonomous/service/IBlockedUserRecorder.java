@@ -25,6 +25,17 @@ public interface IBlockedUserRecorder {
                      String action, String reasoning,
                      String sourceIp, String userAgent);
 
+    /**
+     * Records a block with the tenant of the blocked request (docs/agent A3-3, R-01), so that what an administrator's
+     * release learns goes to the user's baseline within that tenant. A recorder that keeps no tenant records the block
+     * as {@link #recordBlock(String, String, String, String, String, String, String)} does.
+     */
+    default void recordBlock(String requestId, String userId, String username,
+                             String action, String reasoning,
+                             String sourceIp, String userAgent, String tenantId) {
+        recordBlock(requestId, userId, username, action, reasoning, sourceIp, userAgent);
+    }
+
     void resolveBlock(String userId, String adminId, String resolvedAction, String reason);
 
     default void markMfaVerified(String userId) {}

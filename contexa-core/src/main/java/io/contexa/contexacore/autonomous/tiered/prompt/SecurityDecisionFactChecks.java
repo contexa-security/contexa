@@ -420,6 +420,10 @@ public final class SecurityDecisionFactChecks {
         }
 
         boolean automation() {
+            // docs/agent A4-4: an agent is an automation client by nature; its client signals form no attack category.
+            if (AgentLineValues.agent(context) != null) {
+                return false;
+            }
             CanonicalSecurityContext.Intent intent = intent();
             return intent != null && (Boolean.TRUE.equals(intent.getBotUserAgent())
                     || Boolean.TRUE.equals(intent.getTlsFingerprintAltered())

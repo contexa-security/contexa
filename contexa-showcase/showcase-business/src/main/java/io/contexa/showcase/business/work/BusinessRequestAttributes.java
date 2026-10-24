@@ -27,6 +27,13 @@ public class BusinessRequestAttributes {
      * the label text.
      */
     public static final String RESOURCE_SCOPE = "ctxa.context.resourceScope";
+    /**
+     * docs/agent OC-2: a ticket the requester names in the request as covering it, as the request carries it (the
+     * claimedTicket query parameter, not decoded): a claim Contexa checks against the company records.
+     */
+    public static final String CLAIMED_RECORD = "ctxa.context.claimedRecord";
+    /** The query parameter an export names its claimed ticket in (deck A8). */
+    static final String CLAIMED_TICKET_PARAMETER = "claimedTicket";
 
     private static final String SOURCE = " (source: business database)";
     /** The most characters of a document author's own text that reach the engine (case S09). */
@@ -59,7 +66,20 @@ public class BusinessRequestAttributes {
                 });
     }
 
+    /** docs/agent A7-2a: a listing of a project's documents, labelled and scoped by the project. */
+    public void describeDocumentList(HttpServletRequest request, String projectKey) {
+        database.jdbc().query("""
+                        select p.display_name, p.sensitivity from project p where p.project_key = :key""",
+                new MapSqlParameterSource("key", projectKey),
+                rs -> {
+                    write(request, "Document list of project " + projectKey + " " + rs.getString(1) + SOURCE,
+                            rs.getString(2));
+                    scope(request, projectKey);
+                });
+    }
+
     public void describeExport(HttpServletRequest request, String projectKey, int items) {
+        claim(request);
         database.jdbc().query("""
                         select p.display_name, p.sensitivity, count(d.document_key)
                           from project p left join document d on d.project_key = p.project_key and d.run_id is null
@@ -99,6 +119,20 @@ public class BusinessRequestAttributes {
                     write(request, label, "CONFIDENTIAL");
                     scope(request, rs.getString(3));
                 });
+    }
+
+    /** A claimed ticket as the requester wrote it in the query; nothing when the export names none. */
+    static void claim(HttpServletRequest request) {
+        String query = request.getQueryString();
+        if (query == null) {
+            return;
+        }
+        for (String pair : query.split("&")) {
+            if (pair.startsWith(CLAIMED_TICKET_PARAMETER + "=") && pair.length() > CLAIMED_TICKET_PARAMETER.length() + 1) {
+                request.setAttribute(CLAIMED_RECORD, pair.substring(CLAIMED_TICKET_PARAMETER.length() + 1));
+                return;
+            }
+        }
     }
 
     /** The project the business database holds the target in, read from the same row as the label. */

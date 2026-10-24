@@ -21,10 +21,14 @@ import io.contexa.contexacore.autonomous.context.model.ContextCoverageReport;
 import io.contexa.contexacore.autonomous.context.prompt.PromptBlock;
 import io.contexa.contexacore.autonomous.context.prompt.PromptDictionaryEntry;
 import io.contexa.contexacore.autonomous.context.prompt.PromptSlotRenderer;
+import io.contexa.contexacore.autonomous.context.support.PastDeniedDecisions;
+import io.contexa.contexacore.autonomous.context.support.PastRecordRelevance;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacore.autonomous.store.SessionDecisionRecord;
+import io.contexa.contexacore.autonomous.tiered.prompt.AgentLineValues;
 import io.contexa.contexacore.autonomous.tiered.prompt.BaselineLineValues;
 import io.contexa.contexacore.autonomous.tiered.prompt.DecisionFactLineValues;
+import io.contexa.contexacore.autonomous.tiered.prompt.PastRecordLineValues;
 import io.contexa.contexacore.autonomous.tiered.prompt.RequestLineValues;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDictionary;
 import io.contexa.contexacore.autonomous.tiered.prompt.SessionLineValues;
@@ -34,6 +38,7 @@ import io.contexa.contexacore.autonomous.tiered.prompt.UntrustedTextSources;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import java.time.DateTimeException;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -64,6 +69,7 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
     public static final String CODE = "FACT_ACCURACY";
 
     private static final String CONTEXT = "canonicalContext.";
+    private static final String PAST_RECORDS_SOURCE = "pastRecords";
     private static final String SEALED_BASELINE_STATE = PromptExecutionMetadata.PROMPT_BASELINE_STATUS;
     private static final String STATE_SOURCE = "executionMetadata." + SEALED_BASELINE_STATE;
     /** The baseline state the evidence line named before Q-79 A1: {@code state SPARSE_PERSONAL_HISTORY}. */
@@ -96,7 +102,15 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
      * The entries of the v21 dictionary only that this check compares with their sealed sources, when their line is
      * drawn (a v20 render has none of them).
      */
-    public static final Set<String> COMPARED_V21 = Set.of("REQUEST.TargetScope");
+    public static final Set<String> COMPARED_V21 = Set.of("REQUEST.TargetScope", "REQUEST.Credential",
+            "REQUEST.Confirmation", "SESSION.DelegationActivity", "DECISION_FACTS.RecordProvenance", "DECISION_FACTS.RecordsHolder",
+            "USER_BASELINE.BaselineSubject", "USER_BASELINE.UsualSequence", "USER_BASELINE.UsualClients");
+
+    /**
+     * v21.9 (A2-4): the entries of both dictionaries whose v21 line this check compares with its sealed sources, though
+     * their v20 line is not comparable.
+     */
+    public static final Set<String> COMPARED_IN_V21 = Set.of("DECISION_FACTS.Delegation");
 
     /** The entries another check inspects, with that check's code. */
     public static final Map<String, String> INSPECTED_ELSEWHERE = Map.ofEntries(
@@ -159,6 +173,23 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
     private static final String NOT_SEALED = "<not sealed>";
     private static final String FACTS_NOT_KNOWN = "the request facts the render takes it from are not sealed or do not read";
 
+    /** Whether the check reads a v21 package, whose lines the v21 render draws (A2-4 to A2-11). */
+    private final boolean v21;
+
+    public FactAccuracyCheck() {
+        this(false);
+    }
+
+    private FactAccuracyCheck(boolean v21) {
+        this.v21 = v21;
+    }
+
+    /** The check of a v21 package: its subject, coverage, agent lines and untrusted texts as the v21 render draws them. */
+    @Override
+    public PromptInspectionCheck forV21() {
+        return new FactAccuracyCheck(true);
+    }
+
     @Override
     public String code() {
         return CODE;
@@ -181,7 +212,13 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
             return;
         }
         Map<String, InspectedPrompt.Line> request = lines(tally.subject().prompt(), REQUEST);
-        subject(tally, request.get("Subject"), context);
+        subject(tally, request.get("Subject"), context, v21);
+        // v21.9 (A2-11): only a v21 render draws the credential.
+        timed(tally, request.get("Credential"), context,
+                at -> AgentLineValues.credential(context.getAttributes(), at), CONTEXT + "attributes", "credential");
+        // docs/agent F-5: only a v21 render draws the confirmation; its times are against its own use.
+        expected(tally, request.get("Confirmation"), AgentLineValues.confirmation(context.getAttributes()),
+                CONTEXT + "attributes", "confirmation");
         roles(tally, request.get("Roles"), context);
         permissions(tally, request.get("Permissions"), context);
         time(tally, request.get("Time"), context);
@@ -196,7 +233,29 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
         device(tally, request.get("Device"), context);
         baseline(tally, lines(tally.subject().prompt(), PromptBlock.USER_BASELINE), context);
         session(tally, lines(tally.subject().prompt(), PromptBlock.SESSION), context);
+        // v21.9 (A2-9): only a v21 render draws what an agent did so far in its session.
+        timed(tally, lines(tally.subject().prompt(), PromptBlock.SESSION).get("DelegationActivity"), context,
+                at -> AgentLineValues.delegationActivity(context, at), CONTEXT + "sessionNarrativeProfile.sessionDecisions",
+                "agent session activity");
+        // v21.12 (A4-3, A4-1, A4-6): whose baseline an agent's lines state, its usual order and its clients.
+        Map<String, InspectedPrompt.Line> baselineLines = lines(tally.subject().prompt(), PromptBlock.USER_BASELINE);
+        expected(tally, baselineLines.get("BaselineSubject"), AgentLineValues.baselineSubject(context),
+                CONTEXT + "delegation", "baseline subject");
+        expected(tally, baselineLines.get("UsualSequence"), AgentLineValues.usualSequence(context),
+                CONTEXT + "workProfile.agentBaseline", "usual operation order");
+        expected(tally, baselineLines.get("UsualClients"), AgentLineValues.usualClients(context),
+                CONTEXT + "workProfile.agentBaseline", "usual clients");
         Map<String, InspectedPrompt.Line> facts = lines(tally.subject().prompt(), PromptBlock.DECISION_FACTS);
+        if (v21) {
+            // v21.9 (A2-4, A2-10): the delegation by its fields and who wrote the records.
+            timed(tally, facts.get("Delegation"), context, at -> AgentLineValues.delegation(context, at),
+                    CONTEXT + "delegation", "delegation");
+            timed(tally, facts.get("RecordProvenance"), context, at -> AgentLineValues.recordProvenance(context, at),
+                    CONTEXT + "frictionProfile", "record provenance");
+            // v21.10 (A2-12): whose company records the lines are.
+            expected(tally, facts.get("RecordsHolder"), AgentLineValues.recordsHolder(context),
+                    CONTEXT + "frictionProfile.recordsHolderId", "records holder");
+        }
         authorizationEffect(tally, facts.get("AuthorizationEffect"), context);
         expected(tally, facts.get("ClientSignals"), DecisionFactLineValues.clientSignals(context.getIntent()), CONTEXT + "intent",
                 "client signals");
@@ -212,9 +271,28 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
         expected(tally, facts.get("TemporaryElevation"), roleScope != null && roleScope.getTemporaryElevation() != null
                         ? DecisionFactLineValues.temporaryElevation(roleScope) : null,
                 CONTEXT + "roleScopeProfile.temporaryElevation", "temporary elevation");
-        coverage(tally, lines(tally.subject().prompt(), PromptBlock.UNKNOWN).get("Coverage"), context);
+        coverage(tally, lines(tally.subject().prompt(), PromptBlock.UNKNOWN).get("Coverage"), context, v21);
         untrusted(tally, context, tally.subject().sources().requestFacts());
         notComparable(tally);
+    }
+
+    /**
+     * A line drawn with times relative to the request: compared with the sealed sources at the sealed request time, or
+     * left unchecked when the line names such a time and the request time is not sealed (the render then counts to the
+     * event time, which is not kept).
+     */
+    private static void timed(PromptInspectionTally tally, InspectedPrompt.Line line, CanonicalSecurityContext context,
+                              Function<Instant, String> draw, String source, String what) {
+        if (line == null) {
+            return;
+        }
+        Instant at = context.getRequestObservedAt();
+        if (at == null && line.entryLine().value().contains(" this request")) {
+            unverifiable(tally, line, CONTEXT + "requestObservedAt",
+                    "the request time is not sealed (the event time the render falls back to is not kept)");
+            return;
+        }
+        expected(tally, line, draw.apply(at), source, what);
     }
 
     /** A drawn line of an entry whose source the package does not keep is counted as not comparable, with why. */
@@ -226,7 +304,9 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
             SecurityDecisionPromptDictionary.ENTRIES.stream()
                     .filter(entry -> entry.block() == line.block() && entry.matchesLabel(line.entryLine().label()))
                     .findFirst()
-                    .map(entry -> NOT_COMPARABLE.get(entry.block().name() + "." + entry.name()))
+                    .map(entry -> entry.block().name() + "." + entry.name())
+                    .filter(key -> !(v21 && COMPARED_IN_V21.contains(key)))
+                    .map(NOT_COMPARABLE::get)
                     .ifPresent(why -> tally.unverifiable(tally.unverifiableFinding().block(line.block().title())
                             .entry(line.entryLine().label()).factId(line.factId()).lineNumber(line.number())
                             .actual(line.entryLine().value()).sourceRef(why.source()).reason(why.reason()).build()));
@@ -234,7 +314,8 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
     }
 
     /** The coverage and bridge levels and the missing facts of the sealed coverage report and bridge. */
-    private static void coverage(PromptInspectionTally tally, InspectedPrompt.Line line, CanonicalSecurityContext context) {
+    private static void coverage(PromptInspectionTally tally, InspectedPrompt.Line line, CanonicalSecurityContext context,
+                                 boolean v21) {
         if (line == null) {
             return;
         }
@@ -249,7 +330,7 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
         List<String> expected = new ArrayList<>();
         if (report != null) {
             expected.add(UnknownLineValues.coverageLevel(report));
-            String missing = UnknownLineValues.missingFacts(report);
+            String missing = UnknownLineValues.missingFacts(report, context, v21);
             if (missing != null) {
                 expected.add(missing);
             }
@@ -265,7 +346,8 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
         // R1b-7 (P3 extra 35): the whole line, with the coverage warnings and the bridge's hints.
         CanonicalSecurityContext.WorkProfile workProfile = context.getWorkProfile();
         BaselineView view = workProfile != null ? workProfile.getBaselineView() : null;
-        whole(tally, line, CONTEXT + "coverage", "coverage", List.of(), parts -> UnknownLineValues.coverage(context, view));
+        whole(tally, line, CONTEXT + "coverage", "coverage", List.of(),
+                parts -> UnknownLineValues.coverage(context, view, v21));
     }
 
     /**
@@ -322,6 +404,12 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
                         SessionLineValues.sessionPaths(context.getSessionNarrativeProfile()),
                         CONTEXT + "sessionNarrativeProfile.sessionDecisions");
                 case UntrustedTextSources.CLAIMED_TICKET -> ticket(tally, line, source, context);
+                case UntrustedTextSources.PAST_RECORD_TARGET -> pastRecordTarget(tally, line, source, context);
+                case UntrustedTextSources.VALIDATED_CASE_MEMORY -> validatedCaseText(tally, line, source, context);
+                case UntrustedTextSources.CALL_ARGUMENTS -> text(tally, line, source,
+                        AgentLineValues.callArguments(context), CONTEXT + "attributes.invocationArguments");
+                case UntrustedTextSources.DELEGATION_OBJECTIVE -> text(tally, line, source,
+                        AgentLineValues.delegationObjective(context), CONTEXT + "delegation.objectiveSummary");
                 case UntrustedTextSources.REQUEST_BODY, UntrustedTextSources.THREAT_KNOWLEDGE -> unverifiable(tally, line,
                         CONTEXT + "untrustedText", "the " + source + " is not sealed");
                 default -> mismatch(tally, line, "a known untrusted text source", source, CONTEXT,
@@ -347,6 +435,53 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
         mismatch(tally, line, claimed.isEmpty() ? "no line (the sealed records hold no ticket the requester named)"
                         : "one of " + claimed, line.entryLine().value(), CONTEXT + "frictionProfile.ticketRecords",
                 "the ticket is not one the sealed records say the requester named");
+    }
+
+    /**
+     * docs/agent A3-5: a past record's target is one of the targets of the sealed past records and denied decisions the
+     * render draws, quoted as the render quotes it.
+     */
+    private static void pastRecordTarget(PromptInspectionTally tally, InspectedPrompt.Line line, String source,
+                                         CanonicalSecurityContext context) {
+        if (tally.subject().unreadSources().contains(PromptInspectionSources.PAST_RECORDS)) {
+            unverifiable(tally, line, PAST_RECORDS_SOURCE, "the sealed past records do not read");
+            return;
+        }
+        ZoneId zone = tally.subject().eventZone();
+        LocalDateTime at = context.getRequestObservedAt() != null && zone != null
+                ? LocalDateTime.ofInstant(context.getRequestObservedAt(), zone) : null;
+        List<String> targets = PastRecordLineValues.targets(tally.subject().sources().pastRecords(),
+                document -> {
+                    Object sameTarget = document.getMetadata().get("sameTarget");
+                    return sameTarget != null ? sameTarget.toString() : PastRecordRelevance.NOT_KNOWN;
+                }, at, PastDeniedDecisions.fromMetadata(tally.subject().executionMetadata()
+                        .get(PromptExecutionMetadata.PROMPT_PAST_DENIED_DECISIONS)));
+        for (String target : targets) {
+            if (quoted(source, target, line.entryLine().value())) {
+                tally.matched(line);
+                return;
+            }
+        }
+        mismatch(tally, line, "one of " + targets, line.entryLine().value(), PAST_RECORDS_SOURCE,
+                "the target is not one of the sealed past records the render draws");
+    }
+
+    /**
+     * docs/agent B3-3: a validated case memory text is one of the stored texts of the sealed reasoning memory, quoted
+     * as the render quotes it.
+     */
+    private static void validatedCaseText(PromptInspectionTally tally, InspectedPrompt.Line line, String source,
+                                          CanonicalSecurityContext context) {
+        List<String> texts = PastRecordLineValues.validatedCaseTexts(context.getReasoningMemoryProfile());
+        for (String text : texts) {
+            if (quoted(source, text, line.entryLine().value())) {
+                tally.matched(line);
+                return;
+            }
+        }
+        mismatch(tally, line, texts.isEmpty() ? "no line (the sealed context holds no validated case memory text)"
+                        : "one of " + texts, line.entryLine().value(), CONTEXT + "reasoningMemoryProfile",
+                "the text is not one of the sealed validated case memory's stored texts");
     }
 
     /** The line quotes the sealed text as the render does, whole or cut with the count of what was cut. */
@@ -968,7 +1103,8 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
                 parts -> RequestLineValues.device(expected, open.isEmpty() ? seen : parts.get(0), context.getDevice()));
     }
 
-    private static void subject(PromptInspectionTally tally, InspectedPrompt.Line line, CanonicalSecurityContext context) {
+    private static void subject(PromptInspectionTally tally, InspectedPrompt.Line line, CanonicalSecurityContext context,
+                                boolean v21) {
         if (line == null) {
             return;
         }
@@ -979,8 +1115,12 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
             return;
         }
         String head = head(line.entryLine().value());
-        if (!userId.equals(head)) {
-            mismatch(tally, line, userId, head, CONTEXT + "actor.userId", "the subject is another user than the sealed one");
+        // v21.9 (A2-4): an agent on its own is named by its registration.
+        AgentLineValues.Agent agent = v21 ? AgentLineValues.agent(context) : null;
+        String expectedHead = agent != null && !agent.delegated() ? agent.id() : userId;
+        if (!expectedHead.equals(head)) {
+            mismatch(tally, line, expectedHead, head, CONTEXT + (expectedHead.equals(userId) ? "actor.userId" : "attributes.agentId"),
+                    "the subject is another user than the sealed one");
             return;
         }
         // R1b-7 (P3 extra 35): the whole line. Without a sealed request time the account age counts to the event time.
@@ -991,7 +1131,8 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
                 "the account age counts to the event time the render falls back to, which is not kept"))
                 : List.of();
         whole(tally, line, CONTEXT + "actor", "subject", open,
-                parts -> RequestLineValues.subject(userId, open.isEmpty() ? account : parts.get(0), context));
+                parts -> v21 ? RequestLineValues.subjectV21(userId, open.isEmpty() ? account : parts.get(0), context)
+                        : RequestLineValues.subject(userId, open.isEmpty() ? account : parts.get(0), context));
     }
 
     private static void time(PromptInspectionTally tally, InspectedPrompt.Line line, CanonicalSecurityContext context) {

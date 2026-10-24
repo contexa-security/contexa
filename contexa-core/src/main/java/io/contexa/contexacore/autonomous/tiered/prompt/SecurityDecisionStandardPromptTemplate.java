@@ -56,14 +56,14 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
             new PromptGovernanceDescriptor(
                     "cortex.security-decision",
                     STANDARD_TEMPLATE_KEY,
-                    "2026.10.16-v19.20",
+                    "2026.10.24-v19.21",
                     "CORTEX_PROMPT_CONTRACT_V2",
                     PromptReleaseStatus.PRODUCTION,
                     "contexa-cortex-core",
-                    "N-K5-2-2026-10-16",
+                    "DD-8-2026-10-24",
                     "protocol-938648df",
                     null,
-                    "Zero Trust runtime decision prompt in the v19 format with computed facts: one action family vocabulary with its source (W2-1), the host's URL template as the path family (W2-2), one usual-behaviour view with its evidence grade (W2-3), and the device as one dimension with networks in one form and the host's network zone (W2-4), the host's company records as structured facts with the resource author's words apart from its business label (W2-6), and the approval facts as they hold at the request time with a missing approval status no longer read as a missing lineage (W2-5), and each past record related to the request by the URL template and the target it names, the request's own session left out of the past records (W2-8), and each distinct past record of one protected method on its own line with only copies of one record sharing a line (W2-2 correction), and a change of device or of network within the session stated against the client the session first came from, in place of the binding-hash mismatch no code produced (W2-14), and the observed work pattern from the host's access history only, a missing history stated rather than the work profile repeated (W2-12); with the render unchanged: the budget profiles fitted to the v20 prompts (TO-5; after P4, W4-2, W4-4), the verifier contracts left the bundle (R4-B9), a 600 ms interactive past record wait (P3-EXTRA-4), golden inputs from the P3 gate measurement (P2-CHANGE-25), the response checker's fallback to the contract's action after a failed retry and the floor each minimum action rule names (N-OUT-1, W4-5, N-P3-1), its label checks for v19 prompts only (W4-8), a golden render of the sealed baselines (N-GOLD-1); P5 drew the learning facts anew and the bundle declares its vocabulary (W5-4, W5-7, W5-9, W5-10); the login classifier source changed, the render unchanged (W5-10 D6)",
+                    "Zero Trust runtime decision prompt in the v19 format with computed facts: one action family vocabulary with its source (W2-1), the host's URL template as the path family (W2-2), one usual-behaviour view with its evidence grade (W2-3), and the device as one dimension with networks in one form and the host's network zone (W2-4), the host's company records as structured facts with the resource author's words apart from its business label (W2-6), and the approval facts as they hold at the request time with a missing approval status no longer read as a missing lineage (W2-5), and each past record related to the request by the URL template and the target it names, the request's own session left out of the past records (W2-8), and each distinct past record of one protected method on its own line with only copies of one record sharing a line (W2-2 correction), and a change of device or of network within the session stated against the client the session first came from, in place of the binding-hash mismatch no code produced (W2-14), and the observed work pattern from the host's access history only, a missing history stated rather than the work profile repeated (W2-12); with the render unchanged: the budget profiles fitted to the v20 prompts (TO-5; after P4, W4-2, W4-4), the verifier contracts left the bundle (R4-B9), a 600 ms interactive past record wait (P3-EXTRA-4), golden inputs from the P3 gate measurement (P2-CHANGE-25), the response checker's fallback to the contract's action after a failed retry and the floor each minimum action rule names (N-OUT-1, W4-5, N-P3-1), its label checks for v19 prompts only (W4-8), a golden render of the sealed baselines (N-GOLD-1); P5 drew the learning facts anew and the bundle declares its vocabulary (W5-4, W5-7, W5-9, W5-10); the login classifier source changed, the render unchanged (W5-10 D6); an agent's request is judged without the automation client boundary (docs/agent A4-4)",
                     List.of(
                             "STRICT_JSON_SCHEMA",
                             "LOW_TEMPERATURE_SECURITY_DECISION",
@@ -101,7 +101,8 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
      * measurement (two-method logins included, {@code 2026.10.16-v20.23}) and the business label is an untrusted text
      * (N-INJ-3) and the usual rate counts the hour up to each request (N-RATE-1, {@code 2026.10.16-v20.24}) and
      * every Ticket value fits its form (N-DIC-2) and the usual rate needs 60 counts and a satisfied assigned limit
-     * explains a size within it (N-FRIC-2), so it ships as {@code 2026.10.17-v20.25}; the
+     * explains a size within it (N-FRIC-2, {@code 2026.10.17-v20.25}) and an agent's request is judged without the
+     * automation category of the BLOCK boundary (docs/agent A4-4), so it ships as {@code 2026.10.24-v20.26}; the
      * earlier v20 manifests stay as the records of what they were. It is not approved for runtime and not evaluated yet (version management 10: evaluation and
      * approval come in P6 to P8).
      */
@@ -109,14 +110,14 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
             new PromptGovernanceDescriptor(
                     "cortex.security-decision",
                     STANDARD_TEMPLATE_KEY,
-                    "2026.10.17-v20.25",
+                    "2026.10.24-v20.26",
                     "CORTEX_PROMPT_CONTRACT_V3",
                     PromptReleaseStatus.DRAFT,
                     "contexa-cortex-core",
-                    "N-FRIC-2-2026-10-17",
+                    "DD-8-2026-10-24",
                     "NOT-EVALUATED",
-                    "2026.10.16-v19.20",
-                    "Zero Trust runtime decision prompt in the v20 dictionary format (W3-1 to W3-19, TO-1 to TO-5, LU-1 to LU-4, R4-T, R4-B9 and the P3 extra work; the 2026.10.14-v20.14 manifest lists them), with the P4 system text: the minimum action rules the host turned on, each naming its floor, P1 and P2 a challenge and P3 a review because a verified user does not supply a missing record (W4-4, N-P3-1); the boundaries and evidence rules on prompt facts only, the BLOCK boundary naming what is observed and a repeat, a new target or a large volume no risk by itself (N-RULE-1, N-WORD-1, N-FRIC-1); the output contract v3 block with the meaning and the cited line of every reason code, MATERIAL_MISSING_EVIDENCE citing the ID the UNKNOWN line gives each missing fact (W4-2, N-UID-1); no fixed reason sentences (W4-3). The response checker falls back to the contract's action after a failed retry (N-OUT-1, W4-5) and checks boundaries, reason claims and reason codes on the prompt's facts (W4-8). The golden render draws the baseline the sealed prompts state (N-GOLD-1). An approval or ticket without a decision time says what was not checked and does not prevent covered work (N-WORD-1, N-WORD-2). The business label is untrusted text (N-INJ-3); the usual rate counts the hour up to a request (N-RATE-1). Every Ticket value fits its form (N-DIC-2); the usual rate needs 60 counts and an assigned limit explains a size within it (N-FRIC-2). P5 drew the learning and memory facts anew: the non-allowed records (W5-4), one protection of what is learned (W5-9), and baseline statistics v2: counts, days and first and last times per dimension, one denominator, maturity by dates and convergence, one request rate, the organization usual by frequency, the peer comparison with the group size and the tenant in the baseline key (W5-10); the bundle declares its vocabulary (W5-7). Logins of two methods are kept and one holding a usual login is no departure (W5-10 D6); P3 takes only a floor the facts can meet (N-CONF-1).",
+                    "2026.10.24-v19.21",
+                    "Zero Trust runtime decision prompt in the v20 dictionary format (W3-1 to W3-19, TO-1 to TO-5, LU-1 to LU-4, R4-T, R4-B9 and the P3 extra work; the 2026.10.14-v20.14 manifest lists them), with the P4 system text: the minimum action rules the host turned on, each naming its floor, P1 and P2 a challenge and P3 a review because a verified user does not supply a missing record (W4-4, N-P3-1); the boundaries and evidence rules on prompt facts only, the BLOCK boundary naming what is observed and a repeat, a new target or a large volume no risk by itself (N-RULE-1, N-WORD-1, N-FRIC-1); the output contract v3 block with the meaning and the cited line of every reason code, MATERIAL_MISSING_EVIDENCE citing the ID the UNKNOWN line gives each missing fact (W4-2, N-UID-1); no fixed reason sentences (W4-3). The response checker falls back to the contract's action after a failed retry (N-OUT-1, W4-5) and checks boundaries, reason claims and reason codes on the prompt's facts (W4-8). The golden render draws the baseline the sealed prompts state (N-GOLD-1). An approval or ticket without a decision time says what was not checked and does not prevent covered work (N-WORD-1, N-WORD-2). The business label is untrusted text (N-INJ-3); the usual rate counts the hour up to a request (N-RATE-1). Every Ticket value fits its form (N-DIC-2); the usual rate needs 60 counts and an assigned limit explains a size within it (N-FRIC-2). P5 drew the learning and memory facts anew: the non-allowed records (W5-4), one protection of what is learned (W5-9), and baseline statistics v2 (W5-10: per-dimension counts, days and times, one denominator, maturity, one request rate, the organization usual, the peer group size, the tenant in the key); the bundle declares its vocabulary (W5-7). Two-method logins are kept (W5-10 D6); P3 takes only a floor the facts can meet (N-CONF-1); an agent's request has no automation category in the BLOCK boundary (docs/agent A4-4).",
                     List.of(
                             "STRICT_JSON_SCHEMA",
                             "LOW_TEMPERATURE_SECURITY_DECISION",
@@ -137,34 +138,35 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
             new PromptGovernanceDescriptor(
                     "cortex.security-decision",
                     STANDARD_TEMPLATE_KEY,
-                    "2026.10.20-v21.8",
+                    "2026.10.24-v21.14",
                     "CORTEX_PROMPT_CONTRACT_V4",
                     PromptReleaseStatus.DRAFT,
                     "contexa-cortex-core",
                     "V21-2026-10-19",
                     "NOT-EVALUATED",
-                    "2026.10.17-v20.25",
-                    "Zero Trust runtime decision prompt v21: the model judges each request from its context. System text:"
-                            + " the mission (sign-in, permissions and fixed rules cannot tell a stolen account or an insider "
-                            + "misusing their permission from legitimate work), how to read the evidence, competing explanations "
-                            + "(legitimate work, account takeover, insider misuse, automation or error, another one), differences "
-                            + "checked against company records by the model, the four responses (a challenge verifies who holds the"
-                            + " account, not the owner's purpose), the honesty rules; no decision rule, threshold, floor or later "
-                            + "enforcement. User prompt: the v20 dictionary blocks, decision facts titled RECORDS AND COMPARISONS "
-                            + "without the core's conclusions (no PolicySatisfied, covers tails, explained marks, within or "
-                            + "outside). Output contract v4: action, hypotheses, reasonCodes, reason, riskScore, confidence, mitre."
-                            + " The response check asks again only for a broken format, a wrong citation or a second analysis "
-                            + "ESCALATE, and never changes the action. v21.1 (R2): a value not recorded is unknown; the owner's "
-                            + "records weigh between legitimate work and insider misuse, not against a takeover; responses are "
-                            + "weighed across the explanations left possible. v21.2: an approval or ticket is a person's earlier "
-                            + "judgment of the purpose; the weighing follows how strongly the request's facts support each other "
-                            + "explanation. v21.3: a record line states the host's own check against the request as the host's "
-                            + "fact. v21.4: the target's scope in the host's records is a host fact. v21.5: the past records' "
-                            + "counted fact is a line an earlier allowed record on the same target cites. v21.6: ESCALATE hands the"
-                            + " request to the second analysis, which chooses ALLOW, CHALLENGE or BLOCK (no person reviews it). "
-                            + "v21.7: after a first pass that retrieved its past records the second analysis gets none as new. "
-                            + "v21.8: the second analysis decides from the same facts, with past records only when the first pass "
-                            + "could not retrieve them.",
+                    "2026.10.24-v20.26",
+                    "Zero Trust runtime decision prompt v21: the model judges each request from its context. System"
+                            + " text: the mission (sign-in, permissions and fixed rules cannot tell a stolen account"
+                            + " or an insider misusing their permission from legitimate work), how to read the"
+                            + " evidence, competing explanations (legitimate work, account takeover, insider misuse,"
+                            + " automation or error, another one), differences checked against company records by the"
+                            + " model, the four responses, the honesty rules; no decision rule, threshold, floor or"
+                            + " later enforcement. User prompt: the v20 dictionary blocks, decision facts titled"
+                            + " RECORDS AND COMPARISONS without the core's conclusions. Output contract v4: action,"
+                            + " hypotheses, reasonCodes, reason, riskScore, confidence, mitre; the response check asks"
+                            + " again only for a broken format, a wrong citation or a second analysis ESCALATE."
+                            + " v21.1-v21.5: a value not recorded is unknown; the owner's records weigh between"
+                            + " legitimate work and insider misuse; an approval or ticket is a person's earlier"
+                            + " judgment of the purpose; host checks, target scope and counted past records are host"
+                            + " or computed facts. v21.6-v21.8: ESCALATE hands the request to the second analysis,"
+                            + " which decides from the same facts. v21.9-v21.10 (agent requests, docs/agent A2): the"
+                            + " agent named apart from the account, the delegation by its fields, its objective text"
+                            + " and call arguments as untrusted texts, the access token, the agent's session so far,"
+                            + " who wrote each record and whose company records they are as fact lines, the coverage"
+                            + " after the delegation records, the explanations read for an agent. v21.11 (A3-5): a"
+                            + " past record's target, which a requester wrote, is an untrusted text. v21.12 (A4): an agent's baseline lines name whose they are, its usual order of operations and its clients, and its session line the order of its latest requests and their median time apart."
+                            + " v21.13 (B3-3): the validated case memory's stored texts are untrusted texts."
+                            + " v21.14 (F-5): a confirmed agent request states its confirmation.",
                     List.of(
                             "STRICT_JSON_SCHEMA",
                             "LOW_TEMPERATURE_SECURITY_DECISION",

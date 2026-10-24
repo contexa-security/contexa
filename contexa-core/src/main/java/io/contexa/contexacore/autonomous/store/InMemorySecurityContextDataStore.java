@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.store;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -93,6 +94,8 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     /** Each interval with the time of its request when known (N-SES-1). */
     private final ConcurrentHashMap<String, List<String>> sessionRequestIntervals = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<String>> workProfileObservations = new ConcurrentHashMap<>();
+    /** docs/agent A3-8: the scopes whose learning an operator quarantined. */
+    private final Set<String> quarantinedLearning = ConcurrentHashMap.newKeySet();
     private final ConcurrentHashMap<String, List<String>> roleScopeObservations = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<String>> permissionChangeObservations = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Double> sessionRisks = new ConcurrentHashMap<>();
@@ -658,6 +661,39 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     }
 
     @Override
+    public void setLearningQuarantined(String scope, boolean quarantined) {
+        if (scope == null || scope.isBlank()) {
+            return;
+        }
+        if (quarantined) {
+            quarantinedLearning.add(scope);
+        } else {
+            quarantinedLearning.remove(scope);
+        }
+    }
+
+    @Override
+    public boolean learningQuarantined(String scope) {
+        return scope != null && quarantinedLearning.contains(scope);
+    }
+
+    @Override
+    public Set<String> learningQuarantineScopes() {
+        return Set.copyOf(quarantinedLearning);
+    }
+
+    @Override
+    public int deleteAgentLearning(String agentId) {
+        if (agentId == null || agentId.isBlank()) {
+            return 0;
+        }
+        String suffix = LearningSubject.AGENT_KEY + agentId;
+        List<String> keys = workProfileObservations.keySet().stream().filter(key -> key.endsWith(suffix)).toList();
+        keys.forEach(workProfileObservations::remove);
+        return keys.size();
+    }
+
+    @Override
     public void deleteUserData(String userId) {
         if (userId == null) {
             return;
@@ -669,6 +705,14 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         for (Map<String, ?> perUser : List.of(
                 workProfileObservations, permissionChangeObservations, authorizationScopeStates)) {
             perUser.keySet().removeIf(key -> key.equals(userId) || key.endsWith(tenantScopedSuffix));
+        }
+        // docs/agent A3-1: what the agents acting for the user learned, under their learning keys in every tenant.
+        String agentKeys = userId + LearningSubject.AGENT_KEY;
+        promotionLearning.keySet().removeIf(key -> key.startsWith(agentKeys));
+        // docs/agent F-6 (CF-27): and the authorization state the agents' requests are compared with.
+        for (Map<String, ?> perAgent : List.of(
+                workProfileObservations, permissionChangeObservations, authorizationScopeStates)) {
+            perAgent.keySet().removeIf(key -> key.startsWith(agentKeys) || key.contains("::" + agentKeys));
         }
         lastRequestTimes.remove(userId);
         previousPaths.remove(userId);

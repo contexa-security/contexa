@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.utils;
 
+import io.contexa.contexacommon.security.bridge.AgentSessionKey;
 import io.contexa.contexacommon.security.bridge.OAuth2AuthenticationSupport;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -25,7 +26,8 @@ import org.springframework.util.StringUtils;
 /**
  * The user and the session a request belongs to, read from its authentication and the HTTP request without creating a
  * session. No request attribute names them: the user is the authenticated principal, and the session is the login a
- * token carries (claim sid), else the HTTP session, else the session id the request asked for.
+ * token carries (claim sid), else the HTTP session, else the session id the request asked for. An agent's or a
+ * client's own token request has the agent's session instead ({@link AgentSessionKey}, A1-11).
  */
 public final class RequestIdentity {
 
@@ -47,10 +49,16 @@ public final class RequestIdentity {
         if (request == null) {
             return null;
         }
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        // An agent's token request is grouped within that agent, never with the person it acts for (A1-11).
+        String agentSession = AgentSessionKey.of(authentication);
+        if (agentSession != null) {
+            return agentSession;
+        }
         // A token (OAuth2) request is identified by the login its token carries (claim sid, kept by a refreshed
         // token), whether or not the request also holds an HTTP session.
         String tokenSession = OAuth2AuthenticationSupport.tokenAttribute(
-                SecurityContextHolder.getContext().getAuthentication(), OAuth2AuthenticationSupport.SESSION_ID_CLAIM);
+                authentication, OAuth2AuthenticationSupport.SESSION_ID_CLAIM);
         if (tokenSession != null) {
             return tokenSession;
         }

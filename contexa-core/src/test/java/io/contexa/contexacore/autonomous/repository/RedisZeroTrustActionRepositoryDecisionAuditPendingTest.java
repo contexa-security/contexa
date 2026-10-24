@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.repository;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.testsupport.RedisTestTemplates;
 import org.junit.jupiter.api.AfterAll;
@@ -111,5 +112,29 @@ class RedisZeroTrustActionRepositoryDecisionAuditPendingTest {
         assertThat(repository.isDecisionAuditPending(userId, "context-a")).isFalse();
 
         repository.removeAllUserData(userId);
+    }
+
+    @Test
+    @DisplayName("docs/agent A5-1: a deleted person's agents lose their decisions; the person's and others' stay")
+    void removingThePersonsAgentDataRemovesOnlyTheirAgentKeys() {
+        String userId = "agent-owner-" + UUID.randomUUID();
+        String agentKey = userId + "::agent::report-agent";
+        String otherAgentKey = userId + "x::agent::report-agent";
+        repository.saveAction(agentKey, ZeroTrustAction.BLOCK, null);
+        repository.setBlockedFlag(agentKey);
+        repository.markDecisionAuditPending(agentKey, "context-a", Duration.ofSeconds(30));
+        repository.saveAction(userId, ZeroTrustAction.ALLOW, null);
+        repository.saveAction(otherAgentKey, ZeroTrustAction.ALLOW, null);
+
+        repository.removeAllAgentData(userId);
+
+        assertThat(repository.getCurrentAction(agentKey)).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+        assertThat(repository.isDecisionAuditPending(agentKey, "context-a")).isFalse();
+        assertThat(stringRedisTemplate.hasKey(ZeroTrustRedisKeys.userBlocked(agentKey))).isFalse();
+        assertThat(repository.getActionFromHash(userId)).isEqualTo(ZeroTrustAction.ALLOW);
+        assertThat(repository.getActionFromHash(otherAgentKey)).isEqualTo(ZeroTrustAction.ALLOW);
+
+        repository.removeAllUserData(userId);
+        repository.removeAllUserData(otherAgentKey);
     }
 }

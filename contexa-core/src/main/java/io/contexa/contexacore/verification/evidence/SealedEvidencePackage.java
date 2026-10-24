@@ -88,6 +88,15 @@ public class SealedEvidencePackage {
     // Section 8: Integrity
     private String packageHash;
 
+    /** docs/agent A5-6: the hash of the package sealed before this one (schema 3), linking the packages. */
+    private String previousPackageHash;
+
+    /** docs/agent A5-6: the keyed signature of the package hash (schema 3). */
+    private String packageSignature;
+
+    /** docs/agent A5-6: the key the signature was made with. */
+    private String signatureKeyId;
+
     @Builder.Default
     private int schemaVersion = 2;
 

@@ -49,6 +49,8 @@ import org.springframework.jdbc.core.JdbcOperations;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
+import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
+import io.contexa.contexacore.verification.evidence.EvidenceSigner;
 
 
 @AutoConfiguration
@@ -65,8 +67,16 @@ public class IamAdminMonitoringAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public SecurityMonitorController securityMonitorController(AuditLogRepository auditLogRepository, CsvExportService csvExportService) {
-        return new SecurityMonitorController(auditLogRepository, csvExportService);
+    public SecurityMonitorController securityMonitorController(AuditLogRepository auditLogRepository,
+                                                               CsvExportService csvExportService,
+                                                               ObjectProvider<DelegationRegistry> delegationRegistry,
+                                                               ObjectProvider<EvidenceSigner> evidenceSigner) {
+        // docs/agent A5-5: the delegation an agent's decision ran under, when Contexa keeps delegations (OC-1).
+        SecurityMonitorController controller = new SecurityMonitorController(auditLogRepository, csvExportService,
+                delegationRegistry.getIfAvailable());
+        // docs/agent A5-6: the decision records' integrity.
+        evidenceSigner.ifAvailable(controller::setEvidenceSigner);
+        return controller;
     }
 
     @Bean

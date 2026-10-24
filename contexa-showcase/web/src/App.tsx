@@ -16,6 +16,10 @@ import { AppHeader } from './components/AppHeader';
 import ReplayPage from './pages/ReplayPage';
 import OpeningPage from './pages/main/OpeningPage';
 import {
+  agentConfirmScreen,
+  agentConsoleScreen,
+  agentReasonScreen,
+  agentRequestScreen,
   approachesScreen,
   briefingScreen,
   changeScreen,
@@ -84,7 +88,8 @@ export default function App() {
     <BrowserRouter>
       <Suspense fallback={<LoadingScreen />}>
         <Routes>
-          {/* The main flow (최종화면-구현계획 2절, IN-6): seven groups, each from group 2 on opened by its cover (T0). */}
+          {/* The main flow (최종화면-구현계획 2절, IN-6, docs/agent A7-3): eight groups, each from group 2 to 7 opened by
+              its cover (T0). */}
           <Route path="/" element={<OpeningPage />} />
           <Route path="/intro/map" element={<introMapScreen.Screen />} />
           <Route path="/attack" element={<briefingScreen.Screen />} />
@@ -104,6 +109,12 @@ export default function App() {
           <Route path="/insider/request" element={<requestScreen.Screen role="insider" />} />
           <Route path="/insider/console" element={<consoleScreen.Screen role="insider" />} />
           <Route path="/insider/reason" element={<insideScreen.Screen />} />
+          {/* docs/agent A7-3: the business agent group (화면설계 4절 AD-0 to AD-4). */}
+          <Route path="/agent" element={<briefingScreen.Screen />} />
+          <Route path="/agent/request" element={<agentRequestScreen.Screen />} />
+          <Route path="/agent/console" element={<agentConsoleScreen.Screen />} />
+          <Route path="/agent/reason" element={<agentReasonScreen.Screen />} />
+          <Route path="/agent/confirm" element={<agentConfirmScreen.Screen />} />
           <Route path="/compare" element={<briefingScreen.Screen />} />
           <Route path="/compare/rule" element={<ruleSwitchScreen.Screen />} />
           <Route path="/compare/change" element={<changeScreen.Screen />} />

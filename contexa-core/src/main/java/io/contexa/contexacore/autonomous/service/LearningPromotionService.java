@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.EventTimeZone;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 import io.contexa.contexacore.autonomous.context.collector.ProtectableWorkProfileCollector;
 import io.contexa.contexacore.autonomous.context.decision.DeviationDimension;
 import io.contexa.contexacore.autonomous.context.decision.LearningPromotionPolicy;
@@ -54,6 +55,8 @@ import java.util.Set;
 @Slf4j
 public class LearningPromotionService {
 
+    /** docs/agent A3-4: how a promoted request is marked verified for the stored baseline. */
+    static final String PROMOTED = "PROMOTED";
     static final String PROMOTED_REASONING = "Allowed earlier and learned once the first-seen values it held were seen "
             + "on other days or verified";
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -94,7 +97,9 @@ public class LearningPromotionService {
         if (values.isEmpty() || requestId == null || dataStore == null || !StringUtils.hasText(event.getUserId())) {
             return;
         }
-        String userId = event.getUserId().trim();
+        // docs/agent A3-7: an agent's held requests are kept and promoted apart from the person's.
+        LearningSubject subject = LearningSubject.of(event);
+        String userId = subject != null ? subject.key() : event.getUserId().trim();
         try {
             Map<String, Object> record = new LinkedHashMap<>();
             record.put("event", HeldRequestRecords.encode(event));
@@ -153,6 +158,10 @@ public class LearningPromotionService {
 
     private void learn(String userId, Held request) throws Exception {
         SecurityEvent event = HeldRequestRecords.decode(request.event(), true);
+        // docs/agent A3-4: a promoted value was seen on enough days or verified, so it never expires.
+        if (event.getMetadata() == null || event.getMetadata().get(VerificationLearningService.VERIFIED_BY) == null) {
+            event.addMetadata(VerificationLearningService.VERIFIED_BY, PROMOTED);
+        }
         if (securityLearningService != null) {
             SecurityDecision decision = SecurityDecision.builder()
                     .action(ZeroTrustAction.ALLOW)
@@ -161,7 +170,9 @@ public class LearningPromotionService {
                     .reasoning(PROMOTED_REASONING)
                     .analysisTime(System.currentTimeMillis())
                     .build();
-            securityLearningService.learnPromoted(userId, decision, event);
+            // The held event names its own user; the hold key may be an agent's (A3-7).
+            securityLearningService.learnPromoted(StringUtils.hasText(event.getUserId()) ? event.getUserId().trim()
+                    : userId, decision, event);
         }
         if (workProfileCollector != null) {
             workProfileCollector.recordVerified(event, 1.0);

@@ -24,7 +24,9 @@ import lombok.NoArgsConstructor;
 import java.io.Serializable;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 
 @Data
@@ -72,6 +74,17 @@ public class BaselineVector implements Serializable {
 
     @Builder.Default
     private Map<String, Long> elementFrequencies = new HashMap<>();
+
+    /**
+     * docs/agent A3-4: when each learned value was last seen, by its frequency key, in epoch milliseconds of the event
+     * clock; a value of a baseline stored before has none and reads as seen at {@link #lastUpdated}.
+     */
+    @Builder.Default
+    private Map<String, Long> elementLastSeen = new HashMap<>();
+
+    /** docs/agent A3-4: the values (frequency keys) learned through a verification, which never expire. */
+    @Builder.Default
+    private Set<String> verifiedElements = new HashSet<>();
     
 
     

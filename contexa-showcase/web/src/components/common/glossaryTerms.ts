@@ -72,6 +72,21 @@ export const GLOSSARY_GROUPS = [
     ],
   },
   {
+    // docs/agent A7-3 (화면설계 4.4): the business agent group's words.
+    id: 'agent',
+    terms: [
+      'businessAgent',
+      'delegation',
+      'delegator',
+      'delegationRecord',
+      'delegationScope',
+      'delegationPeriod',
+      'delegatorCheck',
+      'delegatedAgent',
+      'autonomousAgent',
+    ],
+  },
+  {
     id: 'checks',
     terms: [
       'fact',

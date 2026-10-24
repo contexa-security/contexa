@@ -51,8 +51,9 @@ public final class SealIntegrityCheck implements PromptInspectionCheck {
 
     private final SealedEvidencePackageIntegrity integrity;
 
-    public SealIntegrityCheck() {
-        this.integrity = new SealedEvidencePackageIntegrity();
+    /** docs/agent A5-6: the check with the integrity that also verifies a schema 3 package's signature. */
+    public SealIntegrityCheck(SealedEvidencePackageIntegrity integrity) {
+        this.integrity = integrity;
     }
 
     @Override

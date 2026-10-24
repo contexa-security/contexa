@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.agent.stops.title})}"></head>
+<body class="flex flex-col min-h-screen font-sans">
+
+<div th:insert="~{contexa/fragments/header :: header}"></div>
+<div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
+
+<div class="flex flex-1">
+    <aside th:insert="~{contexa/fragments/admin-menu :: menu}" class="hidden md:block"></aside>
+
+    <main class="flex-1 p-6 md:p-10">
+        <div class="mx-auto dark-card p-6 sm:p-8 rounded-xl">
+            <div class="mb-6 text-center sm:text-left">
+                <h1 class="text-3xl font-bold text-gradient" th:text="#{admin.agent.stops.title}">Zero Trust - Stopped Agents</h1>
+                <p class="text-dark-muted mt-1" th:text="#{admin.agent.stops.subtitle}">Agents stopped by a decision or the kill switch</p>
+            </div>
+
+            <div class="flex flex-wrap gap-2 mb-6 items-center" id="blacklistTabs">
+                <a th:href="@{/contexa/admin/blacklist}" class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 filter-inactive"
+                   th:text="#{admin.blacklist.tab.people}">People</a>
+                <a th:href="@{/contexa/admin/blacklist/agents}" class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 filter-active"
+                   th:text="#{admin.blacklist.tab.agents}">Agents</a>
+            </div>
+
+            <div th:if="${!available}" id="stopsUnavailable" class="mb-6 p-4 rounded-lg text-sm"
+                 style="background: rgba(251, 191, 36, 0.12); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3);"
+                 th:text="#{admin.agent.stops.unavailable}">The autonomous security plane is off: stops can be seen but not acted on.</div>
+
+            <section class="mb-10" id="suspendedAgents">
+                <h2 class="text-xl font-semibold mb-1" th:text="#{admin.agent.stops.suspended.heading}">Suspended agents</h2>
+                <p class="text-dark-muted text-sm mb-3" th:text="#{admin.agent.stops.suspended.hint}">Every token of a suspended agent is refused and no new one is issued.</p>
+                <div class="overflow-x-auto shadow-md rounded-lg">
+                    <table class="min-w-full w-full text-sm text-left">
+                        <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
+                        <tr>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.agent}">Agent</th>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.type}">Type</th>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.sponsor}">Accountable person</th>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.reason}">Why</th>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.last.seen}">Last seen</th>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.release}">Release</th>
+                        </tr>
+                        </thead>
+                        <tbody class="divide-y" style="background: rgba(15, 23, 42, 0.6); color: #e2e8f0; border-color: rgba(71, 85, 105, 0.3);">
+                        <tr th:each="a : ${suspendedAgents}" style="border-color: rgba(71, 85, 105, 0.3);">
+                            <td class="py-4 px-6">
+                                <a th:href="@{/contexa/admin/agents/detail(agentId=${a.agentId}, tenant=${a.tenantId})}" class="font-mono"
+                                   style="color: #818cf8;" th:text="${a.agentId}"></a>
+                                <div class="text-xs text-dark-muted" th:if="${a.displayName != null}" th:text="${a.displayName}"></div>
+                            </td>
+                            <td class="py-4 px-6" th:text="${a.agentType != null} ? ${a.agentType} : '-'"></td>
+                            <td class="py-4 px-6" th:text="${a.sponsorId != null} ? ${a.sponsorId} : '-'"></td>
+                            <td class="py-4 px-6 text-xs" th:text="${a.statusReason != null} ? ${a.statusReason} : '-'"></td>
+                            <td class="py-4 px-6" th:text="${a.lastSeenAt != null} ? ${#temporals.format(a.lastSeenAt, 'yyyy-MM-dd HH:mm')} : '-'"></td>
+                            <td class="py-4 px-6">
+                                <form th:if="${available}" th:action="@{/contexa/admin/blacklist/agents/release-agent}" method="post"
+                                      class="flex gap-2 items-center release-form"
+                                      th:data-confirm-msg="#{admin.agent.stops.release.confirm}" onsubmit="return confirm(this.getAttribute('data-confirm-msg'));">
+                                    <input type="hidden" name="tenant" th:value="${a.tenantId}"/>
+                                    <input type="hidden" name="agentId" th:value="${a.agentId}"/>
+                                    <input type="text" name="reason" required maxlength="500" class="px-2 py-1 rounded text-sm stop-input"
+                                           th:placeholder="#{admin.agent.stops.reason.placeholder}"/>
+                                    <button type="submit" class="px-3 py-1.5 rounded-md text-sm font-medium stop-release"
+                                            th:text="#{admin.agent.stops.release}">Release</button>
+                                </form>
+                            </td>
+                        </tr>
+                        <tr th:if="${#lists.isEmpty(suspendedAgents)}">
+                            <td colspan="6" class="py-4 px-6 text-center" style="color: #94a3b8;" th:text="#{admin.agent.stops.suspended.empty}">No agent is suspended.</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="mb-10" id="stoppedDelegations">
+                <h2 class="text-xl font-semibold mb-1" th:text="#{admin.agent.stops.delegations.heading}">Agents stopped while acting for a person</h2>
+                <p class="text-dark-muted text-sm mb-3" th:text="#{admin.agent.stops.delegations.hint}">The delegation was revoked and the person was told. The person keeps working; only the agent is stopped.</p>
+                <div class="overflow-x-auto shadow-md rounded-lg">
+                    <table class="min-w-full w-full text-sm text-left">
+                        <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
+                        <tr>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.person}">For</th>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.agent}">Agent</th>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.stopped.at}">Stopped at</th>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.reason}">Why</th>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.steps}">What was done</th>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.decision}">Decision</th>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.release}">Release</th>
+                        </tr>
+                        </thead>
+                        <tbody class="divide-y" style="background: rgba(15, 23, 42, 0.6); color: #e2e8f0; border-color: rgba(71, 85, 105, 0.3);">
+                        <tr th:each="d : ${stoppedDelegations}" style="border-color: rgba(71, 85, 105, 0.3);">
+                            <td class="py-4 px-6" th:text="${d.userId}"></td>
+                            <td class="py-4 px-6 font-mono" th:text="${d.agentId}"></td>
+                            <td class="py-4 px-6" th:text="${#temporals.format(d.stoppedAt, 'yyyy-MM-dd HH:mm:ss')}"></td>
+                            <td class="py-4 px-6 text-xs" th:text="${d.reason != null} ? ${d.reason} : '-'"></td>
+                            <td class="py-4 px-6 text-xs" th:text="${d.steps != null} ? ${d.steps} : '-'"></td>
+                            <td class="py-4 px-6">
+                                <a th:if="${d.decisionRecordId != null}" th:href="@{/contexa/admin/security-monitor/{id}(id=${d.decisionRecordId})}"
+                                   class="decision-link" style="color: #818cf8;" th:text="#{admin.agent.stops.decision.open}">Open</a>
+                                <span th:if="${d.decisionRecordId == null}" class="text-xs" style="color: #64748b;">-</span>
+                            </td>
+                            <td class="py-4 px-6">
+                                <form th:if="${available}" th:action="@{/contexa/admin/blacklist/agents/release-delegation}" method="post"
+                                      class="flex gap-2 items-center release-form"
+                                      th:data-confirm-msg="#{admin.agent.stops.release.delegation.confirm}" onsubmit="return confirm(this.getAttribute('data-confirm-msg'));">
+                                    <input type="hidden" name="userId" th:value="${d.userId}"/>
+                                    <input type="hidden" name="agentId" th:value="${d.agentId}"/>
+                                    <input type="text" name="reason" required maxlength="500" class="px-2 py-1 rounded text-sm stop-input"
+                                           th:placeholder="#{admin.agent.stops.reason.placeholder}"/>
+                                    <button type="submit" class="px-3 py-1.5 rounded-md text-sm font-medium stop-release"
+                                            th:text="#{admin.agent.stops.release}">Release</button>
+                                </form>
+                            </td>
+                        </tr>
+                        <tr th:if="${#lists.isEmpty(stoppedDelegations)}">
+                            <td colspan="7" class="py-4 px-6 text-center" style="color: #94a3b8;" th:text="#{admin.agent.stops.delegations.empty}">No agent is stopped for a person.</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-dark-muted text-xs mt-2" th:text="#{admin.agent.stops.delegations.release.hint}">A release lets the agent's next request be decided again; the person grants a new delegation for it to act again.</p>
+            </section>
+
+            <section class="mb-10" id="narrowedAgents">
+                <h2 class="text-xl font-semibold mb-1" th:text="#{admin.agent.stops.narrowed.heading}">Agents narrowed by a decision</h2>
+                <p class="text-dark-muted text-sm mb-3" th:text="#{admin.agent.stops.narrowed.hint}">Only the operations listed pass until the narrowing ends; a narrowing is never widened.</p>
+                <div class="overflow-x-auto shadow-md rounded-lg">
+                    <table class="min-w-full w-full text-sm text-left">
+                        <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
+                        <tr>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.agent}">Agent</th>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.person}">For</th>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.allowed}">Still allowed</th>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.until}">Until</th>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.reason}">Why</th>
+                        </tr>
+                        </thead>
+                        <tbody class="divide-y" style="background: rgba(15, 23, 42, 0.6); color: #e2e8f0; border-color: rgba(71, 85, 105, 0.3);">
+                        <tr th:each="n : ${narrowedAgents}" style="border-color: rgba(71, 85, 105, 0.3);">
+                            <td class="py-4 px-6 font-mono" th:text="${n.agentId}"></td>
+                            <td class="py-4 px-6" th:text="${n.userId}"></td>
+                            <td class="py-4 px-6 text-xs" th:text="${#sets.isEmpty(n.allowed)} ? '-' : ${#strings.setJoin(n.allowed, ', ')}"></td>
+                            <td class="py-4 px-6" th:text="${#temporals.format(n.until, 'yyyy-MM-dd HH:mm:ss')}"></td>
+                            <td class="py-4 px-6 text-xs" th:text="${n.reason}"></td>
+                        </tr>
+                        <tr th:if="${narrowedAgents == null or #lists.isEmpty(narrowedAgents)}">
+                            <td colspan="5" class="py-4 px-6 text-center" style="color: #94a3b8;" th:text="#{admin.agent.stops.narrowed.empty}">No agent is narrowed.</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="mb-10 p-5 rounded-lg" id="killSwitch" style="border: 1px solid rgba(239, 68, 68, 0.35); background: rgba(127, 29, 29, 0.12);">
+                <h2 class="text-xl font-semibold mb-1" style="color: #f87171;" th:text="#{admin.agent.stops.kill.switch.heading}">Kill switch</h2>
+                <p class="text-dark-muted text-sm mb-4" th:text="#{admin.agent.stops.kill.switch.hint}">Suspends every active registered agent, or those of one type; their tokens are revoked. People are not affected.</p>
+                <div class="flex flex-wrap gap-6">
+                    <form th:if="${available}" th:action="@{/contexa/admin/blacklist/agents/kill-switch}" method="post"
+                          class="flex flex-wrap gap-2 items-center" id="killSwitchForm"
+                          th:data-confirm-msg="#{admin.agent.stops.kill.switch.confirm}" onsubmit="return confirm(this.getAttribute('data-confirm-msg'));">
+                        <input type="text" name="agentType" maxlength="100" class="px-2 py-1 rounded text-sm stop-input"
+                               th:placeholder="#{admin.agent.stops.kill.switch.type.placeholder}"/>
+                        <input type="text" name="reason" required maxlength="500" class="px-2 py-1 rounded text-sm stop-input"
+                               th:placeholder="#{admin.agent.stops.reason.placeholder}"/>
+                        <button type="submit" class="px-3 py-1.5 rounded-md text-sm font-semibold stop-kill"
+                                th:text="#{admin.agent.stops.kill.switch.apply}">Stop agents</button>
+                    </form>
+                    <form th:if="${available}" th:action="@{/contexa/admin/blacklist/agents/kill-switch/release}" method="post"
+                          class="flex flex-wrap gap-2 items-center" id="killSwitchReleaseForm"
+                          th:data-confirm-msg="#{admin.agent.stops.kill.switch.release.confirm}" onsubmit="return confirm(this.getAttribute('data-confirm-msg'));">
+                        <input type="text" name="agentType" maxlength="100" class="px-2 py-1 rounded text-sm stop-input"
+                               th:placeholder="#{admin.agent.stops.kill.switch.type.placeholder}"/>
+                        <input type="text" name="reason" required maxlength="500" class="px-2 py-1 rounded text-sm stop-input"
+                               th:placeholder="#{admin.agent.stops.reason.placeholder}"/>
+                        <button type="submit" class="px-3 py-1.5 rounded-md text-sm font-medium stop-release"
+                                th:text="#{admin.agent.stops.kill.switch.release}">Release kill switch</button>
+                    </form>
+                </div>
+                <p class="text-dark-muted text-xs mt-3" th:text="#{admin.agent.stops.kill.switch.release.hint}">Releasing the kill switch resumes only the agents it suspended; an agent stopped by a decision stays suspended.</p>
+            </section>
+
+            <section class="mb-10" id="stopHistory">
+                <h2 class="text-xl font-semibold mb-3" th:text="#{admin.agent.stops.history.heading}">History</h2>
+                <div class="overflow-x-auto shadow-md rounded-lg">
+                    <table class="min-w-full w-full text-sm text-left">
+                        <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
+                        <tr>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.time}">Time</th>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.event}">Event</th>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.agent}">Agent</th>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.person}">For</th>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.by}">By</th>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.reason}">Why</th>
+                        </tr>
+                        </thead>
+                        <tbody class="divide-y" style="background: rgba(15, 23, 42, 0.6); color: #e2e8f0; border-color: rgba(71, 85, 105, 0.3);">
+                        <tr th:each="h : ${history}" style="border-color: rgba(71, 85, 105, 0.3);">
+                            <td class="py-3 px-6 font-mono text-xs" th:text="${#temporals.format(h.timestamp, 'yyyy-MM-dd HH:mm:ss')}"></td>
+                            <td class="py-3 px-6 text-xs" th:text="${h.eventCategory}"></td>
+                            <td class="py-3 px-6 font-mono text-xs" th:text="${h.agentId != null} ? ${h.agentId} : '-'"></td>
+                            <td class="py-3 px-6 text-xs" th:text="${h.delegatorId != null} ? ${h.delegatorId} : '-'"></td>
+                            <td class="py-3 px-6 text-xs" th:text="${h.principalName != null} ? ${h.principalName} : '-'"></td>
+                            <td class="py-3 px-6 text-xs" th:text="${h.reason != null} ? ${h.reason} : '-'"></td>
+                        </tr>
+                        <tr th:if="${#lists.isEmpty(history)}">
+                            <td colspan="6" class="py-4 px-6 text-center" style="color: #94a3b8;" th:text="#{admin.agent.stops.history.empty}">No stop yet.</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="agentNotices">
+                <h2 class="text-xl font-semibold mb-3" th:text="#{admin.agent.stops.notices.heading}">Notices to the accountable people</h2>
+                <div class="overflow-x-auto shadow-md rounded-lg">
+                    <table class="min-w-full w-full text-sm text-left">
+                        <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
+                        <tr>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.time}">Time</th>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.recipient}">To</th>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.agent}">Agent</th>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.notice}">Notice</th>
+                            <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agent.stops.table.delivered}">Delivered by</th>
+                        </tr>
+                        </thead>
+                        <tbody class="divide-y" style="background: rgba(15, 23, 42, 0.6); color: #e2e8f0; border-color: rgba(71, 85, 105, 0.3);">
+                        <tr th:each="n : ${notices}" style="border-color: rgba(71, 85, 105, 0.3);">
+                            <td class="py-3 px-6 font-mono text-xs" th:text="${#temporals.format(n.createdAt, 'yyyy-MM-dd HH:mm:ss')}"></td>
+                            <td class="py-3 px-6 text-xs" th:text="${n.recipientId}"></td>
+                            <td class="py-3 px-6 font-mono text-xs" th:text="${n.agentId}"></td>
+                            <td class="py-3 px-6 text-xs">
+                                <div class="font-semibold" th:text="${n.subject}"></div>
+                                <div class="text-dark-muted" th:text="${n.message}"></div>
+                            </td>
+                            <td class="py-3 px-6 text-xs" th:text="${n.deliveredBy}"></td>
+                        </tr>
+                        <tr th:if="${#lists.isEmpty(notices)}">
+                            <td colspan="5" class="py-4 px-6 text-center" style="color: #94a3b8;" th:text="#{admin.agent.stops.notices.empty}">No notice yet.</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </main>
+</div>
+
+<div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
+
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    document.addEventListener('DOMContentLoaded', () => {
+        const message = /*[[${message}]]*/ null;
+        if (message) {
+            showToast(message, 'success');
+        }
+        const errorMessage = /*[[${errorMessage}]]*/ null;
+        if (errorMessage) {
+            showToast(errorMessage, 'error');
+        }
+    });
+    /*]]>*/
+</script>
+
+<style>
+    .filter-active {
+        background: rgba(99, 102, 241, 0.3);
+        color: #818cf8;
+        border: 1px solid rgba(99, 102, 241, 0.5);
+    }
+    .filter-inactive {
+        background: rgba(30, 41, 59, 0.5);
+        color: #94a3b8;
+        border: 1px solid rgba(71, 85, 105, 0.3);
+    }
+    .filter-inactive:hover {
+        background: rgba(51, 65, 85, 0.5);
+        color: #e2e8f0;
+    }
+    .stop-input {
+        background: rgba(30, 41, 59, 0.6);
+        border: 1px solid rgba(71, 85, 105, 0.5);
+        color: #e2e8f0;
+        min-width: 180px;
+    }
+    .stop-release {
+        background: rgba(34, 197, 94, 0.2);
+        color: #4ade80;
+        border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+    .stop-kill {
+        background: rgba(239, 68, 68, 0.25);
+        color: #f87171;
+        border: 1px solid rgba(239, 68, 68, 0.45);
+    }
+</style>
+
+</body>
+</html>

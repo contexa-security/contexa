@@ -150,6 +150,19 @@ class FrictionProfileResolverApprovalTest {
         assertThat(profile.getApprovalTicketId()).isNull();
     }
 
+    @Test
+    @DisplayName("docs/agent A2-12: whose records the host looked up stays with the records")
+    void theRecordsHolderTheHostStatedStaysWithTheRecords() {
+        CanonicalSecurityContext.FrictionProfile host = CanonicalSecurityContext.FrictionProfile.builder()
+                .checkedRecordKinds(new ArrayList<>(List.of("ASSIGNMENT")))
+                .recordsHolderId("bob").recordsHolderRelation("SPONSOR").build();
+
+        CanonicalSecurityContext.FrictionProfile profile = resolveAt(host, null, Map.of());
+
+        assertThat(profile.getRecordsHolderId()).isEqualTo("bob");
+        assertThat(profile.getRecordsHolderRelation()).isEqualTo("SPONSOR");
+    }
+
     private static CanonicalSecurityContext.FrictionProfile hostSaysCovered(
             CanonicalSecurityContext.ApprovalRecord approval) {
         return CanonicalSecurityContext.FrictionProfile.builder()

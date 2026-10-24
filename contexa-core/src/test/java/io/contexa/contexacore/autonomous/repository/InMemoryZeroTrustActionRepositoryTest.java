@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.repository;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.security.subject.SubjectKind;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository.ZeroTrustAnalysisData;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -47,6 +48,52 @@ class InMemoryZeroTrustActionRepositoryTest {
         ZeroTrustAction result = repository.getCurrentAction("user1");
 
         assertThat(result).isEqualTo(ZeroTrustAction.ALLOW);
+    }
+
+    @Test
+    @DisplayName("docs/agent A5-1: an agent acting for a person keeps its decisions apart; the person's BLOCK stops it")
+    void anAgentActingForAPersonReadsItsOwnDecisionAndThePersonsBlock() {
+        ZeroTrustSubject agent = new ZeroTrustSubject(null, "alice",
+                SubjectKind.DELEGATED_AGENT, "report-agent", "DLG-7");
+        ZeroTrustSubject person = ZeroTrustSubject.person("alice");
+
+        repository.saveAction(agent.storageKey(), ZeroTrustAction.CHALLENGE, null);
+        assertThat(repository.currentActionOf(agent)).isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThat(repository.currentActionOf(person)).as("the agent's CHALLENGE asks nothing of the person")
+                .isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+
+        repository.saveAction("alice", ZeroTrustAction.CHALLENGE, null);
+        repository.saveAction(agent.storageKey(), ZeroTrustAction.ALLOW, null);
+        assertThat(repository.currentActionOf(agent)).as("the person's CHALLENGE does not answer the agent")
+                .isEqualTo(ZeroTrustAction.ALLOW);
+
+        repository.setBlockedFlag("alice");
+        assertThat(repository.currentActionOf(agent)).as("a blocked person's delegation stops with the account")
+                .isEqualTo(ZeroTrustAction.BLOCK);
+        repository.removeBlockedFlag("alice");
+        repository.setBlockedFlag(agent.storageKey());
+        assertThat(repository.currentActionOf(agent)).isEqualTo(ZeroTrustAction.BLOCK);
+        assertThat(repository.getCurrentAction("alice")).as("the agent's BLOCK leaves the person's own work")
+                .isEqualTo(ZeroTrustAction.CHALLENGE);
+    }
+
+    @Test
+    @DisplayName("docs/agent A5-1: deleting a person's account removes the decisions of the agents that acted for it")
+    void removingAPersonsAgentDataLeavesThePersonAndOtherPeople() {
+        repository.saveAction("alice::agent::report-agent", ZeroTrustAction.BLOCK, null);
+        repository.setBlockedFlag("alice::agent::report-agent");
+        repository.saveAction("alice::agent::support-agent", ZeroTrustAction.ALLOW, null);
+        repository.saveAction("alice", ZeroTrustAction.ALLOW, null);
+        repository.saveAction("alicex::agent::report-agent", ZeroTrustAction.ALLOW, null);
+
+        repository.removeAllAgentData("alice");
+
+        assertThat(repository.getCurrentAction("alice::agent::report-agent"))
+                .isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+        assertThat(repository.getCurrentAction("alice::agent::support-agent"))
+                .isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+        assertThat(repository.getCurrentAction("alice")).isEqualTo(ZeroTrustAction.ALLOW);
+        assertThat(repository.getCurrentAction("alicex::agent::report-agent")).isEqualTo(ZeroTrustAction.ALLOW);
     }
 
     @Test

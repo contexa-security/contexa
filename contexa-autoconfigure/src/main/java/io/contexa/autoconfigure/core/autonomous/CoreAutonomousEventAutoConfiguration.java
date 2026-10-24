@@ -73,8 +73,22 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
+import io.contexa.contexacore.autonomous.agent.AgentAllowReuse;
+import io.contexa.contexacore.autonomous.agent.AgentContainmentService;
+import io.contexa.contexacore.autonomous.agent.AgentScopeNarrower;
+import io.contexa.contexacore.autonomous.agent.AgentScopeService;
+import io.contexa.contexacore.autonomous.agent.AgentScopeStore;
+import io.contexa.contexacore.autonomous.agent.InMemoryAgentScopeStore;
+import io.contexa.contexacore.autonomous.agent.ReadOnlyAgentScopeNarrower;
+import io.contexa.contexacore.autonomous.agent.AgentNotices;
+import io.contexa.contexacore.autonomous.agent.AgentRegistry;
+import io.contexa.contexacore.autonomous.agent.AgentTokenRevoker;
+import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexacore.autonomous.signal.RiskSignalEmitter;
 
 @AutoConfiguration
 @AutoConfigureAfter(name = {
@@ -169,6 +183,14 @@ public class CoreAutonomousEventAutoConfiguration {
                 new ZeroTrustEventListener(securityEventPublisher, actionRepository, securityZeroTrustProperties);
         listener.setUnanalysedRequestRecorder(unanalysedRequestRecorder.getIfAvailable());
         return listener;
+    }
+
+    /** docs/agent F-1: how far an ALLOW in force answers an agent's later requests without a new decision. */
+    @Bean
+    @ConditionalOnMissingBean
+    public AgentAllowReuse agentAllowReuse(SecurityZeroTrustProperties securityZeroTrustProperties) {
+        SecurityZeroTrustProperties.AllowReuse settings = securityZeroTrustProperties.getAgent().getAllowReuse();
+        return new AgentAllowReuse(settings.getMaxRequests(), settings.getMaxDistinctResources(), null);
     }
 
     @Bean
@@ -335,7 +357,10 @@ public class CoreAutonomousEventAutoConfiguration {
             ObjectProvider<ContextObservationRecorder> contextObservationRecorderProvider,
             ObjectProvider<VerificationLearningService> verificationLearningService,
             ObjectProvider<LearningPromotionService> learningPromotionService,
-            ObjectProvider<DeletedAccountWriteFence> deletedAccountWriteFence) {
+            ObjectProvider<DeletedAccountWriteFence> deletedAccountWriteFence,
+            ObjectProvider<AgentContainmentService> agentContainment,
+            ObjectProvider<AgentScopeService> agentScopes,
+            ObjectProvider<RiskSignalEmitter> riskSignalEmitters) {
         SecurityDecisionEnforcementHandler handler = new SecurityDecisionEnforcementHandler(
                 actionRepository,
                 securityLearningService,
@@ -349,7 +374,53 @@ public class CoreAutonomousEventAutoConfiguration {
         handler.setVerificationLearningService(verificationLearningService.getIfAvailable());
         handler.setLearningPromotionService(learningPromotionService.getIfAvailable());
         handler.setDeletedAccountWriteFence(deletedAccountWriteFence.getIfAvailable());
+        // docs/agent A5-3: a BLOCK on an agent's request stops that agent.
+        handler.setAgentContainment(agentContainment.getIfAvailable());
+        // docs/agent A5-4: a decision on an agent's request may narrow its later requests.
+        handler.setAgentScopes(agentScopes.getIfAvailable());
+        // docs/agent A5-8: the host's emitters of risk level changes, none by default.
+        handler.setRiskSignalEmitters(riskSignalEmitters.orderedStream().toList());
         return handler;
+    }
+
+    /**
+     * docs/agent A5-4: the default narrowing, to reading for a period after a risky decision on an agent's request
+     * ({@code contexa.security.zerotrust.agent.scope-narrowing}); off, nothing is narrowed. An application declares
+     * its own {@link AgentScopeNarrower} to narrow otherwise.
+     */
+    @Bean
+    @ConditionalOnMissingBean(AgentScopeNarrower.class)
+    public AgentScopeNarrower agentScopeNarrower(SecurityZeroTrustProperties securityZeroTrustProperties) {
+        SecurityZeroTrustProperties.ScopeNarrowing settings = securityZeroTrustProperties.getAgent().getScopeNarrowing();
+        return settings.isEnabled()
+                ? new ReadOnlyAgentScopeNarrower(settings.getDuration(), settings.getRiskThreshold())
+                : (subject, event, result) -> Optional.empty();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public AgentScopeService agentScopeService(ObjectProvider<AgentScopeStore> agentScopeStore,
+                                               AgentScopeNarrower agentScopeNarrower,
+                                               ObjectProvider<CentralAuditFacade> auditFacade) {
+        return new AgentScopeService(agentScopeStore.getIfAvailable(InMemoryAgentScopeStore::new), agentScopeNarrower,
+                auditFacade.getIfAvailable(), null);
+    }
+
+    /**
+     * docs/agent A5-3: stops and releases agents: the delegation and tokens of an agent a BLOCK stopped, the agent's
+     * suspension, the kill switch, and the notice to the accountable person.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public AgentContainmentService agentContainmentService(ZeroTrustActionRepository actionRepository,
+                                                           ObjectProvider<AgentRegistry> agentRegistry,
+                                                           ObjectProvider<DelegationRegistry> delegationRegistry,
+                                                           ObjectProvider<AgentTokenRevoker> agentTokenRevoker,
+                                                           ObjectProvider<AgentNotices> agentNotices,
+                                                           ObjectProvider<CentralAuditFacade> auditFacade) {
+        return new AgentContainmentService(actionRepository, agentRegistry.getIfAvailable(),
+                delegationRegistry.getIfAvailable(), agentTokenRevoker.getIfAvailable(),
+                agentNotices.getIfAvailable(), auditFacade.getIfAvailable());
     }
 
     @Bean

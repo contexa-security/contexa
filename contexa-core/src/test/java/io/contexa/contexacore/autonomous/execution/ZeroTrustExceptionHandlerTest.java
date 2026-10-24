@@ -18,6 +18,8 @@ package io.contexa.contexacore.autonomous.execution;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.contexa.contexacore.autonomous.execution.ZeroTrustExceptionHandler.ZeroTrustErrorResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
@@ -93,5 +95,41 @@ class ZeroTrustExceptionHandlerTest {
         }).handleZeroTrustDenied(challenge, request, response);
         assertThat(failed.getStatusCode().value()).isEqualTo(401);
         assertThat(failed.getBody().getMfaUrl()).as("a failing starter").isNull();
+    }
+
+    /**
+     * CF-22 (A5-2): an agent's request a CHALLENGE decided in it stopped is answered by the confirmation gate (the
+     * accountable person is asked); the handler then writes nothing and starts no step-up. Other decisions and a
+     * starter that does not answer keep the plain answer.
+     */
+    @Test
+    void anAgentsChallengeDecidedInTheRequestIsAnsweredByItsConfirmation() {
+        AtomicInteger answers = new AtomicInteger();
+        ZeroTrustChallengeFlowStarter agentAware = new ZeroTrustChallengeFlowStarter() {
+            @Override
+            public Optional<String> start(HttpServletRequest req,
+                                          HttpServletResponse res) {
+                starts.incrementAndGet();
+                return Optional.empty();
+            }
+
+            @Override
+            public boolean answerAgentChallenge(HttpServletRequest req,
+                                                HttpServletResponse res) {
+                answers.incrementAndGet();
+                return true;
+            }
+        };
+        ZeroTrustExceptionHandler handler = new ZeroTrustExceptionHandler(agentAware);
+
+        assertThat(handler.handleZeroTrustDenied(ZeroTrustAccessDeniedException.challengeRequired("Export"), request,
+                response)).isNull();
+        assertThat(answers.get()).isEqualTo(1);
+        assertThat(starts.get()).isZero();
+        assertThat(handler.handleZeroTrustDenied(ZeroTrustAccessDeniedException.blocked("Export"), request, response)
+                .getBody().getAction()).isEqualTo("BLOCK");
+        assertThat(answers.get()).isEqualTo(1);
+        assertThat(new ZeroTrustExceptionHandler(starter(Optional.empty())).handleZeroTrustDenied(
+                ZeroTrustAccessDeniedException.challengeRequired("Export"), request, response)).isNotNull();
     }
 }

@@ -25,7 +25,7 @@ import styles from './StackPage.module.css';
 const WORK = 'A6T';
 const ATTACK = 'A6';
 /** A live run still going: in line, starting, answering, or waiting for the visitor (the portal's active states). */
-const ACTIVE = new Set(['QUEUED', 'STARTING', 'RUNNING', 'CHALLENGE', 'AWAITING', 'BLOCKED']);
+const ACTIVE = new Set(['QUEUED', 'STARTING', 'RUNNING', 'CHALLENGE', 'AWAITING', 'BLOCKED', 'CONFIRMING']);
 
 /** What one cell shows: Contexa's judgment of that request, what happened to it without one, or nothing yet. */
 type Cell =

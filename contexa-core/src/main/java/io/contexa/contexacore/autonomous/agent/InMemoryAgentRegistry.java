@@ -49,6 +49,31 @@ public class InMemoryAgentRegistry implements AgentRegistry {
     }
 
     @Override
+    public Optional<AgentRegistration> findByClientId(String tenantId, String clientId) {
+        if (AgentRegistrations.blank(clientId)) {
+            return Optional.empty();
+        }
+        String client = clientId.trim();
+        String tenantKey = AgentRegistrations.tenantKey(tenantId);
+        List<AgentRegistration> inTenant = agents.entrySet().stream()
+                .filter(entry -> tenantKey.equals(entry.getKey().tenantKey()))
+                .map(Map.Entry::getValue)
+                .toList();
+        return inTenant.stream()
+                .filter(registration -> client.equals(registration.clientId()))
+                .min(Comparator.comparing(AgentRegistration::agentId))
+                .or(() -> inTenant.stream().filter(registration -> client.equals(registration.agentId())).findFirst());
+    }
+
+    @Override
+    public Optional<AgentRegistration> remove(String tenantId, String agentId) {
+        if (AgentRegistrations.blank(agentId)) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(agents.remove(AgentKey.of(tenantId, agentId)));
+    }
+
+    @Override
     public List<AgentRegistration> list(String tenantId, int limit) {
         String tenantKey = tenantId != null ? AgentRegistrations.tenantKey(tenantId) : null;
         return agents.entrySet().stream()
@@ -84,6 +109,24 @@ public class InMemoryAgentRegistry implements AgentRegistry {
         Instant now = clock.instant();
         return Optional.ofNullable(agents.computeIfPresent(AgentKey.of(tenantId, agentId),
                 (key, current) -> AgentRegistrations.deregistered(current, reason, now)));
+    }
+
+    @Override
+    public Optional<AgentRegistration> suspend(String tenantId, String agentId, String reason) {
+        if (AgentRegistrations.blank(agentId)) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(agents.computeIfPresent(AgentKey.of(tenantId, agentId),
+                (key, current) -> AgentRegistrations.suspended(current, reason)));
+    }
+
+    @Override
+    public Optional<AgentRegistration> resume(String tenantId, String agentId, String reason) {
+        if (AgentRegistrations.blank(agentId)) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(agents.computeIfPresent(AgentKey.of(tenantId, agentId),
+                (key, current) -> AgentRegistrations.resumed(current, reason)));
     }
 
     @Override

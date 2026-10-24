@@ -2,7 +2,8 @@
 // time, so a caption stays one row at the bottom of the video and never climbs over the recorded screen. A line never
 // runs across a sentence end; inside a sentence it is cut at a comma or colon unless a cut at a space saves more than
 // one line, and a cut lands after a punctuation mark or a Korean particle, or before an English joining word, where it
-// can. Each line gets a share of its scene's time in proportion to its length.
+// can, and never inside a quoted name unless nothing else fits. Each line gets a share of its scene's time in
+// proportion to its length.
 
 /**
  * The longest line in characters. The site draws captions in proportion to the video's size (GuidePreview.module.css),
@@ -15,16 +16,29 @@ const CLAUSE = /(?<=[,:])\s+/;
 const WORD = /\s+/;
 
 const PUNCTUATION_END = /[,.;:!?]$/;
-/** A Korean particle or connective ending: a phrase ends there. */
-const KOREAN_PHRASE_END = /[은는이가을를과와고며서에의도로면게만]$/;
+/** A Korean particle, a connective ending or '뒤' (예상한 뒤, "after"): a phrase ends there. */
+const KOREAN_PHRASE_END = /[은는이가을를과와고며서에의도로면게만뒤]$/;
 /** English words a line should not stop at: an article, a preposition or a joining word wants what follows it. */
 const WEAK_ENGLISH_END =
   /\b(?:a|an|the|of|to|in|on|at|for|by|from|with|against|and|or|that|its|their|real)$/i;
 /** English words a line may start with: a new phrase begins there. "of" belongs to the word before it. */
 const ENGLISH_PHRASE_START = /^(?:with|since|and|or|then|to|for|while|when|because|against)\b/i;
 
-/** How bad a cut between `row` and the next part is: 0 at a phrase boundary, 1 between words, 2 inside a phrase. */
+/** A quoted name opens where a quote mark starts a word; an apostrophe inside a word ("Contexa's") opens nothing. */
+const QUOTE_OPEN = /(?:^|\s)'/g;
+
+/** Whether `row` opened a quoted name ('에이전트에게 맡기기', a name on the screen) and has not closed it yet. */
+function insideQuote(row) {
+  const opened = [...row.matchAll(QUOTE_OPEN)].at(-1);
+  return opened !== undefined && !row.slice(opened.index + opened[0].length).includes("'");
+}
+
+/**
+ * How bad a cut between `row` and the next part is: 0 at a phrase boundary, 1 between words, 2 inside a phrase, 3
+ * inside a quoted name.
+ */
 function cutCost(row, next) {
+  if (insideQuote(row)) return 3;
   if (PUNCTUATION_END.test(row)) return 0;
   if (/[가-힣]$/.test(row)) return KOREAN_PHRASE_END.test(row) ? 0 : 2;
   if (WEAK_ENGLISH_END.test(row) || /^of\b/i.test(next)) return 2;

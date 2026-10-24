@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.tiered.strategy;
 
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import io.contexa.contexacore.autonomous.context.support.PastRecordScope;
+import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
 import io.contexa.contexacore.autonomous.context.support.PastRecordGroup;
 import io.contexa.contexacommon.domain.EventTimeZone;
@@ -1070,8 +1071,13 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             return Collections.emptyList();
         }
         try {
+            // docs/agent A3-1, A3-2: the records of the request's subject and tenant.
+            LearningSubject subject = LearningSubject.of(event);
+            Map<String, Object> eventMetadata = event.getMetadata() != null ? event.getMetadata() : Map.of();
             PastRecordScope scope = new PastRecordScope(userId, retrievalPurpose, request.actionFamily().name(),
-                    sessionIdsOf(event));
+                    sessionIdsOf(event), subject != null ? subject.tenantId() : null,
+                    firstNonBlank(eventMetadata.get("organizationId"), eventMetadata.get("organization_id")),
+                    subject != null ? subject.agentId() : null);
             List<PastRecordGroup> groups = query.groups(scope);
             List<String> sameTargetPaths = groups.stream()
                     .filter(group -> group.path() != null && PastRecordRelevance.YES.equals(PastRecordRelevance.sameTarget(
@@ -1090,8 +1096,10 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             annotateRagSearchResult(event, searchId, requestedTopK, documents, limitedAuthorizedPromptContext);
             annotatePastRecordCounts(event, searchId, PastRecordCounts.of(request, groups));
             annotatePastRecordScope(event, searchId, scope, sameTargetPaths, requestedTopK, query);
-            annotatePastDeniedDecisions(event, searchId,
-                    query.deniedDecisions(scope, deniedSince(event), PastDeniedDecisions.LIMIT));
+            // A3-2: the denied records pass the same document authorization as the records shown.
+            List<Document> denied = query.deniedDecisions(scope, deniedSince(event), PastDeniedDecisions.LIMIT);
+            annotatePastDeniedDecisions(event, searchId, denied.isEmpty() ? denied
+                    : promptContextAuthorizationService.authorize(event, retrievalPurpose, denied).documents());
             return limitedAuthorizedPromptContext.documents();
         }
         catch (RuntimeException exception) {
@@ -1163,6 +1171,10 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         searchScope.put("retrievalPurpose", scope.retrievalPurpose());
         searchScope.put("actionFamily", scope.actionFamily());
         searchScope.put("excludedSessionIds", scope.excludedSessionIds());
+        // docs/agent A3-1, A3-2: the subject and tenant the records were read for.
+        searchScope.put("tenantId", scope.tenantId());
+        searchScope.put("organizationId", scope.organizationId());
+        searchScope.put("agentId", scope.agentId());
         searchScope.put("firstPaths", firstPaths != null ? List.copyOf(firstPaths) : List.of());
         searchScope.put("limit", limit);
         searchScope.put("filters", query.filters());
@@ -1567,9 +1579,13 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         return ids;
     }
 
-    /** A record held back from promotion into the usual behaviour is not a past record (W2-8). */
+    /**
+     * A record held back from promotion into the usual behaviour is not a past record (W2-8), nor is one an
+     * administrator quarantined (docs/agent A3-8).
+     */
     private FilterExpressionBuilder.Op notHeldBack(FilterExpressionBuilder filterBuilder) {
-        return filterBuilder.nin(VectorDocumentMetadata.LEARNING_STATE, VectorDocumentMetadata.LEARNING_STATE_HELD);
+        return filterBuilder.nin(VectorDocumentMetadata.LEARNING_STATE, VectorDocumentMetadata.LEARNING_STATE_HELD,
+                VectorDocumentMetadata.LEARNING_STATE_QUARANTINED);
     }
 
     private Filter.Expression buildBehaviorFilterForOrganization(String organizationId, String retrievalPurpose) {

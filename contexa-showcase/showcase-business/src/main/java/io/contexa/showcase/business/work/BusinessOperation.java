@@ -35,7 +35,13 @@ public enum BusinessOperation {
      * {@code POST /api/admin/role-grants?project=P&grantee=E&responsibility=R}: an administrator gives another employee
      * a role on a project (deck A5).
      */
-    ROLE_GRANT(false);
+    ROLE_GRANT(false),
+
+    /**
+     * {@code GET /api/projects/{projectKey}/documents?type=T&q=Q&limit=N}: the documents of a project, found by type and
+     * title words (docs/agent A7-2a: how a business agent finds what to read).
+     */
+    DOCUMENT_LIST(false);
 
     private final boolean bulk;
 

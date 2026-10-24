@@ -40,7 +40,7 @@ const RUNS: readonly RecapLine[] = [
   run('S16', 'ALLOW', 2, { A: 'MISSED', B: 'MISSED', C1: 'MISSED', C2: 'MISSED', D: 'PARTLY_STOPPED' }),
 ];
 
-/** 6-2's run after the hour changed to the dawn: a lab run, so no ground truth; the fixed rule stopped it. */
+/** 7-2's run after the hour changed to the dawn: a lab run, so no ground truth; the fixed rule stopped it. */
 const AFTER: RecapLine = {
   ...run('S13', 'ALLOW', 480, {
     A: 'NOT_SCORED',
@@ -137,7 +137,7 @@ beforeEach(async () => {
       const bodies: Record<string, unknown> = {
         '/api/visitor': { predictions: {} },
         '/api/journey': {
-          state: { route: 'DEFAULT', act: 6, step: 'compare', differences: [] },
+          state: { route: 'DEFAULT', act: 7, step: 'compare', differences: [] },
           runs: [...RUNS, AFTER],
           predictions,
         },
@@ -188,7 +188,7 @@ describe('4-3, one line apart', () => {
   });
 });
 
-describe('6-1, the fixed rule turned on', () => {
+describe('7-1, the fixed rule turned on', () => {
   it("names Contexa by its decision with the items out, never as 'blocked' for an extra check (V-06)", async () => {
     open(<RuleSwitchPage />);
     expect(await screen.findByText('추가 인증 · 0건 나감')).toBeInTheDocument();
@@ -198,23 +198,25 @@ describe('6-1, the fixed rule turned on', () => {
 
   it('says the switch changes nothing when the rule met neither request (V-32)', async () => {
     open(<RuleSwitchPage />);
-    expect(await screen.findByText(i18n.t('main.6-1.same'))).toBeInTheDocument();
+    expect(await screen.findByText(i18n.t('main.7-1.same'))).toBeInTheDocument();
   });
 
   // Review before the guide videos (2026-10-21, L-38): the first run badge carried the page's note and no name.
   it('names both run badges alike and says once, apart from them, that nothing was recomputed', async () => {
     open(<RuleSwitchPage />);
-    expect(await screen.findByRole('button', { name: new RegExp(i18n.t('main.4-3.attack')) })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: new RegExp(i18n.t('main.4-3.attack')) }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: new RegExp(i18n.t('main.4-3.normal')) })).toBeInTheDocument();
-    expect(screen.getByText(i18n.t('main.6-1.source')).closest('button')).toBeNull();
+    expect(screen.getByText(i18n.t('main.7-1.source')).closest('button')).toBeNull();
   });
 });
 
-describe('6-2, one condition changed', () => {
+describe('7-2, one condition changed', () => {
   it('names every approach of the run after by what it did, marked as having no set answer (V-05, V-06)', async () => {
     open(<ChangePage />, '/compare/change?change=time&sent=live-1');
-    expect(await screen.findByText(i18n.t('main.6-2.unscored'))).toBeInTheDocument();
-    expect(screen.getByText(new RegExp(i18n.t('main.6-2.noAnswer')))).toBeInTheDocument();
+    expect(await screen.findByText(i18n.t('main.7-2.unscored'))).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(i18n.t('main.7-2.noAnswer')))).toBeInTheDocument();
     // The run before keeps its scored results; Contexa's cell is its decision with the items out.
     expect(screen.getByText('추가 인증 · 0건 나감')).toBeInTheDocument();
     // The run after: the fixed rule stopped it, the approval-record rule and Contexa let 480 items out; no 'missed'.
@@ -226,26 +228,26 @@ describe('6-2, one condition changed', () => {
   // half held one grey line, and the presets' name was read twice.
   it('before the send: one gold button (the send), the way on quiet, the five lanes waiting unsent', async () => {
     open(<ChangePage />, '/compare/change?change=time');
-    const send = await screen.findByRole('button', { name: i18n.t('main.6-2.send') });
+    const send = await screen.findByRole('button', { name: i18n.t('main.7-2.send') });
     expect(send).not.toHaveAttribute('data-quiet');
     expect(document.querySelector('[data-zone="actions"] [data-main]')).toHaveAttribute('data-quiet');
     expect(screen.getAllByText(i18n.t('main.4-4.notYet'))).toHaveLength(5);
-    expect(screen.getAllByText(i18n.t('main.6-2.controls'))).toHaveLength(1);
+    expect(screen.getAllByText(i18n.t('main.7-2.controls'))).toHaveLength(1);
   });
 
   it('after the send: the way on is the gold button and sending again is quiet', async () => {
     open(<ChangePage />, '/compare/change?change=time&sent=live-1');
-    await screen.findByText(i18n.t('main.6-2.unscored'));
-    expect(screen.getByRole('button', { name: i18n.t('main.6-2.send') })).toHaveAttribute('data-quiet');
+    await screen.findByText(i18n.t('main.7-2.unscored'));
+    expect(screen.getByRole('button', { name: i18n.t('main.7-2.send') })).toHaveAttribute('data-quiet');
     expect(document.querySelector('[data-zone="actions"] [data-main]')).not.toHaveAttribute('data-quiet');
   });
 });
 
-describe('6-3, every repeated run', () => {
+describe('7-3, every repeated run', () => {
   it('names the disputed runs that have no dot beside the count of runs, and no measurement id (V-11, V-48)', async () => {
     open(<RunsPage />);
     expect(
-      await screen.findByText(i18n.t('main.6-3.uncertain', { cases: 2, runs: 2, count: 2 }), {
+      await screen.findByText(i18n.t('main.7-3.uncertain', { cases: 2, runs: 2, count: 2 }), {
         exact: false,
       }),
     ).toBeInTheDocument();
@@ -253,18 +255,18 @@ describe('6-3, every repeated run', () => {
   });
 });
 
-describe('7-1, what you confirmed', () => {
+describe('8-1, what you confirmed', () => {
   // Review before the guide videos (2026-10-21, V-37): an extra check counted as 'stopped' without saying so.
   it('says under the calls that an extra check counts as the call that the request is stopped', async () => {
     predictions = [{ experience: 'E1', engineActual: 'CHALLENGE', engineSameStop: true }];
     open(<SummaryPage />);
-    expect(await screen.findByText(i18n.t('main.7-1.call.note'))).toBeInTheDocument();
+    expect(await screen.findByText(i18n.t('main.8-1.call.note'))).toBeInTheDocument();
   });
 
   it("names the insider's result under the calls (V-40)", async () => {
     open(<SummaryPage />);
     expect(
-      await screen.findByText(i18n.t('main.7-1.insider.PARTLY_STOPPED', { n: '2', count: 2 })),
+      await screen.findByText(i18n.t('main.8-1.insider.PARTLY_STOPPED', { n: '2', count: 2 })),
     ).toBeInTheDocument();
   });
 });

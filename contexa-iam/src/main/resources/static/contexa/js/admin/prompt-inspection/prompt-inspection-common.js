@@ -45,6 +45,11 @@ function csrf() {
 
 /** Calls the inspection API; a failed call throws an error carrying its HTTP status. */
 export async function api(path, options = {}) {
+    return call(apiRoot + path, options);
+}
+
+/** Calls an admin API at the URL; a failed call throws an error carrying its HTTP status. */
+export async function call(url, options = {}) {
     const method = String(options.method || 'GET').toUpperCase();
     const headers = new Headers(options.headers || {});
     headers.set('Accept', 'application/json');
@@ -57,7 +62,7 @@ export async function api(path, options = {}) {
             headers.set('Content-Type', 'application/json');
         }
     }
-    const response = await fetch(apiRoot + path, {
+    const response = await fetch(url, {
         method,
         headers,
         credentials: 'same-origin',

@@ -12,6 +12,7 @@ import io.contexa.showcase.business.work.BusinessController;
 import io.contexa.showcase.business.work.BusinessOperations;
 import io.contexa.showcase.business.work.BusinessRequestAttributes;
 import io.contexa.showcase.business.work.BusinessService;
+import io.contexa.showcase.business.work.ExportJobListener;
 import io.contexa.showcase.business.work.WorkDatabase;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -78,10 +79,12 @@ public class BusinessConfiguration {
     }
 
     @Bean
-    public BusinessService businessService(WorkDatabase database, Environment environment) {
+    public BusinessService businessService(WorkDatabase database, Environment environment,
+                                           ObjectProvider<ExportJobListener> exportJobListener) {
         return new BusinessService(database, clock,
                 environment.getProperty("showcase.business.stream.rows-per-tick", Integer.class, 8),
-                Duration.ofMillis(environment.getProperty("showcase.business.stream.tick-millis", Long.class, 50L)));
+                Duration.ofMillis(environment.getProperty("showcase.business.stream.tick-millis", Long.class, 50L)),
+                exportJobListener.getIfAvailable());
     }
 
     @Bean

@@ -2,6 +2,7 @@ package io.contexa.showcase.business.work;
 
 import io.contexa.showcase.business.work.BusinessViews.CustomerView;
 import io.contexa.showcase.business.work.BusinessViews.DocumentFile;
+import io.contexa.showcase.business.work.BusinessViews.DocumentSummary;
 import io.contexa.showcase.business.work.BusinessViews.DocumentView;
 import io.contexa.showcase.business.work.BusinessViews.ExportResult;
 import io.contexa.showcase.business.work.BusinessViews.ExportStream;
@@ -20,6 +21,16 @@ public interface BusinessOperations {
     List<ProjectSummary> listProjects(BusinessRequest request);
 
     DocumentView readDocument(BusinessRequest request, String documentKey);
+
+    /**
+     * docs/agent A7-2a: the documents of a project, the company's and the request's run's own, newest first.
+     *
+     * @param type  a document type to keep only (DRAWING, SPECIFICATION, ...), or null
+     * @param query words the title must hold, or null
+     * @param limit how many at most
+     */
+    List<DocumentSummary> listDocuments(BusinessRequest request, String projectKey, String type, String query,
+                                        int limit);
 
     DocumentFile downloadDocument(BusinessRequest request, String documentKey);
 

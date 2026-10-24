@@ -15,18 +15,22 @@
  */
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.prompt.PromptBlock;
 import io.contexa.contexacore.autonomous.context.prompt.PromptDictionaryEntry;
 import io.contexa.contexacore.autonomous.context.prompt.PromptDictionaryRenderer;
 import io.contexa.contexacore.autonomous.context.prompt.PromptListItem;
+import io.contexa.contexacore.autonomous.context.support.PastDeniedDecisions;
 import io.contexa.contexacore.autonomous.context.support.PastRecordRanking;
 import java.util.regex.Pattern;
 import org.springframework.ai.document.Document;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -43,6 +47,8 @@ public final class PastRecordLineValues {
     /** The place of the same-target field among them, and its words. */
     public static final int SAME_TARGET_FIELD = 10;
     public static final String SAME_TARGET = "same target: ";
+    /** docs/agent A3-5: the target field of a v21 past record line (PastRecordLines). */
+    public static final String TARGET_APART = PastRecordLines.TARGET_APART;
     /** The time field: {@code 10-12 Sun 03:17}, a group's repeat count after it ({@code  ×3}). */
     public static final String TIME_FORMAT = "%02d-%02d %s %02d:%02d";
     public static final Pattern TIME = Pattern.compile("^(\\d{2})-(\\d{2}) \\S+ (\\d{2}):(\\d{2})");
@@ -59,15 +65,55 @@ public final class PastRecordLineValues {
     public static final Pattern EMPTY_STATE = Pattern.compile("(" + NONE_FOUND + "|" + NOT_RETRIEVED + ") .*");
     /** The retrieval states of a search the request did not finish or did not run. */
     public static final List<String> NOT_RETRIEVED_STATES = List.of("TIMEOUT", "BUDGET_EXPIRED", "UNAVAILABLE", "NOT_REQUESTED");
+    /**
+     * docs/agent B3-3: the validated case memory lines that hold stored free text (an earlier analysis' summary, a
+     * threat signal's summary, matched threat knowledge), which the v21 render draws as untrusted texts.
+     */
+    public static final Set<String> VALIDATED_CASE_TEXT_LINES = Set.of("ObjectiveAwareReasoningMemory",
+            "XaiLinkedFacts", "ReasoningFacts", "CrossTenantObjectiveMisuseFacts");
 
     private PastRecordLineValues() {
+    }
+
+    /**
+     * docs/agent B3-3: the stored texts of the validated case memory lines that hold free text, each once, in the
+     * memory section's order (shared with the inspector).
+     */
+    public static List<String> validatedCaseTexts(CanonicalSecurityContext.ReasoningMemoryProfile profile) {
+        if (profile == null) {
+            return List.of();
+        }
+        Set<String> texts = new LinkedHashSet<>();
+        addText(texts, profile.getObjectiveAwareReasoningMemory());
+        addTexts(texts, profile.getXaiLinkedFacts());
+        addTexts(texts, profile.getReasoningFacts());
+        addTexts(texts, profile.getCrossTenantObjectiveMisuseFacts());
+        return List.copyOf(texts);
+    }
+
+    private static void addTexts(Set<String> texts, List<String> values) {
+        if (values != null) {
+            values.forEach(value -> addText(texts, value));
+        }
+    }
+
+    private static void addText(Set<String> texts, String value) {
+        if (value != null && !value.isBlank()) {
+            texts.add(value.strip());
+        }
     }
 
     /** The values of the PastRecord lines in drawn order, the last one {@code +n more} when the cap leaves some out. */
     public static List<String> of(List<Document> documents, Function<Document, String> sameTargetOf,
                                   LocalDateTime requestTime) {
+        return of(documents, sameTargetOf, requestTime, null);
+    }
+
+    /** The values of a v20 line (no marker) or a v21 line, whose target field the marker writes (A3-5). */
+    public static List<String> of(List<Document> documents, Function<Document, String> sameTargetOf,
+                                  LocalDateTime requestTime, String targetMarker) {
         List<PromptListItem> items = PastRecordLines.items(PastRecordRanking.ranked(documents),
-                (document, record) -> sameTargetOf.apply(document), requestTime);
+                (document, record) -> sameTargetOf.apply(document), requestTime, targetMarker);
         PromptDictionaryEntry entry = SecurityDecisionPromptDictionary.ENTRIES.stream()
                 .filter(candidate -> candidate.block() == PromptBlock.PAST_RECORDS && "PastRecord{i}".equals(candidate.name()))
                 .findFirst().orElseThrow();
@@ -81,6 +127,19 @@ public final class PastRecordLineValues {
             values.add(PromptDictionaryRenderer.overflowValue(sorted.size() - shown));
         }
         return List.copyOf(values);
+    }
+
+    /**
+     * A3-5: the targets a v21 render writes apart as untrusted texts, of the past record and denied decision lines it
+     * draws, each once (shared with the inspector).
+     */
+    public static List<String> targets(List<Document> documents, Function<Document, String> sameTargetOf,
+                                       LocalDateTime requestTime, PastDeniedDecisions denied) {
+        List<PromptListItem> records = documents == null || documents.isEmpty() ? List.of()
+                : PastRecordLines.items(PastRecordRanking.ranked(documents),
+                (document, record) -> sameTargetOf.apply(document), requestTime, PastRecordLines.TARGET_APART);
+        return SecurityDecisionPromptValues.pastRecordTargets(records,
+                PastDeniedLines.items(denied, requestTime, true));
     }
 
     /** The PastRecordsState value the render draws from the retrieval state it kept with the prompt. */

@@ -246,8 +246,8 @@ describe('the real user checked on the way (4-4, L-36)', () => {
   });
 });
 
-// L-38 (6-2): before the send the right half held one grey line; the five lanes now wait there, each "not sent".
-describe('the lanes before a send (6-2, L-38)', () => {
+// L-38 (7-2): before the send the right half held one grey line; the five lanes now wait there, each "not sent".
+describe('the lanes before a send (7-2, L-38)', () => {
   it('reads as not sent yet, not as sent', () => {
     render(
       <ul>

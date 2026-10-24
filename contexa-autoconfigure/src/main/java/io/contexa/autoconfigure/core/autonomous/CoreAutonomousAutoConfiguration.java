@@ -15,6 +15,15 @@
  */
 package io.contexa.autoconfigure.core.autonomous;
 
+import io.contexa.contexacore.autonomous.agent.AgentLearningControl;
+import io.contexa.contexacore.autonomous.agent.DelegationPurgeContributor;
+import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
+import io.contexa.contexacore.autonomous.agent.InMemoryDelegationRegistry;
+import io.contexa.contexacore.autonomous.agent.RegistryDelegationRecordLookup;
+import io.contexa.contexacore.autonomous.company.CompanyRecordStore;
+import io.contexa.contexacore.autonomous.company.CompanyRecordsContextProvider;
+import io.contexa.contexacore.autonomous.company.CompanyRecordsPurgeContributor;
+import io.contexa.contexacore.autonomous.company.InMemoryCompanyRecordStore;
 import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
 import io.contexa.contexacore.autonomous.context.collector.ContextObservationRecorder;
 import io.contexa.contexacore.autonomous.store.SessionRecordsIdChangeListener;
@@ -27,6 +36,7 @@ import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.autonomous.SecurityEventProcessor;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.security.subject.AgentClientDirectory;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.audit.AuditPersistenceListener;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
@@ -107,6 +117,10 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import io.contexa.contexacore.autonomous.context.inference.ObjectiveDriftEvaluator;
+import io.contexa.contexacore.autonomous.execution.ObjectiveContractSource;
+import io.contexa.contexacore.autonomous.execution.ObjectiveResourceCompatibilityCatalog;
+import java.util.ArrayList;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -131,6 +145,7 @@ import io.contexa.contexacore.autonomous.context.collector.ProtectableWorkProfil
 import io.contexa.contexacore.autonomous.context.collector.RoleScopeCollector;
 import io.contexa.contexacore.autonomous.context.collector.SessionNarrativeCollector;
 import io.contexa.contexacore.autonomous.agent.AgentRegistry;
+import io.contexa.contexacore.autonomous.agent.RegistryAgentClientDirectory;
 import io.contexa.contexacore.autonomous.agent.AgentRegistryRecorder;
 import io.contexa.contexacore.autonomous.agent.InMemoryAgentRegistry;
 import io.contexa.contexacore.autonomous.context.enricher.AuthenticationContextProvider;
@@ -152,6 +167,10 @@ import io.contexa.contexacore.autonomous.context.prompt.PromptSlotRenderer;
 import io.contexa.contexacore.autonomous.context.registry.InMemoryResourceContextRegistry;
 import io.contexa.contexacore.autonomous.context.registry.ProtectableResourceContextScanner;
 import io.contexa.contexacore.autonomous.context.registry.ResourceContextRegistry;
+import io.contexa.contexacore.properties.EvidenceSigningProperties;
+import io.contexa.contexacore.verification.evidence.EvidenceSigner;
+import io.contexa.contexacore.verification.evidence.HmacEvidenceSigner;
+import io.contexa.contexacore.autonomous.agent.AgentAllowReuse;
 
 @AutoConfiguration
 @AutoConfigureAfter(name = {
@@ -173,7 +192,8 @@ import io.contexa.contexacore.autonomous.context.registry.ResourceContextRegistr
         SecurityRouterProperties.class,
         SecurityPipelineProperties.class,
         TieredStrategyProperties.class,
-        ContexaRagProperties.class
+        ContexaRagProperties.class,
+        EvidenceSigningProperties.class
 })
 public class CoreAutonomousAutoConfiguration {
 
@@ -198,10 +218,17 @@ public class CoreAutonomousAutoConfiguration {
     public BaselineLearningService baselineLearningService(
             BaselineDataStore baselineDataStore,
             SecurityZeroTrustProperties zeroTrustProperties,
-            ObjectProvider<DistributedLockService> lockServiceProvider) {
+            ObjectProvider<DistributedLockService> lockServiceProvider,
+            ObjectProvider<SecurityContextDataStore> contextDataStoreProvider) {
         BaselineLearningService service = new BaselineLearningService(baselineDataStore, zeroTrustProperties);
         // The personal and organization baseline updates run under the configured lock service (W5-8).
         service.setLockService(lockServiceProvider.getIfAvailable());
+        // docs/agent A3-8: a quarantined agent's baseline is neither learned nor read.
+        SecurityContextDataStore contextDataStore = contextDataStoreProvider.getIfAvailable();
+        if (contextDataStore != null) {
+            service.setLearningQuarantine(subject -> AgentLearningControl.learningQuarantined(contextDataStore,
+                    subject));
+        }
         return service;
     }
 
@@ -236,11 +263,37 @@ public class CoreAutonomousAutoConfiguration {
         return new ContextCoverageEvaluator();
     }
 
+    /**
+     * docs/agent A3-8: an operator's quarantine, release and removal of what an agent, or a delegation, learned. The
+     * decision records are reached through the past record lookup of the vector store when there is one.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public AgentLearningControl agentLearningControl(ObjectProvider<SecurityContextDataStore> securityContextDataStore,
+                                                     ObjectProvider<BaselineDataStore> baselineDataStoreProvider,
+                                                     ObjectProvider<UnifiedVectorService> unifiedVectorServiceProvider) {
+        return new AgentLearningControl(securityContextDataStore.getIfAvailable(), baselineDataStoreProvider.getIfAvailable(),
+                () -> {
+                    UnifiedVectorService vectors = unifiedVectorServiceProvider.getIfAvailable();
+                    return vectors != null ? vectors.pastRecordQuery() : null;
+                });
+    }
+
     /** A1-6: the agents Contexa knows; the database registry of the IAM module replaces this one when present. */
     @Bean
     @ConditionalOnMissingBean(AgentRegistry.class)
     public AgentRegistry defaultAgentRegistry() {
         return new InMemoryAgentRegistry();
+    }
+
+    /**
+     * A1-2: the approved agents, by the client their tokens are issued to. The resource server admits a client's own
+     * token without a user account only for these, and the delegation stamp reads such a token as the agent's.
+     */
+    @Bean
+    @ConditionalOnMissingBean(AgentClientDirectory.class)
+    public AgentClientDirectory agentClientDirectory(AgentRegistry agentRegistry) {
+        return new RegistryAgentClientDirectory(agentRegistry);
     }
 
     /** A1-6: every agent request reaches the registry. */
@@ -252,9 +305,62 @@ public class CoreAutonomousAutoConfiguration {
                 securityZeroTrustProperties.getAgent().getRegistryWriteInterval());
     }
 
-    /** A1-4: the host's delegation records reach agent requests once the host declares how to find them. */
+    /**
+     * docs/agent OC-1: the delegations Contexa keeps; the database registry of the IAM module replaces this one when
+     * present.
+     */
     @Bean
-    @ConditionalOnBean(DelegationRecordLookup.class)
+    @ConditionalOnMissingBean(DelegationRegistry.class)
+    public DelegationRegistry defaultDelegationRegistry(SecurityZeroTrustProperties securityZeroTrustProperties) {
+        return new InMemoryDelegationRegistry(securityZeroTrustProperties.getAgent().getDelegationMaxValidity(), null);
+    }
+
+    /**
+     * docs/agent OC-1: agent requests are decided with the delegations Contexa keeps; an application that keeps them in
+     * its own system declares its own lookup instead.
+     */
+    @Bean
+    @ConditionalOnMissingBean(DelegationRecordLookup.class)
+    public DelegationRecordLookup delegationRecordLookup(DelegationRegistry delegationRegistry) {
+        return new RegistryDelegationRecordLookup(delegationRegistry);
+    }
+
+    /** docs/agent OC-1: a deleted account's delegations go with it. */
+    @Bean
+    @ConditionalOnMissingBean(DelegationPurgeContributor.class)
+    public DelegationPurgeContributor delegationPurgeContributor(DelegationRegistry delegationRegistry) {
+        return new DelegationPurgeContributor(delegationRegistry);
+    }
+
+    /**
+     * docs/agent OC-2: the company records Contexa keeps; the database store of the IAM module replaces this one when
+     * present, and an application whose records live elsewhere declares its own.
+     */
+    @Bean
+    @ConditionalOnMissingBean(CompanyRecordStore.class)
+    public CompanyRecordStore defaultCompanyRecordStore() {
+        return new InMemoryCompanyRecordStore();
+    }
+
+    /**
+     * docs/agent OC-2: every request a company rule covers is judged with the company records of the person who answers
+     * for it; an application's own friction providers run beside it.
+     */
+    @Bean
+    @ConditionalOnMissingBean(CompanyRecordsContextProvider.class)
+    public CompanyRecordsContextProvider companyRecordsContextProvider(CompanyRecordStore companyRecordStore) {
+        return new CompanyRecordsContextProvider(companyRecordStore);
+    }
+
+    /** docs/agent OC-2: a deleted account's company records go with it. */
+    @Bean
+    @ConditionalOnMissingBean(CompanyRecordsPurgeContributor.class)
+    public CompanyRecordsPurgeContributor companyRecordsPurgeContributor(CompanyRecordStore companyRecordStore) {
+        return new CompanyRecordsPurgeContributor(companyRecordStore);
+    }
+
+    /** A1-4, OC-1: the delegation record reaches every agent request. */
+    @Bean
     @ConditionalOnMissingBean(RecordedDelegationContextProvider.class)
     public RecordedDelegationContextProvider recordedDelegationContextProvider(DelegationRecordLookup delegationRecordLookup) {
         return new RecordedDelegationContextProvider(delegationRecordLookup);
@@ -275,8 +381,9 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<SessionNarrativeCollector> sessionNarrativeCollector,
             ObjectProvider<ProtectableWorkProfileCollector> protectableWorkProfileCollector,
             ObjectProvider<RoleScopeCollector> roleScopeCollector,
-            ObjectProvider<ObservedScopeInferenceService> observedScopeInferenceService) {
-        return new DefaultCanonicalSecurityContextProvider(
+            ObjectProvider<ObservedScopeInferenceService> observedScopeInferenceService,
+            ObjectProvider<ObjectiveResourceCompatibilityCatalog> objectiveCatalog) {
+        DefaultCanonicalSecurityContextProvider provider = new DefaultCanonicalSecurityContextProvider(
                 resourceContextRegistry,
                 contextCoverageEvaluator,
                 authenticationContextProviders.orderedStream().toList(),
@@ -290,6 +397,28 @@ public class CoreAutonomousAutoConfiguration {
                 sessionNarrativeCollector.getIfAvailable(),
                 protectableWorkProfileCollector.getIfAvailable(),
                 roleScopeCollector.getIfAvailable());
+        objectiveCatalog.ifAvailable(catalog -> provider.setObjectiveDriftEvaluator(new ObjectiveDriftEvaluator(catalog)));
+        return provider;
+    }
+
+    /**
+     * A2-1: the objective contracts delegations are compared with: Contexa's own, the ones the application writes in
+     * {@code contexa.security.zerotrust.agent.objective-contracts} and the ones its {@link ObjectiveContractSource} beans
+     * declare (in that order, a later contract of the same family taking the earlier one's place).
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public ObjectiveResourceCompatibilityCatalog objectiveResourceCompatibilityCatalog(
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            ObjectProvider<ObjectiveContractSource> objectiveContractSources) {
+        List<ObjectiveResourceCompatibilityCatalog.ObjectiveContractDefinition> contracts =
+                new ArrayList<>(securityZeroTrustProperties.getAgent().objectiveContractDefinitions());
+        objectiveContractSources.orderedStream().forEach(source -> {
+            if (source.objectiveContracts() != null) {
+                contracts.addAll(source.objectiveContracts());
+            }
+        });
+        return new ObjectiveResourceCompatibilityCatalog(contracts);
     }
 
     @Bean
@@ -423,8 +552,22 @@ public class CoreAutonomousAutoConfiguration {
     public CentralAuditFacade centralAuditFacade(
             AuditLogRepository auditLogRepository,
             ApplicationEventPublisher eventPublisher,
-            ObjectMapper objectMapper) {
-        return new CentralAuditFacade(auditLogRepository, eventPublisher, objectMapper);
+            ObjectMapper objectMapper,
+            ObjectProvider<EvidenceSigner> evidenceSigner) {
+        CentralAuditFacade facade = new CentralAuditFacade(auditLogRepository, eventPublisher, objectMapper);
+        // docs/agent A5-6: decision records are signed and linked.
+        evidenceSigner.ifAvailable(facade::setEvidenceSigner);
+        return facade;
+    }
+
+    /**
+     * docs/agent A5-6: the signer of decision records and sealed evidence, HMAC-SHA256 over the configured keys
+     * ({@code contexa.security.evidence.signing}); an ephemeral key, reported, without one.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public EvidenceSigner evidenceSigner(EvidenceSigningProperties properties) {
+        return HmacEvidenceSigner.of(properties.getKeys(), properties.getActiveKeyId());
     }
 
     @Bean
@@ -706,7 +849,8 @@ public class CoreAutonomousAutoConfiguration {
             SecurityPlaneAgent securityPlaneAgent,
             ZeroTrustActionRepository actionRepository,
             ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder,
-            SecurityZeroTrustProperties securityZeroTrustProperties) {
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            ObjectProvider<AgentAllowReuse> agentAllowReuse) {
         SynchronousProtectableDecisionService service = new SynchronousProtectableDecisionService(
                 zeroTrustEventPublisher,
                 zeroTrustEventListener,
@@ -715,6 +859,8 @@ public class CoreAutonomousAutoConfiguration {
         service.setUnanalysedRequestRecorder(unanalysedRequestRecorder.getIfAvailable());
         // A1-5: contexa.security.zerotrust.protectable.unrecorded-agent-request
         service.setUnrecordedAgentRequest(securityZeroTrustProperties.getProtectable().getUnrecordedAgentRequest());
+        // docs/agent F-1: past what an ALLOW answers, an agent's request is decided in place.
+        service.setAgentAllowReuse(agentAllowReuse.getIfAvailable());
         return service;
     }
     /**

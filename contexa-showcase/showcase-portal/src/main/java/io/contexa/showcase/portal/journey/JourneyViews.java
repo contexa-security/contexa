@@ -2,6 +2,7 @@ package io.contexa.showcase.portal.journey;
 
 import io.contexa.showcase.portal.journey.JourneyStore.State;
 import io.contexa.showcase.portal.journey.JourneyStore.VisitorRun;
+import io.contexa.showcase.portal.scenario.AgentTaskCatalog;
 import io.contexa.showcase.portal.scenario.ScenarioCatalog;
 import io.contexa.showcase.portal.scenario.ScenarioDefinition;
 import io.contexa.showcase.portal.scoring.RunScores;
@@ -34,7 +35,13 @@ public class JourneyViews {
      * The cases of the main flow's experiences (IN-6 확정 설계 of docs/showcase/최종화면-구현계획.md): the stolen account
      * (E1), the owner's same export (E2) and the insider (E3), whose runs every existing control let through alike (L1).
      */
-    static final Map<String, String> EXPERIENCE_CASES = Map.of("E1", "S13", "E2", "S13T", "E3", "S16");
+    static final Map<String, String> EXPERIENCE_CASES = Map.of("E1", "S13", "E2", "S13T", "E3", "S16", "E4", "T5");
+    /**
+     * docs/agent A7-3: the experiences whose case is a business agent's work (the agent group, DD-26). Its call is
+     * scored by whether control D let the agent's request through: a confirmation the delegation record asked for
+     * stops it without any decision record, so the first decision is no answer there.
+     */
+    static final Set<String> AGENT_EXPERIENCES = Set.of("E4");
     /** One route only: the redesigned flow has no concept path (docs/showcase/화면재편-구현계획.md P-1). */
     static final Set<String> ROUTES = Set.of("DEFAULT");
     static final Set<String> ENGINE_CALLS = Set.of("ALLOW", "CHALLENGE", "ESCALATE", "BLOCK");
@@ -42,10 +49,10 @@ public class JourneyViews {
     static final Set<String> NUMBER_RULE_CALLS = Set.of("STOP", "PASS");
     static final Pattern STEP = Pattern.compile("[a-z0-9-]{1,40}");
     /**
-     * The place on the flow: the seven groups of the main flow (최종화면-구현계획 F0-1, the insider group of IN-6); 0
-     * before the first.
+     * The place on the flow: the eight groups of the main flow (최종화면-구현계획 F0-1, the insider group of IN-6, the
+     * business agent group of docs/agent A7-3); 0 before the first.
      */
-    static final int LAST_PART = 7;
+    static final int LAST_PART = 8;
     static final List<String> EXISTING_CONTROLS = List.of("A", "B", "C1", "C2");
 
     /** A change of the journey; absent fields stay as they were. */
@@ -124,11 +131,19 @@ public class JourneyViews {
     private final JourneyStore store;
     private final RunScores scores;
     private final ScenarioCatalog scenarios;
+    private final AgentTaskCatalog agentTasks;
     private final AnonymousTally tally;
     private final Clock clock;
 
     public JourneyViews(JourneyStore store, RunScores scores, ScenarioCatalog scenarios, AnonymousTally tally,
                         Clock clock) {
+        this(store, scores, scenarios, null, tally, clock);
+    }
+
+    /** docs/agent A7-3: with the business agent cases, whose experience is the agent group's. */
+    public JourneyViews(JourneyStore store, RunScores scores, ScenarioCatalog scenarios, AgentTaskCatalog agentTasks,
+                        AnonymousTally tally, Clock clock) {
+        this.agentTasks = agentTasks;
         this.store = store;
         this.scores = scores;
         this.scenarios = scenarios;
@@ -258,7 +273,7 @@ public class JourneyViews {
         CaseScore engine = score.business().get("D");
         String action = score.verdicts().stream().map(verdict -> verdict.score().finalAction())
                 .filter(Objects::nonNull).findFirst().orElse(null);
-        Optional<ScenarioDefinition> definition = scenarios.find(run.scenarioKey());
+        Optional<ScenarioDefinition> definition = definition(run.scenarioKey());
         Integer requested = definition.filter(found -> !found.steps().isEmpty())
                 .map(found -> found.steps().get(0).items()).orElse(null);
         return new RecapLine(run.runId(), run.scenarioKey(), score.truth().classification(), run.status(), run.lab(),
@@ -271,7 +286,7 @@ public class JourneyViews {
         String caseKey = EXPERIENCE_CASES.get(experience);
         Prediction prediction = new Prediction(experience, call.get("engine"), call.get("existing"),
                 call.get("numberRule"));
-        Boolean engineRight = prediction.engine() == null ? null : scenarios.find(caseKey)
+        Boolean engineRight = prediction.engine() == null ? null : definition(caseKey)
                 .map(ScenarioDefinition::oracle)
                 .map(oracle -> oracle.allowedEngineActions().contains(prediction.engine())).orElse(null);
         RunScore latest = null;
@@ -292,10 +307,18 @@ public class JourneyViews {
         }
         String existing = stopping == EXISTING_CONTROLS.size() ? "ALL" : stopping == 0 ? "NONE" : "SOME";
         String numberRule = stopped(latest.business().get("C1")) ? "STOP" : "PASS";
-        String actual = latest.verdicts().stream().map(verdict -> verdict.score().finalAction())
+        String actual = AGENT_EXPERIENCES.contains(experience)
+                ? stopped(latest.business().get("D")) ? "BLOCK" : "ALLOW"
+                : latest.verdicts().stream().map(verdict -> verdict.score().finalAction())
                 .filter(Objects::nonNull).findFirst().orElse(null);
         return new PredictionScore(experience, caseKey, prediction, engineRight, existing, numberRule,
                 latest.runId(), actual, sameAction(prediction.engine(), actual), sameStop(prediction.engine(), actual));
+    }
+
+    /** A case of the catalog, or a business agent case (docs/agent A7-3). */
+    private Optional<ScenarioDefinition> definition(String key) {
+        Optional<ScenarioDefinition> found = scenarios.find(key);
+        return found.isPresent() || agentTasks == null ? found : agentTasks.find(key);
     }
 
     /** Whether the visitor's call is Contexa's very judgment; null before the call or the run. */

@@ -40,6 +40,11 @@ public class OrderedSecurityFilterChain implements SecurityFilterChain, Ordered 
         return order;
     }
 
+    /** The requests this chain takes. */
+    public RequestMatcher getRequestMatcher() {
+        return delegate.getRequestMatcher();
+    }
+
     @Override
     public boolean matches(HttpServletRequest request) {
         return delegate.matches(request);

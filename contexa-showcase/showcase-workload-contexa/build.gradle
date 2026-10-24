@@ -33,6 +33,8 @@ dependencies {
     implementation 'org.springframework.ai:spring-ai-starter-model-openai'
     // The model comparison runs control D on an Anthropic chat model as well; the embeddings stay on OpenAI.
     implementation 'org.springframework.ai:spring-ai-starter-model-anthropic'
+    // Local embeddings when the OpenAI balance is used up (docs/agent 위임결정기록 DD-4); inactive unless selected.
+    implementation 'org.springframework.ai:spring-ai-starter-model-ollama'
     implementation 'org.springframework.ai:spring-ai-starter-vector-store-pgvector'
 
     testImplementation 'org.springframework.security:spring-security-test'

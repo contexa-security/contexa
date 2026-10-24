@@ -98,7 +98,7 @@ public class ControlAuthorizationManager implements AuthorizationManager<Request
         String target = operation == BusinessOperation.ROLE_GRANT ? request.getParameter("grantee")
                 : segments.size() > 3 ? segments.get(3) : null;
         String project = switch (operation) {
-            case EXPORT, EXPORT_STREAM, EXPORT_ASYNC -> target;
+            case EXPORT, EXPORT_STREAM, EXPORT_ASYNC, DOCUMENT_LIST -> target;
             case DOCUMENT_READ, DOCUMENT_DOWNLOAD ->
                     lookupProject("select project_key from document where document_key = :key", target);
             case CUSTOMER_READ -> lookupProject("select project_key from customer where customer_key = :key", target);

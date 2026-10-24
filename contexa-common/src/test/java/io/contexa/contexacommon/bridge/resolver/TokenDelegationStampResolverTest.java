@@ -34,6 +34,7 @@ import org.springframework.security.oauth2.server.resource.authentication.Bearer
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -214,7 +215,7 @@ class TokenDelegationStampResolverTest {
 
     @Test
     void aRegisteredAgentClientsOwnTokenIsAStandaloneAgentUnderItsRegisteredId() {
-        List<String> lookups = new java.util.ArrayList<>();
+        List<String> lookups = new ArrayList<>();
         TokenDelegationStampResolver withDirectory = new TokenDelegationStampResolver((tenantId, clientId) -> {
             lookups.add(tenantId + "|" + clientId);
             return "report-bot-client".equals(clientId) ? Optional.of("report-bot") : Optional.empty();
@@ -244,8 +245,40 @@ class TokenDelegationStampResolverTest {
     }
 
     @Test
+    void anExchangedTokenWhoseActorIsARegisteredAgentClientNamesTheRegisteredAgent() {
+        // Spring Authorization Server token exchange: sub is the person, act holds the actor token's iss and sub.
+        TokenDelegationStampResolver withDirectory = new TokenDelegationStampResolver((tenantId, clientId) ->
+                "report-bot-client".equals(clientId) ? Optional.of("report-bot") : Optional.empty());
+        authenticate(jwt(Map.of("sub", "user-1", "client_id", "report-bot-client",
+                "act", Map.of("iss", "https://contexa.example", "sub", "report-bot-client"))));
+
+        DelegationStamp stamp = withDirectory.resolve(null, null, new BridgeProperties()).orElseThrow();
+
+        assertThat(stamp.delegated()).isTrue();
+        assertThat(stamp.agentId()).isEqualTo("report-bot");
+        assertThat(stamp.subjectId()).isEqualTo("user-1");
+        assertThat(stamp.attributes()).containsEntry("delegationTokenForm", TokenDelegationStampResolver.FORM_ACTOR_CLAIM);
+    }
+
+    @Test
+    void theDelegationIdClaimIsRecordedAsTheDelegationId() {
+        authenticate(jwt(Map.of("sub", "user-1", "act", Map.of("sub", "agent-x"), "delegation_id", "dlg-7")));
+
+        assertThat(resolve().orElseThrow().attributes()).containsEntry("delegationId", "dlg-7");
+    }
+
+    @Test
+    void anActorTheDirectoryDoesNotNameKeepsItsOwnIdentifier() {
+        TokenDelegationStampResolver withDirectory = new TokenDelegationStampResolver((tenantId, clientId) -> Optional.empty());
+        authenticate(jwt(Map.of("sub", "user-1", "act", Map.of("sub", "external-agent"))));
+
+        assertThat(withDirectory.resolve(null, null, new BridgeProperties()).orElseThrow().agentId())
+                .isEqualTo("external-agent");
+    }
+
+    @Test
     void theTenantClaimScopesTheRegisteredAgentLookup() {
-        List<String> lookups = new java.util.ArrayList<>();
+        List<String> lookups = new ArrayList<>();
         TokenDelegationStampResolver withDirectory = new TokenDelegationStampResolver((tenantId, clientId) -> {
             lookups.add(tenantId + "|" + clientId);
             return Optional.empty();

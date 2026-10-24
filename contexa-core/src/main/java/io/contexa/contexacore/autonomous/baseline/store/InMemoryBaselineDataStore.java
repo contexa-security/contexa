@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.baseline.store;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacommon.security.baseline.BaselineVector;
+import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -88,6 +89,10 @@ public class InMemoryBaselineDataStore implements BaselineDataStore {
             userBaselines.invalidate(userId);
             // The user's baselines under every tenant (W5-10 D9).
             userBaselines.asMap().keySet().removeIf(key -> key.endsWith(TENANT_SEPARATOR + userId));
+            // docs/agent A3-1: the baselines of the agents acting for the user, in every tenant.
+            String agentKeys = userId + LearningSubject.AGENT_KEY;
+            userBaselines.asMap().keySet().removeIf(key -> key.startsWith(agentKeys)
+                    || key.contains(TENANT_SEPARATOR + agentKeys));
         }
     }
 
@@ -96,6 +101,17 @@ public class InMemoryBaselineDataStore implements BaselineDataStore {
         if (key != null) {
             userBaselines.invalidate(key);
         }
+    }
+
+    @Override
+    public int deleteAgentBaselines(String agentId) {
+        if (agentId == null || agentId.isBlank()) {
+            return 0;
+        }
+        String suffix = LearningSubject.AGENT_KEY + agentId;
+        List<String> keys = userBaselines.asMap().keySet().stream().filter(key -> key.endsWith(suffix)).toList();
+        keys.forEach(userBaselines::invalidate);
+        return keys.size();
     }
 
     private Cache<String, BaselineVector> buildCache(Duration ttl) {

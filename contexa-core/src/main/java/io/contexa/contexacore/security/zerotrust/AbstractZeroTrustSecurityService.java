@@ -26,6 +26,9 @@ import io.contexa.contexacore.autonomous.store.ExpiringStateStore;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.security.AISecurityContextSupport;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
+import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -75,22 +78,35 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
             return;
         }
         try {
-            String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request);
+            // The context is loading here: its own authentication names the binding (reading the context would
+            // load it again).
+            String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request,
+                    context.getAuthentication());
 
             ZeroTrustAction action;
             double threatScore;
 
-            CachedZeroTrustDecision cached = decisionCache.getIfPresent(userId);
+            // docs/agent A5-1: an agent acting for the user reads its own decision. On a token chain the bridge has
+            // stamped the request by now; a session's context loads before the bridge runs, so it reads the user's.
+            ZeroTrustSubject subject = ZeroTrustSubject.of(userId, delegationStamp(request));
+            String decisionKey = subject != null ? subject.storageKey() : userId;
+            CachedZeroTrustDecision cached = decisionCache.getIfPresent(decisionKey);
             if (cached != null && Objects.equals(cached.contextBindingHash, contextBindingHash)) {
                 action = cached.action;
                 threatScore = cached.threatScore;
             } else {
-                action = actionRepository.getCurrentAction(userId, contextBindingHash);
+                action = subject != null ? subject.currentAction(actionRepository, contextBindingHash)
+                        : actionRepository.getCurrentAction(userId, contextBindingHash);
                 threatScore = threatScoreUtil.getThreatScore(userId);
-                decisionCache.put(userId, new CachedZeroTrustDecision(action, threatScore, contextBindingHash));
+                decisionCache.put(decisionKey, new CachedZeroTrustDecision(action, threatScore, contextBindingHash));
             }
 
             double trustScore = 1.0 - threatScore;
+            // docs/agent A5-2: an agent's request the accountable person confirms runs with its own authorities
+            // again; keep them before the CHALLENGE narrows them.
+            if (action == ZeroTrustAction.CHALLENGE && subject != null && subject.agentId() != null) {
+                ConfirmedAgentAuthentication.keep(request, context.getAuthentication());
+            }
             adjustAuthoritiesByAction(context, action, userId, trustScore, threatScore);
 
             if (sessionId != null && registeredSessions.add(sessionId)) {
@@ -107,6 +123,12 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
             log.error("[ZeroTrust] Failed to apply Zero Trust to context for user: {}", userId, e);
             throw e;
         }
+    }
+
+    /** The delegation the bridge stamped on the request, or null (none yet, or no request). */
+    private static DelegationStamp delegationStamp(HttpServletRequest request) {
+        return request != null && request.getAttribute(BridgeRequestAttributes.DELEGATION_STAMP)
+                instanceof DelegationStamp stamp ? stamp : null;
     }
 
     /**

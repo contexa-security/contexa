@@ -155,6 +155,9 @@ class VisitorPortExposureIntegrationTest {
             // A case's runs in the current measurement and what each decision does next, both read from records.
             Map.entry("GET /api/cases/{key}/measured", Reach.READ),
             Map.entry("GET /api/engine/actions", Reach.READ),
+            // docs/agent A7-3: the business agent group reads its case as defined and a run's agent work, both stored.
+            Map.entry("GET /api/agent-cases/{key}", Reach.READ),
+            Map.entry("GET /api/runs/{runId}/agent", Reach.READ),
             Map.entry("POST /api/live/runs", Reach.GATED_ENGINE_START),
             Map.entry("POST /api/live/combinations", Reach.GATED_ENGINE_START),
             // The lab (docs/showcase/데모-재설계.md 5A.1): its choices, a composed case through the same cost gate, the
@@ -170,6 +173,9 @@ class VisitorPortExposureIntegrationTest {
             Map.entry("POST /api/live/runs/current/code", Reach.OWN_RUN_STEP),
             Map.entry("POST /api/live/runs/current/answer", Reach.OWN_RUN_STEP),
             Map.entry("POST /api/live/runs/current/next", Reach.OWN_RUN_STEP),
+            // docs/agent A7-3: the visitor answers, as the delegating employee, the confirmation of the run's own
+            // agent request, once, through the engine's endpoints.
+            Map.entry("POST /api/live/runs/current/agent-confirmation", Reach.OWN_RUN_STEP),
             // The release of a block (ADR-33): the run's own principal and the run's own approver act on the run's
             // own block only, once each, through the engine's endpoints.
             Map.entry("POST /api/live/runs/current/release-start", Reach.OWN_RUN_STEP),

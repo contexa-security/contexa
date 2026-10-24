@@ -40,6 +40,9 @@ import org.springframework.data.redis.serializer.SerializationException;
 import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import io.contexa.contexacore.autonomous.baseline.LearningSubject;
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.ScanOptions;
 
 @Slf4j
 public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository {
@@ -691,6 +694,33 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             stringRedisTemplate.delete(stringKeys);
         } catch (Exception e) {
             log.error("[ZeroTrustActionRedisRepository] Failed to remove all user data: userId={}", userId, e);
+        }
+    }
+
+    @Override
+    public void removeAllAgentData(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+        String agentKeys = ZeroTrustRedisKeys.globLiteral(userId) + LearningSubject.AGENT_KEY + "*";
+        List<String> keys = new ArrayList<>();
+        for (String pattern : List.of(
+                ZeroTrustRedisKeys.autonomousActionAnalysis(agentKeys),
+                ZeroTrustRedisKeys.autonomousLastVerifiedAction(agentKeys),
+                ZeroTrustRedisKeys.autonomousLastVerifiedActionContext(agentKeys),
+                ZeroTrustRedisKeys.userBlocked(agentKeys),
+                ZeroTrustRedisKeys.blockMfaPending(agentKeys),
+                ZeroTrustRedisKeys.blockMfaVerified(agentKeys),
+                ZeroTrustRedisKeys.blockMfaFailCount(agentKeys),
+                ZeroTrustRedisKeys.autonomousDecisionAuditPending(agentKeys),
+                "security:escalate:retry:" + agentKeys)) {
+            try (Cursor<String> cursor = stringRedisTemplate.scan(
+                    ScanOptions.scanOptions().match(pattern).count(500).build())) {
+                cursor.forEachRemaining(keys::add);
+            }
+        }
+        if (!keys.isEmpty()) {
+            stringRedisTemplate.delete(keys);
         }
     }
 

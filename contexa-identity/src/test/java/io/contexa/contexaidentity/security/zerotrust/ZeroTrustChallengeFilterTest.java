@@ -36,7 +36,13 @@ import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
+import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
+import org.mockito.ArgumentCaptor;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
@@ -401,6 +407,131 @@ class ZeroTrustChallengeFilterTest {
 
         verify(filterChain).doFilter(request, response);
         verify(unanalysed, never()).recordRequest(any(), any());
+    }
+
+    @Test
+    @DisplayName("A1-13: an agent under CHALLENGE is not sent into the people's MFA flow")
+    void anAgentUnderChallengeWaitsForItsAccountablePartyInsteadOfMfa() throws Exception {
+        when(request.getRequestURI()).thenReturn("/api/reports");
+        setUpChallengeAuthentication();
+        when(actionRepository.getCurrentAction(eq("testUser"), any())).thenReturn(ZeroTrustAction.CHALLENGE);
+        when(request.getAttribute(BridgeRequestAttributes.DELEGATION_STAMP)).thenReturn(agentStamp());
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(challengeMfaInitializer, never()).initializeChallengeFlow(any(), any(), any());
+        verify(filterChain, never()).doFilter(any(), any());
+        verify(responseWriter).writeErrorResponse(eq(response), eq(HttpServletResponse.SC_FORBIDDEN),
+                eq(ZeroTrustChallengeFilter.AGENT_CONFIRMATION_REQUIRED), anyString(), eq("/api/reports"), any());
+    }
+
+    @Test
+    @DisplayName("docs/agent A5-1: an agent acting for the user waits on its own CHALLENGE, not the user's")
+    void anAgentActingForTheUserReadsItsOwnChallenge() throws Exception {
+        when(request.getRequestURI()).thenReturn("/api/reports");
+        setUpChallengeAuthentication();
+        when(request.getAttribute(BridgeRequestAttributes.DELEGATION_STAMP)).thenReturn(
+                new DelegationStamp("testUser", "report-agent", true, null, null, null, List.of(), List.of(),
+                        null, null, null, null, Map.of()));
+        when(actionRepository.getCurrentAction(eq("testUser::agent::report-agent"), any()))
+                .thenReturn(ZeroTrustAction.CHALLENGE);
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(actionRepository, never()).getCurrentAction(eq("testUser"), any());
+        verify(challengeMfaInitializer, never()).initializeChallengeFlow(any(), any(), any());
+        verify(responseWriter).writeErrorResponse(eq(response), eq(HttpServletResponse.SC_FORBIDDEN),
+                eq(ZeroTrustChallengeFilter.AGENT_CONFIRMATION_REQUIRED), anyString(), eq("/api/reports"), any());
+    }
+
+    @Test
+    @DisplayName("A1-13: a CHALLENGE decided in an agent's request starts no MFA flow")
+    void aChallengeDecidedInAnAgentsRequestStartsNoMfaFlow() throws Exception {
+        setUpChallengeAuthentication();
+        when(request.getAttribute(BridgeRequestAttributes.DELEGATION_STAMP)).thenReturn(agentStamp());
+
+        assertThat(filter.start(request, response)).isEmpty();
+        verify(challengeMfaInitializer, never()).initializeChallengeFlow(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("docs/agent A5-2: with the confirmation gate an agent's request goes to the gate, a person's does not")
+    void anAgentsRequestMeetsTheConfirmationGateAndAPersonsTheMfaFlow() throws Exception {
+        AgentConfirmationGate gate = mock(AgentConfirmationGate.class);
+        when(gate.filter(any(), any(), any(), any(), any())).thenReturn(false);
+        filter.setAgentConfirmationGate(gate);
+        UnanalysedRequestRecorder unanalysed = mock(UnanalysedRequestRecorder.class);
+        filter.setUnanalysedRequestRecorder(unanalysed);
+        when(request.getRequestURI()).thenReturn("/api/reports");
+        setUpChallengeAuthentication();
+        when(actionRepository.getCurrentAction(eq("testUser"), any())).thenReturn(ZeroTrustAction.CHALLENGE);
+        when(request.getAttribute(BridgeRequestAttributes.DELEGATION_STAMP)).thenReturn(agentStamp());
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(gate).filter(eq(request), eq(response), eq(filterChain), any(), eq(ZeroTrustAction.CHALLENGE));
+        verify(challengeMfaInitializer, never()).initializeChallengeFlow(any(), any(), any());
+        // The request the gate stopped under the CHALLENGE is kept in the session as one the filter stopped.
+        verify(unanalysed).recordRequest(any(), eq(ZeroTrustAction.CHALLENGE));
+
+        when(request.getAttribute(BridgeRequestAttributes.DELEGATION_STAMP)).thenReturn(null);
+        filter.doFilter(request, response, filterChain);
+        verify(gate).filter(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("docs/agent F-2: the agent's subject carries the request's tenant, as the decision's subject does")
+    void theAgentsSubjectCarriesTheRequestsTenant() throws Exception {
+        AgentConfirmationGate gate = mock(AgentConfirmationGate.class);
+        when(gate.filter(any(), any(), any(), any(), any())).thenReturn(true);
+        filter.setAgentConfirmationGate(gate);
+        when(request.getRequestURI()).thenReturn("/api/reports");
+        setUpChallengeAuthentication();
+        when(actionRepository.getCurrentAction(any(), any())).thenReturn(ZeroTrustAction.ALLOW);
+        when(request.getAttribute(BridgeRequestAttributes.DELEGATION_STAMP)).thenReturn(agentStamp());
+        when(request.getAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP)).thenReturn(new AuthenticationStamp(
+                "testUser", null, null, true, null, null, null, null, null, null, List.of(),
+                Map.of("tenantId", "tenant-a")));
+
+        filter.doFilter(request, response, filterChain);
+
+        ArgumentCaptor<ZeroTrustSubject> subject = ArgumentCaptor.forClass(ZeroTrustSubject.class);
+        verify(gate).filter(eq(request), eq(response), eq(filterChain), subject.capture(), eq(ZeroTrustAction.ALLOW));
+        assertThat(subject.getValue().tenantId()).isEqualTo("tenant-a");
+        assertThat(subject.getValue().agentId()).isEqualTo("report-bot");
+    }
+
+    @Test
+    @DisplayName("CF-22: a CHALLENGE decided in an agent's request is answered by the gate, a person's is not")
+    void aChallengeDecidedInAnAgentsRequestIsAnsweredByTheGate() throws Exception {
+        AgentConfirmationGate gate = mock(AgentConfirmationGate.class);
+        when(gate.answerDecidedChallenge(any(), any(), any())).thenReturn(true);
+        filter.setAgentConfirmationGate(gate);
+        setUpChallengeAuthentication();
+        when(request.getAttribute(BridgeRequestAttributes.DELEGATION_STAMP)).thenReturn(agentStamp());
+
+        assertThat(filter.answerAgentChallenge(request, response)).isTrue();
+        ArgumentCaptor<ZeroTrustSubject> subject = ArgumentCaptor.forClass(ZeroTrustSubject.class);
+        verify(gate).answerDecidedChallenge(eq(request), eq(response), subject.capture());
+        assertThat(subject.getValue().agentId()).isEqualTo("report-bot");
+
+        when(request.getAttribute(BridgeRequestAttributes.DELEGATION_STAMP)).thenReturn(null);
+        assertThat(filter.answerAgentChallenge(request, response)).isFalse();
+        verify(gate).answerDecidedChallenge(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("docs/agent A5-2: the agent polls its confirmation without meeting its own CHALLENGE")
+    void theConfirmationStatusIsNotHeldByTheChallenge() {
+        when(request.getRequestURI()).thenReturn("/contexa/api/agent-confirmations/c-1");
+        when(request.getContextPath()).thenReturn("");
+
+        assertThat(filter.shouldNotFilter(request)).isTrue();
+    }
+
+    private static DelegationStamp agentStamp() {
+        return new DelegationStamp("report-bot", "report-bot", false, null, null, null, List.of(), List.of(),
+                null, null, null, null, Map.of());
     }
 
     private void setUpChallengeAuthentication() {

@@ -22,6 +22,7 @@ import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormali
 import io.contexa.contexacore.autonomous.context.support.VocabularyVersion;
 import io.contexa.contexacommon.domain.EventTimeZone;
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import org.springframework.util.StringUtils;
 
@@ -144,10 +145,15 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
 
         String tenantId = resolveTenantId(event);
         String userId = event.getUserId().trim();
+        // docs/agent F-6 (CF-27): the authorization state and its changes are kept under the learning key (A3-1), so an
+        // agent's token is compared with the agent's own earlier one, never with the person's session it acts for,
+        // and an agent's change is never the person's.
+        LearningSubject subject = LearningSubject.of(event, userId);
+        String stateKey = subject != null ? subject.key() : userId;
         long currentTimestampMs = currentObservation.timestampMs();
 
         List<RoleScopeObservation> history = loadHistory(tenantId, authorizationScopeState.scopeKey(), currentTimestampMs);
-        List<PermissionChangeObservation> storedPermissionChanges = loadPermissionChanges(tenantId, userId, currentTimestampMs);
+        List<PermissionChangeObservation> storedPermissionChanges = loadPermissionChanges(tenantId, stateKey, currentTimestampMs);
         CurrentRoleScopeHints currentHints = resolveCurrentHints(event);
         List<PermissionChangeObservation> currentPermissionChanges = detectCurrentPermissionChanges(
                 event,
@@ -155,7 +161,7 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
                 currentHints,
                 storedPermissionChanges,
                 tenantId,
-                userId,
+                stateKey,
                 currentTimestampMs);
         List<PermissionChangeObservation> effectivePermissionChanges = mergePermissionChanges(storedPermissionChanges, currentPermissionChanges);
 
@@ -177,9 +183,9 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
                 store.addRoleScopeObservation(tenantId, scopeKey, observation);
             }
             for (String permissionChange : permissionChanges) {
-                store.addPermissionChangeObservation(tenantId, userId, permissionChange);
+                store.addPermissionChangeObservation(tenantId, stateKey, permissionChange);
             }
-            store.setAuthorizationScopeState(tenantId, userId, authorizationState);
+            store.setAuthorizationScopeState(tenantId, stateKey, authorizationState);
         });
         return snapshot;
     }

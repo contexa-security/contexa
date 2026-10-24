@@ -22,6 +22,7 @@ import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
+import io.contexa.contexacore.autonomous.audit.AgentDecisionRecord;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -90,7 +91,20 @@ public class AuditingHandler implements SecurityEventHandler {
                 details.put("targetResource", targetResource);
             }
 
+            // docs/agent A5-5: the decision record fields (AG-8) and the request's correlation.
+            AgentDecisionRecord record = AgentDecisionRecord.of(event, result);
             centralAuditFacade.recordSync(AuditRecord.builder()
+                    .correlationId(correlationId(event))
+                    .subjectKind(record.subjectKind())
+                    .agentId(record.agentId())
+                    .delegatorId(record.delegatorId())
+                    .delegationId(record.delegationId())
+                    .targetAction(record.targetAction())
+                    .riskState(record.riskState())
+                    .enforcementAction(record.enforcementAction())
+                    .enforcementCause(record.enforcementCause())
+                    .requestContextHash(record.requestContextHash())
+                    .tenantId(metadataText(event, "tenantId"))
                     .eventCategory(AuditEventCategory.SECURITY_DECISION)
                     .principalName(event.getUserId())
                     .eventSource("CORE")
@@ -113,6 +127,25 @@ public class AuditingHandler implements SecurityEventHandler {
             log.error("[AuditingHandler] Error recording audit log for event: {}", event.getEventId(), e);
             return true;
         }
+    }
+
+    /** The request's correlation: its request ID, else its correlation ID, at most the column's 64 characters. */
+    private static String correlationId(SecurityEvent event) {
+        Map<String, Object> metadata = event.getMetadata();
+        Object value = metadata != null ? metadata.get("requestId") : null;
+        if (value == null || value.toString().isBlank()) {
+            value = metadata != null ? metadata.get("correlationId") : null;
+        }
+        if (value == null || value.toString().isBlank()) {
+            return null;
+        }
+        String id = value.toString().trim();
+        return id.length() > 64 ? id.substring(0, 64) : id;
+    }
+
+    private static String metadataText(SecurityEvent event, String key) {
+        Object value = event.getMetadata() != null ? event.getMetadata().get(key) : null;
+        return value != null && !value.toString().isBlank() ? value.toString().trim() : null;
     }
 
     private String getResourceFromMetadata(SecurityEvent event) {

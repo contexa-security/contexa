@@ -40,6 +40,10 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import io.contexa.contexacore.autonomous.agent.AgentDelegation;
+import io.contexa.contexacore.autonomous.agent.AgentDelegationRequest;
+import io.contexa.contexacore.autonomous.agent.InMemoryDelegationRegistry;
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -222,6 +226,55 @@ class SecurityMonitorControllerTest {
             when(auditLogRepository.countByEventCategoryAndTimestampAfter(eq("USER_BLOCKED"), any(LocalDateTime.class))).thenReturn(5L);
             when(auditLogRepository.countByEventCategoryAndTimestampAfter(eq("MFA_VERIFICATION_SUCCESS"), any(LocalDateTime.class))).thenReturn(20L);
             when(auditLogRepository.countAdminOverridesSince(any(LocalDateTime.class))).thenReturn(3L);
+        }
+    }
+
+    @Nested
+    @DisplayName("docs/agent A5-5 (AM-5)")
+    class AgentDecisionRecords {
+
+        @Test
+        @DisplayName("a subject chip lists the decisions of that subject kind; an unknown one lists as before")
+        void subjectChip() {
+            Page<AuditLog> agents = new PageImpl<>(List.of(AuditLog.builder().id(7L).principalName("alice")
+                    .decision("BLOCK").subjectKind("DELEGATED_AGENT").agentId("report-agent").build()));
+            when(auditLogRepository.findByTimestampAfterAndSubjectKind(any(LocalDateTime.class),
+                    eq("DELEGATED_AGENT"), any(Pageable.class))).thenReturn(agents);
+            when(auditLogRepository.findByTimestampAfter(any(LocalDateTime.class), any(Pageable.class)))
+                    .thenReturn(Page.empty());
+            Model model = new ConcurrentModel();
+
+            controller.monitor(null, null, null, "DELEGATED_AGENT", 24, 0, model);
+
+            assertThat(model.getAttribute("logPage")).isEqualTo(agents);
+            assertThat(model.getAttribute("subject")).isEqualTo("DELEGATED_AGENT");
+
+            Model other = new ConcurrentModel();
+            controller.monitor(null, null, null, "ANYONE", 24, 0, other);
+            assertThat(other.getAttribute("subject")).isNull();
+            verify(auditLogRepository).findByTimestampAfter(any(LocalDateTime.class), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("an agent's decision shows the delegation it ran under, as the delegation record states it")
+        void delegationOfTheDecision() {
+            InMemoryDelegationRegistry delegations = new InMemoryDelegationRegistry();
+            AgentDelegation delegation = delegations.record(new AgentDelegationRequest(null, "alice", "report-agent",
+                    null, "DATA_EXPORT", "Export this week's HX-310 packages", List.of("EXPORT"), List.of("HX-310"),
+                    false, null, null, Instant.now().minusSeconds(3600), Instant.now().plusSeconds(3600), "alice", null));
+            SecurityMonitorController withDelegations = new SecurityMonitorController(auditLogRepository,
+                    csvExportService, delegations);
+            AuditLog record = AuditLog.builder().id(8L).principalName("alice").decision("BLOCK")
+                    .agentId("report-agent").delegationId(delegation.delegationId()).build();
+            when(auditLogRepository.findById(8L)).thenReturn(Optional.of(record));
+            Model model = new ConcurrentModel();
+
+            withDelegations.detail(8L, model, new RedirectAttributesModelMap());
+
+            assertThat(model.getAttribute("delegation")).isEqualTo(delegation);
+            Model unknown = new ConcurrentModel();
+            controller.detail(8L, unknown, new RedirectAttributesModelMap());
+            assertThat(unknown.getAttribute("delegation")).as("no delegation registry").isNull();
         }
     }
 

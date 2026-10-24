@@ -73,6 +73,8 @@ public final class VectorDocumentMetadata {
      */
     public static final String LEARNING_STATE = "learningState";
     public static final String LEARNING_STATE_HELD = "HELD";
+    /** docs/agent A3-8: a record an operator quarantined with its agent's or delegation's learning; never read. */
+    public static final String LEARNING_STATE_QUARANTINED = "QUARANTINED";
     public static final String CURRENT_ACTIVITY = "currentActivity";
     public static final String ACTIVITY_SEQUENCE = "activitySequence";
     public static final String THREAT_TYPE = "threatType";

@@ -20,6 +20,12 @@ import org.springframework.util.StringUtils;
 
 import java.util.*;
 
+/**
+ * The objective contracts a delegation is compared with: Contexa's own security objectives, and the business objectives
+ * the application declares (A2-1, {@code contexa.security.zerotrust.agent.objective-contracts} and
+ * {@link ObjectiveContractSource} beans). An application's contract names its operations and resource families in the
+ * words of its {@code @Protectable} methods: the actions and the category (A2-2).
+ */
 public class ObjectiveResourceCompatibilityCatalog {
 
     /** An operation neither the delegation vocabulary nor the action families name. */
@@ -28,7 +34,40 @@ public class ObjectiveResourceCompatibilityCatalog {
     private final Map<String, ObjectiveContract> contracts;
 
     public ObjectiveResourceCompatibilityCatalog() {
-        this.contracts = buildContracts();
+        this(List.of());
+    }
+
+    /**
+     * Contexa's own contracts and the application's. An application's contract for a family Contexa also names takes
+     * its place: the application knows its objective.
+     */
+    public ObjectiveResourceCompatibilityCatalog(Collection<ObjectiveContractDefinition> applicationContracts) {
+        Map<String, ObjectiveContract> map = new LinkedHashMap<>(buildContracts());
+        if (applicationContracts != null) {
+            for (ObjectiveContractDefinition definition : applicationContracts) {
+                if (definition == null || !StringUtils.hasText(definition.objectiveFamily())) {
+                    continue;
+                }
+                Set<String> operations = new LinkedHashSet<>();
+                if (definition.operations() != null) {
+                    for (String operation : definition.operations()) {
+                        if (StringUtils.hasText(operation)) {
+                            operations.add(canonicalizeOperation(operation));
+                        }
+                    }
+                }
+                map.put(normalize(definition.objectiveFamily()), new ObjectiveContract(
+                        true,
+                        normalizeSet(definition.resourceFamilies() != null ? List.copyOf(definition.resourceFamilies()) : List.of()),
+                        operations,
+                        definition.readOnly(),
+                        false,
+                        false,
+                        definition.privilegedExportAllowed(),
+                        definition.maxExportItems()));
+            }
+        }
+        this.contracts = Map.copyOf(map);
     }
 
     public boolean hasObjectiveContract(String objectiveFamily) {
@@ -316,6 +355,9 @@ public class ObjectiveResourceCompatibilityCatalog {
         return StringUtils.hasText(value) ? value.trim().toLowerCase(Locale.ROOT) : "";
     }
 
+    /**
+     * @param maxExportItems the most items one export of the objective may carry; null for no limit
+     */
     public record ObjectiveContract(
             boolean known,
             Set<String> allowedResourceFamilies,
@@ -323,15 +365,43 @@ public class ObjectiveResourceCompatibilityCatalog {
             boolean readOnlyObjective,
             boolean containmentObjective,
             boolean learningObjective,
-            boolean allowsPrivilegedExport) {
+            boolean allowsPrivilegedExport,
+            Integer maxExportItems) {
 
         public ObjectiveContract {
             allowedResourceFamilies = allowedResourceFamilies == null ? Set.of() : Set.copyOf(allowedResourceFamilies);
             allowedOperations = allowedOperations == null ? Set.of() : Set.copyOf(allowedOperations);
         }
 
-        public static ObjectiveContract unknown() {
-            return new ObjectiveContract(false, Set.of(), Set.of(), false, false, false, false);
+        public ObjectiveContract(boolean known, Set<String> allowedResourceFamilies, Set<String> allowedOperations,
+                                 boolean readOnlyObjective, boolean containmentObjective, boolean learningObjective,
+                                 boolean allowsPrivilegedExport) {
+            this(known, allowedResourceFamilies, allowedOperations, readOnlyObjective, containmentObjective,
+                    learningObjective, allowsPrivilegedExport, null);
         }
+
+        public static ObjectiveContract unknown() {
+            return new ObjectiveContract(false, Set.of(), Set.of(), false, false, false, false, null);
+        }
+    }
+
+    /**
+     * A business objective the application declares (A2-1).
+     *
+     * @param objectiveFamily         the objective family delegations name (a delegation record's or token's)
+     * @param operations              the operations the objective needs, as the {@code @Protectable} actions name them
+     *                                (READ, EXPORT, ...)
+     * @param resourceFamilies        the resource families it works on, as the {@code @Protectable} categories name them
+     * @param readOnly                whether the objective only reads
+     * @param privilegedExportAllowed whether it may export privileged data
+     * @param maxExportItems          the most items one export may carry; null for no limit
+     */
+    public record ObjectiveContractDefinition(
+            String objectiveFamily,
+            Collection<String> operations,
+            Collection<String> resourceFamilies,
+            boolean readOnly,
+            boolean privilegedExportAllowed,
+            Integer maxExportItems) {
     }
 }

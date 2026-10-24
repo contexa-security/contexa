@@ -1,7 +1,22 @@
 package io.contexa.autoconfigure.iam.admin;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
+import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
+import io.contexa.contexacore.autonomous.company.CompanyRecordStore;
+import io.contexa.contexacore.autonomous.company.CompanyRecordsFactSourceVerifier;
+import io.contexa.contexacore.autonomous.company.InMemoryCompanyRecordStore;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceRegistryService;
+import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
+import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
+import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
+import io.contexa.contexacore.verification.evidence.CanonicalSecurityContextSerializer;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexacore.verification.inspection.PromptFactSourceVerifier;
 import io.contexa.contexacore.verification.inspection.PromptInspectionCheck;
@@ -13,6 +28,7 @@ import io.contexa.contexacore.verification.inspection.PromptInspectionService;
 import io.contexa.contexacore.verification.inspection.PromptInspector;
 import io.contexa.contexacore.verification.inspection.SameFactCheck;
 import io.contexa.contexacore.verification.inspection.SourceTruthCheck;
+import io.contexa.contexacore.verification.replay.SealedDecisionReplayService;
 import io.contexa.contexaiam.admin.promptquality.inspection.BundleTraceCheck;
 import io.contexa.contexaiam.admin.promptquality.inspection.JdbcPromptInspectionQueries;
 import io.contexa.contexaiam.admin.promptquality.inspection.JdbcPromptInspectionResultStore;
@@ -20,6 +36,8 @@ import io.contexa.contexaiam.admin.promptquality.inspection.JdbcPromptReleaseLoo
 import io.contexa.contexaiam.admin.promptquality.inspection.PromptInspectionApiController;
 import io.contexa.contexaiam.admin.promptquality.inspection.PromptInspectionConsole;
 import io.contexa.contexaiam.admin.promptquality.inspection.PromptInspectionPageController;
+import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplayApiController;
+import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplays;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -36,6 +54,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
+import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
+import io.contexa.contexacore.verification.inspection.SealIntegrityCheck;
 
 /**
  * OSS prompt inspection: the inspector, the result store in the OSS schema, the automatic round that inspects every
@@ -54,6 +75,66 @@ import java.util.List;
 public class PromptInspectionAutoConfiguration {
 
     /**
+     * docs/agent OC-4: the source truth check reads Contexa's own company records and delegations again, unless the
+     * application declares its own verifier of its sources.
+     */
+    @Bean
+    @ConditionalOnMissingBean(PromptFactSourceVerifier.class)
+    public PromptFactSourceVerifier companyRecordsFactSourceVerifier(
+            ObjectProvider<CompanyRecordStore> companyRecordStore,
+            ObjectProvider<DelegationRegistry> delegationRegistry) {
+        return new CompanyRecordsFactSourceVerifier(companyRecordStore.getIfAvailable(InMemoryCompanyRecordStore::new),
+                delegationRegistry.getIfAvailable());
+    }
+
+    /**
+     * docs/agent OC-5: the operator's replay of a sealed decision with a chosen bundle, through the engine's prompt
+     * template and pipeline; without them the replay API answers that the replay is not available.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(SealedEvidencePackageRepository.class)
+    public SealedDecisionReplays sealedDecisionReplays(
+            SealedEvidencePackageRepository sealedEvidencePackageRepository,
+            ObjectProvider<SecurityDecisionStandardPromptTemplate> templates,
+            ObjectProvider<PipelineOrchestrator> pipelines,
+            ObjectProvider<BaselineLearningService> baselineLearning,
+            ObjectProvider<TieredStrategyProperties> tieredProperties,
+            ObjectProvider<SecurityZeroTrustProperties> zeroTrustProperties,
+            ObjectProvider<StructuredOutputCapabilityRegistry> structuredOutput,
+            ObjectProvider<ModelSelectionStrategy> modelSelection,
+            ObjectProvider<CanonicalSecurityContextSerializer> serializers,
+            ObjectProvider<BaselineDataStore> baselineDataStore,
+            ObjectProvider<CentralAuditFacade> auditFacade,
+            ObjectMapper objectMapper) {
+        ObjectMapper tolerant = objectMapper.copy().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        Supplier<SealedDecisionReplayService> service = () -> {
+            SecurityDecisionStandardPromptTemplate template = templates.getIfAvailable();
+            PipelineOrchestrator pipeline = pipelines.getIfAvailable();
+            BaselineLearningService baselines = baselineLearning.getIfAvailable();
+            if (template == null || pipeline == null || baselines == null) {
+                return null;
+            }
+            SecurityZeroTrustProperties zeroTrust = zeroTrustProperties.getIfAvailable(SecurityZeroTrustProperties::new);
+            return new SealedDecisionReplayService(template, pipeline, baselines,
+                    tieredProperties.getIfAvailable(TieredStrategyProperties::new),
+                    structuredOutput.getIfAvailable(StructuredOutputCapabilityRegistry::defaultRegistry),
+                    modelSelection::getIfAvailable, zeroTrust.getMinimumAction().toRules(),
+                    zeroTrust.getMinimumAction().getMode().name(),
+                    serializers.getIfAvailable(() -> new CanonicalSecurityContextSerializer(tolerant)), tolerant);
+        };
+        return new SealedDecisionReplays(sealedEvidencePackageRepository, service, baselineDataStore.getIfAvailable(),
+                auditFacade.getIfAvailable(), objectMapper);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(SealedDecisionReplays.class)
+    public SealedDecisionReplayApiController sealedDecisionReplayApiController(SealedDecisionReplays sealedDecisionReplays) {
+        return new SealedDecisionReplayApiController(sealedDecisionReplays);
+    }
+
+    /**
      * The core checks with the bundle trace right after the seal integrity. The trace reads the release registry when
      * the prompt version management keeps one; otherwise it says the trace cannot be checked.
      */
@@ -63,8 +144,15 @@ public class PromptInspectionAutoConfiguration {
             ObjectMapper objectMapper,
             ObjectProvider<PromptGovernanceRegistryService> registryService,
             ObjectProvider<PromptFactSourceVerifier> sourceVerifier,
-            @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperations) {
+            @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperations,
+            ObjectProvider<SealedEvidencePackageIntegrity> integrity) {
         List<PromptInspectionCheck> checks = new ArrayList<>(PromptInspector.coreChecks());
+        // docs/agent A5-6: the seal check verifies a schema 3 package's signature with the store's signer.
+        SealedEvidencePackageIntegrity sealIntegrity = integrity.getIfAvailable();
+        if (sealIntegrity != null) {
+            checks.replaceAll(check -> check instanceof SealIntegrityCheck ? new SealIntegrityCheck(sealIntegrity)
+                    : check);
+        }
         JdbcOperations jdbc = jdbcOperations.getIfAvailable();
         checks.add(1, new BundleTraceCheck(registryService.getIfAvailable() != null && jdbc != null
                 ? new JdbcPromptReleaseLookup(jdbc) : null));

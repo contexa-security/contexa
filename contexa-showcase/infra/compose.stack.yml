@@ -1,7 +1,8 @@
 # Production-shaped stack of the Contexa Showcase, used for every real-server phase gate and, with server
 # secrets, on the Oracle Cloud host. Only the portal publishes a port; everything else stays on the
 # internal network. Build the images with infra/docker/showcase.Dockerfile first.
-# Required environment (never committed): SHOWCASE_DB_PASSWORD, SHOWCASE_INTERNAL_SIGNING_KEY, OPENAI_API_KEY.
+# Required environment (never committed): SHOWCASE_DB_PASSWORD, SHOWCASE_INTERNAL_SIGNING_KEY, OPENAI_API_KEY,
+# SHOWCASE_OAUTH2_CLIENT_SECRET.
 name: contexa-showcase-stack
 
 x-signing-env: &signing-env
@@ -93,6 +94,9 @@ services:
       SHOWCASE_ENGINE_DB_URL: jdbc:postgresql://postgres:5432/showcase_engine
       SHOWCASE_WORK_DB_URL: jdbc:postgresql://postgres:5432/showcase_work
       OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY}
+      # docs/agent A7-0: the engine's internal OAuth2 client of the agents' flow, and the address its token engine calls.
+      SHOWCASE_OAUTH2_CLIENT_SECRET: ${SHOWCASE_OAUTH2_CLIENT_SECRET:?Set SHOWCASE_OAUTH2_CLIENT_SECRET}
+      SHOWCASE_OAUTH2_ISSUER: http://workload-contexa:19182
     depends_on:
       postgres:
         condition: service_healthy

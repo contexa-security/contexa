@@ -57,6 +57,10 @@ export const checkScreen = preloadable(() => import('./pages/main/CheckPage'));
 export const ruleSwitchScreen = preloadable(() => import('./pages/main/RuleSwitchPage'));
 export const changeScreen = preloadable(() => import('./pages/main/ChangePage'));
 export const insideScreen = preloadable(() => import('./pages/main/InsidePage'));
+export const agentRequestScreen = preloadable(() => import('./pages/main/AgentRequestPage'));
+export const agentConsoleScreen = preloadable(() => import('./pages/main/AgentConsolePage'));
+export const agentReasonScreen = preloadable(() => import('./pages/main/AgentReasonPage'));
+export const agentConfirmScreen = preloadable(() => import('./pages/main/AgentConfirmPage'));
 export const runsScreen = preloadable(() => import('./pages/main/RunsPage'));
 export const summaryScreen = preloadable(() => import('./pages/main/SummaryPage'));
 export const nextScreen = preloadable(() => import('./pages/main/NextPage'));
@@ -93,6 +97,10 @@ const BY_MODULE: Readonly<Record<FirstScreenModule, { readonly preload: () => Pr
   'pages/main/RuleSwitchPage': ruleSwitchScreen,
   'pages/main/ChangePage': changeScreen,
   'pages/main/InsidePage': insideScreen,
+  'pages/main/AgentRequestPage': agentRequestScreen,
+  'pages/main/AgentConsolePage': agentConsoleScreen,
+  'pages/main/AgentReasonPage': agentReasonScreen,
+  'pages/main/AgentConfirmPage': agentConfirmScreen,
   'pages/main/RunsPage': runsScreen,
   'pages/main/SummaryPage': summaryScreen,
   'pages/main/NextPage': nextScreen,

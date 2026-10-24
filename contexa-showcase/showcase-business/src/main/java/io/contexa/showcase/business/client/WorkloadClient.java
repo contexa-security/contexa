@@ -67,13 +67,20 @@ public final class WorkloadClient {
     private final CookieManager cookies;
     private final HttpClient http;
     private final Duration timeout;
+    /** docs/agent A7-0: the access token every request carries; null for a session client. */
+    private final String bearer;
 
     public WorkloadClient(URI base, InternalContextSigner signer, RunIdentity run, Duration timeout) {
+        this(base, signer, run, timeout, null);
+    }
+
+    private WorkloadClient(URI base, InternalContextSigner signer, RunIdentity run, Duration timeout, String bearer) {
         this.base = base;
         this.signer = signer;
         this.run = run;
         this.clock = Clock.systemUTC();
         this.timeout = timeout;
+        this.bearer = bearer;
         this.cookies = new CookieManager(null, CookiePolicy.ACCEPT_ALL);
         this.http = HttpClient.newBuilder()
                 .cookieHandler(cookies)
@@ -88,12 +95,40 @@ public final class WorkloadClient {
         this.run = run;
         this.clock = source.clock;
         this.timeout = source.timeout;
+        this.bearer = source.bearer;
         this.cookies = source.cookies;
         this.http = source.http;
     }
 
+    /**
+     * docs/agent A7-0: a client of its own (empty cookie store) for another requester of the run, such as the run's
+     * agent sending from its own network and user agent.
+     */
+    public WorkloadClient freshSession(RunIdentity identity) {
+        return new WorkloadClient(base, signer, identity, timeout, null);
+    }
+
+    /**
+     * docs/agent A7-0: a client of its own (empty cookie store, same identity) whose every request carries the access
+     * token as {@code Authorization: Bearer}, as an agent calls with its token.
+     */
+    public WorkloadClient withBearer(String accessToken) {
+        return new WorkloadClient(base, signer, run, timeout, accessToken);
+    }
+
     public RunIdentity run() {
         return run;
+    }
+
+    /**
+     * docs/agent A7-2d: the same access token sent by another client (an empty cookie store of its own) with another
+     * identity, as a stolen agent token is used by another agent runtime from its own network and user agent.
+     */
+    public WorkloadClient carriedTo(RunIdentity identity) {
+        if (bearer == null) {
+            throw new IllegalStateException("Only an access token can be carried to another client");
+        }
+        return new WorkloadClient(base, signer, identity, timeout, bearer);
     }
 
     /**
@@ -144,13 +179,19 @@ public final class WorkloadClient {
 
     public Response postForm(String pathAndQuery, String requestId, Instant observedAt, Map<String, String> form)
             throws IOException {
+        return postForm(pathAndQuery, requestId, observedAt, form, Map.of());
+    }
+
+    /** A form POST with headers the client adds, such as an OAuth2 client's Basic authentication (docs/agent A7-0). */
+    public Response postForm(String pathAndQuery, String requestId, Instant observedAt, Map<String, String> form,
+                             Map<String, String> headers) throws IOException {
         String body = form.entrySet().stream()
                 .map(entry -> encode(entry.getKey()) + "=" + encode(entry.getValue()))
                 .collect(Collectors.joining("&"));
-        return send(signed("POST", pathAndQuery, requestId, observedAt)
+        return send(added(signed("POST", pathAndQuery, requestId, observedAt)
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .header("Accept", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body)));
+                .POST(HttpRequest.BodyPublishers.ofString(body)), headers));
     }
 
     /** Opens a streaming response; the caller reads and closes the body. */
@@ -198,6 +239,9 @@ public final class WorkloadClient {
         header(builder, InternalContextHeaders.TENANT, run.tenant());
         if (run.device() != null) {
             builder.header("User-Agent", run.device());
+        }
+        if (bearer != null) {
+            builder.header("Authorization", "Bearer " + bearer);
         }
         return builder;
     }

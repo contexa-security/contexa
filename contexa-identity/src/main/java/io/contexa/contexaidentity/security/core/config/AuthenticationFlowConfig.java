@@ -38,6 +38,7 @@ public final class AuthenticationFlowConfig {
     private final String typeName;
     private final int order;
     private final StateConfig stateConfig;
+    private final Customizer<?> stateCustomizer;
     private final Customizer<HttpSecurity> rawHttpCustomizer;
 
     private final PrimaryAuthenticationOptions primaryAuthenticationOptions;
@@ -57,6 +58,7 @@ public final class AuthenticationFlowConfig {
         this.typeName = builder.typeName;
         this.order = builder.order;
         this.stateConfig = builder.stateConfig;
+        this.stateCustomizer = builder.stateCustomizer;
         this.rawHttpCustomizer = builder.rawHttpCustomizer;
         this.primaryAuthenticationOptions = builder.primaryAuthenticationOptions;
         this.mfaPolicyProvider = builder.mfaPolicyProvider;
@@ -89,6 +91,7 @@ public final class AuthenticationFlowConfig {
                 .mfaAuthenticationEntryPoint(this.mfaAuthenticationEntryPoint)
                 .stepConfigs(this.stepConfigs != null ? new ArrayList<>(this.stepConfigs) : null)
                 .stateConfig(this.stateConfig)
+                .stateCustomizer(this.stateCustomizer)
                 .urlPrefix(this.urlPrefix)
                 .requiredFactorCount(this.requiredFactorCount);
         AuthenticationFlowConfig newFlow = new AuthenticationFlowConfig(builder);
@@ -101,6 +104,11 @@ public final class AuthenticationFlowConfig {
     }
 
     public AuthenticationFlowConfig withStateConfig(StateConfig newStateConfig) {
+        return withStateConfig(newStateConfig, this.stateCustomizer);
+    }
+
+    /** A copy keeping its authentication in the given state, with the customizer the DSL gave for that state. */
+    public AuthenticationFlowConfig withStateConfig(StateConfig newStateConfig, Customizer<?> newStateCustomizer) {
         Builder builder = new Builder(this.typeName)
                 .order(this.order)
                 .rawHttpCustomizer(this.rawHttpCustomizer)
@@ -115,9 +123,22 @@ public final class AuthenticationFlowConfig {
                 .mfaAuthenticationEntryPoint(this.mfaAuthenticationEntryPoint)
                 .stepConfigs(this.stepConfigs != null ? new ArrayList<>(this.stepConfigs) : null)
                 .stateConfig(newStateConfig)
+                .stateCustomizer(newStateCustomizer)
                 .urlPrefix(this.urlPrefix)
                 .requiredFactorCount(this.requiredFactorCount);
         return new AuthenticationFlowConfig(builder);
+    }
+
+    /**
+     * The customizer the DSL gave for the flow's state ({@code .session(customizer)}, {@code .oauth2(customizer)}),
+     * which the state adapter applies to its configurer; {@code withDefaults()} when none was given. It is kept here
+     * and not in {@link StateConfig}, which the MFA state machine serialises.
+     *
+     * @param configurerType the configurer of the flow's state, naming the customizer's type
+     */
+    @SuppressWarnings("unchecked")
+    public <C> Customizer<C> stateCustomizer(Class<C> configurerType) {
+        return stateCustomizer != null ? (Customizer<C>) stateCustomizer : Customizer.withDefaults();
     }
 
     public static Builder builder(String typeName) {
@@ -128,6 +149,7 @@ public final class AuthenticationFlowConfig {
         private String typeName;
         private int order = 0;
         private StateConfig stateConfig;
+        private Customizer<?> stateCustomizer;
         private Customizer<HttpSecurity> rawHttpCustomizer = http -> {
         };
 
@@ -162,6 +184,11 @@ public final class AuthenticationFlowConfig {
 
         public Builder stateConfig(StateConfig stateConfig) {
             this.stateConfig = stateConfig;
+            return this;
+        }
+
+        public Builder stateCustomizer(Customizer<?> stateCustomizer) {
+            this.stateCustomizer = stateCustomizer;
             return this;
         }
 

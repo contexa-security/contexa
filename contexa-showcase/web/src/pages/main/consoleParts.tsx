@@ -12,14 +12,14 @@ interface LaneProps {
   readonly control: ControlId;
   readonly sub: string;
   readonly layer: LiveLayer | null;
-  /** Whether the case is an attack; null for a run with no set answer (a condition changed on 6-2). */
+  /** Whether the case is an attack; null for a run with no set answer (a condition changed on 7-2). */
   readonly threat: boolean | null;
   /** Contexa's decision, for its own lane. */
   readonly decision?: LiveDecision | null;
   /** Contexa holds the response while it decides (a decision before the response). */
   readonly holding?: boolean;
   readonly wait?: DecisionWait | null;
-  /** Nothing is sent yet (6-2 before its send): the lane waits empty, named as not sent (L-38). */
+  /** Nothing is sent yet (7-2 before its send): the lane waits empty, named as not sent (L-38). */
   readonly idle?: boolean;
 }
 

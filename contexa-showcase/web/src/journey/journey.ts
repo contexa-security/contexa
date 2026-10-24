@@ -2,23 +2,24 @@ import ROUTE from './route.json';
 import TOPICS_SOURCE from './topics.json';
 
 /**
- * The visitor's one way through the demo (docs/showcase/최종화면-구현계획.md 2절, F0-1, IN-6): seven groups of 25
+ * The visitor's one way through the demo (docs/showcase/최종화면-구현계획.md 2절, F0-1, IN-6; docs/agent A7-3): eight
+ * groups of 30
  * addresses in one order, each group but the first and the last opened by its cover (T0). The order, each screen's number, type and
  * group live in route.json, which the automatic check (e2e/frame-audit.mjs) reads too, so the two cannot disagree.
  * The screens of "learn more" (/more) are walked by topic (topics.json): back and next stay inside the topic and its
  * end leads back to /more.
  */
-export type Act = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+export type Act = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 /** One route only; the concept path is gone (decision 1 changed, plan 13). */
 export type Route = 'DEFAULT';
 /** The screen types of the plan (6절, 15절): each has one job and its own fixed zones. T0 is a group's cover. */
 export type ScreenType = 'T0' | 'T1' | 'T2' | 'T3' | 'T4' | 'T5' | 'T6' | 'T7' | 'T8';
 
 /**
- * The seven groups of the main flow, the progress bar under the top bar (F0-2; the insider's group 5 of IN-6). 0 marks
- * a "learn more" screen.
+ * The eight groups of the main flow, the progress bar under the top bar (F0-2; the insider's group 5 of IN-6, the
+ * business agent's group 6 of docs/agent A7-3). 0 marks a "learn more" screen.
  */
-export const GROUPS = [1, 2, 3, 4, 5, 6, 7] as const;
+export const GROUPS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
 export type Group = (typeof GROUPS)[number];
 
 /** The six differences every wrap-up collects (identity slide), in their numbering. */
@@ -29,12 +30,12 @@ export interface Screen {
   /** The route id, which also names the screen in the journey state the portal keeps. */
   readonly id: string;
   /**
-   * The screen's number: on the main flow the group and the place in it (1-1 … 7-2, main.{number}.* hold its copy);
+   * The screen's number: on the main flow the group and the place in it (1-1 … 8-2, main.{number}.* hold its copy);
    * on a "learn more" screen the number its copy keys screen.{number}.* kept from the flow before.
    */
   readonly number: string;
   readonly path: string;
-  /** The group: 1 to 7 on the main flow, 0 on a "learn more" screen. */
+  /** The group: 1 to 8 on the main flow, 0 on a "learn more" screen. */
   readonly act: Act;
   readonly type: ScreenType;
   /** The headline is the sentence the server picks from the result (results), not a fixed key. */

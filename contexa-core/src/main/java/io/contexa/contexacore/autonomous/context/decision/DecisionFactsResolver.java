@@ -30,6 +30,7 @@ import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.RoleSc
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.TicketRecord;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.TravelRecord;
 import io.contexa.contexacore.autonomous.context.policy.CanonicalContextFieldPolicy;
+import io.contexa.contexacore.autonomous.context.support.NetworkBlocks;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
@@ -374,73 +375,7 @@ public final class DecisionFactsResolver {
         if (travel == null) {
             return false;
         }
-        if (!StringUtils.hasText(travel.getNetwork()) || !StringUtils.hasText(address)) {
-            return null;
-        }
-        String[] parts = travel.getNetwork().trim().split("/");
-        byte[] ip = literal(address.trim());
-        byte[] base = literal(parts[0].trim());
-        if (ip == null || base == null || ip.length != base.length || parts.length > 2) {
-            return null;
-        }
-        int bits = ip.length * 8;
-        int length = bits;
-        if (parts.length == 2) {
-            try {
-                length = Integer.parseInt(parts[1].trim());
-            } catch (NumberFormatException e) {
-                return null;
-            }
-        }
-        if (length < 0 || length > bits) {
-            return null;
-        }
-        for (int bit = 0; bit < length; bit++) {
-            int mask = 0x80 >> (bit % 8);
-            if ((ip[bit / 8] & mask) != (base[bit / 8] & mask)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /** The bytes of an IPv4 or IPv6 address literal, null for anything else; no name is resolved. */
-    private static byte[] literal(String address) {
-        if (address.contains(":")) {
-            if (!address.matches("[0-9A-Fa-f:.]+")) {
-                return null;
-            }
-            try {
-                return InetAddress.getByName(address).getAddress();
-            } catch (UnknownHostException e) {
-                return null;
-            }
-        }
-        Long value = ipv4(address);
-        if (value == null) {
-            return null;
-        }
-        return new byte[]{(byte) (value >>> 24), (byte) (value >>> 16), (byte) (value >>> 8), (byte) (value & 0xFF)};
-    }
-
-    private static Long ipv4(String address) {
-        String[] octets = address.trim().split("\\.");
-        if (octets.length != 4) {
-            return null;
-        }
-        long value = 0;
-        for (String octet : octets) {
-            try {
-                int part = Integer.parseInt(octet);
-                if (part < 0 || part > 255) {
-                    return null;
-                }
-                value = (value << 8) | part;
-            } catch (NumberFormatException e) {
-                return null;
-            }
-        }
-        return value;
+        return NetworkBlocks.contains(travel.getNetwork(), address);
     }
 
     private static void deviationFacts(Facts facts, List<Deviation> deviations, LearningContextEvidence evidence,

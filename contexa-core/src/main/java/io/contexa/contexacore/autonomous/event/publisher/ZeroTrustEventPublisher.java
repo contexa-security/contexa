@@ -15,6 +15,11 @@
  */
 package io.contexa.contexacore.autonomous.event.publisher;
 
+import io.contexa.contexacommon.security.bridge.BridgeProperties;
+import io.contexa.contexacommon.security.bridge.AgentConfirmationFacts;
+import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.CredentialFacts;
+import io.contexa.contexacore.autonomous.event.support.InvocationArguments;
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.security.bridge.BridgeSemanticBoundaryPolicy;
@@ -37,6 +42,7 @@ import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor.RequestInfo;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
@@ -66,6 +72,9 @@ import java.util.regex.Pattern;
 @Slf4j
 public class ZeroTrustEventPublisher {
 
+    /** A2-8: the payload key of a protected method call's argument summary ({@link InvocationArguments}). */
+    public static final String INVOCATION_ARGUMENTS = InvocationArguments.KEY;
+
     private final ApplicationEventPublisher eventPublisher;
     private final TieredStrategyProperties properties;
     private final SecurityContextDataStore securityContextDataStore;
@@ -83,6 +92,10 @@ public class ZeroTrustEventPublisher {
     /** A1-6: the agent registry, for the sponsor of an agent request; absent when no registry is configured. */
     @Autowired(required = false)
     private AgentRegistry agentRegistry;
+
+    /** A2-11: the token claim names the bridge reads; the defaults when the bridge is not configured. */
+    @Autowired(required = false)
+    private BridgeProperties bridgeProperties;
 
     public ZeroTrustEventPublisher(
             ApplicationEventPublisher eventPublisher,
@@ -171,6 +184,20 @@ public class ZeroTrustEventPublisher {
     }
 
     /**
+     * docs/agent B4: the event of an authorization check an enforcement point outside this application describes
+     * (an AuthZEN evaluation). Nothing is read from the current request or security context, which belong to the
+     * enforcement point's own call; the subject's facts come from the description alone, enriched as every event is
+     * (subject kind and lineage, the agent's accountable party).
+     */
+    public ZeroTrustSpringEvent buildDescribedAuthorizationEvent(String userId, String sessionId, String clientIp,
+                                                                 String userAgent, String resource,
+                                                                 Map<String, Object> payload, Instant eventTimestamp) {
+        return build(ZeroTrustEventCategory.AUTHORIZATION, ZeroTrustSpringEvent.TYPE_AUTHORIZATION_METHOD, userId,
+                sessionId, clientIp, userAgent, resource, payload != null ? new HashMap<>(payload) : null,
+                eventTimestamp);
+    }
+
+    /**
      * The event of a URL authorization policy check of the current request, before any handler runs. It carries the
      * same request and subject facts as a method event, without method facts.
      */
@@ -216,6 +243,12 @@ public class ZeroTrustEventPublisher {
         Protectable protectable = methodInvocation != null ? resolveProtectable(methodInvocation) : null;
         if (protectable != null) {
             payload.put("protectableDeclared", true);
+            // A2-8: what the caller asked the protected method to do; the decision reads it as untrusted text.
+            String invocationArguments = InvocationArguments.summarize(methodInvocation.getMethod(),
+                    methodInvocation.getArguments());
+            if (invocationArguments != null) {
+                payload.put(INVOCATION_ARGUMENTS, invocationArguments);
+            }
             payload.put("protectableSync", protectable.sync());
             payload.put("protectableVerificationRequired", protectable.verificationRequired());
             payload.put("protectableMethod", methodInvocation.getMethod().getDeclaringClass().getName()
@@ -305,6 +338,9 @@ public class ZeroTrustEventPublisher {
             if (requestInfo.getResourceScope() != null) {
                 payload.put("resourceScope", requestInfo.getResourceScope());
             }
+            if (requestInfo.getClaimedRecord() != null) {
+                payload.put("claimedRecord", requestInfo.getClaimedRecord());
+            }
             if (requestInfo.getRequestItems() != null) {
                 payload.put("requestItems", requestInfo.getRequestItems());
             }
@@ -364,7 +400,11 @@ public class ZeroTrustEventPublisher {
         putIfAbsent(payload, "decisionBoundaryMode", securityZeroTrustMode());
 
         if (actionRedisRepository != null && authentication != null) {
-            ZeroTrustAction currentAction = actionRedisRepository.getCurrentAction(effectiveUserId);
+            // docs/agent A5-1: the decision in force for the request's subject, classified as the event records it.
+            ZeroTrustSubject subject = ZeroTrustSubject.ofFacts(effectiveUserId,
+                    CanonicalExecutionEventMetadataSupport.enrich(payload));
+            ZeroTrustAction currentAction = subject != null ? subject.currentAction(actionRedisRepository)
+                    : actionRedisRepository.getCurrentAction(effectiveUserId);
             if (currentAction != null) {
                 payload.put("action", currentAction.name());
             }
@@ -642,7 +682,15 @@ public class ZeroTrustEventPublisher {
             putIfAbsent(payload, "delegationSubjectType", delegationAttributes.get("delegationSubjectType"));
             putIfAbsent(payload, "delegationExpiresAtSource", delegationAttributes.get("delegationExpiresAtSource"));
             putIfAbsent(payload, "delegationTokenClientId", delegationAttributes.get("tokenClientId"));
+            // A1-8: whether the person the agent acts for may make the request, as the policies found it.
+            putIfAbsent(payload, "delegatorAuthority", currentRequestAttribute(BridgeRequestAttributes.DELEGATOR_AUTHORITY));
         }
+    }
+
+    private static Object currentRequestAttribute(String name) {
+        return RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes
+                ? attributes.getRequest().getAttribute(name)
+                : null;
     }
 
     /** How each bridged fact was established (explicit, derived fallback, class name fallback, unavailable). */
@@ -707,6 +755,10 @@ public class ZeroTrustEventPublisher {
     }
 
     private void populateAuthenticationFallback(Authentication authentication, Map<String, Object> payload) {
+        // A2-11 (AG-12f): what the access token says about how the request was authorised; a session has none.
+        CredentialFacts.of(authentication, bridgeProperties != null && bridgeProperties.getDelegation() != null
+                        ? bridgeProperties.getDelegation().getToken() : null)
+                .ifPresent(facts -> facts.payload().forEach(payload::putIfAbsent));
         String bridgeAuthenticationType = bridgeAuthenticationType(payload);
         if (bridgeAuthenticationType != null && !hasNonNullPayload(payload, "authMethod")) {
             payload.put("authMethod", bridgeAuthenticationType);
@@ -1117,8 +1169,14 @@ public class ZeroTrustEventPublisher {
         String sponsorId = null;
         if (agentRegistry != null && agentId != null) {
             try {
-                Optional<AgentRegistration> registration = agentRegistry.find(
-                        firstText(payload.get("tenantId"), payload.get("organizationId")), agentId);
+                String requestTenant = firstText(payload.get("tenantId"), payload.get("organizationId"));
+                Optional<AgentRegistration> registration = agentRegistry.find(requestTenant, agentId);
+                if (registration.isEmpty() && requestTenant != null) {
+                    // CF-13: a token or account that names no tenant was admitted as the agent's single-tenant
+                    // registration (AgentTokenClaims.tenant, AgentClientDirectory), so that registration is this
+                    // agent in a tenant's request too, not an unregistered one.
+                    registration = agentRegistry.find(null, agentId);
+                }
                 if (registration.isPresent()) {
                     sponsorId = registration.get().sponsorId();
                     putIfAbsent(payload, "agentSponsorId", sponsorId);
@@ -1133,6 +1191,8 @@ public class ZeroTrustEventPublisher {
         }
         String delegatorId = delegatedAgent ? textValue(payload.get("delegatorId")) : null;
         putIfAbsent(payload, "agentAccountableId", delegatorId != null ? delegatorId : sponsorId);
+        // docs/agent F-5: the confirmation the accountable person gave for this very request, as the gate kept it.
+        AgentConfirmationFacts.current().forEach(payload::putIfAbsent);
     }
 
     private void putIfAbsent(Map<String, Object> payload, String key, Object value) {

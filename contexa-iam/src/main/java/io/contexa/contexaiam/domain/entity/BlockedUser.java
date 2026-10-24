@@ -78,6 +78,10 @@ public class BlockedUser {
     @Column(name = "source_ip")
     private String sourceIp;
 
+    /** docs/agent A3-3 (R-01): the tenant of the blocked request, or null when the recorder was not given one. */
+    @Column(name = "tenant_id")
+    private String tenantId;
+
     @Column(name = "user_agent")
     private String userAgent;
 

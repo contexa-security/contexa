@@ -22,6 +22,7 @@ import io.contexa.contexacommon.security.bridge.BridgeSemanticBoundaryPolicy;
 import io.contexa.contexacommon.security.bridge.OAuth2AuthenticationSupport;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
+import io.contexa.contexacommon.security.subject.AgentClientDirectory;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -58,6 +59,17 @@ public class TokenDelegationStampResolver implements DelegationStampResolver {
     /** The deepest actor nesting read; a deeper chain is cut there, so a crafted token cannot make reading unbounded. */
     static final int MAX_ACTOR_DEPTH = 10;
 
+    private final AgentClientDirectory agentClientDirectory;
+
+    public TokenDelegationStampResolver() {
+        this(AgentClientDirectory.NONE);
+    }
+
+    /** A resolver that also reads tokens of the clients the directory names as approved agents (A1-2). */
+    public TokenDelegationStampResolver(AgentClientDirectory agentClientDirectory) {
+        this.agentClientDirectory = agentClientDirectory != null ? agentClientDirectory : AgentClientDirectory.NONE;
+    }
+
     @Override
     public Optional<DelegationStamp> resolve(HttpServletRequest request, RequestContextSnapshot requestContext,
                                              BridgeProperties properties) {
@@ -71,7 +83,7 @@ public class TokenDelegationStampResolver implements DelegationStampResolver {
             return Optional.empty();
         }
         Optional<AgentTokenClaims.Agent> named = AgentTokenClaims.agent(claims,
-                authentication != null ? authentication.getName() : null, config);
+                authentication != null ? authentication.getName() : null, config, agentClientDirectory);
         if (named.isEmpty()) {
             return Optional.empty();
         }
@@ -118,6 +130,7 @@ public class TokenDelegationStampResolver implements DelegationStampResolver {
         if (!mayAct.isEmpty()) {
             attributes.put("delegationMayAct", mayAct);
         }
+        putIfPresent(attributes, "delegationId", AgentTokenClaims.firstText(claims, config.getDelegationIdClaims()));
         putIfPresent(attributes, "actorClientId", actorClientId);
         putIfPresent(attributes, "tokenClientId", agent.clientId());
         List<String> scopes = scopes(claims, config);

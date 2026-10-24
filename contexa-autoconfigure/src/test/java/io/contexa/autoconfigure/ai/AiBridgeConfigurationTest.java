@@ -20,6 +20,7 @@ import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.handoff.ContexaAuthBridge;
 import io.contexa.contexacommon.security.bridge.handoff.ContexaAuthBridgeHandler;
 import io.contexa.contexacommon.security.bridge.resolver.DelegationStampResolver;
+import io.contexa.contexacommon.security.bridge.resolver.AgentAccountDelegationStampResolver;
 import io.contexa.contexacommon.security.bridge.resolver.SessionDelegationStampResolver;
 import io.contexa.contexacommon.security.bridge.resolver.TokenDelegationStampResolver;
 import io.contexa.contexacommon.security.bridge.runtime.BridgeRuntimeSupport;
@@ -75,9 +76,11 @@ class AiBridgeConfigurationTest {
             List<DelegationStampResolver> resolvers =
                     context.getBeanProvider(DelegationStampResolver.class).orderedStream().toList();
 
-            assertThat(resolvers).hasSize(4);
+            assertThat(resolvers).hasSize(5);
             assertThat(resolvers.get(0)).isInstanceOf(TokenDelegationStampResolver.class);
             assertThat(resolvers.get(1)).isInstanceOf(SessionDelegationStampResolver.class);
+            // A1-13: an approved agent's own account is asked last, after every channel that states an agent.
+            assertThat(resolvers.get(4)).isInstanceOf(AgentAccountDelegationStampResolver.class);
             assertThat(context.getBean(BridgeProperties.class).getDelegation().getToken().isEnabled()).isTrue();
         });
     }

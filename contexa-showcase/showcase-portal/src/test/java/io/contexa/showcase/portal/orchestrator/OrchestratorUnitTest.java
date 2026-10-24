@@ -286,6 +286,13 @@ class OrchestratorUnitTest {
         assertThat(RunOrchestrator.path(new ScenarioDefinition.Step(BusinessOperation.DOCUMENT_READ,
                 new ScenarioDefinition.DocumentSelector("HX-310", "DRAWING", 1), null, null, null, 0, Map.of(), null,
                 null, null, null), "aabbccddeeff", "HX-310-DWG-00001")).isEqualTo("/api/documents/HX-310-DWG-00001");
+        // docs/agent A7-2a: a project's documents, of the type the step names.
+        assertThat(RunOrchestrator.path(new ScenarioDefinition.Step(BusinessOperation.DOCUMENT_LIST,
+                new ScenarioDefinition.DocumentSelector("HX-310", "DRAWING", 0), "HX-310", null, null, 0, Map.of(),
+                null, null, null, null), "aabbccddeeff", null)).isEqualTo("/api/projects/HX-310/documents?type=DRAWING");
+        assertThat(RunOrchestrator.path(new ScenarioDefinition.Step(BusinessOperation.DOCUMENT_LIST, null, "HX-310",
+                null, null, 0, Map.of(), null, null, null, null), "aabbccddeeff", null))
+                .isEqualTo("/api/projects/HX-310/documents");
     }
 
     /** W7-4: a definition whose request parts cannot be sent as written is refused before its run creates anything. */

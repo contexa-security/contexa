@@ -89,6 +89,29 @@ public class RunRegistry {
                                 .addValue("run", runId).addValue("author", document.authorName())
                                 .addValue("summary", document.authorSummary()));
             }
+            for (RunFacts.Delegation delegation : facts.delegations()) {
+                database.jdbc().update("""
+                                insert into agent_delegation (delegation_key, run_id, delegator, agent_id, objective_id,
+                                                              objective_family, summary, operations, resources,
+                                                              approval_required, valid_from, expires_at, revoked,
+                                                              recorded_by, recorded_at)
+                                values (:k, :run, :delegator, :agent, :objective, :family, :summary, :operations,
+                                        :resources, :approval, :from, :until, :revoked, :recordedBy, :recordedAt)""",
+                        params().addValue("k", delegation.delegationKey()).addValue("run", runId)
+                                .addValue("delegator", delegation.delegator()).addValue("agent", delegation.agentId())
+                                .addValue("objective", delegation.objectiveId())
+                                .addValue("family", delegation.objectiveFamily())
+                                .addValue("summary", delegation.summary())
+                                .addValue("operations", String.join(",", delegation.operations()))
+                                .addValue("resources", String.join(",", delegation.resources()))
+                                .addValue("approval", delegation.approvalRequired())
+                                .addValue("from", timestamp(delegation.validFrom()))
+                                .addValue("until", timestamp(delegation.expiresAt()))
+                                .addValue("revoked", delegation.revoked())
+                                .addValue("recordedBy", delegation.recordedBy())
+                                .addValue("recordedAt", delegation.recordedAt() == null ? null
+                                        : timestamp(delegation.recordedAt())));
+            }
             for (RunFacts.Oncall oncall : facts.oncall()) {
                 database.jdbc().update("""
                                 insert into oncall_roster (roster_key, run_id, employee_key, team, starts_at, ends_at)
@@ -128,6 +151,7 @@ public class RunRegistry {
             rows += database.jdbc().update("delete from travel_plan where run_id = :run", run);
             rows += database.jdbc().update("delete from role_grant where run_id = :run", run);
             rows += database.jdbc().update("delete from document where run_id = :run", run);
+            rows += database.jdbc().update("delete from agent_delegation where run_id = :run", run);
             rows += database.jdbc().update("delete from run_principal where run_id = :run", run);
             return rows;
         });
@@ -145,6 +169,7 @@ public class RunRegistry {
                      + (select count(*) from travel_plan where run_id = :run)
                      + (select count(*) from role_grant where run_id = :run)
                      + (select count(*) from document where run_id = :run)
+                     + (select count(*) from agent_delegation where run_id = :run)
                      + (select count(*) from run_principal where run_id = :run)""",
                 params().addValue("run", runId), Integer.class);
         return count == null ? 0 : count;

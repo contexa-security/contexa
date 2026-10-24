@@ -31,6 +31,12 @@ final class ProbeDatabase {
     /** Fixed company date of the workload tests: a Wednesday, like every anchor (ADR-19). */
     static final LocalDate ANCHOR = LocalDate.of(2026, 9, 30);
 
+    /**
+     * docs/agent A7-0: the secret of Contexa's internal OAuth2 client, which control D needs since its agents' flow is
+     * in the OAuth2 state; one per test JVM, as a deployment keeps one across restarts.
+     */
+    private static final String OAUTH2_CLIENT_SECRET = randomKey();
+
     private ProbeDatabase() {
     }
 
@@ -47,6 +53,7 @@ final class ProbeDatabase {
         registry.add("showcase.work.datasource.username", POSTGRES::getUsername);
         registry.add("showcase.work.datasource.password", POSTGRES::getPassword);
         registry.add("showcase.internal.signing-key", () -> signingKey);
+        registry.add("contexa.auth.oauth2.client-secret", () -> OAUTH2_CLIENT_SECRET);
     }
 
     static String randomKey() {

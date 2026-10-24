@@ -33,6 +33,11 @@ import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.audit.AgentDecisionRecord;
+import io.contexa.contexacore.autonomous.agent.AgentContainmentService;
+import io.contexa.contexacore.autonomous.agent.AgentScopeService;
+import io.contexa.contexacore.autonomous.signal.RiskSignal;
+import io.contexa.contexacore.autonomous.signal.RiskSignalEmitter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -46,6 +51,7 @@ import org.mockito.quality.Strictness;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -128,6 +134,181 @@ class SecurityDecisionEnforcementHandlerTest {
         verify(actionRepository).writeFinalAction(eq("user-1"), eq(ZeroTrustAction.BLOCK), anyMap());
         verify(actionRepository).setBlockedFlag("user-1");
         verify(blockingSignalBroadcaster).registerBlockAndAwait("user-1");
+    }
+
+    @Test
+    @DisplayName("docs/agent A5-1: an agent's decision for a person is kept under the agent's key, never the person's")
+    void anAgentsBlockForAPersonIsKeptUnderTheAgentsKey() {
+        SecurityEvent event = SecurityEvent.builder()
+                .userId("alice")
+                .sourceIp("10.60.1.43")
+                .userAgent("report-agent/1.0")
+                .build();
+        event.addMetadata("executionSubjectKind", "DELEGATED_AGENT");
+        event.addMetadata("agentId", "report-agent");
+        SecurityEventContext context = SecurityEventContext.builder().securityEvent(event).build();
+        context.addMetadata("processingResult", ProcessingResult.builder()
+                .success(true)
+                .action(ZeroTrustAction.BLOCK.name())
+                .riskScore(0.97)
+                .confidence(0.9)
+                .reasoning("Export outside the delegation")
+                .build());
+
+        assertThat(handler.handle(context)).isTrue();
+
+        verify(actionRepository).writeFinalAction(eq("alice::agent::report-agent"), eq(ZeroTrustAction.BLOCK), anyMap());
+        // docs/agent A5-5: what the enforcement did reaches the decision record written after it.
+        assertThat(event.getMetadata()).containsEntry(AgentDecisionRecord.ENFORCEMENT_OUTCOME,
+                AgentDecisionRecord.APPLIED);
+        verify(actionRepository).setBlockedFlag("alice::agent::report-agent");
+        verify(blockingSignalBroadcaster).registerBlockAndAwait("alice::agent::report-agent");
+        verify(actionRepository, never()).writeFinalAction(eq("alice"), any(ZeroTrustAction.class), anyMap());
+        verify(actionRepository, never()).setBlockedFlag("alice");
+        // The agent is no blocked person: its suspension is the agent's (A5-3), not the people's block list.
+        verify(blockedUserRecorder, never()).recordBlock(any(), any(), any(), any(), any(), any(), any());
+        verify(blockedUserRecorder, never()).recordBlock(any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("docs/agent A5-3: an agent's BLOCK stops the agent, and the steps reach the decision record")
+    void anAgentsBlockStopsTheAgentAndTheStepsReachTheDecisionRecord() {
+        AgentContainmentService containment = mock(AgentContainmentService.class);
+        when(containment.onBlock(any(SecurityEvent.class), anyString()))
+                .thenReturn(List.of("DELEGATION_REVOKED", "TOKENS_REVOKED(1)", "DELEGATOR_NOTIFIED(MAIL)"));
+        handler.setAgentContainment(containment);
+        SecurityEvent event = SecurityEvent.builder().userId("alice").build();
+        event.addMetadata("executionSubjectKind", "DELEGATED_AGENT");
+        event.addMetadata("agentId", "report-agent");
+        SecurityEventContext context = SecurityEventContext.builder().securityEvent(event).build();
+        context.addMetadata("processingResult", ProcessingResult.builder()
+                .success(true)
+                .action(ZeroTrustAction.BLOCK.name())
+                .riskScore(0.97)
+                .confidence(0.9)
+                .reasoning("Export outside the delegation")
+                .build());
+
+        assertThat(handler.handle(context)).isTrue();
+
+        verify(containment).onBlock(event, "Export outside the delegation");
+        assertThat(event.getMetadata()).containsEntry(AgentContainmentService.CONTAINMENT,
+                "DELEGATION_REVOKED; TOKENS_REVOKED(1); DELEGATOR_NOTIFIED(MAIL)");
+    }
+
+    @Test
+    @DisplayName("docs/agent A5-4: a decision that narrows an agent's scope adds its step after the stop's")
+    void aNarrowingStepFollowsTheAgentsStopInTheDecisionRecord() {
+        AgentContainmentService containment = mock(AgentContainmentService.class);
+        when(containment.onBlock(any(SecurityEvent.class), anyString())).thenReturn(List.of("DELEGATION_REVOKED"));
+        handler.setAgentContainment(containment);
+        AgentScopeService scopes = mock(AgentScopeService.class);
+        when(scopes.onDecision(any(SecurityEvent.class), any(ProcessingResult.class)))
+                .thenReturn(Optional.of("SCOPE_NARROWED(READ until 2026-10-24T04:00:00Z)"));
+        handler.setAgentScopes(scopes);
+        SecurityEvent event = SecurityEvent.builder().userId("alice").build();
+        event.addMetadata("executionSubjectKind", "DELEGATED_AGENT");
+        event.addMetadata("agentId", "report-agent");
+        SecurityEventContext context = SecurityEventContext.builder().securityEvent(event).build();
+        context.addMetadata("processingResult", ProcessingResult.builder()
+                .success(true)
+                .action(ZeroTrustAction.BLOCK.name())
+                .riskScore(0.97)
+                .confidence(0.9)
+                .reasoning("Export outside the delegation")
+                .build());
+
+        assertThat(handler.handle(context)).isTrue();
+
+        assertThat(event.getMetadata()).containsEntry(AgentContainmentService.CONTAINMENT,
+                "DELEGATION_REVOKED; SCOPE_NARROWED(READ until 2026-10-24T04:00:00Z)");
+    }
+
+    @Test
+    @DisplayName("docs/agent A5-8: a decision that changes the subject's risk level is sent to every emitter; one that does not is not")
+    void aDecisionThatChangesTheRiskLevelIsSentOut() {
+        List<RiskSignal> sent = new ArrayList<>();
+        RiskSignalEmitter failing = signal -> {
+            throw new IllegalStateException("receiver down");
+        };
+        handler.setRiskSignalEmitters(List.of(failing, sent::add));
+        when(actionRepository.getPreviousActionFromHash("user-1")).thenReturn(ZeroTrustAction.ALLOW,
+                ZeroTrustAction.BLOCK);
+
+        handler.handle(blockContext());
+        handler.handle(blockContext());
+
+        assertThat(sent).singleElement().satisfies(signal -> {
+            assertThat(signal.userId()).isEqualTo("user-1");
+            assertThat(signal.previousLevel()).isEqualTo(RiskSignal.LOW);
+            assertThat(signal.currentLevel()).isEqualTo(RiskSignal.HIGH);
+            assertThat(signal.action()).isEqualTo(ZeroTrustAction.BLOCK);
+            assertThat(signal.reason()).isEqualTo("Malicious activity detected");
+        });
+    }
+
+    @Test
+    @DisplayName("docs/agent G-9: in the report-only mode an agent's BLOCK stops, narrows and sends nothing")
+    void inTheReportOnlyModeAnAgentsBlockIsObservedOnly() {
+        SecurityZeroTrustProperties shadow = new SecurityZeroTrustProperties();
+        shadow.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+        SecurityDecisionEnforcementHandler observing = new SecurityDecisionEnforcementHandler(actionRepository,
+                securityLearningService, blockedUserRecorder, blockingSignalBroadcaster, shadow, Runnable::run,
+                () -> aiSecurityDecisionObservationWriter);
+        AgentContainmentService containment = mock(AgentContainmentService.class);
+        AgentScopeService scopes = mock(AgentScopeService.class);
+        List<RiskSignal> sent = new ArrayList<>();
+        observing.setAgentContainment(containment);
+        observing.setAgentScopes(scopes);
+        observing.setRiskSignalEmitters(List.of(sent::add));
+        SecurityEventContext context = blockContext();
+        context.getSecurityEvent().addMetadata("executionSubjectKind", "DELEGATED_AGENT");
+        context.getSecurityEvent().addMetadata("agentId", "report-agent");
+
+        assertThat(observing.handle(context)).isTrue();
+
+        verify(containment, never()).onBlock(any(SecurityEvent.class), any());
+        verify(scopes, never()).onDecision(any(), any());
+        assertThat(sent).isEmpty();
+        verify(actionRepository, never()).writeFinalAction(anyString(), any(ZeroTrustAction.class), anyMap());
+        assertThat(context.getSecurityEvent().getMetadata()).containsEntry(AgentDecisionRecord.ENFORCEMENT_OUTCOME,
+                AgentDecisionRecord.OBSERVED_ONLY);
+    }
+
+    private static SecurityEventContext blockContext() {
+        SecurityEvent event = SecurityEvent.builder().userId("user-1").sourceIp("10.0.0.1").userAgent("TestAgent")
+                .build();
+        SecurityEventContext context = SecurityEventContext.builder().securityEvent(event).build();
+        context.addMetadata("processingResult", ProcessingResult.builder()
+                .success(true)
+                .action(ZeroTrustAction.BLOCK.name())
+                .riskScore(0.95)
+                .confidence(0.9)
+                .reasoning("Malicious activity detected")
+                .build());
+        return context;
+    }
+
+    @Test
+    @DisplayName("docs/agent A5-3: a person's BLOCK stops no agent")
+    void aPersonsBlockStopsNoAgent() {
+        AgentContainmentService containment = mock(AgentContainmentService.class);
+        handler.setAgentContainment(containment);
+        SecurityEvent event = SecurityEvent.builder().userId("alice").build();
+        SecurityEventContext context = SecurityEventContext.builder().securityEvent(event).build();
+        context.addMetadata("processingResult", ProcessingResult.builder()
+                .success(true)
+                .action(ZeroTrustAction.BLOCK.name())
+                .riskScore(0.97)
+                .confidence(0.9)
+                .reasoning("Impossible travel")
+                .build());
+
+        assertThat(handler.handle(context)).isTrue();
+
+        verify(containment, never()).onBlock(any(SecurityEvent.class), any());
+        assertThat(event.getMetadata()).doesNotContainKey(AgentContainmentService.CONTAINMENT);
+        verify(blockedUserRecorder).recordBlock(any(), eq("alice"), any(), any(), any(), any(), any());
     }
 
     @Test

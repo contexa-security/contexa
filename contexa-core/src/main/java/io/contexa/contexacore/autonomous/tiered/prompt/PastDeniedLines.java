@@ -36,8 +36,20 @@ public final class PastDeniedLines {
     private PastDeniedLines() {
     }
 
+    /** docs/agent A3-5: the target of a v21 line, whose value is an untrusted text. */
+    public static final String TARGET_APART = "target-in-UNTRUSTED-TEXT";
+
     /** The lines of the decisions, in their order (the latest first). */
     public static List<PromptListItem> items(PastDeniedDecisions decisions, LocalDateTime requestTime) {
+        return items(decisions, requestTime, false);
+    }
+
+    /**
+     * The lines of the decisions; a v21 line ({@code targetsApart}) writes {@link #TARGET_APART} in place of the target
+     * and carries the target as the item's name (A3-5).
+     */
+    public static List<PromptListItem> items(PastDeniedDecisions decisions, LocalDateTime requestTime,
+                                             boolean targetsApart) {
         if (decisions == null || decisions.entries().isEmpty()) {
             return List.of();
         }
@@ -49,9 +61,11 @@ public final class PastDeniedLines {
                     : String.format(Locale.ROOT, PastRecordLineValues.TIME_FORMAT, at.getMonthValue(), at.getDayOfMonth(),
                     at.getDayOfWeek().getDisplayName(TextStyle.SHORT, Locale.ROOT), at.getHour(), at.getMinute())
                     + (relative != null ? " (" + relative + ")" : "");
-            String text = time + " " + orUnknown(entry.actionFamily()) + " " + orNone(entry.target()) + " -> "
-                    + orUnknown(entry.decidedAction()) + " (" + entry.outcome() + ")";
-            items.add(PromptListItem.ranked(text, at != null ? at.toEpochSecond(ZoneOffset.UTC) * 1000L : 0L));
+            boolean apart = targetsApart && entry.target() != null;
+            String text = time + " " + orUnknown(entry.actionFamily()) + " " + (apart ? TARGET_APART : orNone(entry.target()))
+                    + " -> " + orUnknown(entry.decidedAction()) + " (" + entry.outcome() + ")";
+            long rank = at != null ? at.toEpochSecond(ZoneOffset.UTC) * 1000L : 0L;
+            items.add(apart ? new PromptListItem(text, entry.target(), rank, false, null) : PromptListItem.ranked(text, rank));
         }
         return List.copyOf(items);
     }

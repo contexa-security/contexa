@@ -52,7 +52,7 @@ public class ObjectiveDriftEvaluator {
         String currentActionFamily = resolveCurrentActionFamily(context);
         String currentOperation = compatibilityCatalog.normalizeOperationFamily(currentActionFamily);
         String currentResourceFamily = resolveCurrentResourceFamily(context);
-        String currentResourceId = resolveCurrentResourceId(context);
+        List<String> currentTargets = resolveCurrentTargets(context);
 
         List<String> explicitAllowedActions = normalizeAllowedActionFamilies(delegation.getAllowedOperations());
         List<String> contractAllowedActions = new ArrayList<>(contract.allowedOperations());
@@ -127,9 +127,10 @@ public class ObjectiveDriftEvaluator {
                     : "Current resource family is not listed in delegated resource scope evidence.");
         }
 
-        if (StringUtils.hasText(currentResourceId) && !resourceConstraints.rawConstraints().isEmpty()) {
+        if (!currentTargets.isEmpty() && !resourceConstraints.rawConstraints().isEmpty()) {
             compared = true;
-            boolean rawResourceAllowed = resourceConstraints.rawConstraints().stream().anyMatch(constraint -> matchesResourceConstraint(constraint, currentResourceId));
+            boolean rawResourceAllowed = resourceConstraints.rawConstraints().stream()
+                    .anyMatch(constraint -> withinRawConstraint(constraint, context));
             drift = drift || !rawResourceAllowed;
             facts.add(rawResourceAllowed
                     ? "Current resource matches delegated raw resource constraints."
@@ -146,6 +147,18 @@ public class ObjectiveDriftEvaluator {
             if (!containmentAligned) {
                 facts.add("Containment-only delegated scope evidence does not include the current action family.");
             }
+        }
+
+        // A2-1: the most items one export of the application's objective may carry.
+        Integer requestedItems = context != null && context.getResource() != null
+                ? context.getResource().getRequestedItems() : null;
+        if (contract.maxExportItems() != null && requestedItems != null && "EXPORT".equalsIgnoreCase(currentOperation)) {
+            compared = true;
+            boolean withinLimit = requestedItems <= contract.maxExportItems();
+            drift = drift || !withinLimit;
+            facts.add(withinLimit
+                    ? requestedItems + " requested items are within the objective's export limit of " + contract.maxExportItems() + "."
+                    : requestedItems + " requested items exceed the objective's export limit of " + contract.maxExportItems() + ".");
         }
 
         if (Boolean.FALSE.equals(delegation.getPrivilegedExportAllowed()) && "EXPORT".equalsIgnoreCase(currentOperation)) {
@@ -245,11 +258,65 @@ public class ObjectiveDriftEvaluator {
                 firstText(context.getResource().getResourceId(), context.getResource().getRequestPath()));
     }
 
-    private String resolveCurrentResourceId(CanonicalSecurityContext context) {
+    /** What the request works on, as the delegation's raw constraints may name it (see {@link #withinRawConstraint}). */
+    private List<String> resolveCurrentTargets(CanonicalSecurityContext context) {
         if (context == null || context.getResource() == null) {
-            return null;
+            return List.of();
         }
-        return firstText(context.getResource().getResourceId(), context.getResource().getRequestPath());
+        CanonicalSecurityContext.Resource resource = context.getResource();
+        LinkedHashSet<String> targets = new LinkedHashSet<>();
+        addText(targets, resource.getResourceId());
+        addText(targets, resource.getRequestPath());
+        targets.addAll(scopeIdentifiers(resource.getScope()));
+        return List.copyOf(targets);
+    }
+
+    /**
+     * Whether the request lies within a raw constraint of the delegation. A path ({@code /api/reports/*}) is compared
+     * with the request's path and resource. An identifier of a business record ({@code HX-310}, a project) is compared
+     * with the request's business target: the scope the host records for it and the identifiers in its path. It is
+     * never the protected method's id, which no delegation names (A2-4, the drawing HX-310-DWG-00002 of project HX-310
+     * was found outside a delegation for HX-310 on the showcase).
+     */
+    private boolean withinRawConstraint(String constraint, CanonicalSecurityContext context) {
+        if (context == null || context.getResource() == null || !StringUtils.hasText(constraint)) {
+            return false;
+        }
+        CanonicalSecurityContext.Resource resource = context.getResource();
+        if (constraint.contains("/")) {
+            return matchesResourceConstraint(constraint, resource.getResourceId())
+                    || matchesResourceConstraint(constraint, resource.getRequestPath());
+        }
+        LinkedHashSet<String> identifiers = new LinkedHashSet<>(scopeIdentifiers(resource.getScope()));
+        if (StringUtils.hasText(resource.getRequestPath())) {
+            for (String segment : resource.getRequestPath().split("/")) {
+                addText(identifiers, segment);
+            }
+        }
+        addText(identifiers, resource.getResourceId());
+        return identifiers.stream().anyMatch(identifier -> matchesResourceConstraint(constraint, identifier));
+    }
+
+    /** The values of a host-recorded scope such as {@code projectKey=HX-310} or {@code HX-310, GB-500}. */
+    private static List<String> scopeIdentifiers(String scope) {
+        if (!StringUtils.hasText(scope)) {
+            return List.of();
+        }
+        List<String> identifiers = new ArrayList<>();
+        for (String part : scope.split("[,;\\s]+")) {
+            int equals = part.indexOf('=');
+            String value = equals >= 0 ? part.substring(equals + 1) : part;
+            if (StringUtils.hasText(value)) {
+                identifiers.add(value.trim());
+            }
+        }
+        return identifiers;
+    }
+
+    private static void addText(LinkedHashSet<String> values, String value) {
+        if (StringUtils.hasText(value)) {
+            values.add(value.trim());
+        }
     }
 
     private boolean looksLikeRawResourceConstraint(String value) {

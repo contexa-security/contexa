@@ -2,6 +2,7 @@ package io.contexa.showcase.workload.plain.internal;
 
 import io.contexa.showcase.business.company.CompanyRepository;
 import io.contexa.showcase.business.context.BusinessContextLookup;
+import io.contexa.showcase.business.context.CompanyRecordsExport;
 import io.contexa.showcase.business.run.RunEvidence;
 import io.contexa.showcase.business.run.RunFacts;
 import io.contexa.showcase.business.run.RunRegistry;
@@ -166,6 +167,17 @@ public class PlainInternalController {
                 .stream().findFirst()
                 .map(key -> ResponseEntity.ok(Map.of("documentKey", key)))
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * docs/agent OC-2: an employee's company records, with the run's facts and the company's rules and networks, as the
+     * company's integration hands them to Contexa's company records admin API.
+     */
+    @GetMapping("/internal/company/contexa-records")
+    public Map<String, Object> contexaRecords(@RequestParam("employee") String employeeKey,
+                                              @RequestParam("run") String runId,
+                                              @RequestParam("username") String username) {
+        return new CompanyRecordsExport(database).export(username, employeeKey, runId);
     }
 
     @GetMapping("/internal/company/employees/{employeeKey}")

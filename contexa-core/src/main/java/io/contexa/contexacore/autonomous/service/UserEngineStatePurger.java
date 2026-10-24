@@ -109,6 +109,9 @@ public class UserEngineStatePurger {
                 () -> forceLogoutService.forceLogoutByUserId(userId, "ACCOUNT_DELETED"), purged, failed);
         step("decision-state", actionRepository != null,
                 () -> actionRepository.removeAllUserData(userId), purged, failed);
+        // docs/agent A5-1: the decisions of the agents that acted for the user, kept under their own keys.
+        step("agent-decision-state", actionRepository != null,
+                () -> actionRepository.removeAllAgentData(userId), purged, failed);
         step("blocking-signal", blockingSignalBroadcaster != null,
                 () -> blockingSignalBroadcaster.registerUnblock(userId), purged, failed);
         step("block-mfa-state", blockMfaStateStore != null,

@@ -23,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Map;
+import io.contexa.contexacore.verification.evidence.EvidenceSigner;
 
 /**
  * Central audit facade - single entry point for all audit log recording.
@@ -33,6 +34,11 @@ public class CentralAuditFacade {
 
     private final AuditLogRepository auditLogRepository;
     private final ApplicationEventPublisher eventPublisher;
+    /** docs/agent A5-6: the category whose records are sealed (the decision records). */
+    static final String SEALED_CATEGORY = "SECURITY_DECISION";
+
+    private final Object sealLock = new Object();
+    private EvidenceSigner evidenceSigner;
     private final ObjectMapper objectMapper;
 
     public CentralAuditFacade(AuditLogRepository auditLogRepository,
@@ -66,7 +72,7 @@ public class CentralAuditFacade {
         try {
             String detailsJson = toJsonString(record.getDetails());
             AuditLog auditLog = record.toAuditLog(detailsJson);
-            auditLogRepository.save(auditLog);
+            save(auditLog);
         } catch (Exception e) {
             log.error("Failed to persist audit log synchronously: category={}, principal={}",
                     record.getEventCategory(), record.getPrincipalName(), e);
@@ -79,14 +85,41 @@ public class CentralAuditFacade {
     void persist(AuditRecord record) {
         String detailsJson = toJsonString(record.getDetails());
         AuditLog auditLog = record.toAuditLog(detailsJson);
-        auditLogRepository.save(auditLog);
+        save(auditLog);
+    }
+
+    /**
+     * docs/agent A5-6: the signer decision records are sealed with; without one they are saved as before and read as
+     * not verifiable.
+     */
+    public void setEvidenceSigner(EvidenceSigner evidenceSigner) {
+        this.evidenceSigner = evidenceSigner;
+    }
+
+    /**
+     * Saves the record; a decision record is sealed after the decision record saved before it (docs/agent A5-6). The
+     * records this facade saves are linked in the order it saves them.
+     */
+    private void save(AuditLog auditLog) {
+        if (evidenceSigner == null || !SEALED_CATEGORY.equals(auditLog.getEventCategory())) {
+            auditLogRepository.save(auditLog);
+            return;
+        }
+        synchronized (sealLock) {
+            String previous = auditLogRepository
+                    .findTopByEventCategoryAndRecordHashIsNotNullOrderByIdDesc(SEALED_CATEGORY)
+                    .map(AuditLog::getRecordHash)
+                    .orElse(null);
+            DecisionRecordSeal.seal(auditLog, previous, evidenceSigner);
+            auditLogRepository.save(auditLog);
+        }
     }
 
     private void recordSyncFallback(AuditRecord record) {
         try {
             String detailsJson = toJsonString(record.getDetails());
             AuditLog auditLog = record.toAuditLog(detailsJson);
-            auditLogRepository.save(auditLog);
+            save(auditLog);
         } catch (Exception e) {
             log.error("Sync fallback also failed for audit: category={}, principal={}",
                     record.getEventCategory(), record.getPrincipalName(), e);

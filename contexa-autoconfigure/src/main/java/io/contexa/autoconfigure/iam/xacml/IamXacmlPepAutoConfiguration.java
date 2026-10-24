@@ -15,6 +15,11 @@
  */
 package io.contexa.autoconfigure.iam.xacml;
 
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexaiam.security.xacml.pep.DelegatorAuthority;
+import io.contexa.contexaiam.security.xacml.pep.DelegatorAuthoritySource;
+import io.contexa.contexaiam.security.xacml.pep.UserDetailsDelegatorAuthoritySource;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.beans.factory.ObjectProvider;
 import io.contexa.contexacore.autonomous.service.AuthorizationDenialRecorder;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -74,7 +79,9 @@ public class IamXacmlPepAutoConfiguration {
             CentralAuditFacade centralAuditFacade,
             PolicyCombiningEvaluator policyCombiningEvaluator,
             PolicyCombiningProperties policyCombiningProperties,
-            ObjectProvider<AuthorizationDenialRecorder> authorizationDenialRecorderProvider) {
+            ObjectProvider<AuthorizationDenialRecorder> authorizationDenialRecorderProvider,
+            ObjectProvider<DelegatorAuthority> delegatorAuthority,
+            ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustProperties) {
         CustomDynamicAuthorizationManager manager = new CustomDynamicAuthorizationManager(
                 policyRetrievalPoint, managerResolver,
                 objectMapper, contextHandler, metricsCollector, centralAuditFacade,
@@ -85,7 +92,28 @@ public class IamXacmlPepAutoConfiguration {
         if (authorizationDenialRecorder != null) {
             manager.setAuthorizationDenialRecorder(authorizationDenialRecorder);
         }
+        // A1-8: enforced unless zero trust runs in SHADOW mode, read per request so a mode change applies at once.
+        delegatorAuthority.ifAvailable(authority -> manager.setDelegatorAuthority(authority, () -> {
+            SecurityZeroTrustProperties zeroTrust = securityZeroTrustProperties.getIfAvailable();
+            return zeroTrust == null || zeroTrust.isEnforcementEnabled();
+        }));
         return manager;
+    }
+
+    /**
+     * A1-8: the authority of the person a delegated agent acts for comes from a {@link DelegatorAuthoritySource} bean,
+     * else from the {@code UserDetailsService}; without either, delegators cannot be checked.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public DelegatorAuthority delegatorAuthority(ObjectProvider<DelegatorAuthoritySource> delegatorAuthoritySource,
+                                                 ObjectProvider<UserDetailsService> userDetailsService) {
+        DelegatorAuthoritySource source = delegatorAuthoritySource.getIfAvailable();
+        if (source == null) {
+            UserDetailsService people = userDetailsService.getIfUnique();
+            source = people != null ? new UserDetailsDelegatorAuthoritySource(people) : null;
+        }
+        return new DelegatorAuthority(source);
     }
 
     @Bean

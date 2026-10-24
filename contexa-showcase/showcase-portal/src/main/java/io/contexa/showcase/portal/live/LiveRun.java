@@ -4,6 +4,7 @@ import io.contexa.showcase.business.work.BusinessOperation;
 import io.contexa.showcase.portal.orchestrator.Approver;
 import io.contexa.showcase.portal.orchestrator.ChallengeResponder;
 import io.contexa.showcase.portal.orchestrator.ControlEndpoints.Control;
+import io.contexa.showcase.portal.orchestrator.ControlSession.AgentConfirmationTrace;
 import io.contexa.showcase.portal.orchestrator.ControlSession.ChallengeTrace;
 import io.contexa.showcase.portal.orchestrator.ControlSession.ReleaseTrace;
 import io.contexa.showcase.portal.orchestrator.ControlSession.StepOutcome;
@@ -37,13 +38,28 @@ import java.util.function.Consumer;
 public final class LiveRun implements ChallengeResponder, RunListener {
 
     static final Duration STAGE_TIMEOUT = Duration.ofSeconds(120);
+    /**
+     * docs/agent A7-3: how long a run waits for the visitor to answer a confirmation as the delegating employee: the
+     * visitor watches the console and reads the reasons first (6-2, 6-3), and the engine's own expiry may be sooner.
+     */
+    static final Duration CONFIRMATION_TIMEOUT = Duration.ofSeconds(240);
     static final int MAX_ATTEMPTS = 3;
 
     /**
      * AWAITING: the run waits for the visitor to send its next step. BLOCKED: control D blocked the account and the
-     * run waits for the visitor on the release.
+     * run waits for the visitor on the release. CONFIRMING: control D asked the delegating employee to confirm the
+     * agent's request (docs/agent A7-3) and the run waits for the visitor's answer.
      */
-    public enum Status { QUEUED, STARTING, RUNNING, CHALLENGE, AWAITING, BLOCKED, COMPLETED, FAILED, EXPIRED }
+    public enum Status {
+        QUEUED, STARTING, RUNNING, CHALLENGE, AWAITING, BLOCKED, CONFIRMING, COMPLETED, FAILED, EXPIRED
+    }
+
+    /**
+     * docs/agent A7-3: a confirmation of an agent's request. ASKED: control D asked and the visitor can answer. DONE:
+     * answered and the agent sent the request again. EXPIRED, ABANDONED and FAILED: the visitor gave no answer in time,
+     * moved on, or a step after the answer failed.
+     */
+    public enum ConfirmationStage { ASKED, DONE, EXPIRED, ABANDONED, FAILED }
 
     /**
      * WAITING: the check was asked, nothing requested yet. CODE_SHOWN: the demo inbox holds a code. CANCELLED: the
@@ -63,7 +79,11 @@ public final class LiveRun implements ChallengeResponder, RunListener {
     }
 
     sealed interface Command permits RequestCode, Answer, Cancel, Abandon, Proceed, StartRelease, RequestRelease,
-            Approve {
+            Approve, DecideAgent {
+    }
+
+    /** docs/agent A7-3: the visitor's answer, as the delegating employee, to a confirmation of the agent's request. */
+    record DecideAgent(boolean approve) implements Command {
     }
 
     record StartRelease() implements Command {
@@ -150,6 +170,22 @@ public final class LiveRun implements ChallengeResponder, RunListener {
     }
 
     /**
+     * docs/agent A7-3: a confirmation of the agent's request as the visitor sees it, with what the engine did after
+     * the visitor's answer: the confirmation's status and authorization record as the agent read them, and the
+     * engine's answers to the request sent again with it, to the same once more and to another request.
+     *
+     * @param decision APPROVE or REJECT once answered
+     * @param cause    what failed, for "see the cause"
+     */
+    public record AgentConfirmationView(ConfirmationStage stage, long secondsLeft, int stepNo, String confirmationId,
+                                        String trigger, String expiresAt, String method, String target,
+                                        String decision, String cause, String statusAfter, String authorizationId,
+                                        Integer resendStatus, String resendOutcome, Integer resendDeliveredItems,
+                                        Integer reuseStatus, String reuseRule, Integer otherStatus,
+                                        String otherRule) {
+    }
+
+    /**
      * @param queuePosition    1-based place in the queue while QUEUED, 0 otherwise
      * @param queueWaitSeconds about how many seconds until the queued run starts, from the times of recent live runs
      *                         ({@link LiveRuns}); null when not queued or before any live run finished
@@ -160,7 +196,8 @@ public final class LiveRun implements ChallengeResponder, RunListener {
      */
     public record View(String liveRunId, String scenario, Status status, int queuePosition, Integer queueWaitSeconds,
                        String runId, Long readyMs, Map<String, Long> readyStages, List<StepView> steps, ChallengeView challenge,
-                       String failure, Integer awaitingStep, ReleaseView release) {
+                       String failure, Integer awaitingStep, ReleaseView release,
+                       AgentConfirmationView agentConfirmation) {
     }
 
     /** Longest reason a visitor can file a release request with. */
@@ -195,6 +232,10 @@ public final class LiveRun implements ChallengeResponder, RunListener {
     private Instant releaseRequestedAt;
     private Instant releaseApprovedAt;
     private StepOutcome releaseReissue;
+    private ConfirmationStage confirmationStage;
+    private ChallengeResponder.AgentConfirmation confirmation;
+    private Instant confirmationDeadline;
+    private AgentConfirmationTrace confirmationTrace;
     private final Instant requestedAt;
     private Instant readyAt;
     private Map<String, Long> readyStages = Map.of();
@@ -234,7 +275,8 @@ public final class LiveRun implements ChallengeResponder, RunListener {
 
     public synchronized boolean active() {
         return status == Status.QUEUED || status == Status.STARTING || status == Status.RUNNING
-                || status == Status.CHALLENGE || status == Status.AWAITING || status == Status.BLOCKED;
+                || status == Status.CHALLENGE || status == Status.AWAITING || status == Status.BLOCKED
+                || status == Status.CONFIRMING;
     }
 
     public synchronized Status status() {
@@ -291,6 +333,11 @@ public final class LiveRun implements ChallengeResponder, RunListener {
     /** Files the release request with the visitor's reason. */
     public void requestRelease(String reason) {
         commands.add(new RequestRelease(reason == null ? "" : reason.trim()));
+    }
+
+    /** docs/agent A7-3: answers the confirmation of the agent's request as the delegating employee. */
+    public void decideAgentConfirmation(boolean approve) {
+        commands.add(new DecideAgent(approve));
     }
 
     /** Approves the filed request as the run's security administrator. */
@@ -474,6 +521,90 @@ public final class LiveRun implements ChallengeResponder, RunListener {
             Thread.currentThread().interrupt();
             return failed(challenge, "interrupted", requested, verified);
         }
+    }
+
+    /**
+     * docs/agent A7-3: control D asked the delegating employee to confirm the agent's request; the run waits for the
+     * visitor's answer while its accounts exist, then the agent sends the request again with the confirmation.
+     */
+    @Override
+    public AgentConfirmationTrace confirmAgent(AgentConfirmation asked) {
+        AgentConfirmationTrace unanswered = AgentConfirmationTrace.notAsked(asked.confirmationId(), asked.trigger(),
+                asked.expiresAt(), asked.askedAt());
+        synchronized (this) {
+            if (visitorLeft) {
+                return unanswered.unanswered("ABANDONED");
+            }
+            commands.clear();
+            confirmation = asked;
+            confirmationStage = ConfirmationStage.ASKED;
+            confirmationDeadline = earlier(clock.instant().plus(CONFIRMATION_TIMEOUT), asked.expiresAt());
+            status = Status.CONFIRMING;
+        }
+        try {
+            while (true) {
+                long left;
+                synchronized (this) {
+                    left = Math.max(0, Duration.between(clock.instant(), confirmationDeadline).toMillis());
+                }
+                Command command = commands.poll(left, TimeUnit.MILLISECONDS);
+                if (command == null) {
+                    return endConfirmation(ConfirmationStage.EXPIRED, unanswered.unanswered("EXPIRED"));
+                }
+                if (command instanceof Abandon) {
+                    leave();
+                    return endConfirmation(ConfirmationStage.ABANDONED, unanswered.unanswered("ABANDONED"));
+                }
+                if (command instanceof DecideAgent decide) {
+                    AgentConfirmationTrace answered = ChallengeResponder.answer(asked, decide.approve());
+                    return endConfirmation(answered.reason() == null ? ConfirmationStage.DONE
+                            : ConfirmationStage.FAILED, answered);
+                }
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return endConfirmation(ConfirmationStage.FAILED, unanswered.unanswered("interrupted"));
+        }
+    }
+
+    private synchronized AgentConfirmationTrace endConfirmation(ConfirmationStage last, AgentConfirmationTrace done) {
+        confirmationStage = last;
+        confirmationTrace = done;
+        confirmationDeadline = null;
+        status = Status.RUNNING;
+        return done;
+    }
+
+    /** The sooner of a deadline and the engine's expiry of a confirmation (its text, ISO-8601), when it reads. */
+    private static Instant earlier(Instant deadline, String expiresAt) {
+        try {
+            Instant expiry = expiresAt == null ? null : Instant.parse(expiresAt);
+            return expiry != null && expiry.isBefore(deadline) ? expiry : deadline;
+        } catch (RuntimeException e) {
+            return deadline;
+        }
+    }
+
+    private synchronized AgentConfirmationView confirmationView() {
+        if (confirmationStage == null || confirmation == null) {
+            return null;
+        }
+        AgentConfirmationTrace done = confirmationTrace;
+        StepOutcome resend = done == null ? null : done.resend();
+        StepOutcome reuse = done == null ? null : done.reuse();
+        StepOutcome other = done == null ? null : done.other();
+        long secondsLeft = confirmationStage != ConfirmationStage.ASKED || confirmationDeadline == null ? 0
+                : Math.max(0, Duration.between(clock.instant(), confirmationDeadline).toSeconds());
+        return new AgentConfirmationView(confirmationStage, secondsLeft, confirmation.stepNo(),
+                confirmation.confirmationId(), confirmation.trigger(), confirmation.expiresAt(), confirmation.method(),
+                confirmation.target(), done == null ? null : done.decision(),
+                confirmationStage == ConfirmationStage.FAILED && done != null ? done.reason() : null,
+                done == null || done.after() == null ? null : done.after().status(),
+                done == null || done.after() == null ? null : done.after().authorizationId(),
+                resend == null ? null : resend.httpStatus(), resend == null ? null : outcome(Control.D, resend),
+                resend == null ? null : resend.deliveredItems(), reuse == null ? null : reuse.httpStatus(),
+                reuse == null ? null : reuse.ruleId(), other == null ? null : other.httpStatus(),
+                other == null ? null : other.ruleId());
     }
 
     @Override
@@ -671,7 +802,7 @@ public final class LiveRun implements ChallengeResponder, RunListener {
                 : (int) Math.max(0, (Duration.between(clock.instant(), expectedStart).toMillis() + 999) / 1000);
         return new View(liveRunId, scenario, status, queuePosition, queueWaitSeconds, runId,
                 readyAt == null ? null : Duration.between(requestedAt, readyAt).toMillis(), readyStages, stepViews,
-                challenge, failure, awaitingStep, release);
+                challenge, failure, awaitingStep, release, confirmationView());
     }
 
     private synchronized void enter(Stage next) {

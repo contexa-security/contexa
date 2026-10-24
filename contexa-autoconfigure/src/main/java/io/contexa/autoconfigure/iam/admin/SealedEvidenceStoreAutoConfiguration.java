@@ -13,6 +13,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcOperations;
+import io.contexa.contexacore.verification.evidence.EvidenceSigner;
+import org.springframework.beans.factory.ObjectProvider;
 
 /**
  * The sealed evidence store, its integrity hashing and the canonical context serializer: what capture, retention and
@@ -26,16 +28,22 @@ public class SealedEvidenceStoreAutoConfiguration {
 
     @Bean(name = "pqaSealedEvidencePackageIntegrity")
     @ConditionalOnMissingBean(SealedEvidencePackageIntegrity.class)
-    public SealedEvidencePackageIntegrity pqaSealedEvidencePackageIntegrity() {
-        return new SealedEvidencePackageIntegrity();
+    public SealedEvidencePackageIntegrity pqaSealedEvidencePackageIntegrity(
+            ObjectProvider<EvidenceSigner> evidenceSigner) {
+        // docs/agent A5-6: a schema 3 package is signed and its signature checked.
+        return new SealedEvidencePackageIntegrity(evidenceSigner.getIfAvailable());
     }
 
     @Bean(name = "pqaSealedEvidencePackageRepository")
     @ConditionalOnMissingBean(SealedEvidencePackageRepository.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public SealedEvidencePackageRepository pqaSealedEvidencePackageRepository(
-            @Qualifier("contexaJdbcTemplate") JdbcOperations jdbcOperations) {
-        return new JdbcSealedEvidencePackageRepository(jdbcOperations);
+            @Qualifier("contexaJdbcTemplate") JdbcOperations jdbcOperations,
+            ObjectProvider<SealedEvidencePackageIntegrity> integrity) {
+        JdbcSealedEvidencePackageRepository repository = new JdbcSealedEvidencePackageRepository(jdbcOperations);
+        // docs/agent A5-6: a schema 3 package is linked after the package stored before it.
+        integrity.ifAvailable(repository::setIntegrity);
+        return repository;
     }
 
     @Bean(name = "pqaCanonicalSecurityContextSerializer")

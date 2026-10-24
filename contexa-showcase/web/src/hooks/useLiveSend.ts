@@ -6,7 +6,7 @@ import type { LiveRunView } from '../api/types';
 import { refusalOf, type GateRefusal } from '../domain/live';
 import { useTurnstile } from './useTurnstile';
 
-const ACTIVE = new Set(['QUEUED', 'STARTING', 'RUNNING', 'CHALLENGE', 'AWAITING', 'BLOCKED']);
+const ACTIVE = new Set(['QUEUED', 'STARTING', 'RUNNING', 'CHALLENGE', 'AWAITING', 'BLOCKED', 'CONFIRMING']);
 
 /** A start request's answer as the gate reads it: the run (or the visitor's earlier one), or a refusal reason. */
 export interface StartAnswer {

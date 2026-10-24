@@ -111,6 +111,24 @@ class WorkloadClientTest {
                 .containsExactly("req-1", "req-2");
     }
 
+    /** docs/agent A7-2d: a stolen agent token used by another runtime keeps the token, not the agent's identity. */
+    @Test
+    void aTokenCarriedToAnotherRuntimeSendsTheSameTokenWithThatRuntimesIdentity() throws Exception {
+        WorkloadClient.RunIdentity elsewhere = new WorkloadClient.RunIdentity(RUN.runId(), RUN.organization(),
+                RUN.tenant(), "203.0.113.42", "python-httpx/0.27.2");
+
+        client.withBearer("agent-token").carriedTo(elsewhere).get("/api/projects", "req-1", AT);
+
+        Seen request = seen.get(0);
+        assertThat(request.header("Authorization")).isEqualTo("Bearer agent-token");
+        InternalContext context = new InternalContext(RUN.runId(), "req-1", AT, "203.0.113.42",
+                "python-httpx/0.27.2", RUN.organization(), RUN.tenant());
+        assertThat(signer.verify("GET", "/api/projects", Long.parseLong(request.header(InternalContextHeaders.TIMESTAMP)),
+                context, request.header(InternalContextHeaders.SIGNATURE))).isTrue();
+        assertThatThrownBy(() -> client.carriedTo(elsewhere)).as("a session without a token has nothing to carry")
+                .isInstanceOf(IllegalStateException.class);
+    }
+
     @Test
     void aRequestWithoutAddedHeadersSendsWhatItSentBefore() throws Exception {
         client.postJson(EXPORT, "req-1", AT, null);

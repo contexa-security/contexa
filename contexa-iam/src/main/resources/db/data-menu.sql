@@ -125,6 +125,7 @@ WITH seed(name, url, icon, parent_data_page, menu_order, enabled, menu_type, dat
     ('menu.zerotrust.blacklist',     '/contexa/admin/blacklist',              '',                'security',   2,  TRUE, 'CORE',       'blacklist'),
     ('menu.security.sessions',       '/contexa/admin/session-management',     '',                'security',   3,  TRUE, 'CORE',       'session-management'),
     ('menu.security.ip',             '/contexa/admin/ip-management',          '',                'security',   4,  TRUE, 'CORE',       'ip-management'),
+    ('menu.security.company.records', '/contexa/admin/company-records',      '',                'security',   5,  TRUE, 'CORE',       'company-records'),
     ('menu.agents.list',             '/contexa/admin/agents',                 '',                'agents',     1,  TRUE, 'CORE',       'agents-list'),
     ('menu.aiMonitor.overview',      '/contexa/admin/ai-monitor',             '',                'ai-monitor', 1,  TRUE, 'CORE',       'ai-monitor-overview'),
     ('menu.aiMonitor.llm',           '/contexa/admin/ai-monitor/llm',         '',                'ai-monitor', 2,  TRUE, 'CORE',       'ai-monitor-llm'),

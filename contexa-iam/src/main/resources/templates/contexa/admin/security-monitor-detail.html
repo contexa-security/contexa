@@ -98,6 +98,58 @@
                         <span th:if="${log.outcome != null}" class="text-sm" style="color: #94a3b8;" th:text="${'(' + log.outcome + ')'}"></span>
                     </div>
                     <div th:if="${log.reason != null}" class="text-sm" style="color: #cbd5e1; line-height: 1.7;" th:text="${log.reason}"></div>
+                    <!-- docs/agent A5-5 (AM-5): the decision record fields, as recorded -->
+                    <dl class="text-sm mt-4" style="color: #94a3b8;">
+                        <div th:if="${log.riskState != null}"><dt class="inline" th:text="#{admin.security.monitor.detail.risk.state}">Risk facts cited</dt>:
+                            <dd class="inline font-mono" style="color: #cbd5e1;" th:text="${log.riskState}"></dd></div>
+                        <div th:if="${log.enforcementAction != null}"><dt class="inline" th:text="#{admin.security.monitor.detail.enforcement}">Enforced</dt>:
+                            <dd class="inline" style="color: #cbd5e1;" th:text="${log.enforcementAction}"></dd></div>
+                        <div th:if="${log.enforcementCause != null}"><dt class="inline" th:text="#{admin.security.monitor.detail.enforcement.cause}">Because</dt>:
+                            <dd class="inline" style="color: #cbd5e1;" th:text="${log.enforcementCause}"></dd></div>
+                        <div th:if="${integrity != null}" th:with="status=${integrity}"><dt class="inline" th:text="#{admin.security.monitor.table.integrity}">Integrity</dt>:
+                            <dd class="inline px-2 py-0.5 rounded" th:style="${status == 'VERIFIED' ? 'background: rgba(74,222,128,0.15); color: #4ade80;' : status == 'MISMATCH' ? 'background: rgba(248,113,113,0.15); color: #f87171;' : 'background: rgba(71,85,105,0.2); color: #94a3b8;'}"
+                                th:text="#{${'admin.security.monitor.integrity.' + status}}">Verified</dd></div>
+                        <div th:if="${log.requestContextHash != null}"><dt class="inline" th:text="#{admin.security.monitor.detail.request.hash}">Request context hash</dt>:
+                            <dd class="inline font-mono text-xs" style="color: #cbd5e1;" th:text="${log.requestContextHash}"></dd></div>
+                    </dl>
+                </div>
+            </div>
+
+            <!-- docs/agent A5-5 (AM-5): the delegation an agent's request ran under and the request itself -->
+            <div th:if="${log.agentId != null}" class="rounded-xl p-6 mb-8" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(234,179,8,0.3);">
+                <div class="text-sm font-bold mb-4" style="color: #facc15; letter-spacing: 0.05em;">
+                    <i class="fas fa-robot mr-2"></i> <span th:text="#{admin.security.monitor.detail.delegation}">DELEGATION</span>
+                    <span th:if="${log.subjectKind != null}" class="text-xs px-2 py-0.5 rounded ml-2"
+                          style="background: rgba(234,179,8,0.15); color: #facc15;"
+                          th:text="#{${'admin.security.monitor.subject.' + log.subjectKind}}">Delegated agent</span>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm" style="color: #94a3b8;">
+                    <dl>
+                        <div><dt class="inline" th:text="#{admin.security.monitor.detail.agent}">Agent</dt>:
+                            <dd class="inline font-mono" style="color: #cbd5e1;" th:text="${log.agentId}"></dd></div>
+                        <div th:if="${log.delegatorId != null}"><dt class="inline" th:text="#{admin.security.monitor.detail.delegator}">Delegator</dt>:
+                            <dd class="inline" style="color: #cbd5e1;" th:text="${log.delegatorId}"></dd></div>
+                        <div th:if="${log.delegationId != null}"><dt class="inline" th:text="#{admin.security.monitor.detail.delegation.id}">Delegation</dt>:
+                            <dd class="inline font-mono" style="color: #cbd5e1;" th:text="${log.delegationId}"></dd></div>
+                        <th:block th:if="${delegation != null}">
+                            <div th:if="${delegation.objectiveSummary() != null}"><dt class="inline" th:text="#{admin.security.monitor.detail.objective}">Objective</dt>:
+                                <dd class="inline" style="color: #cbd5e1;" th:text="${delegation.objectiveSummary()}"></dd></div>
+                            <div><dt class="inline" th:text="#{admin.security.monitor.detail.allowed.operations}">Allowed operations</dt>:
+                                <dd class="inline" style="color: #cbd5e1;" th:text="${#strings.listJoin(delegation.allowedOperations(), ', ')}"></dd></div>
+                            <div><dt class="inline" th:text="#{admin.security.monitor.detail.allowed.resources}">Allowed resources</dt>:
+                                <dd class="inline" style="color: #cbd5e1;" th:text="${#strings.listJoin(delegation.allowedResources(), ', ')}"></dd></div>
+                            <div><dt class="inline" th:text="#{admin.security.monitor.detail.delegation.end}">Ends</dt>:
+                                <dd class="inline" style="color: #cbd5e1;" th:text="${delegation.end()}"></dd></div>
+                        </th:block>
+                        <div th:if="${log.delegationId != null and delegation == null}" class="text-xs" style="color: #64748b;"
+                             th:text="#{admin.security.monitor.detail.delegation.unknown}">The delegation record is not kept here.</div>
+                    </dl>
+                    <dl>
+                        <div><dt class="inline" th:text="#{admin.security.monitor.detail.requested.operation}">Requested operation</dt>:
+                            <dd class="inline" style="color: #cbd5e1;" th:text="${log.targetAction ?: '-'}"></dd></div>
+                        <div><dt class="inline" th:text="#{admin.security.monitor.detail.requested.target}">Requested target</dt>:
+                            <dd class="inline font-mono" style="color: #cbd5e1;" th:text="${log.requestUri ?: log.resourceUri ?: log.resourceIdentifier ?: '-'}"></dd></div>
+                    </dl>
                 </div>
             </div>
 

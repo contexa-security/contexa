@@ -27,6 +27,7 @@ import io.contexa.contexacommon.entity.RolePermission;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexacore.infra.redis.PolicyReloadBroadcaster;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.domain.dto.BusinessPolicyDto;
 import io.contexa.contexaiam.domain.entity.ConditionTemplate;
@@ -47,12 +48,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.Mock;
 import org.mockito.quality.Strictness;
 import org.springframework.context.MessageSource;
-
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class BusinessPolicyServiceImplTest {
@@ -528,6 +530,30 @@ class BusinessPolicyServiceImplTest {
     }
 
     // -- Helper methods --
+
+    /** CF-02: a business rule changes the policies of every node, as a policy changed in the policy service does. */
+    @Test
+    @DisplayName("A business rule change is reloaded here and broadcast to the other nodes")
+    void businessRuleChangeIsBroadcastToTheOtherNodes() {
+        PolicyReloadBroadcaster broadcaster = mock(PolicyReloadBroadcaster.class);
+        service.setPolicyReloadBroadcaster(broadcaster);
+        BusinessPolicyDto dto = createBasicDto();
+        dto.setPermissionIds(Collections.emptySet());
+        when(roleRepository.findAllById(dto.getRoleIds()))
+                .thenReturn(List.of(Role.builder().id(1L).roleName("ROLE_ADMIN").build()));
+        when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(policyRepository.findByIdWithDetails(7L)).thenReturn(Optional.of(Policy.builder().id(7L)
+                .name("existing").effect(Policy.Effect.ALLOW).build()));
+
+        service.createPolicyFromBusinessRule(dto);
+        service.updatePolicyFromBusinessRule(7L, dto);
+
+        InOrder order = inOrder(authorizationManager, broadcaster);
+        order.verify(authorizationManager).reload();
+        order.verify(broadcaster).broadcastReload();
+        order.verify(authorizationManager).reload();
+        order.verify(broadcaster).broadcastReload();
+    }
 
     private BusinessPolicyDto createBasicDto() {
         BusinessPolicyDto dto = new BusinessPolicyDto();

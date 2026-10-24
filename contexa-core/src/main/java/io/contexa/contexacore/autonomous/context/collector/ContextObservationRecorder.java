@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.context.collector;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacommon.security.bridge.AgentSessionKey;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.store.SessionDecisionRecord;
 import lombok.extern.slf4j.Slf4j;
@@ -183,12 +184,27 @@ public class ContextObservationRecorder {
             }
         }
         if (outcome != null && event.getSessionId() != null && !event.getSessionId().isBlank() && dataStore != null) {
+            String sessionId = event.getSessionId().trim();
             try {
-                dataStore.addSessionDecision(event.getSessionId().trim(), SessionDecisionRecord.of(event, outcome).encode());
+                dataStore.addSessionDecision(sessionId, SessionDecisionRecord.of(event, outcome).encode());
+                trackUserSession(event, sessionId);
             } catch (RuntimeException e) {
                 log.error("Failed to record the session decision of a request", e);
             }
         }
+    }
+
+    /**
+     * Lists the session among the user's sessions, so the user's recent requests are counted across them (CF-07): a
+     * token request's session is its login ({@code sid}), which the session store did not list. An agent acting for a
+     * person has its own session, which is not counted as the person's (A1-11).
+     */
+    private void trackUserSession(SecurityEvent event, String sessionId) {
+        String userId = event.getUserId() != null ? event.getUserId().trim() : "";
+        if (userId.isEmpty() || sessionId.startsWith(AgentSessionKey.AGENT_PREFIX + ":")) {
+            return;
+        }
+        dataStore.trackUserSession(userId, sessionId);
     }
 
     /** Whether the request's observations were already committed. */

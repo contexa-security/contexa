@@ -19,6 +19,7 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.event.SecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
@@ -87,7 +88,25 @@ public class ZeroTrustEventListener {
             return false;
         }
         if (event.getCategory() != null && event.getCategory().name().equals("AUTHORIZATION")) {
-            return !shouldSkipPublishing(event.getUserId(), generateAuthorizationContextBindingHash(event));
+            return !shouldSkipPublishing(decisionKey(event), generateAuthorizationContextBindingHash(event));
+        }
+        return true;
+    }
+
+    /**
+     * Whether a synchronous {@code @Protectable} request is analysed. Unlike an asynchronous one, an ALLOW in force
+     * for its session does not answer it: the application protected the operation synchronously so that it is decided
+     * before it runs, and an ALLOW of an earlier request of the session (a document read seconds before) says nothing
+     * about it. A business agent sends its requests seconds apart, inside an ALLOW's validity (docs/agent A7-2, real
+     * server 2026-10-23). A restriction in force (BLOCK, CHALLENGE, ESCALATE) still answers it, as does a decision of
+     * the same context that waits for its audit record.
+     */
+    public boolean shouldPublishSynchronousAuthorizationEvent(ZeroTrustSpringEvent event) {
+        if (event == null) {
+            return false;
+        }
+        if (event.getCategory() != null && event.getCategory().name().equals("AUTHORIZATION")) {
+            return !shouldSkipPublishing(decisionKey(event), generateAuthorizationContextBindingHash(event), false);
         }
         return true;
     }
@@ -119,9 +138,18 @@ public class ZeroTrustEventListener {
         securityEventPublisher.publishGenericSecurityEvent(event);
     }
 
+    /**
+     * docs/agent A5-1: the key the request's decision is read under: an agent acting for a person reads its own
+     * decisions, everyone else the user ID's.
+     */
+    private static String decisionKey(ZeroTrustSpringEvent event) {
+        ZeroTrustSubject subject = ZeroTrustSubject.ofFacts(event.getUserId(), event.getPayload());
+        return subject != null ? subject.storageKey() : event.getUserId();
+    }
+
     /** A request answered by the decision in force reaches no analysis; its session still keeps it (N-SES-1). */
     private void recordUnanalysed(ZeroTrustSpringEvent event) {
-        String userId = event.getUserId();
+        String userId = decisionKey(event);
         if (unanalysedRequestRecorder == null || userId == null || userId.isBlank()) {
             return;
         }
@@ -146,13 +174,19 @@ public class ZeroTrustEventListener {
     }
 
     private boolean shouldSkipPublishing(String userId, String contextBindingHash) {
+        return shouldSkipPublishing(userId, contextBindingHash, true);
+    }
+
+    /** @param allowAnswers whether an ALLOW in force answers the request without analysis */
+    private boolean shouldSkipPublishing(String userId, String contextBindingHash, boolean allowAnswers) {
         if (userId == null || userId.isBlank()) {
             return false;
         }
 
         try {
             ZeroTrustAction currentAction = actionRepository.getCurrentAction(userId, contextBindingHash);
-            if (currentAction != ZeroTrustAction.PENDING_ANALYSIS) {
+            if (currentAction != ZeroTrustAction.PENDING_ANALYSIS
+                    && (allowAnswers || currentAction != ZeroTrustAction.ALLOW)) {
                 return true;
             }
             // A decision for this actor context is waiting for its audit record; a new analysis

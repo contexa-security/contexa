@@ -41,6 +41,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import io.contexa.contexacore.infra.redis.PolicyReloadBroadcaster;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -82,6 +84,33 @@ class PolicyCenterCommandServiceTest {
     void setUp() {
         when(messageSource.getMessage(anyString(), any(), any(Locale.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
+    }
+
+    /** CF-02: policies created in a batch reach every node, as a policy changed in the policy service does. */
+    @Test
+    @DisplayName("batch-created policies are reloaded here and broadcast to the other nodes")
+    void batchCreatedPoliciesAreBroadcastToTheOtherNodes() {
+        PolicyReloadBroadcaster broadcaster = mock(PolicyReloadBroadcaster.class);
+        service.setPolicyReloadBroadcaster(broadcaster);
+        BatchCreateRequest.BatchItem item = new BatchCreateRequest.BatchItem();
+        item.setResourceIdentifier("/api/test");
+        item.setCrudPermissions(Set.of("READ"));
+        BatchCreateRequest request = new BatchCreateRequest();
+        request.setItems(List.of(item));
+        request.setRoleIds(Set.of(10L));
+        request.setEffect(Policy.Effect.ALLOW);
+        when(roleService.getRole(10L)).thenReturn(Role.builder().id(10L).roleName("USER").build());
+        when(policyRepository.findAllWithDetails()).thenReturn(new ArrayList<>());
+        PolicyValidationReport report = mock(PolicyValidationReport.class);
+        when(report.canCreate()).thenReturn(true);
+        when(policyValidationService.validate(any(), any())).thenReturn(report);
+        when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        assertThat(service.batchCreatePolicies(request).created()).isEqualTo(1);
+
+        InOrder order = inOrder(authorizationManager, broadcaster);
+        order.verify(authorizationManager).reload();
+        order.verify(broadcaster).broadcastReload();
     }
 
     @Nested

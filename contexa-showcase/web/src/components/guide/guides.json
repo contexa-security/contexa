@@ -9,5 +9,15 @@
       "guide.console.log",
       "guide.console.judgment"
     ]
+  },
+  "agent": {
+    "title": "guide.agent.title",
+    "scenes": [
+      "guide.agent.work",
+      "guide.agent.send",
+      "guide.agent.rows",
+      "guide.agent.reason",
+      "guide.agent.answer"
+    ]
   }
 }

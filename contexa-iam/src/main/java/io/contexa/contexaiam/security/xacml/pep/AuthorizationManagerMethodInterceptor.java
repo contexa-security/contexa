@@ -24,6 +24,7 @@ import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedExceptio
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
 import io.contexa.contexacore.metrics.AuthorizationMetrics;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.aop.Advice;
 import org.aopalliance.intercept.MethodInterceptor;
@@ -44,6 +45,8 @@ import org.springframework.security.authorization.method.ThrowingMethodAuthoriza
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextHolderStrategy;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.lang.reflect.Method;
 import java.util.function.Supplier;
@@ -54,6 +57,7 @@ public class AuthorizationManagerMethodInterceptor
 
     private final Pointcut pointcut;
     private ProtectableMethodAuthorizationManager authorizationManager;
+    private DelegatorAuthority delegatorAuthority;
     private ProtectableRapidReentryGuard rapidReentryGuard;
     /**
      * Sets the collaborators once: the advisor is created while post-processors are registered (the auto-proxy creator
@@ -142,6 +146,7 @@ public class AuthorizationManagerMethodInterceptor
             }
 
             authorizationManager.protectable(() -> authentication, mi);
+            checkDelegatorAuthority(mi, authentication);
             if (llmAnalysisAllowed) {
                 enforcePromptQualityCertificateGate(mi, authentication, protectable);
             }
@@ -409,6 +414,52 @@ public class AuthorizationManagerMethodInterceptor
 
     public void setProtectableLlmSuppressionWriter(ProtectableLlmSuppressionWriter protectableLlmSuppressionWriter) {
         this.protectableLlmSuppressionWriter = protectableLlmSuppressionWriter;
+    }
+
+    /** A1-8: checks a delegated agent's call against the authority of the person it acts for. */
+    public void setDelegatorAuthority(DelegatorAuthority delegatorAuthority) {
+        this.delegatorAuthority = delegatorAuthority;
+    }
+
+    /**
+     * A1-8: a delegated agent's call the method policies grant is evaluated again as the person the agent acts for and
+     * refused, before any Contexa decision, when that person could not make it (in SHADOW mode it is only recorded).
+     */
+    private void checkDelegatorAuthority(MethodInvocation mi, Authentication authentication) {
+        if (delegatorAuthority == null) {
+            return;
+        }
+        HttpServletRequest request = currentRequest();
+        DelegatorAuthority.Check check = delegatorAuthority.prepare(request, authentication).orElse(null);
+        if (check == null) {
+            return;
+        }
+        DelegatorAuthority.Outcome outcome = check.outcome();
+        if (check.delegator() != null) {
+            try {
+                authorizationManager.protectable(check::delegator, mi);
+                outcome = DelegatorAuthority.Outcome.PERMITTED;
+            } catch (AuthorizationDeniedException deniedToTheDelegator) {
+                outcome = DelegatorAuthority.Outcome.DENIED;
+            }
+        }
+        DelegatorAuthority.record(request, outcome);
+        if (!DelegatorAuthority.refuses(outcome)) {
+            return;
+        }
+        if (isEnforcementDisabled()) {
+            log.info("[ZeroTrust][SHADOW] the delegator {} may not make this call; recorded, not enforced: {}",
+                    check.delegatorId(), mi.getMethod());
+            return;
+        }
+        throw new AuthorizationDeniedException("Access is denied - the delegator " + check.delegatorId()
+                + " may not make this call (" + outcome + ")");
+    }
+
+    private static HttpServletRequest currentRequest() {
+        return RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes
+                ? attributes.getRequest()
+                : null;
     }
 
     public void setAuthorizationDenialRecorder(AuthorizationDenialRecorder authorizationDenialRecorder) {

@@ -17,7 +17,7 @@ import java.util.function.Supplier;
  * with the engine's administrator role. It is created only when a release is asked for, so most runs never create it,
  * and the orchestrator removes it with the run. Its password never leaves the portal.
  */
-final class RunApprover implements Approver {
+public final class RunApprover implements Approver {
 
     /** The employee who approves: Administrator B of the IT administration. */
     static final String EMPLOYEE = "adm-b";
@@ -31,8 +31,8 @@ final class RunApprover implements Approver {
     private boolean created;
     private String displayName;
 
-    RunApprover(WorkloadAdmin admin, RunIdentity run, String runHex, Instant companyTime,
-                Supplier<ControlSession> sessions) {
+    public RunApprover(WorkloadAdmin admin, RunIdentity run, String runHex, Instant companyTime,
+                       Supplier<ControlSession> sessions) {
         this.admin = admin;
         this.run = run;
         this.username = "v" + runHex + "-" + EMPLOYEE;
@@ -40,11 +40,11 @@ final class RunApprover implements Approver {
         this.sessions = sessions;
     }
 
-    String username() {
+    public String username() {
         return username;
     }
 
-    synchronized boolean created() {
+    public synchronized boolean created() {
         return created;
     }
 
@@ -61,6 +61,37 @@ final class RunApprover implements Approver {
     @Override
     public int approve(long blockId, String reason) throws IOException {
         return actions().approve(blockId, reason);
+    }
+
+    @Override
+    public Optional<JsonNode> replaySealed(String requestId, Map<String, Object> request) throws IOException {
+        return actions().replaySealed(requestId, request);
+    }
+
+    @Override
+    public JsonNode putCompanyRecords(JsonNode records) throws IOException {
+        return actions().putCompanyRecords(records);
+    }
+
+    @Override
+    public JsonNode registerAgent(Map<String, Object> registration) throws IOException {
+        return actions().registerAgent(registration);
+    }
+
+    @Override
+    public JsonNode removeAgent(String agentId) throws IOException {
+        return actions().removeAgent(agentId);
+    }
+
+    @Override
+    public String recordDelegation(Map<String, Object> delegation) throws IOException {
+        return actions().recordDelegation(delegation);
+    }
+
+    @Override
+    public LearningResult agentLearning(String agentId, String delegationId, String action, String reason)
+            throws IOException {
+        return actions().agentLearning(agentId, delegationId, action, reason);
     }
 
     private synchronized Approver actions() throws IOException {

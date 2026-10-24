@@ -143,6 +143,21 @@ class BlockedUserServiceTest {
         }
 
         @Test
+        @DisplayName("docs/agent A3-3 (R-01): a block keeps the tenant of the blocked request")
+        void aBlockKeepsTheTenantOfTheBlockedRequest() {
+            when(blockedUserJpaRepository.countByUserId("user1")).thenReturn(0);
+            when(blockedUserJpaRepository.findFirstByUserIdAndStatusOrderByBlockedAtDesc("user1", BlockedUserStatus.BLOCKED))
+                    .thenReturn(Optional.empty());
+
+            service.recordBlock("req-1", "user1", "testuser", "BLOCK", "Suspicious", "10.0.0.1", "Agent/1.0",
+                    "tenant-a");
+
+            ArgumentCaptor<BlockedUser> captor = ArgumentCaptor.forClass(BlockedUser.class);
+            verify(blockedUserJpaRepository).save(captor.capture());
+            assertThat(captor.getValue().getTenantId()).isEqualTo("tenant-a");
+        }
+
+        @Test
         @DisplayName("should audit block event")
         void shouldAuditBlockEvent() {
             when(blockedUserJpaRepository.countByUserId("user1")).thenReturn(0);
@@ -227,6 +242,21 @@ class BlockedUserServiceTest {
             verify(adminOverrideService).approve(eq("req-1"), eq("user1"), eq("admin1"), eq("BLOCK"), eq("ALLOW"),
                     eq("Verified owner"), same(held));
             verify(verification).learnWorkProfile(held);
+        }
+
+        @Test
+        @DisplayName("docs/agent A3-3 (R-01): without the request's facts the release learns within the block's tenant")
+        void aReleaseWithoutTheRequestsFactsLearnsWithinTheBlocksTenant() {
+            BlockedUser blocked = buildBlockedUser(1L, "user1", BlockedUserStatus.BLOCKED);
+            blocked.setTenantId("tenant-a");
+            when(blockedUserJpaRepository.findById(1L)).thenReturn(Optional.of(blocked));
+
+            service.resolveBlockById(1L, "admin1", "ALLOW", "Verified owner");
+
+            ArgumentCaptor<SecurityEvent> event = ArgumentCaptor.forClass(SecurityEvent.class);
+            verify(adminOverrideService).approve(eq("req-1"), eq("user1"), eq("admin1"), eq("BLOCK"), eq("ALLOW"),
+                    eq("Verified owner"), event.capture());
+            assertThat(event.getValue().getMetadata()).containsEntry("tenantId", "tenant-a");
         }
 
         @Test

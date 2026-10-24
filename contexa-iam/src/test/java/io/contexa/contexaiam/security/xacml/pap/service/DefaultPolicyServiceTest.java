@@ -51,13 +51,15 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.Mock;
 import org.mockito.quality.Strictness;
 import org.springframework.context.MessageSource;
-
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class DefaultPolicyServiceTest {
@@ -142,6 +144,44 @@ class DefaultPolicyServiceTest {
             assertThat(result.getName()).isEqualTo("test-policy");
             verify(policyRepository).save(any(Policy.class));
             verify(policyEnrichmentService).enrichPolicyWithFriendlyDescription(any(Policy.class));
+        }
+
+        /**
+         * CF-03: the rule of the business rule path ("AI-generated policies require admin approval, manual policies
+         * don't") holds for a policy created through the policy service: a manual policy (or one that names no
+         * source) is active without approval, an AI policy waits for approval, and the source given is kept.
+         */
+        @ParameterizedTest
+        @EnumSource(Policy.PolicySource.class)
+        @DisplayName("a created policy waits for approval only when an AI wrote it")
+        void createdPolicyWaitsForApprovalOnlyWhenAnAiWroteIt(Policy.PolicySource source) {
+            PolicyDto dto = createSimplePolicyDto("source-" + source, "Source " + source);
+            dto.setSource(source);
+            when(policyRepository.save(any(Policy.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(permissionRepository.findAllByNameIn(anySet())).thenReturn(Collections.emptyList());
+
+            Policy created = policyService.createPolicy(dto);
+
+            boolean ai = source == Policy.PolicySource.AI_GENERATED || source == Policy.PolicySource.AI_EVOLVED;
+            assertThat(created.getSource()).isEqualTo(source);
+            assertThat(created.getApprovalStatus())
+                    .isEqualTo(ai ? Policy.ApprovalStatus.PENDING : Policy.ApprovalStatus.NOT_REQUIRED);
+            assertThat(created.getIsActive()).isTrue();
+        }
+
+        @Test
+        @DisplayName("a created policy that names no source is a manual one")
+        void createdPolicyWithoutSourceIsManual() {
+            PolicyDto dto = createSimplePolicyDto("no-source", "No source");
+            dto.setSource(null);
+            when(policyRepository.save(any(Policy.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(permissionRepository.findAllByNameIn(anySet())).thenReturn(Collections.emptyList());
+
+            Policy created = policyService.createPolicy(dto);
+
+            assertThat(created.getSource()).isEqualTo(Policy.PolicySource.MANUAL);
+            assertThat(created.getApprovalStatus()).isEqualTo(Policy.ApprovalStatus.NOT_REQUIRED);
+            assertThat(created.getIsActive()).isTrue();
         }
 
         @Test

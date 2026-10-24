@@ -38,7 +38,10 @@ class PgVectorPastRecordQuerySelectionTest {
                 "retrievalPurpose == scope.retrievalPurpose (when set)",
                 "actionFamily == scope.actionFamily",
                 "sessionId not in scope.excludedSessionIds",
-                "learningState != HELD");
+                "learningState not in (HELD, QUARANTINED)",
+                "agentId == scope.agentId, or no agentId for a person's request",
+                "tenantId == scope.tenantId when the record has one, else organizationId == scope.organizationId when"
+                        + " the record has one");
     }
 
     @Test

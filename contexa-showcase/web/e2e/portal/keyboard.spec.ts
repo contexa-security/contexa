@@ -167,12 +167,12 @@ async function focusKept(page: Page, where: string) {
 }
 
 /** 2-1 and 4-1: Tab to the first call, Space picks it, Shift+Tab goes back a stop from Send, Enter sends. */
-async function predictAndSend(page: Page, text: (key: string) => string) {
+async function predictAndSend(page: Page, text: (key: string) => string, send = 'main.request.send') {
   await tabTo(page, { kind: 'radio' }, 'a judgment to pick');
   expect.soft(await focusMarked(page), `focus mark on the judgment of ${page.url()}`).toBe(true);
   await page.keyboard.press('Space');
   await expect(page.locator('main input[type="radio"]:checked')).toHaveCount(1);
-  await expect(mainButton(page)).toHaveText(text('main.request.send'));
+  await expect(mainButton(page)).toHaveText(text(send));
   await expect(mainButton(page)).toBeEnabled();
   await tabTo(page, { kind: 'main' }, 'Send');
   await page.keyboard.press('Shift+Tab');
@@ -283,6 +283,30 @@ async function walk(page: Page, language: 'ko' | 'en', until: string) {
         await focusKept(page, 'the live judgment');
         await pressMain(page, mainWords(screen, text));
         break;
+      case '6-1':
+        // docs/agent A7-3: the visitor gives the business agent the work; the agent sends its own requests.
+        await predictAndSend(page, text, 'main.6-1.send');
+        break;
+      case '6-2':
+        // The agent works by itself; the way on opens once its requests ended or a confirmation is asked.
+        await expect(mainButton(page)).toHaveText(mainWords(screen, text), { timeout: RUN_TIMEOUT });
+        await focusKept(page, "the agent's work");
+        await pressMain(page, mainWords(screen, text));
+        break;
+      case '6-4':
+        // The visitor answers as the delegating employee while the run waits for it, from the keyboard.
+        if ((await page.getByRole('button', { name: text('main.6-4.approve') }).count()) > 0) {
+          await tabTo(
+            page,
+            { kind: 'text', words: text('main.6-4.approve'), within: '[data-zone="body"]' },
+            'Approve',
+          );
+          expect.soft(await focusMarked(page), 'focus mark on Approve').toBe(true);
+          await page.keyboard.press('Enter');
+        }
+        await expect(mainButton(page)).toHaveText(mainWords(screen, text), { timeout: RUN_TIMEOUT });
+        await pressMain(page, mainWords(screen, text));
+        break;
       case '4-4':
         // The real user's case goes live from here; every extra check is confirmed from the demo inbox by keyboard.
         await pressMain(page, text('main.request.send'));
@@ -325,7 +349,7 @@ test('the main flow from the start to its end with the keyboard alone, the live 
   // The live sends include the insider's three documents, a minute apart.
   test.setTimeout(4 * RUN_TIMEOUT + 600_000);
   const text = (key: string) => required(dictionaries.ko[key], `text ${key}`);
-  const went = await walk(page, 'ko', '7-2');
+  const went = await walk(page, 'ko', '8-2');
   expect(went).toEqual(ROUTE.map((screen) => screen.number));
 
   // The end: its three ways on are reached with Tab, each marked; Shift+Tab goes back to the benchmark, Enter opens it.

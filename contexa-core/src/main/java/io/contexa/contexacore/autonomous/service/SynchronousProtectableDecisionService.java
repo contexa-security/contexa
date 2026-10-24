@@ -26,7 +26,10 @@ import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher
 import io.contexa.contexacore.autonomous.event.support.ZeroTrustSecurityEventConverter;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexacommon.security.bridge.AgentRequestConfirmation;
+import io.contexa.contexacore.autonomous.agent.AgentAllowReuse;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
@@ -38,6 +41,7 @@ public class SynchronousProtectableDecisionService {
     private final SecurityPlaneAgent securityPlaneAgent;
     private final ZeroTrustActionRepository actionRepository;
     private UnanalysedRequestRecorder unanalysedRequestRecorder;
+    private AgentAllowReuse agentAllowReuse;
     private SecurityZeroTrustProperties.UnrecordedAgentRequest unrecordedAgentRequest =
             SecurityZeroTrustProperties.UnrecordedAgentRequest.DECIDE_IN_PLACE;
 
@@ -57,24 +61,33 @@ public class SynchronousProtectableDecisionService {
     }
 
     public SyncDecisionResult analyze(MethodInvocation methodInvocation, Authentication authentication) {
-        ZeroTrustSpringEvent event = zeroTrustEventPublisher.buildMethodAuthorizationEvent(
+        return analyze(zeroTrustEventPublisher.buildMethodAuthorizationEvent(
                 methodInvocation,
                 authentication,
                 true,
                 null
-        );
+        ));
+    }
+
+    /**
+     * docs/agent B4: decides an authorization event as a synchronous {@code @Protectable} is decided: a restriction
+     * in force answers it without analysis, else it is analysed in place.
+     */
+    public SyncDecisionResult analyze(ZeroTrustSpringEvent event) {
         String userId = event.getUserId();
         String contextBindingHash = zeroTrustEventListener.generateAuthorizationContextBindingHash(event);
 
-        if (zeroTrustEventListener.shouldPublishAuthorizationEvent(event)) {
+        // docs/agent A7-2: a synchronous request is decided itself; only a restriction in force answers it.
+        if (zeroTrustEventListener.shouldPublishSynchronousAuthorizationEvent(event)) {
             SecurityEvent securityEvent = ZeroTrustSecurityEventConverter.convert(event);
             // The engine takes the request in here, as a collector does for an analysis it queues (Q-15).
             securityEvent.addMetadata(DeletedAccountWriteFence.TAKEN_IN_AT, System.currentTimeMillis());
             SecurityEventContext processingContext = securityPlaneAgent.processSecurityEvent(securityEvent);
+            agentDecided(event, contextBindingHash);
             return currentResult(event, userId, contextBindingHash, processingContext);
         }
 
-        // The decision in force answers the request without analysis; its session still keeps it (N-SES-1).
+        // The restriction in force answers the request without analysis; its session still keeps it (N-SES-1).
         SyncDecisionResult result = currentResult(event, userId, contextBindingHash, null);
         recordUnanalysed(event, result.action());
         return result;
@@ -106,19 +119,43 @@ public class SynchronousProtectableDecisionService {
         if (isEventShadowBoundary(event)) {
             return AsyncProtectableGate.PROCEED;
         }
-        ZeroTrustAction action = actionRepository.getCurrentAction(
-                event.getUserId(), zeroTrustEventListener.generateAuthorizationContextBindingHash(event));
+        ZeroTrustAction action = confirmed(event, currentAction(event, event.getUserId(),
+                zeroTrustEventListener.generateAuthorizationContextBindingHash(event)));
         if (action == ZeroTrustAction.BLOCK || action == ZeroTrustAction.CHALLENGE
                 || action == ZeroTrustAction.ESCALATE) {
             recordUnanalysed(event, action);
             return AsyncProtectableGate.restricted(action);
         }
+        // docs/agent A7-3 (CF-25): a request its accountable person confirmed is read as allowed for that request
+        // (AgentRequestConfirmation), so it is not decided again in place; the analysis after it still runs.
         if (action == ZeroTrustAction.PENDING_ANALYSIS
                 && unrecordedAgentRequest == SecurityZeroTrustProperties.UnrecordedAgentRequest.DECIDE_IN_PLACE
-                && agentRequest(event)) {
+                && agentRequest(event) && AgentRequestConfirmation.current() == null) {
+            return AsyncProtectableGate.DECIDE_IN_PLACE;
+        }
+        // docs/agent F-1: an ALLOW answers an agent's later requests only for the same operation and a few resources;
+        // past them the request is decided here, before it runs.
+        if (action == ZeroTrustAction.ALLOW && agentAllowReuse != null && agentRequest(event)
+                && AgentRequestConfirmation.current() == null
+                && !agentAllowReuse.answers(decisionKey(event, event.getUserId()),
+                zeroTrustEventListener.generateAuthorizationContextBindingHash(event),
+                AgentAllowReuse.operation(event.getPayload(), event.getResource()), event.getResource())) {
             return AsyncProtectableGate.DECIDE_IN_PLACE;
         }
         return AsyncProtectableGate.PROCEED;
+    }
+
+    /** docs/agent F-1: how far an ALLOW in force answers an agent's later requests. */
+    public void setAgentAllowReuse(AgentAllowReuse agentAllowReuse) {
+        this.agentAllowReuse = agentAllowReuse;
+    }
+
+    /** docs/agent F-1: an agent's request decided here; its ALLOW answers the requests like it. */
+    private void agentDecided(ZeroTrustSpringEvent event, String contextBindingHash) {
+        if (agentAllowReuse != null && agentRequest(event)) {
+            agentAllowReuse.decided(decisionKey(event, event.getUserId()), contextBindingHash,
+                    AgentAllowReuse.operation(event.getPayload(), event.getResource()), event.getResource());
+        }
     }
 
     public void setUnrecordedAgentRequest(SecurityZeroTrustProperties.UnrecordedAgentRequest unrecordedAgentRequest) {
@@ -158,7 +195,7 @@ public class SynchronousProtectableDecisionService {
                 event,
                 contextBindingHash,
                 resolveSynchronousAction(event, userId, contextBindingHash, processingContext),
-                actionRepository.getAnalysisData(userId),
+                actionRepository.getAnalysisData(decisionKey(event, userId)),
                 processingContext
         );
     }
@@ -174,9 +211,33 @@ public class SynchronousProtectableDecisionService {
         }
         ZeroTrustAction processingAction = processingAction(processingResult);
         if (processingAction != null) {
-            return processingAction;
+            return confirmed(event, processingAction);
         }
-        return actionRepository.getCurrentAction(userId, contextBindingHash);
+        return confirmed(event, currentAction(event, userId, contextBindingHash));
+    }
+
+    /**
+     * docs/agent A5-2: an agent's request the accountable person confirmed answers a CHALLENGE, for that request only;
+     * a BLOCK or an ESCALATE stays.
+     */
+    private static ZeroTrustAction confirmed(ZeroTrustSpringEvent event, ZeroTrustAction action) {
+        return action == ZeroTrustAction.CHALLENGE && agentRequest(event) && AgentRequestConfirmation.current() != null
+                ? ZeroTrustAction.ALLOW : action;
+    }
+
+    /**
+     * docs/agent A5-1: the decision in force for the request's subject; an agent acting for the user reads its own
+     * decision (and the user's BLOCK), everyone else the user's.
+     */
+    private ZeroTrustAction currentAction(ZeroTrustSpringEvent event, String userId, String contextBindingHash) {
+        ZeroTrustSubject subject = ZeroTrustSubject.ofFacts(userId, event.getPayload());
+        return subject != null ? subject.currentAction(actionRepository, contextBindingHash)
+                : actionRepository.getCurrentAction(userId, contextBindingHash);
+    }
+
+    private static String decisionKey(ZeroTrustSpringEvent event, String userId) {
+        ZeroTrustSubject subject = ZeroTrustSubject.ofFacts(userId, event.getPayload());
+        return subject != null ? subject.storageKey() : userId;
     }
 
     private ProcessingResult processingResult(SecurityEventContext processingContext) {

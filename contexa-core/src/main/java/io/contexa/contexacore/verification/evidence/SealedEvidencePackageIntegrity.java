@@ -3,6 +3,7 @@ package io.contexa.contexacore.verification.evidence;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 
 /**
@@ -26,6 +27,46 @@ public class SealedEvidencePackageIntegrity {
         UNVERIFIABLE
     }
 
+    /** docs/agent A5-6: the schema whose hash covers the tenant, the user, the capture time and the previous package. */
+    public static final int LINKED_SCHEMA_VERSION = 3;
+
+    private final EvidenceSigner signer;
+
+    public SealedEvidencePackageIntegrity() {
+        this(null);
+    }
+
+    /** @param signer the signer of schema 3 packages; null computes and checks the hash alone */
+    public SealedEvidencePackageIntegrity(EvidenceSigner signer) {
+        this.signer = signer;
+    }
+
+    /** docs/agent A5-6: whether this integrity signs, so that a package may be sealed under schema 3. */
+    public boolean signs() {
+        return signer != null;
+    }
+
+    /**
+     * docs/agent A5-6: seals a schema 3 package after the one sealed before it: its hash then covers that package's
+     * hash, and the signer signs it. A package of an earlier schema keeps its hash.
+     */
+    public void seal(SealedEvidencePackage pkg, String previousPackageHash) {
+        if (pkg.getSchemaVersion() < LINKED_SCHEMA_VERSION) {
+            return;
+        }
+        pkg.setPreviousPackageHash(previousPackageHash);
+        // docs/agent CF-28: sealed with the capture time a store keeps (to the microsecond, PostgreSQL), so the package
+        // verifies when it is read back, as a decision record's time is (DecisionRecordSeal).
+        if (pkg.getCapturedAt() != null) {
+            pkg.setCapturedAt(pkg.getCapturedAt().truncatedTo(ChronoUnit.MICROS));
+        }
+        pkg.setPackageHash(computeHash(pkg));
+        if (signer != null) {
+            pkg.setSignatureKeyId(signer.activeKeyId());
+            pkg.setPackageSignature(signer.sign(pkg.getPackageHash()));
+        }
+    }
+
     public String computeHash(SealedEvidencePackage pkg) {
         String payload = buildHashPayload(pkg);
         return sha256(payload);
@@ -40,7 +81,25 @@ public class SealedEvidencePackageIntegrity {
             return Status.UNVERIFIABLE;
         }
         String recomputed = computeHash(pkg);
-        return pkg.getPackageHash().equals(recomputed) ? Status.VERIFIED : Status.MISMATCH;
+        if (!pkg.getPackageHash().equals(recomputed)) {
+            return Status.MISMATCH;
+        }
+        return pkg.getSchemaVersion() < LINKED_SCHEMA_VERSION ? Status.VERIFIED : signatureStatus(pkg);
+    }
+
+    /**
+     * docs/agent A5-6: a schema 3 package verifies only with a valid signature: a changed package whose hash was
+     * computed again fails it. A package signed with a key this signer does not hold cannot be verified.
+     */
+    private Status signatureStatus(SealedEvidencePackage pkg) {
+        if (signer == null || isBlank(pkg.getPackageSignature()) || isBlank(pkg.getSignatureKeyId())) {
+            return Status.UNVERIFIABLE;
+        }
+        Boolean valid = signer.verify(pkg.getSignatureKeyId(), pkg.getPackageHash(), pkg.getPackageSignature());
+        if (valid == null) {
+            return Status.UNVERIFIABLE;
+        }
+        return valid ? Status.VERIFIED : Status.MISMATCH;
     }
 
     private boolean hasMissingPromptHash(SealedEvidencePackage pkg) {
@@ -85,6 +144,13 @@ public class SealedEvidencePackageIntegrity {
         sb.append('|').append(safe(pkg.getPromptExecutionMetadataJson()));
         sb.append('|').append(safe(pkg.getDecisionJson()));
         sb.append('|').append(pkg.getSchemaVersion());
+        if (pkg.getSchemaVersion() >= LINKED_SCHEMA_VERSION) {
+            // docs/agent A5-6: whose package it is, when it was captured and what came before it.
+            sb.append('|').append(safe(pkg.getTenantId()));
+            sb.append('|').append(safe(pkg.getUserId()));
+            sb.append('|').append(pkg.getCapturedAt() != null ? pkg.getCapturedAt().toString() : "");
+            sb.append('|').append(safe(pkg.getPreviousPackageHash()));
+        }
         return sb.toString();
     }
 

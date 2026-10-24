@@ -1,4 +1,4 @@
-import {api, checkName, el, fillTable, formatTime, number, outcomeChip, setStatus, t, verdictChip}
+import {api, call, checkName, el, fillTable, formatTime, number, outcomeChip, setStatus, t, verdictChip}
     from './prompt-inspection-common.js';
 
 const page = document.querySelector('[data-pi-page]');
@@ -136,4 +136,66 @@ document.querySelector('[data-pi-reinspect]').addEventListener('click', async (e
     }
 });
 
+// docs/agent OC-5: the operator's replay of this sealed decision with a chosen bundle.
+const replayRoot = page.dataset.replayRoot || '/contexa/admin/api/sealed-decisions';
+const replayStatus = document.querySelector('[data-pi-replay-status]');
+const replayResult = document.querySelector('[data-pi-replay-result]');
+const replayBundle = document.querySelector('[data-pi-replay-bundle]');
+
+function replayRows(answer) {
+    const result = answer.result || {};
+    const telemetry = result.telemetry || {};
+    const codes = (result.reasonCodes || []).map((code) => [code.code, (code.factIds || []).join(',')]
+        .filter(Boolean).join(' ')).join('; ');
+    const rows = [
+        [t('promptInspection.replay.action'), result.action],
+        [t('promptInspection.replay.reason'), result.reason],
+        [t('promptInspection.replay.codes'), codes],
+        [t('promptInspection.replay.model'), telemetry.model || telemetry.modelName],
+        [t('promptInspection.replay.elapsed'), result.elapsedMs !== undefined ? `${number(result.elapsedMs)} ms` : null],
+        [t('promptInspection.replay.baselines'), t(`promptInspection.replay.baselines.${answer.baselines}`)],
+        [t('promptInspection.replay.failure'), result.failure]
+    ];
+    (result.secondPasses || []).forEach((pass) => rows.push([t('promptInspection.replay.secondPass', pass.requestedModel),
+        [pass.action, pass.failure].filter(Boolean).join(' - ')]));
+    return rows.filter(([, value]) => value !== null && value !== undefined && value !== '');
+}
+
+async function loadBundles() {
+    try {
+        const bundles = await call(`${replayRoot}/replay-bundles`);
+        replayBundle.replaceChildren(...bundles.map((bundle) => el('option', {value: bundle, text: bundle})));
+    } catch (error) {
+        setStatus(replayStatus, t('promptInspection.replay.unavailable'), 'error');
+    }
+}
+
+document.querySelector('[data-pi-replay-run]').addEventListener('click', async (event) => {
+    if (!window.confirm(t('promptInspection.replay.confirm'))) {
+        return;
+    }
+    const button = event.currentTarget;
+    button.disabled = true;
+    replayResult.hidden = true;
+    setStatus(replayStatus, t('promptInspection.replay.running'));
+    const models = document.querySelector('[data-pi-replay-models]').value.split(',').map((model) => model.trim())
+        .filter(Boolean);
+    try {
+        const answer = await call(`${replayRoot}/packages/${encodeURIComponent(packageId)}/replay`, {
+            method: 'POST',
+            body: {bundleVersion: replayBundle.value, secondPassModels: models}
+        });
+        replayResult.replaceChildren(...replayRows(answer).map(([label, value]) => el('div', {}, [
+            el('dt', {text: label}), el('dd', {class: 'pi-pre', text: String(value)})])));
+        replayResult.hidden = false;
+        setStatus(replayStatus, '');
+    } catch (error) {
+        setStatus(replayStatus, t(error.status === 503 ? 'promptInspection.replay.unavailable'
+            : 'promptInspection.replay.failed'), 'error');
+    } finally {
+        button.disabled = false;
+    }
+});
+
+loadBundles();
 load();

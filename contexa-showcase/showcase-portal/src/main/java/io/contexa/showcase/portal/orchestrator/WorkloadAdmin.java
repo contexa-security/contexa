@@ -70,6 +70,19 @@ public class WorkloadAdmin {
         return keys;
     }
 
+    /**
+     * docs/agent OC-2: an employee's company records with the run's facts and the company's rules and networks, as the
+     * company's integration hands them to Contexa (the body of its company records admin API).
+     */
+    public JsonNode companyRecords(String username, String employeeKey, String runId) throws IOException {
+        return read(plain("ops").get("/internal/company/contexa-records?employee=" + encode(employeeKey) + "&run="
+                + encode(runId) + "&username=" + encode(username), null, null));
+    }
+
+    private static String encode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
+    }
+
     public JsonNode employee(String employeeKey) throws IOException {
         return read(plain("ops").get("/internal/company/employees/" + employeeKey, null, null));
     }
@@ -102,6 +115,18 @@ public class WorkloadAdmin {
     public JsonNode createEnginePrincipal(RunIdentity run, Map<String, Object> request) throws IOException {
         return read(client(endpoints.d(), run).postJson("/internal/runs/" + run.runId() + "/principals", null, null,
                 json.writeValueAsString(request)));
+    }
+
+    /** docs/agent A7-0: registers the run's agent in control D (its OAuth2 client, the agent registry, an account). */
+    public JsonNode registerAgent(RunIdentity run, Map<String, Object> request) throws IOException {
+        return read(client(endpoints.d(), run).postJson("/internal/runs/" + run.runId() + "/agents", null, null,
+                json.writeValueAsString(request)));
+    }
+
+    /** docs/agent A7-0: removes the run's agent from control D. */
+    public JsonNode removeAgent(String runId, String agentId, String clientId) throws IOException {
+        return read(engine(runId).delete("/internal/runs/" + runId + "/agents/" + agentId + "?clientId="
+                + URLEncoder.encode(clientId, StandardCharsets.UTF_8), null));
     }
 
     public JsonNode deleteEnginePrincipal(String runId, String username) throws IOException {
@@ -165,17 +190,12 @@ public class WorkloadAdmin {
     private static final Duration REPLAY_TIMEOUT = Duration.ofMinutes(12);
 
     /**
-     * V-2.2 of the v21 plan: control D draws the decision's sealed prompt again with a bundle and the baselines of the
-     * template its run cloned, and asks the model once; nothing is applied. Empty when the decision was not sealed.
+     * docs/agent OC-5: control D's security administrator for replays of sealed decisions through the engine's replay
+     * admin API (V-2.2 of the v21 plan: the decision's sealed prompt drawn again with a bundle and asked once, nothing
+     * applied). The caller closes it, which removes the administrator.
      */
-    public Optional<JsonNode> replay(String requestId, Map<String, Object> request) throws IOException {
-        Response response = new WorkloadClient(endpoints.d(), signer, new RunIdentity("ops", null, null, null, null),
-                REPLAY_TIMEOUT).postJson("/internal/decisions/" + requestId + "/replay", null, null,
-                json.writeValueAsString(request));
-        if (response.status() == 404) {
-            return Optional.empty();
-        }
-        return Optional.of(read(response));
+    public OpsAdministrator opsAdministrator() throws IOException {
+        return OpsAdministrator.create(this, endpoints, signer, json, REPLAY_TIMEOUT);
     }
 
     /** A release transition's answer from control D: the HTTP status and the gate's receipt. */

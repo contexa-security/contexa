@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.contexa.showcase.portal.agent.AgentTaskProof;
+import io.contexa.showcase.portal.agent.AgentWork;
 import io.contexa.showcase.portal.orchestrator.ControlEndpoints.Control;
 import io.contexa.showcase.portal.orchestrator.ControlSession.StepOutcome;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -16,8 +18,11 @@ import java.security.NoSuchAlgorithmException;
 import java.sql.Timestamp;
 import java.util.HexFormat;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.TreeMap;
 import java.util.UUID;
 
 /**
@@ -302,6 +307,206 @@ public class RunStore {
                             captured_at = now()""",
                 new MapSqlParameterSource("run", runId).addValue("template", templateId)
                         .addValue("learning", write(learning)));
+    }
+
+    /**
+     * docs/agent A7-2e: the business agent's work of an agent task run, with what it proves per control. The agent's
+     * own model use stays here, apart from the engine's cost ledger.
+     */
+    public void agentTask(String runId, String sender, AgentWork.Transcript transcript, AgentTaskProof.Proof proof) {
+        jdbc.update("""
+                        insert into run_agent_task (run_id, sender, model, system_prompt, instruction, tool_calls,
+                                                    final_answer, stop_reason, failure, agent_usage, proof,
+                                                    started_at, finished_at)
+                        values (:run, :sender, :model, :prompt, :instruction, cast(:calls as jsonb), :answer, :stop,
+                                :failure, cast(:usage as jsonb), cast(:proof as jsonb), :started, :finished)""",
+                new MapSqlParameterSource("run", runId).addValue("sender", sender)
+                        .addValue("model", truncate(transcript.model(), 64))
+                        .addValue("prompt", transcript.systemPrompt()).addValue("instruction", transcript.instruction())
+                        .addValue("calls", write(transcript.toolCalls())).addValue("answer", transcript.finalAnswer())
+                        .addValue("stop", transcript.stopReason()).addValue("failure", truncate(transcript.failure(), 500))
+                        .addValue("usage", write(transcript.usage())).addValue("proof", write(proof))
+                        .addValue("started", Timestamp.from(transcript.startedAt()))
+                        .addValue("finished", Timestamp.from(transcript.finishedAt())));
+    }
+
+    /**
+     * docs/agent A7-3: what became of the confirmation control D asked of the agent's work: the delegating person's
+     * answer, the confirmation as the agent read it after, and the engine's answers to the request sent again with it.
+     */
+    public void agentConfirmation(String runId, int stepNo, ControlSession.AgentConfirmationTrace trace) {
+        jdbc.update("""
+                        insert into run_agent_confirmation (run_id, step_no, confirmation_id, trigger, expires_at,
+                                                            decision, reason, asked_at, decided_at, decide_status,
+                                                            status_after, resend, reuse, other, person_request,
+                                                            retries)
+                        values (:run, :step, :id, :trigger, :expires, :decision, :reason, :asked, :decided, :decideStatus,
+                                cast(:after as jsonb), cast(:resend as jsonb), cast(:reuse as jsonb),
+                                cast(:other as jsonb), cast(:person as jsonb), cast(:retries as jsonb))
+                        on conflict (run_id) do nothing""",
+                new MapSqlParameterSource("run", runId).addValue("step", stepNo)
+                        .addValue("id", truncate(trace.confirmationId(), 64))
+                        .addValue("trigger", truncate(trace.trigger(), 40))
+                        .addValue("expires", truncate(trace.expiresAt(), 40))
+                        .addValue("decision", trace.decision())
+                        .addValue("reason", truncate(trace.reason(), 300))
+                        .addValue("asked", timestamp(trace.askedAt()))
+                        .addValue("decided", timestamp(trace.decidedAt()))
+                        .addValue("decideStatus", trace.decideStatus())
+                        .addValue("after", trace.after() == null ? null : write(trace.after()))
+                        .addValue("resend", trace.resend() == null ? null : write(trace.resend()))
+                        .addValue("reuse", trace.reuse() == null ? null : write(trace.reuse()))
+                        .addValue("other", trace.other() == null ? null : write(trace.other()))
+                        .addValue("person", trace.personRequest() == null ? null : write(trace.personRequest()))
+                        .addValue("retries", trace.retries() == null ? null : write(trace.retries())));
+    }
+
+    /** docs/agent A7-3: the confirmation record of a run, as stored; empty when control D asked none. */
+    public Optional<Map<String, Object>> agentConfirmation(String runId) {
+        return jdbc.queryForList("""
+                        select run_id, step_no, confirmation_id, trigger, expires_at, decision, reason, asked_at,
+                               decided_at, decide_status, status_after::text as status_after, resend::text as resend,
+                               reuse::text as reuse, other::text as other, person_request::text as person_request,
+                               retries::text as retries
+                          from run_agent_confirmation where run_id = :run""", new MapSqlParameterSource("run", runId))
+                .stream().findFirst().map(row -> {
+                    Map<String, Object> view = new LinkedHashMap<>();
+                    view.put("stepNo", row.get("step_no"));
+                    view.put("confirmationId", row.get("confirmation_id"));
+                    view.put("trigger", row.get("trigger"));
+                    view.put("expiresAt", row.get("expires_at"));
+                    view.put("decision", row.get("decision"));
+                    view.put("reason", row.get("reason"));
+                    view.put("askedAt", row.get("asked_at"));
+                    view.put("decidedAt", row.get("decided_at"));
+                    view.put("decideStatus", row.get("decide_status"));
+                    Map<String, String> fields = new LinkedHashMap<>();
+                    fields.put("status_after", "after");
+                    fields.put("resend", "resend");
+                    fields.put("reuse", "reuse");
+                    fields.put("other", "other");
+                    fields.put("person_request", "personRequest");
+                    fields.put("retries", "retries");
+                    fields.forEach((column, name) -> {
+                        String value = (String) row.get(column);
+                        view.put(name, value == null ? null : read(value));
+                    });
+                    return view;
+                });
+    }
+
+    /**
+     * docs/agent A7-3: the latest completed recording of an agent case definition (by its definition hash): an
+     * operator's run, never a visitor's or one with a forced decision.
+     */
+    public Optional<Map<String, Object>> latestRecordedAgentRun(String definitionSha256) {
+        return jdbc.queryForList("""
+                        select r.run_id, r.started_at from run r
+                          join run_agent_task t on t.run_id = r.run_id
+                         where r.scenario_sha256 = :sha and r.status = 'COMPLETED' and r.forced_action is null
+                           and r.live_visitor_hash is null
+                         order by r.started_at desc limit 1""", new MapSqlParameterSource("sha", definitionSha256))
+                .stream().findFirst();
+    }
+
+    /** docs/agent A7-2f: the agent task record of a run, as stored; empty for a run of scripted steps. */
+    public Optional<Map<String, Object>> agentTask(String runId) {
+        return jdbc.queryForList("""
+                        select run_id, sender, model, system_prompt, instruction, tool_calls::text as tool_calls,
+                               final_answer, stop_reason, failure, agent_usage::text as agent_usage, proof::text as proof,
+                               started_at, finished_at
+                          from run_agent_task where run_id = :run""", new MapSqlParameterSource("run", runId))
+                .stream().findFirst();
+    }
+
+    /**
+     * docs/agent A7-2f: what an agent task run shows: the work (what was asked, how it ended, the agent's answer), what
+     * it proves per control, every step with the tool that sent it, the five controls' outcomes and control D's
+     * decision, and its cost (the agent's tokens, the decision models' calls and tokens). Empty for a run of scripted
+     * steps only.
+     */
+    public Optional<Map<String, Object>> agentTaskSummary(String runId) {
+        Optional<Map<String, Object>> stored = agentTask(runId);
+        if (stored.isEmpty()) {
+            return Optional.empty();
+        }
+        Map<String, Object> row = stored.get();
+        MapSqlParameterSource run = new MapSqlParameterSource("run", runId);
+        Map<Integer, JsonNode> toolOfStep = new LinkedHashMap<>();
+        for (JsonNode call : read((String) row.get("tool_calls"))) {
+            if (call.path("sent").asBoolean() && call.path("answer").has("stepNo")) {
+                ObjectNode tool = json.createObjectNode();
+                tool.put("tool", call.path("tool").asText());
+                tool.set("arguments", call.path("arguments"));
+                toolOfStep.put(call.path("answer").path("stepNo").asInt(), tool);
+            }
+        }
+        Map<Integer, Map<String, Object>> steps = new TreeMap<>();
+        for (Map<String, Object> arm : jdbc.queryForList("""
+                select step_no, control, path, outcome, delivered_items, rule_id, company_time
+                  from run_arm_result where run_id = :run order by step_no, control""", run)) {
+            int stepNo = ((Number) arm.get("step_no")).intValue();
+            Map<String, Object> step = steps.computeIfAbsent(stepNo, number -> {
+                Map<String, Object> value = new LinkedHashMap<>();
+                value.put("stepNo", number);
+                value.put("sentBy", toolOfStep.containsKey(number) ? "AGENT_WORK" : "SCRIPT");
+                value.put("tool", toolOfStep.get(number));
+                value.put("path", arm.get("path"));
+                // docs/agent A7-3: the company time the step went at, as every control received it.
+                value.put("companyTime", arm.get("company_time"));
+                value.put("outcomes", new LinkedHashMap<String, Object>());
+                return value;
+            });
+            Map<String, Object> outcome = new LinkedHashMap<>();
+            outcome.put("outcome", arm.get("outcome"));
+            outcome.put("deliveredItems", arm.get("delivered_items"));
+            outcome.put("rule", arm.get("rule_id"));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> outcomes = (Map<String, Object>) step.get("outcomes");
+            outcomes.put((String) arm.get("control"), outcome);
+        }
+        for (Map<String, Object> decision : jdbc.queryForList("""
+                select step_no, request_id, final_action, proposed_action, risk_score, confidence, model_calls,
+                       total_tokens, technical_fallback
+                  from run_decision where run_id = :run order by step_no""", run)) {
+            Map<String, Object> step = steps.get(((Number) decision.get("step_no")).intValue());
+            if (step != null) {
+                step.put("decision", decision);
+            }
+        }
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("runId", runId);
+        summary.put("sender", row.get("sender"));
+        summary.put("agentModel", row.get("model"));
+        summary.put("instruction", row.get("instruction"));
+        summary.put("systemPrompt", row.get("system_prompt"));
+        summary.put("stopReason", row.get("stop_reason"));
+        summary.put("failure", row.get("failure"));
+        summary.put("finalAnswer", row.get("final_answer"));
+        summary.put("startedAt", row.get("started_at"));
+        // docs/agent A7-3: the run's company time, which the case's fact offsets (a delegation's period) count from.
+        summary.put("companyTime", jdbc.queryForList("select company_time from run where run_id = :run", run)
+                .stream().findFirst().map(found -> found.get("company_time")).orElse(null));
+        summary.put("finishedAt", row.get("finished_at"));
+        summary.put("proof", read((String) row.get("proof")));
+        summary.put("steps", List.copyOf(steps.values()));
+        summary.put("confirmation", agentConfirmation(runId).orElse(null));
+        Map<String, Object> cost = new LinkedHashMap<>();
+        cost.put("agent", read((String) row.get("agent_usage")));
+        cost.put("decisions", jdbc.queryForList("""
+                select model, count(*) as calls, sum(prompt_tokens) as prompt_tokens,
+                       sum(completion_tokens) as completion_tokens, sum(total_tokens) as total_tokens
+                  from cost_ledger where run_id = :run group by model order by model""", run));
+        summary.put("cost", cost);
+        return Optional.of(summary);
+    }
+
+    private JsonNode read(String value) {
+        try {
+            return value == null ? json.nullNode() : json.readTree(value);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Unreadable stored evidence", e);
+        }
     }
 
     public void cost(String runId, String templateId, String requestId, JsonNode call) {

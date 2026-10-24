@@ -17,6 +17,7 @@ public final class EndpointProtection {
     private static final Map<String, String> METHOD_OF_OPERATION = Map.of(
             "PROJECT_LIST", "listProjects",
             "DOCUMENT_READ", "readDocument",
+            "DOCUMENT_LIST", "listDocuments",
             "DOCUMENT_DOWNLOAD", "downloadDocument",
             "EXPORT", "exportDocuments",
             "EXPORT_STREAM", "openExportStream",

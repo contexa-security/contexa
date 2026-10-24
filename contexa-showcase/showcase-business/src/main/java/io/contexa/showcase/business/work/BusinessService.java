@@ -2,6 +2,7 @@ package io.contexa.showcase.business.work;
 
 import io.contexa.showcase.business.work.BusinessViews.CustomerView;
 import io.contexa.showcase.business.work.BusinessViews.DocumentFile;
+import io.contexa.showcase.business.work.BusinessViews.DocumentSummary;
 import io.contexa.showcase.business.work.BusinessViews.DocumentView;
 import io.contexa.showcase.business.work.BusinessViews.ExportResult;
 import io.contexa.showcase.business.work.BusinessViews.ExportStream;
@@ -23,6 +24,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 /**
@@ -37,12 +39,20 @@ public class BusinessService implements BusinessOperations {
     private final Clock clock;
     private final int rowsPerTick;
     private final Duration tick;
+    /** docs/agent OC-2: told when an export job ends; control D reports the delivered items to Contexa. */
+    private final ExportJobListener exportJobListener;
 
     public BusinessService(WorkDatabase database, Clock clock, int rowsPerTick, Duration tick) {
+        this(database, clock, rowsPerTick, tick, null);
+    }
+
+    public BusinessService(WorkDatabase database, Clock clock, int rowsPerTick, Duration tick,
+                           ExportJobListener exportJobListener) {
         this.database = database;
         this.clock = clock;
         this.rowsPerTick = rowsPerTick;
         this.tick = tick;
+        this.exportJobListener = exportJobListener;
     }
 
     @Override
@@ -67,6 +77,30 @@ public class BusinessService implements BusinessOperations {
                         rs.getString(5), rs.getString(6), rs.getInt(7), rs.getString(8)))
                 .stream().findFirst()
                 .orElseThrow(() -> new BusinessNotFoundException("document", documentKey));
+    }
+
+    @Override
+    public List<DocumentSummary> listDocuments(BusinessRequest request, String projectKey, String type, String query,
+                                               int limit) {
+        requireProject(projectKey);
+        StringBuilder sql = new StringBuilder("""
+                select document_key, project_key, document_type, title, revision, sensitivity, updated_on
+                  from document where project_key = :project and (run_id is null or run_id = :run)""");
+        MapSqlParameterSource params = new MapSqlParameterSource("project", projectKey)
+                .addValue("run", request.runId()).addValue("limit", limit);
+        if (type != null && !type.isBlank()) {
+            sql.append(" and document_type = :type");
+            params.addValue("type", type.trim().toUpperCase(Locale.ROOT));
+        }
+        if (query != null && !query.isBlank()) {
+            sql.append(" and lower(title) like :pattern");
+            params.addValue("pattern", "%" + query.trim().toLowerCase(Locale.ROOT)
+                    .replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%");
+        }
+        sql.append(" order by updated_on desc, document_key limit :limit");
+        return database.jdbc().query(sql.toString(), params,
+                (rs, n) -> new DocumentSummary(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4),
+                        rs.getString(5), rs.getString(6), rs.getDate(7).toLocalDate()));
     }
 
     @Override
@@ -214,6 +248,9 @@ public class BusinessService implements BusinessOperations {
                          where job_id = :job""",
                 new MapSqlParameterSource("job", jobId).addValue("delivered", delivered).addValue("status", status)
                         .addValue("manifest", manifest).addValue("at", Timestamp.from(clock.instant())));
+        if (exportJobListener != null) {
+            exportJobListener.finished(jobId);
+        }
     }
 
     static String manifest(List<String> documentKeys) {

@@ -40,6 +40,11 @@ public final class UnknownLineValues {
         return SecurityDecisionPromptValues.missingFacts(coverage);
     }
 
+    /** {@code missing A, B} of a v20 or a v21 line (A2-6), or null when the line names nothing missing. */
+    public static String missingFacts(ContextCoverageReport coverage, CanonicalSecurityContext context, boolean v21) {
+        return SecurityDecisionPromptValues.missingFacts(coverage, context, v21);
+    }
+
     /** {@code bridge FULL}, or {@code bridge UNAVAILABLE} without a bridge or its level. */
     public static String bridgeLevel(CanonicalSecurityContext.Bridge bridge) {
         return SecurityDecisionPromptValues.bridgeLevel(bridge);
@@ -48,6 +53,11 @@ public final class UnknownLineValues {
     /** The whole coverage line with the usual-behaviour view the warnings read, or null without a report and a bridge. */
     public static String coverage(CanonicalSecurityContext context, BaselineView view) {
         return SecurityDecisionPromptValues.coverageLine(context, view);
+    }
+
+    /** The whole coverage line of a v20 or a v21 prompt (A2-6). */
+    public static String coverage(CanonicalSecurityContext context, BaselineView view, boolean v21) {
+        return SecurityDecisionPromptValues.coverageLine(context, view, v21);
     }
 
     /**

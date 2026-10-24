@@ -23,7 +23,7 @@ import experience from '../Experience.module.css';
 import styles from './Timing.module.css';
 
 /** The live statuses of a run still going; the screen then points to it instead of sending another. */
-const GOING = new Set(['QUEUED', 'STARTING', 'RUNNING', 'CHALLENGE', 'AWAITING', 'BLOCKED']);
+const GOING = new Set(['QUEUED', 'STARTING', 'RUNNING', 'CHALLENGE', 'AWAITING', 'BLOCKED', 'CONFIRMING']);
 
 /** The run step the attack sent "from the next request" opens; it comes back here when the run ends. */
 const RUN_STEP = '/try/attacker/run?mode=async&from=timing';

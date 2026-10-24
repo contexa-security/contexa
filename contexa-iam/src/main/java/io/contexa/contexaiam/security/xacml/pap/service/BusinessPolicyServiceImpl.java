@@ -19,6 +19,7 @@ import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexacore.infra.redis.PolicyReloadBroadcaster;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.domain.dto.BusinessPolicyDto;
 import io.contexa.contexaiam.domain.entity.ConditionTemplate;
@@ -72,6 +73,8 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
     private final PolicyConflictAnalyzer policyConflictAnalyzer;
     private final PolicyVersionService policyVersionService;
     private final MessageSource messageSource;
+    /** Tells the other nodes to reload in the distributed mode (CF-02); null on a single node. */
+    private PolicyReloadBroadcaster policyReloadBroadcaster;
 
     public BusinessPolicyServiceImpl(PolicyRepository policyRepository,
                                      @Lazy RoleService roleService,
@@ -126,7 +129,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         }
 
         auditBusinessPolicyChange(AuditEventCategory.POLICY_CREATED, savedPolicy, dto);
-        authorizationManager.reload();
+        reloadAuthorization();
 
         return savedPolicy;
     }
@@ -146,9 +149,21 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
 
         Policy updatedPolicy = policyRepository.save(existingPolicy);
         auditBusinessPolicyChange(AuditEventCategory.POLICY_UPDATED, updatedPolicy, dto);
-        authorizationManager.reload();
+        reloadAuthorization();
 
                 return updatedPolicy;
+    }
+
+    public void setPolicyReloadBroadcaster(PolicyReloadBroadcaster policyReloadBroadcaster) {
+        this.policyReloadBroadcaster = policyReloadBroadcaster;
+    }
+
+    /** Reloads the policies of this node and, in the distributed mode, of the others, as the policy service does. */
+    private void reloadAuthorization() {
+        authorizationManager.reload();
+        if (policyReloadBroadcaster != null) {
+            policyReloadBroadcaster.broadcastReload();
+        }
     }
 
     private void translateAndApplyDtoToPolicy(Policy policy, BusinessPolicyDto dto) {

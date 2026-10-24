@@ -22,6 +22,8 @@ import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
+import io.contexa.contexacore.autonomous.audit.AgentDecisionRecord;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.DeletedAccountWriteFence;
 import io.contexa.contexacore.autonomous.service.LearningPromotionService;
@@ -36,9 +38,14 @@ import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.util.ErrorLogThrottle;
+import io.contexa.contexacore.autonomous.agent.AgentContainmentService;
+import io.contexa.contexacore.autonomous.agent.AgentScopeService;
+import io.contexa.contexacore.autonomous.signal.RiskSignal;
+import io.contexa.contexacore.autonomous.signal.RiskSignalEmitter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -61,6 +68,9 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     private static final Duration OBSERVATION_FAILURE_LOG_INTERVAL = Duration.ofMinutes(1);
 
     private final ErrorLogThrottle observationFailureLogThrottle = new ErrorLogThrottle(OBSERVATION_FAILURE_LOG_INTERVAL);
+    private AgentContainmentService agentContainment;
+    private AgentScopeService agentScopes;
+    private List<RiskSignalEmitter> riskSignalEmitters = List.of();
     private final ZeroTrustActionRepository actionRedisRepository;
     private final SecurityLearningService securityLearningService;
     private final IBlockedUserRecorder blockedUserRecorder;
@@ -207,7 +217,23 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
 
         Enforcement enforcement;
         try {
-            enforcement = enforceDecision(userId, event, result, sideEffectsEnabled);
+            enforcement = enforceDecision(decisionKey(event, userId), event, result, sideEffectsEnabled);
+            // docs/agent A5-5: what the enforcement did, for the decision record written after it.
+            event.addMetadata(AgentDecisionRecord.ENFORCEMENT_OUTCOME, switch (enforcement) {
+                case APPLIED -> AgentDecisionRecord.APPLIED;
+                case KEPT_STRICTER -> AgentDecisionRecord.KEPT_STRICTER;
+                case SHADOW -> AgentDecisionRecord.OBSERVED_ONLY;
+                case NOT_OWNER -> AgentDecisionRecord.DISCARDED;
+            });
+            // docs/agent A5-4: a decision on an agent's request may narrow its later requests; the step reaches the
+            // decision record with the agent's other steps.
+            if (sideEffectsEnabled && (enforcement == Enforcement.APPLIED || enforcement == Enforcement.KEPT_STRICTER)) {
+                narrowAgentScope(event, result);
+            }
+            // docs/agent A5-8: a decision that changed the subject's risk level is sent out to the host's receivers.
+            if (sideEffectsEnabled && enforcement == Enforcement.APPLIED) {
+                emitRiskSignal(event, decisionKey(event, userId), result);
+            }
             if (enforcement != Enforcement.NOT_OWNER && isCurrentProcessingOwner(event)) {
                 // Only an applied decision is learnable: a shadow one, and an ALLOW kept out by a stricter action in
                 // effect, are committed as decided but not enforced (W5-3).
@@ -360,6 +386,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         if (userId == null || userId.isBlank()) {
             userId = metadataText(event, "userId");
         }
+        userId = decisionKey(event, userId);
         ZeroTrustAction action = ZeroTrustAction.fromString(persisted.finalAction());
         Map<String, Object> fields = new HashMap<>();
         fields.put("observationId", persisted.observationId());
@@ -455,6 +482,84 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         }
     }
 
+    /** docs/agent A5-3: what stops an agent whose request a BLOCK decided. */
+    public void setAgentContainment(AgentContainmentService agentContainment) {
+        this.agentContainment = agentContainment;
+    }
+
+    /** docs/agent A5-8: where the risk level changes Contexa's decisions make are sent; none by default. */
+    public void setRiskSignalEmitters(List<RiskSignalEmitter> riskSignalEmitters) {
+        this.riskSignalEmitters = riskSignalEmitters != null ? List.copyOf(riskSignalEmitters) : List.of();
+    }
+
+    private void emitRiskSignal(SecurityEvent event, String decisionKey, ProcessingResult result) {
+        if (riskSignalEmitters.isEmpty()) {
+            return;
+        }
+        ZeroTrustAction current = ZeroTrustAction.fromString(result.getAction());
+        String currentLevel = RiskSignal.levelOf(current);
+        if (currentLevel == null) {
+            return;
+        }
+        String previousLevel;
+        try {
+            previousLevel = RiskSignal.levelOf(actionRedisRepository.getPreviousActionFromHash(decisionKey));
+        } catch (RuntimeException e) {
+            log.error("[SecurityDecisionEnforcementHandler] The previous decision could not be read: key={}",
+                    decisionKey, e);
+            return;
+        }
+        if (currentLevel.equals(previousLevel)) {
+            return;
+        }
+        ZeroTrustSubject subject = ZeroTrustSubject.of(event);
+        RiskSignal signal = new RiskSignal(subject != null ? subject.tenantId() : null, event.getUserId(),
+                subject != null ? subject.agentId() : null, previousLevel != null ? previousLevel : RiskSignal.LOW,
+                currentLevel, current, result.getReasoning(), Instant.now());
+        for (RiskSignalEmitter emitter : riskSignalEmitters) {
+            try {
+                emitter.emit(signal);
+            } catch (RuntimeException e) {
+                log.error("[SecurityDecisionEnforcementHandler] A risk signal emitter failed: emitter={}",
+                        emitter.getClass().getName(), e);
+            }
+        }
+    }
+
+    /** docs/agent A5-4: what narrows an agent's later requests after a decision on one of them. */
+    public void setAgentScopes(AgentScopeService agentScopes) {
+        this.agentScopes = agentScopes;
+    }
+
+    private void narrowAgentScope(SecurityEvent event, ProcessingResult result) {
+        if (agentScopes == null) {
+            return;
+        }
+        try {
+            agentScopes.onDecision(event, result).ifPresent(step -> {
+                Object earlier = event.getMetadata() != null
+                        ? event.getMetadata().get(AgentContainmentService.CONTAINMENT) : null;
+                event.addMetadata(AgentContainmentService.CONTAINMENT,
+                        earlier != null && !earlier.toString().isBlank() ? earlier + "; " + step : step);
+            });
+        } catch (RuntimeException e) {
+            log.error("[SecurityDecisionEnforcementHandler] Agent scope narrowing failed: eventId={}",
+                    event.getEventId(), e);
+        }
+    }
+
+    /**
+     * docs/agent A5-1: the key the request's decision is stored under. An agent acting for a person keeps its decisions
+     * apart from the person's; everyone else keeps the user ID.
+     */
+    private static String decisionKey(SecurityEvent event, String userId) {
+        if (userId == null || userId.isBlank()) {
+            return userId;
+        }
+        ZeroTrustSubject subject = ZeroTrustSubject.of(event);
+        return subject != null && subject.delegatedAgent() ? subject.storageKey() : userId;
+    }
+
     private void handleBlockDecision(String userId, SecurityEvent event, ProcessingResult result) {
         String requestId = resolveRequestId(event);
         String reasoning = result.getReasoning() != null ? result.getReasoning() : "";
@@ -482,15 +587,32 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             }
             throw e;
         }
-        if (blockedUserRecorder != null) {
+        // docs/agent A5-1, A5-3: an agent is no blocked person; its block stays under its own key, and its stop and
+        // release are the agent's (the console's agent stops), not the people's block list.
+        ZeroTrustSubject subject = ZeroTrustSubject.of(event);
+        // docs/agent A5-3: an agent's block stops that agent only: its delegation and tokens, and its accountable
+        // person is told. The steps reach the decision record (A5-5).
+        if (agentContainment != null && subject != null && subject.agentId() != null) {
             try {
-                blockedUserRecorder.recordBlock(
-                        requestId, userId, event.getUserName(),
-                        result.getAction(),
-                        reasoning,
-                        event.getSourceIp(),
-                        event.getUserAgent()
-                );
+                List<String> steps = agentContainment.onBlock(event, reasoning);
+                if (!steps.isEmpty()) {
+                    event.addMetadata(AgentContainmentService.CONTAINMENT, String.join("; ", steps));
+                }
+            } catch (RuntimeException e) {
+                log.error("[SecurityDecisionEnforcementHandler] Agent containment failed: userId={}", userId, e);
+            }
+        }
+        if (blockedUserRecorder != null && (subject == null || subject.agentId() == null)) {
+            try {
+                // A3-3 (R-01): the block keeps the request's tenant for the release's learning.
+                Object tenant = event.getMetadata() != null ? event.getMetadata().get("tenantId") : null;
+                if (tenant != null && !tenant.toString().isBlank()) {
+                    blockedUserRecorder.recordBlock(requestId, userId, event.getUserName(), result.getAction(),
+                            reasoning, event.getSourceIp(), event.getUserAgent(), tenant.toString().trim());
+                } else {
+                    blockedUserRecorder.recordBlock(requestId, userId, event.getUserName(), result.getAction(),
+                            reasoning, event.getSourceIp(), event.getUserAgent());
+                }
             } catch (Exception ex) {
                 log.error("[SecurityDecisionEnforcementHandler] Failed to record block to DB: userId={}", userId, ex);
             }

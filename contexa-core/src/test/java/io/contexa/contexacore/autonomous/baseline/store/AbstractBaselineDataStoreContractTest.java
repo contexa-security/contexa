@@ -19,7 +19,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacommon.security.baseline.BaselineVector;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -249,5 +253,53 @@ abstract class AbstractBaselineDataStoreContractTest {
         assertThat(read.baseline().getUpdateCount()).isEqualTo(5L);
         assertThat(store.readOrganizationBaseline("no-org").state())
                 .isEqualTo(BaselineDataStore.BaselineRead.State.ABSENT);
+    }
+
+    @Test
+    @DisplayName("docs/agent A3-4: when each value was last seen and which values a verification gave are stored")
+    void user_keepsWhenItsValuesWereLastSeenAndWhichWereVerified() {
+        store.saveUserBaseline("jane", BaselineVector.builder()
+                .userId("jane")
+                .updateCount(2L)
+                .elementLastSeen(new HashMap<>(Map.of("ipBand:10.0.1.0/24", 1_760_000_000_000L)))
+                .verifiedElements(new HashSet<>(Set.of("ipBand:10.0.1.0/24")))
+                .build());
+
+        BaselineVector loaded = store.getUserBaseline("jane");
+
+        assertThat(loaded.getElementLastSeen()).containsEntry("ipBand:10.0.1.0/24", 1_760_000_000_000L);
+        assertThat(loaded.getVerifiedElements()).containsExactly("ipBand:10.0.1.0/24");
+    }
+
+    @Test
+    @DisplayName("docs/agent A3-1: deleting a user's baselines removes those of the agents acting for it, in every tenant")
+    void deleteUserBaseline_removesTheBaselinesOfTheAgentsActingForTheUser() {
+        store.saveUserBaseline("mia", userBaseline("mia"));
+        store.saveUserBaseline("mia::agent::agt-1", userBaseline("mia"));
+        store.saveUserBaseline("tenant-a::mia::agent::agt-2", userBaseline("mia"));
+        store.saveUserBaseline("noah::agent::agt-1", userBaseline("noah"));
+
+        store.deleteUserBaseline("mia");
+
+        assertThat(store.getUserBaseline("mia")).isNull();
+        assertThat(store.getUserBaseline("mia::agent::agt-1")).isNull();
+        assertThat(store.getUserBaseline("tenant-a::mia::agent::agt-2")).isNull();
+        assertThat(store.getUserBaseline("noah::agent::agt-1")).isNotNull();
+    }
+
+    @Test
+    @DisplayName("docs/agent A3-8: deleting an agent's baselines removes every learning key of the agent only")
+    void deleteAgentBaselines_removesOnlyThatAgentsKeys() {
+        store.saveUserBaseline("tenant-a::kim::agent::agt-1", userBaseline("kim"));
+        store.saveUserBaseline("lee::agent::agt-1", userBaseline("lee"));
+        store.saveUserBaseline("kim::agent::agt-10", userBaseline("kim"));
+        store.saveUserBaseline("kim", userBaseline("kim"));
+
+        assertThat(store.deleteAgentBaselines("agt-1")).isEqualTo(2);
+
+        assertThat(store.getUserBaseline("tenant-a::kim::agent::agt-1")).isNull();
+        assertThat(store.getUserBaseline("lee::agent::agt-1")).isNull();
+        assertThat(store.getUserBaseline("kim::agent::agt-10")).isNotNull();
+        assertThat(store.getUserBaseline("kim")).isNotNull();
     }
 }

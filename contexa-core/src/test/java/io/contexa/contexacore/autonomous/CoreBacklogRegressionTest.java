@@ -80,8 +80,12 @@ class CoreBacklogRegressionTest {
         agents.forEach(SecurityPlaneAgent::shutdown);
     }
 
+    /**
+     * A restriction in force answers a synchronous request without another analysis. An ALLOW in force no longer does
+     * (docs/agent A7-2, 2026-10-23, user approval): {@link #allowInForceDoesNotAnswerASynchronousRequest}.
+     */
     @ParameterizedTest
-    @ValueSource(strings = {"ALLOW", "CHALLENGE", "ESCALATE", "BLOCK"})
+    @ValueSource(strings = {"CHALLENGE", "ESCALATE", "BLOCK"})
     void validActionIsReusedWithoutAnotherSynchronousAnalysis(String actionName) {
         String user = UUID.randomUUID().toString();
         InMemoryZeroTrustActionRepository actions = new InMemoryZeroTrustActionRepository();
@@ -107,6 +111,41 @@ class CoreBacklogRegressionTest {
 
         assertThat(service.analyze(invocation, auth).action()).isEqualTo(action);
         verifyNoInteractions(agent);
+    }
+
+    /**
+     * docs/agent A7-2 (real server 2026-10-23, user approval): a business agent sends its requests seconds apart, so an
+     * ALLOW of a document read was still in force when a synchronous export followed. The synchronous request is
+     * analysed itself; the ALLOW in force does not answer it.
+     */
+    @Test
+    void allowInForceDoesNotAnswerASynchronousRequest() {
+        String user = UUID.randomUUID().toString();
+        InMemoryZeroTrustActionRepository actions = new InMemoryZeroTrustActionRepository();
+        ZeroTrustSpringEvent event = ZeroTrustSpringEvent.builder(this)
+                .category(ZeroTrustEventCategory.AUTHORIZATION)
+                .eventType(ZeroTrustSpringEvent.TYPE_AUTHORIZATION_METHOD)
+                .userId(user).sessionId(UUID.randomUUID().toString())
+                .clientIp("127.0.0.1").userAgent("Contexa-Backlog-Regression")
+                .resource("/regression/protected").build();
+        ZeroTrustEventListener listener = new ZeroTrustEventListener(
+                mock(SecurityEventPublisher.class), actions, new SecurityZeroTrustProperties());
+        String contextHash = listener.generateAuthorizationContextBindingHash(event);
+        actions.saveAction(user, ZeroTrustAction.ALLOW, Map.of("contextBindingHash", contextHash));
+        ZeroTrustEventPublisher publisher = mock(ZeroTrustEventPublisher.class);
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
+                user, "unused", List.of(new SimpleGrantedAuthority("ROLE_USER")));
+        when(publisher.buildMethodAuthorizationEvent(invocation, auth, true, null)).thenReturn(event);
+        SecurityPlaneAgent agent = mock(SecurityPlaneAgent.class);
+        SynchronousProtectableDecisionService service = new SynchronousProtectableDecisionService(
+                publisher, listener, agent, actions);
+
+        service.analyze(invocation, auth);
+
+        verify(agent).processSecurityEvent(any(SecurityEvent.class));
+        assertThat(listener.shouldPublishAuthorizationEvent(event))
+                .as("an asynchronous request is still answered by the ALLOW in force (N-SES-1)").isFalse();
     }
 
     @Test

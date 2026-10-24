@@ -36,7 +36,11 @@ const widths = option('--widths', '1440,390').split(',').map(Number);
 const languages = option('--languages', 'ko,en').split(',');
 const firstOnly = args.includes('--first-only');
 const state = option('--state', null);
-const route = JSON.parse(fs.readFileSync(path.join(here, '..', 'src', 'journey', 'route.json'), 'utf8'));
+// --only 6-,7-0 checks the screens whose numbers start with one of the given beginnings (a recheck after a fix).
+const only = option('--only', null)?.split(',').filter(Boolean) ?? null;
+const route = JSON.parse(fs.readFileSync(path.join(here, '..', 'src', 'journey', 'route.json'), 'utf8')).filter(
+  (screen) => only === null || only.some((beginning) => screen.number.startsWith(beginning)),
+);
 const books = Object.fromEntries(
   ['ko', 'en'].map((language) => [
     language,
@@ -146,12 +150,22 @@ for (const language of languages) {
           book['main.4-3.missing.attacker'],
           book['main.4-3.missing.owner'],
           book['main.5-3.intro.none'],
+          // docs/agent A7-3: the agent group before the visitor gave the agent the work.
+          book['main.6-2.intro.none'],
+          book['main.6-3.intro.none'],
+          book['main.6-4.intro.none'],
         ].includes(seen.intro ?? '');
         if (!unsent && copy.title && !same(seen.title, copy.title) && !same(seen.title, book[`main.${screen.number}.titlePlain`])) {
           fails.push(`title '${seen.title}' != '${copy.title}'`);
         }
         // A screen that sends its own run shows its send button until the run is sent (4-4, FU-3).
-        const sending = [book['main.request.send'], book['main.4-4.sendAgain']].includes(seen.main ?? '');
+        const sending = [
+          book['main.request.send'],
+          book['main.4-4.sendAgain'],
+          // docs/agent A7-3: 6-1 hands the work to the agent; 6-4 waits for the delegating employee's answer.
+          book['main.6-1.send'],
+          book['main.6-4.waiting'],
+        ].includes(seen.main ?? '');
         if (!unsent && !sending && copy.main && seen.main !== null && !seen.main.startsWith(copy.main)) {
           fails.push(`main '${seen.main}' != '${copy.main}'`);
         }

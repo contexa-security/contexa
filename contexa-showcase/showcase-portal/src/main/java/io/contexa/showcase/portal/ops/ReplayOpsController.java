@@ -2,6 +2,7 @@ package io.contexa.showcase.portal.ops;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.showcase.portal.orchestrator.OpsAdministrator;
 import io.contexa.showcase.portal.orchestrator.WorkloadAdmin;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -98,8 +99,15 @@ public class ReplayOpsController {
         jobs.put(jobId, new ReplayJob(jobId, batch.bundleVersion(), batch.steps().size(), "RUNNING", Instant.now(), null,
                 rows));
         executor.submit(() -> {
-            for (Step step : batch.steps()) {
-                rows.add(row(workloadAdmin, step, batch.bundleVersion(), batch.secondPassModels()));
+            // docs/agent OC-5: one security administrator of control D replays the batch through the engine's admin
+            // API and is removed afterwards.
+            try (OpsAdministrator operator = workloadAdmin.opsAdministrator()) {
+                for (Step step : batch.steps()) {
+                    rows.add(row(operator, step, batch.bundleVersion(), batch.secondPassModels()));
+                }
+            } catch (IOException | RuntimeException exception) {
+                rows.add(Map.of("failure", "OPS_ADMINISTRATOR: " + exception.getClass().getSimpleName() + ": "
+                        + exception.getMessage()));
             }
             jobs.computeIfPresent(jobId, (id, job) -> new ReplayJob(id, job.bundleVersion(), job.steps(), "DONE",
                     job.startedAt(), Instant.now(), job.rows()));
@@ -114,7 +122,7 @@ public class ReplayOpsController {
     }
 
     /** The replay of one run step next to the decision the run recorded. */
-    private Map<String, Object> row(WorkloadAdmin workload, Step step, String bundleVersion,
+    private Map<String, Object> row(OpsAdministrator operator, Step step, String bundleVersion,
                                     List<String> secondPassModels) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("runId", step.runId());
@@ -151,12 +159,13 @@ public class ReplayOpsController {
             if (secondPassModels != null && !secondPassModels.isEmpty()) {
                 request.put("secondPassModels", secondPassModels);
             }
-            Optional<JsonNode> replayed = workload.replay(String.valueOf(recorded.get("request_id")), request);
+            Optional<JsonNode> replayed = operator.replay(String.valueOf(recorded.get("request_id")), request);
             if (replayed.isEmpty()) {
                 row.put("failure", "NOT_SEALED");
                 return row;
             }
-            row.put("replay", json.convertValue(replayed.get(), Object.class));
+            row.put("replay", json.convertValue(replayed.get().path("result"), Object.class));
+            row.put("replayBaselines", replayed.get().path("baselines").asText(null));
         }
         catch (IOException | RuntimeException exception) {
             row.put("failure", exception.getClass().getSimpleName() + ": " + exception.getMessage());

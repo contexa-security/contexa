@@ -32,7 +32,11 @@ class ContexaBusinessOperationsDescriptorTest {
 
         assertThat(declared).containsExactlyInAnyOrderEntriesOf(Map.of(
                 "readDocument", "PROJECT_DOCUMENTS READ",
-                "downloadDocument", "PROJECT_DOCUMENTS READ",
+                // docs/agent A7-2a: finding a project's documents reads them.
+                "listDocuments", "PROJECT_DOCUMENTS READ",
+                // docs/agent OC-2: a download is its own action (its family stays READ), so the company's
+                // tickets cover a read without covering a download.
+                "downloadDocument", "PROJECT_DOCUMENTS DOWNLOAD",
                 "exportDocuments", "PROJECT_DOCUMENTS EXPORT exportSensitive sync",
                 "openExportStream", "PROJECT_DOCUMENTS EXPORT exportSensitive",
                 "exportDocumentsAsync", "PROJECT_DOCUMENTS EXPORT exportSensitive",

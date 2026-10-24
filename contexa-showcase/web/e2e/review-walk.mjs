@@ -189,26 +189,53 @@ try {
     await next(/\/insider\/reason/);
     await record('5-3', 'ko');
   });
+  // docs/agent A7-3: the business agent group; the visitor answers the confirmation as the delegating employee.
+  await step('agent', async () => {
+    await next(/\/agent$/);
+    await record('6-0', 'ko');
+    await next(/\/agent\/request/);
+    await record('6-1', 'ko');
+    await page.getByText(ko['main.6-1.call.BLOCK'], { exact: true }).click();
+    await mainButton().click();
+    await page.waitForURL(/\/agent\/console/, { timeout: 60_000 });
+    await page.waitForFunction(
+      ([selector, text]) => document.querySelector(selector)?.textContent?.includes(text),
+      ['[data-zone="actions"] [data-main]', ko['main.6-2.cta']],
+      { timeout: RUN_TIMEOUT },
+    );
+    await record('6-2', 'ko');
+    await next(/\/agent\/reason/);
+    await record('6-3', 'ko');
+    await next(/\/agent\/confirm/);
+    await record('6-4-asked', 'ko');
+    const approve = page.getByRole('button', { name: ko['main.6-4.approve'] });
+    if ((await approve.count()) > 0) {
+      await approve.click();
+    }
+    sends.push({ name: 'agent', status: await waitRun('T5') });
+    await page.waitForTimeout(3_000);
+    await record('6-4', 'ko');
+  });
   await step('compare', async () => {
     await next(/\/compare$/);
-    await record('6-0', 'ko');
+    await record('7-0', 'ko');
     await next(/\/compare\/rule/);
-    await record('6-1', 'ko');
+    await record('7-1', 'ko');
     await next(/\/compare\/change/);
-    await record('6-2-before', 'ko');
-    await page.getByRole('button', { name: ko['main.6-2.send'] }).click();
+    await record('7-2-before', 'ko');
+    await page.getByRole('button', { name: ko['main.7-2.send'] }).click();
     await page.waitForURL(/sent=/, { timeout: 60_000 });
     sends.push({ name: 'changed', status: await waitRun(null) });
     await page.waitForTimeout(8_000);
-    await record('6-2', 'ko');
+    await record('7-2', 'ko');
     await next(/\/compare\/runs/);
-    await record('6-3', 'ko');
+    await record('7-3', 'ko');
   });
   await step('summary', async () => {
     await next(/\/summary$/);
-    await record('7-1', 'ko');
+    await record('8-1', 'ko');
     await next(/\/summary\/next/);
-    await record('7-2', 'ko');
+    await record('8-2', 'ko');
   });
 } catch {
   // The flow stopped; the problem is recorded and the other screens are still walked.

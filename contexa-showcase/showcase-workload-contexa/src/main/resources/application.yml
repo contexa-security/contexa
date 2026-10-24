@@ -31,9 +31,10 @@ spring:
       mode: never
   ai:
     model:
-      # The chat provider: openai, or anthropic for the model comparison; the embeddings stay on OpenAI.
+      # The chat provider: openai, or anthropic for the model comparison and when the OpenAI balance is used up
+      # (docs/agent 위임결정기록 DD-4). The embeddings: openai, or ollama (local) with the OpenAI balance used up.
       chat: ${SHOWCASE_CHAT_PROVIDER:openai}
-      embedding: openai
+      embedding: ${SHOWCASE_EMBEDDING_PROVIDER:openai}
     openai:
       api-key: ${OPENAI_API_KEY:}
       chat:
@@ -48,6 +49,13 @@ spring:
         options:
           model: ${SHOWCASE_EMBEDDING_MODEL:text-embedding-3-small}
           dimensions: ${SHOWCASE_EMBEDDING_DIMENSIONS:1024}
+    # Local embeddings when the OpenAI balance is used up (docs/agent 위임결정기록 DD-4): mxbai-embed-large has the
+    # pgvector's 1024 dimensions. Another provider is another vector space, so the templates are learned again.
+    ollama:
+      base-url: ${SHOWCASE_OLLAMA_BASE_URL:http://127.0.0.1:11434}
+      embedding:
+        options:
+          model: ${SHOWCASE_OLLAMA_EMBEDDING_MODEL:mxbai-embed-large}
 contexa:
   enabled: true
   infrastructure:
@@ -61,19 +69,28 @@ contexa:
   security:
     zerotrust:
       mode: ENFORCE
+      agent:
+        # docs/agent A2-1: the business objective the company's agents are delegated (a delegation record's objective
+        # family), in the words of the business operations' @Protectable category and actions; the export limit is
+        # the company's limit for an assigned project.
+        objective-contracts:
+          REPORTING:
+            operations: [READ, EXPORT]
+            resource-families: [PROJECT_DOCUMENTS]
+            max-export-items: 500
     tiered:
       # The decision prompt bundle D runs (docs/showcase/판정층-수정계획.md 8절 1): without it a plain start runs the
       # core default bundle.
       prompt-bundle:
-        active: 2026.10.20-v21.8
+        active: 2026.10.24-v21.14
       # The model of each analysis layer (docs/showcase/판정층-수정계획.md E-7): Layer1 decides, Layer2 decides what
       # Layer1 could not. A model id with no runtime binding runs on a copy of the primary chat model; one that cannot
       # be made stops the start.
       llm:
         layer1:
-          model: gpt-6-luna
+          model: ${SHOWCASE_LAYER1_MODEL:gpt-6-luna}
         layer2:
-          model: gpt-6.1-sol
+          model: ${SHOWCASE_LAYER2_MODEL:gpt-6.1-sol}
       layer1:
         open-ai-reasoning-effort: low
         max-output-tokens: 2048
@@ -87,6 +104,12 @@ contexa:
   auth:
     state-type: SESSION
     cookie-secure: ${SHOWCASE_SECURE_COOKIE:false}
+    # docs/agent A7-0: the agents' flow issues tokens through the engine's authorization server. The internal client
+    # secret is a server secret like the signing key; the issuer is D's own address, where its token engine calls.
+    oauth2:
+      client-secret: ${SHOWCASE_OAUTH2_CLIENT_SECRET:}
+      issuer-uri: ${SHOWCASE_OAUTH2_ISSUER:http://127.0.0.1:19182}
+      token-exchange-enabled: true
   llm:
     # The OpenAI models that take max_completion_tokens and the reasoning effort (the core default covers gpt-5 and o).
     model-capabilities:
@@ -97,7 +120,7 @@ contexa:
       chat:
         priority: ${SHOWCASE_CHAT_PROVIDER:openai}
       embedding:
-        priority: openai
+        priority: ${SHOWCASE_EMBEDDING_PROVIDER:openai}
   vectorstore:
     pgvector:
       dimensions: ${SHOWCASE_EMBEDDING_DIMENSIONS:1024}

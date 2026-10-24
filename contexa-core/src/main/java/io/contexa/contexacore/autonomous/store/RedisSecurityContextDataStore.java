@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.store;
 
 import java.time.Instant;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,10 +33,12 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -65,6 +68,8 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     /** The member that marks a user's stopped requests verified; a request member is serialized text (N-LRN-3). */
     private static final String STOPPED_REQUESTS_VERIFIED = "@verified";
     private static final Duration WORK_PROFILE_TTL = Duration.ofDays(30);
+    /** docs/agent A3-8: the scopes whose learning an operator quarantined. */
+    private static final String LEARNING_QUARANTINE_KEY = "security:autonomous:learning:quarantine";
     private static final Duration ROLE_SCOPE_TTL = Duration.ofDays(30);
     private static final Duration PERMISSION_CHANGE_TTL = Duration.ofDays(30);
     private static final Duration AUTHORIZATION_SCOPE_STATE_TTL = Duration.ofDays(30);
@@ -1018,6 +1023,48 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     }
 
     @Override
+    public void setLearningQuarantined(String scope, boolean quarantined) {
+        if (scope == null || scope.isBlank()) {
+            return;
+        }
+        if (quarantined) {
+            redisTemplate.opsForSet().add(LEARNING_QUARANTINE_KEY, scope);
+        } else {
+            redisTemplate.opsForSet().remove(LEARNING_QUARANTINE_KEY, scope);
+        }
+    }
+
+    @Override
+    public boolean learningQuarantined(String scope) {
+        if (scope == null || scope.isBlank()) {
+            return false;
+        }
+        return Boolean.TRUE.equals(redisTemplate.opsForSet().isMember(LEARNING_QUARANTINE_KEY, scope));
+    }
+
+    @Override
+    public Set<String> learningQuarantineScopes() {
+        Set<Object> scopes = redisTemplate.opsForSet().members(LEARNING_QUARANTINE_KEY);
+        if (scopes == null) {
+            return Set.of();
+        }
+        return scopes.stream().filter(Objects::nonNull).map(String::valueOf).collect(Collectors.toUnmodifiableSet());
+    }
+
+    @Override
+    public int deleteAgentLearning(String agentId) {
+        if (agentId == null || agentId.isBlank()) {
+            return 0;
+        }
+        List<String> keys = scanKeys(ZeroTrustRedisKeys.userWorkProfileObservations(
+                "*" + LearningSubject.AGENT_KEY + ZeroTrustRedisKeys.globLiteral(agentId)));
+        if (!keys.isEmpty()) {
+            redisTemplate.delete(keys);
+        }
+        return keys.size();
+    }
+
+    @Override
     public void deleteUserData(String userId) {
         if (userId == null || userId.isBlank()) {
             return;
@@ -1038,6 +1085,16 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
         keys.addAll(scanKeys(ZeroTrustRedisKeys.userWorkProfileObservations(anyTenantScope)));
         keys.addAll(scanKeys(ZeroTrustRedisKeys.userPermissionChangeObservations(anyTenantScope)));
         keys.addAll(scanKeys(ZeroTrustRedisKeys.userAuthorizationScopeState(anyTenantScope)));
+        // docs/agent A3-1: what the agents acting for the user learned, under their learning keys in every tenant.
+        String agentKeys = ZeroTrustRedisKeys.globLiteral(userId) + LearningSubject.AGENT_KEY + "*";
+        keys.addAll(scanKeys(ZeroTrustRedisKeys.userWorkProfileObservations(agentKeys)));
+        keys.addAll(scanKeys(ZeroTrustRedisKeys.userWorkProfileObservations("*::" + agentKeys)));
+        keys.addAll(scanKeys(ZeroTrustRedisKeys.promotionLearning(agentKeys)));
+        // docs/agent F-6 (CF-27): and the authorization state the agents' requests are compared with.
+        keys.addAll(scanKeys(ZeroTrustRedisKeys.userPermissionChangeObservations(agentKeys)));
+        keys.addAll(scanKeys(ZeroTrustRedisKeys.userPermissionChangeObservations("*::" + agentKeys)));
+        keys.addAll(scanKeys(ZeroTrustRedisKeys.userAuthorizationScopeState(agentKeys)));
+        keys.addAll(scanKeys(ZeroTrustRedisKeys.userAuthorizationScopeState("*::" + agentKeys)));
         redisTemplate.delete(keys);
     }
 

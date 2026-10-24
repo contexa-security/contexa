@@ -2,6 +2,7 @@ package io.contexa.contexaiam.admin.promptquality.evidence;
 
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
+import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -27,7 +28,8 @@ public final class JdbcSealedEvidencePackageRepository implements SealedEvidence
                    raw_system_prompt_hash, raw_user_prompt_hash,
                    prompt_execution_metadata_json, prompt_evidence_manifest_json,
                    seal_state, seal_failure_reason, decision_json, package_hash,
-                   schema_version, sealed, expires_at, created_at
+                   schema_version, sealed, expires_at, created_at,
+                   previous_package_hash, package_signature, signature_key_id
               from sealed_evidence_package
             """;
     private static final String INSERT_SQL = """
@@ -40,18 +42,36 @@ public final class JdbcSealedEvidencePackageRepository implements SealedEvidence
                 raw_system_prompt_hash, raw_user_prompt_hash,
                 prompt_execution_metadata_json, prompt_evidence_manifest_json,
                 seal_state, seal_failure_reason, decision_json, package_hash,
-                schema_version, sealed, expires_at, created_at
+                schema_version, sealed, expires_at, previous_package_hash, package_signature, signature_key_id,
+                created_at
             ) values (
                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?
             )
             returning id
             """;
+    /** docs/agent A5-6: the latest linked package, the one a new package is sealed after. */
+    private static final String LATEST_LINKED_HASH_SQL = """
+            select package_hash from sealed_evidence_package
+             where schema_version >= ? order by id desc limit 1
+            """;
     private final JdbcOperations jdbcOperations;
+    /** Seals linked packages in the order this store inserts them. */
+    private final Object sealLock = new Object();
+    private SealedEvidencePackageIntegrity integrity;
 
     public JdbcSealedEvidencePackageRepository(JdbcOperations jdbcOperations) {
         this.jdbcOperations = Objects.requireNonNull(jdbcOperations, "jdbcOperations");
+    }
+
+    /**
+     * docs/agent A5-6: the integrity a schema 3 package is sealed with on insert, after the package inserted before
+     * it; without one a package keeps the hash it was assembled with.
+     */
+    public void setIntegrity(SealedEvidencePackageIntegrity integrity) {
+        this.integrity = integrity;
     }
 
     @Override
@@ -117,12 +137,28 @@ public final class JdbcSealedEvidencePackageRepository implements SealedEvidence
     }
 
     private SealedEvidencePackage insert(SealedEvidencePackage evidencePackage) {
+        if (integrity == null
+                || evidencePackage.getSchemaVersion() < SealedEvidencePackageIntegrity.LINKED_SCHEMA_VERSION) {
+            return insertSealed(evidencePackage);
+        }
+        synchronized (sealLock) {
+            List<String> latest = jdbcOperations.queryForList(LATEST_LINKED_HASH_SQL, String.class,
+                    SealedEvidencePackageIntegrity.LINKED_SCHEMA_VERSION);
+            integrity.seal(evidencePackage, latest.isEmpty() ? null : latest.get(0));
+            return insertSealed(evidencePackage);
+        }
+    }
+
+    private SealedEvidencePackage insertSealed(SealedEvidencePackage evidencePackage) {
         Instant createdAt = evidencePackage.getCreatedAt() == null
                 ? Instant.now()
                 : evidencePackage.getCreatedAt();
         Object[] mutable = mutableArguments(evidencePackage);
-        Object[] insertArguments = Arrays.copyOf(mutable, 30);
-        insertArguments[29] = timestamp(createdAt);
+        Object[] insertArguments = Arrays.copyOf(mutable, 33);
+        insertArguments[29] = evidencePackage.getPreviousPackageHash();
+        insertArguments[30] = evidencePackage.getPackageSignature();
+        insertArguments[31] = evidencePackage.getSignatureKeyId();
+        insertArguments[32] = timestamp(createdAt);
         Long id = jdbcOperations.queryForObject(INSERT_SQL, Long.class, insertArguments);
         if (id == null) {
             throw new IllegalStateException("Sealed evidence package insert did not return an identifier.");
@@ -197,6 +233,9 @@ public final class JdbcSealedEvidencePackageRepository implements SealedEvidence
                 .userPromptHash(resultSet.getString("user_prompt_hash"))
                 .rawSystemPromptHash(resultSet.getString("raw_system_prompt_hash"))
                 .rawUserPromptHash(resultSet.getString("raw_user_prompt_hash"))
+                .previousPackageHash(resultSet.getString("previous_package_hash"))
+                .packageSignature(resultSet.getString("package_signature"))
+                .signatureKeyId(resultSet.getString("signature_key_id"))
                 .promptExecutionMetadataJson(resultSet.getString("prompt_execution_metadata_json"))
                 .promptEvidenceManifestJson(resultSet.getString("prompt_evidence_manifest_json"))
                 .sealState(resultSet.getString("seal_state"))

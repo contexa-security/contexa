@@ -47,6 +47,11 @@ public final class RequestSecurityContextAttributes {
          * of that project): the host's record, not the requester's text.
          */
         RESOURCE_SCOPE("resourceScope", List.of("resourceScope")),
+        /**
+         * A record the requester names in the request as covering it (a ticket key), as the requester wrote it: a claim
+         * the company records are checked for, never evidence by itself (docs/agent OC-2).
+         */
+        CLAIMED_RECORD("claimedRecord", List.of("claimedRecord")),
         RESOURCE_ID("resourceId", List.of("resourceId", "requestedResourceId", "protectedResourceId")),
         PREVIOUS_PATH("previousPath", List.of("previousPath")),
         LAST_REQUEST_INTERVAL_MS("lastRequestIntervalMs", List.of("lastRequestIntervalMs")),

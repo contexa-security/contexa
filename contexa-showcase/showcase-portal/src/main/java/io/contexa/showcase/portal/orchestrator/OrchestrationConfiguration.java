@@ -2,6 +2,9 @@ package io.contexa.showcase.portal.orchestrator;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.showcase.business.internal.InternalContextSigner;
+import io.contexa.showcase.portal.agent.AgentModels;
+import io.contexa.showcase.portal.agent.AgentTasks;
+import io.contexa.showcase.portal.agent.BusinessAgent;
 import io.contexa.showcase.portal.anatomy.AnatomyStore;
 import io.contexa.showcase.portal.anatomy.BeforeSend;
 import io.contexa.showcase.portal.benchmark.BenchmarkService;
@@ -39,6 +42,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 import java.net.URI;
@@ -85,13 +89,36 @@ public class OrchestrationConfiguration {
         return new TemplateCurrency(admin, templateStore, Clock.systemUTC());
     }
 
+    /**
+     * docs/agent A7-2b: the business agent of agent tasks, on the company's model account (the key control D uses),
+     * with the limits of a task that names none. Separate from the engine's decision models.
+     */
+    @Bean
+    AgentTasks agentTasks(Environment environment) {
+        // docs/agent 위임결정기록 DD-4: Anthropic when the OpenAI balance is used up.
+        String provider = environment.getProperty("showcase.agent.provider", AgentModels.OPENAI);
+        boolean anthropic = AgentModels.ANTHROPIC.equals(provider);
+        AgentModels models = new AgentModels(provider,
+                anthropic ? environment.getProperty("showcase.agent.anthropic.api-key",
+                        environment.getProperty("ANTHROPIC_API_KEY", ""))
+                        : environment.getProperty("showcase.agent.openai.api-key",
+                        environment.getProperty("OPENAI_API_KEY", "")),
+                environment.getProperty(anthropic ? "showcase.agent.anthropic.base-url" : "showcase.agent.openai.base-url",
+                        ""),
+                environment.getProperty("showcase.agent.model", anthropic ? "claude-haiku-5-5" : "gpt-6-luna"),
+                environment.getProperty("showcase.agent.reasoning-effort", "none"));
+        return new AgentTasks(new BusinessAgent(models), models,
+                environment.getProperty("showcase.agent.max-tool-calls", Integer.class, 12),
+                Duration.ofSeconds(environment.getProperty("showcase.agent.max-seconds", Long.class, 300L)));
+    }
+
     @Bean
     RunOrchestrator runOrchestrator(ControlEndpoints endpoints, WorkloadAdmin admin, InternalContextSigner signer,
                                     RunStore runStore, TemplateCurrency templateCurrency, ExecutionSpecStore specs,
                                     ScoringContract contract, ObjectMapper objectMapper,
-                                    AnatomyStore anatomies) {
+                                    AnatomyStore anatomies, AgentTasks agentTasks) {
         return new RunOrchestrator(endpoints, admin, signer, runStore, templateCurrency, specs, contract,
-                objectMapper, anatomies);
+                objectMapper, anatomies, agentTasks);
     }
 
     /**

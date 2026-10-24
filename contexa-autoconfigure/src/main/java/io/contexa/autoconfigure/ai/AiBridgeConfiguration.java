@@ -15,6 +15,7 @@
  */
 package io.contexa.autoconfigure.ai;
 
+import io.contexa.contexacommon.security.subject.AgentClientDirectory;
 import io.contexa.contexacommon.annotation.AiSecurityImportSelector;
 import io.contexa.contexacommon.security.bridge.*;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageEvaluator;
@@ -95,8 +96,10 @@ public class AiBridgeConfiguration {
     @Bean
     @Order(0)
     @ConditionalOnMissingBean(SecurityContextAuthenticationStampResolver.class)
-    public AuthenticationStampResolver securityOnAuthenticationStampResolver() {
-        return new SecurityContextAuthenticationStampResolver();
+    public AuthenticationStampResolver securityOnAuthenticationStampResolver(
+            ObjectProvider<AgentClientDirectory> agentClientDirectory) {
+        return new SecurityContextAuthenticationStampResolver(
+                agentClientDirectory.getIfAvailable(() -> AgentClientDirectory.NONE));
     }
 
     @Bean
@@ -141,8 +144,9 @@ public class AiBridgeConfiguration {
     @Bean
     @Order(1)
     @ConditionalOnMissingBean(TokenDelegationStampResolver.class)
-    public DelegationStampResolver tokenDelegationStampResolver() {
-        return new TokenDelegationStampResolver();
+    public DelegationStampResolver tokenDelegationStampResolver(ObjectProvider<AgentClientDirectory> agentClientDirectory) {
+        // A1-2: a client the agent registry approves is read as that agent even when its token carries no agent claim.
+        return new TokenDelegationStampResolver(agentClientDirectory.getIfAvailable(() -> AgentClientDirectory.NONE));
     }
 
     @Bean
@@ -164,6 +168,24 @@ public class AiBridgeConfiguration {
     @ConditionalOnMissingBean(HeaderDelegationStampResolver.class)
     public DelegationStampResolver securityOffHeaderDelegationStampResolver() {
         return new HeaderDelegationStampResolver();
+    }
+
+    /** A1-11: the token claim names the agent session key reads, registered for every filter of a request. */
+    @Bean
+    @ConditionalOnMissingBean
+    public AgentSessionKeyRegistrar agentSessionKeyRegistrar(BridgeProperties bridgeProperties) {
+        return new AgentSessionKeyRegistrar(bridgeProperties);
+    }
+
+    /**
+     * A1-13: last, an approved agent signed in with its own account (a session login) is that agent; no other channel
+     * stated an agent by then, and a person's account yields nothing.
+     */
+    @Bean
+    @Order(30)
+    @ConditionalOnMissingBean(AgentAccountDelegationStampResolver.class)
+    public DelegationStampResolver agentAccountDelegationStampResolver(ObjectProvider<AgentClientDirectory> agentClientDirectory) {
+        return new AgentAccountDelegationStampResolver(agentClientDirectory.getIfAvailable(() -> AgentClientDirectory.NONE));
     }
 
     // BridgeUserMirrorSyncService is provided by AiBridgeUserMirrorSyncAutoConfiguration, which is evaluated

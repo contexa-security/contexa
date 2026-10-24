@@ -43,6 +43,17 @@ public final class UntrustedTextSources {
     public static final String SESSION_REQUEST_PATHS = "session request paths (requester)";
     /** A ticket the requester names. */
     public static final String CLAIMED_TICKET = "ticket named by the requester (requester)";
+    /** What the caller passed to the protected method, as the publisher summarised it (v21, A2-8). */
+    public static final String CALL_ARGUMENTS = "call arguments (requester)";
+    /** The target of a past record or a past denied decision: path variables a requester wrote (v21, A3-5). */
+    public static final String PAST_RECORD_TARGET = "past record target (requester)";
+    /** The objective of a delegation in the words it was written in (v21, A2-5). */
+    public static final String DELEGATION_OBJECTIVE = "delegation objective (host text)";
+    /**
+     * A stored text of the validated case memory: an earlier analysis' summary, a threat signal's summary or matched
+     * threat knowledge, written outside this request (v21, B3-3).
+     */
+    public static final String VALIDATED_CASE_MEMORY = "validated case memory (stored text)";
 
     private UntrustedTextSources() {
     }

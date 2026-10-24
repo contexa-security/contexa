@@ -15,9 +15,13 @@
  */
 package io.contexa.autoconfigure.core.autonomous;
 
+import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
+import io.contexa.contexacore.autonomous.agent.InMemoryDelegationRegistry;
+import io.contexa.contexacore.autonomous.agent.RegistryDelegationRecordLookup;
 import io.contexa.contexacore.autonomous.context.enricher.DelegationContextProvider;
 import io.contexa.contexacore.autonomous.context.enricher.DelegationRecordLookup;
 import io.contexa.contexacore.autonomous.context.enricher.RecordedDelegationContextProvider;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -28,17 +32,32 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** A1-4: a host's delegation record lookup turns the recorded delegation provider on; without one nothing changes. */
+/**
+ * A1-4, docs/agent OC-1: every agent request is decided with its delegation record, read from the delegations Contexa
+ * keeps unless the host declares its own lookup.
+ */
 class DelegationRecordProviderWiringTest {
 
     @Test
-    void theProviderIsMadeOnlyWhenTheHostDeclaresALookupAndCanBeReplaced() throws Exception {
-        Method method = CoreAutonomousAutoConfiguration.class.getDeclaredMethod(
+    void theProviderIsAlwaysMadeAndTheHostsLookupReplacesContexasDelegations() throws Exception {
+        Method provider = CoreAutonomousAutoConfiguration.class.getDeclaredMethod(
                 "recordedDelegationContextProvider", DelegationRecordLookup.class);
+        Method lookup = CoreAutonomousAutoConfiguration.class.getDeclaredMethod(
+                "delegationRecordLookup", DelegationRegistry.class);
+        Method registry = CoreAutonomousAutoConfiguration.class.getDeclaredMethod(
+                "defaultDelegationRegistry", SecurityZeroTrustProperties.class);
 
-        assertThat(method.getAnnotation(ConditionalOnBean.class).value()).containsExactly(DelegationRecordLookup.class);
-        assertThat(method.getAnnotation(ConditionalOnMissingBean.class).value())
+        assertThat(provider.getAnnotation(ConditionalOnBean.class)).isNull();
+        assertThat(provider.getAnnotation(ConditionalOnMissingBean.class).value())
                 .containsExactly(RecordedDelegationContextProvider.class);
+        assertThat(lookup.getAnnotation(ConditionalOnMissingBean.class).value())
+                .containsExactly(DelegationRecordLookup.class);
+        assertThat(registry.getAnnotation(ConditionalOnMissingBean.class).value())
+                .containsExactly(DelegationRegistry.class);
+        CoreAutonomousAutoConfiguration configuration = new CoreAutonomousAutoConfiguration();
+        DelegationRegistry defaults = configuration.defaultDelegationRegistry(new SecurityZeroTrustProperties());
+        assertThat(defaults).isInstanceOf(InMemoryDelegationRegistry.class);
+        assertThat(configuration.delegationRecordLookup(defaults)).isInstanceOf(RegistryDelegationRecordLookup.class);
     }
 
     @Test

@@ -35,5 +35,38 @@
       }
     ],
     "end": 68.264
+  },
+  "agent": {
+    "file": "agent.webm",
+    "captions": {
+      "ko": "agent.ko.vtt",
+      "en": "agent.en.vtt"
+    },
+    "durationSec": 67,
+    "recordedAt": "2026-10-24T08:31:33Z",
+    "screens": "v4",
+    "scenes": [
+      {
+        "key": "guide.agent.work",
+        "start": 1.924
+      },
+      {
+        "key": "guide.agent.send",
+        "start": 11.26
+      },
+      {
+        "key": "guide.agent.rows",
+        "start": 28.321
+      },
+      {
+        "key": "guide.agent.reason",
+        "start": 42.226
+      },
+      {
+        "key": "guide.agent.answer",
+        "start": 54.189
+      }
+    ],
+    "end": 65.199
   }
 }

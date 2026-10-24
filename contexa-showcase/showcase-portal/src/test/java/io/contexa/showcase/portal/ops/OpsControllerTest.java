@@ -21,4 +21,18 @@ class OpsControllerTest {
         assertThat(OpsController.variantKind("A3")).as("a case, not a variant").isNull();
         assertThat(OpsController.variantKind("A3-X3")).isNull();
     }
+
+    /** docs/agent DD-27: retries go only with an unanswered confirmation, and within the bound. */
+    @Test
+    void anAgentTaskTakesRetriesOnlyWithAnUnansweredConfirmation() {
+        assertThat(OpsController.delegatorAnswerTaken(null, 0)).isTrue();
+        assertThat(OpsController.delegatorAnswerTaken("APPROVE", 0)).isTrue();
+        assertThat(OpsController.delegatorAnswerTaken("REPORT", 0)).isTrue();
+        assertThat(OpsController.delegatorAnswerTaken("SILENT", 130)).isTrue();
+        assertThat(OpsController.delegatorAnswerTaken("SILENT", 0)).isFalse();
+        assertThat(OpsController.delegatorAnswerTaken("SILENT", 301)).isFalse();
+        assertThat(OpsController.delegatorAnswerTaken("REPORT", 5)).isFalse();
+        assertThat(OpsController.delegatorAnswerTaken(null, 5)).isFalse();
+        assertThat(OpsController.delegatorAnswerTaken("IGNORE", 0)).isFalse();
+    }
 }

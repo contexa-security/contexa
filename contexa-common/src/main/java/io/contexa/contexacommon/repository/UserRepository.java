@@ -33,6 +33,9 @@ public interface UserRepository extends JpaRepository<Users, Long> {
 
     Optional<Users> findByUsername(String username);
 
+    /** docs/agent A5-8: the account a risk signal names by its e-mail address. */
+    Optional<Users> findFirstByEmailIgnoreCase(String email);
+
     List<Users> findByUsernameIn(Collection<String> usernames);
 
     Optional<Users> findByBridgeSubjectKey(String bridgeSubjectKey);

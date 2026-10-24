@@ -106,7 +106,7 @@ class PromptBundleCatalogTest {
         assertThat(descriptor.rollbackPromptVersion()).isNull();
         assertThat(manifest.rollbackTargets()).isEmpty();
         assertThat(descriptor.toMetadataMap())
-                .containsEntry("promptBundleVersion", "2026.10.16-v19.20")
+                .containsEntry("promptBundleVersion", "2026.10.24-v19.21")
                 .containsEntry("promptBundleHash", manifest.bundleHash())
                 .doesNotContainKey("promptRollbackVersion");
     }

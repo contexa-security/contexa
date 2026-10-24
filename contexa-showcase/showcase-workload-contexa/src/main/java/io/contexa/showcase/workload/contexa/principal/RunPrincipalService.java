@@ -90,6 +90,8 @@ public class RunPrincipalService {
             engine.update("delete from user_groups where user_id = ?", id);
             engine.update("delete from users where id = ?", id);
         });
+        // The tokens the principal signed in for (the agent workspace sign-in, docs/agent A7-0).
+        engine.update("delete from oauth2_authorization where principal_name = ?", username);
         return result;
     }
 

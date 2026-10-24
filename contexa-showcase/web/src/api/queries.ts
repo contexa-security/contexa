@@ -117,7 +117,7 @@ export function useLiveConfig() {
   });
 }
 
-const LIVE_ACTIVE = new Set(['QUEUED', 'STARTING', 'RUNNING', 'CHALLENGE', 'AWAITING', 'BLOCKED']);
+const LIVE_ACTIVE = new Set(['QUEUED', 'STARTING', 'RUNNING', 'CHALLENGE', 'AWAITING', 'BLOCKED', 'CONFIRMING']);
 const LIVE_ENDED = new Set(['COMPLETED', 'FAILED', 'EXPIRED']);
 
 /** While answers arrive they are read often enough to appear one by one; waits are read once a second. */

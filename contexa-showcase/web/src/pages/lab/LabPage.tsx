@@ -59,7 +59,7 @@ const FIELDS: readonly (keyof LabConditions)[] = [
 /** The minimum wait between the steps of a paced case: the engine's verdict applies from the next request. */
 const ALLOW_WINDOW_SECONDS = 15;
 
-const ACTIVE = new Set(['QUEUED', 'STARTING', 'RUNNING', 'CHALLENGE', 'AWAITING', 'BLOCKED']);
+const ACTIVE = new Set(['QUEUED', 'STARTING', 'RUNNING', 'CHALLENGE', 'AWAITING', 'BLOCKED', 'CONFIRMING']);
 const ANALYSIS_SHOWN = new Set([
   'CONTEXT_COLLECTED',
   'LAYER1_START',

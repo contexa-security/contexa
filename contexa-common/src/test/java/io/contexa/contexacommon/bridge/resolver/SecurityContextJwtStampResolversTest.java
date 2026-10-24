@@ -42,6 +42,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -327,6 +328,25 @@ class SecurityContextJwtStampResolversTest {
     }
 
     /** A1-3: a person's token issued to a client keeps today's stamp. */
+    @Test
+    void aRegisteredAgentsOwnTokenIsNotTakenForAServiceClient() {
+        Jwt jwt = Jwt.withTokenValue("header.payload.signature")
+                .header("alg", "RS256")
+                .claim("sub", "report-client")
+                .claim("client_id", "report-client")
+                .claim("scope", "reports.read")
+                .build();
+        SecurityContextHolder.getContext().setAuthentication(
+                new JwtAuthenticationToken(jwt, List.of(new SimpleGrantedAuthority("SCOPE_reports.read"))));
+        SecurityContextAuthenticationStampResolver withDirectory = new SecurityContextAuthenticationStampResolver(
+                (tenantId, clientId) -> "report-client".equals(clientId) ? Optional.of("report-bot") : Optional.empty());
+
+        AuthenticationStamp stamp = withDirectory.resolve(null, requestContext(), new BridgeProperties()).orElseThrow();
+
+        assertThat(stamp.principalType()).isNotEqualTo("SERVICE_CLIENT");
+        assertThat(stamp.principalId()).isEqualTo("report-client");
+    }
+
     @Test
     void aPersonsTokenIssuedToAClientIsNotAServiceClient() {
         Jwt jwt = Jwt.withTokenValue("header.payload.signature")

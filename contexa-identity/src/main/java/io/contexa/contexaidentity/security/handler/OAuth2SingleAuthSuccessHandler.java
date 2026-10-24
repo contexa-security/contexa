@@ -81,6 +81,18 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
         TokenPair tokenPair = createTokenPair(authentication, null, request, response);
         TokenTransportResult transportResult = prepareTokenTransport(tokenPair.getAccessToken(), tokenPair.getRefreshToken());
         Map<String, Object> responseData = buildResponseData(transportResult, authentication, request, response);
+
+        // The application's success handler (the flow's successHandler option) gets the tokens first and may write the
+        // response itself, as in the MFA flows; Contexa writes its own only when it did not.
+        executeDelegateHandler(request, response, authentication, TokenTransportResult.builder()
+                .body(responseData)
+                .cookiesToSet(transportResult != null ? transportResult.getCookiesToSet() : null)
+                .cookiesToRemove(transportResult != null ? transportResult.getCookiesToRemove() : null)
+                .headers(transportResult != null ? transportResult.getHeaders() : null)
+                .build());
+        if (response.isCommitted()) {
+            return;
+        }
         setCookies(response, transportResult);
 
         if (!isApiRequest(request)) {

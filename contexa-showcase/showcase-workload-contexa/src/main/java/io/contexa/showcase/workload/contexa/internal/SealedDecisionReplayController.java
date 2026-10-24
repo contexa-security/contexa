@@ -19,7 +19,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -31,8 +30,10 @@ import java.util.Optional;
  * API, guarded like every {@code /internal/**} path): the decision's sealed inputs and the baselines of the template its
  * run cloned, drawn through the engine's template, pipeline and first-layer options, asked once. The answer is returned
  * and nothing is applied, learned or sealed; the model call is recorded under the replay's own request id.
+ * <p>
+ * Retired by docs/agent OC-5 (Contexa's replay admin API replaces it) and no longer registered; the file waits for
+ * deletion.
  */
-@RestController
 public class SealedDecisionReplayController {
 
     /** The longest a replay waits: a call and its one retry, each within the first layer's call limit. */

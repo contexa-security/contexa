@@ -1,6 +1,7 @@
 package io.contexa.showcase.portal.replay;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.showcase.portal.scenario.AgentTaskCatalog;
 import io.contexa.showcase.portal.scenario.ScenarioCatalog;
 import io.contexa.showcase.portal.scoring.RunScores;
 import io.contexa.showcase.portal.spec.ExecutionSpecStore;
@@ -26,6 +27,12 @@ public class ReplayConfiguration {
     @Bean
     ScenarioCatalog scenarioCatalog(ObjectMapper objectMapper) throws IOException {
         return new ScenarioCatalog(objectMapper);
+    }
+
+    /** docs/agent A7-3: the business agent cases, apart from the scenario catalog. */
+    @Bean
+    AgentTaskCatalog agentTaskCatalog(ObjectMapper objectMapper) throws IOException {
+        return new AgentTaskCatalog(objectMapper);
     }
 
     @Bean

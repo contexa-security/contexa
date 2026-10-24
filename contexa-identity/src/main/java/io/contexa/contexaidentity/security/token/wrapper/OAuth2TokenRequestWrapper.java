@@ -22,6 +22,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
@@ -171,7 +172,10 @@ public class OAuth2TokenRequestWrapper extends HttpServletRequestWrapper {
     @Override
     public String getHeader(String name) {
         if (HttpHeaders.AUTHORIZATION.equalsIgnoreCase(name)) {
-            String credentials = clientId + ":" + clientSecret;
+            // RFC 6749 2.3.1: the client id and secret are form-encoded before Basic encoding, and Spring's client
+            // secret converter decodes them, so a secret with '+' or '%' reaches the provider as it was configured.
+            String credentials = URLEncoder.encode(clientId, StandardCharsets.UTF_8) + ":"
+                    + URLEncoder.encode(clientSecret, StandardCharsets.UTF_8);
             String base64Credentials = Base64.getEncoder()
                     .encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
             return "Basic " + base64Credentials;

@@ -48,7 +48,7 @@ import styles from './ConsolePage.module.css';
 import { useCountUp } from './useCountUp';
 
 /** The run states during which the console still follows the run. */
-const GOING = new Set(['QUEUED', 'STARTING', 'RUNNING', 'CHALLENGE', 'AWAITING', 'BLOCKED']);
+const GOING = new Set(['QUEUED', 'STARTING', 'RUNNING', 'CHALLENGE', 'AWAITING', 'BLOCKED', 'CONFIRMING']);
 
 /**
  * 2-2, 4-2 and 5-2, the live decision console (설계서 2-2, 4-2; IN-6 for the insider): the same request at five

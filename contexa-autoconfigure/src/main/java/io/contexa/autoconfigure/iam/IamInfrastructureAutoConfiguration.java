@@ -39,6 +39,7 @@ import org.springframework.aop.support.annotation.AnnotationMatchingPointcut;
 import org.springframework.aop.support.ComposablePointcut;
 import org.springframework.aop.support.Pointcuts;
 import org.springframework.beans.factory.annotation.Qualifier;
+import io.contexa.contexaiam.security.xacml.pep.DelegatorAuthority;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -127,7 +128,8 @@ public class IamInfrastructureAutoConfiguration {
             ObjectProvider<ProtectableResourceCertificationGate> protectableResourceCertificationGateProvider,
             ObjectProvider<ProtectableLlmSuppressionWriter> protectableLlmSuppressionWriterProvider,
             ObjectProvider<AuthorizationDenialRecorder> authorizationDenialRecorderProvider,
-            ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustProperties) {
+            ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustProperties,
+            ObjectProvider<DelegatorAuthority> delegatorAuthorityProvider) {
 
         Pointcut pointcut = new ComposablePointcut(classOrMethod());
         AtomicReference<AuthorizationManagerMethodInterceptor> advisor = new AtomicReference<>();
@@ -141,6 +143,7 @@ public class IamInfrastructureAutoConfiguration {
             protectableLlmSuppressionWriterProvider.ifAvailable(resolving::setProtectableLlmSuppressionWriter);
             authorizationDenialRecorderProvider.ifAvailable(resolving::setAuthorizationDenialRecorder);
             resolving.setSecurityZeroTrustProperties(securityZeroTrustProperties.getObject());
+            delegatorAuthorityProvider.ifAvailable(resolving::setDelegatorAuthority);
         });
         advisor.set(interceptor);
         return interceptor;

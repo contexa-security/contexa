@@ -20,8 +20,8 @@ import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
 import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionValidator;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -38,6 +38,9 @@ import java.util.stream.Collectors;
 public class PolicyExpressionConverter {
 
     private static final Pattern AUTHORITY_PATTERN = Pattern.compile("^[A-Z_]+$");
+    /** SpEL operator keywords written in upper case, which are no authority names. */
+    private static final Set<String> SPEL_KEYWORDS = Set.of("AND", "OR", "NOT", "TRUE", "FALSE", "NULL",
+            "INSTANCEOF", "MATCHES", "BETWEEN", "LT", "GT", "LE", "GE", "EQ", "NE", "DIV", "MOD", "T");
     private static final Pattern HAS_PERMISSION_PATTERN =
             Pattern.compile("\\s*(?:and\\s+)?hasPermission\\([^)]*\\)(?:\\s*and)?\\s*");
 
@@ -109,9 +112,9 @@ public class PolicyExpressionConverter {
     }
 
     /**
-     * Normalizes a condition expression to valid SpEL.
-     * Plain authority names like "ROLE_ADMIN" are wrapped in hasAuthority().
-     * Mixed expressions like "ROLE_ADMIN or hasRole('MANAGER')" are parsed token by token.
+     * Normalizes a condition expression to valid SpEL. Plain authority names like "ROLE_ADMIN" are wrapped in
+     * hasAuthority(); in a mixed expression like "ROLE_ADMIN or hasRole('MANAGER')" only those names are wrapped and
+     * the expression keeps its structure, so grouping and operator precedence mean what the author wrote (CF-08).
      */
     public static String normalize(String expression) {
         if (expression == null || expression.isBlank()) return "permitAll";
@@ -126,29 +129,74 @@ public class PolicyExpressionConverter {
             return "hasAuthority('" + trimmed + "')";
         }
 
-        if (trimmed.contains(" or ") || trimmed.contains(" and ")) {
-            String[] orParts = trimmed.split("\\s+or\\s+");
-            List<String> normalized = new ArrayList<>();
-            for (String orPart : orParts) {
-                String[] andParts = orPart.trim().split("\\s+and\\s+");
-                List<String> normalizedAnd = new ArrayList<>();
-                for (String part : andParts) {
-                    String p = part.trim();
-                    if (p.startsWith("(") && p.endsWith(")")) {
-                        p = p.substring(1, p.length() - 1).trim();
-                    }
-                    if (AUTHORITY_PATTERN.matcher(p).matches()) {
-                        normalizedAnd.add("hasAuthority('" + p + "')");
-                    } else {
-                        normalizedAnd.add(p);
-                    }
-                }
-                normalized.add(String.join(" and ", normalizedAnd));
-            }
-            return normalized.stream().map(s -> "(" + s + ")").collect(Collectors.joining(" or "));
-        }
+        return wrapBareAuthorities(trimmed);
+    }
 
-        return trimmed;
+    /**
+     * Wraps each bare authority name in hasAuthority(): an upper-case word outside quotes that is neither a SpEL
+     * keyword, nor a call, nor a property or a type member. Everything else is copied as it is.
+     */
+    private static String wrapBareAuthorities(String expression) {
+        StringBuilder normalized = new StringBuilder(expression.length() + 16);
+        int length = expression.length();
+        int index = 0;
+        while (index < length) {
+            char current = expression.charAt(index);
+            if (current == '\'' || current == '"') {
+                int end = endOfQuoted(expression, index);
+                normalized.append(expression, index, end);
+                index = end;
+            } else if (Character.isJavaIdentifierStart(current)) {
+                int end = index;
+                while (end < length && Character.isJavaIdentifierPart(expression.charAt(end))) {
+                    end++;
+                }
+                String word = expression.substring(index, end);
+                if (isBareAuthority(expression, index, end, word)) {
+                    normalized.append("hasAuthority('").append(word).append("')");
+                } else {
+                    normalized.append(word);
+                }
+                index = end;
+            } else {
+                normalized.append(current);
+                index++;
+            }
+        }
+        return normalized.toString();
+    }
+
+    /** The index just past a quoted literal starting at {@code start}; a doubled quote is an escaped one. */
+    private static int endOfQuoted(String expression, int start) {
+        char quote = expression.charAt(start);
+        int index = start + 1;
+        while (index < expression.length()) {
+            if (expression.charAt(index) == quote) {
+                if (index + 1 < expression.length() && expression.charAt(index + 1) == quote) {
+                    index += 2;
+                    continue;
+                }
+                return index + 1;
+            }
+            index++;
+        }
+        return expression.length();
+    }
+
+    private static boolean isBareAuthority(String expression, int start, int end, String word) {
+        if (!AUTHORITY_PATTERN.matcher(word).matches() || SPEL_KEYWORDS.contains(word)) {
+            return false;
+        }
+        char before = start > 0 ? expression.charAt(start - 1) : ' ';
+        if (before == '.' || before == '#' || before == '@' || before == '$') {
+            return false;
+        }
+        int next = end;
+        while (next < expression.length() && Character.isWhitespace(expression.charAt(next))) {
+            next++;
+        }
+        char after = next < expression.length() ? expression.charAt(next) : ' ';
+        return after != '(' && after != '.' && after != '[';
     }
 
     /**

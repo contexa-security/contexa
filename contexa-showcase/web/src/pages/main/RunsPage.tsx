@@ -67,7 +67,7 @@ export default function RunsPage() {
   const benchmark = useBenchmark(null);
   if (benchmark.isPending || !benchmark.data) {
     return (
-      <MainScreen title={t('main.6-3.titlePlain')} main={null}>
+      <MainScreen title={t('main.7-3.titlePlain')} main={null}>
         <StateScreen kind={benchmark.isPending ? 'loading' : 'notReady'} />
       </MainScreen>
     );
@@ -86,13 +86,13 @@ export default function RunsPage() {
   const protocol = data.scope.protocols[data.scope.protocols.length - 1] ?? null;
   return (
     <MainScreen
-      title={t(keepsBoth ? 'main.6-3.title' : 'main.6-3.titlePlain')}
+      title={t(keepsBoth ? 'main.7-3.title' : 'main.7-3.titlePlain')}
       intro={
         <>
-          {t('main.6-3.intro', { cases: data.scope.cases, repeat: sentPerCase(data), runs: data.scope.runs })}
+          {t('main.7-3.intro', { cases: data.scope.cases, repeat: sentPerCase(data), runs: data.scope.runs })}
           {/* V-11: the runs of the disputed situations count in the runs but have no dot; the server counts them. */}
           {data.scope.otherRuns > 0
-            ? ` ${t('main.6-3.uncertain', {
+            ? ` ${t('main.7-3.uncertain', {
                 cases: data.caseCounts.UNCERTAIN,
                 runs: data.scope.otherRuns,
                 count: data.scope.otherRuns,
@@ -103,13 +103,13 @@ export default function RunsPage() {
     >
       <section className={styles.card} aria-labelledby="matrix-title">
         <h2 id="matrix-title" className="visually-hidden">
-          {t('main.6-3.matrix')}
+          {t('main.7-3.matrix')}
         </h2>
         <div className={styles.matrixRow} data-head>
           <span />
-          <span>{t('main.6-3.attacks', { n: data.scope.attackRuns })}</span>
-          <span>{t('main.6-3.normal', { n: data.scope.normalRuns })}</span>
-          <span>{t('main.6-3.sum')}</span>
+          <span>{t('main.7-3.attacks', { n: data.scope.attackRuns })}</span>
+          <span>{t('main.7-3.normal', { n: data.scope.normalRuns })}</span>
+          <span>{t('main.7-3.sum')}</span>
         </div>
         {ROWS.map((control, row) => {
           const found = score(control);
@@ -132,7 +132,7 @@ export default function RunsPage() {
                       className={styles.dot}
                       data-dot
                       data-tone={TONES[dot.result] ?? 'none'}
-                      aria-label={t('main.6-3.dot', {
+                      aria-label={t('main.7-3.dot', {
                         run: dot.runId,
                         result: t(`main.result.${dot.result}`),
                       })}
@@ -144,7 +144,7 @@ export default function RunsPage() {
               ))}
               <p className={styles.sum}>
                 {found
-                  ? t('main.6-3.rowSum', { missed: found.missed, falseBlock: found.falseBlock.hits })
+                  ? t('main.7-3.rowSum', { missed: found.missed, falseBlock: found.falseBlock.hits })
                   : '-'}
               </p>
             </div>
@@ -155,28 +155,28 @@ export default function RunsPage() {
         {(['stopped', 'partly', 'bad', 'passed'] as const).map((tone) => (
           <li key={tone} className={styles.legendItem}>
             <span className={styles.dot} data-tone={tone} aria-hidden="true" />
-            {t(`main.6-3.legend.${tone}`)}
+            {t(`main.7-3.legend.${tone}`)}
           </li>
         ))}
       </ul>
       <p className={styles.note}>
         {contexa
-          ? t('main.6-3.basis', { partly: contexa.partlyStopped, checked: contexa.friction.hits })
+          ? t('main.7-3.basis', { partly: contexa.partlyStopped, checked: contexa.friction.hits })
           : null}{' '}
-        {t('main.6-3.c2')}
+        {t('main.7-3.c2')}
       </p>
       <div className={styles.badges}>
         {/* The measurement's internal id stays out of the words (V-48); it is kept as the badge's hover title. */}
         <span title={protocol?.protocolId ?? undefined}>
           <SourceBadge
             kind="repeated"
-            label={t('main.6-3.measured', {
+            label={t('main.7-3.measured', {
               at: protocol?.finishedAt ? utcTime(protocol.finishedAt).slice(0, 10) : '-',
             })}
           />
         </span>
         <Link to="/benchmark/cases" className={styles.link}>
-          {t('main.6-3.cases')}
+          {t('main.7-3.cases')}
         </Link>
       </div>
     </MainScreen>

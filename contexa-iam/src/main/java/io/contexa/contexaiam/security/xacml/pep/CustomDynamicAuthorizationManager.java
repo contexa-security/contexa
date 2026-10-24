@@ -51,6 +51,7 @@ import org.springframework.security.web.util.matcher.RequestMatcherEntry;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -86,6 +87,8 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
     private final PolicyExpressionConverter expressionConverter = new PolicyExpressionConverter();
 
     private volatile List<RequestMatcherEntry<AuthorizationManager<RequestAuthorizationContext>>> mappings = List.of();
+    private DelegatorAuthority delegatorAuthority;
+    private BooleanSupplier delegatorAuthorityEnforced;
     @Setter
     private volatile CombiningAlgorithm combiningAlgorithm;
     private volatile NoPolicyDecision noMatchingUrlPolicyDecision = NoPolicyDecision.PERMIT;
@@ -149,6 +152,12 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
             return granted;
         }
         Authentication authentication = authenticationSupplier.get();
+        AuthorizationDecision decision = decide(authenticationSupplier, request);
+        return complete(authentication, request, delegatorDecision(authentication, request, decision), startedAt);
+    }
+
+    /** The URL policies' decision for the request as the given principal. */
+    private AuthorizationDecision decide(Supplier<Authentication> authenticationSupplier, HttpServletRequest request) {
         CombiningAlgorithm currentAlgorithm = combiningAlgorithm;
         NoPolicyDecision currentNoPolicyDecision = noMatchingUrlPolicyDecision;
         boolean firstApplicable = currentAlgorithm == CombiningAlgorithm.FIRST_APPLICABLE;
@@ -164,14 +173,52 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
             AuthorizationDecision decision = mapping.getEntry().check(authenticationSupplier,
                     new RequestAuthorizationContext(request, matchResult.getVariables()));
             if (decision != null && firstApplicable) {
-                return complete(authentication, request, decision, startedAt);
+                return decision;
             }
             matchedDecisions.add(decision);
         }
 
-        AuthorizationDecision finalDecision = combiningEvaluator.evaluate(
-                matchedDecisions, currentAlgorithm, currentNoPolicyDecision);
-        return complete(authentication, request, finalDecision, startedAt);
+        return combiningEvaluator.evaluate(matchedDecisions, currentAlgorithm, currentNoPolicyDecision);
+    }
+
+    /**
+     * A1-8: a delegated agent's request the policies grant is evaluated again as the person the agent acts for, and
+     * refused when that person could not make it (in SHADOW mode it is only recorded).
+     */
+    private AuthorizationDecision delegatorDecision(Authentication requester, HttpServletRequest request,
+                                                    AuthorizationDecision decision) {
+        if (delegatorAuthority == null || decision == null || !decision.isGranted()) {
+            return decision;
+        }
+        DelegatorAuthority.Check check = delegatorAuthority.prepare(request, requester).orElse(null);
+        if (check == null) {
+            return decision;
+        }
+        DelegatorAuthority.Outcome outcome = check.outcome();
+        if (check.delegator() != null) {
+            AuthorizationDecision asDelegator = decide(check::delegator, request);
+            outcome = asDelegator != null && asDelegator.isGranted()
+                    ? DelegatorAuthority.Outcome.PERMITTED
+                    : DelegatorAuthority.Outcome.DENIED;
+        }
+        DelegatorAuthority.record(request, outcome);
+        if (!DelegatorAuthority.refuses(outcome)) {
+            return decision;
+        }
+        if (delegatorAuthorityEnforced != null && !delegatorAuthorityEnforced.getAsBoolean()) {
+            log.info("[ZeroTrust][SHADOW] the delegator {} may not make this request; recorded, not enforced: {}",
+                    check.delegatorId(), request.getRequestURI());
+            return decision;
+        }
+        log.warn("A delegated agent's request was refused: delegator {} ({}) may not make it: {}",
+                check.delegatorId(), outcome, request.getRequestURI());
+        return new AuthorizationDecision(false);
+    }
+
+    /** A1-8: checks delegated agents' requests against their delegators' authority; enforced unless the supplier says no. */
+    public void setDelegatorAuthority(DelegatorAuthority delegatorAuthority, BooleanSupplier enforced) {
+        this.delegatorAuthority = delegatorAuthority;
+        this.delegatorAuthorityEnforced = enforced;
     }
 
     /** Keeps a refusal of an authenticated user as a fact of the session and of the user's scope. */

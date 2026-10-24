@@ -16,13 +16,17 @@
 package io.contexa.contexaidentity.security.zerotrust;
 
 import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.blocking.BlockableResponseWrapper;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.blocking.ResponseBlockedException;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
+import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
@@ -30,6 +34,8 @@ import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import io.contexa.contexaidentity.security.utils.WebUtil;
+import io.contexa.contexacore.autonomous.agent.AgentContainmentService;
+import io.contexa.contexacommon.security.bridge.OAuth2AuthenticationSupport;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -55,6 +61,10 @@ import java.util.UUID;
 public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
 
     public static final String BLOCK_MFA_FLOW_ATTRIBUTE = "BLOCK_MFA_FLOW";
+    /** docs/agent A5-1: the error of an agent request its own block stops. */
+    public static final String AGENT_BLOCKED = "AGENT_BLOCKED";
+
+    private AgentContainmentService agentContainment;
 
     private static final Duration ESCALATE_RETRY_TTL = Duration.ofMinutes(5);
     private static final Duration BLOCK_MFA_VERIFIED_TTL = Duration.ofHours(1);
@@ -137,9 +147,16 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
 
         // Read before the decision in force: a BLOCK the response did not pass is one received after it.
         long responseStartNanos = System.nanoTime();
-        String userId = extractUserId(auth);
+        // docs/agent A5-1: an agent acting for the user reads and keeps its own decisions under its own key; the
+        // user's own requests keep the user ID.
+        String principal = extractUserId(auth);
+        ZeroTrustSubject subject = ZeroTrustSubject.of(principal, delegationStamp(request));
+        boolean delegatedAgent = subject != null && subject.delegatedAgent();
+        String userId = subject != null ? subject.storageKey() : principal;
         String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request);
-        ZeroTrustAction currentAction = actionRedisRepository.getCurrentAction(userId, contextBindingHash);
+        ZeroTrustAction currentAction = subject != null
+                ? subject.currentAction(actionRedisRepository, contextBindingHash)
+                : actionRedisRepository.getCurrentAction(principal, contextBindingHash);
 
         if (currentAction != ZeroTrustAction.BLOCK
                 && currentAction != ZeroTrustAction.ESCALATE
@@ -151,10 +168,18 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         String requestUri = resolveRequestUri(request);
 
         switch (currentAction) {
-            case BLOCK -> handleBlockWithMfa(request, response, filterChain, auth, userId, requestUri);
+            case BLOCK -> {
+                if (delegatedAgent) {
+                    // An agent answers no factor made for people, so its block is not released by MFA (A5-3).
+                    recordStopped(auth, ZeroTrustAction.BLOCK);
+                    writeAgentBlocked(request, response);
+                } else {
+                    handleBlockWithMfa(request, response, filterChain, auth, userId, requestUri);
+                }
+            }
             case ESCALATE -> {
                 recordStopped(auth, ZeroTrustAction.ESCALATE);
-                handleEscalate(request, response, userId);
+                handleEscalate(request, response, userId, subject);
             }
             case PENDING_ANALYSIS -> handlePendingAnalysis(request, response, filterChain, userId, responseStartNanos);
             default -> filterChain.doFilter(request, response);
@@ -326,7 +351,8 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
 
     private void handleEscalate(HttpServletRequest request,
                                 HttpServletResponse response,
-                                String userId) throws IOException {
+                                String userId,
+                                ZeroTrustSubject subject) throws IOException {
 
         ZeroTrustAction hashAction = actionRedisRepository.getActionFromHash(userId);
 
@@ -341,7 +367,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
             return;
         }
 
-        promoteEscalateToBlock(userId, request, response);
+        promoteEscalateToBlock(userId, request, response, subject);
     }
 
     private void respondWithReviewInProgress(HttpServletRequest request,
@@ -374,11 +400,14 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
 
     private void promoteEscalateToBlock(String userId,
                                         HttpServletRequest request,
-                                        HttpServletResponse response) throws IOException {
+                                        HttpServletResponse response,
+                                        ZeroTrustSubject subject) throws IOException {
+        boolean delegatedAgent = subject != null && subject.delegatedAgent();
+        boolean agent = subject != null && subject.agentId() != null;
         try {
             ZeroTrustAction currentAction = actionRedisRepository.getActionFromHash(userId);
             if (currentAction == ZeroTrustAction.BLOCK) {
-                handleBlocked(request, response, userId);
+                respondBlocked(request, response, userId, delegatedAgent);
                 return;
             }
 
@@ -398,13 +427,22 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             String username = (auth != null) ? auth.getName() : null;
 
-            if (blockedUserRecorder != null) {
-                blockedUserRecorder.recordBlock(
-                        requestId, userId, username,
-                        ZeroTrustAction.BLOCK.name(),
-                        "Auto-promoted from ESCALATE: TTL expired without resolution",
-                        request.getRemoteAddr(),
-                        request.getHeader("User-Agent"));
+            // docs/agent A5-1, A5-3: an agent is no blocked person; the agent itself is stopped.
+            if (agent && agentContainment != null) {
+                agentContainment.onBlock(subject, clientIdOf(SecurityContextHolder.getContext().getAuthentication()),
+                        null, "Auto-promoted from ESCALATE: TTL expired without resolution", requestId);
+            }
+            if (blockedUserRecorder != null && !agent) {
+                // A3-3 (R-01): the block keeps the request's tenant for the release's learning.
+                String tenantId = RequestInfoExtractor.extractTenantId(request);
+                String reason = "Auto-promoted from ESCALATE: TTL expired without resolution";
+                if (tenantId != null && !tenantId.isBlank()) {
+                    blockedUserRecorder.recordBlock(requestId, userId, username, ZeroTrustAction.BLOCK.name(),
+                            reason, request.getRemoteAddr(), request.getHeader("User-Agent"), tenantId);
+                } else {
+                    blockedUserRecorder.recordBlock(requestId, userId, username, ZeroTrustAction.BLOCK.name(),
+                            reason, request.getRemoteAddr(), request.getHeader("User-Agent"));
+                }
             }
 
             log.error("[ZeroTrustAccessControlFilter] ESCALATE promoted to BLOCK: userId={}", userId);
@@ -412,7 +450,51 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
             log.error("[ZeroTrustAccessControlFilter] Failed to promote ESCALATE to BLOCK: userId={}", userId, e);
         }
 
-        handleBlocked(request, response, userId);
+        respondBlocked(request, response, userId, delegatedAgent);
+    }
+
+    private void respondBlocked(HttpServletRequest request, HttpServletResponse response, String userId,
+                                boolean delegatedAgent) throws IOException {
+        if (delegatedAgent) {
+            writeAgentBlocked(request, response);
+        } else {
+            handleBlocked(request, response, userId);
+        }
+    }
+
+    /** docs/agent A5-1: an agent's request stopped by the agent's block; the person's account is not blocked. */
+    private void writeAgentBlocked(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        Map<String, Object> body = new HashMap<>();
+        body.put("error", AGENT_BLOCKED);
+        body.put("message", "This agent's requests for the user are stopped by a security decision");
+        responseWriter.writeErrorResponse(
+                response,
+                HttpServletResponse.SC_FORBIDDEN,
+                AGENT_BLOCKED,
+                "This agent's requests for the user are stopped by a security decision",
+                request.getRequestURI(),
+                body);
+    }
+
+    /** docs/agent A5-3: what stops an agent whose escalation turned into a block. */
+    public void setAgentContainment(AgentContainmentService agentContainment) {
+        this.agentContainment = agentContainment;
+    }
+
+    /** The client the request's token was issued to, or null without a token. */
+    private static String clientIdOf(Authentication authentication) {
+        Map<String, Object> claims = OAuth2AuthenticationSupport.tokenClaims(authentication);
+        Object clientId = claims != null ? claims.get("client_id") : null;
+        if (clientId == null && claims != null) {
+            clientId = claims.get("azp");
+        }
+        return clientId != null ? clientId.toString() : null;
+    }
+
+    /** The delegation the bridge stamped on the request, or null. */
+    private static DelegationStamp delegationStamp(HttpServletRequest request) {
+        return request.getAttribute(BridgeRequestAttributes.DELEGATION_STAMP) instanceof DelegationStamp stamp
+                ? stamp : null;
     }
 
     private void handlePendingAnalysis(HttpServletRequest request,

@@ -46,6 +46,16 @@ final class PastRecordLines {
 
     /** The time field of a line whose records hold no time. */
     static final String TIME_NOT_RECORDED = "time not recorded";
+    /**
+     * docs/agent A3-5: the target field of a v21 line. The target is the path variables a requester wrote, so its value
+     * is an untrusted text; the line keeps the core's same-target comparison.
+     */
+    public static final String TARGET_APART = "target in UNTRUSTED TEXT";
+    /**
+     * docs/agent A3-5: the target field of a v21 second pass line: that block has no untrusted text, so the requester's
+     * value is not shown; the line keeps the same-target comparison.
+     */
+    public static final String TARGET_WITHHELD = "target not shown";
 
 
     private PastRecordLines() {
@@ -61,9 +71,18 @@ final class PastRecordLines {
      */
     static List<PromptListItem> items(List<Document> documents, PastRecordRelevance.Subject request,
                                       LocalDateTime requestTime) {
+        return items(documents, request, requestTime, null);
+    }
+
+    /**
+     * The lines of the records; a v21 line writes the given marker ({@link #TARGET_APART}, {@link #TARGET_WITHHELD}) in
+     * place of the target and carries the target as the item's name (A3-5); a null marker writes the target.
+     */
+    static List<PromptListItem> items(List<Document> documents, PastRecordRelevance.Subject request,
+                                      LocalDateTime requestTime, String targetMarker) {
         return items(documents, (document, record) -> request != null
                 ? PastRecordRelevance.sameTarget(request, record)
-                : PastRecordRelevance.NOT_KNOWN, requestTime);
+                : PastRecordRelevance.NOT_KNOWN, requestTime, targetMarker);
     }
 
     /**
@@ -73,6 +92,13 @@ final class PastRecordLines {
     static List<PromptListItem> items(List<Document> documents,
                                       BiFunction<Document, PastRecordRelevance.Subject, String> sameTargetOf,
                                       LocalDateTime requestTime) {
+        return items(documents, sameTargetOf, requestTime, null);
+    }
+
+    static List<PromptListItem> items(List<Document> documents,
+                                      BiFunction<Document, PastRecordRelevance.Subject, String> sameTargetOf,
+                                      LocalDateTime requestTime, String targetMarker) {
+        boolean targetsApart = targetMarker != null;
         Map<String, Group> groups = new LinkedHashMap<>();
         if (documents != null) {
             for (Document document : documents) {
@@ -83,8 +109,11 @@ final class PastRecordLines {
                 // The path template, the target and the same-target field come from one reading of the record.
                 PastRecordRelevance.Subject record = PastRecordRelevance.Subject.ofRecord(metadata, document.getText());
                 String sameTarget = sameTargetOf.apply(document, record);
-                List<String> facts = facts(metadata, record, sameTarget);
-                groups.computeIfAbsent(String.join(PastRecordLineValues.SEPARATOR, facts), key -> new Group(facts, sameTarget))
+                List<String> facts = facts(metadata, record, sameTarget, targetMarker);
+                // A v21 line of another target is another line, though its fields read the same (A3-5).
+                String key = String.join(PastRecordLineValues.SEPARATOR, facts)
+                        + (targetsApart ? "\u0000" + record.target() : "");
+                groups.computeIfAbsent(key, ignored -> new Group(facts, sameTarget, targetsApart ? record.target() : null))
                         .add(PastRecordRanking.recordedAtOrNull(metadata), PastRecordRanking.storedId(document));
             }
         }
@@ -97,11 +126,11 @@ final class PastRecordLines {
 
     /** The fields of a record other than the time, in line order with the same-target field. */
     private static List<String> facts(Map<String, Object> metadata, PastRecordRelevance.Subject record,
-                                      String sameTarget) {
+                                      String sameTarget, String targetMarker) {
         List<String> facts = new ArrayList<>();
         facts.add(orNotRecorded(text(metadata.get("actionFamily")), "action"));
         facts.add(orNotRecorded(record.pathFamily(), "path"));
-        facts.add(record.target() != null ? record.target() : "no target");
+        facts.add(record.target() == null ? "no target" : targetMarker != null ? targetMarker : record.target());
         facts.add(metadata.get("requestItems") instanceof Number items
                 ? String.format(Locale.ROOT, "%,d items", items.longValue()) : "items not recorded");
         String resourceClass = text(metadata.get("resourceFamily"));
@@ -177,13 +206,15 @@ final class PastRecordLines {
 
         private final List<String> facts;
         private final String sameTarget;
+        private final String target;
         private int count;
         private LocalDateTime latest;
         private String id;
 
-        private Group(List<String> facts, String sameTarget) {
+        private Group(List<String> facts, String sameTarget, String target) {
             this.facts = facts;
             this.sameTarget = sameTarget;
+            this.target = target;
         }
 
         private void add(LocalDateTime at, String recordId) {
@@ -203,8 +234,12 @@ final class PastRecordLines {
             List<String> fields = new ArrayList<>();
             fields.add(time + (count > 1 ? PastRecordLineValues.REPEAT + count : ""));
             fields.addAll(facts);
-            return PromptListItem.pastRecord(String.join(PastRecordLineValues.SEPARATOR, fields), PastRecordRelevance.YES.equals(sameTarget),
-                    latest != null ? latest.toEpochSecond(ZoneOffset.UTC) * 1000L : 0L, id);
+            String text = String.join(PastRecordLineValues.SEPARATOR, fields);
+            long rank = latest != null ? latest.toEpochSecond(ZoneOffset.UTC) * 1000L : 0L;
+            boolean same = PastRecordRelevance.YES.equals(sameTarget);
+            // A3-5: a v21 line carries its target apart, as the item's name.
+            return target != null ? new PromptListItem(text, target, rank, same, id)
+                    : PromptListItem.pastRecord(text, same, rank, id);
         }
     }
 }

@@ -14,6 +14,7 @@ import io.contexa.contexacore.autonomous.service.AuthorizationDenialRecorder;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableLlmSuppressionWriter;
+import io.contexa.contexaiam.security.xacml.pep.DelegatorAuthority;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableMethodAuthorizationManager;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableRapidReentryGuard;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableResourceCertificationGate;
@@ -50,14 +51,15 @@ class ProtectableAuthorizationAdvisorTest {
                 counting(mock(ProtectableResourceCertificationGate.class), resolved),
                 counting(mock(ProtectableLlmSuppressionWriter.class), resolved),
                 counting(mock(AuthorizationDenialRecorder.class), resolved),
-                counting(new SecurityZeroTrustProperties(), resolved));
+                counting(new SecurityZeroTrustProperties(), resolved),
+                counting(new DelegatorAuthority(null), resolved));
 
         assertThat(resolved).as("nothing is resolved while post-processors are registered").hasValue(0);
 
         advisor.afterSingletonsInstantiated();
         advisor.afterSingletonsInstantiated();
 
-        assertThat(resolved).as("each collaborator once").hasValue(8);
+        assertThat(resolved).as("each collaborator once").hasValue(9);
     }
 
     @Test

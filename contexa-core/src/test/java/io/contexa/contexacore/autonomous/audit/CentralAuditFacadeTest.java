@@ -32,12 +32,19 @@ import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.HashMap;
 import java.util.Map;
+import io.contexa.contexacore.verification.evidence.EvidenceSigner;
+import io.contexa.contexacore.verification.evidence.HmacEvidenceSigner;
+import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
+import java.util.Base64;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -56,6 +63,33 @@ class CentralAuditFacadeTest {
     void setUp() {
         objectMapper = new ObjectMapper();
         facade = new CentralAuditFacade(auditLogRepository, eventPublisher, objectMapper);
+    }
+
+    @Test
+    @DisplayName("docs/agent A5-6: decision records are signed and linked in the order they are saved; others are not")
+    void decisionRecordsAreSignedAndLinked() {
+        EvidenceSigner signer = HmacEvidenceSigner.of(Map.of("k1", Base64.getEncoder()
+                .encodeToString("k1-0123456789abcdef0123456789abcd".getBytes())), null);
+        facade.setEvidenceSigner(signer);
+        AuditLog earlier = AuditLog.builder().recordHash("earlier-hash").build();
+        when(auditLogRepository
+                .findTopByEventCategoryAndRecordHashIsNotNullOrderByIdDesc("SECURITY_DECISION"))
+                .thenReturn(Optional.of(earlier));
+
+        facade.recordSync(AuditRecord.builder().eventCategory(AuditEventCategory.SECURITY_DECISION)
+                .principalName("alice").tenantId("tenant-a").decision("BLOCK").build());
+        facade.recordSync(AuditRecord.builder().eventCategory(AuditEventCategory.ADMIN_OVERRIDE)
+                .principalName("admin1").decision("ALLOW").build());
+
+        ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(auditLogRepository, times(2)).save(captor.capture());
+        AuditLog decision = captor.getAllValues().get(0);
+        assertThat(decision.getPreviousRecordHash()).isEqualTo("earlier-hash");
+        assertThat(decision.getTenantId()).isEqualTo("tenant-a");
+        assertThat(decision.getSignatureKeyId()).isEqualTo("k1");
+        assertThat(DecisionRecordSeal.evaluate(decision, signer, hash -> true))
+                .isEqualTo(SealedEvidencePackageIntegrity.Status.VERIFIED);
+        assertThat(captor.getAllValues().get(1).getRecordHash()).as("not a decision record").isNull();
     }
 
     @Test

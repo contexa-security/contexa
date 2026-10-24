@@ -109,6 +109,7 @@ io.contexa.autoconfigure.iam.admin.IamAdminCenterAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminAccessCenterAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminBlacklistAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAgentRegistryAutoConfiguration
+io.contexa.autoconfigure.iam.access.AccessEvaluationAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminPasswordPolicyAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminSessionAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminIpAutoConfiguration

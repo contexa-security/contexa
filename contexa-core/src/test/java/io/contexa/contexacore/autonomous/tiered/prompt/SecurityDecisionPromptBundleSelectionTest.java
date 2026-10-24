@@ -44,8 +44,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class SecurityDecisionPromptBundleSelectionTest {
 
     private static final String PROMPT_KEY = "cortex.security-decision";
-    private static final String V19 = "2026.10.16-v19.20";
-    private static final String V20 = "2026.10.17-v20.25";
+    private static final String V19 = "2026.10.24-v19.21";
+    private static final String V20 = "2026.10.24-v20.26";
     private static final PromptBudgetProfile L1 = PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT;
     private static final PromptBudgetProfile L2 = PromptBudgetProfile.CORTEX_L2_EXPERT_STRICT;
 

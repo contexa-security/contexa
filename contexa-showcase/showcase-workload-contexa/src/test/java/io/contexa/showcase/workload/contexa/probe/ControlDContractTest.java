@@ -65,8 +65,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Control D's own contracts on the real engine (P1): the engine policies give the shared RBAC table's static decision
  * for every role-by-endpoint case (P1-BE-02), run principals are created with their employee's role and fully removed,
- * a template snapshot written under a run principal reads back identically, the business context provider states the
- * company facts, and the protection mode of each endpoint is read from the code. Skipped without Docker.
+ * a template snapshot written under a run principal reads back identically, and the protection mode of each
+ * endpoint is read from the code. The company facts are checked by CompanyRecordsParityContractTest (docs/agent
+ * OC-2). Skipped without Docker.
  */
 @Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(classes = {ContexaWorkloadApplication.class, ProbeEndpoints.class, AnalysisHandOffRecording.class},
@@ -116,9 +117,6 @@ class ControlDContractTest {
 
     @Autowired
     SecurityContextDataStore contexts;
-
-    @Autowired
-    BusinessFrictionProvider frictionProvider;
 
     @Autowired
     RunRegistry runs;
@@ -316,35 +314,6 @@ class ControlDContractTest {
                 .containsExactly("change-1");
         assertThat(contexts.getRecentWorkProfileObservations(template.tenant(), run.username(), 10))
                 .as("nothing is written under the template tenant").isEmpty();
-    }
-
-    @Test
-    void theBusinessContextProviderStatesTheCompanyFactsOfTheRequest() {
-        String username = "v" + UUID.randomUUID().toString().replace("-", "").substring(0, 12) + "-adm-a";
-        runs.registerPrincipal(username, "run-provider", CompanyBlueprint.ADMIN_A, "org-provider", "tenant-provider");
-        SecurityEvent event = SecurityEvent.builder()
-                .eventId(UUID.randomUUID().toString())
-                .userId(username)
-                .timestamp(CompanyCalendar.at(ProbeDatabase.ANCHOR, TimeSlot.DAWN))
-                .build();
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("requestPath", "/api/projects/" + CompanyBlueprint.A3_TARGET + "/exports");
-        metadata.put("httpMethod", "POST");
-        metadata.put("queryString", "items=4831");
-        event.setMetadata(metadata);
-        CanonicalSecurityContext context = new CanonicalSecurityContext();
-
-        frictionProvider.enrich(event, context);
-
-        assertThat(context.getFrictionProfile()).isNotNull();
-        assertThat(context.getFrictionProfile().getApprovalGranted()).isFalse();
-        assertThat(context.getFrictionProfile().getApprovalLineage())
-                .anySatisfy(line -> assertThat(line).contains("assigned to project GB-500: no"))
-                .anySatisfy(line -> assertThat(line).contains("no approval"))
-                .anySatisfy(line -> assertThat(line).contains("no ITSM ticket"))
-                .anySatisfy(line -> assertThat(line).contains("not on call"))
-                .anySatisfy(line -> assertThat(line).contains("in the last 30 days: 0"))
-                .allSatisfy(line -> assertThat(line).doesNotContainIgnoringCase("required"));
     }
 
     @Autowired

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{agent.confirmation.title})}"></head>
+<body class="flex flex-col min-h-screen font-sans" style="background: #050810;">
+<div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
+
+<div class="flex justify-center p-4 sm:p-8">
+    <div class="w-full max-w-3xl p-6 sm:p-8 rounded-xl" th:object="${confirmation}"
+         style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(71, 85, 105, 0.3); color: #e2e8f0;">
+
+        <div class="mb-6">
+            <a th:href="@{/contexa/agent-confirmations}" class="text-sm" style="color: #818cf8;"
+               th:text="#{agent.confirmation.back}">My confirmations</a>
+            <h1 class="text-2xl font-bold mt-2" th:text="#{agent.confirmation.title}">Confirm an agent's request</h1>
+            <p class="mt-1 text-sm" style="color: #94a3b8;"
+               th:text="#{agent.confirmation.subtitle(*{agentId})}">The agent waits for your answer</p>
+        </div>
+
+        <!-- AC-3: the result once decided -->
+        <section th:if="${!pending}" id="confirmationResult" class="mb-6 p-4 rounded-lg"
+                 th:style="*{status.name() == 'APPROVED' or status.name() == 'USED'} ? 'background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.35);' : 'background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.35);'">
+            <h2 class="text-lg font-semibold mb-2" th:text="#{'agent.confirmation.status.' + *{status.name().toLowerCase()}}">Approved</h2>
+            <p class="text-sm mb-2" th:text="#{'agent.confirmation.result.' + *{status.name().toLowerCase()}}">The agent may now send the request once.</p>
+            <dl class="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-1 text-sm">
+                <dt style="color: #94a3b8;" th:text="#{agent.confirmation.record.number}">Record number</dt>
+                <dd class="sm:col-span-2 font-mono break-all" th:text="*{confirmationId}"></dd>
+                <dt th:if="*{authorizationId != null}" style="color: #94a3b8;" th:text="#{agent.confirmation.authorization}">Authorization</dt>
+                <dd th:if="*{authorizationId != null}" class="sm:col-span-2 font-mono break-all" id="authorizationId" th:text="*{authorizationId}"></dd>
+                <dt th:if="*{decidedAt != null}" style="color: #94a3b8;" th:text="#{agent.confirmation.decided.at}">Decided</dt>
+                <dd th:if="*{decidedAt != null}" class="sm:col-span-2" th:text="${#temporals.format(confirmation.decidedAt, 'yyyy-MM-dd HH:mm:ss')}"></dd>
+                <dt th:if="*{usedAt != null}" style="color: #94a3b8;" th:text="#{agent.confirmation.used.at}">Request sent</dt>
+                <dd th:if="*{usedAt != null}" class="sm:col-span-2" th:text="${#temporals.format(confirmation.usedAt, 'yyyy-MM-dd HH:mm:ss')}"></dd>
+                <dt th:if="*{decisionNote != null}" style="color: #94a3b8;" th:text="#{agent.confirmation.note}">Note</dt>
+                <dd th:if="*{decisionNote != null}" class="sm:col-span-2" th:text="*{decisionNote}"></dd>
+            </dl>
+        </section>
+
+        <!-- AC-2: what the agent asks -->
+        <section class="mb-6" id="confirmationRequest">
+            <h2 class="text-lg font-semibold mb-2" th:text="#{agent.confirmation.request.heading}">What the agent asks</h2>
+            <dl class="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-1 text-sm">
+                <dt style="color: #94a3b8;" th:text="#{agent.confirmation.agent}">Agent</dt>
+                <dd class="sm:col-span-2"><span class="font-mono" th:text="*{agentId}"></span>
+                    <span class="text-xs ml-2" style="color: #94a3b8;"
+                          th:text="#{'agent.confirmation.kind.' + *{subjectKind}}">for you</span></dd>
+                <dt style="color: #94a3b8;" th:text="#{agent.confirmation.target}">Request</dt>
+                <dd class="sm:col-span-2 font-mono break-all" th:text="*{method} + ' ' + *{target}"></dd>
+                <dt style="color: #94a3b8;" th:text="#{agent.confirmation.asked.at}">Asked</dt>
+                <dd class="sm:col-span-2" th:text="${#temporals.format(confirmation.createdAt, 'yyyy-MM-dd HH:mm:ss')}"></dd>
+                <dt style="color: #94a3b8;" th:text="#{agent.confirmation.trigger}">Why it waits</dt>
+                <dd class="sm:col-span-2" th:text="#{'agent.confirmation.trigger.' + *{trigger}}">Contexa's decision asks for you</dd>
+                <dt th:if="*{reason != null and trigger != 'REQUESTED'}" style="color: #94a3b8;" th:text="#{agent.confirmation.reason}">Reason</dt>
+                <dd th:if="*{reason != null and trigger != 'REQUESTED'}" class="sm:col-span-2" th:text="*{reason}"></dd>
+            </dl>
+            <div th:if="*{reason != null and trigger == 'REQUESTED'}" id="agentWritten" class="mt-3 p-3 rounded text-sm"
+                 style="background: rgba(251, 191, 36, 0.08); border: 1px dashed rgba(251, 191, 36, 0.45);">
+                <div class="text-xs font-semibold mb-1" style="color: #fbbf24;" th:text="#{agent.confirmation.agent.written}">Written by the agent</div>
+                <div th:text="*{reason}"></div>
+            </div>
+        </section>
+
+        <section class="mb-6" id="confirmationDelegation">
+            <h2 class="text-lg font-semibold mb-2" th:text="#{agent.confirmation.delegation.heading}">What you delegated</h2>
+            <div th:if="${delegation == null}" class="text-sm" style="color: #94a3b8;"
+                 th:text="#{agent.confirmation.delegation.none}">No delegation is recorded for this request.</div>
+            <dl th:if="${delegation != null}" class="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-1 text-sm">
+                <dt style="color: #94a3b8;" th:text="#{agent.confirmation.delegation.objective}">Objective</dt>
+                <dd class="sm:col-span-2" th:text="${delegation.objectiveSummary != null} ? ${delegation.objectiveSummary} : '-'"></dd>
+                <dt style="color: #94a3b8;" th:text="#{agent.confirmation.delegation.operations}">Allowed operations</dt>
+                <dd class="sm:col-span-2" th:text="${#lists.isEmpty(delegation.allowedOperations)} ? '-' : ${#strings.listJoin(delegation.allowedOperations, ', ')}"></dd>
+                <dt style="color: #94a3b8;" th:text="#{agent.confirmation.delegation.resources}">Allowed resources</dt>
+                <dd class="sm:col-span-2" th:text="${#lists.isEmpty(delegation.allowedResources)} ? '-' : ${#strings.listJoin(delegation.allowedResources, ', ')}"></dd>
+                <dt style="color: #94a3b8;" th:text="#{agent.confirmation.delegation.period}">Period</dt>
+                <dd class="sm:col-span-2" th:text="${#temporals.format(delegation.validFrom, 'yyyy-MM-dd HH:mm')} + ' ~ ' + ${#temporals.format(delegation.expiresAt, 'yyyy-MM-dd HH:mm')}"></dd>
+                <dt th:if="${delegation.revokedAt != null}" style="color: #94a3b8;" th:text="#{agent.confirmation.delegation.revoked}">Revoked</dt>
+                <dd th:if="${delegation.revokedAt != null}" class="sm:col-span-2" style="color: #f87171;" th:text="${#temporals.format(delegation.revokedAt, 'yyyy-MM-dd HH:mm')}"></dd>
+            </dl>
+        </section>
+
+        <section class="mb-6" id="confirmationDecision">
+            <h2 class="text-lg font-semibold mb-2" th:text="#{agent.confirmation.decision.heading}">Why Contexa asks</h2>
+            <div th:if="${decision == null}" class="text-sm" style="color: #94a3b8;"
+                 th:text="#{agent.confirmation.decision.none}">No decision record names this request.</div>
+            <div th:if="${decision != null}" class="text-sm">
+                <div class="mb-2" th:if="${decision.reason != null}" th:text="${decision.reason}"></div>
+                <div th:if="${!#lists.isEmpty(riskFacts)}">
+                    <div class="text-xs mb-1" style="color: #94a3b8;" th:text="#{agent.confirmation.decision.differences}">What differs from the delegation and the usual work</div>
+                    <ol class="list-decimal ml-5">
+                        <li th:each="fact : ${riskFacts}" class="font-mono text-xs" th:text="${fact}"></li>
+                    </ol>
+                </div>
+            </div>
+        </section>
+
+        <!-- AC-2 actions -->
+        <section th:if="${pending}" id="confirmationActions" class="pt-4" style="border-top: 1px solid rgba(71, 85, 105, 0.4);">
+            <p class="text-sm mb-3" style="color: #fbbf24;">
+                <span th:text="#{agent.confirmation.remaining}">Time left</span>:
+                <span id="remaining" th:attr="data-expires=${confirmation.expiresAt}" th:text="${#temporals.format(confirmation.expiresAt, 'yyyy-MM-dd HH:mm:ss')}"></span>
+            </p>
+            <form method="post" class="mb-3" th:action="@{/contexa/agent-confirmations/{id}/approve(id=${confirmation.confirmationId})}" id="approveForm">
+                <input type="text" name="note" maxlength="500" class="w-full mb-2 px-3 py-2 rounded text-sm confirmation-input"
+                       th:placeholder="#{agent.confirmation.note.placeholder}"/>
+                <div class="flex flex-wrap gap-2">
+                    <button type="submit" class="px-4 py-2 rounded-md text-sm font-semibold confirmation-approve"
+                            th:text="#{agent.confirmation.approve}">Approve</button>
+                    <button type="submit" class="px-4 py-2 rounded-md text-sm font-semibold confirmation-reject"
+                            th:formaction="@{/contexa/agent-confirmations/{id}/reject(id=${confirmation.confirmationId})}"
+                            th:text="#{agent.confirmation.reject}">Refuse</button>
+                </div>
+            </form>
+            <form method="post" th:action="@{/contexa/agent-confirmations/{id}/report(id=${confirmation.confirmationId})}" id="reportForm"
+                  th:data-confirm-msg="#{agent.confirmation.report.confirm}" onsubmit="return confirm(this.getAttribute('data-confirm-msg'));">
+                <input type="hidden" name="note" th:value="#{agent.confirmation.report.note}"/>
+                <button type="submit" class="px-4 py-2 rounded-md text-sm font-semibold confirmation-report"
+                        th:text="#{agent.confirmation.report}">Report and stop the agent</button>
+                <p class="text-xs mt-1" style="color: #94a3b8;" th:text="#{agent.confirmation.report.hint}">The agent is stopped at once.</p>
+            </form>
+        </section>
+    </div>
+</div>
+
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    document.addEventListener('DOMContentLoaded', () => {
+        const message = /*[[${message}]]*/ null;
+        if (message && typeof showToast === 'function') {
+            showToast(message, 'success');
+        }
+        const errorMessage = /*[[${errorMessage}]]*/ null;
+        if (errorMessage && typeof showToast === 'function') {
+            showToast(errorMessage, 'error');
+        }
+        const remaining = document.getElementById('remaining');
+        if (remaining) {
+            const expires = Date.parse(remaining.getAttribute('data-expires'));
+            let timer = null;
+            const tick = () => {
+                const left = Math.max(0, Math.floor((expires - Date.now()) / 1000));
+                remaining.textContent = Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+                if (left === 0 && timer !== null) {
+                    clearInterval(timer);
+                    setTimeout(() => window.location.reload(), 2000);
+                }
+            };
+            if (!Number.isNaN(expires)) {
+                timer = setInterval(tick, 1000);
+                tick();
+            }
+        }
+    });
+    /*]]>*/
+</script>
+
+<style>
+    .confirmation-input {
+        background: rgba(30, 41, 59, 0.6);
+        border: 1px solid rgba(71, 85, 105, 0.5);
+        color: #e2e8f0;
+    }
+    .confirmation-approve {
+        background: rgba(34, 197, 94, 0.25);
+        color: #4ade80;
+        border: 1px solid rgba(34, 197, 94, 0.45);
+    }
+    .confirmation-reject {
+        background: rgba(148, 163, 184, 0.15);
+        color: #cbd5e1;
+        border: 1px solid rgba(148, 163, 184, 0.35);
+    }
+    .confirmation-report {
+        background: rgba(239, 68, 68, 0.25);
+        color: #f87171;
+        border: 1px solid rgba(239, 68, 68, 0.45);
+    }
+</style>
+</body>
+</html>

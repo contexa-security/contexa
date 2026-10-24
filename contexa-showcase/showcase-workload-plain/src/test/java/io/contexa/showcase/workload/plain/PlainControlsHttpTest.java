@@ -75,6 +75,34 @@ class PlainControlsHttpTest {
             assertThat(json(salesDocument).path("rule").asText()).isEqualTo("RBAC");
         }
 
+        /**
+         * docs/agent A7-2a: a project's documents are listed for the roles that read documents, by type and title
+         * words, the company's own only; the other roles are refused by the same table.
+         */
+        @Test
+        void aProjectsDocumentsAreListedForTheRolesThatReadThem() throws Exception {
+            WorkloadClient engineerK = signedIn(CompanyBlueprint.ENGINEER_K);
+            Response all = engineerK.get("/api/projects/HX-310/documents?limit=500", UUID.randomUUID().toString(),
+                    at(TimeSlot.AFTERNOON));
+            Response drawings = engineerK.get("/api/projects/HX-310/documents?type=drawing&limit=3",
+                    UUID.randomUUID().toString(), at(TimeSlot.AFTERNOON));
+            Response sales = signedIn("sal-01").get("/api/projects/HX-310/documents", UUID.randomUUID().toString(),
+                    at(TimeSlot.AFTERNOON));
+
+            assertThat(all.status()).as(all.text()).isEqualTo(200);
+            assertThat(json(all).size()).as("at most the listing limit").isBetween(1, 100);
+            json(all).forEach(document -> assertThat(document.path("projectKey").asText()).isEqualTo("HX-310"));
+            assertThat(json(drawings).size()).isEqualTo(3);
+            json(drawings).forEach(document -> assertThat(document.path("documentType").asText()).isEqualTo("DRAWING"));
+            String word = json(drawings).get(0).path("title").asText().split(" ")[0];
+            Response titled = engineerK.get("/api/projects/HX-310/documents?q=" + word, UUID.randomUUID().toString(),
+                    at(TimeSlot.AFTERNOON));
+            json(titled).forEach(document -> assertThat(document.path("title").asText().toLowerCase())
+                    .contains(word.toLowerCase()));
+            assertThat(sales.status()).isEqualTo(403);
+            assertThat(json(sales).path("rule").asText()).isEqualTo("RBAC");
+        }
+
         @Autowired
         ControlAuthorizationManager authorization;
 
@@ -155,6 +183,13 @@ class PlainControlsHttpTest {
             assertThat(json(large).path("rule").asText()).isEqualTo("C1-VOLUME");
             assertThat(dormant.status()).isEqualTo(403);
             assertThat(json(dormant).path("rule").asText()).isEqualTo("C1-DORMANT");
+            // docs/agent A7-2a: listing a dormant project's documents is reading its data too.
+            Response dormantList = engineerK.get("/api/projects/GB-500/documents", UUID.randomUUID().toString(),
+                    at(TimeSlot.AFTERNOON));
+            assertThat(json(dormantList).path("rule").asText()).isEqualTo("C1-DORMANT");
+            Response ownList = engineerK.get("/api/projects/" + CompanyBlueprint.K_PROJECT + "/documents",
+                    UUID.randomUUID().toString(), at(TimeSlot.AFTERNOON));
+            assertThat(ownList.status()).as(ownList.text()).isEqualTo(200);
         }
     }
 
@@ -251,6 +286,14 @@ class PlainControlsHttpTest {
             assertThat(json(own).path("projectKey").asText()).isEqualTo(CompanyBlueprint.K_PROJECT);
             assertThat(foreign.status()).isEqualTo(403);
             assertThat(json(foreign).path("rule").asText()).isEqualTo("C2-NO-CONTEXT");
+            // docs/agent A7-2a: a project's document list is held to the document access rule of its project.
+            Response ownList = engineerK.get("/api/projects/" + CompanyBlueprint.K_PROJECT + "/documents",
+                    UUID.randomUUID().toString(), at(TimeSlot.AFTERNOON));
+            Response foreignList = engineerK.get("/api/projects/GB-500/documents", UUID.randomUUID().toString(),
+                    at(TimeSlot.AFTERNOON));
+            assertThat(ownList.status()).as(ownList.text()).isEqualTo(200);
+            assertThat(foreignList.status()).isEqualTo(403);
+            assertThat(json(foreignList).path("rule").asText()).isEqualTo("C2-NO-CONTEXT");
         }
     }
 }

@@ -67,7 +67,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
     private final ProtectableWorkProfileCollector protectableWorkProfileCollector;
     private final RoleScopeCollector roleScopeCollector;
     private final CanonicalSecurityContextHardener contextHardener;
-    private final ObjectiveDriftEvaluator objectiveDriftEvaluator = new ObjectiveDriftEvaluator();
+    private ObjectiveDriftEvaluator objectiveDriftEvaluator = new ObjectiveDriftEvaluator();
     private final CanonicalExecutionContextResolver canonicalExecutionContextResolver = new CanonicalExecutionContextResolver();
     private final List<ProfileResolver<?>> profileResolvers = List.of(
             new SessionNarrativeProfileResolver(),
@@ -282,6 +282,14 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         this(resourceContextRegistry, coverageEvaluator, authenticationContextProviders, authorizationSnapshotProviders,
                 organizationContextProviders, delegationContextProviders, peerCohortContextProviders, List.of(),
                 reasoningMemoryContextProviders, observedScopeInferenceService, null, null, null, contextHardener);
+    }
+
+    /**
+     * A2-1: the evaluator that compares a delegation with its objective's contract, over the catalog holding the
+     * application's declared objectives. Without one, Contexa's own security objectives only.
+     */
+    public void setObjectiveDriftEvaluator(ObjectiveDriftEvaluator objectiveDriftEvaluator) {
+        this.objectiveDriftEvaluator = objectiveDriftEvaluator != null ? objectiveDriftEvaluator : new ObjectiveDriftEvaluator();
     }
 
     @Override
@@ -548,6 +556,10 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                         Math.round(view.privilegedActions() * 10_000.0 / view.observations()) / 10_000.0);
                 backfillMetadata(metadata, "longTailLegitimateTasks",
                         view.knownRareTasks().isEmpty() ? null : view.knownRareTasks());
+            }
+            // docs/agent A4-1, A4-6: an agent's usual operation order and client, beside its usual behaviour.
+            if (snapshot.getAgentBaseline() != null) {
+                backfillMetadata(metadata, "workProfileAgentBaseline", snapshot.getAgentBaseline());
             }
             if (snapshot.getTrustProfile() != null) {
                 backfillMetadata(metadata, "workProfileTrustProfile", snapshot.getTrustProfile());

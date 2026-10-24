@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.agents.register.title})}"></head>
+<body class="flex flex-col min-h-screen font-sans">
+
+<div th:insert="~{contexa/fragments/header :: header}"></div>
+<div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
+
+<div class="flex flex-1">
+    <aside th:insert="~{contexa/fragments/admin-menu :: menu}" class="hidden md:block"></aside>
+
+    <main class="flex-1 p-6 md:p-10">
+        <div class="mx-auto dark-card p-6 sm:p-8 rounded-xl">
+            <div class="mb-8 text-center sm:text-left">
+                <h1 class="text-3xl font-bold text-gradient" th:text="#{admin.agents.register.title}">Register an agent</h1>
+                <p class="text-dark-muted mt-1" th:text="#{admin.agents.register.subtitle}">The agent with its OAuth2 client</p>
+            </div>
+            <p th:unless="${provisioningAvailable}" class="form-warning" th:text="#{admin.agents.register.unavailable}">
+                Contexa's OAuth2 authorization server is not running.</p>
+            <form th:if="${provisioningAvailable}" th:action="@{/contexa/admin/agents/register}" method="post"
+                  class="form-card" id="agentRegisterForm">
+                <label for="agentId" class="form-label" th:text="#{admin.agents.register.agent.id}">Agent ID</label>
+                <input id="agentId" name="agentId" type="text" required class="form-input font-mono">
+                <label for="displayName" class="form-label" th:text="#{admin.agents.register.display.name}">Name</label>
+                <input id="displayName" name="displayName" type="text" class="form-input">
+                <label for="agentType" class="form-label" th:text="#{admin.agents.register.agent.type}">Type</label>
+                <input id="agentType" name="agentType" type="text" class="form-input">
+                <label for="sponsorId" class="form-label" th:text="#{admin.agents.register.sponsor}">Sponsor</label>
+                <input id="sponsorId" name="sponsorId" type="text" required class="form-input">
+                <p class="form-hint" th:text="#{admin.agents.register.sponsor.hint}">The person accountable for the agent.</p>
+                <label for="tenant" class="form-label" th:text="#{admin.agents.detail.tenant}">Tenant</label>
+                <input id="tenant" name="tenant" type="text" class="form-input">
+                <label for="clientId" class="form-label" th:text="#{admin.agents.register.client.id}">OAuth2 client</label>
+                <input id="clientId" name="clientId" type="text" class="form-input font-mono">
+                <p class="form-hint" th:text="#{admin.agents.register.client.id.hint}">Empty: agent ID followed by -client.</p>
+                <label for="scopes" class="form-label" th:text="#{admin.agents.register.scopes}">Scopes</label>
+                <input id="scopes" name="scopes" type="text" class="form-input font-mono">
+                <p class="form-hint" th:text="#{admin.agents.register.scopes.hint}">Separated by spaces or commas.</p>
+                <label class="form-label"><input type="checkbox" name="ownToken" value="true" checked>
+                    <span th:text="#{admin.agents.register.own.token}">Own token</span></label>
+                <label class="form-label"><input type="checkbox" name="actsForPeople" value="true" checked>
+                    <span th:text="#{admin.agents.register.acts.for.people}">Acts for people</span></label>
+                <label for="tokenLifetimeMinutes" class="form-label" th:text="#{admin.agents.register.token.lifetime}">Token lifetime (minutes)</label>
+                <input id="tokenLifetimeMinutes" name="tokenLifetimeMinutes" type="number" min="1" class="form-input">
+                <label class="form-label"><input type="checkbox" name="account" value="true">
+                    <span th:text="#{admin.agents.register.account}">Own account</span></label>
+                <label for="accountGroups" class="form-label" th:text="#{admin.agents.register.account.groups}">Account groups</label>
+                <input id="accountGroups" name="accountGroups" type="text" class="form-input">
+                <div class="flex flex-wrap gap-3 mt-6">
+                    <button type="submit" class="px-4 py-2 rounded-lg text-sm font-medium text-white"
+                            style="background:linear-gradient(135deg,#6366f1,#4f46e5);"
+                            th:text="#{admin.agents.register.submit}">Register</button>
+                    <a th:href="@{/contexa/admin/agents}" class="px-4 py-2 rounded-lg text-sm font-medium"
+                       style="color:#94a3b8;border:1px solid rgba(71,85,105,0.5);"
+                       th:text="#{admin.agents.detail.back}">Back to agents</a>
+                </div>
+            </form>
+        </div>
+    </main>
+</div>
+
+<div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
+
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    document.addEventListener('DOMContentLoaded', () => {
+        const errorMessage = /*[[${errorMessage}]]*/ null;
+        if (errorMessage) {
+            showToast(errorMessage, 'error');
+        }
+    });
+    /*]]>*/
+</script>
+
+<style>
+    .form-card {
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(71, 85, 105, 0.3);
+        border-radius: 0.75rem;
+        padding: 1.25rem;
+        color: #e2e8f0;
+    }
+    .form-label {
+        display: block;
+        font-size: 0.875rem;
+        color: #cbd5e1;
+        margin: 0.75rem 0 0.25rem;
+    }
+    .form-input {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.5rem;
+        background: rgba(15, 23, 42, 0.8);
+        color: #e2e8f0;
+        border: 1px solid rgba(71, 85, 105, 0.3);
+    }
+    .form-hint {
+        font-size: 0.8125rem;
+        color: #94a3b8;
+        margin-top: 0.25rem;
+    }
+    .secret-value {
+        font-family: ui-monospace, monospace;
+        word-break: break-all;
+        background: rgba(15, 23, 42, 0.8);
+        border: 1px solid rgba(99, 102, 241, 0.4);
+        border-radius: 0.5rem;
+        padding: 0.5rem 0.75rem;
+    }
+    .form-warning {
+        margin: 0.75rem 0;
+        font-size: 0.875rem;
+        color: #fbbf24;
+    }
+</style>
+
+</body>
+</html>

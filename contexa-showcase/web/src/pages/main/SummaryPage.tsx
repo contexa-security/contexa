@@ -11,11 +11,15 @@ import { SourceBadge } from '../../components/main/SourceBadge';
 import { count } from '../../journey/format';
 import { screenAt } from '../../journey/journey';
 import { latestOwnRun } from './latestRun';
+import { AGENT_CASE } from '../../api/agentCase';
 import { MAIN_CASES } from './mainCases';
 import styles from './SummaryPages.module.css';
 import { useCountUp } from './useCountUp';
 
-/** The insider's results whose own sentence 7-1 has (V-40): stopped before, after some documents left, or not at all. */
+/**
+ * The insider's results whose own sentence 8-1 has (V-40): stopped before, after some documents left, or not at all;
+ * the business agent's run has the same three (docs/agent A7-3).
+ */
 const INSIDER_LINES: ReadonlySet<string> = new Set(['STOPPED', 'PARTLY_STOPPED', 'MISSED']);
 
 /** A big number that counts up from 0 when it shows (설계서 모션 6-1: 0.9초). */
@@ -41,7 +45,7 @@ function Counted({
 }
 
 /**
- * 6-1, the three things confirmed (설계서 6-1): the visitor's calls against the judgments, then three cards, each
+ * 8-1, the three things confirmed (설계서 6-1): the visitor's calls against the judgments, then three cards, each
  * one number from its record with its source (the visitor's run, the repeated runs, the prompt-quality measurement)
  * and a way back to the screen that showed it. A card says its sentence only when its number makes it true. Under the
  * calls, the insider's run is named by what Contexa did with it, as the server scored it.
@@ -57,6 +61,9 @@ export default function SummaryPage() {
   // V-40: the insider's own run, named by what Contexa did with it over all its documents, as the server scored it.
   const insider = latestOwnRun(journey.data?.runs, MAIN_CASES.insider);
   const insiderResult = insider?.business['D'] ?? '';
+  // docs/agent A7-3 (화면설계 4.5): the business agent's own run, named by what Contexa did with its requests.
+  const agent = latestOwnRun(journey.data?.runs, AGENT_CASE);
+  const agentResult = agent?.business['D'] ?? '';
   const [result] = useRunStepResults(attack?.runId ?? null, 1);
   const legacy = result?.layers.find((layer) => layer.control === 'B')?.evidence.deliveredItems ?? null;
   const contexa = benchmark.data?.controls.find((score) => score.control === 'D') ?? null;
@@ -71,8 +78,8 @@ export default function SummaryPage() {
       unit: true,
       holds: attack !== null && attack.exposedItems === 0,
       line: attack
-        ? t('main.7-1.request.line', { legacy: legacy === null ? '-' : count(legacy, language) })
-        : t('main.7-1.request.none'),
+        ? t('main.8-1.request.line', { legacy: legacy === null ? '-' : count(legacy, language) })
+        : t('main.8-1.request.none'),
       source: attack ? <SourceBadge kind="run" label={t('badge.run')} runId={attack.runId} /> : null,
       to: '/attack/console',
     },
@@ -82,14 +89,14 @@ export default function SummaryPage() {
       total: contexa ? contexa.falseBlock.total : null,
       unit: false,
       holds: contexa !== null && contexa.falseBlock.hits === 0,
-      line: t('main.7-1.normal.line', {
+      line: t('main.8-1.normal.line', {
         hits: fixed ? fixed.falseBlock.hits : '-',
         total: fixed ? fixed.falseBlock.total : '-',
       }),
       source: (
         <SourceBadge
           kind="repeated"
-          label={t('main.7-1.repeated', { runs: benchmark.data?.scope.runs ?? '-' })}
+          label={t('main.8-1.repeated', { runs: benchmark.data?.scope.runs ?? '-' })}
         />
       ),
       to: '/compare/runs',
@@ -100,37 +107,40 @@ export default function SummaryPage() {
       total: reason ? reason.total : null,
       unit: false,
       holds: reason !== null && reason.total > 0 && reason.hits === reason.total,
-      line: t('main.7-1.record.line'),
-      source: <SourceBadge kind="repeated" label={t('main.7-1.quality')} />,
+      line: t('main.8-1.record.line'),
+      source: <SourceBadge kind="repeated" label={t('main.8-1.quality')} />,
       to: '/evidence/map',
     },
   ] as const;
   return (
     <MainScreen
-      title={t('main.7-1.title')}
+      title={t('main.8-1.title')}
       intro={
         <>
           {predictions.length > 0 ? (
             <span className={styles.calls}>
               {predictions.map((score) => (
                 <Chip key={score.experience} kind={score.engineSameStop ? 'ok' : 'wait'}>
-                  {t(`main.7-1.call.${score.engineSameStop ? 'right' : 'other'}`, {
-                    what: t(`main.7-1.call.${score.experience}`),
+                  {t(`main.8-1.call.${score.engineSameStop ? 'right' : 'other'}`, {
+                    what: t(`main.8-1.call.${score.experience}`),
                   })}
                 </Chip>
               ))}
-              <span className={styles.callNote}>{t('main.7-1.call.note')}</span>
+              <span className={styles.callNote}>{t('main.8-1.call.note')}</span>
             </span>
           ) : (
-            t('main.7-1.noCalls')
+            t('main.8-1.noCalls')
           )}
           {insider && INSIDER_LINES.has(insiderResult) ? (
             <span className={styles.insider}>
-              {t(`main.7-1.insider.${insiderResult}`, {
+              {t(`main.8-1.insider.${insiderResult}`, {
                 n: count(insider.exposedItems, language),
                 count: insider.exposedItems,
               })}
             </span>
+          ) : null}
+          {agent && INSIDER_LINES.has(agentResult) ? (
+            <span className={styles.insider}>{t(`main.8-1.agent.${agentResult}`)}</span>
           ) : null}
         </>
       }
@@ -139,7 +149,7 @@ export default function SummaryPage() {
         {cards.map((card) => (
           <li key={card.id} className={styles.card}>
             <b className={styles.cardTitle}>
-              {t(`main.7-1.${card.id}.${card.holds ? 'title' : 'titlePlain'}`)}
+              {t(`main.8-1.${card.id}.${card.holds ? 'title' : 'titlePlain'}`)}
             </b>
             <p className={styles.big} data-holds={card.holds || undefined}>
               <Counted value={card.value} total={card.total} />
@@ -149,7 +159,7 @@ export default function SummaryPage() {
             <div className={styles.cardFoot}>
               {card.source}
               <Link to={card.to} className={styles.back}>
-                {t('main.7-1.back', { screen: screenAt('DEFAULT', card.to)?.number ?? '' })}
+                {t('main.8-1.back', { screen: screenAt('DEFAULT', card.to)?.number ?? '' })}
               </Link>
             </div>
           </li>

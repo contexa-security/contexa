@@ -13,11 +13,13 @@ import io.contexa.showcase.portal.template.TemplateCurrency;
 import io.contexa.showcase.portal.template.TemplateStore;
 import io.contexa.showcase.portal.replay.ReplayView;
 import io.contexa.showcase.portal.replay.ReplayViews;
+import io.contexa.showcase.portal.scenario.AgentTaskCatalog;
 import io.contexa.showcase.portal.scenario.ScenarioCatalog;
 import io.contexa.showcase.portal.scenario.ScenarioDefinition;
 import io.contexa.showcase.portal.visitor.VisitorCookies;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -33,6 +35,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +69,10 @@ public class LiveController {
     public record AnswerRequest(String code) {
     }
 
+    /** docs/agent A7-3: the visitor's answer, as the delegating employee, to a confirmation of the agent's request. */
+    public record AgentConfirmationAnswer(boolean approve) {
+    }
+
     public record ReleaseRequest(String reason) {
     }
 
@@ -75,6 +82,9 @@ public class LiveController {
     private final LiveAllotment allotment;
     private final TurnstileVerifier turnstile;
     private final ScenarioCatalog scenarios;
+    /** docs/agent A7-3: the business agent cases a visitor can start (the agent group), apart from the catalog. */
+    private final AgentTaskCatalog agentTasks;
+    private final List<String> agentTaskKeys;
     private final VisitorCookies cookies;
     private final ReplayViews views;
     private final WorkloadAdmin admin;
@@ -91,7 +101,14 @@ public class LiveController {
     public LiveController(LiveRuns live, LiveGate gate, LiveQuota quota, LiveAllotment allotment,
                           TurnstileVerifier turnstile, ScenarioCatalog scenarios, VisitorCookies cookies,
                           ReplayViews views, WorkloadAdmin admin, TemplateCurrency templates,
-                          BaselineEvidence evidence, BeforeSend before, DecisionWaits waits, ObjectMapper json) {
+                          BaselineEvidence evidence, BeforeSend before, DecisionWaits waits, ObjectMapper json,
+                          AgentTaskCatalog agentTasks,
+                          @Value("${showcase.live.agent-tasks:T5}") String agentTaskKeys) {
+        this.agentTasks = agentTasks;
+        this.agentTaskKeys = Arrays.stream(agentTaskKeys.split(",")).map(String::trim)
+                .filter(key -> !key.isEmpty()).toList();
+        this.agentTaskKeys.forEach(key -> agentTasks.find(key)
+                .orElseThrow(() -> new IllegalStateException("Unknown live agent task " + key)));
         this.views = views;
         this.waits = waits;
         this.evidence = evidence;
@@ -131,10 +148,12 @@ public class LiveController {
         if (visitor.isEmpty()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        if (start == null || start.scenario() == null || !live.settings().scenarioKeys().contains(start.scenario())) {
+        if (start == null || start.scenario() == null) {
             return ResponseEntity.badRequest().build();
         }
-        ScenarioDefinition scenario = scenarios.find(start.scenario()).orElse(null);
+        ScenarioDefinition scenario = live.settings().scenarioKeys().contains(start.scenario())
+                ? scenarios.find(start.scenario()).orElse(null)
+                : agentTaskKeys.contains(start.scenario()) ? agentTasks.find(start.scenario()).orElse(null) : null;
         if (scenario == null) {
             return ResponseEntity.badRequest().build();
         }
@@ -207,6 +226,16 @@ public class LiveController {
     @PostMapping("/api/live/runs/current/release-approve")
     public ResponseEntity<LiveRun.View> releaseApprove(HttpServletRequest request) {
         return act(request, LiveRun::approve);
+    }
+
+    /**
+     * docs/agent A7-3: approves or rejects, as the delegating employee, the request control D asked the employee to
+     * confirm; the agent then sends it again with the confirmation.
+     */
+    @PostMapping("/api/live/runs/current/agent-confirmation")
+    public ResponseEntity<LiveRun.View> agentConfirmation(HttpServletRequest request,
+                                                          @RequestBody AgentConfirmationAnswer body) {
+        return act(request, run -> run.decideAgentConfirmation(body != null && body.approve()));
     }
 
     /** Sends the step the visitor's run waits for the visitor to send (the attacker trying again). */

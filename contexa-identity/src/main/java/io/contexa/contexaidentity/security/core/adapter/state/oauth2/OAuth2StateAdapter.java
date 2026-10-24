@@ -61,6 +61,12 @@ public final class OAuth2StateAdapter implements StateAdapter {
 
     @Override
     public void apply(HttpSecurity http, PlatformContext platformCtx) throws Exception {
+        apply(http, platformCtx, http != null ? http.getSharedObject(AuthenticationFlowConfig.class) : null);
+    }
+
+    /** Applies the state to the flow's chain, with the customizer the flow's {@code .oauth2(customizer)} gave. */
+    @Override
+    public void apply(HttpSecurity http, PlatformContext platformCtx, AuthenticationFlowConfig flowConfig) throws Exception {
         Objects.requireNonNull(http, "HttpSecurity cannot be null for OAuth2StateAdapter.apply");
         Objects.requireNonNull(platformCtx, "PlatformContext cannot be null for OAuth2StateAdapter.apply");
         ApplicationContext appContext = Objects.requireNonNull(
@@ -80,7 +86,9 @@ public final class OAuth2StateAdapter implements StateAdapter {
         // Runs after every authentication adapter and global configurer, so the chain neither reads nor
         // writes the HTTP session regardless of the factor order; this is the Spring stateless default.
         http.setSharedObject(SecurityContextRepository.class, new RequestAttributeSecurityContextRepository());
-        http.with(new OAuth2StateConfigurer(mode), Customizer.withDefaults());
+        http.with(new OAuth2StateConfigurer(mode), flowConfig != null
+                ? flowConfig.stateCustomizer(OAuth2StateConfigurer.class)
+                : Customizer.withDefaults());
     }
 
     private void configureSharedInfrastructure(HttpSecurity http, ApplicationContext appContext) {
@@ -144,8 +152,12 @@ public final class OAuth2StateAdapter implements StateAdapter {
                     appContext.getBean(RegisteredClientRepository.class));
             http.setSharedObject(AuthorizationServerSettings.class,
                     appContext.getBean(AuthorizationServerSettings.class));
-            http.setSharedObject(OAuth2TokenGenerator.class,
-                    appContext.getBean(OAuth2TokenGenerator.class));
+            // An application's own generator is used as it is; without one the authorization server builds Spring's,
+            // which adds Spring's default claims (act, cnf) before Contexa's token customizer (CF-06).
+            OAuth2TokenGenerator<?> applicationGenerator = appContext.getBeanProvider(OAuth2TokenGenerator.class).getIfUnique();
+            if (applicationGenerator != null) {
+                http.setSharedObject(OAuth2TokenGenerator.class, applicationGenerator);
+            }
             http.setSharedObject(UserRepository.class, appContext.getBean(UserRepository.class));
         } catch (NoSuchBeanDefinitionException e) {
             throw new IllegalStateException("Authorization Server beans are required for AUTHORIZATION_SERVER mode", e);

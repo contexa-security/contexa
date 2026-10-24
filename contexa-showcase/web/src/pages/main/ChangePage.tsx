@@ -29,7 +29,7 @@ type Change = (typeof CHANGES)[number];
 const COMPARED = ['C1', 'C2', 'D'] as const;
 
 /**
- * 6-2, change one condition and send again (설계서 5-2, FP-3 with the lab's own conditions): the attack of group 2
+ * 7-2, change one condition and send again (설계서 5-2, FP-3 with the lab's own conditions): the attack of group 2
  * with only the hour, the size or the device changed from what the case defines (an afternoon to the dawn and back, the
  * smallest size, a new device to the usual one and back), sent for real through the lab. Its five lanes fill as before,
  * then the prompt lines the change changed (the portal's comparison of the two sealed prompts) and each approach's
@@ -114,7 +114,7 @@ export default function ChangePage() {
 
   if (options.isPending || !labCase) {
     return (
-      <MainScreen title={t('main.6-2.title')} main={null}>
+      <MainScreen title={t('main.7-2.title')} main={null}>
         <StateScreen kind={options.isPending ? 'loading' : 'notReady'} />
       </MainScreen>
     );
@@ -183,8 +183,8 @@ export default function ChangePage() {
   };
   return (
     <MainScreen
-      title={t('main.6-2.title')}
-      intro={t('main.6-2.intro')}
+      title={t('main.7-2.title')}
+      intro={t('main.7-2.intro')}
       live={going && view?.runId ? view.runId : null}
       waiting={going ? { label: t('main.console.deciding'), hint: t('main.console.decidingHint') } : null}
       quiet={!finished}
@@ -192,7 +192,7 @@ export default function ChangePage() {
       <div className={styles.change}>
         <section className={styles.card} aria-labelledby="change-controls">
           <h2 id="change-controls" className={styles.cardTitle}>
-            {t('main.6-2.controls')}
+            {t('main.7-2.controls')}
           </h2>
           {/* The card's heading names the choices once; a legend of the same words was read twice (L-38). */}
           <fieldset className={styles.presets} disabled={going} aria-labelledby="change-controls">
@@ -210,7 +210,7 @@ export default function ChangePage() {
                     setParams(next, { replace: true });
                   }}
                 />
-                <b className={styles.presetName}>{t(`main.6-2.change.${preset}`)}</b>
+                <b className={styles.presetName}>{t(`main.7-2.change.${preset}`)}</b>
                 <span className={styles.presetFrom}>{from[preset]}</span>
                 <span className={styles.presetArrow} aria-hidden="true">
                   →
@@ -226,7 +226,7 @@ export default function ChangePage() {
             disabled={!ready || going}
             onClick={() => void sendRun()}
           >
-            {t(sending ? 'main.request.sending' : 'main.6-2.send')}
+            {t(sending ? 'main.request.sending' : 'main.7-2.send')}
           </button>
           {turnstileRequired ? <div ref={turnstileContainer} /> : null}
           {waiting ? <p className={styles.note}>{t('p1.predict.waitEarlier')}</p> : null}
@@ -239,7 +239,7 @@ export default function ChangePage() {
         </section>
         <div className={styles.column}>
           <section className={styles.card} aria-label={t('main.console.lanes')}>
-            {view ? null : <p className={styles.lanesNote}>{t('main.6-2.notSent')}</p>}
+            {view ? null : <p className={styles.lanesNote}>{t('main.7-2.notSent')}</p>}
             <ul className={styles.lanes}>
               {CONTROL_ORDER.map((control) => (
                 <Lane
@@ -259,7 +259,7 @@ export default function ChangePage() {
           {step ? (
             <section className={styles.diffLines} aria-labelledby="prompt-diff">
               <h2 id="prompt-diff" className={styles.cardTitle}>
-                {t('main.6-2.promptDiff')}
+                {t('main.7-2.promptDiff')}
               </h2>
               {splitChanged(step.changed, change).related.map((line) => (
                 <div key={line.label} className={styles.diffPair}>
@@ -275,7 +275,7 @@ export default function ChangePage() {
                 // The other changed lines (earlier records counted from a later hour, the learned usual) fold away.
                 <details className={styles.diffMore}>
                   <summary>
-                    {t('main.6-2.otherLines', { count: splitChanged(step.changed, change).other.length })}
+                    {t('main.7-2.otherLines', { count: splitChanged(step.changed, change).other.length })}
                   </summary>
                   {splitChanged(step.changed, change).other.map((line) => (
                     <div key={line.label} className={styles.diffPair}>
@@ -289,10 +289,10 @@ export default function ChangePage() {
                   ))}
                 </details>
               ) : null}
-              {step.changed.length === 0 ? <p className={styles.note}>{t('main.6-2.noLine')}</p> : null}
+              {step.changed.length === 0 ? <p className={styles.note}>{t('main.7-2.noLine')}</p> : null}
               {step.unchangedLines != null ? (
                 <p className={styles.note}>
-                  {t('main.6-2.unchanged', {
+                  {t('main.7-2.unchanged', {
                     n: count(step.unchangedLines, language),
                     count: step.unchangedLines,
                   })}
@@ -303,14 +303,14 @@ export default function ChangePage() {
           {finished && afterLine ? (
             <section className={styles.card} aria-labelledby="change-compare">
               <h2 id="change-compare" className={styles.cardTitle}>
-                {t('main.6-2.compare')}
+                {t('main.7-2.compare')}
               </h2>
               <div className={styles.grid3} data-head>
                 <span />
-                <span>{t('main.6-2.before')}</span>
+                <span>{t('main.7-2.before')}</span>
                 <span>
-                  {t('main.6-2.after', { change: t(`main.6-2.change.${change}`) })}
-                  {unscored ? ` · ${t('main.6-2.noAnswer')}` : ''}
+                  {t('main.7-2.after', { change: t(`main.7-2.change.${change}`) })}
+                  {unscored ? ` · ${t('main.7-2.noAnswer')}` : ''}
                 </span>
               </div>
               {COMPARED.map((control) => {
@@ -328,9 +328,9 @@ export default function ChangePage() {
                   </div>
                 );
               })}
-              {unscored ? <p className={styles.note}>{t('main.6-2.unscored')}</p> : null}
+              {unscored ? <p className={styles.note}>{t('main.7-2.unscored')}</p> : null}
               <p className={styles.why}>
-                {t('main.6-2.risk', {
+                {t('main.7-2.risk', {
                   before: riskBefore === null ? '—' : riskBefore.toFixed(2),
                   after: riskAfter === null ? '—' : riskAfter.toFixed(2),
                 })}
@@ -339,12 +339,12 @@ export default function ChangePage() {
                 {baseRunId ? (
                   <SourceBadge
                     kind={own ? 'run' : 'repeated'}
-                    label={t(own ? 'main.6-2.before' : 'main.evidence.measured')}
+                    label={t(own ? 'main.7-2.before' : 'main.evidence.measured')}
                     runId={baseRunId}
                   />
                 ) : null}
                 {view?.runId ? (
-                  <SourceBadge kind="run" label={t('main.6-2.afterShort')} runId={view.runId} />
+                  <SourceBadge kind="run" label={t('main.7-2.afterShort')} runId={view.runId} />
                 ) : null}
               </div>
               <p className={styles.note}>

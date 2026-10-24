@@ -16,6 +16,13 @@
                 <p class="text-dark-muted mt-1" th:text="#{admin.blacklist.subtitle}">AI Native Zero Trust blocked user management</p>
             </div>
 
+            <div class="flex flex-wrap gap-2 mb-6 items-center" id="blacklistTabs">
+                <a th:href="@{/contexa/admin/blacklist}" class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 filter-active"
+                   th:text="#{admin.blacklist.tab.people}">People</a>
+                <a th:href="@{/contexa/admin/blacklist/agents}" class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 filter-inactive"
+                   th:text="#{admin.blacklist.tab.agents}">Agents</a>
+            </div>
+
             <div class="flex flex-wrap gap-2 mb-6 items-center">
                 <a th:href="@{/contexa/admin/blacklist(filter='all', keyword=${keyword})}"
                    th:classappend="${currentFilter == 'all'} ? 'filter-active' : 'filter-inactive'"

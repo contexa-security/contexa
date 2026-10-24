@@ -66,6 +66,9 @@ public class SessionStateAdapter implements StateAdapter {
         );
 
         SessionStateConfigurer configurer = new SessionStateConfigurer(appContext);
-        http.with(configurer, Customizer.withDefaults());
+        // The customizer the flow's .session(customizer) gave.
+        http.with(configurer, flowConfig != null
+                ? flowConfig.stateCustomizer(SessionStateConfigurer.class)
+                : Customizer.withDefaults());
     }
 }

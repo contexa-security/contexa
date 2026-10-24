@@ -41,7 +41,7 @@ interface AppHeaderProps {
 
 /**
  * The top bar (최종화면-구현계획 F0-2): the brand, the LIVE mark while a real request runs, today's real runs and the
- * decisions so far as the server counts them, the terms and the menu. Under it, on the main flow, the six groups with
+ * decisions so far as the server counts them, the terms and the menu. Under it, on the main flow, the eight groups with
  * the finished ones ticked and the current one in gold; on a "learn more" screen the way back to the flow; elsewhere
  * the space and its step.
  */

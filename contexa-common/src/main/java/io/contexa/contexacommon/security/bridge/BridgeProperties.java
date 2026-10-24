@@ -182,6 +182,16 @@ public class BridgeProperties {
             private Map<String, List<String>> delegatedMarkers = new LinkedHashMap<>(Map.of("execution_mode", List.of("DELEGATED_AGENT")));
             /** Client IDs the host registers as agents, for authorization servers that mark agents no other way. */
             private List<String> agentClientIds = List.of();
+            /**
+             * Claims naming the tenant a token belongs to (Entra {@code tid}); the registered agent lookup is scoped to
+             * it, and a token without one is looked up as the single-tenant deployment's.
+             */
+            private List<String> tenantClaims = List.of("tid", "tenant_id");
+            /**
+             * Claims naming the delegation a token belongs to; recorded as the delegation ID and, when the token
+             * carries no login session ({@code sid}), the session an agent's requests are grouped by (A1-11).
+             */
+            private List<String> delegationIdClaims = List.of("delegation_id", "delegationId");
             /** Claims stating whether the subject is a user or an application (Entra {@code idtyp}, Auth0 {@code sub_profile}). */
             private List<String> subjectTypeClaims = List.of("idtyp", "sub_profile");
             /** Subject type values that mean a person, so the agent acts for that person. */

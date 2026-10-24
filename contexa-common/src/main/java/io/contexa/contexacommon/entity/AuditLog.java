@@ -87,7 +87,63 @@ public class AuditLog {
     private String eventSource;
 
     @Column(length = 64)
-    private String correlationId; 
+    private String correlationId;
+
+    /** docs/agent A5-5: who the decided request acted as (HUMAN_USER, DELEGATED_AGENT, AUTONOMOUS_AGENT, ...). */
+    @Column(length = 32)
+    private String subjectKind;
+
+    /** docs/agent A5-5: the agent of an agent's request. */
+    @Column(length = 255)
+    private String agentId;
+
+    /** docs/agent A5-5: the person a delegated agent acted for. */
+    @Column(length = 255)
+    private String delegatorId;
+
+    /** docs/agent A5-5: the delegation the agent's request ran under, when known. */
+    @Column(length = 255)
+    private String delegationId;
+
+    /** docs/agent A5-5: the operation the request asked for (its action family). */
+    @Column(length = 100)
+    private String targetAction;
+
+    /** docs/agent A5-5: the risk facts the decision cited (its reason codes with their fact IDs). */
+    @Column(length = 1024)
+    private String riskState;
+
+    /** docs/agent A5-5: what was enforced (the decision applied, kept stricter or only observed, and later steps). */
+    @Column(length = 255)
+    private String enforcementAction;
+
+    /** docs/agent A5-5: why it was enforced so (the model's decision, a technical fallback, a constraint). */
+    @Column(length = 1024)
+    private String enforcementCause;
+
+    /** docs/agent A5-5: the SHA-256 of the request's context (time, agent, target, action, normalised input). */
+    @Column(length = 64)
+    private String requestContextHash;
+
+    /** docs/agent A5-6: the tenant of the decided request. */
+    @Column(length = 255)
+    private String tenantId;
+
+    /** docs/agent A5-6: the SHA-256 of the decision record, its tenant, user and time included. */
+    @Column(length = 64)
+    private String recordHash;
+
+    /** docs/agent A5-6: the hash of the decision record written before this one. */
+    @Column(length = 64)
+    private String previousRecordHash;
+
+    /** docs/agent A5-6: the keyed signature of the record hash. */
+    @Column(length = 128)
+    private String recordSignature;
+
+    /** docs/agent A5-6: the key the signature was made with. */
+    @Column(length = 64)
+    private String signatureKeyId;
 
     @PrePersist
     protected void onCreate() {

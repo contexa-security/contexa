@@ -89,10 +89,10 @@ class PromptGovernanceLifecycleLedgerServiceTest {
         ArgumentCaptor<PromptGovernanceRollbackRecord> rollback = ArgumentCaptor.forClass(PromptGovernanceRollbackRecord.class);
         verify(rollbackRepository, times(2)).save(rollback.capture());
         assertThat(rollback.getAllValues()).extracting(PromptGovernanceRollbackRecord::getRollbackTargetPromptVersion)
-                .containsExactlyInAnyOrder("2026.10.16-v19.20", "2026.10.17-v20.25");
-        assertThat(rollback.getAllValues()).filteredOn(row -> "2026.10.17-v20.25".equals(row.getPromptVersion()))
+                .containsExactlyInAnyOrder("2026.10.24-v19.21", "2026.10.24-v20.26");
+        assertThat(rollback.getAllValues()).filteredOn(row -> "2026.10.24-v20.26".equals(row.getPromptVersion()))
                 .singleElement()
-                .satisfies(row -> assertThat(row.getRollbackTargetPromptVersion()).isEqualTo("2026.10.16-v19.20"));
+                .satisfies(row -> assertThat(row.getRollbackTargetPromptVersion()).isEqualTo("2026.10.24-v19.21"));
         assertThat(rollback.getAllValues()).allSatisfy(row -> {
             assertThat(row.getRollbackState()).isEqualTo("TARGET_DECLARED");
             assertThat(row.getRollbackReadinessState()).isEqualTo("WORKFLOW_MISSING");

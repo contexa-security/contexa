@@ -3,6 +3,7 @@ package io.contexa.showcase.portal.journey;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.showcase.portal.anatomy.AnatomyStore;
 import io.contexa.showcase.portal.hook.HookStore;
+import io.contexa.showcase.portal.scenario.AgentTaskCatalog;
 import io.contexa.showcase.portal.scenario.ScenarioCatalog;
 import io.contexa.showcase.portal.scoring.RunScores;
 import org.springframework.context.annotation.Bean;
@@ -26,8 +27,9 @@ public class JourneyConfiguration {
     }
 
     @Bean
-    JourneyViews journeyViews(JourneyStore store, RunScores scores, ScenarioCatalog scenarios, AnonymousTally tally) {
-        return new JourneyViews(store, scores, scenarios, tally, Clock.systemUTC());
+    JourneyViews journeyViews(JourneyStore store, RunScores scores, ScenarioCatalog scenarios,
+                              AgentTaskCatalog agentTasks, AnonymousTally tally) {
+        return new JourneyViews(store, scores, scenarios, agentTasks, tally, Clock.systemUTC());
     }
 
     @Bean

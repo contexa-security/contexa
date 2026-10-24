@@ -778,6 +778,162 @@ public final class SecurityDecisionPromptDictionary {
             true, PromptDictionaryEntry.PRIORITY_REQUIRED, null, PromptListOrder.NONE, false,
             List.of());
 
+    /** A relative time of a v21 agent line ({@code 3 min before this request}). */
+    private static final String V21_RELATIVE = "\\d+ (min|h|days) (before|after) this request";
+
+    /**
+     * v21.9 (A2-11): what the request's access token states, after the subject line. A session's request has none.
+     */
+    private static final PromptDictionaryEntry CREDENTIAL = entry(PromptBlock.REQUEST, "Credential",
+            "The request's access token: its kind (a user's, a delegated or a client's own), the grant it shows, the"
+                    + " client, when it was issued and when it expires, the actor chain and whether it is bound to a key",
+            "access token claims as the resource server verified them (CredentialFacts)",
+            "(user access token|delegated access token|client's own access token)(, grant \\S+)?(, client \\S+)?"
+                    + "(, issued " + V21_RELATIVE + ")?(, expires " + V21_RELATIVE + ")?"
+                    + "(, actor chain depth \\d+( \\(before it: .+\\))?)?"
+                    + ", (not bound to a key|bound to a DPoP key|bound to an mTLS certificate)",
+            List.of("delegated access token, grant token-exchange, client report-agent-client, issued 2 min before"
+                            + " this request, expires 28 min after this request, actor chain depth 1, not bound to a key",
+                    "client's own access token, grant client_credentials, client report-agent-client, issued 1 min"
+                            + " before this request, expires 59 min after this request, not bound to a key"),
+            PromptMissingNotation.LINE_OMITTED, null,
+            Set.of(PromptSourceGrade.HOST),
+            "how the request was authenticated; the model reads it with the subject and the delegation",
+            true, PromptDictionaryEntry.PRIORITY_REQUIRED, null, PromptListOrder.NONE, false,
+            List.of());
+
+    /** docs/agent F-5 (RW-1): the confirmation the accountable person gave for this request, after the credential. */
+    private static final PromptDictionaryEntry CONFIRMATION = entry(PromptBlock.REQUEST, "Confirmation",
+            "The accountable person's confirmation this request carried: who approved it and when, when and why it"
+                    + " was asked, that it covers this one request only, and the authorization it was recorded as",
+            "the confirmation record the request used (AgentConfirmationFacts)",
+            "approved by (\\S+|not stated)( " + V21_RELATIVE + ")?, asked (" + V21_RELATIVE + " )?because"
+                    + " (the delegation had ended|the decision in force asked for a check|the agent asked for it"
+                    + "|not stated|[a-z ]+), for this request only, authorization (\\S+|not recorded)",
+            List.of("approved by alice 0 min before this request, asked 2 min before this request because the"
+                    + " delegation had ended, for this request only, authorization ctxa-as:5c1d2e3f"),
+            PromptMissingNotation.LINE_OMITTED, null,
+            Set.of(PromptSourceGrade.COMPUTED),
+            "what the accountable person confirmed; the model reads it with the subject, the credential and the"
+                    + " delegation",
+            true, PromptDictionaryEntry.PRIORITY_REQUIRED, null, PromptListOrder.NONE, false,
+            List.of());
+
+    /** v21.9 (A2-9): what an agent did so far in its session, after the session's requests. */
+    private static final PromptDictionaryEntry DELEGATION_ACTIVITY = entry(PromptBlock.SESSION, "DelegationActivity",
+            "What the agent did so far in this session (a delegation's session for a delegated agent): the earlier"
+                    + " requests by action, the items exported, the distinct targets, the refused ones, the first"
+                    + " request's time, the operations of the latest requests in the order made and the median time"
+                    + " between the session's requests",
+            "session decision history (W1-11) of an agent's session",
+            "no earlier request in this agent session|\\d+ earlier requests? in this agent session \\(.+\\),"
+                    + " [\\d,]+ items exported, \\d+ distinct targets?, \\d+ refused(, first " + V21_RELATIVE + ")?"
+                    + "(, order [A-Z_]+( x\\d+)?(, [A-Z_]+( x\\d+)?)* \\(last \\d+\\))?"
+                    + "(, median \\d+ (s|min) between requests)?",
+            List.of("7 earlier requests in this agent session (READ 5, EXPORT 2), 1,240 items exported, 6 distinct"
+                    + " targets, 1 refused, first 12 min before this request, order LIST, READ x5, EXPORT (last 7),"
+                    + " median 2 s between requests"),
+            PromptMissingNotation.LINE_OMITTED, null,
+            Set.of(PromptSourceGrade.COMPUTED),
+            "DELEGATION_SCOPE_DRIFT, SESSION_SEQUENCE; the model reads it with the delegation",
+            true, PromptDictionaryEntry.PRIORITY_REQUIRED, null, PromptListOrder.NONE, false,
+            List.of());
+
+    /**
+     * v21.10 (A2-12): whose company records the lines are, before the policy line, when the host looked them up for
+     * another person than the request's subject (an agent's sponsor or the person it acts for).
+     */
+    private static final PromptDictionaryEntry RECORDS_HOLDER = entry(PromptBlock.DECISION_FACTS, "RecordsHolder",
+            "Whose company records the record lines are, when the host looked them up for another person than the"
+                    + " request's subject: an agent's request is judged with the records of the person it acts for or of"
+                    + " its sponsor",
+            "host record suppliers (RecordsHolder: FrictionProfile recordsHolderId and recordsHolderRelation)",
+            "\\S+ \\((the agent's sponsor|the delegator)\\)",
+            List.of("v1a2b3c-eng-k (the agent's sponsor)"),
+            PromptMissingNotation.LINE_OMITTED, null,
+            Set.of(PromptSourceGrade.HOST),
+            "whose assignment, duty, tickets and trips the record lines state; the model reads them with it",
+            true, PromptDictionaryEntry.PRIORITY_REQUIRED, null, PromptListOrder.NONE, false,
+            List.of());
+
+    /** v21.9 (A2-10): who wrote the records the request rests on and when, after the delegation line. */
+    private static final PromptDictionaryEntry RECORD_PROVENANCE = entry(PromptBlock.DECISION_FACTS, "RecordProvenance",
+            "Who wrote each approval, ticket and delegation record the request rests on, as the host states it, and"
+                    + " when; the author's relation to this request (its agent, its subject, the delegator) when it has one",
+            "host record suppliers (ApprovalRecord, TicketRecord, DelegationRecord recordedBy and recordedAt)",
+            "(approval|ticket|delegation) .+ recorded.+(; (approval|ticket|delegation) .+ recorded.+)*",
+            List.of("approval APR-1 recorded by report-agent (this request's agent) 2 min before this request;"
+                    + " delegation DLG-1 recorded by alice (the delegator) 1 h before this request"),
+            PromptMissingNotation.LINE_OMITTED, null,
+            Set.of(PromptSourceGrade.HOST),
+            "RECORD_COVERS_WORK, NO_COVERING_RECORD; who stated the record the request rests on",
+            true, PromptDictionaryEntry.PRIORITY_REQUIRED, null, PromptListOrder.NONE, false,
+            List.of());
+
+    /** A digest of a user agent in an agent's client value (AgentBaselineView.digest). */
+    private static final String V21_CLIENT = "\\S+( #[0-9a-f]{16})?";
+
+    /**
+     * v21.12 (A4-3): whose usual behaviour the baseline lines of an agent's request state, before the status line: the
+     * agent's own learned requests, never the person's (A3-1). A person's request has no line.
+     */
+    private static final PromptDictionaryEntry BASELINE_SUBJECT = entry(PromptBlock.USER_BASELINE, "BaselineSubject",
+            "Whose usual behaviour the baseline lines state for an agent's request: the agent's own learned requests,"
+                    + " the person it acts for named; the person's own baseline is not read for it",
+            "learning subject (LearningSubject: the agent's learning key)",
+            "agent \\S+ (acting for \\S+|on its own), learned from this agent's own requests",
+            List.of("agent agt-1a2b-report acting for alice, learned from this agent's own requests"),
+            PromptMissingNotation.LINE_OMITTED, null,
+            Set.of(PromptSourceGrade.COMPUTED),
+            "which subject the usual lines describe; the model reads them as the agent's",
+            true, PromptDictionaryEntry.PRIORITY_REQUIRED, null, PromptListOrder.NONE, false,
+            List.of());
+
+    /**
+     * v21.12 (A4-1): which operation usually follows which in the agent's sessions, after the usual actions, and whether
+     * this request's pair was seen. A person's request has no line.
+     */
+    private static final PromptDictionaryEntry USUAL_SEQUENCE = entry(PromptBlock.USER_BASELINE, "UsualSequence",
+            "Which operation usually follows which in the agent's sessions (its learned requests, before this activity"
+                    + " period) with how often, and this request's pair with how often it was seen",
+            "work profile observations of the agent (previous operation of the session)",
+            "(none learned|[A-Z_]+>[A-Z_]+ \\d+(, [A-Z_]+>[A-Z_]+ \\d+)*); (this request [A-Z_]+>[A-Z_]+ seen \\d+"
+                    + " times? before|this request is its session's first operation)",
+            List.of("LIST>READ 3, READ>READ 12, READ>EXPORT 1; this request READ>EXPORT seen 1 time before"),
+            PromptMissingNotation.LINE_OMITTED, null,
+            Set.of(PromptSourceGrade.LEARNED),
+            "SESSION_SEQUENCE; the model reads the order with the delegation's objective",
+            true, PromptDictionaryEntry.PRIORITY_REQUIRED, null, PromptListOrder.NONE, false,
+            List.of());
+
+    /**
+     * v21.12 (A4-6): the clients the agent usually calls from, after the usual devices: its OAuth client and the digest
+     * of its user agent (the user agent itself is untrusted text), and whether this request's was seen.
+     */
+    private static final PromptDictionaryEntry USUAL_CLIENTS = entry(PromptBlock.USER_BASELINE, "UsualClients",
+            "The clients the agent usually calls from (its learned requests, before this activity period): the OAuth"
+                    + " client, or no-client for an agent signed in with its own account, and the digest of the user"
+                    + " agent, with how often; and this request's client with how often it was seen",
+            "work profile observations of the agent (credential client, user agent digest)",
+            "(none learned|" + V21_CLIENT + " \\d+(, " + V21_CLIENT + " \\d+)*); (this request " + V21_CLIENT
+                    + " seen \\d+ times? before|this request states no client)",
+            List.of("report-client #1a2b3c4d5e6f7a8b 18; this request report-client #1a2b3c4d5e6f7a8b seen 18 times"
+                    + " before"),
+            PromptMissingNotation.LINE_OMITTED, null,
+            Set.of(PromptSourceGrade.LEARNED),
+            "DEVICE_CHANGE, NETWORK_CHANGE; the model reads it with the credential and the network",
+            true, PromptDictionaryEntry.PRIORITY_REQUIRED, null, PromptListOrder.NONE, false,
+            List.of());
+
+    /**
+     * v21.13 (B3-3): the reasoning memory lines a v21 ValidatedCases line writes, in the memory section's order: the
+     * section's lines without the removed ones and those holding stored free text, which UNTRUSTED TEXT quotes.
+     */
+    private static final List<String> VALIDATED_CASE_LINES = List.of("ReinforcedCaseCount", "HardNegativeCaseCount",
+            "FalseNegativeCaseCount", "KnowledgeAssistedCaseCount", "RetentionTier", "RecallPriority", "FreshnessState",
+            "ReasoningState", "CohortPreference", "MemoryRiskProfile", "RetrievalWeight", "MatchedSignalKeys",
+            "ObjectiveFamilies");
+
     /**
      * The v21 dictionary (V-4): the v20 entries without PolicySatisfied, the lines that state records and comparisons in
      * place of the core's conclusions (no difference marked explained, no record that covers, no scope that holds), and
@@ -804,9 +960,31 @@ public final class SecurityDecisionPromptDictionary {
             if (entry.block() == PromptBlock.DECISION_FACTS && "PolicySatisfied".equals(entry.name())) {
                 continue;
             }
+            if (entry.block() == PromptBlock.DECISION_FACTS && "Policy".equals(entry.name())) {
+                entries.add(RECORDS_HOLDER);
+            }
+            if (entry.block() == PromptBlock.USER_BASELINE && "BaselineStatus".equals(entry.name())) {
+                entries.add(BASELINE_SUBJECT);
+            }
             entries.add(v21(entry));
+            if (entry.block() == PromptBlock.USER_BASELINE && "UsualActions".equals(entry.name())) {
+                entries.add(USUAL_SEQUENCE);
+            }
+            if (entry.block() == PromptBlock.USER_BASELINE && "UsualDevices".equals(entry.name())) {
+                entries.add(USUAL_CLIENTS);
+            }
+            if (entry.block() == PromptBlock.REQUEST && "Subject".equals(entry.name())) {
+                entries.add(CREDENTIAL);
+                entries.add(CONFIRMATION);
+            }
             if (entry.block() == PromptBlock.REQUEST && "Target".equals(entry.name())) {
                 entries.add(TARGET_SCOPE);
+            }
+            if (entry.block() == PromptBlock.SESSION && "RequestsInSession".equals(entry.name())) {
+                entries.add(DELEGATION_ACTIVITY);
+            }
+            if (entry.block() == PromptBlock.DECISION_FACTS && "Delegation".equals(entry.name())) {
+                entries.add(RECORD_PROVENANCE);
             }
         }
         return List.copyOf(entries);
@@ -825,8 +1003,75 @@ public final class SecurityDecisionPromptDictionary {
                             "PastRecord{i}: none new (first pass: retrieved, AVAILABLE)"),
                     entry.decisionUse());
         }
+        // v21.9 (A2-6): the coverage after the delegation's records were read, each warning with its fact only.
+        if (entry.block() == PromptBlock.UNKNOWN && "Coverage".equals(entry.name())) {
+            return with(entry,
+                    "Context coverage and bridge integration levels, the missing facts and the coverage warnings of the"
+                            + " request's context, each with its fact only; a delegation the records completed is not"
+                            + " named missing, nor its bridge hint, and a request that is not delegated has no delegated"
+                            + " objective facts",
+                    entry.formatPattern(), entry.formatExamples(), entry.decisionUse());
+        }
+        // v21.9 (A2-5, A2-8): a delegation's objective and a protected method's call arguments are untrusted texts;
+        // v21.11 (A3-5) the past records' targets, v21.13 (B3-3) the validated case memory's stored texts.
+        if (entry.block() == PromptBlock.UNTRUSTED_TEXT) {
+            return withSourcePath(entry, entry.sourcePath() + "; the delegation's objective (host text, A2-5), the"
+                    + " protected method's call arguments (requester, A2-8), the targets of the past record and"
+                    + " denied decision lines drawn (requester, A3-5) and the validated case memory's stored texts"
+                    + " (an earlier analysis' summary, a threat signal's summary, matched threat knowledge; B3-3)");
+        }
+        // v21.13 (B3-3): the validated case memory's stored free texts are untrusted texts, and the form is the memory
+        // lines the render writes (the v20 form names a summary the render never wrote).
+        if (entry.block() == PromptBlock.PAST_RECORDS && "ValidatedCases".equals(entry.name())) {
+            String label = "(" + String.join("|", VALIDATED_CASE_LINES) + ")";
+            return with(entry, entry.meaning() + "; their stored texts (an earlier analysis' summary, a threat"
+                            + " signal's summary, matched threat knowledge) are in UNTRUSTED TEXT",
+                    label + ": .+(; " + label + ": .+)*",
+                    List.of("ReinforcedCaseCount: 3; HardNegativeCaseCount: 1; RetentionTier: HOT; MatchedSignalKeys:"
+                            + " sig-7"),
+                    entry.decisionUse());
+        }
+        // v21.11 (A3-5): a past record's target is the path variables a requester wrote, an untrusted text.
+        if (entry.block() == PromptBlock.PAST_RECORDS && "PastRecord{i}".equals(entry.name())) {
+            return with(entry, entry.meaning() + "; the target field says the target is in UNTRUSTED TEXT, where the"
+                            + " requester's value is; the same-target field is the core's comparison",
+                    entry.formatPattern(),
+                    List.of("\u3008날짜 요일 시각\u3009 (\u3008n\u3009 h before this request) / EXPORT"
+                            + " /api/projects/{projectKey}/exports / " + PastRecordLines.TARGET_APART + " / \u3008n\u3009"
+                            + " items / class INTERNAL / 10.40.12.0/24 company office / Chrome 140 on Windows / MFA login"
+                            + " / allowed / same target: no / authorized as personal history (same tenant, same user)"),
+                    entry.decisionUse());
+        }
+        if (entry.block() == PromptBlock.PAST_RECORDS && "PastDeniedDecision{i}".equals(entry.name())) {
+            return with(entry, entry.meaning() + "; its target is in UNTRUSTED TEXT", entry.formatPattern(),
+                    List.of("\u3008날짜 요일 시각\u3009 EXPORT " + PastDeniedLines.TARGET_APART + " -> CHALLENGE (not verified)"),
+                    entry.decisionUse());
+        }
+        if (entry.block() == PromptBlock.SECOND_PASS && "NewPastRecord{i}".equals(entry.name())) {
+            return with(entry, entry.meaning() + "; the requester's target is not shown, the same-target field is the"
+                            + " core's comparison", entry.formatPattern(),
+                    List.of("\u3008날짜 요일 시각\u3009 (\u3008n\u3009 h before this request) / EXPORT"
+                            + " /api/projects/{projectKey}/exports / " + PastRecordLines.TARGET_WITHHELD + " /"
+                            + " \u3008n\u3009 items / class INTERNAL / 10.40.12.0/24 company office / Chrome 140 on"
+                            + " Windows / MFA login / allowed / same target: no / authorized as personal history (same"
+                            + " tenant, same user)"),
+                    entry.decisionUse());
+        }
         if (entry.block() == PromptBlock.REQUEST) {
             return switch (entry.name()) {
+                // v21.9 (A2-4): an agent's request names the agent apart from the account whose authority it uses.
+                case "Subject" -> with(entry,
+                        "Subject: account kind, account age, department, title, tenant (and organisation when"
+                                + " different); a delegated agent's request names the person's account with the agent it"
+                                + " goes through, an agent on its own is named by its registration with its client,"
+                                + " sponsor and registration status",
+                        entry.formatPattern(),
+                        plus(entry.formatExamples(),
+                                "alice (HUMAN_USER, account 400 days, dept Design, through agent report-agent, agent"
+                                        + " sponsor bob, agent registration ACTIVE)",
+                                "report-agent (AGENT_RUNTIME, account age not known, client report-agent-client, sponsor"
+                                        + " bob, registration ACTIVE)"),
+                        "identity context; who acts and whose authority is used");
                 case "ResourceClass" -> withUse(entry, "DEVIATION_RESOURCE_CLASS; what the data is");
                 case "Network" -> withUse(entry, "DEVIATION_NETWORK");
                 case "Device" -> withUse(entry, "DEVIATION_DEVICE");
@@ -837,6 +1082,18 @@ public final class SecurityDecisionPromptDictionary {
             return entry;
         }
         return switch (entry.name()) {
+            // v21.9 (A2-4): the delegation by its fields; its objective's free text is an untrusted text (A2-5).
+            case "Delegation" -> with(entry,
+                    "Delegated execution: the agent and the person it acts for, the chain depth, the objective, the"
+                            + " allowed operations and resources, the expiry, the proof and the comparison of this"
+                            + " request with the objective's scope",
+                    "agent .+ for .+, chain depth \\d+, objective .+, allowed .+ on .+, expires .+, proof .+,"
+                            + " drift (yes|no|not compared) \\(.+\\)",
+                    List.of("agent report-agent for alice, chain depth 1, objective REPORTING, allowed READ/EXPORT on"
+                            + " PROJECT_DOCUMENTS/HX-310, expires 3 h after this request, proof signed token claim and"
+                            + " delegation record, drift no (Current action family is listed in delegated action scope"
+                            + " evidence; Current resource matches delegated raw resource constraints)"),
+                    "DELEGATION_SCOPE_DRIFT: whether the request stays within the delegation is the model's judgment");
             case "DeviationsFromBaseline" -> with(entry,
                     "Differences from the usual: per dimension, the request's value, how often and when it was seen and"
                             + " the usual value, dimensions compared, overlap of the closest past record read for this"
@@ -891,6 +1148,19 @@ public final class SecurityDecisionPromptDictionary {
                     withUse(entry, "SESSION_DEVICE_CHANGE, SESSION_NETWORK_CHANGE");
             default -> entry;
         };
+    }
+
+    private static List<String> plus(List<String> examples, String... more) {
+        List<String> all = new ArrayList<>(examples);
+        all.addAll(List.of(more));
+        return List.copyOf(all);
+    }
+
+    private static PromptDictionaryEntry withSourcePath(PromptDictionaryEntry entry, String sourcePath) {
+        return new PromptDictionaryEntry(entry.block(), entry.name(), entry.meaning(), sourcePath, entry.formatPattern(),
+                entry.formatExamples(), entry.missing(), entry.missingText(), entry.grades(), entry.decisionUse(),
+                entry.conditional(), entry.priority(), entry.listCap(), entry.listOrder(), entry.truncationAllowed(),
+                entry.preservedLabels());
     }
 
     private static PromptDictionaryEntry withUse(PromptDictionaryEntry entry, String decisionUse) {

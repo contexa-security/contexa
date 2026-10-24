@@ -17,11 +17,16 @@ package io.contexa.contexacore.properties;
 
 import io.contexa.contexacore.autonomous.context.decision.LearningPromotionPolicy;
 import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
+import io.contexa.contexacore.autonomous.execution.ObjectiveResourceCompatibilityCatalog;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 @Data
 @ConfigurationProperties(prefix = "contexa.security.zerotrust")
@@ -70,6 +75,12 @@ public class SecurityZeroTrustProperties {
 
     @NestedConfigurationProperty
     private AgentSettings agent = new AgentSettings();
+
+    /** docs/agent A5-8: the revocation and risk signals Contexa receives. */
+    private RiskSignals riskSignals = new RiskSignals();
+
+    /** docs/agent B4: the OpenID AuthZEN evaluation API other enforcement points ask Contexa's decision through. */
+    private Authzen authzen = new Authzen();
 
     @NestedConfigurationProperty
     private RedisSettings redis = new RedisSettings();
@@ -151,6 +162,16 @@ public class SecurityZeroTrustProperties {
              * administrator released its block, against an allowed request's 1 (W5-2).
              */
             private double verifiedWeight = 0.5;
+            /**
+             * docs/agent A3-4: how long a value learned without a verification stays in the stored baseline when it is
+             * not seen again; the default is the usual comparison's fallback window.
+             */
+            private Duration unverifiedExpiry = Duration.ofDays(30);
+            /**
+             * docs/agent A3-4: the half-life by which a learned value's frequency counts less with its age when the
+             * values of a dimension compete for its places; the default is the usual comparison's half-life.
+             */
+            private Duration halfLife = Duration.ofDays(14);
         }
 
         /**
@@ -178,12 +199,24 @@ public class SecurityZeroTrustProperties {
             private int minObservations = 2;
             private int minDistinctDays = 2;
             private boolean verifiedPromotes = true;
+            /** docs/agent A3-7: the agent rule: an agent's first values held back at any resource class. */
+            @NestedConfigurationProperty
+            private AgentPromotionSettings agent = new AgentPromotionSettings();
 
             /** The policy settings these keys give (contexa.security.zerotrust.baseline.promotion.*). */
             public LearningPromotionPolicy.Settings toPolicy() {
                 return new LearningPromotionPolicy.Settings(enabled, minResourceClass, minObservations,
-                        minDistinctDays, verifiedPromotes);
+                        minDistinctDays, verifiedPromotes, agent == null || agent.isEnabled());
             }
+        }
+
+        /**
+         * docs/agent A3-7: whether an agent's request holds back its first target, action, size, rate, network and
+         * device at any resource class until they are seen on enough days or verified.
+         */
+        @Data
+        public static class AgentPromotionSettings {
+            private boolean enabled = true;
         }
     }
 
@@ -223,6 +256,171 @@ public class SecurityZeroTrustProperties {
          * decision. The first request of an agent is always written.
          */
         private Duration registryWriteInterval = Duration.ofMinutes(1);
+
+        /**
+         * docs/agent OC-1: the longest a delegation recorded through Contexa's delegation API may last; a longer one is
+         * refused. A delegation is given again when its work goes on.
+         */
+        private Duration delegationMaxValidity = Duration.ofDays(30);
+
+        /**
+         * docs/agent OC-3: how long an access token of an agent registered through Contexa's agent registration lives,
+         * unless the registration names another lifetime.
+         */
+        private Duration clientTokenLifetime = Duration.ofMinutes(30);
+
+        /**
+         * docs/agent A5-2: how long a request of an agent waits for the accountable person's confirmation before it is
+         * refused, and how long an approval may then be used by the request it is bound to.
+         */
+        private Duration confirmationTimeout = Duration.ofMinutes(15);
+
+        /** docs/agent A5-2: how often the confirmations whose time ran out are refused and recorded. */
+        private Duration confirmationSweepInterval = Duration.ofMinutes(1);
+
+        /**
+         * docs/agent A5-2: the absolute address the confirmation link in a notice starts with (for example
+         * {@code https://app.example.com}); empty takes the address of the agent's request.
+         */
+        private String confirmationLinkBaseUrl;
+
+        /**
+         * docs/agent A5-9: the largest request body a confirmation is bound to; a larger request that needs a
+         * confirmation is refused.
+         */
+        private int confirmationMaxBodyBytes = 1024 * 1024;
+
+        /** docs/agent A5-4: how a decision narrows an agent's later requests. */
+        private ScopeNarrowing scopeNarrowing = new ScopeNarrowing();
+
+        /** docs/agent A5-7: the call limits of agents and delegations, and what passing them does. */
+        private CallLimit callLimit = new CallLimit();
+
+        /** docs/agent A5-7: the alarm on an agent whose requests are refused unusually often. */
+        private DenialAlarm denialAlarm = new DenialAlarm();
+
+        /** docs/agent F-1: how far an ALLOW in force answers an agent's later requests without a new decision. */
+        private AllowReuse allowReuse = new AllowReuse();
+
+        /**
+         * The business objectives the application declares, by objective family (the family a delegation record or
+         * token names). A delegation of one of these objectives is compared with its contract; Contexa's own security
+         * objectives stay known. Empty by default.
+         */
+        private Map<String, ObjectiveContract> objectiveContracts = new LinkedHashMap<>();
+
+        /** The declared contracts in the catalog's form. */
+        public List<ObjectiveResourceCompatibilityCatalog.ObjectiveContractDefinition> objectiveContractDefinitions() {
+            List<ObjectiveResourceCompatibilityCatalog.ObjectiveContractDefinition> definitions = new ArrayList<>();
+            objectiveContracts.forEach((family, contract) -> definitions.add(
+                    new ObjectiveResourceCompatibilityCatalog.ObjectiveContractDefinition(family,
+                            contract.getOperations(), contract.getResourceFamilies(), contract.isReadOnly(),
+                            contract.isPrivilegedExportAllowed(), contract.getMaxExportItems())));
+            return definitions;
+        }
+    }
+
+    /**
+     * docs/agent A5-4: the default narrowing. After a CHALLENGE, ESCALATE or BLOCK on an agent's request, or an ALLOW
+     * whose risk reaches {@code riskThreshold}, the agent's later requests only read for {@code duration}.
+     */
+    @Data
+    public static class ScopeNarrowing {
+        private boolean enabled = true;
+        private Duration duration = Duration.ofHours(1);
+        private double riskThreshold = 0.7;
+    }
+
+    /**
+     * docs/agent A5-7 (AG-11e): the calls an agent may make in a minute, for one delegation (one person's work) and for
+     * the agent across everyone it acts for. Past a limit the request is slowed down ({@code THROTTLE}: 429 with
+     * Retry-After) or the agent is stopped ({@code STOP}: as a BLOCK stops it).
+     */
+    @Data
+    public static class CallLimit {
+        private boolean enabled = true;
+        private int perDelegationPerMinute = 120;
+        private int perAgentPerMinute = 600;
+        private OnExceed onExceed = OnExceed.THROTTLE;
+
+        public enum OnExceed {
+            THROTTLE,
+            STOP
+        }
+    }
+
+    /**
+     * docs/agent A5-7: an agent whose requests in {@code window} were refused at {@code rate} or more, over at least
+     * {@code minRequests}, raises an alarm (audited, the accountable person told) once per window.
+     */
+    @Data
+    public static class DenialAlarm {
+        private boolean enabled = true;
+        private Duration window = Duration.ofMinutes(5);
+        private int minRequests = 10;
+        private double rate = 0.5;
+    }
+
+    /**
+     * docs/agent F-1: an ALLOW in force answers an agent's later requests only for the same operation, for at most
+     * {@code maxDistinctResources} resources and {@code maxRequests} requests; then the next one is decided again.
+     */
+    @Data
+    public static class AllowReuse {
+        private int maxRequests = 10;
+        private int maxDistinctResources = 3;
+    }
+
+    /**
+     * docs/agent A5-8: the push endpoint {@code /contexa/api/risk-signals} for Security Event Tokens (OpenID SSF, CAEP,
+     * RISC). Off by default; on, it takes the tokens of the configured transmitters addressed to {@code audience}.
+     */
+    @Data
+    public static class RiskSignals {
+        private boolean receiverEnabled = false;
+        private String audience;
+        private List<Transmitter> transmitters = new ArrayList<>();
+
+        /** A transmitter: its issuer and where it publishes its keys. */
+        @Data
+        public static class Transmitter {
+            private String issuer;
+            private String jwksUri;
+        }
+    }
+
+    /**
+     * docs/agent B4: the OpenID AuthZEN Authorization API 1.0 evaluation endpoints ({@code {basePath}/access/v1/
+     * evaluation}, {@code /evaluations}) and their metadata ({@code /.well-known/authzen-configuration}). Off by
+     * default; on, an authenticated caller holding {@code requiredAuthority} (the enforcement point) asks Contexa's
+     * decision about a request it received.
+     */
+    @Data
+    public static class Authzen {
+        private boolean enabled = false;
+        /** Where the evaluation endpoints are served, apart from the application's own paths. */
+        private String basePath = "/contexa/authzen";
+        /** The authority an enforcement point's credential must hold. */
+        private String requiredAuthority = "SCOPE_contexa.authzen";
+        /** The decision point's identifier in the metadata (an https URL); null for the request's base address. */
+        private String policyDecisionPoint;
+        /** The most evaluations one batch request may carry. */
+        private int maxEvaluations = 20;
+    }
+
+    /** A business objective's contract (A2-1, A2-2). */
+    @Data
+    public static class ObjectiveContract {
+        /** The operations the objective needs, as the {@code @Protectable} actions name them (READ, EXPORT, ...). */
+        private List<String> operations = new ArrayList<>();
+        /** The resource families it works on, as the {@code @Protectable} categories name them. */
+        private List<String> resourceFamilies = new ArrayList<>();
+        /** Whether the objective only reads. */
+        private boolean readOnly;
+        /** Whether the objective may export privileged data. */
+        private boolean privilegedExportAllowed;
+        /** The most items one export of the objective may carry; empty for no limit. */
+        private Integer maxExportItems;
     }
 
     /** How an agent request with no decision on record is handled at an asynchronous {@code @Protectable} method. */

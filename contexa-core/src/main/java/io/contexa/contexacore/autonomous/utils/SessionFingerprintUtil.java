@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.utils;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacommon.security.bridge.AgentSessionKey;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -26,6 +27,9 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.lang.Nullable;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 
 @Slf4j
@@ -104,7 +108,10 @@ public class SessionFingerprintUtil {
     }
 
     private static final String CONTEXT_BINDING_HASH_ATTR = "contexa.contextBindingHash";
+    /** Set while the binding reads the request's security context (see {@link #currentAuthentication}). */
+    private static final String READING_CONTEXT_ATTR = "contexa.contextBindingHash.readingContext";
 
+    /** The binding of the request for the authentication of its security context. */
     public static String generateContextBindingHash(HttpServletRequest request) {
         if (request == null) {
             return null;
@@ -113,8 +120,29 @@ public class SessionFingerprintUtil {
         if (cached != null) {
             return cached;
         }
+        if (request.getAttribute(READING_CONTEXT_ATTR) != null) {
+            // Reached again while the security context loads: the binding of the servlet session, not kept, so the
+            // binding of the loaded authentication is the one the request keeps.
+            return generateContextBindingHash(request.getRequestedSessionId(), extractClientIp(request),
+                    request.getHeader("User-Agent"));
+        }
+        return generateContextBindingHash(request, currentAuthentication(request));
+    }
+
+    /**
+     * The binding of the request for the given authentication, kept for the rest of the request. Code that loads the
+     * security context passes the authentication it loaded: reading the context there would load it again.
+     */
+    public static String generateContextBindingHash(HttpServletRequest request, @Nullable Authentication authentication) {
+        if (request == null) {
+            return null;
+        }
+        String cached = (String) request.getAttribute(CONTEXT_BINDING_HASH_ATTR);
+        if (cached != null) {
+            return cached;
+        }
         String hash = generateContextBindingHash(
-                request.getRequestedSessionId(),
+                sessionOf(authentication, request.getRequestedSessionId()),
                 extractClientIp(request),
                 request.getHeader("User-Agent")
         );
@@ -135,7 +163,36 @@ public class SessionFingerprintUtil {
         }
         HttpSession session = request.getSession(false);
         String sessionId = session != null ? session.getId() : request.getRequestedSessionId();
-        return generateContextBindingHash(sessionId, extractClientIp(request), request.getHeader("User-Agent"));
+        return generateContextBindingHash(sessionOf(currentAuthentication(request), sessionId),
+                extractClientIp(request), request.getHeader("User-Agent"));
+    }
+
+    /**
+     * The session the binding names: an agent's or a client's own token request is bound to the agent's session
+     * (A1-11), so agents on one network and one user agent do not share a binding; any other request to the given
+     * servlet session.
+     */
+    private static String sessionOf(@Nullable Authentication authentication, String servletSession) {
+        String agentSession = AgentSessionKey.of(authentication);
+        return agentSession != null ? agentSession : servletSession;
+    }
+
+    /**
+     * The authentication of the request's security context. Reading the context can load it, and loading it computes
+     * the binding (the zero trust check of a session's context), so a read made while the context loads returns null
+     * instead of loading it again.
+     */
+    @Nullable
+    private static Authentication currentAuthentication(HttpServletRequest request) {
+        if (request.getAttribute(READING_CONTEXT_ATTR) != null) {
+            return null;
+        }
+        request.setAttribute(READING_CONTEXT_ATTR, Boolean.TRUE);
+        try {
+            return SecurityContextHolder.getContext().getAuthentication();
+        } finally {
+            request.removeAttribute(READING_CONTEXT_ATTR);
+        }
     }
 
     public static String generateContextBindingHash(String sessionId, String ip, String userAgent) {

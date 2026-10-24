@@ -15,7 +15,8 @@ const COVERS = [
   [3, '/evidence'],
   [4, '/normal'],
   [5, '/insider'],
-  [6, '/compare'],
+  [6, '/agent'],
+  [7, '/compare'],
 ] as const;
 
 function word(key: string): string {
@@ -137,7 +138,8 @@ describe('the cover of a group', () => {
   it("says what the visitor's own insider run recorded (IN-6)", async () => {
     const passed = { A: 'MISSED', B: 'MISSED', C1: 'MISSED', C2: 'MISSED', D: 'PARTLY_STOPPED' };
     runs = [run('S16', 'ESCALATE', 1, passed)];
-    open('/compare');
+    // docs/agent A7-3: the insider's line now opens the business agent group after it.
+    open('/agent');
     expect(await screen.findByText(word('cover.6.past.held').replace('{{n}}', '1'))).toBeInTheDocument();
   });
 
@@ -145,13 +147,31 @@ describe('the cover of a group', () => {
   it('says the insider run was held when Contexa stopped it after its first judgment allowed', async () => {
     const partly = { A: 'MISSED', B: 'MISSED', C1: 'MISSED', C2: 'MISSED', D: 'PARTLY_STOPPED' };
     runs = [run('S16', 'ALLOW', 2, partly)];
-    open('/compare');
+    open('/agent');
     expect(await screen.findByText(word('cover.6.past.held').replace('{{n}}', '2'))).toBeInTheDocument();
   });
 
   it('names no insider result before the visitor sent one', async () => {
-    open('/compare');
+    open('/agent');
     expect(await screen.findByText(word('cover.6.past.none'))).toBeInTheDocument();
+  });
+
+  // docs/agent A7-3 (화면설계 4.5): the comparison's cover says what the visitor's business agent run recorded.
+  it("says what the visitor's own business agent run recorded", async () => {
+    runs = [run('T5', '', 0, { A: 'MISSED', B: 'MISSED', C1: 'MISSED', C2: 'MISSED', D: 'STOPPED' })];
+    open('/compare');
+    expect(await screen.findByText(word('cover.7.past.held'))).toBeInTheDocument();
+  });
+
+  it('says the agent run went through when Contexa let it through, and nothing before a run', async () => {
+    runs = [run('T5', '', 0, { A: 'MISSED', B: 'MISSED', C1: 'MISSED', C2: 'MISSED', D: 'MISSED' })];
+    open('/compare');
+    expect(await screen.findByText(word('cover.7.past.through'))).toBeInTheDocument();
+  });
+
+  it('names no agent result before the visitor sent one', async () => {
+    open('/compare');
+    expect(await screen.findByText(word('cover.7.past.none'))).toBeInTheDocument();
   });
 
   it('sets the two themes apart on their covers, marking the one it opens (IN-6)', async () => {
@@ -159,6 +179,7 @@ describe('the cover of a group', () => {
     const pair = await screen.findByRole('region', { name: word('theme.title') });
     expect(pair).toHaveTextContent(word('theme.outside.line'));
     expect(pair).toHaveTextContent(word('theme.inside.line'));
+    expect(pair).toHaveTextContent(word('theme.agent.line'));
     expect(container.querySelector('[data-current]')).toHaveTextContent(word('theme.inside.name'));
     // Review before the guide videos (2026-10-21, B-12): the marked card says it is the one shown, not a button.
     expect(container.querySelector('[data-current]')).toHaveTextContent(word('theme.current'));

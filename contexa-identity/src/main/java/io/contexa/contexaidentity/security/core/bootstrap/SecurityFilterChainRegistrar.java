@@ -31,9 +31,13 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.Ordered;
 import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.util.matcher.AnyRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -62,6 +66,7 @@ public class SecurityFilterChainRegistrar {
         }
         BeanDefinitionRegistry registry = (BeanDefinitionRegistry) cac.getBeanFactory();
         AtomicInteger idx = new AtomicInteger(0);
+        List<BuiltFlow> built = new ArrayList<>();
 
         for (FlowContext fc : flows) {
             Objects.requireNonNull(fc, "FlowContext in list cannot be null.");
@@ -70,6 +75,7 @@ public class SecurityFilterChainRegistrar {
 
             String beanName = flowTypeName + "SecurityFilterChain" + idx.incrementAndGet();
             OrderedSecurityFilterChain chain = buildAndRegisterFilters(fc, context);
+            built.add(new BuiltFlow(flowTypeName, chain.getOrder(), chain.getRequestMatcher()));
             BeanDefinition bd = BeanDefinitionBuilder
                     .genericBeanDefinition(SecurityFilterChain.class, () -> chain)
                     .setLazyInit(false)
@@ -77,6 +83,34 @@ public class SecurityFilterChainRegistrar {
                     .getBeanDefinition();
             registry.registerBeanDefinition(beanName, bd);
         }
+        unreachableFlows(built).forEach(log::error);
+    }
+
+    /** A flow's chain as the filter chain proxy orders and matches it. */
+    record BuiltFlow(String typeName, int order, RequestMatcher requestMatcher) {
+    }
+
+    /**
+     * The flows no request reaches: those ordered after a flow whose chain takes every request (no URL prefix, no
+     * narrower OAuth2 request scope). Spring rejects such a chain only for its own chain type, so it is reported here.
+     * Flows of the same order keep their registration order, as the filter chain proxy does.
+     */
+    static List<String> unreachableFlows(List<BuiltFlow> flows) {
+        List<BuiltFlow> ordered = new ArrayList<>(flows);
+        ordered.sort(Comparator.comparingInt(BuiltFlow::order));
+        List<String> problems = new ArrayList<>();
+        BuiltFlow takesEveryRequest = null;
+        for (BuiltFlow flow : ordered) {
+            if (takesEveryRequest != null) {
+                problems.add("Flow '" + flow.typeName() + "' is never reached: flow '" + takesEveryRequest.typeName()
+                        + "', ordered before it, takes every request. Give one of them a narrower scope and order it "
+                        + "first: a urlPrefix, or for an OAuth2 flow "
+                        + ".oauth2(oauth2 -> oauth2.requestScope(OAuth2RequestScope.TOKEN_REQUESTS)).");
+            } else if (flow.requestMatcher() instanceof AnyRequestMatcher) {
+                takesEveryRequest = flow;
+            }
+        }
+        return problems;
     }
 
     public OrderedSecurityFilterChain buildAndRegisterFilters(FlowContext fc, ApplicationContext appContext) {

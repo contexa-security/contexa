@@ -132,6 +132,9 @@ public class FrictionProfileResolver extends AbstractProfileResolver<FrictionPro
                         ? new ArrayList<>(existing.getPolicies()) : new ArrayList<>())
                 .checkedRecordKinds(existing != null && existing.getCheckedRecordKinds() != null
                         ? new ArrayList<>(existing.getCheckedRecordKinds()) : new ArrayList<>())
+                // A2-12: whose records they are, as the host provider stated it (RecordsHolder).
+                .recordsHolderId(existing != null ? existing.getRecordsHolderId() : null)
+                .recordsHolderRelation(existing != null ? existing.getRecordsHolderRelation() : null)
                 .build();
         alignWithRequestTime(profile, context, metadata);
 

@@ -25,6 +25,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -81,5 +82,29 @@ class RequestIdentityTest {
             jwt.claim("sid", sid);
         }
         return new JwtAuthenticationToken(jwt.build(), List.of());
+    }
+
+    @Test
+    void anAgentsExchangedTokenHasTheAgentsSessionNotThePersonsLogin() {
+        // A1-11: the token carries the person's login (sid) and the agent as the actor.
+        Instant now = Instant.now();
+        Jwt jwt = Jwt.withTokenValue("token").header("alg", "RS256").subject("alice").claim("sid", "login-1")
+                .claim("act", Map.of("sub", "agent-x")).issuedAt(now).expiresAt(now.plusSeconds(300)).build();
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt, List.of()));
+
+        String agentSession = RequestIdentity.sessionId(new MockHttpServletRequest());
+
+        assertThat(agentSession).startsWith("agent:sid:").isNotEqualTo("login-1");
+    }
+
+    @Test
+    void aClientsOwnTokenIsIdentifiedByItsTokenWithinTheClient() {
+        Instant now = Instant.now();
+        Jwt jwt = Jwt.withTokenValue("token").header("alg", "RS256").subject("report-client")
+                .claim("client_id", "report-client").claim("jti", "token-1")
+                .issuedAt(now).expiresAt(now.plusSeconds(300)).build();
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt, List.of()));
+
+        assertThat(RequestIdentity.sessionId(new MockHttpServletRequest())).startsWith("client:jti:");
     }
 }

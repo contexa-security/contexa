@@ -121,6 +121,30 @@ class ContextObservationRecorderTest {
         assertThat(store.getRecentSessionDecisions("session-1", 10)).hasSize(3);
     }
 
+    @Test
+    void theSessionADecisionIsRecordedUnderIsAmongTheUsersSessions() {
+        // CF-07: a token login (sid) or a client's own token session is counted with the user's other sessions; an
+        // agent acting for a person is not counted as that person (A1-11).
+        InMemorySecurityContextDataStore store = new InMemorySecurityContextDataStore();
+        ContextObservationRecorder recorder = new ContextObservationRecorder(store);
+        SecurityEvent tokenLogin = event("request-login");
+        tokenLogin.setSessionId("login-1");
+        tokenLogin.setUserId("alice");
+        SecurityEvent delegated = event("request-agent");
+        delegated.setSessionId("agent:sid:0123456789abcdef0123456789abcdef");
+        delegated.setUserId("alice");
+        SecurityEvent client = event("request-client");
+        client.setSessionId("client:jti:0123456789abcdef0123456789abcdef");
+        client.setUserId("report-client");
+
+        recorder.commit(tokenLogin, "ALLOW", true);
+        recorder.commit(delegated, "ALLOW", true);
+        recorder.commit(client, "ALLOW", true);
+
+        assertThat(store.getUserSessions("alice")).containsExactly("login-1");
+        assertThat(store.getUserSessions("report-client")).containsExactly("client:jti:0123456789abcdef0123456789abcdef");
+    }
+
     private static SecurityEvent event(String requestId) {
         SecurityEvent event = SecurityEvent.builder()
                 .sessionId("session-1")

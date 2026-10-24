@@ -707,6 +707,7 @@ create table blocked_user
             check ((status)::text = ANY
                    (ARRAY [('BLOCKED'::character varying)::text, ('UNBLOCK_REQUESTED'::character varying)::text, ('RESOLVED'::character varying)::text, ('TIMEOUT_RESPONDED'::character varying)::text, ('MFA_FAILED'::character varying)::text])),
     user_agent           varchar(255),
+    tenant_id            varchar(255),
     user_id              varchar(255) not null,
     username             varchar(255),
     unblock_requested_at timestamp(6),
@@ -743,6 +744,145 @@ create unique index if not exists ux_agent_registration_tenant_agent
 
 create index if not exists idx_agent_registration_last_seen
     on agent_registration (last_seen_at desc);
+
+-- Delegations people give agents (docs/agent OC-1): what work, which operations and resources, for how long. Ended
+-- and revoked delegations stay, since their end is a fact an agent request is decided with.
+create table if not exists agent_delegation_record
+(
+    delegation_id             varchar(64)             not null
+        primary key,
+    tenant_key                varchar(255) default '' not null,
+    delegator_id              varchar(255)            not null,
+    agent_id                  varchar(255)            not null,
+    objective_id              varchar(255),
+    objective_family          varchar(255),
+    objective_summary         text,
+    allowed_operations        text,
+    allowed_resources         text,
+    approval_required         boolean default false   not null,
+    privileged_export_allowed boolean,
+    containment_only          boolean,
+    valid_from                timestamp(6)            not null,
+    expires_at                timestamp(6)            not null,
+    revoked_at                timestamp(6),
+    revoked_by                varchar(255),
+    revoke_reason             text,
+    recorded_by               varchar(255)            not null,
+    recorded_at               timestamp(6)            not null
+);
+
+create index if not exists idx_agent_delegation_record_delegator_agent
+    on agent_delegation_record (tenant_key, delegator_id, agent_id, valid_from desc);
+
+create index if not exists idx_agent_delegation_record_agent
+    on agent_delegation_record (tenant_key, agent_id, valid_from desc);
+
+-- docs/agent A5-3, A5-2: the notices to the people accountable for agents (AgentNoticeStore): an agent stopped, a
+-- request waiting for confirmation, a confirmation expired. Every notice is kept for the console.
+create table if not exists agent_notice
+(
+    notice_id      varchar(64)             not null
+        primary key,
+    kind           varchar(64)             not null,
+    tenant_key     varchar(255) default '' not null,
+    recipient_id   varchar(255)            not null,
+    agent_id       varchar(255)            not null,
+    delegation_id  varchar(64),
+    subject        varchar(512)            not null,
+    message        text                    not null,
+    link           varchar(1024),
+    correlation_id varchar(160),
+    created_at     timestamp(6)            not null,
+    delivered_by   varchar(64)             not null,
+    read_at        timestamp(6)
+);
+
+create index if not exists idx_agent_notice_recipient
+    on agent_notice (recipient_id, created_at desc);
+
+create index if not exists idx_agent_notice_tenant
+    on agent_notice (tenant_key, created_at desc);
+
+-- docs/agent A5-2, A5-9: the confirmations of agents' requests by the people accountable for them
+-- (AgentConfirmationStore), one row per request asked; a decision and the use of an approval are made once.
+create table if not exists agent_confirmation
+(
+    confirmation_id  varchar(64)             not null
+        primary key,
+    tenant_key       varchar(255) default '' not null,
+    subject_kind     varchar(32)             not null,
+    user_id          varchar(255)            not null,
+    agent_id         varchar(255)            not null,
+    subject_key      varchar(600)            not null,
+    delegation_id    varchar(64),
+    recipient_id     varchar(255)            not null,
+    request_hash     varchar(64)             not null,
+    request_method   varchar(16)             not null,
+    request_target   varchar(2048)           not null,
+    trigger_kind     varchar(32)             not null,
+    reason           text,
+    correlation_id   varchar(160),
+    status           varchar(16)             not null,
+    created_at       timestamp(6)            not null,
+    expires_at       timestamp(6)            not null,
+    decided_at       timestamp(6),
+    decided_by       varchar(255),
+    decision_note    text,
+    authorization_id varchar(512),
+    used_at          timestamp(6)
+);
+
+create index if not exists idx_agent_confirmation_request
+    on agent_confirmation (subject_key, request_hash, status);
+
+create index if not exists idx_agent_confirmation_recipient
+    on agent_confirmation (recipient_id, created_at desc);
+
+create index if not exists idx_agent_confirmation_due
+    on agent_confirmation (status, expires_at);
+
+-- docs/agent A5-4: the narrowed scopes of agents' later requests (AgentScopeStore), one row per agent decision key;
+-- a narrowing only intersects the operations in force and ends at until_at.
+create table if not exists agent_scope_restriction
+(
+    subject_key    varchar(600)            not null
+        primary key,
+    tenant_key     varchar(255) default '' not null,
+    user_id        varchar(255)            not null,
+    agent_id       varchar(255)            not null,
+    allowed        varchar(255)            not null,
+    reason         text,
+    correlation_id varchar(160),
+    narrowed_at    timestamp(6)            not null,
+    until_at       timestamp(6)            not null
+);
+
+create index if not exists idx_agent_scope_restriction_until
+    on agent_scope_restriction (until_at);
+
+create index if not exists idx_agent_scope_restriction_user
+    on agent_scope_restriction (user_id);
+
+-- docs/agent OC-2: the company's records a request is judged with (CompanyRecordStore), one row per record.
+create table if not exists company_record
+(
+    record_seq  bigserial               not null,
+    tenant_key  varchar(255) default '' not null,
+    record_kind varchar(32)             not null,
+    record_key  varchar(512)            not null,
+    subject_id  varchar(255),
+    target_key  varchar(255),
+    body        text                    not null,
+    ingested_by varchar(255)            not null,
+    ingested_at timestamp(6)            not null,
+    primary key (tenant_key, record_kind, record_key)
+);
+
+create index if not exists idx_company_record_subject
+    on company_record (subject_id, tenant_key, record_seq);
+
+create index if not exists idx_company_record_kind
+    on company_record (tenant_key, record_kind, record_seq);
 
 
 create table oauth2_authorization
@@ -1291,6 +1431,29 @@ alter table system_settings add column if not exists mvc_resource_scanner_base_p
 alter table system_settings add column if not exists no_matching_url_policy_decision varchar(20) default 'PERMIT' not null;
 alter table system_settings add column if not exists missing_method_policy_decision varchar(20) default 'PERMIT' not null;
 
+-- docs/agent A3-3 (R-01): the tenant of a blocked request, so that an administrator's release learns within it.
+alter table blocked_user add column if not exists tenant_id varchar(255);
+-- docs/agent A5-5: the decision record of an agent request (AG-8): who it acted as and for, the operation, the
+-- risk facts the decision cited, what was enforced and why, and the hash of the request context.
+alter table audit_log
+    add column if not exists subject_kind varchar(32),
+    add column if not exists agent_id varchar(255),
+    add column if not exists delegator_id varchar(255),
+    add column if not exists delegation_id varchar(255),
+    add column if not exists target_action varchar(100),
+    add column if not exists risk_state varchar(1024),
+    add column if not exists enforcement_action varchar(255),
+    add column if not exists enforcement_cause varchar(1024),
+    add column if not exists request_context_hash varchar(64);
+-- docs/agent A5-6: a decision record names its tenant, links the decision record written before it and
+-- carries a keyed signature of its hash.
+alter table audit_log
+    add column if not exists tenant_id varchar(255),
+    add column if not exists record_hash varchar(64),
+    add column if not exists previous_record_hash varchar(64),
+    add column if not exists record_signature varchar(128),
+    add column if not exists signature_key_id varchar(64);
+
 
 create table learning_artifact_registry
 (
@@ -1424,6 +1587,12 @@ create unique index if not exists uq_sep_idempotency_key
 
 create index if not exists idx_sep_user_id_captured_at
     on sealed_evidence_package (user_id, captured_at);
+
+-- docs/agent A5-6: a schema 3 package links the package sealed before it and carries a keyed signature.
+alter table sealed_evidence_package
+    add column if not exists previous_package_hash varchar(128),
+    add column if not exists package_signature varchar(128),
+    add column if not exists signature_key_id varchar(64);
 
 create index if not exists idx_sep_tenant_id_captured_at
     on sealed_evidence_package (tenant_id, captured_at);

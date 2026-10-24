@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.context.support;
 import org.springframework.ai.document.Document;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -65,6 +66,28 @@ public interface PastRecordQuery {
      */
     default boolean recordOutcome(String documentId, String outcome) {
         return false;
+    }
+
+    /**
+     * docs/agent A3-8: quarantines the records of an agent, of one of its delegations when a delegation id is given; the
+     * number of records changed. A quarantined record is never read.
+     */
+    default int quarantineAgentRecords(String agentId, String delegationId) {
+        return 0;
+    }
+
+    /**
+     * docs/agent A3-8: releases the quarantined records of an agent, of one of its delegations when one is given, and
+     * gives them back the learning state they had; the records of the delegations still quarantined stay quarantined.
+     * The number of records changed.
+     */
+    default int releaseAgentRecords(String agentId, String delegationId, Collection<String> quarantinedDelegations) {
+        return 0;
+    }
+
+    /** docs/agent A3-8: removes the records of an agent, of one of its delegations when one is given; the number. */
+    default int removeAgentRecords(String agentId, String delegationId) {
+        return 0;
     }
 
     /** A query for a store that cannot answer exact lookups. */

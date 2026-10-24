@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.agent;
 
 import java.time.Instant;
+import java.util.Optional;
 
 /**
  * The rules of an agent registration's changes (A1-6), shared by every {@link AgentRegistry} so a database registry
@@ -76,6 +77,32 @@ public final class AgentRegistrations {
                 current.registeredAt(), now, text(reason));
     }
 
+    /**
+     * docs/agent A5-3: a security decision or an operator stopped the agent; a deregistered agent stays deregistered,
+     * since its identity provider removed it.
+     */
+    public static AgentRegistration suspended(AgentRegistration current, String reason) {
+        if (current.status() == AgentStatus.DEREGISTERED) {
+            return current;
+        }
+        return withStatus(current, AgentStatus.SUSPENDED, reason);
+    }
+
+    /** docs/agent A5-3: a suspension ended; any other status stays. */
+    public static AgentRegistration resumed(AgentRegistration current, String reason) {
+        if (current.status() != AgentStatus.SUSPENDED) {
+            return current;
+        }
+        return withStatus(current, AgentStatus.ACTIVE, reason);
+    }
+
+    private static AgentRegistration withStatus(AgentRegistration current, AgentStatus status, String reason) {
+        return new AgentRegistration(current.tenantId(), current.agentId(), current.displayName(), current.agentType(),
+                current.clientId(), current.sponsorId(), status, current.allowlisted(), current.source(),
+                current.lastSubjectKind(), current.firstSeenAt(), current.lastSeenAt(), current.registeredAt(),
+                current.deregisteredAt(), text(reason));
+    }
+
     public static AgentRegistration withSponsor(AgentRegistration current, String sponsorId) {
         return new AgentRegistration(current.tenantId(), current.agentId(), current.displayName(), current.agentType(),
                 current.clientId(), text(sponsorId), current.status(), current.allowlisted(), current.source(),
@@ -87,6 +114,16 @@ public final class AgentRegistrations {
     public static String tenantKey(String tenantId) {
         String text = text(tenantId);
         return text != null ? text : "";
+    }
+
+    /**
+     * The agent's registration as a request in the tenant reads it: the tenant's own, else (CF-13) the single-tenant
+     * registration a token or account naming no tenant was admitted under, as the event publisher reads it.
+     */
+    public static Optional<AgentRegistration> find(AgentRegistry registry, String tenantId, String agentId) {
+        String tenant = text(tenantId);
+        Optional<AgentRegistration> found = registry.find(tenant, agentId);
+        return found.isEmpty() && tenant != null ? registry.find(null, agentId) : found;
     }
 
     static void requireAgent(String agentId) {

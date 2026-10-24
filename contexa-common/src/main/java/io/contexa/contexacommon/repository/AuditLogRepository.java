@@ -24,7 +24,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
 
@@ -33,6 +35,30 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     int deleteByTimestampBefore(@Param("cutoff") LocalDateTime cutoff);
 
     List<AuditLog> findTop5ByPrincipalNameOrderByIdDesc(String principalName);
+
+    /** docs/agent A5-5: the records of one subject kind since a time (the console's subject chip, AM-5). */
+    Page<AuditLog> findByTimestampAfterAndSubjectKind(LocalDateTime since, String subjectKind, Pageable pageable);
+
+    /** docs/agent A5-5: an agent's latest records of one category (the agent screens, AM-1 and AM-2). */
+    List<AuditLog> findTop10ByAgentIdAndEventCategoryOrderByTimestampDesc(String agentId, String eventCategory);
+
+    /** docs/agent A5-5: the latest agent records of one category, for each agent's latest decision (AM-1). */
+    List<AuditLog> findTop500ByAgentIdIsNotNullAndEventCategoryOrderByTimestampDesc(String eventCategory);
+
+    /** docs/agent A5-6: the latest sealed record of a category, the one a new record is linked after. */
+    Optional<AuditLog> findTopByEventCategoryAndRecordHashIsNotNullOrderByIdDesc(String eventCategory);
+
+    /** docs/agent A5-3: the latest records of the categories (the agent stops, releases and kill switch, AM-4). */
+    List<AuditLog> findTop500ByEventCategoryInOrderByTimestampDesc(Collection<String> eventCategories);
+
+    /** docs/agent A5-3: the latest record of a category for a request (the decision a stop names). */
+    Optional<AuditLog> findTopByCorrelationIdAndEventCategoryOrderByIdDesc(String correlationId, String eventCategory);
+
+    /** docs/agent A5-6: whether a record with the hash is kept (the link a later record names). */
+    /** docs/agent A5-6: whether a sealed record of the category older than the record (by insertion) is kept. */
+    boolean existsByEventCategoryAndRecordHashIsNotNullAndIdLessThan(String eventCategory, Long id);
+
+    boolean existsByRecordHash(String recordHash);
 
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.resourceIdentifier = :resourceId")
     long countByResourceIdentifier(@Param("resourceId") String resourceId);

@@ -17,6 +17,9 @@ package io.contexa.contexacore.autonomous.context.collector;
 
 import java.util.Objects;
 import io.contexa.contexacore.autonomous.store.SessionDecisionRecord;
+import io.contexa.contexacore.autonomous.baseline.AgentBaselineView;
+import io.contexa.contexacore.autonomous.baseline.LearningSubject;
+import io.contexa.contexacommon.security.bridge.CredentialFacts;
 import io.contexa.contexacore.autonomous.context.support.ActionFamily;
 import io.contexa.contexacore.autonomous.context.support.ActionFamilyResolver;
 import io.contexa.contexacore.autonomous.context.support.SessionStart;
@@ -391,13 +394,20 @@ public class DefaultSessionNarrativeCollector implements SessionNarrativeCollect
     /**
      * A request's client as the session narrative compares it (W2-14): whether the request gave a User-Agent, the
      * operating system and browser it names, and the network of the request address with the zone the host declares.
-     * The store keeps it as one line.
+     * The store keeps it as one line. An agent's request also names its client (docs/agent A4-6): the credential's client
+     * id and the digest of its user agent, as the agent's baseline lists them; a person's line has no such part.
      */
-    record SessionClient(boolean userAgentGiven, String operatingSystem, String browser, String network, String zone) {
+    record SessionClient(boolean userAgentGiven, String operatingSystem, String browser, String network, String zone,
+                         String agentClient) {
 
         private static final String SEPARATOR = "|";
         private static final String USER_AGENT_GIVEN = "UA";
         private static final int PARTS = 5;
+        private static final int AGENT_PARTS = 6;
+
+        SessionClient(boolean userAgentGiven, String operatingSystem, String browser, String network, String zone) {
+            this(userAgentGiven, operatingSystem, browser, network, zone, null);
+        }
 
         /** The request's client; null when the request gives neither a User-Agent nor an address. */
         static SessionClient of(SecurityEvent event) {
@@ -412,12 +422,26 @@ public class DefaultSessionNarrativeCollector implements SessionNarrativeCollect
                     userAgentGiven ? SecurityEventEnricher.extractOSFromUserAgent(userAgent) : null,
                     userAgentGiven ? SecurityEventEnricher.extractBrowserSignature(userAgent) : null,
                     network,
-                    metadata != null ? NetworkZone.nameOf(metadata.get("networkZone")) : null);
+                    metadata != null ? NetworkZone.nameOf(metadata.get("networkZone")) : null,
+                    agentClient(event));
+        }
+
+        /** An agent's client as its baseline lists it (docs/agent A4-6); null for a person's request. */
+        private static String agentClient(SecurityEvent event) {
+            LearningSubject subject = LearningSubject.of(event);
+            if (subject == null || !subject.agent()) {
+                return null;
+            }
+            Map<String, Object> metadata = event.getMetadata();
+            Object clientId = metadata != null ? metadata.get(CredentialFacts.CLIENT_ID) : null;
+            return new AgentBaselineView.Facts(clientId != null ? clientId.toString().trim() : null,
+                    AgentBaselineView.digest(event.getUserAgent()), null, null).client();
         }
 
         String encode() {
-            return String.join(SEPARATOR, userAgentGiven ? USER_AGENT_GIVEN : "", part(operatingSystem), part(browser),
-                    part(network), part(zone));
+            String line = String.join(SEPARATOR, userAgentGiven ? USER_AGENT_GIVEN : "", part(operatingSystem),
+                    part(browser), part(network), part(zone));
+            return agentClient != null ? line + SEPARATOR + agentClient : line;
         }
 
         /** The client a stored line names; null for no line or for a line in a form this version does not read. */
@@ -425,21 +449,28 @@ public class DefaultSessionNarrativeCollector implements SessionNarrativeCollect
             if (!StringUtils.hasText(line)) {
                 return null;
             }
-            String[] parts = line.split("\\|", -1);
-            if (parts.length != PARTS) {
+            // The agent's client is the last part and is kept whole, whatever its client id holds.
+            String[] parts = line.split("\\|", AGENT_PARTS);
+            if (parts.length != PARTS && parts.length != AGENT_PARTS) {
                 return null;
             }
             return new SessionClient(USER_AGENT_GIVEN.equals(parts[0]), blankToNull(parts[1]), blankToNull(parts[2]),
-                    blankToNull(parts[3]), blankToNull(parts[4]));
+                    blankToNull(parts[3]), blankToNull(parts[4]), parts.length == AGENT_PARTS ? blankToNull(parts[5]) : null);
         }
 
         /**
          * "first -> current" when both requests gave a User-Agent and their operating system or browser differs; a
-         * browser's version is set aside, since a browser updates within a session. Null otherwise.
+         * browser's version is set aside, since a browser updates within a session. When both requests are an agent's,
+         * its client is compared instead (docs/agent A4-6): an agent's runtime names no browser, and a client id or a
+         * user agent that changes within one agent session is a change of the runtime that sends it. Null otherwise.
          */
         static String deviceChange(SessionClient first, SessionClient current) {
             if (first == null || current == null || !first.userAgentGiven() || !current.userAgentGiven()) {
                 return null;
+            }
+            if (first.agentClient() != null && current.agentClient() != null) {
+                return first.agentClient().equals(current.agentClient()) ? null
+                        : first.agentClient() + " -> " + current.agentClient();
             }
             boolean sameSystem = Objects.equals(first.operatingSystem(), current.operatingSystem());
             boolean sameBrowser = Objects.equals(browserName(first.browser()), browserName(current.browser()));

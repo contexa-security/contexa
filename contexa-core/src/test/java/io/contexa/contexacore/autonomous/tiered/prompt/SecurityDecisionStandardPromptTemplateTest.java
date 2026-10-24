@@ -408,10 +408,10 @@ class SecurityDecisionStandardPromptTemplateTest {
                 .asString()
                 .startsWith("sha256:");
         // P2 renders computed facts in the v19 format, a new bundle whose evaluation baseline is the P1 gate measurement.
-        assertThat(descriptor.promptVersion()).isEqualTo("2026.10.16-v19.20");
+        assertThat(descriptor.promptVersion()).isEqualTo("2026.10.24-v19.21");
         assertThat(descriptor.contractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V2");
         assertThat(descriptor.releaseStatus().name()).isEqualTo("PRODUCTION");
-        assertThat(descriptor.releaseApprovalReference()).isEqualTo("N-K5-2-2026-10-16");
+        assertThat(descriptor.releaseApprovalReference()).isEqualTo("DD-8-2026-10-24");
         assertThat(descriptor.evaluationBaselineReference()).isEqualTo("protocol-938648df");
         // The former rollback target 2026.07.26-v5 has no prompt text in the build, so v19 declares none (W1-18, PV-3).
         assertThat(descriptor.rollbackPromptVersion()).isNull();

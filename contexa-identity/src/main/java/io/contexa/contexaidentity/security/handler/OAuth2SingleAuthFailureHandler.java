@@ -77,6 +77,13 @@ public class OAuth2SingleAuthFailureHandler extends AbstractTokenBasedFailureHan
         if (errorDetails != null && !errorDetails.isEmpty()) {
             responseData.put("errorDetails", errorDetails);
         }
+        // The application's failure handler (the flow's failureHandler option) runs first and may write the response
+        // itself, as in the MFA flows; Contexa writes its own only when it did not.
+        executeDelegateHandler(request, response, exception, factorContext,
+                failureType != null ? failureType : FailureType.PRIMARY_AUTH_FAILED, responseData);
+        if (response.isCommitted()) {
+            return;
+        }
         writeErrorResponse(request, response, errorCode, errorMessage, responseData);
     }
 }

@@ -14,6 +14,7 @@ import io.contexa.showcase.portal.orchestrator.ControlEndpoints.Control;
 import io.contexa.showcase.portal.orchestrator.ControlSession;
 import io.contexa.showcase.portal.orchestrator.ControlSession.StepOutcome;
 import io.contexa.showcase.portal.orchestrator.EngineDecision;
+import io.contexa.showcase.portal.orchestrator.RunApprover;
 import io.contexa.showcase.portal.orchestrator.RunStore;
 import io.contexa.showcase.portal.orchestrator.WorkloadAdmin;
 import org.slf4j.Logger;
@@ -101,6 +102,7 @@ public class TemplateLearner {
         JsonNode activities = employee.path("scriptedActivities");
         RunIdentity run = new RunIdentity(runId, "org-tpl-" + hex, "tenant-tpl-" + hex,
                 addressOf(activities.get(0), employee), employee.path("usualDevice").asText());
+        RunApprover approver = null;
         try {
             admin.registerPlainPrincipal(run, username, password, employeeKey);
             Map<String, Object> principal = new LinkedHashMap<>();
@@ -113,9 +115,16 @@ public class TemplateLearner {
             principal.put("organizationId", run.organization());
             principal.put("tenantId", run.tenant());
             admin.createEnginePrincipal(run, principal);
+            Instant firstActivity = Instant.parse(activities.get(0).path("observedAt").asText());
+            // docs/agent OC-2: the company's integration puts the employee's records into the engine through its
+            // admin API, as for every run principal, so the engine judges the replayed requests with them (before OC-2
+            // control D read them from the business database itself).
+            approver = new RunApprover(admin, run, hex, firstActivity.minus(Duration.ofMinutes(15)),
+                    () -> new ControlSession(Control.D, new WorkloadClient(endpoints.d(), signer, run,
+                            endpoints.requestTimeout()), json));
+            approver.putCompanyRecords(admin.companyRecords(username, employeeKey, runId));
             ControlSession session = new ControlSession(Control.D,
                     new WorkloadClient(endpoints.d(), signer, run, endpoints.requestTimeout()), json);
-            Instant firstActivity = Instant.parse(activities.get(0).path("observedAt").asText());
             session.signInEngine(username, password, username + "@" + CompanyBlueprint.EMAIL_DOMAIN,
                     firstActivity.minus(Duration.ofMinutes(10)), admin);
             int allowed = 0;
@@ -204,6 +213,9 @@ public class TemplateLearner {
         } finally {
             try {
                 admin.deleteEnginePrincipal(runId, username);
+                if (approver != null && approver.created()) {
+                    admin.deleteEnginePrincipal(runId, approver.username());
+                }
                 admin.deletePlainRun(runId);
             } catch (IOException | RuntimeException e) {
                 log.error("Template principal cleanup failed: templateId={}", templateId, e);

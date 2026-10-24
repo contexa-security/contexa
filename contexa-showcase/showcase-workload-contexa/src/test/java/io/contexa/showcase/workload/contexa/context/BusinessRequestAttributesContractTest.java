@@ -25,5 +25,6 @@ class BusinessRequestAttributesContractTest {
                 .isEqualTo(Field.RESOURCE_AUTHOR_TEXT.canonicalAttributeKey());
         assertThat(BusinessRequestAttributes.REQUEST_ITEMS).isEqualTo(Field.REQUEST_ITEMS.canonicalAttributeKey());
         assertThat(BusinessRequestAttributes.RESOURCE_SCOPE).isEqualTo(Field.RESOURCE_SCOPE.canonicalAttributeKey());
+        assertThat(BusinessRequestAttributes.CLAIMED_RECORD).isEqualTo(Field.CLAIMED_RECORD.canonicalAttributeKey());
     }
 }

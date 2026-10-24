@@ -56,6 +56,10 @@ public class ZeroTrustExceptionHandler {
         log.error("Zero Trust access denied - action: {}, resource: {}, risk: {}, reason: {}",
             ex.getAction(), ex.getResourceId(), ex.getRiskScore(), ex.getReason());
 
+        if (answeredForAgent(ex, request, servletResponse)) {
+            return null;
+        }
+
         ZeroTrustErrorResponse response = ZeroTrustErrorResponse.builder()
             .status(ex.getHttpStatus())
             .code(ex.getErrorCode())
@@ -120,6 +124,24 @@ public class ZeroTrustExceptionHandler {
             .status(response.getStatus())
             .body(response);
     }
+    /**
+     * docs/agent A5-2: an agent's request a CHALLENGE decided in the request stopped asks its accountable person to
+     * confirm it; the answer is written there, so this handler writes none (a null entity leaves it as it is).
+     */
+    private boolean answeredForAgent(ZeroTrustAccessDeniedException ex, HttpServletRequest request,
+                                     HttpServletResponse servletResponse) {
+        if (challengeFlowStarter == null || !ZeroTrustAction.CHALLENGE.name().equals(ex.getAction())) {
+            return false;
+        }
+        try {
+            return challengeFlowStarter.answerAgentChallenge(request, servletResponse);
+        } catch (RuntimeException e) {
+            log.error("Could not ask the agent's accountable person to confirm a request: resource={}",
+                ex.getResourceId(), e);
+            return false;
+        }
+    }
+
     /**
      * A CHALLENGE decided in the request starts the step-up flow here, as the request filters do for an earlier
      * CHALLENGE, so the user can step up at once; the answer then says where to continue it.

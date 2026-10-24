@@ -51,6 +51,9 @@ public class RecordedDelegationContextProvider implements DelegationContextProvi
     public static final String LOOKUP_ATTRIBUTE = "delegationRecordLookup";
     public static final String RECORD_ID_ATTRIBUTE = "delegationRecordId";
     public static final String CONFLICTS_ATTRIBUTE = "delegationRecordConflicts";
+    /** A2-10: who wrote the delegation's record and when, as the host states it. */
+    public static final String RECORDED_BY_ATTRIBUTE = "delegationRecordedBy";
+    public static final String RECORDED_AT_ATTRIBUTE = "delegationRecordedAt";
 
     private final DelegationRecordLookup lookup;
 
@@ -103,6 +106,12 @@ public class RecordedDelegationContextProvider implements DelegationContextProvi
         attributes.put(LOOKUP_ATTRIBUTE, "FOUND");
         if (text(record.delegationId()) != null) {
             attributes.put(RECORD_ID_ATTRIBUTE, record.delegationId().trim());
+        }
+        if (text(record.recordedBy()) != null) {
+            attributes.put(RECORDED_BY_ATTRIBUTE, record.recordedBy().trim());
+        }
+        if (record.recordedAt() != null) {
+            attributes.put(RECORDED_AT_ATTRIBUTE, record.recordedAt().toString());
         }
         if (!conflicts.isEmpty()) {
             attributes.put(CONFLICTS_ATTRIBUTE, List.copyOf(conflicts));

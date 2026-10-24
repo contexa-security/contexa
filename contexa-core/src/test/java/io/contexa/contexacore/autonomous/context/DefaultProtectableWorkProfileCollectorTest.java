@@ -40,6 +40,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacore.autonomous.context.collector.ProtectableWorkProfileSnapshot;
 import io.contexa.contexacore.autonomous.context.model.ContextFieldTrustRecord;
 import io.contexa.contexacore.autonomous.context.model.ContextQualityGrade;
+import io.contexa.contexacore.autonomous.baseline.AgentBaselineView;
+import io.contexa.contexacommon.security.bridge.CredentialFacts;
 
 class DefaultProtectableWorkProfileCollectorTest {
 
@@ -477,6 +479,96 @@ class DefaultProtectableWorkProfileCollectorTest {
 
         // W2-11: the category is the family; the type's classification still counts as the class, as in the context.
         assertThat(snapshot.getBaselineView().resourceClasses()).containsExactly("SENSITIVE=3");
+    }
+
+    @Test
+    @DisplayName("docs/agent A3-1: an agent's request reads and learns the agent's work profile, never the person's")
+    void collect_keepsAnAgentsObservationsApartFromThePersons() {
+        LocalDateTime start = LocalDateTime.of(2026, 3, 24, 9, 0);
+        collect(event("alice", "tenant-acme", start, "/api/documents/D-1", "GET", "READ", "REPORT", "HIGH", true,
+                true, null));
+        SecurityEvent agent = event("alice", "tenant-acme", start.plusDays(1), "/api/documents/D-2", "GET", "READ",
+                "REPORT", "HIGH", true, true, null);
+        agent.addMetadata("executionSubjectKind", "DELEGATED_AGENT");
+        agent.addMetadata("agentId", "report-agent");
+
+        collect(agent);
+        collector.recordVerified(agent, 1.0);
+
+        assertThat(dataStore.getRecentWorkProfileObservations("tenant-acme", "alice", 10)).hasSize(1);
+        assertThat(dataStore.getRecentWorkProfileObservations("tenant-acme", "alice::agent::report-agent", 10))
+                .hasSize(2);
+    }
+
+    @Test
+    @DisplayName("docs/agent A4-1, A4-6: an agent's observation keeps its client and the operation before it; a person's"
+            + " stays as it was")
+    void collect_learnsAnAgentsOrderAndClientApartAndLeavesThePersonsObservationsAsTheyWere() {
+        LocalDateTime start = LocalDateTime.of(2026, 3, 23, 9, 0);
+        collect(event("alice", "tenant-acme", start, "/api/documents/D-0", "GET", "READ", "REPORT", "HIGH", true,
+                true, null));
+        // The agent's first session reads, then exports; its second session reads twice (a list is a read).
+        collect(agentEvent(start.plusDays(1), "/api/projects/HX-310/documents", "LIST", "agent:sid:one"));
+        dataStore.addSessionNarrativeActionFamily("agent:sid:one", "LIST");
+        collect(agentEvent(start.plusDays(1).plusMinutes(1), "/api/projects/HX-310/exports", "EXPORT",
+                "agent:sid:one"));
+        dataStore.addSessionNarrativeActionFamily("agent:sid:two", "READ");
+
+        Optional<ProtectableWorkProfileSnapshot> snapshot = collect(
+                agentEvent(start.plusDays(2), "/api/documents/D-2", "READ", "agent:sid:two"));
+
+        AgentBaselineView view = snapshot.orElseThrow().getAgentBaseline();
+        String client = "report-client #" + AgentBaselineView.digest("report-agent/1.0");
+        assertThat(view.observations()).isEqualTo(2);
+        assertThat(view.usualTransitions()).containsExactly(new AgentBaselineView.Count("READ>EXPORT", 1));
+        assertThat(view.usualClients()).containsExactly(new AgentBaselineView.Count(client, 2));
+        assertThat(view.currentTransition()).isEqualTo("READ>READ");
+        assertThat(view.currentTransitionSeen()).isZero();
+        assertThat(view.currentClient()).isEqualTo(client);
+        assertThat(view.currentClientSeen()).isEqualTo(2);
+        assertThat(dataStore.getRecentWorkProfileObservations("tenant-acme", "alice::agent::report-agent", 10))
+                .hasSize(3).allSatisfy(raw -> assertThat(raw).startsWith("v7|"));
+
+        Optional<ProtectableWorkProfileSnapshot> person = collect(event("alice", "tenant-acme", start.plusDays(3),
+                "/api/documents/D-3", "GET", "READ", "REPORT", "HIGH", true, true, null));
+        assertThat(person.orElseThrow().getAgentBaseline()).as("a person's request has none").isNull();
+        assertThat(dataStore.getRecentWorkProfileObservations("tenant-acme", "alice", 10))
+                .hasSize(2).allSatisfy(raw -> assertThat(raw).startsWith("v6|"));
+    }
+
+    private SecurityEvent agentEvent(LocalDateTime at, String path, String action, String sessionId) {
+        SecurityEvent agent = event("alice", "tenant-acme", at, path, "GET", action, "REPORT", "HIGH", true, true, null);
+        agent.addMetadata("executionSubjectKind", "DELEGATED_AGENT");
+        agent.addMetadata("agentId", "report-agent");
+        agent.addMetadata(CredentialFacts.CLIENT_ID, "report-client");
+        agent.setUserAgent("report-agent/1.0");
+        agent.setSessionId(sessionId);
+        return agent;
+    }
+
+    @Test
+    @DisplayName("docs/agent A3-8: a quarantined agent's work profile is neither learned nor read; the person's is")
+    void collect_learnsNothingOfAQuarantinedAgent() {
+        LocalDateTime start = LocalDateTime.of(2026, 3, 24, 9, 0);
+        SecurityEvent first = event("alice", "tenant-acme", start, "/api/documents/D-1", "GET", "READ", "REPORT",
+                "HIGH", true, true, null);
+        first.addMetadata("executionSubjectKind", "DELEGATED_AGENT");
+        first.addMetadata("agentId", "report-agent");
+        collect(first);
+        dataStore.setLearningQuarantined("agent:report-agent", true);
+        SecurityEvent later = event("alice", "tenant-acme", start.plusDays(1), "/api/documents/D-2", "GET", "READ",
+                "REPORT", "HIGH", true, true, null);
+        later.addMetadata("executionSubjectKind", "DELEGATED_AGENT");
+        later.addMetadata("agentId", "report-agent");
+
+        collect(later);
+        collector.recordVerified(later, 1.0);
+        collect(event("alice", "tenant-acme", start.plusDays(1), "/api/documents/D-3", "GET", "READ", "REPORT",
+                "HIGH", true, true, null));
+
+        assertThat(dataStore.getRecentWorkProfileObservations("tenant-acme", "alice::agent::report-agent", 10))
+                .hasSize(1);
+        assertThat(dataStore.getRecentWorkProfileObservations("tenant-acme", "alice", 10)).hasSize(1);
     }
 
     @Test

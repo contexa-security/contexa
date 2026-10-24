@@ -302,6 +302,35 @@ public interface SecurityContextDataStore {
                 "User context deletion is not supported by " + getClass().getSimpleName());
     }
 
+    /**
+     * docs/agent A3-8: whether an operator quarantined the learning of a scope ({@code agent:<id>} or
+     * {@code delegation:<id>}): its requests learn nothing and the agent's learning is not read. Stores that cannot keep
+     * it must fail loudly rather than drop an operator's quarantine.
+     */
+    default void setLearningQuarantined(String scope, boolean quarantined) {
+        throw new UnsupportedOperationException(
+                "Learning quarantine is not supported by " + getClass().getSimpleName());
+    }
+
+    /** docs/agent A3-8: whether the scope's learning is quarantined; a store that keeps none says no. */
+    default boolean learningQuarantined(String scope) {
+        return false;
+    }
+
+    /** docs/agent A3-8: the scopes whose learning is quarantined; a store that keeps none has none. */
+    default Set<String> learningQuarantineScopes() {
+        return Set.of();
+    }
+
+    /**
+     * docs/agent A3-8: removes the work-profile observations of every learning key of the agent, in all tenants
+     * ({@code <user>::agent::<id>}); the number of keys removed. Stores that cannot delete must fail loudly.
+     */
+    default int deleteAgentLearning(String agentId) {
+        throw new UnsupportedOperationException(
+                "Agent learning deletion is not supported by " + getClass().getSimpleName());
+    }
+
     EventProcessingClaim claimEventProcessing(String eventId);
 
     default EventProcessingLease claimEventProcessingLease(String eventId) {

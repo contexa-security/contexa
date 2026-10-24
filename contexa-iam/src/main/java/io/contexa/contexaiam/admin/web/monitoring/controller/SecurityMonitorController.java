@@ -42,6 +42,13 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
+import io.contexa.contexacore.autonomous.agent.AgentDelegation;
+import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
+import org.springframework.lang.Nullable;
+import io.contexa.contexacore.autonomous.audit.DecisionRecordSeal;
+import io.contexa.contexacore.verification.evidence.EvidenceSigner;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Security Monitor - real-time security event viewer based on audit_log.
@@ -49,19 +56,50 @@ import java.util.stream.Stream;
  */
 @Controller
 @RequestMapping("/contexa/admin/security-monitor")
-@RequiredArgsConstructor
 @Slf4j
 @PreAuthorize("hasRole('ADMIN')")
 public class SecurityMonitorController {
 
+    /** docs/agent A5-5: the subject chips the list filters by (A1-3 subject kinds). */
+    static final List<String> SUBJECT_KINDS = List.of("HUMAN_USER", "DELEGATED_AGENT", "AUTONOMOUS_AGENT");
+
     private final AuditLogRepository auditLogRepository;
     private final CsvExportService csvExportService;
+    private final DelegationRegistry delegationRegistry;
+    /** docs/agent A5-6: the signer the decision records are verified with; none reads them as not verifiable. */
+    private EvidenceSigner evidenceSigner;
+
+    public SecurityMonitorController(AuditLogRepository auditLogRepository, CsvExportService csvExportService) {
+        this(auditLogRepository, csvExportService, null);
+    }
+
+    /**
+     * @param delegationRegistry the delegations Contexa keeps (OC-1), for the delegation a decision ran under; null
+     *                           without one, and the record's own fields are shown
+     */
+    public SecurityMonitorController(AuditLogRepository auditLogRepository, CsvExportService csvExportService,
+                                     @Nullable DelegationRegistry delegationRegistry) {
+        this.auditLogRepository = auditLogRepository;
+        this.csvExportService = csvExportService;
+        this.delegationRegistry = delegationRegistry;
+    }
+
+    /** docs/agent A5-6: the signer the decision records were signed with. */
+    public void setEvidenceSigner(EvidenceSigner evidenceSigner) {
+        this.evidenceSigner = evidenceSigner;
+    }
+
+    /** The list without a subject chip, as before A5-5. */
+    public String monitor(String category, String filter, String keyword, int hours, int page, Model model) {
+        return monitor(category, filter, keyword, null, hours, page, model);
+    }
 
     @GetMapping
     public String monitor(
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String filter,
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String subject,
             @RequestParam(required = false, defaultValue = "24") int hours,
             @RequestParam(required = false, defaultValue = "0") int page,
             Model model) {
@@ -69,7 +107,15 @@ public class SecurityMonitorController {
         model.addAttribute("activePage", "security-monitor");
 
         LocalDateTime since = LocalDateTime.now().minusHours(hours);
-        Page<AuditLog> logPage = loadLogPage(category, filter, keyword, page, since, model);
+        // docs/agent A5-5: a subject chip lists the decisions of that subject kind.
+        String subjectKind = subject != null && SUBJECT_KINDS.contains(subject) ? subject : null;
+        model.addAttribute("subject", subjectKind);
+        model.addAttribute("subjectKinds", SUBJECT_KINDS);
+        Page<AuditLog> logPage = subjectKind != null
+                ? auditLogRepository.findByTimestampAfterAndSubjectKind(since, subjectKind,
+                PageRequest.of(page, 20, Sort.by(Sort.Direction.DESC, "timestamp")))
+                : loadLogPage(category, filter, keyword, page, since, model);
+        model.addAttribute("integrity", integrityOf(logPage.getContent()));
 
         prepareMonitorModel(model, logPage, hours, category, filter, keyword, since);
 
@@ -155,7 +201,49 @@ public class SecurityMonitorController {
         }
 
         model.addAttribute("log", auditLog);
+        // docs/agent A5-5: an agent's decision shows the delegation it ran under, as the delegation record states it.
+        model.addAttribute("delegation", delegationOf(auditLog));
+        // docs/agent A5-6: whether the decision record is as it was sealed.
+        model.addAttribute("integrity", integrityOf(List.of(auditLog)).get(auditLog.getId()));
         return "contexa/admin/security-monitor-detail";
+    }
+
+    /**
+     * docs/agent A5-6: the integrity of each decision record on the page (VERIFIED, MISMATCH or UNVERIFIABLE), by
+     * record ID; records that are no decisions have none.
+     */
+    private Map<Long, String> integrityOf(List<AuditLog> records) {
+        Map<Long, String> integrity = new HashMap<>();
+        for (AuditLog record : records) {
+            if (record.getId() == null || !"SECURITY_DECISION".equals(record.getEventCategory())) {
+                continue;
+            }
+            try {
+                // The oldest kept record names a previous record the audit retention deleted: not a mismatch.
+                integrity.put(record.getId(), DecisionRecordSeal.evaluate(record, evidenceSigner,
+                        auditLogRepository::existsByRecordHash, kept -> auditLogRepository
+                                .existsByEventCategoryAndRecordHashIsNotNullAndIdLessThan("SECURITY_DECISION",
+                                        kept.getId())).name());
+            } catch (RuntimeException e) {
+                log.error("Integrity check failed for audit log {}", record.getId(), e);
+                integrity.put(record.getId(), "UNVERIFIABLE");
+            }
+        }
+        return integrity;
+    }
+
+    @Nullable
+    private AgentDelegation delegationOf(AuditLog auditLog) {
+        if (delegationRegistry == null || auditLog.getDelegationId() == null || auditLog.getDelegationId().isBlank()) {
+            return null;
+        }
+        try {
+            return delegationRegistry.find(auditLog.getDelegationId()).orElse(null);
+        } catch (RuntimeException e) {
+            log.error("Delegation lookup failed for audit log {}: delegationId={}", auditLog.getId(),
+                    auditLog.getDelegationId(), e);
+            return null;
+        }
     }
 
     @GetMapping("/export")

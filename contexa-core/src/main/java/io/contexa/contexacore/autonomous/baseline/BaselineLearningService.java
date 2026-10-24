@@ -23,6 +23,7 @@ import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormali
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
 import io.contexa.contexacore.autonomous.learning.evidence.LearningEvidenceScope;
+import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
@@ -39,6 +40,7 @@ import java.time.Instant;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -48,6 +50,8 @@ public class BaselineLearningService {
 
     private final BaselineDataStore baselineDataStore;
     private final SecurityZeroTrustProperties zeroTrustProperties;
+    /** docs/agent A3-8: which learning subjects an operator quarantined. */
+    private Predicate<LearningSubject> learningQuarantine = subject -> false;
 
     /** The update lock of a user's baseline: the key the admin approval used, so every learning path takes one lock. */
     private static final String USER_LOCK_PREFIX = "baseline:update:";
@@ -93,6 +97,15 @@ public class BaselineLearningService {
      * The same service over other baselines: the settings stay, the store is the one given (a sealed decision drawn
      * again reads the baselines it was drawn against).
      */
+    /**
+     * docs/agent A3-8: which learning subjects an operator quarantined (AgentLearningControl); none without it. A
+     * quarantined agent's baseline is neither learned nor read.
+     */
+    public void setLearningQuarantine(Predicate<LearningSubject> quarantined) {
+        this.learningQuarantine = quarantined != null ? subject -> subject != null && quarantined.test(subject)
+                : subject -> false;
+    }
+
     public BaselineLearningService readingFrom(BaselineDataStore store) {
         return new BaselineLearningService(store, zeroTrustProperties);
     }
@@ -104,6 +117,8 @@ public class BaselineLearningService {
 
         if (userId == null || decision == null) return false;
         if (!shouldLearnFromSecurityEvent(decision)) return false;
+        // docs/agent A3-8: a quarantined agent or delegation learns nothing while the quarantine lasts.
+        if (learningQuarantine.test(LearningSubject.of(event, userId))) return false;
 
         try {
             // The personal read, learning and write run under the user's lock (W5-8), the user within the request's
@@ -114,7 +129,10 @@ public class BaselineLearningService {
             if (learned == null) {
                 return false;
             }
-            updateOrganizationBaseline(userId, event, learned.previous(), learned.current());
+            // docs/agent A3-1: an agent's activity is not the people's usual behaviour of the organization.
+            if (!agentRequest(userId, event)) {
+                updateOrganizationBaseline(userId, event, learned.previous(), learned.current());
+            }
             return true;
 
         } catch (Exception e) {
@@ -134,7 +152,9 @@ public class BaselineLearningService {
     private LearnedBaseline learnPersonal(String userId, String key, SecurityDecision decision, SecurityEvent event) {
         BaselineDataStore.BaselineRead read = readPersonal(key);
         boolean earlierKey = false;
-        if (read.state() == BaselineDataStore.BaselineRead.State.ABSENT && !key.equals(userId)) {
+        // An agent's key has no earlier form: the user's own earlier key is the person's, never the agent's (A3-1).
+        if (read.state() == BaselineDataStore.BaselineRead.State.ABSENT && !key.equals(userId)
+                && !agentRequest(userId, event)) {
             // A baseline learned before the tenant key is read and moved under it (W5-10 D9).
             read = readPersonal(userId);
             earlierKey = read.baseline() != null;
@@ -162,9 +182,19 @@ public class BaselineLearningService {
         return read != null ? read : BaselineDataStore.BaselineRead.of(baselineDataStore.getUserBaseline(key));
     }
 
-    /** The key of the user's personal baseline within the request's tenant, the user alone without one (W5-10 D9). */
+    /**
+     * The key of the user's personal baseline within the request's tenant, the user alone without one (W5-10 D9). An
+     * agent's request has a key of its own, the user and the agent (docs/agent A3-1).
+     */
     private String personalKey(String userId, SecurityEvent event) {
-        return BaselineDataStore.userKey(extractMetadataText(event, "tenantId", "tenant_id"), userId);
+        LearningSubject subject = LearningSubject.of(event, userId);
+        return BaselineDataStore.userKey(extractMetadataText(event, "tenantId", "tenant_id"),
+                subject != null ? subject.key() : userId);
+    }
+
+    private static boolean agentRequest(String userId, SecurityEvent event) {
+        LearningSubject subject = LearningSubject.of(event, userId);
+        return subject != null && subject.agent();
     }
 
     /** Runs the update under the key's lock; null, with nothing done, when the lock is not taken in time (W5-8). */
@@ -298,8 +328,19 @@ public class BaselineLearningService {
             }
 
             builder.elementFrequencies(frequencies);
+            // docs/agent A3-4: when each value was seen, and whether a verification learned it.
+            long seenAt = eventMillis(event);
+            Map<String, Long> lastSeen = new HashMap<>();
+            frequencies.keySet().forEach(key -> lastSeen.put(key, seenAt));
+            builder.elementLastSeen(lastSeen);
+            builder.verifiedElements(verifiedLearning(event) ? new HashSet<>(frequencies.keySet()) : new HashSet<>());
             return builder.build();
         }
+
+        // docs/agent A3-4: values learned without a verification and not seen within the expiry leave first.
+        long nowMs = eventMillis(event);
+        current = withoutExpired(current, nowMs);
+        String storedVocabulary = current.getVocabularyVersion();
 
         double oldTrustScore = current.getAvgTrustScore() != null ? current.getAvgTrustScore() : 0.5;
         double alpha = zeroTrustProperties.getBaseline().getLearning().getAlpha();
@@ -308,9 +349,8 @@ public class BaselineLearningService {
         long oldUpdateCount = current.getUpdateCount() != null ? current.getUpdateCount() : 0L;
         long oldRequestCount = current.getAvgRequestCount() != null ? current.getAvgRequestCount() : 0L;
 
-        Map<String, Long> frequencies = current.getElementFrequencies() != null
-                ? new HashMap<>(current.getElementFrequencies())
-                : new HashMap<>();
+        Map<String, Long> frequencies = new DecayingFrequencies(current.getElementFrequencies(),
+                lastSeenOf(current), nowMs, halfLifeMs());
 
         // Every stored vocabulary value is read into today's vocabulary with its count (W5-7): a network learned
         // before W2-4 as a prefix, a login method or a family under an earlier name, a path under the earlier rule.
@@ -321,7 +361,7 @@ public class BaselineLearningService {
         String[] storedOperatingSystems = canonicalized(current.getNormalOperatingSystems(), FREQ_PREFIX_OS,
                 frequencies, VocabularyMigration::operatingSystem);
         String[] storedAuthenticationTypes = canonicalized(current.getNormalAuthenticationTypes(), FREQ_PREFIX_AUTH,
-                frequencies, stored -> VocabularyMigration.authenticationType(stored, current.getVocabularyVersion()));
+                frequencies, stored -> VocabularyMigration.authenticationType(stored, storedVocabulary));
         String[] storedActionFamilies = canonicalized(current.getFrequentActionFamilies(), FREQ_PREFIX_ACTION,
                 frequencies, VocabularyMigration::actionFamily);
         String[] storedResourceFamilies = canonicalized(current.getFrequentResourceFamilies(), FREQ_PREFIX_RESOURCE,
@@ -350,6 +390,23 @@ public class BaselineLearningService {
 
         String[] normalOperatingSystems = updateNormalOperatingSystems(storedOperatingSystems, currentOS, frequencies);
 
+        // docs/agent A3-4: this request's values are seen now; values that left the lists leave the stamps too.
+        Map<String, Long> lastSeen = new HashMap<>(lastSeenOf(current));
+        Set<String> verified = new HashSet<>(current.getVerifiedElements() != null
+                ? current.getVerifiedElements() : Set.of());
+        boolean verifiedNow = verifiedLearning(event);
+        for (String key : requestKeys(currentIpBand, currentHour, currentDay, currentPath, currentBrowser, currentDevice,
+                currentAuthenticationType, currentActionFamily, currentResourceFamily, uaSignature, currentOS)) {
+            if (frequencies.containsKey(key)) {
+                lastSeen.put(key, nowMs);
+                if (verifiedNow) {
+                    verified.add(key);
+                }
+            }
+        }
+        lastSeen.keySet().retainAll(frequencies.keySet());
+        verified.retainAll(frequencies.keySet());
+
         return BaselineVector.builder()
                 .userId(userId)
                 .avgTrustScore(newTrustScore)
@@ -372,8 +429,169 @@ public class BaselineLearningService {
                 .normalAuthenticationTypes(normalAuthenticationTypes)
                 .frequentActionFamilies(frequentActionFamilies)
                 .frequentResourceFamilies(frequentResourceFamilies)
-                .elementFrequencies(frequencies)
+                .elementFrequencies(new HashMap<>(frequencies))
+                .elementLastSeen(lastSeen)
+                .verifiedElements(verified)
                 .build();
+    }
+
+    /**
+     * docs/agent A3-4: the frequencies of a stored baseline with the age of each value, so that the value to give up
+     * a place is the one whose frequency counts least after its age halves it ({@link #findLeastFrequentIndex}). The
+     * counts themselves are kept as they are.
+     */
+    private static final class DecayingFrequencies extends HashMap<String, Long> {
+
+        private static final long serialVersionUID = 1L;
+        private final Map<String, Long> lastSeen;
+        private final long nowMs;
+        private final long halfLifeMs;
+
+        private DecayingFrequencies(Map<String, Long> counts, Map<String, Long> lastSeen, long nowMs, long halfLifeMs) {
+            super(counts != null ? counts : Map.of());
+            this.lastSeen = lastSeen;
+            this.nowMs = nowMs;
+            this.halfLifeMs = halfLifeMs;
+        }
+
+        private double rank(String key) {
+            long count = getOrDefault(key, 0L);
+            Long seen = lastSeen.get(key);
+            if (seen == null || halfLifeMs <= 0 || nowMs <= seen) {
+                return count;
+            }
+            return count * Math.pow(0.5, (double) (nowMs - seen) / halfLifeMs);
+        }
+    }
+
+    /** The frequency keys of this request's values, as the lists learn them. */
+    private static List<String> requestKeys(String ipBand, Integer hour, Integer day, String path, String browser,
+                                            String device, String authentication, String action, String resource,
+                                            String userAgent, String operatingSystem) {
+        List<String> keys = new ArrayList<>();
+        if (ipBand != null) {
+            keys.add(FREQ_PREFIX_IP + ipBand);
+            keys.add(FREQ_PREFIX_IP_BAND + ipBand);
+        }
+        if (hour != null) {
+            keys.add(FREQ_PREFIX_HOUR + hour);
+        }
+        if (day != null) {
+            keys.add(FREQ_PREFIX_DAY + day);
+        }
+        addKey(keys, FREQ_PREFIX_PATH, path);
+        addKey(keys, FREQ_PREFIX_BROWSER, browser);
+        addKey(keys, FREQ_PREFIX_DEVICE, device);
+        addKey(keys, FREQ_PREFIX_AUTH, authentication);
+        addKey(keys, FREQ_PREFIX_ACTION, action);
+        addKey(keys, FREQ_PREFIX_RESOURCE, resource);
+        addKey(keys, FREQ_PREFIX_UA, userAgent);
+        addKey(keys, FREQ_PREFIX_OS, operatingSystem);
+        return keys;
+    }
+
+    private static void addKey(List<String> keys, String prefix, String value) {
+        if (StringUtils.hasText(value)) {
+            keys.add(prefix + value);
+        }
+    }
+
+    /**
+     * docs/agent A3-4: the baseline without the values learned without a verification that were not seen within the
+     * expiry before the given time; the baseline itself when none expired.
+     */
+    BaselineVector withoutExpired(BaselineVector baseline, long nowMs) {
+        if (baseline == null || baseline.getElementFrequencies() == null || baseline.getElementFrequencies().isEmpty()) {
+            return baseline;
+        }
+        long expiryMs = unverifiedExpiryMs();
+        if (expiryMs <= 0) {
+            return baseline;
+        }
+        Map<String, Long> lastSeen = lastSeenOf(baseline);
+        Set<String> verified = baseline.getVerifiedElements() != null ? baseline.getVerifiedElements() : Set.of();
+        Set<String> expired = new HashSet<>();
+        for (String key : baseline.getElementFrequencies().keySet()) {
+            Long seen = lastSeen.get(key);
+            if (!verified.contains(key) && seen != null && nowMs - seen > expiryMs) {
+                expired.add(key);
+            }
+        }
+        if (expired.isEmpty()) {
+            return baseline;
+        }
+        Map<String, Long> frequencies = new HashMap<>(baseline.getElementFrequencies());
+        frequencies.keySet().removeAll(expired);
+        Map<String, Long> stamps = new HashMap<>(baseline.getElementLastSeen() != null
+                ? baseline.getElementLastSeen() : Map.of());
+        stamps.keySet().removeAll(expired);
+        return BaselineVector.builder()
+                .userId(baseline.getUserId())
+                .normalIpRanges(kept(baseline.getNormalIpRanges(), FREQ_PREFIX_IP, expired))
+                .normalAccessHours(keptNumbers(baseline.getNormalAccessHours(), FREQ_PREFIX_HOUR, expired))
+                .normalAccessDays(keptNumbers(baseline.getNormalAccessDays(), FREQ_PREFIX_DAY, expired))
+                .frequentPaths(kept(baseline.getFrequentPaths(), FREQ_PREFIX_PATH, expired))
+                .normalUserAgents(kept(baseline.getNormalUserAgents(), FREQ_PREFIX_UA, expired))
+                .normalOperatingSystems(kept(baseline.getNormalOperatingSystems(), FREQ_PREFIX_OS, expired))
+                .normalBrowsers(kept(baseline.getNormalBrowsers(), FREQ_PREFIX_BROWSER, expired))
+                .normalDevices(kept(baseline.getNormalDevices(), FREQ_PREFIX_DEVICE, expired))
+                .normalIpBands(kept(baseline.getNormalIpBands(), FREQ_PREFIX_IP_BAND, expired))
+                .normalAuthenticationTypes(kept(baseline.getNormalAuthenticationTypes(), FREQ_PREFIX_AUTH, expired))
+                .frequentActionFamilies(kept(baseline.getFrequentActionFamilies(), FREQ_PREFIX_ACTION, expired))
+                .frequentResourceFamilies(kept(baseline.getFrequentResourceFamilies(), FREQ_PREFIX_RESOURCE, expired))
+                .vocabularyVersion(baseline.getVocabularyVersion())
+                .learnedDates(baseline.getLearnedDates())
+                .recentNovelty(baseline.getRecentNovelty())
+                .updateCount(baseline.getUpdateCount())
+                .elementFrequencies(frequencies)
+                .elementLastSeen(stamps)
+                .verifiedElements(new HashSet<>(verified))
+                .lastUpdated(baseline.getLastUpdated())
+                .avgRequestCount(baseline.getAvgRequestCount())
+                .avgTrustScore(baseline.getAvgTrustScore())
+                .build();
+    }
+
+    private static String[] kept(String[] values, String prefix, Set<String> expired) {
+        return values == null ? null
+                : Arrays.stream(values).filter(value -> !expired.contains(prefix + value)).toArray(String[]::new);
+    }
+
+    private static Integer[] keptNumbers(Integer[] values, String prefix, Set<String> expired) {
+        return values == null ? null
+                : Arrays.stream(values).filter(value -> !expired.contains(prefix + value)).toArray(Integer[]::new);
+    }
+
+    /** When each value was last seen; a value of a baseline stored before A3-4 reads as seen at its last update. */
+    private static Map<String, Long> lastSeenOf(BaselineVector baseline) {
+        Map<String, Long> stamps = new HashMap<>(baseline.getElementLastSeen() != null
+                ? baseline.getElementLastSeen() : Map.of());
+        if (baseline.getLastUpdated() != null && baseline.getElementFrequencies() != null) {
+            long updated = baseline.getLastUpdated().toEpochMilli();
+            baseline.getElementFrequencies().keySet().forEach(key -> stamps.putIfAbsent(key, updated));
+        }
+        return stamps;
+    }
+
+    /** The request's time on the event clock, or now without one: the clock the values are stamped on. */
+    private static long eventMillis(SecurityEvent event) {
+        return event != null && event.getTimestamp() != null ? event.getTimestamp().toEpochMilli()
+                : System.currentTimeMillis();
+    }
+
+    /** Whether a verification learned the request (VerificationLearningService, promotion, administrator release). */
+    private boolean verifiedLearning(SecurityEvent event) {
+        return extractMetadataText(event, VerificationLearningService.VERIFIED_BY) != null;
+    }
+
+    private long unverifiedExpiryMs() {
+        Duration expiry = zeroTrustProperties.getBaseline().getLearning().getUnverifiedExpiry();
+        return expiry != null ? expiry.toMillis() : 0L;
+    }
+
+    private long halfLifeMs() {
+        Duration halfLife = zeroTrustProperties.getBaseline().getLearning().getHalfLife();
+        return halfLife != null ? halfLife.toMillis() : 0L;
     }
 
     private Integer extractHourFromSecurityEvent(SecurityEvent event) {
@@ -689,9 +907,12 @@ public class BaselineLearningService {
 
     private int findLeastFrequentIndex(String[] elements, String freqPrefix, Map<String, Long> frequencies) {
         int minIndex = 0;
-        long minFreq = Long.MAX_VALUE;
+        double minFreq = Double.MAX_VALUE;
         for (int i = 0; i < elements.length; i++) {
-            long freq = frequencies.getOrDefault(freqPrefix + elements[i], 0L);
+            // docs/agent A3-4: a value's frequency counts less with its age.
+            double freq = frequencies instanceof DecayingFrequencies decaying
+                    ? decaying.rank(freqPrefix + elements[i])
+                    : frequencies.getOrDefault(freqPrefix + elements[i], 0L);
             if (freq < minFreq) {
                 minFreq = freq;
                 minIndex = i;
@@ -727,7 +948,14 @@ public class BaselineLearningService {
         }
         String key = personalKey(userId, event);
         BaselineVector baseline = baselineDataStore.getUserBaseline(key);
-        return baseline != null || key.equals(userId) ? baseline : baselineDataStore.getUserBaseline(userId);
+        BaselineVector read = baseline != null || key.equals(userId) || agentRequest(userId, event)
+                ? baseline : baselineDataStore.getUserBaseline(userId);
+        // docs/agent A3-8: a quarantined agent's baseline is not read.
+        if (learningQuarantine.test(LearningSubject.of(event, userId))) {
+            return null;
+        }
+        // docs/agent A3-4: a decision reads the baseline without its expired values, on the request's clock.
+        return withoutExpired(read, eventMillis(event));
     }
 
     public BaselineVector getOrganizationBaseline(String organizationId) {

@@ -1,10 +1,11 @@
 /*
- * 1-2 (IN-6): the topic cards under the two themes they tell, the stolen account over three groups and the insider in
- * one, then the groups of trying and the summary; each card with what you try, what you will know and its basis.
+ * 1-2 (IN-6, docs/agent A7-3): the topic cards under the three themes they tell, the stolen account over three groups,
+ * the insider and the business agent in one each, then the groups of trying and the summary; each card with what you
+ * try, what you will know and its basis.
  */
 .themes {
   display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--space-4);
   margin-block-end: var(--space-4);
 }

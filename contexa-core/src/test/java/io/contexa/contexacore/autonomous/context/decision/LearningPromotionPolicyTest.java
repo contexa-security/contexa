@@ -80,6 +80,27 @@ class LearningPromotionPolicyTest {
     }
 
     /**
+     * docs/agent A3-7: an agent's request holds back its first target, action, size, rate, network and device at any
+     * resource class (not its time and day); the same differences of a person's request hold nothing below the least
+     * class, and the agent rule is the host's switch.
+     */
+    @Test
+    void anAgentsFirstValuesAreHeldBackAtAnyResourceClass() {
+        Deviation[] differences = {unexplained(DeviationDimension.TARGET, "projectKey=HX-310"),
+                unexplained(DeviationDimension.SIZE, "4,831 items"), unexplained(DeviationDimension.NETWORK,
+                "10.60.1.0/24"), unexplained(DeviationDimension.TIME, "03"),
+                deviation(DeviationDimension.ACTION, Deviation.Explanation.EXPLAINED)};
+        CanonicalSecurityContext agent = context("NORMAL", differences);
+        agent.getAttributes().put("executionSubjectKind", "AUTONOMOUS_AGENT");
+
+        assertThat(LearningPromotionPolicy.heldDifferences(agent, DEFAULTS)).extracting(Deviation::dimension)
+                .containsExactly(DeviationDimension.TARGET, DeviationDimension.SIZE, DeviationDimension.NETWORK);
+        assertThat(LearningPromotionPolicy.heldDifferences(context("NORMAL", differences), DEFAULTS)).isEmpty();
+        assertThat(LearningPromotionPolicy.heldDifferences(agent,
+                new LearningPromotionPolicy.Settings(true, "SENSITIVE", 2, 2, true, false))).isEmpty();
+    }
+
+    /**
      * The policy holds what the minimum action rule P1 counts (the rule source belongs to the prompt bundle, so the
      * policy keeps its own copy): for every class and dimension, the held dimensions are the ones P1 counts.
      */

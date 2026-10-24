@@ -10,7 +10,12 @@ import java.util.List;
  * only to the principals of the run.
  */
 public record RunFacts(List<Ticket> tickets, List<Approval> approvals, List<Oncall> oncall,
-                       List<TravelPlan> travel, List<Document> documents) {
+                       List<TravelPlan> travel, List<Document> documents, List<Delegation> delegations) {
+
+    public RunFacts(List<Ticket> tickets, List<Approval> approvals, List<Oncall> oncall, List<TravelPlan> travel,
+                    List<Document> documents) {
+        this(tickets, approvals, oncall, travel, documents, List.of());
+    }
 
     public RunFacts(List<Ticket> tickets, List<Approval> approvals, List<Oncall> oncall) {
         this(tickets, approvals, oncall, List.of(), List.of());
@@ -26,6 +31,7 @@ public record RunFacts(List<Ticket> tickets, List<Approval> approvals, List<Onca
         oncall = oncall == null ? List.of() : List.copyOf(oncall);
         travel = travel == null ? List.of() : List.copyOf(travel);
         documents = documents == null ? List.of() : List.copyOf(documents);
+        delegations = delegations == null ? List.of() : List.copyOf(delegations);
     }
 
     public static RunFacts none() {
@@ -43,6 +49,34 @@ public record RunFacts(List<Ticket> tickets, List<Approval> approvals, List<Onca
         public Approval(String approvalKey, String requester, String approver, String projectKey, String purpose,
                         int maxItems, Instant validFrom, Instant validUntil, String status) {
             this(approvalKey, requester, approver, projectKey, purpose, maxItems, validFrom, validUntil, status, null);
+        }
+    }
+
+    /**
+     * Work a person delegated to an agent (docs/agent A7-0): the delegation of record the engine reads through its
+     * delegation record lookup.
+     *
+     * @param delegator  the employee key of the person who delegated the work
+     * @param agentId    the run's agent the work was delegated to
+     * @param recordedBy who wrote the record (an employee key or an agent id), or null when it does not say (A2-10)
+     * @param recordedAt when the record was written, or null when it does not say (A2-10)
+     */
+    public record Delegation(String delegationKey, String delegator, String agentId, String objectiveId,
+                             String objectiveFamily, String summary, List<String> operations, List<String> resources,
+                             boolean approvalRequired, Instant validFrom, Instant expiresAt, boolean revoked,
+                             String recordedBy, Instant recordedAt) {
+
+        public Delegation {
+            operations = operations == null ? List.of() : List.copyOf(operations);
+            resources = resources == null ? List.of() : List.copyOf(resources);
+        }
+
+        /** A record that does not say who wrote it or when. */
+        public Delegation(String delegationKey, String delegator, String agentId, String objectiveId,
+                          String objectiveFamily, String summary, List<String> operations, List<String> resources,
+                          boolean approvalRequired, Instant validFrom, Instant expiresAt, boolean revoked) {
+            this(delegationKey, delegator, agentId, objectiveId, objectiveFamily, summary, operations, resources,
+                    approvalRequired, validFrom, expiresAt, revoked, null, null);
         }
     }
 

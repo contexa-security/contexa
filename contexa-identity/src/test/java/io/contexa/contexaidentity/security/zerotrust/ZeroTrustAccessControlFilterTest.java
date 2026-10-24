@@ -16,6 +16,8 @@
 package io.contexa.contexaidentity.security.zerotrust;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacore.autonomous.blocking.BlockableResponseWrapper;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
@@ -43,6 +45,7 @@ import org.springframework.security.core.context.SecurityContextImpl;
 
 import java.io.PrintWriter;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -167,6 +170,59 @@ class ZeroTrustAccessControlFilterTest {
             verify(filterChain, never()).doFilter(eq(request), eq(response));
             verify(response).sendRedirect("/contexa/zero-trust/blocked");
         }
+    }
+
+    @Test
+    void anAgentActingForTheUserIsStoppedByItsOwnBlockWithoutTheUsersMfa() throws Exception {
+        // docs/agent A5-1: the agent's decision is read under its own key; its block asks no factor of anyone.
+        when(request.getRequestURI()).thenReturn("/api/projects/HX-310/exports");
+        when(request.getAttribute(BridgeRequestAttributes.DELEGATION_STAMP)).thenReturn(delegatedAgentStamp());
+        setUpAuthentication();
+
+        try (MockedStatic<SessionFingerprintUtil> fingerprintMock = mockStatic(SessionFingerprintUtil.class)) {
+            fingerprintMock.when(() -> SessionFingerprintUtil.generateContextBindingHash(any(HttpServletRequest.class)))
+                    .thenReturn(TEST_CONTEXT_BINDING_HASH);
+            when(actionRedisRepository.getCurrentAction("testUser::agent::report-agent", TEST_CONTEXT_BINDING_HASH))
+                    .thenReturn(ZeroTrustAction.BLOCK);
+
+            filter.doFilter(request, response, filterChain);
+
+            verify(filterChain, never()).doFilter(any(), any());
+            verify(responseWriter).writeErrorResponse(eq(response), eq(HttpServletResponse.SC_FORBIDDEN),
+                    eq(ZeroTrustAccessControlFilter.AGENT_BLOCKED), anyString(), eq("/api/projects/HX-310/exports"),
+                    any());
+            verify(actionRedisRepository, never()).isBlockMfaPending(anyString());
+            verify(actionRedisRepository, never()).getCurrentAction(eq("testUser"), any());
+        }
+    }
+
+    @Test
+    void anAgentsEscalationIsPromotedUnderItsOwnKeyAndRecordsNoBlockedPerson() throws Exception {
+        when(request.getRequestURI()).thenReturn("/api/projects/HX-310/exports");
+        when(request.getAttribute(BridgeRequestAttributes.DELEGATION_STAMP)).thenReturn(delegatedAgentStamp());
+        setUpAuthentication();
+
+        try (MockedStatic<SessionFingerprintUtil> fingerprintMock = mockStatic(SessionFingerprintUtil.class)) {
+            fingerprintMock.when(() -> SessionFingerprintUtil.generateContextBindingHash(any(HttpServletRequest.class)))
+                    .thenReturn(TEST_CONTEXT_BINDING_HASH);
+            when(actionRedisRepository.getCurrentAction("testUser::agent::report-agent", TEST_CONTEXT_BINDING_HASH))
+                    .thenReturn(ZeroTrustAction.ESCALATE);
+
+            filter.doFilter(request, response, filterChain);
+
+            verify(actionRedisRepository).saveAction(eq("testUser::agent::report-agent"), eq(ZeroTrustAction.BLOCK),
+                    any());
+            verify(actionRedisRepository).setBlockedFlag("testUser::agent::report-agent");
+            verify(actionRedisRepository, never()).setBlockedFlag("testUser");
+            verifyNoInteractions(blockedUserRecorder);
+            verify(responseWriter).writeErrorResponse(eq(response), eq(HttpServletResponse.SC_FORBIDDEN),
+                    eq(ZeroTrustAccessControlFilter.AGENT_BLOCKED), anyString(), anyString(), any());
+        }
+    }
+
+    private static DelegationStamp delegatedAgentStamp() {
+        return new DelegationStamp("testUser", "report-agent", true, null, null, null, List.of(), List.of(),
+                null, null, null, null, Map.of());
     }
 
     @Test

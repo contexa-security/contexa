@@ -14,8 +14,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.contexa.showcase.portal.live.LiveAllotment;
 import io.contexa.showcase.portal.live.LiveGateWatch;
 import io.contexa.showcase.portal.live.LiveRuns;
+import io.contexa.showcase.portal.orchestrator.ChallengeResponder;
+import io.contexa.showcase.portal.orchestrator.DelegatorAnswer;
 import io.contexa.showcase.portal.orchestrator.IsolationSmoke;
 import io.contexa.showcase.portal.orchestrator.Measurements;
+import io.contexa.showcase.portal.orchestrator.RunListener;
 import io.contexa.showcase.portal.orchestrator.RunOrchestrator;
 import io.contexa.showcase.portal.orchestrator.RunStore;
 import io.contexa.showcase.portal.orchestrator.WorkloadAdmin;
@@ -26,6 +29,7 @@ import io.contexa.showcase.portal.replay.ReplayStore;
 import io.contexa.showcase.portal.replay.ReplayView;
 import io.contexa.showcase.portal.replay.ReplayViews;
 import io.contexa.showcase.portal.retention.RetentionJob;
+import io.contexa.showcase.portal.scenario.AgentPaths;
 import io.contexa.showcase.portal.scenario.ScenarioCatalog;
 import io.contexa.showcase.portal.scenario.ScenarioDefinition;
 import io.contexa.showcase.portal.spec.ScoringContract;
@@ -237,6 +241,105 @@ public class OpsController {
                 results.add(summary);
             }
         }));
+    }
+
+    /**
+     * docs/agent A7-0: runs of an internal agent case (keys AG followed by digits), which checks the agent paths of
+     * control D before the visitor's agent cases exist. Its definition lives outside the case catalog
+     * ({@code agent-cases/}), so it is in no visitor list, no measurement protocol and no benchmark.
+     */
+    @PostMapping("/ops/agent-runs/{caseKey}")
+    public ResponseEntity<Job> agentRuns(@PathVariable("caseKey") String caseKey,
+                                         @RequestParam(name = "repeat", defaultValue = "1") int repeat)
+            throws IOException {
+        if (repeat < 1 || repeat > 10 || !caseKey.matches("AG\\d+")) {
+            return ResponseEntity.badRequest().build();
+        }
+        ScenarioDefinition agentCase;
+        try (InputStream stream = OpsController.class.getResourceAsStream("/agent-cases/" + caseKey + ".json")) {
+            if (stream == null) {
+                return ResponseEntity.notFound().build();
+            }
+            agentCase = json.readValue(stream, ScenarioDefinition.class);
+        }
+        return ResponseEntity.ok(submit("AGENT", caseKey + " x" + repeat, results -> {
+            for (int i = 0; i < repeat; i++) {
+                results.add(orchestrator.run(agentCase, null));
+            }
+        }));
+    }
+
+    /**
+     * docs/agent A7-2f: runs of an agent task: a person gives work to a real business agent, which does it with the
+     * company's tools; each tool call is a request every control receives (keys N or T followed by digits, in
+     * {@code agent-tasks/}; docs/agent A6: the measurement cases, M with the attack number and A or N). Each run
+     * calls the agent's model and control D's decision models. A path (A6-R0) sends the work on one of the paths
+     * the case is measured on: {@code OAUTH2_DELEGATED}, {@code OAUTH2_AGENT} or {@code SESSION}; none keeps the
+     * case's own. docs/agent A7-3: a delegator answer ({@code APPROVE} or {@code REJECT}) answers a confirmation
+     * control D asks of the agent's work as the delegating person would, and the agent sends the request again with
+     * it; none leaves it unanswered as before. docs/agent DD-27: {@code REPORT} reports the agent and the person then
+     * sends the same request; {@code SILENT} with {@code retries} (1 to 300) leaves it unanswered while the agent sends
+     * the request again that often at once.
+     */
+    @PostMapping("/ops/agent-tasks/{taskKey}")
+    public ResponseEntity<Job> agentTasks(@PathVariable("taskKey") String taskKey,
+                                          @RequestParam(name = "repeat", defaultValue = "1") int repeat,
+                                          @RequestParam(name = "path", required = false) String path,
+                                          @RequestParam(name = "delegator", required = false) String delegator,
+                                          @RequestParam(name = "retries", defaultValue = "0") int retries)
+            throws IOException {
+        if (repeat < 1 || repeat > 10 || !taskKey.matches("[NT]\\d+|M\\d{2}[AN]\\d?")
+                || !delegatorAnswerTaken(delegator, retries)) {
+            return ResponseEntity.badRequest().build();
+        }
+        ChallengeResponder responder = delegator == null ? ChallengeResponder.AUTOMATIC
+                : ChallengeResponder.deciding(DelegatorAnswer.valueOf(delegator), retries);
+        ScenarioDefinition task;
+        try (InputStream stream = OpsController.class.getResourceAsStream("/agent-tasks/" + taskKey + ".json")) {
+            if (stream == null) {
+                return ResponseEntity.notFound().build();
+            }
+            task = json.readValue(stream, ScenarioDefinition.class);
+        }
+        if (task.task() == null || task.agent() == null) {
+            return ResponseEntity.badRequest().build();
+        }
+        ScenarioDefinition onPath;
+        try {
+            onPath = path == null ? task : task.onPath(AgentPaths.sender(path));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
+        String subject = taskKey + (path == null ? "" : " " + path) + (delegator == null ? "" : " " + delegator)
+                + (retries == 0 ? "" : " " + retries) + " x" + repeat;
+        return ResponseEntity.ok(submit("AGENT_TASK", subject, results -> {
+            for (int i = 0; i < repeat; i++) {
+                results.add(orchestrator.run(onPath, null, responder, RunListener.NONE));
+            }
+        }));
+    }
+
+    /**
+     * docs/agent DD-27: a delegator answer the agent task route takes: none, or one of the answers; retries go only with
+     * SILENT, 1 to 300 of them (the call limit is 120 a minute for a delegation by default).
+     */
+    static boolean delegatorAnswerTaken(String delegator, int retries) {
+        if (delegator == null) {
+            return retries == 0;
+        }
+        if (!delegator.matches("APPROVE|REJECT|REPORT|SILENT")) {
+            return false;
+        }
+        return "SILENT".equals(delegator) ? retries >= 1 && retries <= 300 : retries == 0;
+    }
+
+    /**
+     * docs/agent A7-2f: an agent task run's summary: the agent's work, what it proves per control, every step with the
+     * five controls' outcomes and control D's decision, and its cost.
+     */
+    @GetMapping("/ops/agent-tasks/runs/{runId}")
+    public ResponseEntity<Map<String, Object>> agentTaskRun(@PathVariable("runId") String runId) {
+        return runs.agentTaskSummary(runId).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
     }
 
     /**

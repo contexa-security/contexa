@@ -12,8 +12,8 @@ import {
   splitChanged,
 } from './mainCases';
 
-// Review before the guide videos (2026-10-21): the 6-2 table and the changed prompt lines.
-describe('the changed run on 6-2', () => {
+// Review before the guide videos (2026-10-21): the 7-2 table and the changed prompt lines.
+describe('the changed run on 7-2', () => {
   it('reads a scored result as recorded, and an unscored one falls back to the answer given', () => {
     for (const result of ['STOPPED', 'PARTLY_STOPPED', 'MISSED', 'PASSED', 'PASSED_AFTER_CHECK', 'HALTED']) {
       expect(isScored(result)).toBe(true);

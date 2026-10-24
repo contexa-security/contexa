@@ -24,6 +24,7 @@ public final class RbacParityCases {
             new String[]{"POST", "/api/projects/HX-310/exports"},
             new String[]{"GET", "/api/projects/HX-310/exports/stream"},
             new String[]{"POST", "/api/projects/HX-310/exports/async"},
+            new String[]{"GET", "/api/projects/HX-310/documents"},
             new String[]{"GET", "/api/customers/CUS-0001"},
             new String[]{"POST", "/api/admin/role-grants"},
             new String[]{"DELETE", "/api/documents/HX-310-DWG-00001"});

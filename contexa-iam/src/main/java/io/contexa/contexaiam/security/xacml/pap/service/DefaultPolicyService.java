@@ -542,11 +542,19 @@ public class DefaultPolicyService implements PolicyService {
     }
 
     private Policy convertDtoToEntity(PolicyDto dto) {
+        // The rule of the business rule path (CF-03): an AI-written policy waits for an administrator's approval, any
+        // other policy (manual, imported, kept in sync with a permission) takes effect without one. The source given
+        // is kept; a policy that names none is a manual one.
+        Policy.PolicySource source = dto.getSource() != null ? dto.getSource() : Policy.PolicySource.MANUAL;
         Policy policy = Policy.builder()
                 .name(dto.getName())
                 .description(dto.getDescription())
                 .effect(dto.getEffect())
                 .priority(dto.getPriority())
+                .source(source)
+                .approvalStatus(source == Policy.PolicySource.AI_GENERATED || source == Policy.PolicySource.AI_EVOLVED
+                        ? Policy.ApprovalStatus.PENDING : Policy.ApprovalStatus.NOT_REQUIRED)
+                .isActive(true)
                 .build();
 
         if (dto.getTargets() != null) {

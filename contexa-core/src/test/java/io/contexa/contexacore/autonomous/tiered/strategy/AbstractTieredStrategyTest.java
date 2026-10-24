@@ -1615,7 +1615,7 @@ class AbstractTieredStrategyTest {
     }
 
     @Test
-    @DisplayName("past records leave out the current session and records held back from promotion (W2-8)")
+    @DisplayName("past records leave out the current session, records held back from promotion (W2-8) and quarantined ones (A3-8)")
     void searchRelatedContextBase_leavesOutTheCurrentSessionAndHeldRecords() {
         SimpleVectorStore store = SimpleVectorStore.builder(new ConstantEmbeddingModel()).build();
         Document otherSession = behaviorRecord("other-session", Map.of("sessionId", "session-1"));
@@ -1624,7 +1624,8 @@ class AbstractTieredStrategyTest {
                 behaviorRecord("this-session", Map.of("sessionId", "session-7")),
                 otherSession,
                 noSession,
-                behaviorRecord("held", Map.of("sessionId", "session-2", "learningState", "HELD"))));
+                behaviorRecord("held", Map.of("sessionId", "session-2", "learningState", "HELD")),
+                behaviorRecord("quarantined", Map.of("sessionId", "session-3", "learningState", "QUARANTINED"))));
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-session-7")
                 .userId("adm-a")
@@ -1661,7 +1662,7 @@ class AbstractTieredStrategyTest {
                         // NIN keeps a record without a session; a not-equal test would drop it in pgvector.
                         .contains("type=NIN, left=Key[key=sessionId], right=Value[value=[session-7]]"));
         assertThat(searches.getAllValues()).allSatisfy(search -> assertThat(String.valueOf(search.getFilterExpression()))
-                .contains("learningState", "HELD"));
+                .contains("learningState", "HELD", "QUARANTINED"));
     }
 
     @Test
@@ -1949,6 +1950,51 @@ class AbstractTieredStrategyTest {
     }
 
     /** A past record query that keeps what it was asked. */
+    /**
+     * docs/agent A3-1, A3-2: an agent's request reads the records of its own subject and tenant, and its recent denied
+     * records pass the document authorization the records shown pass.
+     */
+    @Test
+    void anAgentsRequestReadsItsOwnRecordsOfItsTenantAndItsDeniedRecordsPassTheAuthorization() {
+        SecurityEvent event = exportEvent("event-a32", true);
+        event.addMetadata("tenantId", "t-1");
+        event.addMetadata("organizationId", "org-1");
+        event.addMetadata("executionSubjectKind", "DELEGATED_AGENT");
+        event.addMetadata("agentId", "report-agent");
+        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V20);
+        Document kept = new Document("00000000-0000-0000-0000-000000000021", "denied",
+                Map.of("eventId", "d1", "documentType", "threat", "action", "BLOCK", "requestPath", GB500,
+                        "timestamp", "2026-10-12T10:00:00"));
+        Document otherTenant = new Document("00000000-0000-0000-0000-000000000022", "denied elsewhere",
+                Map.of("eventId", "d2", "documentType", "threat", "action", "BLOCK", "requestPath", GB500,
+                        "timestamp", "2026-10-12T09:00:00", "tenantId", "t-2"));
+        RecordingPastRecordQuery query = new RecordingPastRecordQuery(List.of(), List.of());
+        query.denied = List.of(kept, otherTenant);
+        when(unifiedVectorService.pastRecordQuery()).thenReturn(query);
+        when(promptContextAuthorizationService.authorize(
+                any(SecurityEvent.class),
+                any(),
+                ArgumentMatchers.<List<Document>>any()))
+                .thenAnswer(invocation -> {
+                    List<Document> documents = invocation.getArgument(2);
+                    List<Document> allowed = documents.stream()
+                            .filter(document -> !"t-2".equals(document.getMetadata().get("tenantId"))).toList();
+                    return new AuthorizedPromptContext(allowed, documents.size(), allowed.size(),
+                            documents.size() - allowed.size(), "security_investigation", List.of());
+                });
+
+        strategy.callSearchRelatedContextBase(event, 5, 0.5d);
+
+        assertThat(query.scope).isEqualTo(new PastRecordScope("alice", "security_investigation", "EXPORT",
+                List.of("session-now"), "t-1", "org-1", "report-agent"));
+        assertThat(PastDeniedDecisions.fromMetadata(event.getMetadata().get(PastDeniedDecisions.EVENT_METADATA_KEY))
+                .entries()).hasSize(1);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> searchScope = (Map<String, Object>) event.getMetadata().get("ragSearchScope");
+        assertThat(searchScope).containsEntry("tenantId", "t-1").containsEntry("organizationId", "org-1")
+                .containsEntry("agentId", "report-agent");
+    }
+
     private static final class RecordingPastRecordQuery implements PastRecordQuery {
 
         private static final List<String> FILTERS = List.of("userId == scope.userId");

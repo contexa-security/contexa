@@ -26,6 +26,9 @@ import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacore.autonomous.agent.AgentAllowReuse;
+import io.contexa.contexacore.autonomous.context.support.ActionFamily;
 import org.aopalliance.intercept.MethodInvocation;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -170,7 +173,7 @@ class SynchronousProtectableDecisionServiceTest {
         when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null))
                 .thenReturn(event);
         when(eventListener.generateAuthorizationContextBindingHash(event)).thenReturn(CONTEXT_HASH);
-        when(eventListener.shouldPublishAuthorizationEvent(event)).thenReturn(true);
+        when(eventListener.shouldPublishSynchronousAuthorizationEvent(event)).thenReturn(true);
         lenient().when(actionRepository.getCurrentAction(USER_ID, CONTEXT_HASH)).thenReturn(ZeroTrustAction.PENDING_ANALYSIS);
         when(actionRepository.getAnalysisData(USER_ID)).thenReturn(ZeroTrustActionRepository.ZeroTrustAnalysisData.pending());
     }
@@ -214,24 +217,29 @@ class SynchronousProtectableDecisionServiceTest {
         assertThat(service.storedRestriction(methodInvocation, authentication)).isNull();
     }
 
+    /**
+     * docs/agent A7-2 (2026-10-23, user approval): only a restriction in force answers a synchronous request; an
+     * ALLOW in force no longer does ({@link ZeroTrustEventListener#shouldPublishSynchronousAuthorizationEvent}).
+     */
     @Test
-    @DisplayName("a sync request answered by the decision in force is kept in its session without analysis (N-SES-1)")
-    void analyze_decisionInForce_isRecordedWithoutAnalysis() {
+    @DisplayName("a sync request answered by the restriction in force is kept in its session without analysis (N-SES-1)")
+    void analyze_restrictionInForce_isRecordedWithoutAnalysis() {
         UnanalysedRequestRecorder unanalysed = mock(UnanalysedRequestRecorder.class);
         service.setUnanalysedRequestRecorder(unanalysed);
         ZeroTrustSpringEvent event = methodEvent("/admin/reports");
         when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null)).thenReturn(event);
         when(eventListener.generateAuthorizationContextBindingHash(event)).thenReturn(CONTEXT_HASH);
-        when(eventListener.shouldPublishAuthorizationEvent(event)).thenReturn(false);
-        when(actionRepository.getCurrentAction(USER_ID, CONTEXT_HASH)).thenReturn(ZeroTrustAction.ALLOW);
+        when(eventListener.shouldPublishSynchronousAuthorizationEvent(event)).thenReturn(false);
+        when(actionRepository.getCurrentAction(USER_ID, CONTEXT_HASH)).thenReturn(ZeroTrustAction.CHALLENGE);
         when(actionRepository.getAnalysisData(USER_ID)).thenReturn(ZeroTrustActionRepository.ZeroTrustAnalysisData.pending());
 
         SynchronousProtectableDecisionService.SyncDecisionResult result =
                 service.analyze(methodInvocation, authentication);
 
-        assertThat(result.action()).isEqualTo(ZeroTrustAction.ALLOW);
+        assertThat(result.action()).isEqualTo(ZeroTrustAction.CHALLENGE);
         verify(securityPlaneAgent, never()).processSecurityEvent(any(SecurityEvent.class));
-        verify(unanalysed).record(event, ZeroTrustAction.ALLOW);
+        verify(unanalysed).record(event, ZeroTrustAction.CHALLENGE);
+        verify(eventListener, never()).shouldPublishAuthorizationEvent(any());
     }
 
     @Test
@@ -325,6 +333,91 @@ class SynchronousProtectableDecisionServiceTest {
         assertThat(allowed.restriction()).isNull();
         assertThat(restricted.restriction()).isEqualTo(ZeroTrustAction.CHALLENGE);
         assertThat(restricted.decideInPlace()).isFalse();
+    }
+
+    @Test
+    @DisplayName("docs/agent A5-2: an agent's request its accountable person confirmed answers the CHALLENGE, for that request only")
+    void asyncGate_aConfirmedAgentRequestAnswersTheChallenge() {
+        MockHttpServletRequest request = request("/api/reports");
+        request.setAttribute(BridgeRequestAttributes.AGENT_CONFIRMATION, "confirmation-1");
+        bindRequest(request);
+        ZeroTrustSpringEvent agentEvent = subjectEvent("DELEGATED_AGENT");
+        when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null))
+                .thenReturn(agentEvent);
+        when(eventListener.generateAuthorizationContextBindingHash(agentEvent)).thenReturn(CONTEXT_HASH);
+        when(actionRepository.getCurrentAction(USER_ID, CONTEXT_HASH))
+                .thenReturn(ZeroTrustAction.CHALLENGE, ZeroTrustAction.BLOCK);
+
+        assertThat(service.asyncGate(methodInvocation, authentication).restriction()).isNull();
+        // A BLOCK stays a BLOCK.
+        assertThat(service.asyncGate(methodInvocation, authentication).restriction()).isEqualTo(ZeroTrustAction.BLOCK);
+
+        // A person's CHALLENGE is answered by the person's own step-up, never by an agent's confirmation.
+        ZeroTrustSpringEvent personEvent = subjectEvent("HUMAN_USER");
+        when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null))
+                .thenReturn(personEvent);
+        when(eventListener.generateAuthorizationContextBindingHash(personEvent)).thenReturn(CONTEXT_HASH);
+        when(actionRepository.getCurrentAction(USER_ID, CONTEXT_HASH)).thenReturn(ZeroTrustAction.CHALLENGE);
+        assertThat(service.asyncGate(methodInvocation, authentication).restriction())
+                .isEqualTo(ZeroTrustAction.CHALLENGE);
+
+        // Without the confirmation on the request the agent's CHALLENGE restricts.
+        RequestContextHolder.resetRequestAttributes();
+        when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null))
+                .thenReturn(agentEvent);
+        assertThat(service.asyncGate(methodInvocation, authentication).restriction())
+                .isEqualTo(ZeroTrustAction.CHALLENGE);
+    }
+
+    @Test
+    @DisplayName("docs/agent F-1: past what an ALLOW answers, an agent's request is decided in place; a person's proceeds")
+    void asyncGate_anAgentsAllowAnswersOnlyAFewResourcesThenTheRequestIsDecidedInPlace() {
+        AgentAllowReuse reuse = new AgentAllowReuse(10, 2, null);
+        service.setAgentAllowReuse(reuse);
+        reuse.decided(USER_ID, CONTEXT_HASH, ActionFamily.READ, "/api/customers/1");
+        when(eventListener.generateAuthorizationContextBindingHash(any())).thenReturn(CONTEXT_HASH);
+        when(actionRepository.getCurrentAction(USER_ID, CONTEXT_HASH)).thenReturn(ZeroTrustAction.ALLOW);
+
+        assertThat(gateFor("DELEGATED_AGENT", "/api/customers/2").decideInPlace()).isFalse();
+        assertThat(gateFor("DELEGATED_AGENT", "/api/customers/3").decideInPlace()).isTrue();
+        // A person's ALLOW answers as before.
+        assertThat(gateFor("HUMAN_USER", "/api/customers/9").decideInPlace()).isFalse();
+    }
+
+    private SynchronousProtectableDecisionService.AsyncProtectableGate gateFor(String subjectKind, String resource) {
+        ZeroTrustSpringEvent event = ZeroTrustSpringEvent.builder(this)
+                .category(ZeroTrustEventCategory.AUTHORIZATION)
+                .eventType(ZeroTrustSpringEvent.TYPE_AUTHORIZATION_METHOD)
+                .userId(USER_ID)
+                .resource(resource)
+                .payload(Map.of("requestPath", resource, "httpMethod", "GET", "executionSubjectKind", subjectKind))
+                .build();
+        when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null)).thenReturn(event);
+        return service.asyncGate(methodInvocation, authentication);
+    }
+
+    @Test
+    @DisplayName("docs/agent A7-3 (CF-25): a request its accountable person confirmed is not decided again in place")
+    void asyncGate_aConfirmedAgentRequestWithoutADecisionIsNotDecidedAgainInPlace() {
+        ZeroTrustSpringEvent agentEvent = subjectEvent("DELEGATED_AGENT");
+        when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null))
+                .thenReturn(agentEvent);
+        when(eventListener.generateAuthorizationContextBindingHash(agentEvent)).thenReturn(CONTEXT_HASH);
+        when(actionRepository.getCurrentAction(USER_ID, CONTEXT_HASH))
+                .thenReturn(ZeroTrustAction.PENDING_ANALYSIS, ZeroTrustAction.PENDING_ANALYSIS, ZeroTrustAction.BLOCK);
+
+        // Without a confirmation the unrecorded agent request is decided in place, as before.
+        assertThat(service.asyncGate(methodInvocation, authentication).decideInPlace()).isTrue();
+
+        MockHttpServletRequest request = request("/api/reports");
+        request.setAttribute(BridgeRequestAttributes.AGENT_CONFIRMATION, "confirmation-1");
+        bindRequest(request);
+        SynchronousProtectableDecisionService.AsyncProtectableGate confirmed =
+                service.asyncGate(methodInvocation, authentication);
+        assertThat(confirmed.decideInPlace()).isFalse();
+        assertThat(confirmed.restriction()).isNull();
+        // A BLOCK in force stays a BLOCK for a confirmed request.
+        assertThat(service.asyncGate(methodInvocation, authentication).restriction()).isEqualTo(ZeroTrustAction.BLOCK);
     }
 
     @Test

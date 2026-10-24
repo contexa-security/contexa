@@ -26,6 +26,7 @@ import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.Assert;
 
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
@@ -36,6 +37,9 @@ public class DeviceAwareOAuth2AuthorizationService implements OAuth2Authorizatio
 
     private static final String FIND_IDS_BY_PRINCIPAL =
             "SELECT id FROM oauth2_authorization WHERE principal_name = ? AND refresh_token_value IS NOT NULL";
+    private static final String FIND_UNEXPIRED_IDS_BY_PRINCIPAL_AND_CLIENT =
+            "SELECT id FROM oauth2_authorization WHERE principal_name = ? AND registered_client_id = ?"
+                    + " AND (access_token_expires_at > ? OR refresh_token_expires_at > ?)";
 
     private final OAuth2AuthorizationService delegate;
     private final JdbcTemplate jdbcTemplate;
@@ -99,6 +103,32 @@ public class DeviceAwareOAuth2AuthorizationService implements OAuth2Authorizatio
                 .filter(Objects::nonNull)
                 .filter(this::isActiveAuthorization)
                 .toList();
+    }
+
+    /**
+     * docs/agent A5-3: the principal's authorizations through the client whose access or refresh token still works,
+     * with a refresh token or without one (client credentials and token exchange issue none), so that the tokens an
+     * agent's client holds can be revoked. {@link #findActiveByPrincipalName} keeps answering the sign-ins only.
+     *
+     * @param registeredClientId the registered client's identifier (not its client id)
+     */
+    public List<OAuth2Authorization> findUsableByPrincipalNameAndClient(String principalName,
+                                                                        String registeredClientId) {
+        Assert.hasText(principalName, "principalName cannot be empty");
+        Assert.hasText(registeredClientId, "registeredClientId cannot be empty");
+        Timestamp now = Timestamp.from(Instant.now());
+        List<String> ids = jdbcTemplate.queryForList(FIND_UNEXPIRED_IDS_BY_PRINCIPAL_AND_CLIENT, String.class,
+                principalName, registeredClientId, now, now);
+        return ids.stream()
+                .map(this::safeFindById)
+                .filter(Objects::nonNull)
+                .filter(authorization -> usable(authorization.getAccessToken())
+                        || usable(authorization.getRefreshToken()))
+                .toList();
+    }
+
+    private static boolean usable(OAuth2Authorization.Token<?> token) {
+        return token != null && !token.isInvalidated() && !token.isExpired();
     }
 
     private OAuth2Authorization safeFindById(String id) {

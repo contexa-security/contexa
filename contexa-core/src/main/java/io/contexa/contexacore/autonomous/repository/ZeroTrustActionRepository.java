@@ -31,6 +31,20 @@ public interface ZeroTrustActionRepository {
 
     ZeroTrustAction getCurrentAction(String userId, String contextBindingHash);
 
+    /**
+     * docs/agent A5-1: the action in effect for a subject, read under its own key ({@link ZeroTrustSubject#storageKey}).
+     * An agent acting for a person also reads the person's BLOCK: a blocked person's delegation stops with the account
+     * (as the delegator's authority does, A1-8); the person's other decisions never answer the agent's request.
+     */
+    default ZeroTrustAction currentActionOf(ZeroTrustSubject subject, String contextBindingHash) {
+        return subject.currentAction(this, contextBindingHash);
+    }
+
+    /** docs/agent A5-1: {@link #currentActionOf(ZeroTrustSubject, String)} without a context binding. */
+    default ZeroTrustAction currentActionOf(ZeroTrustSubject subject) {
+        return subject.currentAction(this);
+    }
+
     ZeroTrustAnalysisData getAnalysisData(String userId);
 
     ZeroTrustAction getActionFromHash(String userId);
@@ -106,6 +120,14 @@ public interface ZeroTrustActionRepository {
     long incrementBlockMfaFailCount(String userId);
 
     void removeAllUserData(String userId);
+
+    /**
+     * docs/agent A5-1: removes the decisions of every agent that acted for the user (their keys
+     * {@code <user>::agent::<id>}), as the user's account is deleted. A repository that keeps no agent keys has nothing
+     * to remove.
+     */
+    default void removeAllAgentData(String userId) {
+    }
 
     /**
      * Clears logout state only when no actor BLOCK, ESCALATE or CHALLENGE is present.

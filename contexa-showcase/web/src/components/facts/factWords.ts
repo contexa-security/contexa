@@ -18,7 +18,13 @@ import { plainLinesOf } from '../inside/promptSections';
 export const FACT_SOURCES: readonly FactSource[] = ['HOST', 'LEARNED', 'COMPUTED', 'INFERRED', 'UNTRUSTED'];
 
 /** The five parts in the order the AI reads them (the rules' judgment procedure, plan 6.3). */
-export const CHUNKS: readonly FactBlock[] = ['REQUEST', 'SESSION', 'USER_BASELINE', 'DECISION_FACTS', 'UNKNOWN'];
+export const CHUNKS: readonly FactBlock[] = [
+  'REQUEST',
+  'SESSION',
+  'USER_BASELINE',
+  'DECISION_FACTS',
+  'UNKNOWN',
+];
 
 /** The parts folded under the five; the second pass only when the prompt has one. */
 export const FOLDS: readonly FactBlock[] = ['PAST_RECORDS', 'UNTRUSTED_TEXT', 'SECOND_PASS'];
@@ -102,6 +108,15 @@ export const FACT_LABELS = [
   'FirstPassVerdict',
   'NewlyKnown',
   'NewPastRecord',
+  // docs/agent A2, A4, F-5: the v21 dictionary's lines of an agent's request.
+  'Credential',
+  'Confirmation',
+  'DelegationActivity',
+  'RecordProvenance',
+  'RecordsHolder',
+  'BaselineSubject',
+  'UsualSequence',
+  'UsualClients',
 ] as const;
 export type FactLabel = (typeof FACT_LABELS)[number];
 
@@ -189,7 +204,10 @@ export const INSPECTION_VERDICTS = ['PASS', 'FAIL', 'INCOMPLETE', 'NOT_APPLICABL
 
 /** The checks with a mismatch first, each group in the server's order (U-4: failed checks on top). */
 export function failuresFirst(checks: readonly InspectionCheck[]): readonly InspectionCheck[] {
-  return [...checks.filter((check) => check.mismatched > 0), ...checks.filter((check) => check.mismatched <= 0)];
+  return [
+    ...checks.filter((check) => check.mismatched > 0),
+    ...checks.filter((check) => check.mismatched <= 0),
+  ];
 }
 
 /** The ribbon's items that can fail; 'unknown' is stated as it is. */

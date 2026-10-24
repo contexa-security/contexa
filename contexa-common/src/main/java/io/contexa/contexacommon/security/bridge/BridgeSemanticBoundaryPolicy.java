@@ -45,6 +45,8 @@ public final class BridgeSemanticBoundaryPolicy {
     public static final String CLASS_NAME_FALLBACK = "CLASS_NAME_FALLBACK";
     /** A value read from a claim of the access token the authorization server signed (A1-1). */
     public static final String SIGNED_TOKEN_CLAIM = "SIGNED_TOKEN_CLAIM";
+    /** A fact the agent registry holds for an agent an operator registered and approved (A1-13). */
+    public static final String AGENT_REGISTRY_RECORD = "AGENT_REGISTRY_RECORD";
 
     private BridgeSemanticBoundaryPolicy() {
     }

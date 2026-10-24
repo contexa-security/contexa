@@ -15,6 +15,7 @@
  */
 package io.contexa.autoconfigure.identity;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
@@ -37,7 +38,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacore.autonomous.agent.AgentDelegation;
+import io.contexa.contexacore.autonomous.agent.AgentDelegationRequest;
+import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
+import io.contexa.contexacore.autonomous.agent.InMemoryDelegationRegistry;
+import io.contexa.contexacommon.security.subject.AgentClientDirectory;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.AuthenticatedUserGrantAuthenticationToken;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -56,9 +65,13 @@ import com.nimbusds.jose.jwk.JWKSelector;
 import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.Duration;
+import java.time.Clock;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -184,7 +197,7 @@ class IdentityOAuth2AutoConfigurationTest {
     @DisplayName("The token customizer writes the login facts of the login grant, and a refreshed token keeps them")
     void tokenCustomizerWritesTheLoginFacts() {
         OAuth2TokenCustomizer<JwtEncodingContext> customizer =
-                configuration(new AuthContextProperties()).tokenCustomizer();
+                configuration(new AuthContextProperties()).tokenCustomizer(none(), none());
 
         JwtClaimsSet.Builder issuedClaims = JwtClaimsSet.builder().subject("alice");
         customizer.customize(JwtEncodingContext.with(JwsHeader.with(SignatureAlgorithm.RS256), issuedClaims)
@@ -230,7 +243,7 @@ class IdentityOAuth2AutoConfigurationTest {
     void accessTokenNamesTheClientItWasIssuedTo() throws Exception {
         IdentityOAuth2AutoConfiguration configuration = configuration(new AuthContextProperties());
         JwtGenerator generator = new JwtGenerator(new NimbusJwtEncoder(configuration.jwkSource()));
-        generator.setJwtCustomizer(configuration.tokenCustomizer());
+        generator.setJwtCustomizer(configuration.tokenCustomizer(none(), none()));
         RegisteredClient client = RegisteredClient.withId("report-service")
                 .clientId("report-service")
                 .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
@@ -262,7 +275,7 @@ class IdentityOAuth2AutoConfigurationTest {
 
         // An ID token describes the person who signed in; it gets no client_id claim.
         JwtClaimsSet.Builder idTokenClaims = JwtClaimsSet.builder().subject("alice");
-        configuration.tokenCustomizer().customize(JwtEncodingContext.with(JwsHeader.with(SignatureAlgorithm.RS256), idTokenClaims)
+        configuration.tokenCustomizer(none(), none()).customize(JwtEncodingContext.with(JwsHeader.with(SignatureAlgorithm.RS256), idTokenClaims)
                 .registeredClient(client)
                 .tokenType(new OAuth2TokenType("id_token"))
                 .build());
@@ -274,7 +287,7 @@ class IdentityOAuth2AutoConfigurationTest {
     void issuedTokenClaimsReadBackFromTheStoredAuthorization() throws Exception {
         IdentityOAuth2AutoConfiguration configuration = configuration(new AuthContextProperties());
         JwtGenerator generator = new JwtGenerator(new NimbusJwtEncoder(configuration.jwkSource()));
-        generator.setJwtCustomizer(configuration.tokenCustomizer());
+        generator.setJwtCustomizer(configuration.tokenCustomizer(none(), none()));
         RegisteredClient client = RegisteredClient.withId("client-1")
                 .clientId("client-1")
                 .authorizationGrantType(AuthenticatedUserGrantAuthenticationToken.AUTHENTICATED_USER)
@@ -329,7 +342,131 @@ class IdentityOAuth2AutoConfigurationTest {
         assertThat(claims.get("challengeVerifiedAt")).isEqualTo("2026-10-10T09:55:38.126512300Z");
     }
 
+    @Test
+    @DisplayName("docs/agent A5-3: a suspended agent's client gets no token, for itself or for a person; another client does")
+    @SuppressWarnings("unchecked")
+    void aSuspendedAgentsClientGetsNoToken() {
+        AgentClientDirectory directory = new AgentClientDirectory() {
+            @Override
+            public Optional<String> activeAgentForClient(String tenantId, String clientId) {
+                return Optional.empty();
+            }
+
+            @Override
+            public boolean suspendedAgentClient(String tenantId, String clientId) {
+                return "sync-client".equals(clientId);
+            }
+        };
+        ObjectProvider<AgentClientDirectory> agents = mock(ObjectProvider.class);
+        when(agents.getIfAvailable()).thenReturn(directory);
+        OAuth2TokenCustomizer<JwtEncodingContext> customizer =
+                configuration(new AuthContextProperties()).tokenCustomizer(none(), agents);
+
+        assertThatThrownBy(() -> customizer.customize(accessTokenContext("sync-client")))
+                .isInstanceOf(OAuth2AuthenticationException.class)
+                .satisfies(e -> assertThat(((OAuth2AuthenticationException) e).getError().getErrorCode())
+                        .isEqualTo(OAuth2ErrorCodes.UNAUTHORIZED_CLIENT));
+        JwtEncodingContext other = accessTokenContext("report-client");
+        customizer.customize(other);
+        assertThat(other.getClaims().build().getClaims()).containsEntry("client_id", "report-client");
+    }
+
+    @Test
+    @DisplayName("docs/agent F-2: an agent gets no exchanged token for a person who revoked the delegation; an expired or absent one goes on")
+    @SuppressWarnings("unchecked")
+    void anExchangeForARevokedDelegationIsRefused() {
+        AgentClientDirectory directory = (tenantId, clientId) -> "report-client".equals(clientId)
+                ? Optional.of("report-agent") : Optional.empty();
+        ObjectProvider<AgentClientDirectory> agents = mock(ObjectProvider.class);
+        when(agents.getIfAvailable()).thenReturn(directory);
+        InMemoryDelegationRegistry registry = new InMemoryDelegationRegistry();
+        ObjectProvider<DelegationRegistry> delegations = mock(ObjectProvider.class);
+        when(delegations.getIfAvailable()).thenReturn(registry);
+        OAuth2TokenCustomizer<JwtEncodingContext> customizer =
+                configuration(new AuthContextProperties()).tokenCustomizer(delegations, agents);
+
+        // No delegation recorded: the exchange goes on (OC-1).
+        customizer.customize(exchangeContext("alice"));
+
+        AgentDelegation revoked = registry.record(new AgentDelegationRequest(null, "alice", "report-agent", null,
+                "REPORTING", "Weekly report", List.of("READ"), List.of(), null, null, null,
+                Instant.now().minusSeconds(3600), Instant.now().plusSeconds(3600), null, null));
+        registry.revoke(revoked.delegationId(), "alice", "done");
+        assertThatThrownBy(() -> customizer.customize(exchangeContext("alice")))
+                .isInstanceOf(OAuth2AuthenticationException.class)
+                .satisfies(e -> assertThat(((OAuth2AuthenticationException) e).getError().getErrorCode())
+                        .isEqualTo(OAuth2ErrorCodes.INVALID_GRANT));
+        // Another person's exchange is not touched.
+        customizer.customize(exchangeContext("bob"));
+
+        // An expired delegation goes on; the agent's request then waits for the person (A5-2).
+        InMemoryDelegationRegistry earlier = new InMemoryDelegationRegistry(Duration.ofDays(30),
+                Clock.fixed(Instant.now().minus(Duration.ofDays(2)), ZoneOffset.UTC));
+        earlier.record(new AgentDelegationRequest(null, "carol", "report-agent", null, "REPORTING", "Weekly report",
+                List.of("READ"), List.of(), null, null, null, Instant.now().minus(Duration.ofDays(2)),
+                Instant.now().minusSeconds(3600), null, null));
+        ObjectProvider<DelegationRegistry> expired = mock(ObjectProvider.class);
+        when(expired.getIfAvailable()).thenReturn(earlier);
+        configuration(new AuthContextProperties()).tokenCustomizer(expired, agents)
+                .customize(exchangeContext("carol"));
+    }
+
+    @Test
+    @DisplayName("docs/agent G-9: in the report-only mode an exchange under a revoked delegation is logged and issued")
+    @SuppressWarnings("unchecked")
+    void inTheReportOnlyModeAnExchangeUnderARevokedDelegationGoesOn() {
+        AgentClientDirectory directory = (tenantId, clientId) -> Optional.of("report-agent");
+        ObjectProvider<AgentClientDirectory> agents = mock(ObjectProvider.class);
+        when(agents.getIfAvailable()).thenReturn(directory);
+        InMemoryDelegationRegistry registry = new InMemoryDelegationRegistry();
+        AgentDelegation revoked = registry.record(new AgentDelegationRequest(null, "alice", "report-agent", null,
+                "REPORTING", "Weekly report", List.of("READ"), List.of(), null, null, null,
+                Instant.now().minusSeconds(3600), Instant.now().plusSeconds(3600), null, null));
+        registry.revoke(revoked.delegationId(), "alice", "done");
+        ObjectProvider<DelegationRegistry> delegations = mock(ObjectProvider.class);
+        when(delegations.getIfAvailable()).thenReturn(registry);
+        SecurityZeroTrustProperties shadow = new SecurityZeroTrustProperties();
+        shadow.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+        ObjectProvider<SecurityZeroTrustProperties> zeroTrust = mock(ObjectProvider.class);
+        when(zeroTrust.getIfAvailable()).thenReturn(shadow);
+        IdentityOAuth2AutoConfiguration configuration = new IdentityOAuth2AutoConfiguration(
+                mock(TransactionTemplate.class), new AuthContextProperties(), null, zeroTrust);
+
+        configuration.tokenCustomizer(delegations, agents).customize(exchangeContext("alice"));
+    }
+
+    private static JwtEncodingContext exchangeContext(String person) {
+        RegisteredClient client = RegisteredClient.withId("report-client")
+                .clientId("report-client")
+                .authorizationGrantType(AuthorizationGrantType.TOKEN_EXCHANGE)
+                .build();
+        return JwtEncodingContext.with(JwsHeader.with(SignatureAlgorithm.RS256), JwtClaimsSet.builder().subject(person))
+                .registeredClient(client)
+                .principal(new UsernamePasswordAuthenticationToken(person, null, List.of()))
+                .tokenType(OAuth2TokenType.ACCESS_TOKEN)
+                .authorizationGrantType(AuthorizationGrantType.TOKEN_EXCHANGE)
+                .build();
+    }
+
+    private static JwtEncodingContext accessTokenContext(String clientId) {
+        RegisteredClient client = RegisteredClient.withId(clientId)
+                .clientId(clientId)
+                .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
+                .build();
+        return JwtEncodingContext.with(JwsHeader.with(SignatureAlgorithm.RS256), JwtClaimsSet.builder().subject("alice"))
+                .registeredClient(client)
+                .tokenType(OAuth2TokenType.ACCESS_TOKEN)
+                .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
+                .build();
+    }
+
     private IdentityOAuth2AutoConfiguration configuration(AuthContextProperties properties) {
         return new IdentityOAuth2AutoConfiguration(mock(TransactionTemplate.class), properties);
+    }
+
+    /** docs/agent OC-1: no delegation registry and no agent directory, so no delegation claim. */
+    @SuppressWarnings("unchecked")
+    private static <T> ObjectProvider<T> none() {
+        return mock(ObjectProvider.class);
     }
 }

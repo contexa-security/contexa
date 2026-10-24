@@ -50,7 +50,9 @@ import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyVersionService;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionValidator;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
+import io.contexa.contexacore.infra.redis.PolicyReloadBroadcaster;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.MessageSource;
@@ -77,6 +79,9 @@ import java.util.stream.Collectors;
 public class PolicyCenterCommandService {
 
     private final ResourceRegistryService resourceRegistryService;
+    /** Tells the other nodes to reload in the distributed mode (CF-02); null on a single node. */
+    @Setter
+    private PolicyReloadBroadcaster policyReloadBroadcaster;
     private final PolicyService policyService;
     private final PolicyRepository policyRepository;
     private final RoleService roleService;
@@ -350,6 +355,9 @@ public class PolicyCenterCommandService {
 
             if (!batchCreated.isEmpty()) {
                 authorizationManager.reload();
+                if (policyReloadBroadcaster != null) {
+                    policyReloadBroadcaster.broadcastReload();
+                }
                 auditBatchCreation(batchCreated.size(), request.getItems().size(), allRoleNames);
             }
 

@@ -70,6 +70,27 @@ class RecordedDelegationContextProviderTest {
                 .doesNotContainKey(RecordedDelegationContextProvider.CONFLICTS_ATTRIBUTE);
     }
 
+    /** A2-10 (AG-12h): who wrote the delegation's record and when reach the context, as the host states them. */
+    @Test
+    void theRecordsAuthorAndTimeReachTheContext() {
+        DelegationRecord written = new DelegationRecord("dlg-42", "alice", "agent-7", "monthly-report", "REPORTING",
+                null, List.of("READ"), List.of("SALES_REPORT"), false, false, null,
+                Instant.parse("2026-10-22T09:00:00Z"), "agent-7", Instant.parse("2026-10-22T02:58:00Z"));
+        CanonicalSecurityContext stated = agentContext(CanonicalSecurityContext.Delegation.builder()
+                .delegated(true).agentId("agent-7").build());
+        CanonicalSecurityContext unstated = agentContext(CanonicalSecurityContext.Delegation.builder()
+                .delegated(true).agentId("agent-7").build());
+
+        new RecordedDelegationContextProvider(query -> Optional.of(written)).enrich(event(), stated);
+        new RecordedDelegationContextProvider(query -> Optional.of(record("agent-7"))).enrich(event(), unstated);
+
+        assertThat(stated.getAttributes())
+                .containsEntry(RecordedDelegationContextProvider.RECORDED_BY_ATTRIBUTE, "agent-7")
+                .containsEntry(RecordedDelegationContextProvider.RECORDED_AT_ATTRIBUTE, "2026-10-22T02:58:00Z");
+        assertThat(unstated.getAttributes()).doesNotContainKeys(RecordedDelegationContextProvider.RECORDED_BY_ATTRIBUTE,
+                RecordedDelegationContextProvider.RECORDED_AT_ATTRIBUTE);
+    }
+
     @Test
     void aPersonsOwnRequestIsNotLookedUp() {
         AtomicReference<DelegationRecordQuery> asked = new AtomicReference<>();

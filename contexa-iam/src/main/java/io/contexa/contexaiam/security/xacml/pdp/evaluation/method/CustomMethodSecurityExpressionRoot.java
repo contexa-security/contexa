@@ -23,6 +23,7 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.AbstractAISecurityExpressionRoot;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.PermissionEvaluator;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionOperations;
@@ -65,25 +66,31 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
 
     @Override
     protected ZeroTrustAction getCurrentAction() {
-        ZeroTrustAction fromRequest = resolveActionFromRequest();
+        String userId = extractUserId();
+        // docs/agent A5-1: an agent acting for the user is judged by its own decision. The decision the context load
+        // left on the request is the user's when a session loaded it before the bridge stamped the agent.
+        ZeroTrustSubject subject = userId != null ? decisionSubject(userId) : null;
+        boolean delegatedAgent = subject != null && subject.delegatedAgent();
+        ZeroTrustAction fromRequest = delegatedAgent ? null : resolveActionFromRequest();
         if (fromRequest != null) {
             return fromRequest;
         }
 
-        String userId = extractUserId();
         if (userId == null) {
             log.error("getCurrentAction: Unable to extract user ID - returning PENDING_ANALYSIS");
             return ZeroTrustAction.PENDING_ANALYSIS;
         }
 
         String contextHash = resolveContextBindingHash();
-        String actionCacheKey = "action:" + userId + (contextHash != null ? ":" + contextHash : "");
+        String decisionKey = subject != null ? subject.storageKey() : userId;
+        String actionCacheKey = "action:" + decisionKey + (contextHash != null ? ":" + contextHash : "");
         ZeroTrustAction cachedAction = getActionFromLocalCache(actionCacheKey);
         if (cachedAction != null) {
             return cachedAction;
         }
 
-        ZeroTrustAction action = actionRedisRepository.getCurrentAction(userId);
+        ZeroTrustAction action = subject != null ? subject.currentAction(actionRedisRepository)
+                : actionRedisRepository.getCurrentAction(userId);
 
         if (action != ZeroTrustAction.PENDING_ANALYSIS) {
             putActionToLocalCache(actionCacheKey, action);

@@ -20,7 +20,7 @@ const books = { ko: ko as Record<string, string>, en: en as Record<string, strin
 
 /** The main flow of the final screen design (docs/showcase/최종화면-구현계획.md 2절, F0-1). */
 describe('the main flow', () => {
-  it('is seven groups of 25 addresses in the plan numbers, each address once (FU-3 added 4-4, IN-6 group 5)', () => {
+  it('is eight groups of 30 addresses in the plan numbers, each address once (FU-3 4-4, IN-6 group 5, A7-3 group 6)', () => {
     expect(DEFAULT_ROUTE.map((screen) => screen.number)).toEqual([
       '1-1',
       '1-2',
@@ -45,8 +45,13 @@ describe('the main flow', () => {
       '6-1',
       '6-2',
       '6-3',
+      '6-4',
+      '7-0',
       '7-1',
       '7-2',
+      '7-3',
+      '8-1',
+      '8-2',
     ]);
     expect(new Set(DEFAULT_ROUTE.map((screen) => screen.path)).size).toBe(DEFAULT_ROUTE.length);
     expect(DEFAULT_ROUTE[0]?.path).toBe('/');
@@ -54,11 +59,11 @@ describe('the main flow', () => {
     expect(DEFAULT_ROUTE.every((screen) => screen.act === Number(screen.number.split('-')[0]))).toBe(true);
   });
 
-  it('opens groups 2 to 6 with their cover and the first and last group without one', () => {
+  it('opens groups 2 to 7 with their cover and the first and last group without one', () => {
     for (const group of GROUPS) {
       const screens = actScreens(group);
       const covers = screens.filter((screen) => screen.type === 'T0');
-      if (group === 1 || group === 7) {
+      if (group === 1 || group === 8) {
         expect(covers, `group ${group}`).toHaveLength(0);
       } else {
         expect(covers, `group ${group}`).toHaveLength(1);
@@ -72,7 +77,7 @@ describe('the main flow', () => {
     for (const screen of DEFAULT_ROUTE) {
       const keys = [`main.${screen.number}.name`];
       // A cover's button names its group; a send screen and the last screen have their own action.
-      if (screen.type !== 'T0' && screen.type !== 'T3' && screen.number !== '7-2') {
+      if (screen.type !== 'T0' && screen.type !== 'T3' && screen.number !== '8-2') {
         keys.push(`main.${screen.number}.cta`);
       }
       for (const [language, book] of Object.entries(books)) {
@@ -94,8 +99,10 @@ describe('the main flow', () => {
     expect(nextScreen('DEFAULT', '/attack/result')?.path).toBe('/evidence');
     expect(previousScreen('DEFAULT', '/normal')?.path).toBe('/evidence/verdict');
     expect(nextScreen('DEFAULT', '/normal/check')?.path).toBe('/insider');
-    expect(nextScreen('DEFAULT', '/insider/reason')?.path).toBe('/compare');
-    expect(skipTarget('DEFAULT', '/insider')?.path).toBe('/compare');
+    expect(nextScreen('DEFAULT', '/insider/reason')?.path).toBe('/agent');
+    expect(skipTarget('DEFAULT', '/insider')?.path).toBe('/agent');
+    expect(nextScreen('DEFAULT', '/agent/confirm')?.path).toBe('/compare');
+    expect(skipTarget('DEFAULT', '/agent')?.path).toBe('/compare');
     expect(nextScreen('DEFAULT', '/summary/next')).toBeNull();
     expect(skipTarget('DEFAULT', '/attack')?.path).toBe('/evidence');
     expect(skipTarget('DEFAULT', '/compare')?.path).toBe('/summary');

@@ -15,7 +15,10 @@
  */
 package io.contexa.contexaidentity.security.core.adapter.state.session;
 
+import io.contexa.contexacommon.enums.StateType;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
+import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
+import io.contexa.contexaidentity.security.core.config.StateConfig;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.properties.AuthUrlConfig;
@@ -34,8 +37,11 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.LogoutConfigurer;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -108,6 +114,7 @@ class SessionStateAdapterTest {
         AuthenticationFlowConfig flowConfig = mock(AuthenticationFlowConfig.class);
         when(flowConfig.getUrlPrefix()).thenReturn("/mfa-prefix");
         when(flowConfig.getTypeName()).thenReturn("mfa");
+        when(flowConfig.stateCustomizer(SessionStateConfigurer.class)).thenReturn(Customizer.withDefaults());
 
         AuthUrlConfig authUrlConfig = mock(AuthUrlConfig.class);
         PrimaryAuthUrls primaryAuthUrls = mock(PrimaryAuthUrls.class);
@@ -134,5 +141,19 @@ class SessionStateAdapterTest {
         verify(mockLogoutConfigurer).logoutSuccessUrl("/mfa-prefix/login-page");
         verify(mockLogoutConfigurer).addLogoutHandler(logoutHandler);
         verify(httpSecurity).with(any(SessionStateConfigurer.class), any(Customizer.class));
+    }
+
+    @Test
+    @DisplayName("apply uses the customizer the flow's .session(customizer) gave (A1-10)")
+    void applyUsesTheFlowsSessionCustomizer() throws Exception {
+        Customizer<SessionStateConfigurer> customizer = session -> { };
+        AuthenticationFlowConfig flowConfig = AuthenticationFlowConfig.builder("form_flow")
+                .stepConfigs(List.of(new AuthenticationStepConfig("form_flow", "FORM", 100, false)))
+                .build()
+                .withStateConfig(new StateConfig("session", StateType.SESSION), customizer);
+
+        adapter.apply(httpSecurity, platformContext, flowConfig);
+
+        verify(httpSecurity).with(any(SessionStateConfigurer.class), same(customizer));
     }
 }

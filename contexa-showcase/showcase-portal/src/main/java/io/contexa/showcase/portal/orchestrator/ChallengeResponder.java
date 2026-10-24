@@ -1,7 +1,9 @@
 package io.contexa.showcase.portal.orchestrator;
 
+import io.contexa.showcase.portal.orchestrator.ControlSession.AgentConfirmationTrace;
 import io.contexa.showcase.portal.orchestrator.ControlSession.ChallengeTrace;
 import io.contexa.showcase.portal.orchestrator.ControlSession.ReleaseTrace;
+import io.contexa.showcase.portal.orchestrator.ControlSession.StepOutcome;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -25,6 +27,15 @@ public interface ChallengeResponder {
     }
 
     /**
+     * docs/agent A7-3: control D asked the delegating person to confirm an agent's request (A5-2). Recordings give no
+     * answer unless a run asks for one; a visitor running the case live answers as the delegating employee.
+     */
+    default AgentConfirmationTrace confirmAgent(AgentConfirmation confirmation) {
+        return AgentConfirmationTrace.notAsked(confirmation.confirmationId(), confirmation.trigger(),
+                confirmation.expiresAt(), confirmation.askedAt());
+    }
+
+    /**
      * @param classification the scenario's ground truth: NORMAL, THREAT or UNCERTAIN
      * @param challengedAt   when control D's answer with the check came back
      */
@@ -44,6 +55,96 @@ public interface ChallengeResponder {
      */
     record Release(String classification, Instant blockedAt, String username, ReleaseActions actions,
                    Approver approver) {
+    }
+
+    /**
+     * docs/agent A7-3: a confirmation control D asked of an agent's request.
+     *
+     * @param stepNo  the step of the agent's request
+     * @param trigger why the engine asked (DELEGATION_ENDED, DECISION_CHALLENGE, ...)
+     * @param askedAt when control D's answer with the confirmation came back
+     */
+    record AgentConfirmation(String classification, int stepNo, String confirmationId, String trigger,
+                             String expiresAt, Instant askedAt, String method, String target,
+                             AgentConfirmationActions actions) {
+    }
+
+    /**
+     * docs/agent A7-3, DD-27: a recording in which the delegating person gives the same answer to every confirmation
+     * (the operator's check of the confirmation flow); {@code retries} is how often the agent sends its request again
+     * while the confirmation goes unanswered (SILENT). Its other answers are the recordings' own.
+     */
+    static ChallengeResponder deciding(DelegatorAnswer answer, int retries) {
+        return new ChallengeResponder() {
+            @Override
+            public ChallengeTrace respond(Challenge challenge) {
+                return AUTOMATIC.respond(challenge);
+            }
+
+            @Override
+            public AgentConfirmationTrace confirmAgent(AgentConfirmation confirmation) {
+                return answer(confirmation, answer, retries, AgentRetryStorm.Pause.SLEEP);
+            }
+        };
+    }
+
+    /** docs/agent A7-3: a visitor's answer as the delegating employee, approval or rejection. */
+    static AgentConfirmationTrace answer(AgentConfirmation confirmation, boolean approve) {
+        return answer(confirmation, approve ? DelegatorAnswer.APPROVE : DelegatorAnswer.REJECT, 0,
+                AgentRetryStorm.Pause.SLEEP);
+    }
+
+    /**
+     * docs/agent A7-3, DD-27: the person's answer and what follows it.
+     * <ul>
+     * <li>APPROVE: the agent first offers the approval for another request, which the engine must refuse while the
+     * approval is still unused (A5-9), then sends the approved request again with it, then once more, which the
+     * engine must refuse as well (one use).</li>
+     * <li>REJECT: the agent's request sent again with it must be refused.</li>
+     * <li>REPORT: the engine blocks and stops the agent (A5-2, A5-3): its request sent again must be refused, while
+     * the person's own same request still goes on, the person's decisions not being the agent's (A5-1).</li>
+     * <li>SILENT: no answer; the agent sends its request again {@code retries} times at once and once more after the
+     * wait the call limit asks for (A5-7), then the person sends the same request.</li>
+     * </ul>
+     */
+    static AgentConfirmationTrace answer(AgentConfirmation confirmation, DelegatorAnswer answer, int retries,
+                                         AgentRetryStorm.Pause pause) {
+        AgentConfirmationActions actions = confirmation.actions();
+        Instant decidedAt = null;
+        Integer decided = null;
+        try {
+            if (answer == DelegatorAnswer.SILENT) {
+                ControlSession.RetryStorm storm = AgentRetryStorm.run(actions, retries, pause);
+                StepOutcome person = actions.personRequest();
+                return new AgentConfirmationTrace(confirmation.confirmationId(), confirmation.trigger(),
+                        confirmation.expiresAt(), answer.name(), null, confirmation.askedAt(), null, null, null,
+                        null, null, null, person, storm);
+            }
+            decided = actions.decide(answer);
+            decidedAt = Instant.now();
+            ControlSession.AgentConfirmationStatus after = actions.status();
+            boolean approved = answer == DelegatorAnswer.APPROVE;
+            StepOutcome other = approved ? actions.resendOther() : null;
+            StepOutcome resend = actions.resend();
+            StepOutcome reuse = approved ? actions.resend() : null;
+            StepOutcome person = answer == DelegatorAnswer.REPORT ? actions.personRequest() : null;
+            return new AgentConfirmationTrace(confirmation.confirmationId(), confirmation.trigger(),
+                    confirmation.expiresAt(), answer.name(), null, confirmation.askedAt(), decidedAt, decided,
+                    after, resend, reuse, other, person, null);
+        } catch (IOException | RuntimeException e) {
+            return failed(confirmation, answer, e.getClass().getSimpleName() + ": " + e.getMessage(), decidedAt,
+                    decided);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return failed(confirmation, answer, "InterruptedException", decidedAt, decided);
+        }
+    }
+
+    private static AgentConfirmationTrace failed(AgentConfirmation confirmation, DelegatorAnswer answer,
+                                                 String reason, Instant decidedAt, Integer decided) {
+        return new AgentConfirmationTrace(confirmation.confirmationId(), confirmation.trigger(),
+                confirmation.expiresAt(), answer.name(), reason, confirmation.askedAt(), decidedAt, decided, null,
+                null, null, null, null, null);
     }
 
     /**

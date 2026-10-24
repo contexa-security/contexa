@@ -4,18 +4,19 @@ import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.FrictionProfile;
 import io.contexa.contexacore.autonomous.context.enricher.FrictionContextProvider;
+import io.contexa.contexacore.autonomous.context.enricher.RecordsHolder;
 import io.contexa.showcase.business.context.AccessApprovalPolicy;
 import io.contexa.showcase.business.context.BusinessContextLookup;
-import io.contexa.showcase.business.context.ExportApprovalPolicy;
 import io.contexa.showcase.business.context.BusinessContextLookup.AccessHistory;
 import io.contexa.showcase.business.context.BusinessContextLookup.ApprovalCoverage;
 import io.contexa.showcase.business.context.BusinessContextLookup.AssignmentStatus;
 import io.contexa.showcase.business.context.BusinessContextLookup.ClaimCheck;
-import io.contexa.showcase.business.context.BusinessContextLookup.NetworkContext;
 import io.contexa.showcase.business.context.BusinessContextLookup.CustomerOwnership;
+import io.contexa.showcase.business.context.BusinessContextLookup.NetworkContext;
 import io.contexa.showcase.business.context.BusinessContextLookup.OncallStatus;
 import io.contexa.showcase.business.context.BusinessContextLookup.RunPrincipal;
 import io.contexa.showcase.business.context.BusinessContextLookup.TicketCoverage;
+import io.contexa.showcase.business.context.ExportApprovalPolicy;
 import io.contexa.showcase.business.work.BusinessOperation;
 import io.contexa.showcase.business.work.RbacPolicy;
 import io.contexa.showcase.business.work.WorkDatabase;
@@ -73,8 +74,13 @@ public class BusinessFrictionProvider implements FrictionContextProvider {
         if (rule.isEmpty()) {
             return;
         }
+        // docs/agent A2-12: an agent's request is judged with the records of the person who answers for it.
+        RecordsHolder holder = RecordsHolder.of(event);
+        if (holder == null) {
+            return;
+        }
         try {
-            Optional<RunPrincipal> principal = lookup.principal(event.getUserId());
+            Optional<RunPrincipal> principal = lookup.principal(holder.id());
             if (principal.isEmpty()) {
                 return;
             }
@@ -85,8 +91,9 @@ public class BusinessFrictionProvider implements FrictionContextProvider {
                 return;
             }
             Instant at = event.getTimestamp();
-            apply(context, facts(rule.get().operation(), event.getUserId(), path, text(metadata.get("queryString")),
+            apply(context, facts(rule.get().operation(), holder.id(), path, text(metadata.get("queryString")),
                     event.getSourceIp(), at));
+            holder.stateOn(context);
         } catch (RuntimeException e) {
             log.error("Business context lookup failed: userId={}, path={}", event.getUserId(), path, e);
             apply(context, Facts.notLookedUp("Business context lookup failed; the company facts of this request are "

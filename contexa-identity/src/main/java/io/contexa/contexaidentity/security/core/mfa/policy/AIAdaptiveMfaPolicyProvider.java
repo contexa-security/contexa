@@ -20,6 +20,7 @@ import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
+import io.contexa.contexaidentity.security.core.mfa.policy.evaluator.AgentAccountMfaPolicyEvaluator;
 import io.contexa.contexaidentity.security.core.mfa.policy.evaluator.CompositeMfaPolicyEvaluator;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.repository.UserRepository;
@@ -76,6 +77,11 @@ public class AIAdaptiveMfaPolicyProvider extends DefaultMfaPolicyProvider {
             log.error("AI blocked authentication for user: {} - Reason: {}",
                     ctx.getUsername(), blockReason != null ? blockReason : "UNKNOWN");
             return MfaDecision.blocked(blockReason != null ? blockReason : "AI blocked authentication");
+        }
+
+        // An agent's account is never turned toward the factors made for people (A1-13).
+        if (AgentAccountMfaPolicyEvaluator.isAgentAccountDecision(decision)) {
+            return decision;
         }
 
         String decisionType = (String) ctx.getAttribute(FactorContextAttributes.StateControl.MFA_DECISION_TYPE);

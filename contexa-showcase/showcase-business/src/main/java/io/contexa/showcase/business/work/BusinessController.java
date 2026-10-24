@@ -2,6 +2,7 @@ package io.contexa.showcase.business.work;
 
 import io.contexa.showcase.business.work.BusinessViews.CustomerView;
 import io.contexa.showcase.business.work.BusinessViews.DocumentFile;
+import io.contexa.showcase.business.work.BusinessViews.DocumentSummary;
 import io.contexa.showcase.business.work.BusinessViews.DocumentView;
 import io.contexa.showcase.business.work.BusinessViews.ExportResult;
 import io.contexa.showcase.business.work.BusinessViews.ExportStream;
@@ -55,6 +56,21 @@ public class BusinessController {
     @GetMapping("/api/projects")
     public List<ProjectSummary> projects(HttpServletRequest http, Authentication authentication) {
         return operations.listProjects(request(http, authentication));
+    }
+
+    /** docs/agent A7-2a: the most documents one listing returns, and the default. */
+    static final int LIST_LIMIT = 100;
+    static final int LIST_DEFAULT = 20;
+
+    @GetMapping("/api/projects/{projectKey}/documents")
+    public List<DocumentSummary> documents(@PathVariable("projectKey") String projectKey,
+                                           @RequestParam(value = "type", required = false) String type,
+                                           @RequestParam(value = "q", required = false) String query,
+                                           @RequestParam(value = "limit", required = false) Integer limit,
+                                           HttpServletRequest http, Authentication authentication) {
+        int bounded = limit == null ? LIST_DEFAULT : Math.max(1, Math.min(limit, LIST_LIMIT));
+        attributes.describeDocumentList(http, projectKey);
+        return operations.listDocuments(request(http, authentication), projectKey, type, query, bounded);
     }
 
     @GetMapping("/api/documents/{documentKey}")

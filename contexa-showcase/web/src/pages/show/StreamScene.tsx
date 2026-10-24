@@ -45,7 +45,7 @@ import { CONTROL_ORDER } from '../../domain/verdict';
 import { useTurnstile } from '../../hooks/useTurnstile';
 import styles from './StreamScene.module.css';
 
-const ACTIVE = new Set(['QUEUED', 'STARTING', 'RUNNING', 'CHALLENGE', 'AWAITING', 'BLOCKED']);
+const ACTIVE = new Set(['QUEUED', 'STARTING', 'RUNNING', 'CHALLENGE', 'AWAITING', 'BLOCKED', 'CONFIRMING']);
 const HOLDING = new Set(['BLOCK', 'CHALLENGE', 'ESCALATE']);
 /** How long the analysis is still read after the run ended without a decision in it. */
 const ANALYSIS_GRACE_MS = 20_000;

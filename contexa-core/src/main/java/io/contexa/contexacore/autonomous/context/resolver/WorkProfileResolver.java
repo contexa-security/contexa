@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.context.resolver;
 
+import io.contexa.contexacore.autonomous.baseline.AgentBaselineView;
 import io.contexa.contexacore.autonomous.baseline.BaselineView;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.WorkProfile;
@@ -94,6 +95,7 @@ public class WorkProfileResolver extends AbstractProfileResolver<WorkProfile> {
                 .seasonalBusinessProfile(text(metadata.get("seasonalBusinessProfile"), metadata.get("seasonal_business_profile")))
                 .longTailLegitimateTasks(strings(metadata.get("longTailLegitimateTasks"), metadata.get("long_tail_legitimate_tasks")))
                 .baselineView(metadata.get("workProfileBaselineView") instanceof BaselineView view ? view : null)
+                .agentBaseline(metadata.get("workProfileAgentBaseline") instanceof AgentBaselineView agent ? agent : null)
                 .build();
 
         return profile;

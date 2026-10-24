@@ -252,12 +252,15 @@ public class IamXacmlPapAutoConfiguration {
             CentralAuditFacade centralAuditFacade,
             PolicyConflictAnalyzer policyConflictAnalyzer,
             PolicyVersionService policyVersionService,
-            MessageSource messageSource) {
-        return new BusinessPolicyServiceImpl(
+            MessageSource messageSource,
+            ObjectProvider<PolicyReloadBroadcaster> policyReloadBroadcasterProvider) {
+        BusinessPolicyServiceImpl service = new BusinessPolicyServiceImpl(
                 policyRepository, roleService, roleRepository, permissionRepository,
                 conditionTemplateRepository, policyEnrichmentService, authorizationManager,
                 securitySpelRepository, centralAuditFacade, policyConflictAnalyzer,
                 policyVersionService, messageSource);
+        policyReloadBroadcasterProvider.ifAvailable(service::setPolicyReloadBroadcaster);
+        return service;
     }
 
     @Bean

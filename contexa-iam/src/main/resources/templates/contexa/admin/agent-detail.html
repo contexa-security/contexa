@@ -68,6 +68,159 @@
                 </section>
             </div>
 
+            <section class="detail-card mt-6" id="agentLearning">
+                <h2 class="detail-heading" th:text="#{admin.agents.learning.heading}">Learning</h2>
+                <p class="learning-intro" th:text="#{admin.agents.learning.intro}">What this agent learned</p>
+                <p th:unless="${learningControllable}" class="detail-note"
+                   th:text="#{admin.agents.learning.unavailable}">The autonomous security plane is off.</p>
+                <div th:if="${learningControllable}">
+                    <dl class="mb-4">
+                        <dt th:text="#{admin.agents.learning.state}">Agent learning</dt>
+                        <dd th:text="${learningQuarantined} ? #{admin.agents.learning.state.quarantined} : #{admin.agents.learning.state.active}">In use</dd>
+                    </dl>
+                    <form th:action="@{/contexa/admin/agents/learning}" method="post" id="learningForm">
+                        <input type="hidden" name="agentId" th:value="*{agentId}">
+                        <input type="hidden" name="tenant" th:value="*{tenantId}">
+                        <label for="delegationId" class="learning-label"
+                               th:text="#{admin.agents.learning.delegation}">Delegation ID (optional)</label>
+                        <input id="delegationId" name="delegationId" type="text" class="learning-input font-mono">
+                        <p class="learning-hint" th:text="#{admin.agents.learning.delegation.hint}">Leave empty for the whole agent.</p>
+                        <label for="learningReason" class="learning-label"
+                               th:text="#{admin.agents.learning.reason}">Reason</label>
+                        <textarea id="learningReason" name="reason" rows="2" required class="learning-input"></textarea>
+                        <div class="flex flex-wrap gap-3 mt-4">
+                            <button type="submit" name="action" value="quarantine" class="learning-button"
+                                    style="background:#b45309;" th:text="#{admin.agents.learning.quarantine}">Quarantine</button>
+                            <button type="submit" name="action" value="release" class="learning-button"
+                                    style="background:#047857;" th:text="#{admin.agents.learning.release}">Release</button>
+                            <button type="submit" name="action" value="remove" class="learning-button"
+                                    style="background:#b91c1c;" th:text="#{admin.agents.learning.remove}"
+                                    th:data-confirm="#{admin.agents.learning.remove.confirm}">Remove</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <section class="detail-card mt-6" id="agentDelegations">
+                <h2 class="detail-heading" th:text="#{admin.agents.delegations.heading}">Delegations</h2>
+                <p class="learning-intro" th:text="#{admin.agents.delegations.intro}">What people delegated to this agent</p>
+                <p th:if="${#lists.isEmpty(delegations)}" class="learning-hint"
+                   th:text="#{admin.agents.delegations.empty}">No delegation</p>
+                <div th:unless="${#lists.isEmpty(delegations)}" class="delegation-scroll">
+                    <table class="delegation-table">
+                        <thead>
+                        <tr>
+                            <th th:text="#{admin.agents.delegations.delegator}">Delegator</th>
+                            <th th:text="#{admin.agents.delegations.objective}">Work</th>
+                            <th th:text="#{admin.agents.delegations.operations}">Operations</th>
+                            <th th:text="#{admin.agents.delegations.resources}">Resources</th>
+                            <th th:text="#{admin.agents.delegations.period}">Period</th>
+                            <th th:text="#{admin.agents.delegations.state}">State</th>
+                            <th th:text="#{admin.agents.delegations.recorded.by}">Recorded by</th>
+                            <th></th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="delegation : ${delegations}">
+                            <td th:text="${delegation.delegatorId}"></td>
+                            <td th:text="${delegation.objectiveSummary != null} ? ${delegation.objectiveSummary} : (${delegation.objectiveFamily != null} ? ${delegation.objectiveFamily} : '-')"></td>
+                            <td class="font-mono text-xs" th:text="${#lists.isEmpty(delegation.allowedOperations)} ? '-' : ${#strings.listJoin(delegation.allowedOperations, ', ')}"></td>
+                            <td class="font-mono text-xs" th:text="${#lists.isEmpty(delegation.allowedResources)} ? '-' : ${#strings.listJoin(delegation.allowedResources, ', ')}"></td>
+                            <td class="font-mono text-xs" th:text="${delegation.validFrom} + ' ~ ' + ${delegation.expiresAt}"></td>
+                            <td th:text="#{${'admin.agents.delegations.state.' + delegation.state}}"></td>
+                            <td th:text="${delegation.recordedBy}"></td>
+                            <td>
+                                <form th:if="${delegation.state == 'VALID' or delegation.state == 'NOT_STARTED'}"
+                                      th:action="@{/contexa/admin/agents/delegations/revoke}" method="post"
+                                      class="delegation-revoke">
+                                    <input type="hidden" name="agentId" th:value="${agent.agentId}">
+                                    <input type="hidden" name="tenant" th:value="${agent.tenantId}">
+                                    <input type="hidden" name="delegationId" th:value="${delegation.delegationId}">
+                                    <input type="text" name="reason" required class="learning-input"
+                                           th:placeholder="#{admin.agents.delegations.reason}">
+                                    <button type="submit" class="learning-button" style="background:#b91c1c;"
+                                            th:text="#{admin.agents.delegations.revoke}">Revoke</button>
+                                </form>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- docs/agent A5-5 (AM-2): the agent's latest decision records -->
+            <section class="detail-card mt-6" id="agentDecisions">
+                <h2 class="detail-heading" th:text="#{admin.agents.decisions.heading}">Latest decisions</h2>
+                <p th:if="${#lists.isEmpty(decisions)}" class="learning-hint"
+                   th:text="#{admin.agents.decisions.empty}">No decision record of this agent yet.</p>
+                <div th:unless="${#lists.isEmpty(decisions)}" class="delegation-scroll">
+                    <table class="delegation-table">
+                        <thead>
+                        <tr>
+                            <th th:text="#{admin.agents.decisions.time}">Time</th>
+                            <th th:text="#{admin.agents.decisions.delegator}">For</th>
+                            <th th:text="#{admin.agents.decisions.operation}">Operation</th>
+                            <th th:text="#{admin.agents.decisions.decision}">Decision</th>
+                            <th th:text="#{admin.agents.decisions.risk}">Risk facts cited</th>
+                            <th></th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="record : ${decisions}">
+                            <td class="font-mono text-xs" th:text="${#temporals.format(record.timestamp, 'yyyy-MM-dd HH:mm:ss')}"></td>
+                            <td th:text="${record.delegatorId != null} ? ${record.delegatorId} : '-'"></td>
+                            <td th:text="${record.targetAction != null} ? ${record.targetAction} : '-'"></td>
+                            <td th:text="${record.decision}"></td>
+                            <td class="font-mono text-xs" th:text="${record.riskState != null} ? ${record.riskState} : '-'"></td>
+                            <td><a th:href="@{/contexa/admin/security-monitor/{id}(id=${record.id})}"
+                                   th:text="#{common.detail}">Detail</a></td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="detail-card mt-6" id="agentManage" th:if="${provisioningAvailable}">
+                <h2 class="detail-heading" th:text="#{admin.agents.manage.heading}">Management</h2>
+                <p class="learning-intro" th:text="#{admin.agents.manage.intro}">Sponsor, secret, deregistration, removal</p>
+                <form th:action="@{/contexa/admin/agents/manage/sponsor}" method="post" class="flex flex-wrap gap-3 items-end">
+                    <input type="hidden" name="agentId" th:value="${agent.agentId}">
+                    <input type="hidden" name="tenant" th:value="${agent.tenantId}">
+                    <div style="flex:1;min-width:12rem;">
+                        <label class="learning-label" for="newSponsor" th:text="#{admin.agents.manage.sponsor}">New sponsor</label>
+                        <input id="newSponsor" type="text" name="sponsorId" required class="learning-input">
+                    </div>
+                    <button type="submit" class="learning-button" style="background:#4f46e5;"
+                            th:text="#{admin.agents.manage.sponsor.submit}">Transfer</button>
+                </form>
+                <form th:if="${agent.clientId != null}" th:action="@{/contexa/admin/agents/manage/secret}" method="post"
+                      class="mt-4" id="agentSecretForm">
+                    <input type="hidden" name="agentId" th:value="${agent.agentId}">
+                    <input type="hidden" name="tenant" th:value="${agent.tenantId}">
+                    <button type="submit" class="learning-button" style="background:#0369a1;"
+                            th:text="#{admin.agents.manage.secret}"
+                            th:data-confirm="#{admin.agents.manage.secret.confirm}">Rotate secret</button>
+                </form>
+                <form th:action="@{/contexa/admin/agents/manage/deregister}" method="post" class="flex flex-wrap gap-3 items-end mt-4">
+                    <input type="hidden" name="agentId" th:value="${agent.agentId}">
+                    <input type="hidden" name="tenant" th:value="${agent.tenantId}">
+                    <div style="flex:1;min-width:12rem;">
+                        <label class="learning-label" for="deregisterReason" th:text="#{admin.agents.manage.deregister.reason}">Reason</label>
+                        <input id="deregisterReason" type="text" name="reason" required class="learning-input">
+                    </div>
+                    <button type="submit" class="learning-button" style="background:#b45309;"
+                            th:text="#{admin.agents.manage.deregister}"
+                            th:data-confirm="#{admin.agents.manage.deregister.confirm}">Deregister</button>
+                </form>
+                <form th:action="@{/contexa/admin/agents/manage/remove}" method="post" class="mt-4">
+                    <input type="hidden" name="agentId" th:value="${agent.agentId}">
+                    <input type="hidden" name="tenant" th:value="${agent.tenantId}">
+                    <button type="submit" class="learning-button" style="background:#b91c1c;"
+                            th:text="#{admin.agents.manage.remove}"
+                            th:data-confirm="#{admin.agents.manage.remove.confirm}">Remove</button>
+                </form>
+            </section>
+
             <div class="mt-8">
                 <a th:href="@{/contexa/admin/agents}"
                    class="px-4 py-2 rounded-lg text-sm font-medium text-white inline-block"
@@ -79,6 +232,29 @@
 </div>
 
 <div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
+
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    document.addEventListener('DOMContentLoaded', () => {
+        const message = /*[[${message}]]*/ null;
+        if (message) {
+            showToast(message, 'success');
+        }
+        const errorMessage = /*[[${errorMessage}]]*/ null;
+        if (errorMessage) {
+            showToast(errorMessage, 'error');
+        }
+        document.querySelectorAll('form').forEach(function (form) {
+            form.addEventListener('submit', function (e) {
+                const button = e.submitter;
+                if (button && button.dataset.confirm && !window.confirm(button.dataset.confirm)) {
+                    e.preventDefault();
+                }
+            });
+        });
+    });
+    /*]]>*/
+</script>
 
 <style>
     .detail-card {
@@ -105,6 +281,56 @@
     }
     .detail-card dd {
         word-break: break-all;
+    }
+    .learning-intro, .learning-hint {
+        font-size: 0.8125rem;
+        color: #94a3b8;
+        margin-bottom: 0.75rem;
+    }
+    .learning-label {
+        display: block;
+        font-size: 0.875rem;
+        color: #cbd5e1;
+        margin: 0.5rem 0 0.25rem;
+    }
+    .learning-input {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.5rem;
+        background: rgba(15, 23, 42, 0.8);
+        color: #e2e8f0;
+        border: 1px solid rgba(71, 85, 105, 0.3);
+    }
+    .learning-button {
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #fff;
+    }
+    .delegation-scroll {
+        overflow-x: auto;
+    }
+    .delegation-table {
+        width: 100%;
+        font-size: 0.875rem;
+        border-collapse: collapse;
+    }
+    .delegation-table th, .delegation-table td {
+        text-align: left;
+        padding: 0.5rem;
+        border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+        vertical-align: top;
+        word-break: break-word;
+    }
+    .delegation-table th {
+        color: #94a3b8;
+        font-weight: 500;
+    }
+    .delegation-revoke {
+        display: flex;
+        gap: 0.5rem;
+        min-width: 16rem;
     }
     .detail-note {
         margin-top: 0.75rem;

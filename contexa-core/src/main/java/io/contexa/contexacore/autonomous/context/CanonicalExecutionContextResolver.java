@@ -29,6 +29,7 @@ import io.contexa.contexacore.autonomous.execution.ExecutionSubject;
 import io.contexa.contexacore.autonomous.execution.ExecutionSubjectTypes;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -204,7 +205,10 @@ public class CanonicalExecutionContextResolver {
                 firstText(text(attributes.get("permitId"))),
                 firstText(text(attributes.get("approvalId"))),
                 resolveDateTime(attributes.get("startedAt")),
-                resolveDateTime(attributes.get("expiresAt")),
+                // A2-3: the delegation's end as the context states it (the earlier of the token's and the record's),
+                // else as the publisher wrote it, else the key earlier hosts used.
+                resolveDateTime(firstText(delegation != null ? delegation.getExpiresAt() : null,
+                        text(attributes.get("delegationExpiresAt")), text(attributes.get("expiresAt")))),
                 firstText(text(attributes.get("objectiveId")), delegation != null ? delegation.getObjectiveId() : null),
                 firstText(text(attributes.get("objectiveFamily")), delegation != null ? delegation.getObjectiveFamily() : null),
                 normalizeList(attributes.get("allowedResourceFamilies"), delegation != null ? delegation.getAllowedResources() : List.of()),
@@ -281,8 +285,14 @@ public class CanonicalExecutionContextResolver {
         try {
             return LocalDateTime.parse(text);
         }
-        catch (RuntimeException ignored) {
-            return null;
+        catch (RuntimeException notLocal) {
+            // A2-3: an instant with a zone or an offset (the publisher writes Instant#toString) is read in UTC.
+            try {
+                return LocalDateTime.ofInstant(OffsetDateTime.parse(text).toInstant(), ZoneOffset.UTC);
+            }
+            catch (RuntimeException ignored) {
+                return null;
+            }
         }
     }
 

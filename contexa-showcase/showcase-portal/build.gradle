@@ -11,6 +11,12 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.flywaydb:flyway-core'
+    // docs/agent A7-2b: the business agent of an agent task works with Spring AI's chat client and tool calling. The
+    // model is made for each task (no auto-configured model), so the portal starts without a model key.
+    implementation 'org.springframework.ai:spring-ai-openai'
+    implementation 'org.springframework.ai:spring-ai-client-chat'
+    // docs/agent 위임결정기록 DD-4: the business agent on Anthropic when the OpenAI balance is used up.
+    implementation 'org.springframework.ai:spring-ai-anthropic'
     runtimeOnly 'org.flywaydb:flyway-database-postgresql'
 
     testImplementation 'org.springframework.security:spring-security-test'

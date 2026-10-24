@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{agent.confirmations.title})}"></head>
+<body class="flex flex-col min-h-screen font-sans" style="background: #050810;">
+
+<div class="flex justify-center p-4 sm:p-8">
+    <div class="w-full max-w-3xl p-6 sm:p-8 rounded-xl"
+         style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(71, 85, 105, 0.3); color: #e2e8f0;">
+        <h1 class="text-2xl font-bold mb-1" th:text="#{agent.confirmations.title}">My agents' requests</h1>
+        <p class="text-sm mb-6" style="color: #94a3b8;" th:text="#{agent.confirmations.subtitle}">The requests your agents ask you to confirm, and what Contexa told you about them.</p>
+        <div th:if="${message != null}" id="pageMessage" class="mb-4 p-3 rounded text-sm"
+             style="background: rgba(34, 197, 94, 0.12); color: #4ade80;" th:text="${message}"></div>
+        <div th:if="${errorMessage != null}" id="pageError" class="mb-4 p-3 rounded text-sm"
+             style="background: rgba(239, 68, 68, 0.12); color: #f87171;" th:text="${errorMessage}"></div>
+
+        <section class="mb-8" id="confirmationList">
+            <h2 class="text-lg font-semibold mb-2" th:text="#{agent.confirmations.heading}">Confirmations</h2>
+            <ul class="divide-y" style="border-color: rgba(71, 85, 105, 0.3);">
+                <li th:each="c : ${confirmations}" class="py-3 flex flex-wrap items-center justify-between gap-2">
+                    <div class="text-sm">
+                        <span class="font-mono" th:text="${c.agentId}"></span>
+                        <span style="color: #94a3b8;" th:text="${c.method} + ' ' + ${c.target}"></span>
+                        <div class="text-xs" style="color: #64748b;" th:text="${#temporals.format(c.createdAt, 'yyyy-MM-dd HH:mm')}"></div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="px-2 py-0.5 rounded-full text-xs font-semibold"
+                              th:style="${c.status.name() == 'PENDING'} ? 'background: rgba(251,191,36,0.2); color: #fbbf24;' : (${c.status.name() == 'APPROVED' or c.status.name() == 'USED'} ? 'background: rgba(34,197,94,0.2); color: #4ade80;' : 'background: rgba(239,68,68,0.2); color: #f87171;')"
+                              th:text="#{'agent.confirmation.status.' + ${c.status.name().toLowerCase()}}">Pending</span>
+                        <a th:href="@{/contexa/agent-confirmations/{id}(id=${c.confirmationId})}" class="text-sm" style="color: #818cf8;"
+                           th:text="${c.status.name() == 'PENDING'} ? #{agent.confirmations.open} : #{agent.confirmations.view}">Open</a>
+                    </div>
+                </li>
+                <li th:if="${#lists.isEmpty(confirmations)}" class="py-3 text-sm" style="color: #94a3b8;"
+                    th:text="#{agent.confirmations.empty}">No request of your agents waits for you.</li>
+            </ul>
+        </section>
+
+        <section class="mb-8" id="stoppedAgents" th:if="${!#lists.isEmpty(stoppedAgents)}">
+            <h2 class="text-lg font-semibold mb-1" th:text="#{agent.confirmations.stopped}">Your stopped agents</h2>
+            <p class="text-xs mb-2" style="color: #94a3b8;" th:text="#{agent.confirmations.stopped.hint}">Release an agent once you trust it again.</p>
+            <ul class="divide-y" style="border-color: rgba(71, 85, 105, 0.3);">
+                <li th:each="s : ${stoppedAgents}" class="py-3 text-sm">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <span class="font-mono" th:text="${s.agentId}"></span>
+                            <span class="text-xs ml-2" style="color: #94a3b8;" th:text="#{'agent.confirmations.stopped.' + ${s.kind}}">worked for you</span>
+                            <div class="text-xs" style="color: #64748b;" th:text="${s.reason != null} ? ${s.reason} : '-'"></div>
+                        </div>
+                        <form th:if="${releasable and !s.killSwitch}" method="post" th:action="@{/contexa/agent-confirmations/stops/release}"
+                              class="flex gap-2 items-center release-form"
+                              th:data-confirm-msg="#{agent.confirmations.release.confirm}" onsubmit="return confirm(this.getAttribute('data-confirm-msg'));">
+                            <input type="hidden" name="kind" th:value="${s.kind}"/>
+                            <input type="hidden" name="agentId" th:value="${s.agentId}"/>
+                            <input type="text" name="reason" required maxlength="500" class="px-2 py-1 rounded text-sm"
+                                   style="background: rgba(30,41,59,0.6); border: 1px solid rgba(71,85,105,0.5); color: #e2e8f0;"
+                                   th:placeholder="#{agent.confirmations.release.placeholder}"/>
+                            <button type="submit" class="px-3 py-1.5 rounded-md text-sm font-medium"
+                                    style="background: rgba(34,197,94,0.2); color: #4ade80; border: 1px solid rgba(34,197,94,0.3);"
+                                    th:text="#{agent.confirmations.release}">Release</button>
+                        </form>
+                        <span th:if="${s.killSwitch}" class="text-xs" style="color: #fbbf24;" th:text="#{agent.confirmations.release.kill.switch}">Stopped by the kill switch: an administrator releases it.</span>
+                    </div>
+                </li>
+            </ul>
+        </section>
+
+        <section id="noticeList">
+            <h2 class="text-lg font-semibold mb-2" th:text="#{agent.confirmations.notices}">Notices</h2>
+            <ul class="divide-y" style="border-color: rgba(71, 85, 105, 0.3);">
+                <li th:each="n : ${notices}" class="py-3 text-sm">
+                    <div class="font-semibold" th:text="${n.subject}"></div>
+                    <div style="color: #94a3b8;" th:text="${n.message}"></div>
+                    <div class="text-xs mt-1" style="color: #64748b;">
+                        <span th:text="${#temporals.format(n.createdAt, 'yyyy-MM-dd HH:mm')}"></span>
+                        <a th:if="${n.link != null and (#strings.startsWith(n.link, '/') or #strings.startsWith(n.link, 'https://') or #strings.startsWith(n.link, 'http://'))}" th:href="${n.link}" class="ml-2" style="color: #818cf8;"
+                           th:text="#{agent.confirmations.open}">Open</a>
+                    </div>
+                </li>
+                <li th:if="${#lists.isEmpty(notices)}" class="py-3 text-sm" style="color: #94a3b8;"
+                    th:text="#{agent.confirmations.notices.empty}">No notice yet.</li>
+            </ul>
+        </section>
+    </div>
+</div>
+</body>
+</html>

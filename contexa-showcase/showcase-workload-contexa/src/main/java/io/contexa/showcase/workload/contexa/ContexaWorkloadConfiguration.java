@@ -1,5 +1,10 @@
 package io.contexa.showcase.workload.contexa;
 
+import io.contexa.contexacore.autonomous.agent.AgentRegistry;
+import io.contexa.contexacore.autonomous.company.CompanyRecordStore;
+import io.contexa.showcase.business.context.AgentDelegations;
+import io.contexa.showcase.workload.contexa.principal.RunAgentService;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
@@ -8,14 +13,11 @@ import io.contexa.contexacore.autonomous.service.UserEngineStatePurger;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
-import io.contexa.showcase.business.context.BusinessContextLookup;
 import io.contexa.showcase.business.run.RunRegistry;
 import io.contexa.showcase.business.work.BusinessService;
-import io.contexa.contexacore.verification.inspection.PromptFactSourceVerifier;
 import io.contexa.showcase.business.work.WorkDatabase;
 import io.contexa.showcase.workload.contexa.business.ContexaBusinessOperations;
-import io.contexa.showcase.workload.contexa.context.BusinessFrictionProvider;
-import io.contexa.showcase.workload.contexa.context.ShowcaseFactSourceVerifier;
+import io.contexa.showcase.workload.contexa.context.ExportUsageReporter;
 import io.contexa.showcase.workload.contexa.observation.AnalysisEventRecorder;
 import io.contexa.showcase.workload.contexa.observation.DecisionRecords;
 import io.contexa.showcase.workload.contexa.observation.EmbeddingUsageMeter;
@@ -129,16 +131,33 @@ public class ContexaWorkloadConfiguration {
                 postProcessExecutor.getIfAvailable());
     }
 
+    /** docs/agent A7-0: the delegations of record in the business database. */
     @Bean
-    public BusinessFrictionProvider businessFrictionProvider(BusinessContextLookup lookup, WorkDatabase database) {
-        return new BusinessFrictionProvider(lookup, database);
+    public AgentDelegations agentDelegations(WorkDatabase database) {
+        return new AgentDelegations(database);
     }
 
-    /** W6-7: the showcase's own records of the company facts, for the prompt inspector's source truth check. */
+    /** docs/agent A7-0: a run's agents in the authorization server's client repository and the agent registry. */
     @Bean
-    public PromptFactSourceVerifier showcaseFactSourceVerifier(WorkDatabase database, Environment environment) {
-        return new ShowcaseFactSourceVerifier(database, environment.getRequiredProperty("showcase.control"));
+    public RunAgentService runAgentService(RegisteredClientRepository clients, AgentRegistry registry,
+                                           UserRepository users,
+                                           @Qualifier("contexaJdbcTemplate") JdbcTemplate engine,
+                                           PasswordEncoder passwordEncoder, RunPrincipalService principals) {
+        return new RunAgentService(clients, registry, users, engine, passwordEncoder, principals);
     }
+
+    /**
+     * docs/agent OC-2: control D reports what its exports delivered to Contexa's company records. The company records
+     * themselves reach Contexa through its admin API (the run's integration), and Contexa's own provider judges each
+     * request with them: control D keeps no company facts provider of its own.
+     */
+    @Bean
+    public ExportUsageReporter exportUsageReporter(WorkDatabase database, CompanyRecordStore companyRecordStore) {
+        return new ExportUsageReporter(database, companyRecordStore, clock);
+    }
+
+    // docs/agent OC-4: the prompt inspector's source truth check reads Contexa's own company records and delegations
+    // (its default verifier); control D keeps no verifier of its own.
 
     @Bean
     public UsageLedger usageLedger() {

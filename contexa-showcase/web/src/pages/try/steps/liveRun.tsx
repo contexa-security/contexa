@@ -12,7 +12,7 @@ import { decisionDetail } from '../decision';
  */
 
 /** The run states during which a run is still going. */
-export const ACTIVE = new Set(['QUEUED', 'STARTING', 'RUNNING', 'CHALLENGE', 'AWAITING', 'BLOCKED']);
+export const ACTIVE = new Set(['QUEUED', 'STARTING', 'RUNNING', 'CHALLENGE', 'AWAITING', 'BLOCKED', 'CONFIRMING']);
 
 /** The identity check's stages after which nothing more happens: the follow-up is over. */
 export const CHECK_ENDED = new Set(['NO_MAILBOX', 'DONE', 'EXPIRED', 'CANCELLED', 'FAILED', 'ABANDONED']);

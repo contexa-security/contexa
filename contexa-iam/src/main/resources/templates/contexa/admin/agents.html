@@ -9,7 +9,8 @@
 <div class="flex flex-1">
     <aside th:insert="~{contexa/fragments/admin-menu :: menu}" class="hidden md:block"></aside>
 
-    <main class="flex-1 p-6 md:p-10">
+    <!-- docs/agent RW-2: the main column may be narrower than the table, which then scrolls in its own region. -->
+    <main class="flex-1 p-6 md:p-10" style="min-width:0;">
         <div class="mx-auto dark-card p-6 sm:p-8 rounded-xl">
             <div class="mb-8 text-center sm:text-left">
                 <h1 class="text-3xl font-bold text-gradient" th:text="#{admin.agents.title}">Agents</h1>
@@ -24,6 +25,10 @@
                    th:text="#{${'admin.agents.filter.' + f}}">All</a>
 
                 <span style="flex:1;"></span>
+                <a th:if="${provisioningAvailable}" th:href="@{/contexa/admin/agents/new}" id="agentRegisterLink"
+                   class="px-4 py-2 rounded-lg text-sm font-medium text-white"
+                   style="background:linear-gradient(135deg,#6366f1,#4f46e5);"
+                   th:text="#{admin.agents.register.button}">Register an agent</a>
                 <form th:action="@{/contexa/admin/agents}" method="get" class="flex items-center gap-2" style="margin:0;">
                     <input type="hidden" name="filter" th:value="${currentFilter}" />
                     <input type="text" name="keyword" th:value="${keyword}"
@@ -31,17 +36,20 @@
                            style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;max-width:240px;"
                            th:placeholder="#{admin.agents.search.placeholder}" />
                     <button type="submit" class="px-3 py-2 rounded-lg text-sm font-medium text-white"
-                            style="background:linear-gradient(135deg,#6366f1,#4f46e5);">
-                        <i class="fas fa-search"></i>
+                            style="background:linear-gradient(135deg,#6366f1,#4f46e5);"
+                            th:attr="aria-label=#{admin.agents.search.button}">
+                        <i class="fas fa-search" aria-hidden="true"></i>
                     </button>
                     <a th:href="@{/contexa/admin/agents(filter=${currentFilter})}" class="px-3 py-2 rounded-lg text-sm font-medium"
-                       style="color:#94a3b8;border:1px solid rgba(71,85,105,0.5);">
-                        <i class="fas fa-times"></i>
+                       style="color:#94a3b8;border:1px solid rgba(71,85,105,0.5);"
+                       th:attr="aria-label=#{admin.agents.search.clear}">
+                        <i class="fas fa-times" aria-hidden="true"></i>
                     </a>
                 </form>
             </div>
 
-            <div class="overflow-x-auto shadow-md rounded-lg">
+            <div class="overflow-x-auto shadow-md rounded-lg" tabindex="0" role="region"
+                 th:attr="aria-label=#{admin.agents.table.region}">
                 <table class="min-w-full w-full text-sm text-left">
                     <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
                     <tr>
@@ -50,10 +58,12 @@
                         <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agents.table.type}">Type</th>
                         <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agents.table.subject}">Subject</th>
                         <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agents.table.sponsor}">Sponsor</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agents.table.active.delegations}">Active delegations</th>
                         <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agents.table.status}">Status</th>
                         <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agents.table.allowlisted}">Approved</th>
                         <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agents.table.first.seen}">First seen</th>
                         <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agents.table.last.seen}">Last seen</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agents.table.latest.decision}">Latest decision</th>
                         <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{common.table.actions}">Actions</th>
                     </tr>
                     </thead>
@@ -69,6 +79,8 @@
                             <span th:if="${a.subjectKind == null}" class="text-xs" style="color: #64748b;">-</span>
                         </td>
                         <td class="py-4 px-6" th:text="${a.sponsorId != null} ? ${a.sponsorId} : '-'"></td>
+                        <td class="py-4 px-6 text-center active-delegations"
+                            th:text="${activeDelegations != null and activeDelegations[a.agentId] != null} ? ${activeDelegations[a.agentId]} : 0"></td>
                         <td class="py-4 px-6">
                             <span class="px-3 py-1 rounded-full text-xs font-semibold"
                                   th:classappend="'status-' + ${#strings.toLowerCase(a.status)}"
@@ -77,15 +89,21 @@
                         <td class="py-4 px-6" th:text="${a.allowlisted} ? #{admin.agents.allowlisted.yes} : #{admin.agents.allowlisted.no}"></td>
                         <td class="py-4 px-6" th:text="${a.firstSeenAt != null} ? ${#temporals.format(a.firstSeenAt, 'yyyy-MM-dd HH:mm')} : '-'"></td>
                         <td class="py-4 px-6" th:text="${a.lastSeenAt != null} ? ${#temporals.format(a.lastSeenAt, 'yyyy-MM-dd HH:mm')} : '-'"></td>
+                        <td class="py-4 px-6" th:with="latest=${latestDecisions[a.agentId]}">
+                            <span th:if="${latest != null}" class="px-3 py-1 rounded-full text-xs font-semibold"
+                                  th:style="${latest == 'ALLOW' ? 'background: rgba(74,222,128,0.15); color: #4ade80;' : latest == 'BLOCK' ? 'background: rgba(248,113,113,0.15); color: #f87171;' : 'background: rgba(251,191,36,0.15); color: #fbbf24;'}"
+                                  th:text="${latest}">ALLOW</span>
+                            <span th:if="${latest == null}" class="text-xs" style="color: #64748b;">-</span>
+                        </td>
                         <td class="py-4 px-6">
                             <a th:href="@{/contexa/admin/agents/detail(agentId=${a.agentId}, tenant=${a.tenantId})}"
                                class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 inline-block"
-                               style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);"
+                               style="background: rgba(99, 102, 241, 0.2); color: #c7d2fe; border: 1px solid rgba(99, 102, 241, 0.3);"
                                th:text="#{common.detail}">Detail</a>
                         </td>
                     </tr>
                     <tr th:if="${#lists.isEmpty(agents)}">
-                        <td colspan="10" class="py-4 px-6 text-center" style="color: #94a3b8;" th:text="#{admin.agents.empty}">
+                        <td colspan="12" class="py-4 px-6 text-center" style="color: #94a3b8;" th:text="#{admin.agents.empty}">
                             No agents yet.
                         </td>
                     </tr>
