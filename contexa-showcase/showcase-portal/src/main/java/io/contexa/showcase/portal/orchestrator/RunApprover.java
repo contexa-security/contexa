@@ -89,6 +89,16 @@ public final class RunApprover implements Approver {
     }
 
     @Override
+    public int revokeDelegation(String delegationId, String reason) throws IOException {
+        return actions().revokeDelegation(delegationId, reason);
+    }
+
+    @Override
+    public int deregisterAgent(String tenantId, String agentId, String reason) throws IOException {
+        return actions().deregisterAgent(tenantId, agentId, reason);
+    }
+
+    @Override
     public LearningResult agentLearning(String agentId, String delegationId, String action, String reason)
             throws IOException {
         return actions().agentLearning(agentId, delegationId, action, reason);

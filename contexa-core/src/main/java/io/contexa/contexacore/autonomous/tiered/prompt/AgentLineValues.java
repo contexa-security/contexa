@@ -21,6 +21,7 @@ import io.contexa.contexacommon.security.subject.SubjectKind;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmation;
 import io.contexa.contexacore.autonomous.baseline.AgentBaselineView;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.support.SessionExports;
 import io.contexa.contexacore.autonomous.context.decision.RelativeTime;
 import io.contexa.contexacore.autonomous.context.enricher.RecordedDelegationContextProvider;
 import io.contexa.contexacore.autonomous.context.enricher.RecordsHolder;
@@ -54,7 +55,6 @@ public final class AgentLineValues {
     private static final List<String> COMPARISON_OUTCOMES = List.of("Current action family is",
             "Current action family has no", "Current resource family is", "Current resource matches",
             "Current resource does not match", "Containment-only", "Delegated scope evidence marks");
-    private static final Set<String> REFUSED = Set.of(SessionDecisionRecord.AUTHORIZATION_DENIED, "BLOCK");
     /** The instruction a coverage warning may end with, which a v21 line leaves out (A2-6). */
     private static final List<String> COVERAGE_INSTRUCTIONS = List.of(
             "any ALLOW conclusion must explain why the request is still acceptable");
@@ -167,9 +167,30 @@ public final class AgentLineValues {
                 + ", allowed " + listed(delegation.getAllowedOperations(), "any operation")
                 + " on " + listed(delegation.getAllowedResources(), "any resource")
                 + ", expires " + (expires != null ? expires : "not stated")
+                + limits(delegation)
                 + ", proof " + proof(attributes)
                 + ", drift " + (drift == null ? "not compared" : drift ? "yes" : "no")
                 + " (" + (outcomes.isEmpty() ? "no comparable action or resource" : String.join("; ", outcomes)) + ")";
+    }
+
+    /**
+     * {@code , limits 40 items per request and 40 items in the session}: the quantity limits the delegation states, or
+     * nothing when it states none (RL-6).
+     */
+    private static String limits(CanonicalSecurityContext.Delegation delegation) {
+        Integer perRequest = delegation.getMaxItemsPerRequest();
+        Integer total = delegation.getMaxItemsTotal();
+        if (perRequest == null && total == null) {
+            return "";
+        }
+        List<String> limits = new ArrayList<>();
+        if (perRequest != null) {
+            limits.add(String.format(Locale.ROOT, "%,d", perRequest) + " items per request");
+        }
+        if (total != null) {
+            limits.add(String.format(Locale.ROOT, "%,d", total) + " items in the session");
+        }
+        return ", limits " + String.join(" and ", limits);
     }
 
     /**
@@ -190,7 +211,6 @@ public final class AgentLineValues {
         }
         Map<String, Integer> byAction = new LinkedHashMap<>();
         Set<String> targets = new LinkedHashSet<>();
-        long exported = 0;
         int refused = 0;
         Instant first = null;
         for (SessionDecisionRecord decision : decisions) {
@@ -198,11 +218,8 @@ public final class AgentLineValues {
             if (StringUtils.hasText(decision.target())) {
                 targets.add(decision.target().trim());
             }
-            boolean wasRefused = decision.outcome() != null && REFUSED.contains(decision.outcome());
-            if (wasRefused) {
+            if (!SessionExports.ran(decision)) {
                 refused++;
-            } else if ("EXPORT".equalsIgnoreCase(decision.actionFamily()) && decision.items() != null) {
-                exported += decision.items();
             }
             if (decision.at() != null && (first == null || decision.at().isBefore(first))) {
                 first = decision.at();
@@ -213,7 +230,7 @@ public final class AgentLineValues {
         List<String> parts = new ArrayList<>();
         parts.add(decisions.size() + " earlier request" + (decisions.size() == 1 ? "" : "s")
                 + " in this agent session (" + String.join(", ", actions) + ")");
-        parts.add(String.format(Locale.ROOT, "%,d", exported) + " items exported");
+        parts.add(String.format(Locale.ROOT, "%,d", SessionExports.exportedItems(context)) + " items exported");
         parts.add(targets.size() + " distinct target" + (targets.size() == 1 ? "" : "s"));
         parts.add(refused + " refused");
         add(parts, "first ", RelativeTime.of(first, at));

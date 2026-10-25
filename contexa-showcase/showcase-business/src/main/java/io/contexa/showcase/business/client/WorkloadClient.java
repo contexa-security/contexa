@@ -123,10 +123,12 @@ public final class WorkloadClient {
     /**
      * docs/agent A7-2d: the same access token sent by another client (an empty cookie store of its own) with another
      * identity, as a stolen agent token is used by another agent runtime from its own network and user agent.
+     * docs/agent A6-R1: a client with no token carries its session: the cookie store is shared and the identity is the
+     * other runtime's, as a stolen session cookie is used elsewhere.
      */
     public WorkloadClient carriedTo(RunIdentity identity) {
         if (bearer == null) {
-            throw new IllegalStateException("Only an access token can be carried to another client");
+            return new WorkloadClient(this, identity);
         }
         return new WorkloadClient(base, signer, identity, timeout, bearer);
     }

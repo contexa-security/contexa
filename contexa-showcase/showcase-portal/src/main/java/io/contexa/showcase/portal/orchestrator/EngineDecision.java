@@ -31,7 +31,8 @@ public record EngineDecision(String finalAction, String proposedAction, Double r
      * the answer and applies from the next request.
      */
     public static boolean synchronous(BusinessOperation operation) {
-        return operation == BusinessOperation.EXPORT || operation == BusinessOperation.ROLE_GRANT;
+        return operation == BusinessOperation.EXPORT || operation == BusinessOperation.ROLE_GRANT
+                || operation == BusinessOperation.DOCUMENT_DELETE;
     }
 
     public static EngineDecision none(JsonNode raw) {

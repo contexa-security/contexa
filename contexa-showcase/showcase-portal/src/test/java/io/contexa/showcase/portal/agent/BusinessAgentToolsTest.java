@@ -36,9 +36,10 @@ class BusinessAgentToolsTest {
         tools.listDocuments("HX-310", "DRAWING", "rotor");
         tools.readDocument("DOC-7");
         tools.downloadDocument("DOC-8");
-        tools.exportDocuments("GB-500", 40);
+        tools.exportDocuments("GB-500", 40, null, null);
         tools.readCustomer("CUS-0001");
         tools.grantRole("HX-310", "E-0042", "REVIEW");
+        tools.deleteDocument("DOC-9");
 
         assertThat(sent).containsExactly(
                 new Request(BusinessOperation.PROJECT_LIST, null, null, null, null, null, null, null, null),
@@ -47,13 +48,45 @@ class BusinessAgentToolsTest {
                 new Request(BusinessOperation.DOCUMENT_DOWNLOAD, null, "DOC-8", null, null, null, null, null, null),
                 new Request(BusinessOperation.EXPORT, "GB-500", null, null, 40, null, null, null, null),
                 new Request(BusinessOperation.CUSTOMER_READ, null, null, "CUS-0001", null, null, null, null, null),
-                new Request(BusinessOperation.ROLE_GRANT, "HX-310", null, null, null, null, null, "E-0042", "REVIEW"));
+                new Request(BusinessOperation.ROLE_GRANT, "HX-310", null, null, null, null, null, "E-0042", "REVIEW"),
+                new Request(BusinessOperation.DOCUMENT_DELETE, null, "DOC-9", null, null, null, null, null, null));
         assertThat(tools.calls()).extracting(ToolCall::tool).containsExactly("listProjects", "listDocuments",
-                "readDocument", "downloadDocument", "exportDocuments", "readCustomer", "grantRole");
+                "readDocument", "downloadDocument", "exportDocuments", "readCustomer", "grantRole", "deleteDocument");
         assertThat(tools.calls()).allMatch(ToolCall::sent);
         assertThat(tools.calls().get(1).arguments()).containsExactly(Map.entry("projectKey", "HX-310"),
                 Map.entry("type", "DRAWING"), Map.entry("titleWords", "rotor"));
         assertThat(tools.budgetUsed()).isFalse();
+    }
+
+    /** docs/agent A6-C14: an export names the ticket it is for, as the agent wrote it, and only when it names one. */
+    @Test
+    void anExportNamesTheTicketTheAgentWroteAndNoneWhenItWroteNone() {
+        BusinessAgentTools tools = new BusinessAgentTools(answering("{}"), 20);
+
+        tools.exportDocuments("HX-310", 40, "TCK-9999", null);
+        tools.exportDocuments("HX-310", 40, " ", " ");
+
+        assertThat(sent).containsExactly(
+                new Request(BusinessOperation.EXPORT, "HX-310", null, null, 40, null, null, null, null, "TCK-9999"),
+                new Request(BusinessOperation.EXPORT, "HX-310", null, null, 40, null, null, null, null, null));
+        assertThat(tools.calls().get(0).arguments()).containsEntry("ticketKey", "TCK-9999");
+        assertThat(tools.calls().get(1).arguments()).doesNotContainKey("ticketKey");
+    }
+
+    /** docs/agent A6-R9: an export names where its documents go, as the agent wrote it, and only when it names one. */
+    @Test
+    void anExportNamesTheDestinationTheAgentWroteAndNoneWhenItWroteNone() {
+        BusinessAgentTools tools = new BusinessAgentTools(answering("{}"), 20);
+
+        tools.exportDocuments("HX-310", 40, null, "design-share");
+        tools.exportDocuments("HX-310", 40, null, " ");
+
+        assertThat(sent).containsExactly(
+                new Request(BusinessOperation.EXPORT, "HX-310", null, null, 40, null, null, null, null, null,
+                        "design-share"),
+                new Request(BusinessOperation.EXPORT, "HX-310", null, null, 40, null, null, null, null, null, null));
+        assertThat(tools.calls().get(0).arguments()).containsEntry("destination", "design-share");
+        assertThat(tools.calls().get(1).arguments()).doesNotContainKey("destination");
     }
 
     @Test

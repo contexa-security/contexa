@@ -37,6 +37,8 @@ public final class LookupPlan {
             case EXPORT, EXPORT_STREAM, EXPORT_ASYNC -> EnumSet.of(LookupFunction.PROJECT_ASSIGNED, LookupFunction.APPROVAL_EXISTS,
                     LookupFunction.TICKET_COVERS, LookupFunction.ONCALL_HAS, LookupFunction.HISTORY_DAYS,
                     LookupFunction.NETWORK_CONTEXT, LookupFunction.EXPORT_POLICY);
+            case DOCUMENT_DELETE -> EnumSet.of(LookupFunction.PROJECT_ASSIGNED, LookupFunction.TICKET_COVERS,
+                    LookupFunction.NETWORK_CONTEXT, LookupFunction.ACCESS_POLICY);
             case DOCUMENT_READ, DOCUMENT_DOWNLOAD, DOCUMENT_LIST -> EnumSet.of(LookupFunction.PROJECT_ASSIGNED,
                     LookupFunction.TICKET_COVERS, LookupFunction.HISTORY_DAYS, LookupFunction.NETWORK_CONTEXT,
                     LookupFunction.ACCESS_POLICY);

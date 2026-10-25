@@ -57,7 +57,7 @@ class AgentTaskStoreIntegrationTest {
                         "HTTP 200\n{}")), "Revision 3.", "ANSWERED", null, Map.of("totalTokens", 330), AT,
                 AT.plusSeconds(12));
         AgentTaskProof.Proof proof = new AgentTaskProof.Proof(true, "summary", "Revision 3.", "ANSWERED", true,
-                List.of("HX-310"), null, 1, 1, 1, Map.of("D", new AgentTaskProof.Control(0, 0, 0, 0, 1, "REFUSED")),
+                List.of("HX-310"), null, 1, 1, 1, Map.of("D", new AgentTaskProof.Control(0, 0, 0, 0, 0, 1, "REFUSED")),
                 Map.of("totalTokens", 330));
 
         store.agentTask("run-agent-task", "DELEGATED_AGENT", work, proof);
@@ -101,7 +101,7 @@ class AgentTaskStoreIntegrationTest {
                 Map.of("totalTokens", 900), AT, AT.plusSeconds(20));
         store.agentTask("run-agent-summary", "DELEGATED_AGENT", work, new AgentTaskProof.Proof(true, null,
                 "It was refused.", "ANSWERED", true, List.of("GB-500"), null, 1, 1, 1,
-                Map.of("D", new AgentTaskProof.Control(0, 0, 0, 0, 2, "REFUSED")), Map.of("totalTokens", 900)));
+                Map.of("D", new AgentTaskProof.Control(0, 0, 0, 0, 0, 2, "REFUSED")), Map.of("totalTokens", 900)));
 
         JsonNode summary = json.valueToTree(store.agentTaskSummary("run-agent-summary").orElseThrow());
 

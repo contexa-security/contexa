@@ -13,7 +13,9 @@ import io.contexa.showcase.business.context.RecordingBusinessContextLookup;
 import io.contexa.showcase.business.run.RunFacts;
 import io.contexa.showcase.business.run.RunRegistry;
 import io.contexa.showcase.business.work.BusinessOperation;
+import io.contexa.showcase.business.work.BusinessRequest;
 import io.contexa.showcase.business.work.BusinessRequestAttributes;
+import io.contexa.showcase.business.work.BusinessService;
 import io.contexa.showcase.business.work.WorkDatabase;
 import io.contexa.showcase.workload.plain.internal.PlainInternalController;
 import io.contexa.showcase.workload.plain.internal.PlainInternalController.ScriptedActivityView;
@@ -34,7 +36,9 @@ import org.testcontainers.utility.DockerImageName;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.Clock;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -124,6 +128,51 @@ class CompanyAndLookupTest {
     }
 
     /**
+     * docs/agent A6-R8 and A6-R9: a deletion is labelled as one, an export states where it says its documents go as the
+     * business database knows the place, a request carries the destination it names, and the run's deletion rows go
+     * with the run.
+     */
+    @Test
+    void aDeletionIsLabelledAsOneAndAnExportStatesItsDestination() {
+        String document = database.jdbc().getJdbcTemplate().queryForObject(
+                "select min(document_key) from document where project_key = 'CP-220'", String.class);
+        BusinessRequestAttributes attributes = new BusinessRequestAttributes(database);
+        MockHttpServletRequest deletion = new MockHttpServletRequest();
+        attributes.describeDocumentDeletion(deletion, document);
+        assertThat((String) deletion.getAttribute(BusinessRequestAttributes.RESOURCE_BUSINESS_LABEL))
+                .startsWith("Deletion of document " + document + " '");
+        assertThat(deletion.getAttribute(BusinessRequestAttributes.RESOURCE_SCOPE)).isEqualTo("projectKey=CP-220");
+
+        String[][] destinations = {
+                {"design-share", "delivered to destination 'design-share' (a registered company share)"},
+                {"partner-exchange", "delivered to destination 'partner-exchange' (a registered partner exchange)"},
+                {"drop.example.net/in", "delivered to destination 'drop.example.net/in' (not a registered company "
+                        + "destination)"}};
+        for (String[] destination : destinations) {
+            MockHttpServletRequest export = new MockHttpServletRequest();
+            export.setParameter("destination", destination[0]);
+            attributes.describeExport(export, "CP-220", 4);
+            assertThat((String) export.getAttribute(BusinessRequestAttributes.RESOURCE_BUSINESS_LABEL))
+                    .contains(destination[1]);
+            assertThat(BusinessRequest.of(export, "u", "B", Clock.systemUTC()).destination())
+                    .isEqualTo(destination[0]);
+        }
+        MockHttpServletRequest plain = new MockHttpServletRequest();
+        attributes.describeExport(plain, "CP-220", 4);
+        assertThat((String) plain.getAttribute(BusinessRequestAttributes.RESOURCE_BUSINESS_LABEL))
+                .doesNotContain("destination");
+        assertThat(BusinessRequest.of(plain, "u", "B", Clock.systemUTC()).destination()).isNull();
+
+        RunRegistry runs = new RunRegistry(database);
+        BusinessService service = new BusinessService(database, Clock.systemUTC(), 100, Duration.ZERO);
+        service.deleteDocument(new BusinessRequest("u", "B", "run-del1", "req-del1", ANCHOR.atStartOfDay()
+                .toInstant(ZoneOffset.UTC)), document);
+        assertThat(runs.remainingRows("run-del1")).isEqualTo(1);
+        runs.deleteRun("run-del1");
+        assertThat(runs.remainingRows("run-del1")).isZero();
+    }
+
+    /**
      * W2-7: the business database names the protagonists by their scripted work, and the field support engineer's
      * company trip makes the trip network a registered travel network for that engineer only, and only during the
      * first learned week the trip covers; the learned work of that week was sent from it.
@@ -173,6 +222,8 @@ class CompanyAndLookupTest {
                 new RequestFacts(BusinessOperation.DOCUMENT_READ, "vcccc00000003-adm-a", "GB-500-DWG-00001",
                         CompanyBlueprint.A3_TARGET, 1, time),
                 new RequestFacts(BusinessOperation.CUSTOMER_READ, "vcccc00000003-adm-a", "CUS-0001", "HX-200", 1, time),
+                new RequestFacts(BusinessOperation.DOCUMENT_DELETE, "vcccc00000003-adm-a", "GB-500-DWG-00001",
+                        CompanyBlueprint.A3_TARGET, 1, time),
                 new RequestFacts(BusinessOperation.EXPORT, "vcccc00000003-adm-a", CompanyBlueprint.A3_TARGET,
                         CompanyBlueprint.A3_TARGET, 300, time, "TCK-NOT-THERE", "203.0.113.7"),
                 new RequestFacts(BusinessOperation.ROLE_GRANT, "vcccc00000003-adm-a", CompanyBlueprint.ENGINEER_K,

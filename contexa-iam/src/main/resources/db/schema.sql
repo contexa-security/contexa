@@ -768,8 +768,14 @@ create table if not exists agent_delegation_record
     revoked_by                varchar(255),
     revoke_reason             text,
     recorded_by               varchar(255)            not null,
-    recorded_at               timestamp(6)            not null
+    recorded_at               timestamp(6)            not null,
+    max_items_per_request     integer,
+    max_items_total           integer
 );
+
+-- RL-6: the quantity limits a delegation states, for a table created before them.
+alter table agent_delegation_record add column if not exists max_items_per_request integer;
+alter table agent_delegation_record add column if not exists max_items_total integer;
 
 create index if not exists idx_agent_delegation_record_delegator_agent
     on agent_delegation_record (tenant_key, delegator_id, agent_id, valid_from desc);

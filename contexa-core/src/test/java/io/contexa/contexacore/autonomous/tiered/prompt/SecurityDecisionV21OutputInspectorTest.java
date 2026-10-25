@@ -114,6 +114,38 @@ class SecurityDecisionV21OutputInspectorTest {
         assertThat(unknownFact.retryReason()).contains("HYPOTHESIS_MISMATCH").contains("F42");
     }
 
+    /**
+     * RL-4: a code that cites a line that exists but that it may not cite, or whose measured fact does not state what the
+     * code says, is the only fault of an answer the step keeps; a code or a line the answer made up, a missing code or
+     * explanation, or a sound answer, is not.
+     */
+    @Test
+    void onlyCodesThatCiteAnExistingLineTheyMayNotCiteAreFaultsToKeepTheAnswerWith() {
+        SecurityDecisionV21OutputInspector.V21Inspection unsupported = inspectFull("A3", answer("CHALLENGE", HYPOTHESES,
+                "{\"code\":\"DEVIATION_NETWORK\",\"fact\":\"F1\"}"));
+        SecurityDecisionV21OutputInspector.V21Inspection madeUpLine = inspectFull("A3", answer("BLOCK", HYPOTHESES,
+                "{\"code\":\"DEVIATION_TIME\",\"fact\":\"F99\"}"));
+        SecurityDecisionV21OutputInspector.V21Inspection madeUpCode = inspectFull("A3", answer("BLOCK", HYPOTHESES,
+                "{\"code\":\"NOT_A_REAL_CODE\",\"fact\":\"F1\"}"));
+        SecurityDecisionV21OutputInspector.V21Inspection noExplanations = inspectFull("A3",
+                "{\"action\":\"CHALLENGE\",\"reasonCodes\":[{\"code\":\"DEVIATION_NETWORK\",\"fact\":\"F1\"}],"
+                        + "\"reason\":\"r\",\"riskScore\":null,\"confidence\":null,\"mitre\":null}");
+        SecurityDecisionV21OutputInspector.V21Inspection noCodes = inspectFull("A3", answer("ALLOW", HYPOTHESES, ""));
+        SecurityDecisionV21OutputInspector.V21Inspection sound = inspectFull("A3", answer("ALLOW", HYPOTHESES,
+                "{\"code\":\"DEVIATION_TIME\",\"fact\":\"F1\"}"));
+
+        assertThat(unsupported.inspection().requiresRetry()).isTrue();
+        assertThat(unsupported.inspection().retryReason()).contains("REASON_CODE_MISMATCH").contains("DEVIATION_NETWORK F1");
+        assertThat(unsupported.unsupportedCodesOnly()).isTrue();
+        assertThat(madeUpLine.unsupportedCodesOnly()).isFalse();
+        assertThat(madeUpCode.unsupportedCodesOnly()).isFalse();
+        assertThat(noExplanations.inspection().retryReason()).contains("REASON_CODE_MISMATCH").contains("HYPOTHESES_MISSING");
+        assertThat(noExplanations.unsupportedCodesOnly()).isFalse();
+        assertThat(noCodes.unsupportedCodesOnly()).isFalse();
+        assertThat(sound.inspection().requiresRetry()).isFalse();
+        assertThat(sound.unsupportedCodesOnly()).isFalse();
+    }
+
     @Test
     void anAnswerWithoutAUsableFormIsATechnicalFailure() {
         Inspection inspection = inspect("A3", "the request looks risky");
@@ -134,9 +166,13 @@ class SecurityDecisionV21OutputInspectorTest {
     }
 
     private static Inspection inspect(String caseKey, String raw) {
+        return inspectFull(caseKey, raw).inspection();
+    }
+
+    private static SecurityDecisionV21OutputInspector.V21Inspection inspectFull(String caseKey, String raw) {
         SecurityDecisionGoldenRender.RenderedCase item = RENDERED.get(caseKey);
         return INSPECTOR.inspect(raw, "r-1", "initial",
-                new SecurityDecisionV21OutputInspector.V21Check(item.canonicalContext(), item.userText())).inspection();
+                new SecurityDecisionV21OutputInspector.V21Check(item.canonicalContext(), item.userText()));
     }
 
     private static String answer(String action, String hypotheses, String reasonCodes) {

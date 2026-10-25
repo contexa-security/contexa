@@ -223,7 +223,7 @@
                 <div id="impact-panel" class="hidden mt-4 rounded-xl p-6" style="background:rgba(30,41,59,0.5);border:1px solid rgba(99,102,241,0.3);">
                     <h4 class="text-base font-bold mb-4" style="color:#818cf8;"><i class="fas fa-chart-bar mr-2"></i> <span th:text="#{admin.policy.detail.impact.analysis}">Impact Analysis</span></h4>
                     <div id="impact-summary" class="grid grid-cols-3 gap-4 mb-4"></div>
-                    <div id="impact-users" class="modern-table overflow-x-auto"></div>
+                    <div id="impact-users" class="modern-table overflow-x-auto" tabindex="0" role="region" th:aria-label="#{admin.policy.detail.impact.analysis}"></div>
                 </div>
             </form>
 
@@ -237,7 +237,7 @@
                         <button type="button" id="version-compare-btn" onclick="PolicyVersionUI.compare()" class="modern-btn-secondary text-sm" disabled>
                             <i class="fas fa-columns mr-1"></i> <span th:text="#{msg.policy.version.compare}">Compare</span>
                         </button>
-                        <button type="button" onclick="PolicyVersionUI.load()" class="modern-btn-secondary text-sm">
+                        <button type="button" onclick="PolicyVersionUI.load()" class="modern-btn-secondary text-sm" th:aria-label="#{common.refresh}">
                             <i class="fas fa-sync-alt"></i>
                         </button>
                     </div>

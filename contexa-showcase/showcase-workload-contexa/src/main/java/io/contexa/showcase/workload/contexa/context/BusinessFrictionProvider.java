@@ -248,6 +248,33 @@ public class BusinessFrictionProvider implements FrictionContextProvider {
                 records.policies.add(accessPolicy(policy, operation, required));
                 return new Facts(lines, null, ticket, at, required).withNetwork(network).withRecords(records);
             }
+            case DOCUMENT_DELETE -> {
+                String project = projectOfDocument(target);
+                if (project == null) {
+                    return new Facts(List.of(VERIFIED + "document " + target + " does not exist."), null, null, at);
+                }
+                AccessApprovalPolicy policy = lookup.accessApprovalPolicy(operation);
+                AssignmentStatus assigned = lookup.projectAssigned(username, project, at);
+                TicketCoverage ticket = lookup.ticketCovers(username, project, operation, at);
+                boolean required = policy.requiresApproval(false, assigned.assigned(), 0);
+                lines.add(VERIFIED + "the request marks document " + target + " of project " + project
+                        + " for deletion.");
+                lines.add(VERIFIED + "requester assigned to project " + project + ": " + yesNo(assigned.assigned()));
+                lines.add(VERIFIED + ticketLine(ticket));
+                NetworkContext network = lookup.networkContext(username, clientIp, at);
+                lines.add(VERIFIED + networkLine(network));
+                lines.add(VERIFIED + accessPolicyLine(policy, required));
+                lines.add(SCOPE_NOTE);
+                CompanyRecords records = new CompanyRecords();
+                records.assignment = assignmentRecord(project, assigned);
+                records.addTicket(ticketRecord(ticket, project, null, false, null));
+                records.travel = travelRecord(network);
+                records.checked.addAll(List.of(CanonicalSecurityContext.FrictionProfile.RECORD_ASSIGNMENT,
+                        CanonicalSecurityContext.FrictionProfile.RECORD_TICKET,
+                        CanonicalSecurityContext.FrictionProfile.RECORD_TRAVEL));
+                records.policies.add(accessPolicy(policy, operation, required));
+                return new Facts(lines, null, ticket, at, required).withNetwork(network).withRecords(records);
+            }
             case ROLE_GRANT -> {
                 String project = parameter(query, "project");
                 String grantee = parameter(query, "grantee");

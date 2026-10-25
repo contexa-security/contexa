@@ -34,6 +34,9 @@ public class JdbcBusinessContextLookup implements BusinessContextLookup {
 
     static final Set<String> ACTIVE_TICKET_STATUSES = Set.of("OPEN", "APPROVED");
 
+    /** docs/agent A6-R8: ticket purposes that justify marking a project's document for deletion. */
+    static final Set<String> DELETE_PURPOSES = Set.of("DESIGN_CHANGE");
+
     /** Ticket purposes that justify giving someone a role (deck A5: an approved change). */
     static final Set<String> GRANT_PURPOSES = Set.of("ACCESS_GRANT");
 
@@ -95,7 +98,8 @@ public class JdbcBusinessContextLookup implements BusinessContextLookup {
         if (!rs.getString(4).equals(projectKey)) {
             mismatches.add("TARGET");
         }
-        Set<String> purposes = operation.privileged() ? GRANT_PURPOSES
+        Set<String> purposes = operation == BusinessOperation.DOCUMENT_DELETE ? DELETE_PURPOSES
+                : operation.privileged() ? GRANT_PURPOSES
                 : operation.bulk() ? DATA_OUT_PURPOSES : READ_PURPOSES;
         if (!purposes.contains(purpose)) {
             mismatches.add("PURPOSE");
@@ -255,6 +259,7 @@ public class JdbcBusinessContextLookup implements BusinessContextLookup {
             case ROLE_GRANT -> "ROLE_GRANT_APPROVAL";
             case CUSTOMER_READ -> "CUSTOMER_ACCESS_APPROVAL";
             case DOCUMENT_READ, DOCUMENT_DOWNLOAD, DOCUMENT_LIST -> "DOCUMENT_ACCESS_APPROVAL";
+            case DOCUMENT_DELETE -> "DOCUMENT_DELETE_APPROVAL";
             default -> throw new IllegalArgumentException("No access approval policy for " + operation);
         };
         return database.jdbc().query("""

@@ -60,11 +60,22 @@ public record RunFacts(List<Ticket> tickets, List<Approval> approvals, List<Onca
      * @param agentId    the run's agent the work was delegated to
      * @param recordedBy who wrote the record (an employee key or an agent id), or null when it does not say (A2-10)
      * @param recordedAt when the record was written, or null when it does not say (A2-10)
+     * @param maxItemsPerRequest the most items one request may carry, when the record states it (RL-6), else null
+     * @param maxItemsTotal the most items the agent may export in its session, when the record states it, else null
      */
     public record Delegation(String delegationKey, String delegator, String agentId, String objectiveId,
                              String objectiveFamily, String summary, List<String> operations, List<String> resources,
                              boolean approvalRequired, Instant validFrom, Instant expiresAt, boolean revoked,
-                             String recordedBy, Instant recordedAt) {
+                             String recordedBy, Instant recordedAt, Integer maxItemsPerRequest, Integer maxItemsTotal) {
+
+        /** A record that states no quantity limit (the form before RL-6). */
+        public Delegation(String delegationKey, String delegator, String agentId, String objectiveId,
+                          String objectiveFamily, String summary, List<String> operations, List<String> resources,
+                          boolean approvalRequired, Instant validFrom, Instant expiresAt, boolean revoked,
+                          String recordedBy, Instant recordedAt) {
+            this(delegationKey, delegator, agentId, objectiveId, objectiveFamily, summary, operations, resources,
+                    approvalRequired, validFrom, expiresAt, revoked, recordedBy, recordedAt, null, null);
+        }
 
         public Delegation {
             operations = operations == null ? List.of() : List.copyOf(operations);
@@ -76,7 +87,7 @@ public record RunFacts(List<Ticket> tickets, List<Approval> approvals, List<Onca
                           String objectiveFamily, String summary, List<String> operations, List<String> resources,
                           boolean approvalRequired, Instant validFrom, Instant expiresAt, boolean revoked) {
             this(delegationKey, delegator, agentId, objectiveId, objectiveFamily, summary, operations, resources,
-                    approvalRequired, validFrom, expiresAt, revoked, null, null);
+                    approvalRequired, validFrom, expiresAt, revoked, null, null, null, null);
         }
     }
 

@@ -138,35 +138,36 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
             new PromptGovernanceDescriptor(
                     "cortex.security-decision",
                     STANDARD_TEMPLATE_KEY,
-                    "2026.10.24-v21.14",
+                    "2026.10.25-v21.15",
                     "CORTEX_PROMPT_CONTRACT_V4",
                     PromptReleaseStatus.DRAFT,
                     "contexa-cortex-core",
                     "V21-2026-10-19",
                     "NOT-EVALUATED",
                     "2026.10.24-v20.26",
-                    "Zero Trust runtime decision prompt v21: the model judges each request from its context. System"
-                            + " text: the mission (sign-in, permissions and fixed rules cannot tell a stolen account"
-                            + " or an insider misusing their permission from legitimate work), how to read the"
-                            + " evidence, competing explanations (legitimate work, account takeover, insider misuse,"
-                            + " automation or error, another one), differences checked against company records by the"
-                            + " model, the four responses, the honesty rules; no decision rule, threshold, floor or"
-                            + " later enforcement. User prompt: the v20 dictionary blocks, decision facts titled"
-                            + " RECORDS AND COMPARISONS without the core's conclusions. Output contract v4: action,"
-                            + " hypotheses, reasonCodes, reason, riskScore, confidence, mitre; the response check asks"
-                            + " again only for a broken format, a wrong citation or a second analysis ESCALATE."
-                            + " v21.1-v21.5: a value not recorded is unknown; the owner's records weigh between"
-                            + " legitimate work and insider misuse; an approval or ticket is a person's earlier"
-                            + " judgment of the purpose; host checks, target scope and counted past records are host"
-                            + " or computed facts. v21.6-v21.8: ESCALATE hands the request to the second analysis,"
-                            + " which decides from the same facts. v21.9-v21.10 (agent requests, docs/agent A2): the"
-                            + " agent named apart from the account, the delegation by its fields, its objective text"
-                            + " and call arguments as untrusted texts, the access token, the agent's session so far,"
-                            + " who wrote each record and whose company records they are as fact lines, the coverage"
-                            + " after the delegation records, the explanations read for an agent. v21.11 (A3-5): a"
-                            + " past record's target, which a requester wrote, is an untrusted text. v21.12 (A4): an agent's baseline lines name whose they are, its usual order of operations and its clients, and its session line the order of its latest requests and their median time apart."
-                            + " v21.13 (B3-3): the validated case memory's stored texts are untrusted texts."
-                            + " v21.14 (F-5): a confirmed agent request states its confirmation.",
+                    "Zero Trust runtime decision prompt v21: the model judges each request from its context. "
+                            + "System text: the mission (sign-in, permissions and fixed rules cannot tell a stolen "
+                            + "account or an insider misusing their permission from legitimate work), how to read the "
+                            + "evidence, competing explanations (legitimate work, account takeover, insider misuse, "
+                            + "automation or error, another one), differences checked against company records by the "
+                            + "model, the four responses, the honesty rules; no decision rule, threshold, floor or "
+                            + "later enforcement. User prompt: the v20 dictionary blocks, decision facts titled RECORDS "
+                            + "AND COMPARISONS without the core's conclusions. Output contract v4: action, hypotheses, "
+                            + "reasonCodes, reason, riskScore, confidence, mitre; the response check asks again only "
+                            + "for a broken format, a wrong citation or a second analysis ESCALATE. v21.1-v21.5: a "
+                            + "value not recorded is unknown; the owner's records weigh between legitimate work and "
+                            + "insider misuse; an approval or ticket is a person's earlier judgment of the purpose; "
+                            + "host checks, target scope and counted past records are host or computed facts. "
+                            + "v21.6-v21.8: ESCALATE hands the request to the second analysis, which decides from the "
+                            + "same facts. v21.9-v21.14 (agent requests, docs/agent): the agent named apart from the "
+                            + "account, the delegation by its fields, its objective text, call arguments, past record "
+                            + "targets and stored case memory as untrusted texts, the access token, the agent's session "
+                            + "so far with the order and pace of its requests, its baseline lines, who wrote each "
+                            + "record and whose company records they are, the coverage after the delegation records, a "
+                            + "confirmed request's confirmation. v21.15 (RL-2, RL-4, RL-6): the delegation and the "
+                            + "company policy can cover the work as records; the delegation line states the quantity "
+                            + "limits it states; a code for the model's reading that a request exceeds the delegation's "
+                            + "objective; reason codes the lines do not support no longer cause a second answer.",
                     List.of(
                             "STRICT_JSON_SCHEMA",
                             "LOW_TEMPERATURE_SECURITY_DECISION",

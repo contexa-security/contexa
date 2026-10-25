@@ -56,6 +56,22 @@ public interface Approver {
         throw new UnsupportedOperationException("This approver cannot register an agent");
     }
 
+    /**
+     * docs/agent A6-R7: the administrator revokes a delegation through the delegation admin API while the agent works;
+     * the HTTP status.
+     */
+    default int revokeDelegation(String delegationId, String reason) throws IOException {
+        throw new UnsupportedOperationException("This approver cannot revoke a delegation");
+    }
+
+    /**
+     * docs/agent A6-R7: the administrator deregisters an agent through the agent registration API while it works (its
+     * registration ends, so do its tokens and its account); the HTTP status.
+     */
+    default int deregisterAgent(String tenantId, String agentId, String reason) throws IOException {
+        throw new UnsupportedOperationException("This approver cannot deregister an agent");
+    }
+
     /** docs/agent OC-3: removes an agent, its client, its tokens and its account through the same API. */
     default JsonNode removeAgent(String agentId) throws IOException {
         throw new UnsupportedOperationException("This approver cannot remove an agent");

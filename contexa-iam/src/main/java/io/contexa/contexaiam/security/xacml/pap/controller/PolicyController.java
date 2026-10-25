@@ -54,15 +54,10 @@ public class PolicyController {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
     }
 
+    /** The policy list is the policy center's list tab; the old list page was removed (c296a5cd6). */
     @GetMapping
-    public String listPolicies(Model model) {
-        model.addAttribute("activePage", "policy-center");
-        List<Policy> policies = policyService.getAllPolicies();
-        List<PolicyDto> dtoList = policies.stream()
-                .map(p -> modelMapper.map(p, PolicyDto.class))
-                .collect(Collectors.toList());
-        model.addAttribute("policies", dtoList);
-        return "contexa/admin/policies";
+    public String listPolicies() {
+        return "redirect:/contexa/admin/policy-center?tab=list";
     }
 
     @GetMapping("/register")

@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.agent;
 
 import io.contexa.contexacore.autonomous.context.support.ActionFamily;
 import io.contexa.contexacore.autonomous.context.support.ActionFamilyResolver;
+import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import org.springframework.lang.Nullable;
 
 import java.time.Clock;
@@ -34,7 +35,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * requests seconds apart are one piece of work, so an ALLOW answers them for its validity; an agent sends a request
  * every second or two, and an ALLOW of its first read answered the enumeration of a whole customer list. For an agent
  * the ALLOW answers only the requests of the same operation as the request it decided, for a few resources and a few
- * requests; the next one is decided again, with the session's requests in its narrative.
+ * requests; the next one is decided again, with the session's requests in its narrative. For a sensitive resource the
+ * ALLOW answers fewer distinct resources (RL-5): a customer list is enumerated one record at a time, and every record
+ * past the first is worth its own decision.
  */
 public class AgentAllowReuse {
 
@@ -70,12 +73,34 @@ public class AgentAllowReuse {
     private final Map<String, Anchor> anchors = new ConcurrentHashMap<>();
     private final int maxRequests;
     private final int maxDistinctResources;
+    private final int sensitiveMaxDistinctResources;
     private final Clock clock;
 
+    /** The limits for a resource of any kind: a sensitive resource has the same limit as the others. */
     public AgentAllowReuse(int maxRequests, int maxDistinctResources, @Nullable Clock clock) {
+        this(maxRequests, maxDistinctResources, maxDistinctResources, clock);
+    }
+
+    public AgentAllowReuse(int maxRequests, int maxDistinctResources, int sensitiveMaxDistinctResources,
+                           @Nullable Clock clock) {
         this.maxRequests = Math.max(1, maxRequests);
         this.maxDistinctResources = Math.max(1, maxDistinctResources);
+        this.sensitiveMaxDistinctResources = Math.max(1, Math.min(sensitiveMaxDistinctResources,
+                this.maxDistinctResources));
         this.clock = clock != null ? clock : Clock.systemUTC();
+    }
+
+    /**
+     * Whether the request is for a sensitive resource: the sensitivity the resource declares, else the request states,
+     * classifies as SENSITIVE or CRITICAL.
+     */
+    public static boolean sensitive(@Nullable Map<String, ?> payload) {
+        if (payload == null) {
+            return false;
+        }
+        String resourceClass = SecuritySemanticNormalizer.normalizeResourceClass(payload.get("resourceSensitivity"),
+                payload.get("sensitivity"));
+        return "SENSITIVE".equals(resourceClass) || "CRITICAL".equals(resourceClass);
     }
 
     /** The agent's request is decided: its ALLOW, if it is one, answers the later requests like it. */
@@ -101,9 +126,16 @@ public class AgentAllowReuse {
      */
     public boolean answers(String subjectKey, @Nullable String contextHash, ActionFamily operation,
                            @Nullable String resource) {
+        return answers(subjectKey, contextHash, operation, resource, false);
+    }
+
+    /** The same, with the limit of a sensitive resource when the request is for one (RL-5). */
+    public boolean answers(String subjectKey, @Nullable String contextHash, ActionFamily operation,
+                           @Nullable String resource, boolean sensitive) {
         if (subjectKey == null) {
             return false;
         }
+        int distinctLimit = sensitive ? sensitiveMaxDistinctResources : maxDistinctResources;
         boolean[] answered = new boolean[1];
         anchors.computeIfPresent(subjectKey, (key, anchor) -> {
             if (!Objects.equals(anchor.contextHash(), contextHash) || anchor.operation() != operation
@@ -114,7 +146,7 @@ public class AgentAllowReuse {
             if (resource != null) {
                 resources.add(resource);
             }
-            if (resources.size() > maxDistinctResources) {
+            if (resources.size() > distinctLimit) {
                 return anchor;
             }
             answered[0] = true;

@@ -44,6 +44,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -384,13 +385,45 @@ class SynchronousProtectableDecisionServiceTest {
         assertThat(gateFor("HUMAN_USER", "/api/customers/9").decideInPlace()).isFalse();
     }
 
+    /**
+     * RL-5: for a sensitive resource an agent's ALLOW answers one resource; the second is decided in place, where the
+     * general limit would still answer it.
+     */
+    @Test
+    @DisplayName("RL-5: an agent's ALLOW answers one sensitive resource, then the next record is decided in place")
+    void asyncGate_anAgentsAllowAnswersOnlyOneSensitiveResource() {
+        AgentAllowReuse reuse = new AgentAllowReuse(10, 3, 1, null);
+        service.setAgentAllowReuse(reuse);
+        reuse.decided(USER_ID, CONTEXT_HASH, ActionFamily.READ, "/api/customers/1");
+        when(eventListener.generateAuthorizationContextBindingHash(any())).thenReturn(CONTEXT_HASH);
+        when(actionRepository.getCurrentAction(USER_ID, CONTEXT_HASH)).thenReturn(ZeroTrustAction.ALLOW);
+
+        assertThat(gateFor("DELEGATED_AGENT", "/api/customers/1", "RESTRICTED").decideInPlace()).isFalse();
+        assertThat(gateFor("DELEGATED_AGENT", "/api/customers/2", "RESTRICTED").decideInPlace()).isTrue();
+        // The same records with no sensitivity declared keep the general limit of three.
+        assertThat(gateFor("DELEGATED_AGENT", "/api/customers/2", null).decideInPlace()).isFalse();
+        assertThat(gateFor("DELEGATED_AGENT", "/api/customers/3", null).decideInPlace()).isFalse();
+    }
+
     private SynchronousProtectableDecisionService.AsyncProtectableGate gateFor(String subjectKind, String resource) {
+        return gateFor(subjectKind, resource, null);
+    }
+
+    private SynchronousProtectableDecisionService.AsyncProtectableGate gateFor(String subjectKind, String resource,
+                                                                               String sensitivity) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("requestPath", resource);
+        payload.put("httpMethod", "GET");
+        payload.put("executionSubjectKind", subjectKind);
+        if (sensitivity != null) {
+            payload.put("resourceSensitivity", sensitivity);
+        }
         ZeroTrustSpringEvent event = ZeroTrustSpringEvent.builder(this)
                 .category(ZeroTrustEventCategory.AUTHORIZATION)
                 .eventType(ZeroTrustSpringEvent.TYPE_AUTHORIZATION_METHOD)
                 .userId(USER_ID)
                 .resource(resource)
-                .payload(Map.of("requestPath", resource, "httpMethod", "GET", "executionSubjectKind", subjectKind))
+                .payload(payload)
                 .build();
         when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null)).thenReturn(event);
         return service.asyncGate(methodInvocation, authentication);

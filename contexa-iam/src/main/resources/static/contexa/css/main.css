@@ -2470,3 +2470,8 @@ aside + main {
         flex-direction: column;
     }
 }
+/* docs/agent F-8: a console screen's main column (a flex item) may be narrower than its widest table, so the
+   table scrolls in its own region instead of widening the page. A block that is no flex item is unchanged. */
+main {
+    min-width: 0;
+}

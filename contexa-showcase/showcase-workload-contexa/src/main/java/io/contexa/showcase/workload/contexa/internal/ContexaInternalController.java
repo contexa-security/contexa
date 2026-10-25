@@ -34,6 +34,7 @@ import java.util.LinkedHashMap;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -232,14 +233,18 @@ public class ContexaInternalController {
         // The model settings the engine sends with every analysis (R-20): they change the verdicts, so a run records them.
         TieredStrategyProperties tiered = tieredProperties.getIfAvailable();
         if (tiered != null) {
-            // An Anthropic request carries no OpenAI reasoning effort or verbosity; only its output limit is sent.
-            boolean openAi = !ANTHROPIC.equals(chatProvider);
-            engine.put("layer1Model", modelSettings(layerModel(1),
-                    openAi ? tiered.getLayer1().getOpenAiReasoningEffort() : null,
-                    openAi ? tiered.getLayer1().getOpenAiVerbosity() : null, tiered.getLayer1().getMaxOutputTokens()));
-            engine.put("layer2Model", modelSettings(layerModel(2),
-                    openAi ? tiered.getLayer2().getOpenAiReasoningEffort() : null,
-                    openAi ? tiered.getLayer2().getOpenAiVerbosity() : null, tiered.getLayer2().getMaxOutputTokens()));
+            // An Anthropic request carries no OpenAI reasoning effort or verbosity; only its output limit is sent. Each
+            // layer is judged by its own model: Layer 2 may run on Anthropic while Layer 1 runs on OpenAI (DD-38).
+            String layer1 = layerModel(1);
+            String layer2 = layerModel(2);
+            boolean openAi1 = !ANTHROPIC.equals(chatProvider) && !runsOnAnthropic(layer1);
+            boolean openAi2 = !ANTHROPIC.equals(chatProvider) && !runsOnAnthropic(layer2);
+            engine.put("layer1Model", modelSettings(layer1,
+                    openAi1 ? tiered.getLayer1().getOpenAiReasoningEffort() : null,
+                    openAi1 ? tiered.getLayer1().getOpenAiVerbosity() : null, tiered.getLayer1().getMaxOutputTokens()));
+            engine.put("layer2Model", modelSettings(layer2,
+                    openAi2 ? tiered.getLayer2().getOpenAiReasoningEffort() : null,
+                    openAi2 ? tiered.getLayer2().getOpenAiVerbosity() : null, tiered.getLayer2().getMaxOutputTokens()));
             // The prompt bundle the configuration runs (LU-6): one this build cannot run falls back to the build's
             // default, as in the core; the registry selector chooses per request, so it is not stated then.
             if (tiered.getPromptBundle().getSelector() == TieredStrategyProperties.PromptBundle.Selector.CONFIGURATION) {
@@ -295,6 +300,11 @@ public class ContexaInternalController {
         TieredLLMProperties layers = layerModels.getIfAvailable();
         String model = layers != null ? layers.getModelNameForTier(tier) : null;
         return model != null ? model : chatModel;
+    }
+
+    /** Whether a layer model is a Claude model, by its name as the engine infers a model's provider. */
+    private static boolean runsOnAnthropic(String model) {
+        return model != null && model.trim().toLowerCase(Locale.ROOT).startsWith("claude");
     }
 
     private static Map<String, Object> modelSettings(String model, String reasoningEffort, String verbosity,

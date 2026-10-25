@@ -67,6 +67,7 @@ class WorkloadClientTest {
             seen.add(new Seen(exchange.getRequestMethod(), exchange.getRequestURI().toString(), headers, body));
             byte[] answer = "{}".getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.getResponseHeaders().add("Set-Cookie", "SESSION=abc; Path=/");
             exchange.sendResponseHeaders(200, answer.length);
             try (OutputStream out = exchange.getResponseBody()) {
                 out.write(answer);
@@ -125,8 +126,26 @@ class WorkloadClientTest {
                 "python-httpx/0.27.2", RUN.organization(), RUN.tenant());
         assertThat(signer.verify("GET", "/api/projects", Long.parseLong(request.header(InternalContextHeaders.TIMESTAMP)),
                 context, request.header(InternalContextHeaders.SIGNATURE))).isTrue();
-        assertThatThrownBy(() -> client.carriedTo(elsewhere)).as("a session without a token has nothing to carry")
-                .isInstanceOf(IllegalStateException.class);
+    }
+
+    /** docs/agent A6-R1: a session's cookie used by another runtime keeps the cookie, not the agent's identity. */
+    @Test
+    void aSessionCarriedToAnotherRuntimeSendsTheSameCookieWithThatRuntimesIdentity() throws Exception {
+        WorkloadClient.RunIdentity elsewhere = new WorkloadClient.RunIdentity(RUN.runId(), RUN.organization(),
+                RUN.tenant(), "203.0.113.42", "python-httpx/0.27.2");
+        client.get("/api/projects", "req-1", AT);
+
+        client.carriedTo(elsewhere).get("/api/projects", "req-2", AT);
+
+        Seen request = seen.get(1);
+        assertThat(request.header("Cookie")).as("the cookie the session signed in with").isEqualTo("SESSION=abc");
+        assertThat(request.header("Authorization")).isNull();
+        InternalContext context = new InternalContext(RUN.runId(), "req-2", AT, "203.0.113.42",
+                "python-httpx/0.27.2", RUN.organization(), RUN.tenant());
+        assertThat(signer.verify("GET", "/api/projects", Long.parseLong(request.header(InternalContextHeaders.TIMESTAMP)),
+                context, request.header(InternalContextHeaders.SIGNATURE))).isTrue();
+        client.freshSession(elsewhere).get("/api/projects", "req-3", AT);
+        assertThat(seen.get(2).header("Cookie")).as("another requester has no cookie of that session").isNull();
     }
 
     @Test

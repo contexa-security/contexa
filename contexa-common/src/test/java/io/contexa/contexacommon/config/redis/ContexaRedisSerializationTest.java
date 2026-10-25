@@ -43,7 +43,6 @@ import org.springframework.data.redis.serializer.SerializationException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -169,7 +168,8 @@ class ContexaRedisSerializationTest {
 
         String securityEvent = "{\"@class\":\"io.contexa.contexacommon.domain.SecurityEvent\","
                 + "\"eventId\":\"event-1\",\"source\":\"IAM\",\"severity\":\"HIGH\",\"userId\":\"user-1\","
-                + "\"timestamp\":[2026,10,2,10,15,30],"
+                // An event's time is an instant, written as its epoch seconds (2026-10-02T10:15:30Z).
+                + "\"timestamp\":1790936130.000000000,"
                 + "\"metadata\":{\"@class\":\"java.util.HashMap\",\"attempts\":3}}";
         Object event = serializer.deserialize(securityEvent.getBytes(StandardCharsets.UTF_8));
 
@@ -178,7 +178,7 @@ class ContexaRedisSerializationTest {
         assertThat(restoredEvent.getEventId()).isEqualTo("event-1");
         assertThat(restoredEvent.getSource()).isEqualTo(SecurityEvent.EventSource.IAM);
         assertThat(restoredEvent.getSeverity()).isEqualTo(SecurityEvent.Severity.HIGH);
-        assertThat(restoredEvent.getTimestamp()).isEqualTo(LocalDateTime.of(2026, 10, 2, 10, 15, 30));
+        assertThat(restoredEvent.getTimestamp()).isEqualTo(Instant.parse("2026-10-02T10:15:30Z"));
         assertThat(restoredEvent.getMetadata()).isEqualTo(Map.of("attempts", 3));
     }
 

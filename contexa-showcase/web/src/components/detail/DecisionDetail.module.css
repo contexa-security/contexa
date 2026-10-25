@@ -17,7 +17,9 @@
  * L-27: the details are read on their own, so the screen behind them is darker and softened more than behind other
  * windows (Modal's backdrop); its big headline and red words no longer compete with the window.
  */
+/* stylelint-disable-next-line selector-pseudo-class-no-unknown -- :global is CSS Modules' way to name the dialog */
 :global(dialog):has(.detail)::backdrop {
+  /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- the background token at 88% (L-27) */
   background-color: color-mix(in srgb, var(--color-bg) 88%, transparent);
   backdrop-filter: blur(3px);
 }

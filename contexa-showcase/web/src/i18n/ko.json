@@ -5446,6 +5446,7 @@
   "main.agent.op.DOCUMENT_LIST": "문서 목록 보기",
   "main.agent.op.DOCUMENT_READ": "문서 열람",
   "main.agent.op.DOCUMENT_DOWNLOAD": "문서 내려받기",
+  "main.agent.op.DOCUMENT_DELETE": "문서 삭제",
   "main.agent.op.EXPORT": "자료 내보내기",
   "main.agent.op.EXPORT_ASYNC": "자료 내보내기",
   "main.agent.op.EXPORT_STREAM": "자료 내보내기(나눠 받기)",

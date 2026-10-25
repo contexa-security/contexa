@@ -27,6 +27,7 @@ public final class RbacParityCases {
             new String[]{"GET", "/api/projects/HX-310/documents"},
             new String[]{"GET", "/api/customers/CUS-0001"},
             new String[]{"POST", "/api/admin/role-grants"},
+            new String[]{"POST", "/api/documents/HX-310-DWG-00001/delete"},
             new String[]{"DELETE", "/api/documents/HX-310-DWG-00001"});
 
     static final List<String> ROLES = List.of(CompanyBlueprint.ROLE_ENGINEER, CompanyBlueprint.ROLE_SALES,

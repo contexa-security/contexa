@@ -37,11 +37,12 @@
                        th:placeholder="#{admin.company.records.filter.target}" />
                 <input type="text" name="tenantId" th:value="${tenantId}" class="px-3 py-2 rounded-lg text-sm filter-input"
                        th:placeholder="#{admin.company.records.filter.tenant}" />
-                <button type="submit" class="px-3 py-2 rounded-lg text-sm font-medium text-white"
+                <button type="submit" class="px-3 py-2 rounded-lg text-sm font-medium text-white" th:aria-label="#{common.search}"
                         style="background:linear-gradient(135deg,#6366f1,#4f46e5);">
                     <i class="fas fa-search"></i>
                 </button>
                 <a th:href="@{/contexa/admin/company-records}" class="px-3 py-2 rounded-lg text-sm font-medium"
+                   th:aria-label="#{common.search.clear}"
                    style="color:#94a3b8;border:1px solid rgba(71,85,105,0.5);">
                     <i class="fas fa-times"></i>
                 </a>
@@ -51,7 +52,7 @@
                 The newest records first. Integrations put them with the admin API.
             </p>
 
-            <div class="overflow-x-auto shadow-md rounded-lg">
+            <div class="overflow-x-auto shadow-md rounded-lg" tabindex="0" role="region" th:aria-label="#{admin.company.records.title}">
                 <table class="min-w-full w-full text-sm text-left">
                     <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
                     <tr>

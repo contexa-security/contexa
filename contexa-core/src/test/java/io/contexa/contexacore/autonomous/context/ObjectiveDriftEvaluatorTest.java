@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.context;
 
 import io.contexa.contexacore.autonomous.context.inference.ObjectiveDriftEvaluator;
 import io.contexa.contexacore.autonomous.execution.ObjectiveResourceCompatibilityCatalog;
+import io.contexa.contexacore.autonomous.store.SessionDecisionRecord;
 
 import org.junit.jupiter.api.Test;
 
@@ -338,6 +339,64 @@ class ObjectiveDriftEvaluatorTest {
         assertThat(catalog.resolve("REPORTING").maxExportItems()).isNull();
         assertThat(catalog.hasObjectiveContract("READ_ONLY_INCIDENT_SUMMARY")).isTrue();
         assertThat(new ObjectiveResourceCompatibilityCatalog().hasObjectiveContract("REPORTING")).isFalse();
+    }
+
+    /**
+     * RL-6: the quantity limits the delegation itself states (apart from the objective's own export limit of the
+     * application's contract): the items one request may carry and the items the agent may export in its session.
+     */
+    @Test
+    void theQuantityLimitsADelegationStatesAreComparedWithTheRequestAndTheSession() {
+        CanonicalSecurityContext.Delegation limited = CanonicalSecurityContext.Delegation.builder()
+                .delegated(true)
+                .objectiveFamily("REPORTING")
+                .allowedOperations(List.of("DOCUMENT_READ", "EXPORT"))
+                .maxItemsPerRequest(40)
+                .maxItemsTotal(60)
+                .build();
+        CanonicalSecurityContext.Delegation unlimited = CanonicalSecurityContext.Delegation.builder()
+                .delegated(true)
+                .objectiveFamily("REPORTING")
+                .allowedOperations(List.of("DOCUMENT_READ", "EXPORT"))
+                .build();
+
+        ObjectiveDriftEvaluation within = evaluator.evaluate(limited, documents("EXPORT", 40));
+        ObjectiveDriftEvaluation tenTimes = evaluator.evaluate(limited, documents("EXPORT", 400));
+        CanonicalSecurityContext afterTwoExports = documents("EXPORT", 30);
+        afterTwoExports.setSessionNarrativeProfile(CanonicalSecurityContext.SessionNarrativeProfile.builder()
+                .sessionDecisions(List.of(
+                        new SessionDecisionRecord(null, "POST", "/api/projects/HX-310/exports", null, "EXPORT", "ALLOW",
+                                "HX-310", 20),
+                        new SessionDecisionRecord(null, "POST", "/api/projects/HX-310/exports", null, "EXPORT",
+                                SessionDecisionRecord.AUTHORIZATION_DENIED, "HX-310", 500),
+                        new SessionDecisionRecord(null, "GET", "/api/documents/D-1", null, "READ", "ALLOW", "D-1", null)))
+                .build());
+        ObjectiveDriftEvaluation overTheTotal = evaluator.evaluate(limited, afterTwoExports);
+        ObjectiveDriftEvaluation notStated = evaluator.evaluate(unlimited, documents("EXPORT", 400));
+        ObjectiveDriftEvaluation aRead = evaluator.evaluate(limited, documents("DOCUMENT_READ", null));
+
+        assertThat(within.objectiveDrift()).isFalse();
+        assertThat(within.facts()).anyMatch(fact -> fact.contains("40 requested items are within the delegation's limit of 40 items per request"));
+        assertThat(tenTimes.objectiveDrift()).isTrue();
+        assertThat(tenTimes.facts()).anyMatch(fact -> fact.contains("400 requested items exceed the delegation's limit of 40 items per request"));
+        // 20 exported before (the refused export and the read do not count) + 30 now = 50 <= 60: within, so no drift;
+        // the same session with 50 now would be 70.
+        assertThat(overTheTotal.objectiveDrift()).isFalse();
+        assertThat(overTheTotal.facts()).anyMatch(fact -> fact.contains("50 items exported in the session with this request are within the delegation's limit of 60"));
+        CanonicalSecurityContext afterTooMany = documents("EXPORT", 30);
+        afterTooMany.setSessionNarrativeProfile(CanonicalSecurityContext.SessionNarrativeProfile.builder()
+                .sessionDecisions(List.of(
+                        new SessionDecisionRecord(null, "POST", "/api/projects/HX-310/exports", null, "EXPORT", "ALLOW",
+                                "HX-310", 40)))
+                .build());
+        ObjectiveDriftEvaluation exceeded = evaluator.evaluate(CanonicalSecurityContext.Delegation.builder()
+                .delegated(true).objectiveFamily("REPORTING").allowedOperations(List.of("EXPORT"))
+                .maxItemsTotal(60).build(), afterTooMany);
+        assertThat(exceeded.objectiveDrift()).isTrue();
+        assertThat(exceeded.facts()).anyMatch(fact -> fact.contains("70 items exported in the session with this request exceed the delegation's limit of 60"));
+        // A delegation that states no limit, and a request that is no export, are not compared with one.
+        assertThat(notStated.facts()).noneMatch(fact -> fact.contains("delegation's limit"));
+        assertThat(aRead.facts()).noneMatch(fact -> fact.contains("delegation's limit"));
     }
 
     private static CanonicalSecurityContext.Delegation delegationTo(String resource) {

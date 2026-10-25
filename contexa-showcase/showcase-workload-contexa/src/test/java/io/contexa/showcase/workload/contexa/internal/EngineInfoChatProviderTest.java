@@ -42,6 +42,19 @@ class EngineInfoChatProviderTest {
         assertThat(engine.get("layer2Model")).isEqualTo(settings("gpt-6.1-sol", "low", "low", 2560));
     }
 
+    /** DD-38: Layer 2 on Anthropic states only the limit it sends, while Layer 1 on OpenAI keeps its OpenAI settings. */
+    @Test
+    void aLayerOnAnthropicStatesOnlyTheSettingsItSendsWhileTheOtherLayerKeepsItsOwn() {
+        TieredLLMProperties layers = new TieredLLMProperties();
+        layers.getLayer1().setModel("gpt-6-luna");
+        layers.getLayer2().setModel("claude-sonnet-5-5");
+
+        Map<String, Object> engine = engine("openai", "gpt-6-luna", "", layers);
+
+        assertThat(engine.get("layer1Model")).isEqualTo(settings("gpt-6-luna", "low", "low", 2048));
+        assertThat(engine.get("layer2Model")).isEqualTo(settings("claude-sonnet-5-5", null, null, 2560));
+    }
+
     @Test
     void anAnthropicEngineStatesItsAnthropicModelAndOnlyTheSettingsItSends() {
         Map<String, Object> engine = engine("anthropic", "", "claude-haiku-5-5");

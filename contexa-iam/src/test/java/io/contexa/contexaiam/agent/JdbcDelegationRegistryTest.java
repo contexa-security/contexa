@@ -99,6 +99,29 @@ class JdbcDelegationRegistryTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    /** RL-6: the quantity limits are stored with the delegation and read back; a delegation that states none reads none. */
+    @Test
+    void theQuantityLimitsAreStoredAndReadBack() {
+        AgentDelegation limited = registry.record(new AgentDelegationRequest(null, "alice", "agent-7", null,
+                "REPORTING", null, List.of("READ", "EXPORT"), List.of("HX-310"), null, null, null,
+                NOW.minusSeconds(60), NOW.plusSeconds(3600), null, null, 40, 1200));
+        AgentDelegation unlimited = registry.record(request(null, "alice", "agent-9", NOW.minusSeconds(60),
+                NOW.plusSeconds(3600)));
+
+        AgentDelegation readLimited = registry.find(limited.delegationId()).orElseThrow();
+        AgentDelegation readUnlimited = registry.find(unlimited.delegationId()).orElseThrow();
+
+        assertThat(readLimited).isEqualTo(limited);
+        assertThat(readLimited.maxItemsPerRequest()).isEqualTo(40);
+        assertThat(readLimited.maxItemsTotal()).isEqualTo(1200);
+        assertThat(readUnlimited.maxItemsPerRequest()).isNull();
+        assertThat(readUnlimited.maxItemsTotal()).isNull();
+        // The revocation keeps them.
+        AgentDelegation revoked = registry.revoke(limited.delegationId(), "alice", "done").orElseThrow();
+        assertThat(revoked.maxItemsPerRequest()).isEqualTo(40);
+        assertThat(registry.find(limited.delegationId()).orElseThrow().maxItemsTotal()).isEqualTo(1200);
+    }
+
     @Test
     void theLookupReadsTheHoldingDelegationThenTheLatestAndTheTenantFallback() {
         RegistryDelegationRecordLookup lookup = new RegistryDelegationRecordLookup(registry,

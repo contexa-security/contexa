@@ -139,7 +139,8 @@ public class SynchronousProtectableDecisionService {
                 && AgentRequestConfirmation.current() == null
                 && !agentAllowReuse.answers(decisionKey(event, event.getUserId()),
                 zeroTrustEventListener.generateAuthorizationContextBindingHash(event),
-                AgentAllowReuse.operation(event.getPayload(), event.getResource()), event.getResource())) {
+                AgentAllowReuse.operation(event.getPayload(), event.getResource()), event.getResource(),
+                AgentAllowReuse.sensitive(event.getPayload()))) {
             return AsyncProtectableGate.DECIDE_IN_PLACE;
         }
         return AsyncProtectableGate.PROCEED;

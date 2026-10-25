@@ -41,6 +41,8 @@ class ContexaBusinessOperationsDescriptorTest {
                 "openExportStream", "PROJECT_DOCUMENTS EXPORT exportSensitive",
                 "exportDocumentsAsync", "PROJECT_DOCUMENTS EXPORT exportSensitive",
                 "readCustomer", "CUSTOMER_RECORDS READ",
-                "grantRole", "PROJECT_ACCESS ADMIN privileged sync"));
+                "grantRole", "PROJECT_ACCESS ADMIN privileged sync",
+                // docs/agent A6-R8: a deletion is decided before it takes effect, like the export.
+                "deleteDocument", "PROJECT_DOCUMENTS DELETE sync"));
     }
 }

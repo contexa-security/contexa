@@ -1,6 +1,7 @@
 package io.contexa.showcase.business.work;
 
 import io.contexa.showcase.business.work.BusinessViews.CustomerView;
+import io.contexa.showcase.business.work.BusinessViews.DocumentDeletionResult;
 import io.contexa.showcase.business.work.BusinessViews.DocumentFile;
 import io.contexa.showcase.business.work.BusinessViews.DocumentSummary;
 import io.contexa.showcase.business.work.BusinessViews.DocumentView;
@@ -39,6 +40,8 @@ public class BusinessController {
     /** Largest export a single request may ask for; the virtual company's largest project has 6,400 documents. */
     public static final int MAX_EXPORT_ITEMS = 10_000;
     private static final Pattern RESPONSIBILITY = Pattern.compile("[A-Z_]{2,24}");
+    /** docs/agent A6-R9: what an export destination may be made of (a share name, a mail or web address). */
+    private static final Pattern DESTINATION = Pattern.compile("[A-Za-z0-9._:@/+\\-]{1,120}");
 
     private final BusinessOperations operations;
     private final BusinessRequestAttributes attributes;
@@ -91,10 +94,18 @@ public class BusinessController {
                 .body(file.content());
     }
 
+    @PostMapping("/api/documents/{documentKey}/delete")
+    public DocumentDeletionResult deleteDocument(@PathVariable("documentKey") String documentKey,
+                                                 HttpServletRequest http, Authentication authentication) {
+        attributes.describeDocumentDeletion(http, documentKey);
+        return operations.deleteDocument(request(http, authentication), documentKey);
+    }
+
     @PostMapping("/api/projects/{projectKey}/exports")
     public ExportResult export(@PathVariable("projectKey") String projectKey, @RequestParam("items") int items,
                                HttpServletRequest http, Authentication authentication) {
         requireItems(items);
+        requireDestination(http);
         attributes.describeExport(http, projectKey, items);
         return operations.exportDocuments(request(http, authentication), projectKey, items);
     }
@@ -103,6 +114,7 @@ public class BusinessController {
     public ExportResult exportAsync(@PathVariable("projectKey") String projectKey, @RequestParam("items") int items,
                                     HttpServletRequest http, Authentication authentication) {
         requireItems(items);
+        requireDestination(http);
         attributes.describeExport(http, projectKey, items);
         return operations.exportDocumentsAsync(request(http, authentication), projectKey, items);
     }
@@ -151,6 +163,14 @@ public class BusinessController {
 
     private BusinessRequest request(HttpServletRequest http, Authentication authentication) {
         return BusinessRequest.of(http, authentication.getName(), control, clock);
+    }
+
+    /** The destination of an export, when it names one, must be made of address characters only. */
+    private static void requireDestination(HttpServletRequest http) {
+        String destination = http.getParameter(BusinessRequest.DESTINATION_PARAMETER);
+        if (destination != null && !destination.isBlank() && !DESTINATION.matcher(destination.trim()).matches()) {
+            throw new IllegalArgumentException("destination must be 1 to 120 address characters");
+        }
     }
 
     private static void requireItems(int items) {

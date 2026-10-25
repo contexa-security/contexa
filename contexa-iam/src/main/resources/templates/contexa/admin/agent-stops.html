@@ -30,7 +30,7 @@
             <section class="mb-10" id="suspendedAgents">
                 <h2 class="text-xl font-semibold mb-1" th:text="#{admin.agent.stops.suspended.heading}">Suspended agents</h2>
                 <p class="text-dark-muted text-sm mb-3" th:text="#{admin.agent.stops.suspended.hint}">Every token of a suspended agent is refused and no new one is issued.</p>
-                <div class="overflow-x-auto shadow-md rounded-lg">
+                <div class="overflow-x-auto shadow-md rounded-lg" tabindex="0" role="region" th:aria-label="#{admin.agent.stops.suspended.heading}">
                     <table class="min-w-full w-full text-sm text-left">
                         <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
                         <tr>
@@ -77,7 +77,7 @@
             <section class="mb-10" id="stoppedDelegations">
                 <h2 class="text-xl font-semibold mb-1" th:text="#{admin.agent.stops.delegations.heading}">Agents stopped while acting for a person</h2>
                 <p class="text-dark-muted text-sm mb-3" th:text="#{admin.agent.stops.delegations.hint}">The delegation was revoked and the person was told. The person keeps working; only the agent is stopped.</p>
-                <div class="overflow-x-auto shadow-md rounded-lg">
+                <div class="overflow-x-auto shadow-md rounded-lg" tabindex="0" role="region" th:aria-label="#{admin.agent.stops.delegations.heading}">
                     <table class="min-w-full w-full text-sm text-left">
                         <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
                         <tr>
@@ -127,7 +127,7 @@
             <section class="mb-10" id="narrowedAgents">
                 <h2 class="text-xl font-semibold mb-1" th:text="#{admin.agent.stops.narrowed.heading}">Agents narrowed by a decision</h2>
                 <p class="text-dark-muted text-sm mb-3" th:text="#{admin.agent.stops.narrowed.hint}">Only the operations listed pass until the narrowing ends; a narrowing is never widened.</p>
-                <div class="overflow-x-auto shadow-md rounded-lg">
+                <div class="overflow-x-auto shadow-md rounded-lg" tabindex="0" role="region" th:aria-label="#{admin.agent.stops.narrowed.heading}">
                     <table class="min-w-full w-full text-sm text-left">
                         <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
                         <tr>
@@ -184,7 +184,7 @@
 
             <section class="mb-10" id="stopHistory">
                 <h2 class="text-xl font-semibold mb-3" th:text="#{admin.agent.stops.history.heading}">History</h2>
-                <div class="overflow-x-auto shadow-md rounded-lg">
+                <div class="overflow-x-auto shadow-md rounded-lg" tabindex="0" role="region" th:aria-label="#{admin.agent.stops.history.heading}">
                     <table class="min-w-full w-full text-sm text-left">
                         <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
                         <tr>
@@ -215,7 +215,7 @@
 
             <section id="agentNotices">
                 <h2 class="text-xl font-semibold mb-3" th:text="#{admin.agent.stops.notices.heading}">Notices to the accountable people</h2>
-                <div class="overflow-x-auto shadow-md rounded-lg">
+                <div class="overflow-x-auto shadow-md rounded-lg" tabindex="0" role="region" th:aria-label="#{admin.agent.stops.notices.heading}">
                     <table class="min-w-full w-full text-sm text-left">
                         <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
                         <tr>

@@ -44,7 +44,7 @@
                    th:text="#{common.action.reset}">Reset</a>
             </form>
 
-            <div class="overflow-x-auto shadow-md rounded-lg">
+            <div class="overflow-x-auto shadow-md rounded-lg" tabindex="0" role="region" th:aria-label="#{admin.session.title}">
                 <table class="min-w-full w-full text-sm text-left">
                     <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
                     <tr>
@@ -102,7 +102,7 @@
                 </table>
             </div>
 
-            <div th:if="${sessionPage.totalPages > 1}" class="flex justify-center gap-2 mt-6">
+            <div th:if="${sessionPage.totalPages > 1}" class="flex flex-wrap justify-center gap-2 mt-6">
                 <a th:each="i : ${#numbers.sequence(0, sessionPage.totalPages - 1)}"
                    th:href="@{/contexa/admin/session-management(page=${i}, keyword=${keyword})}"
                    class="px-3 py-1 rounded text-sm"

@@ -31,6 +31,7 @@ import io.contexa.showcase.portal.replay.ReplayViews;
 import io.contexa.showcase.portal.retention.RetentionJob;
 import io.contexa.showcase.portal.scenario.AgentPaths;
 import io.contexa.showcase.portal.scenario.ScenarioCatalog;
+import io.contexa.showcase.portal.scenario.AgentHistory;
 import io.contexa.showcase.portal.scenario.ScenarioDefinition;
 import io.contexa.showcase.portal.spec.ScoringContract;
 import io.contexa.showcase.portal.template.CloneVerifier;
@@ -272,7 +273,7 @@ public class OpsController {
     /**
      * docs/agent A7-2f: runs of an agent task: a person gives work to a real business agent, which does it with the
      * company's tools; each tool call is a request every control receives (keys N or T followed by digits, in
-     * {@code agent-tasks/}; docs/agent A6: the measurement cases, M with the attack number and A or N). Each run
+     * {@code agent-tasks/}; docs/agent A6: the measurement cases, M with the attack number and A, B or N). Each run
      * calls the agent's model and control D's decision models. A path (A6-R0) sends the work on one of the paths
      * the case is measured on: {@code OAUTH2_DELEGATED}, {@code OAUTH2_AGENT} or {@code SESSION}; none keeps the
      * case's own. docs/agent A7-3: a delegator answer ({@code APPROVE} or {@code REJECT}) answers a confirmation
@@ -286,10 +287,11 @@ public class OpsController {
                                           @RequestParam(name = "repeat", defaultValue = "1") int repeat,
                                           @RequestParam(name = "path", required = false) String path,
                                           @RequestParam(name = "delegator", required = false) String delegator,
-                                          @RequestParam(name = "retries", defaultValue = "0") int retries)
+                                          @RequestParam(name = "retries", defaultValue = "0") int retries,
+                                          @RequestParam(name = "history", required = false) String history)
             throws IOException {
-        if (repeat < 1 || repeat > 10 || !taskKey.matches("[NT]\\d+|M\\d{2}[AN]\\d?")
-                || !delegatorAnswerTaken(delegator, retries)) {
+        if (repeat < 1 || repeat > 10 || !agentTaskKeyTaken(taskKey)
+                || !delegatorAnswerTaken(delegator, retries) || history != null && !AgentHistory.known(history)) {
             return ResponseEntity.badRequest().build();
         }
         ChallengeResponder responder = delegator == null ? ChallengeResponder.AUTOMATIC
@@ -310,13 +312,29 @@ public class OpsController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().build();
         }
+        if (history != null) {
+            // docs/agent RL-3: the agent brings the days of usual work an agent of its kind has behind it.
+            onPath = AgentHistory.apply(onPath, history);
+        }
+        ScenarioDefinition run = onPath;
         String subject = taskKey + (path == null ? "" : " " + path) + (delegator == null ? "" : " " + delegator)
-                + (retries == 0 ? "" : " " + retries) + " x" + repeat;
+                + (retries == 0 ? "" : " " + retries) + (history == null ? "" : " history=" + history) + " x" + repeat;
         return ResponseEntity.ok(submit("AGENT_TASK", subject, results -> {
             for (int i = 0; i < repeat; i++) {
-                results.add(orchestrator.run(onPath, null, responder, RunListener.NONE));
+                results.add(orchestrator.run(run, null, responder, RunListener.NONE));
             }
         }));
+    }
+
+    /**
+     * docs/agent A6-5: the keys of the agent task route: the A7-2 cases (N or T and digits) and the measurement cases
+     * (M, the attack number of two digits, then A for the attack, B for a second attack variant or N for the
+     * legitimate work, and one digit for a variant of it; L and LN for the attack and the legitimate work of a
+     * delegation that states its quantity limit as a value, RL-6), or a variant of a checking case (docs/agent A6-4: V, the
+     * checking case, then C for a variant of its condition or E of its wording).
+     */
+    static boolean agentTaskKeyTaken(String key) {
+        return key.matches("[NT]\\d+|M\\d{2}(?:[ABN]\\d?|L|LN)|V[NT]\\dC|V[NT]\\dE");
     }
 
     /**

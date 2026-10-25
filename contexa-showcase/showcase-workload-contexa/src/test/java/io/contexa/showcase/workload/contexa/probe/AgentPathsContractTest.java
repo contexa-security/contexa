@@ -346,8 +346,13 @@ class AgentPathsContractTest {
     }
 
     /** The first line of the prompt with the text, as it was drawn. */
+    /**
+     * The line of the prompt that holds the text: one that starts with it before one that only contains it, since the
+     * baseline block has lines of its own ("BaselineSubject: ...") that contain the label of another line.
+     */
     private static String line(String prompt, String text) {
-        return prompt.lines().filter(candidate -> candidate.contains(text)).findFirst()
+        return prompt.lines().filter(candidate -> candidate.startsWith(text)).findFirst()
+                .or(() -> prompt.lines().filter(candidate -> candidate.contains(text)).findFirst())
                 .orElseThrow(() -> new AssertionError("no line with " + text + " in\n" + prompt));
     }
 

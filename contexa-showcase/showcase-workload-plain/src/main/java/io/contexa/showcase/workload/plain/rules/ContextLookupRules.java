@@ -50,6 +50,7 @@ public class ContextLookupRules {
             case PROJECT_LIST -> RuleDecision.allow("C2-PASS", "Project list needs no business context", Map.of());
             case EXPORT, EXPORT_STREAM, EXPORT_ASYNC -> export(request, settings);
             case DOCUMENT_READ, DOCUMENT_DOWNLOAD, DOCUMENT_LIST -> singleDocument(request, settings);
+            case DOCUMENT_DELETE -> documentDeletion(request, settings);
             case CUSTOMER_READ -> customer(request, settings);
             case ROLE_GRANT -> grant(request, settings);
         };
@@ -141,6 +142,35 @@ public class ContextLookupRules {
         }
         return RuleDecision.deny("C2-NO-CONTEXT", "Not assigned, no fitting ticket, no recent work on the project",
                 facts);
+    }
+
+    /**
+     * docs/agent A6-R8: a document is marked for deletion by an employee assigned to its project, or under a ticket of
+     * a design change that covers the project (the company's DOCUMENT_DELETE_APPROVAL row, the one control D tells the
+     * engine about). Recent work on the project does not exempt a deletion as it does a read.
+     */
+    private RuleDecision documentDeletion(RequestFacts request, RuleSettings settings) {
+        Map<String, Object> facts = new LinkedHashMap<>();
+        facts.put("projectKey", request.projectKey());
+        AccessApprovalPolicy policy = lookup.accessApprovalPolicy(request.operation());
+        AssignmentStatus assigned = lookup.projectAssigned(request.username(), request.projectKey(),
+                request.companyTime());
+        TicketCoverage ticket = lookup.ticketCovers(request.username(), request.projectKey(), request.operation(),
+                request.companyTime());
+        facts.put("policy", policy);
+        facts.put("assigned", assigned);
+        facts.put("ticket", ticket);
+        if (network(request, facts).kind() == NetworkKind.EXTERNAL && settings.external()) {
+            return external(facts);
+        }
+        boolean assignedToProject = settings.assigned() && assigned.assigned();
+        if (policy.assignedExempt() && assignedToProject) {
+            return RuleDecision.allow("C2-ASSIGNED", "Assigned to the project", facts);
+        }
+        if (settings.ticket() && ticket.covered()) {
+            return RuleDecision.allow("C2-TICKET", "A fitting ticket covers the project", facts);
+        }
+        return RuleDecision.deny("C2-NO-CONTEXT", "Not assigned and no fitting ticket covers the project", facts);
     }
 
     private RuleDecision customer(RequestFacts request, RuleSettings settings) {

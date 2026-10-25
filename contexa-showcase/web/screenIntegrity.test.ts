@@ -1,13 +1,11 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_ROUTE } from './src/journey/journey';
 
 /**
  * Integrity of the visitor screens (H-11, C-2, C-10, C-19): the screens compute nothing and hold no measured number,
- * the teaser copy is the 0-3 table of the screen design, and every case key the code names exists.
+ * the copy follows the plan's copy source table, and every case key the code names exists.
  */
-const DESIGN = '../../docs/showcase/화면설계서-v2.md';
 const PLAN = '../../docs/showcase/화면설계서-v2-구현계획.md';
 const SCENARIOS = '../showcase-portal/src/main/resources/scenarios';
 

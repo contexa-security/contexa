@@ -23,7 +23,8 @@ public final class EndpointProtection {
             "EXPORT_STREAM", "openExportStream",
             "EXPORT_ASYNC", "exportDocumentsAsync",
             "CUSTOMER_READ", "readCustomer",
-            "ROLE_GRANT", "grantRole");
+            "ROLE_GRANT", "grantRole",
+            "DOCUMENT_DELETE", "deleteDocument");
 
     private EndpointProtection() {
     }

@@ -23,11 +23,14 @@ import io.contexa.showcase.workload.contexa.observation.DecisionRecords;
 import io.contexa.showcase.workload.contexa.observation.EmbeddingUsageMeter;
 import io.contexa.showcase.workload.contexa.observation.LlmUsageMeter;
 import io.contexa.showcase.workload.contexa.observation.ModelExchanges;
+import io.contexa.showcase.workload.contexa.observation.ModelOutage;
 import io.contexa.showcase.workload.contexa.observation.RequestReceipts;
 import io.contexa.showcase.workload.contexa.observation.ProviderHttpCapture;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.web.client.RestClientCustomizer;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import io.contexa.showcase.workload.contexa.observation.UsageLedger;
 import io.contexa.showcase.workload.contexa.policy.EngineRbacSeeder;
 import io.contexa.showcase.workload.contexa.principal.OrphanPrincipalSweeper;
@@ -97,6 +100,9 @@ public class ContexaWorkloadConfiguration {
             List<String> problems = new ArrayList<>();
             if (environment.getProperty("showcase.dev.forced-actions", Boolean.class, false)) {
                 problems.add("showcase.dev.forced-actions is on");
+            }
+            if (environment.getProperty("showcase.dev.model-outage", Boolean.class, false)) {
+                problems.add("showcase.dev.model-outage is on");
             }
             if (ProductionSafety.weak(environment.getProperty("contexa.datasource.password"))) {
                 problems.add("contexa.datasource.password is missing or weak");
@@ -183,11 +189,30 @@ public class ContexaWorkloadConfiguration {
         return registration;
     }
 
-    /** Puts the provider HTTP capture on the HTTP client the model provider is built with (R-23). */
+    /**
+     * Puts the provider HTTP capture on the HTTP client the model provider is built with (R-23). It is the outer of
+     * the client's interceptors, so it also records the answer of the development-only outage below.
+     */
     @Bean
+    @Order(Ordered.LOWEST_PRECEDENCE - 1)
     public RestClientCustomizer providerHttpCapture(ModelExchanges exchanges) {
         ProviderHttpCapture capture = new ProviderHttpCapture(exchanges);
         return builder -> builder.requestInterceptor(capture);
+    }
+
+    /** docs/agent A6-R10: the development-only outage of the judging model, which exists only when the flag is on. */
+    @Bean
+    @ConditionalOnProperty(name = "showcase.dev.model-outage", havingValue = "true")
+    public ModelOutage modelOutage() {
+        return new ModelOutage();
+    }
+
+    /** The inner interceptor of the model provider's HTTP client: a marked run's model call fails before it leaves. */
+    @Bean
+    @ConditionalOnProperty(name = "showcase.dev.model-outage", havingValue = "true")
+    @Order(Ordered.LOWEST_PRECEDENCE)
+    public RestClientCustomizer modelOutageInterceptor(ModelOutage outage) {
+        return builder -> builder.requestInterceptor(outage);
     }
 
     @Bean

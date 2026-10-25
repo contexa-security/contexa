@@ -114,6 +114,7 @@
                             <th th:text="#{admin.agents.delegations.objective}">Work</th>
                             <th th:text="#{admin.agents.delegations.operations}">Operations</th>
                             <th th:text="#{admin.agents.delegations.resources}">Resources</th>
+                            <th th:text="#{admin.agents.delegations.limits}">Item limits</th>
                             <th th:text="#{admin.agents.delegations.period}">Period</th>
                             <th th:text="#{admin.agents.delegations.state}">State</th>
                             <th th:text="#{admin.agents.delegations.recorded.by}">Recorded by</th>
@@ -126,6 +127,7 @@
                             <td th:text="${delegation.objectiveSummary != null} ? ${delegation.objectiveSummary} : (${delegation.objectiveFamily != null} ? ${delegation.objectiveFamily} : '-')"></td>
                             <td class="font-mono text-xs" th:text="${#lists.isEmpty(delegation.allowedOperations)} ? '-' : ${#strings.listJoin(delegation.allowedOperations, ', ')}"></td>
                             <td class="font-mono text-xs" th:text="${#lists.isEmpty(delegation.allowedResources)} ? '-' : ${#strings.listJoin(delegation.allowedResources, ', ')}"></td>
+                            <td class="font-mono text-xs" th:text="${delegation.maxItemsPerRequest != null or delegation.maxItemsTotal != null} ? ((${delegation.maxItemsPerRequest} ?: '-') + ' / ' + (${delegation.maxItemsTotal} ?: '-')) : '-'"></td>
                             <td class="font-mono text-xs" th:text="${delegation.validFrom} + ' ~ ' + ${delegation.expiresAt}"></td>
                             <td th:text="#{${'admin.agents.delegations.state.' + delegation.state}}"></td>
                             <td th:text="${delegation.recordedBy}"></td>

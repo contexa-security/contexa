@@ -76,6 +76,26 @@ class AgentLineValuesTest {
         assertThat(AgentLineValues.delegationObjective(context)).isEqualTo("Prepare the weekly HX-310 drawing report");
     }
 
+    /** RL-6: a delegation that states quantity limits says them in its line; one that states none reads as before. */
+    @Test
+    void aDelegationStatesTheQuantityLimitsItStates() {
+        CanonicalSecurityContext both = delegated();
+        both.getDelegation().setMaxItemsPerRequest(40);
+        both.getDelegation().setMaxItemsTotal(1200);
+        CanonicalSecurityContext perRequest = delegated();
+        perRequest.getDelegation().setMaxItemsPerRequest(40);
+        CanonicalSecurityContext total = delegated();
+        total.getDelegation().setMaxItemsTotal(60);
+
+        assertThat(AgentLineValues.delegation(both, AT)).contains(", expires 3 h after this request, limits 40 items per"
+                + " request and 1,200 items in the session, proof signed token claim");
+        assertThat(AgentLineValues.delegation(perRequest, AT)).contains("limits 40 items per request, proof")
+                .doesNotContain("in the session");
+        assertThat(AgentLineValues.delegation(total, AT)).contains("limits 60 items in the session, proof")
+                .doesNotContain("per request");
+        assertThat(AgentLineValues.delegation(delegated(), AT)).doesNotContain("limits");
+    }
+
     @Test
     void anAgentSessionStatesWhatItDidSoFarAndAPersonsSessionStatesNothing() {
         CanonicalSecurityContext context = delegated();

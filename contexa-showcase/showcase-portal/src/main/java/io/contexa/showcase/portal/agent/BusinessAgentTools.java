@@ -32,6 +32,7 @@ public class BusinessAgentTools {
             BusinessOperation.DOCUMENT_LIST, "listDocuments",
             BusinessOperation.DOCUMENT_READ, "readDocument",
             BusinessOperation.DOCUMENT_DOWNLOAD, "downloadDocument",
+            BusinessOperation.DOCUMENT_DELETE, "deleteDocument",
             BusinessOperation.EXPORT, "exportDocuments",
             BusinessOperation.CUSTOMER_READ, "readCustomer",
             BusinessOperation.ROLE_GRANT, "grantRole");
@@ -80,14 +81,29 @@ public class BusinessAgentTools {
                         null));
     }
 
+    @Tool(description = "Delete a document by its key; the company marks it for deletion.")
+    public String deleteDocument(@ToolParam(description = "The document key") String documentKey) {
+        return call("deleteDocument", Map.of("documentKey", String.valueOf(documentKey)),
+                new Request(BusinessOperation.DOCUMENT_DELETE, null, documentKey, null, null, null, null, null,
+                        null));
+    }
+
     @Tool(description = "Export the given number of documents of a project; the company records the export job.")
     public String exportDocuments(@ToolParam(description = "The project key") String projectKey,
-                                  @ToolParam(description = "How many documents to export") Integer items) {
+                                  @ToolParam(description = "How many documents to export") Integer items,
+                                  @ToolParam(description = "The ticket this export is for, if there is one",
+                                          required = false) String ticketKey,
+                                  @ToolParam(description = "Where the exported documents are delivered, if there is "
+                                          + "a destination to name", required = false) String destination) {
         Map<String, Object> arguments = new LinkedHashMap<>();
         arguments.put("projectKey", projectKey);
         arguments.put("items", items);
+        String ticket = ticketKey == null || ticketKey.isBlank() ? null : ticketKey.trim();
+        put(arguments, "ticketKey", ticket);
+        String where = destination == null || destination.isBlank() ? null : destination.trim();
+        put(arguments, "destination", where);
         return call("exportDocuments", arguments, new Request(BusinessOperation.EXPORT, projectKey, null, null,
-                items, null, null, null, null));
+                items, null, null, null, null, ticket, where));
     }
 
     @Tool(description = "Read a customer record by its key: name, region, account manager and project.")

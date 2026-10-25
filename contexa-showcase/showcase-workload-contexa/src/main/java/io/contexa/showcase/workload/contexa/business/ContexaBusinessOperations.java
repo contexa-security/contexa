@@ -5,6 +5,7 @@ import io.contexa.showcase.business.work.BusinessOperations;
 import io.contexa.showcase.business.work.BusinessRequest;
 import io.contexa.showcase.business.work.BusinessService;
 import io.contexa.showcase.business.work.BusinessViews.CustomerView;
+import io.contexa.showcase.business.work.BusinessViews.DocumentDeletionResult;
 import io.contexa.showcase.business.work.BusinessViews.DocumentFile;
 import io.contexa.showcase.business.work.BusinessViews.DocumentSummary;
 import io.contexa.showcase.business.work.BusinessViews.DocumentView;
@@ -60,6 +61,16 @@ public class ContexaBusinessOperations implements BusinessOperations {
     @Protectable(category = DOCUMENTS, actions = "DOWNLOAD")
     public DocumentFile downloadDocument(BusinessRequest request, String documentKey) {
         return delegate.downloadDocument(request, documentKey);
+    }
+
+    /**
+     * docs/agent A6-R8: a deletion is decided before it takes effect, like the export: the delegation of a read does not
+     * cover it, so the engine judges it as the change it is.
+     */
+    @Override
+    @Protectable(sync = true, category = DOCUMENTS, actions = "DELETE")
+    public DocumentDeletionResult deleteDocument(BusinessRequest request, String documentKey) {
+        return delegate.deleteDocument(request, documentKey);
     }
 
     @Override

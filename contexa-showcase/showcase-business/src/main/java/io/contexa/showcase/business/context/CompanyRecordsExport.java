@@ -31,6 +31,8 @@ public class CompanyRecordsExport {
     static final String DOWNLOAD = "DOWNLOAD";
     static final String EXPORT = "EXPORT";
     static final String ADMIN = "ADMIN";
+    /** docs/agent A6-R8: marking a project's document for deletion. */
+    static final String DELETE = "DELETE";
 
     /** The kinds of record the company integrates: every one, even where an employee has none. */
     static final List<String> SOURCES = List.of("ASSIGNMENT", "APPROVAL", "TICKET", "ON_CALL", "TRAVEL",
@@ -52,6 +54,7 @@ public class CompanyRecordsExport {
     static final Map<String, List<List<String>>> RULE_SCOPE = Map.of(
             "EXPORT_APPROVAL", List.of(List.of(EXPORT), List.of("PROJECT_DOCUMENTS")),
             "DOCUMENT_ACCESS_APPROVAL", List.of(List.of(READ, DOWNLOAD), List.of("PROJECT_DOCUMENTS")),
+            "DOCUMENT_DELETE_APPROVAL", List.of(List.of(DELETE), List.of("PROJECT_DOCUMENTS")),
             "CUSTOMER_ACCESS_APPROVAL", List.of(List.of(READ), List.of("CUSTOMER_RECORDS")),
             "ROLE_GRANT_APPROVAL", List.of(List.of(ADMIN), List.of("PROJECT_ACCESS")));
 
@@ -194,6 +197,9 @@ public class CompanyRecordsExport {
         }
         if (JdbcBusinessContextLookup.GRANT_PURPOSES.contains(purpose)) {
             actions.add(ADMIN);
+        }
+        if (JdbcBusinessContextLookup.DELETE_PURPOSES.contains(purpose)) {
+            actions.add(DELETE);
         }
         if (actions.isEmpty() && purpose != null) {
             actions.add(purpose);

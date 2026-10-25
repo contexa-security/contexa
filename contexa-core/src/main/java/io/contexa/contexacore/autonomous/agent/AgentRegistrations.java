@@ -119,11 +119,38 @@ public final class AgentRegistrations {
     /**
      * The agent's registration as a request in the tenant reads it: the tenant's own, else (CF-13) the single-tenant
      * registration a token or account naming no tenant was admitted under, as the event publisher reads it.
+     * <p>
+     * A row of the tenant that only observed the agent (the sighting the engine records after its first request)
+     * knows no sponsor, client or allow list entry, so it does not stand in for the single-tenant registration of the
+     * same agent (CF-33): the registration speaks for the agent, seen in the tenant, and the stricter status of the
+     * two stays, since a suspension is recorded on the row of the tenant the agent was stopped in.
      */
     public static Optional<AgentRegistration> find(AgentRegistry registry, String tenantId, String agentId) {
         String tenant = text(tenantId);
         Optional<AgentRegistration> found = registry.find(tenant, agentId);
-        return found.isEmpty() && tenant != null ? registry.find(null, agentId) : found;
+        if (tenant == null) {
+            return found;
+        }
+        if (found.isEmpty()) {
+            return registry.find(null, agentId);
+        }
+        if (found.get().source() != AgentRegistrationSource.OBSERVED) {
+            return found;
+        }
+        Optional<AgentRegistration> registered = registry.find(null, agentId)
+                .filter(registration -> registration.source() == AgentRegistrationSource.LIFECYCLE);
+        return registered.isPresent() ? Optional.of(seenIn(found.get(), registered.get())) : found;
+    }
+
+    /** The registration, seen in the tenant: its facts, the tenant's sightings, and the stricter status of the two. */
+    private static AgentRegistration seenIn(AgentRegistration observed, AgentRegistration registered) {
+        boolean observedStricter = observed.status().ordinal() > registered.status().ordinal();
+        AgentRegistration stricter = observedStricter ? observed : registered;
+        return new AgentRegistration(observed.tenantId(), registered.agentId(), registered.displayName(),
+                registered.agentType(), firstNonBlank(registered.clientId(), observed.clientId()),
+                registered.sponsorId(), stricter.status(), registered.allowlisted(), registered.source(),
+                firstNonBlank(observed.lastSubjectKind(), registered.lastSubjectKind()), observed.firstSeenAt(),
+                observed.lastSeenAt(), registered.registeredAt(), stricter.deregisteredAt(), stricter.statusReason());
     }
 
     static void requireAgent(String agentId) {

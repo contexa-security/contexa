@@ -95,6 +95,15 @@ public class ControlSession {
                 run.organization(), run.tenant(), clientIp, userAgent)), json);
     }
 
+    /**
+     * docs/agent A6-R2: another worker with the same credentials from the same network and client: a client of its own
+     * (its own last answer) holding this session's token or cookie.
+     */
+    public ControlSession copy() {
+        WorkloadClient.RunIdentity run = client.run();
+        return carriedTo(run.clientIp(), run.device());
+    }
+
     /** JSON sign-in of a plain control. */
     public void signInPlain(String username, String password, Instant companyTime) throws IOException {
         Response login = client.postJson("/api/login", UUID.randomUUID().toString(), companyTime,
@@ -324,6 +333,23 @@ public class ControlSession {
             }
 
             @Override
+            public int revokeDelegation(String delegationId, String reason) throws IOException {
+                return client.postJson("/contexa/admin/api/agent-delegations/" + delegationId + "/revoke",
+                        UUID.randomUUID().toString(), companyTime, json.writeValueAsString(Map.of("reason", reason)))
+                        .status();
+            }
+
+            @Override
+            public int deregisterAgent(String tenantId, String agentId, String reason) throws IOException {
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("tenantId", tenantId);
+                body.put("agentId", agentId);
+                body.put("reason", reason);
+                return client.postJson("/contexa/admin/api/agents/deregister", UUID.randomUUID().toString(),
+                        companyTime, json.writeValueAsString(body)).status();
+            }
+
+            @Override
             public Approver.LearningResult agentLearning(String agentId, String delegationId, String action,
                                                          String reason) throws IOException {
                 Map<String, Object> body = new LinkedHashMap<>();
@@ -402,7 +428,7 @@ public class ControlSession {
     /** The HTTP method the business API takes an operation with. */
     public static String method(BusinessOperation operation) {
         return switch (operation) {
-            case EXPORT, EXPORT_ASYNC, ROLE_GRANT -> "POST";
+            case EXPORT, EXPORT_ASYNC, ROLE_GRANT, DOCUMENT_DELETE -> "POST";
             default -> "GET";
         };
     }

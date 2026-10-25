@@ -144,6 +144,23 @@ class AgentDelegationApiControllerTest {
                 person("admin-1")).getBody()).revokedBy()).isEqualTo("admin-1");
     }
 
+    /** RL-6: a delegation states its quantity limits in the body, and the view returns them. */
+    @Test
+    void aDelegationBodyMayStateQuantityLimitsAndTheViewReturnsThem() {
+        DelegationBody limited = new DelegationBody("t-1", "alice", "agent-7", "OBJ-1", "REPORTING", "Weekly report",
+                List.of("READ", "EXPORT"), List.of("HX-310"), false, null, null, NOW.minusSeconds(3600),
+                NOW.plusSeconds(3600), "hr-system", NOW.minusSeconds(7200), 40, 1200);
+
+        DelegationView view = (DelegationView) admin.record(limited, person("admin-1")).getBody();
+
+        assertThat(view.maxItemsPerRequest()).isEqualTo(40);
+        assertThat(view.maxItemsTotal()).isEqualTo(1200);
+        // A limit below one is refused like any other incomplete delegation.
+        assertThat(admin.record(new DelegationBody("t-1", "alice", "agent-8", null, "REPORTING", null, List.of("READ"),
+                List.of("HX-310"), false, null, null, NOW.minusSeconds(60), NOW.plusSeconds(3600), null, null, 0, null),
+                person("admin-1")).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
     @Test
     void thePersonsApiNeedsASignInAndTheAdminApiAnAdministrator() {
         assertThat(AgentDelegationApiController.class.getAnnotation(PreAuthorize.class).value())

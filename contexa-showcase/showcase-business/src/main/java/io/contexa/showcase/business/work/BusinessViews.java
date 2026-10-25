@@ -52,6 +52,10 @@ public final class BusinessViews {
                                   Instant grantedAt) {
     }
 
+    /** A document marked for deletion (docs/agent A6-R8). */
+    public record DocumentDeletionResult(UUID deletionId, String documentKey, String projectKey, Instant requestedAt) {
+    }
+
     public record CustomerView(String customerKey, String displayName, String region, String accountManager,
                                String projectKey) {
     }

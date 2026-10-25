@@ -216,6 +216,31 @@ class RecordedDelegationContextProviderTest {
                 .contains("AllowedResources: SALES_REPORT");
     }
 
+    /** RL-6: the quantity limits the record states reach the context, and the lower of a stated and a recorded one holds. */
+    @Test
+    void theQuantityLimitsOfTheRecordReachTheContextAndTheLowerHolds() {
+        DelegationRecord limited = new DelegationRecord("dlg-42", "alice", "agent-7", "monthly-report", "REPORTING",
+                null, List.of("READ", "EXPORT"), List.of("SALES_REPORT"), false, false, null,
+                Instant.parse("2026-10-22T09:00:00Z"), "alice", Instant.parse("2026-10-22T02:58:00Z"), 40, 1200);
+        CanonicalSecurityContext none = agentContext(CanonicalSecurityContext.Delegation.builder()
+                .delegated(true).agentId("agent-7").build());
+        CanonicalSecurityContext stricterStated = agentContext(CanonicalSecurityContext.Delegation.builder()
+                .delegated(true).agentId("agent-7").maxItemsPerRequest(10).maxItemsTotal(5000).build());
+        CanonicalSecurityContext unlimitedRecord = agentContext(CanonicalSecurityContext.Delegation.builder()
+                .delegated(true).agentId("agent-7").maxItemsPerRequest(10).build());
+
+        new RecordedDelegationContextProvider(query -> Optional.of(limited)).enrich(event(), none);
+        new RecordedDelegationContextProvider(query -> Optional.of(limited)).enrich(event(), stricterStated);
+        new RecordedDelegationContextProvider(query -> Optional.of(record("agent-7"))).enrich(event(), unlimitedRecord);
+
+        assertThat(none.getDelegation().getMaxItemsPerRequest()).isEqualTo(40);
+        assertThat(none.getDelegation().getMaxItemsTotal()).isEqualTo(1200);
+        assertThat(stricterStated.getDelegation().getMaxItemsPerRequest()).isEqualTo(10);
+        assertThat(stricterStated.getDelegation().getMaxItemsTotal()).isEqualTo(1200);
+        assertThat(unlimitedRecord.getDelegation().getMaxItemsPerRequest()).isEqualTo(10);
+        assertThat(unlimitedRecord.getDelegation().getMaxItemsTotal()).isNull();
+    }
+
     private static DelegationRecord record(String agentId) {
         return new DelegationRecord("dlg-42", "alice", agentId, "monthly-report", "REPORTING",
                 "Prepare the October sales report", List.of("READ"), List.of("SALES_REPORT"),

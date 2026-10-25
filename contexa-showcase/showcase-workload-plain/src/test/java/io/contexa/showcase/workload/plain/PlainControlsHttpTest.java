@@ -103,6 +103,61 @@ class PlainControlsHttpTest {
             assertThat(json(sales).path("rule").asText()).isEqualTo("RBAC");
         }
 
+        /**
+         * docs/agent A6-R8: the roles that change a project's documents may mark one for deletion, the others are refused
+         * by the role table; the mark is recorded and the document stays until the company's purge.
+         */
+        @Test
+        void aDocumentIsMarkedForDeletionByTheRolesThatEditAndStaysReadable() throws Exception {
+            String document = drawingOf(CompanyBlueprint.K_PROJECT);
+            WorkloadClient engineerK = signedIn(CompanyBlueprint.ENGINEER_K);
+            String markId = UUID.randomUUID().toString();
+            Response marked = engineerK.postJson("/api/documents/" + document + "/delete", markId,
+                    at(TimeSlot.AFTERNOON), null);
+            Response sales = signedIn("sal-01").postJson("/api/documents/" + document + "/delete",
+                    UUID.randomUUID().toString(), at(TimeSlot.AFTERNOON), null);
+            Response missing = engineerK.postJson("/api/documents/NO-SUCH-DOCUMENT/delete", UUID.randomUUID().toString(),
+                    at(TimeSlot.AFTERNOON), null);
+            Response stillThere = engineerK.get("/api/documents/" + document, UUID.randomUUID().toString(),
+                    at(TimeSlot.AFTERNOON));
+
+            assertThat(marked.status()).as(marked.text()).isEqualTo(200);
+            assertThat(json(marked).path("documentKey").asText()).isEqualTo(document);
+            assertThat(json(marked).path("projectKey").asText()).isEqualTo(CompanyBlueprint.K_PROJECT);
+            assertThat(sales.status()).isEqualTo(403);
+            assertThat(json(sales).path("rule").asText()).isEqualTo("RBAC");
+            assertThat(missing.status()).isEqualTo(404);
+            assertThat(stillThere.status()).isEqualTo(200);
+            assertThat(jdbc.queryForObject("select count(*) from document_deletion where request_id = ?",
+                    Integer.class, markId)).isEqualTo(1);
+        }
+
+        /**
+         * docs/agent A6-R9: an export keeps the destination it names with its job, and a destination made of anything
+         * but address characters is refused as a bad request before any document is chosen.
+         */
+        @Test
+        void anExportKeepsTheDestinationItNamesAndRefusesOneMadeOfOtherCharacters() throws Exception {
+            WorkloadClient engineerK = signedIn(CompanyBlueprint.ENGINEER_K);
+            String requestId = UUID.randomUUID().toString();
+            Response named = engineerK.postJson("/api/projects/" + CompanyBlueprint.K_PROJECT
+                    + "/exports?items=5&destination=design-share", requestId, at(TimeSlot.AFTERNOON), null);
+            String unnamedId = UUID.randomUUID().toString();
+            Response unnamed = engineerK.postJson("/api/projects/" + CompanyBlueprint.K_PROJECT + "/exports?items=5",
+                    unnamedId, at(TimeSlot.AFTERNOON), null);
+            Response odd = engineerK.postJson("/api/projects/" + CompanyBlueprint.K_PROJECT
+                    + "/exports?items=5&destination=%3Cscript%3E", UUID.randomUUID().toString(),
+                    at(TimeSlot.AFTERNOON), null);
+
+            assertThat(named.status()).as(named.text()).isEqualTo(200);
+            assertThat(jdbc.queryForObject("select destination from export_job where request_id = ?", String.class,
+                    requestId)).isEqualTo("design-share");
+            assertThat(unnamed.status()).as(unnamed.text()).isEqualTo(200);
+            assertThat(jdbc.queryForObject("select destination from export_job where request_id = ?", String.class,
+                    unnamedId)).isNull();
+            assertThat(odd.status()).isEqualTo(400);
+        }
+
         @Autowired
         ControlAuthorizationManager authorization;
 
@@ -272,6 +327,30 @@ class PlainControlsHttpTest {
             assertThat(external.status()).isEqualTo(403);
             assertThat(json(external).path("rule").asText()).isEqualTo("C2-EXTERNAL-NETWORK");
             assertThat(travelling.status()).as(travelling.text()).isEqualTo(200);
+        }
+
+        /**
+         * docs/agent A6-R8: a deletion needs an assignment to the project or a ticket of a design change that covers it;
+         * recent work does not exempt it as it does a read.
+         */
+        @Test
+        void aDeletionNeedsAnAssignmentOrADesignChangeTicket() throws Exception {
+            WorkloadClient engineerK = signedIn(CompanyBlueprint.ENGINEER_K);
+            Response own = engineerK.postJson("/api/documents/" + drawingOf(CompanyBlueprint.K_PROJECT) + "/delete",
+                    UUID.randomUUID().toString(), at(TimeSlot.AFTERNOON), null);
+            Response foreign = engineerK.postJson("/api/documents/" + drawingOf("GB-500") + "/delete",
+                    UUID.randomUUID().toString(), at(TimeSlot.AFTERNOON), null);
+            RunFacts design = new RunFacts(List.of(new RunFacts.Ticket("TCK-" + UUID.randomUUID().toString()
+                    .substring(0, 8), "CHANGE", CompanyBlueprint.ENGINEER_K, "pm-11", "GB-500", "DESIGN_CHANGE",
+                    "Retire a superseded GB-500 drawing", at(TimeSlot.AFTERNOON).minus(Duration.ofHours(2)),
+                    at(TimeSlot.AFTERNOON).plus(Duration.ofHours(6)), "APPROVED")), List.of(), List.of());
+            Response covered = signedIn(CompanyBlueprint.ENGINEER_K, design).postJson("/api/documents/"
+                    + drawingOf("GB-500") + "/delete", UUID.randomUUID().toString(), at(TimeSlot.AFTERNOON), null);
+
+            assertThat(own.status()).as(own.text()).isEqualTo(200);
+            assertThat(foreign.status()).isEqualTo(403);
+            assertThat(json(foreign).path("rule").asText()).isEqualTo("C2-NO-CONTEXT");
+            assertThat(covered.status()).as(covered.text()).isEqualTo(200);
         }
 
         @Test

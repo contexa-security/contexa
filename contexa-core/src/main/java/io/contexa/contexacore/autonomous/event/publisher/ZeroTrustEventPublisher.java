@@ -30,6 +30,7 @@ import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import io.contexa.contexacommon.security.subject.SubjectKind;
 import io.contexa.contexacore.autonomous.agent.AgentRegistration;
+import io.contexa.contexacore.autonomous.agent.AgentRegistrations;
 import io.contexa.contexacore.autonomous.agent.AgentRegistry;
 import io.contexa.contexacore.autonomous.context.registry.ResourceContextRegistry;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
@@ -1170,13 +1171,10 @@ public class ZeroTrustEventPublisher {
         if (agentRegistry != null && agentId != null) {
             try {
                 String requestTenant = firstText(payload.get("tenantId"), payload.get("organizationId"));
-                Optional<AgentRegistration> registration = agentRegistry.find(requestTenant, agentId);
-                if (registration.isEmpty() && requestTenant != null) {
-                    // CF-13: a token or account that names no tenant was admitted as the agent's single-tenant
-                    // registration (AgentTokenClaims.tenant, AgentClientDirectory), so that registration is this
-                    // agent in a tenant's request too, not an unregistered one.
-                    registration = agentRegistry.find(null, agentId);
-                }
+                // CF-13: a token or account that names no tenant was admitted as the agent's single-tenant registration
+                // (AgentTokenClaims.tenant, AgentClientDirectory), so that registration is this agent in a tenant's
+                // request too, not an unregistered one; CF-33: also after the engine has recorded its sighting there.
+                Optional<AgentRegistration> registration = AgentRegistrations.find(agentRegistry, requestTenant, agentId);
                 if (registration.isPresent()) {
                     sponsorId = registration.get().sponsorId();
                     putIfAbsent(payload, "agentSponsorId", sponsorId);

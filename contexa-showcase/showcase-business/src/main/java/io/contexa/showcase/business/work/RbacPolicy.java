@@ -34,6 +34,10 @@ public final class RbacPolicy {
     private static final Set<String> DESIGN_EXPORTERS = Set.of(CompanyBlueprint.ROLE_ENGINEER,
             CompanyBlueprint.ROLE_PM, CompanyBlueprint.ROLE_ADMIN);
 
+    /** docs/agent A6-R8: who may mark a document for deletion (the people who change the project's documents). */
+    private static final Set<String> DESIGN_EDITORS = Set.of(CompanyBlueprint.ROLE_ENGINEER,
+            CompanyBlueprint.ROLE_PM, CompanyBlueprint.ROLE_ADMIN);
+
     private static final Set<String> CUSTOMER_READERS = Set.of(CompanyBlueprint.ROLE_SALES, CompanyBlueprint.ROLE_PM,
             CompanyBlueprint.ROLE_FINANCE, CompanyBlueprint.ROLE_ADMIN);
 
@@ -53,6 +57,7 @@ public final class RbacPolicy {
             new Rule(BusinessOperation.EXPORT_ASYNC, "POST", "/api/projects/*/exports/async", DESIGN_EXPORTERS),
             new Rule(BusinessOperation.EXPORT, "POST", "/api/projects/*/exports", DESIGN_EXPORTERS),
             new Rule(BusinessOperation.DOCUMENT_LIST, "GET", "/api/projects/*/documents", DESIGN_READERS),
+            new Rule(BusinessOperation.DOCUMENT_DELETE, "POST", "/api/documents/*/delete", DESIGN_EDITORS),
             new Rule(BusinessOperation.DOCUMENT_READ, "GET", "/api/documents/*", DESIGN_READERS),
             new Rule(BusinessOperation.CUSTOMER_READ, "GET", "/api/customers/*", CUSTOMER_READERS),
             new Rule(BusinessOperation.ROLE_GRANT, "POST", "/api/admin/role-grants", Set.of(CompanyBlueprint.ROLE_ADMIN)),

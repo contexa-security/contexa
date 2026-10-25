@@ -56,12 +56,12 @@
                     </div>
                     <div style="display:grid;grid-template-columns:auto 0.7fr auto 0.7fr auto 1.5fr auto auto;gap:10px;align-items:center;">
                         <span class="text-xs" style="color:#94a3b8;white-space:nowrap;" th:text="#{admin.policy.center.resource.service.owner}">Service Owner</span>
-                        <select id="serviceOwner" th:field="*{serviceOwner}" class="modern-select">
+                        <select id="serviceOwner" th:field="*{serviceOwner}" class="modern-select" th:aria-label="#{admin.policy.center.resource.service.owner}">
                             <option value="" th:text="#{admin.policy.center.resource.status.all}">All</option>
                             <option th:each="owner : ${serviceOwners}" th:value="${owner}" th:text="${owner}"></option>
                         </select>
                         <span class="text-xs" style="color:#94a3b8;white-space:nowrap;" th:text="#{admin.policy.center.resource.status}">Status</span>
-                        <select id="status" th:field="*{status}" class="modern-select">
+                        <select id="status" th:field="*{status}" class="modern-select" th:aria-label="#{admin.policy.center.resource.status}">
                             <option value="" th:text="#{admin.policy.center.resource.status.all}">All</option>
                             <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).NEEDS_DEFINITION}" th:text="#{admin.policy.center.resource.status.unset}">Unset</option>
                             <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).PERMISSION_CREATED}" th:text="#{admin.policy.center.resource.status.awaiting}">Awaiting Policy</option>
@@ -75,12 +75,12 @@
                     </div>
                 </form>
 
-                <div class="modern-table overflow-x-auto">
+                <div class="modern-table overflow-x-auto" tabindex="0" role="region" th:aria-label="#{admin.policy.center.tab.resources}">
                     <table class="min-w-full text-sm">
                         <thead>
                         <tr>
                             <th class="py-4 px-3 text-center" style="width:3rem;">
-                                <input type="checkbox" id="res-select-all" class="res-styled-cb" onchange="PolicyCenter.MultiSelect.toggleAll(this.checked)" />
+                                <input type="checkbox" id="res-select-all" class="res-styled-cb" th:aria-label="#{common.select.all}" onchange="PolicyCenter.MultiSelect.toggleAll(this.checked)" />
                             </th>
                             <th class="py-4 px-6 text-center text-white text-xs uppercase font-semibold tracking-wider" th:text="#{admin.policy.center.resource.table.status}">Status</th>
                             <th class="py-4 px-6 text-left text-white text-xs uppercase font-semibold tracking-wider" th:text="#{admin.policy.center.resource.table.perm.desc}">Permission Description</th>
@@ -195,11 +195,11 @@
                     <ul class="modern-pagination">
                         <!-- 처음 페이지로 이동 -->
                         <li class="page-item" th:classappend="${resourcePage.first} ? 'disabled'">
-                            <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='resources', page=0, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-angle-double-left"></i></a>
+                            <a class="page-link" th:aria-label="#{common.page.first}" th:href="@{/contexa/admin/policy-center(tab='resources', page=0, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-angle-double-left"></i></a>
                         </li>
                         <!-- 이전 페이지로 이동 -->
                         <li class="page-item" th:classappend="${resourcePage.first} ? 'disabled'">
-                            <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='resources', page=${currentPage - 1}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-chevron-left"></i></a>
+                            <a class="page-link" th:aria-label="#{common.page.previous}" th:href="@{/contexa/admin/policy-center(tab='resources', page=${currentPage - 1}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-chevron-left"></i></a>
                         </li>
 
                         <!-- 첫 페이지와 startPage 사이에 생략이 있으면 1페이지와 ... 표시 -->
@@ -230,11 +230,11 @@
 
                         <!-- 다음 페이지로 이동 -->
                         <li class="page-item" th:classappend="${resourcePage.last} ? 'disabled'">
-                            <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='resources', page=${currentPage + 1}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-chevron-right"></i></a>
+                            <a class="page-link" th:aria-label="#{common.page.next}" th:href="@{/contexa/admin/policy-center(tab='resources', page=${currentPage + 1}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-chevron-right"></i></a>
                         </li>
                         <!-- 끝 페이지로 이동 -->
                         <li class="page-item" th:classappend="${resourcePage.last} ? 'disabled'">
-                            <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='resources', page=${totalPages - 1}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-angle-double-right"></i></a>
+                            <a class="page-link" th:aria-label="#{common.page.last}" th:href="@{/contexa/admin/policy-center(tab='resources', page=${totalPages - 1}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}"><i class="fas fa-angle-double-right"></i></a>
                         </li>
                     </ul>
                 </nav>
@@ -503,7 +503,7 @@
                             <button type="button" class="ai-generate-btn" id="ai-generate-btn" onclick="PolicyCenter.AI.generate()" style="white-space: nowrap; height: 4rem; padding: 0 2rem;">
                                 <i class="fas fa-brain"></i> <span th:text="#{admin.policy.center.create.ai.generate}">AI Policy Generate</span>
                             </button>
-                            <button type="button" class="ai-cancel-btn hidden" id="ai-cancel-btn" onclick="PolicyCenter.AI.cancel()" style="height: 4rem;">
+                            <button type="button" class="ai-cancel-btn hidden" id="ai-cancel-btn" onclick="PolicyCenter.AI.cancel()" th:aria-label="#{common.cancel}" style="height: 4rem;">
                                 <i class="fas fa-times"></i>
                             </button>
                         </div>
@@ -573,14 +573,14 @@
                                 <div>
                                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
                                         <span class="ai-field-label" style="margin-bottom:0;"><i class="fas fa-users" style="color:#818cf8;margin-right:0.375rem;"></i><span th:text="#{admin.access.center.overview.role}">Roles</span> (<span id="ai-role-count">0</span>)</span>
-                                        <button type="button" class="ai-add-item-btn" onclick="PolicyCenter.AI.openItemPicker('role')"><i class="fas fa-plus"></i></button>
+                                        <button type="button" class="ai-add-item-btn" onclick="PolicyCenter.AI.openItemPicker('role')" th:aria-label="#{admin.policy.center.create.ai.add.role}"><i class="fas fa-plus"></i></button>
                                     </div>
                                     <div class="ai-card-chips" id="ai-card-roles" style="min-height:2.5rem;"></div>
                                 </div>
                                 <div>
                                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
                                         <span class="ai-field-label" style="margin-bottom:0;"><i class="fas fa-key" style="color:#10b981;margin-right:0.375rem;"></i><span th:text="#{admin.access.center.overview.permission}">Permissions</span> (<span id="ai-perm-count">0</span>)</span>
-                                        <button type="button" class="ai-add-item-btn" onclick="PolicyCenter.AI.openItemPicker('permission')"><i class="fas fa-plus"></i></button>
+                                        <button type="button" class="ai-add-item-btn" onclick="PolicyCenter.AI.openItemPicker('permission')" th:aria-label="#{admin.policy.center.create.ai.add.permission}"><i class="fas fa-plus"></i></button>
                                     </div>
                                     <div class="ai-card-chips" id="ai-card-permissions" style="min-height:2.5rem;"></div>
                                 </div>
@@ -588,7 +588,7 @@
                             <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid rgba(71,85,105,0.3);">
                                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
                                     <span class="ai-field-label" style="margin-bottom:0;"><i class="fas fa-clock" style="color:#f59e0b;margin-right:0.375rem;"></i><span th:text="#{admin.policy.center.create.ai.condition}">Conditions</span> (<span id="ai-cond-count">0</span>)</span>
-                                    <button type="button" class="ai-add-item-btn" onclick="PolicyCenter.AI.openItemPicker('condition')"><i class="fas fa-plus"></i></button>
+                                    <button type="button" class="ai-add-item-btn" onclick="PolicyCenter.AI.openItemPicker('condition')" th:aria-label="#{admin.policy.center.create.ai.add.condition}"><i class="fas fa-plus"></i></button>
                                 </div>
                                 <div class="ai-card-chips" id="ai-card-conditions" style="min-height:2rem;"></div>
                             </div>
@@ -709,7 +709,7 @@
                     </div>
                 </form>
 
-                <div class="modern-table overflow-x-auto">
+                <div class="modern-table overflow-x-auto" tabindex="0" role="region" th:aria-label="#{admin.policy.center.tab.list}">
                     <table class="min-w-full text-sm">
                         <thead>
                         <tr>
@@ -805,11 +805,11 @@
                     <ul class="modern-pagination">
                         <!-- 처음 페이지로 이동 -->
                         <li class="page-item" th:classappend="${policyPage.first} ? 'disabled'">
-                            <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=0, policyKeyword=${policyKeyword})}"><i class="fas fa-angle-double-left"></i></a>
+                            <a class="page-link" th:aria-label="#{common.page.first}" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=0, policyKeyword=${policyKeyword})}"><i class="fas fa-angle-double-left"></i></a>
                         </li>
                         <!-- 이전 페이지로 이동 -->
                         <li class="page-item" th:classappend="${policyPage.first} ? 'disabled'">
-                            <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=${currentPage - 1}, policyKeyword=${policyKeyword})}"><i class="fas fa-chevron-left"></i></a>
+                            <a class="page-link" th:aria-label="#{common.page.previous}" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=${currentPage - 1}, policyKeyword=${policyKeyword})}"><i class="fas fa-chevron-left"></i></a>
                         </li>
 
                         <!-- 첫 페이지와 startPage 사이에 생략이 있으면 1페이지와 ... 표시 -->
@@ -840,11 +840,11 @@
 
                         <!-- 다음 페이지로 이동 -->
                         <li class="page-item" th:classappend="${policyPage.last} ? 'disabled'">
-                            <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=${currentPage + 1}, policyKeyword=${policyKeyword})}"><i class="fas fa-chevron-right"></i></a>
+                            <a class="page-link" th:aria-label="#{common.page.next}" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=${currentPage + 1}, policyKeyword=${policyKeyword})}"><i class="fas fa-chevron-right"></i></a>
                         </li>
                         <!-- 끝 페이지로 이동 -->
                         <li class="page-item" th:classappend="${policyPage.last} ? 'disabled'">
-                            <a class="page-link" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=${totalPages - 1}, policyKeyword=${policyKeyword})}"><i class="fas fa-angle-double-right"></i></a>
+                            <a class="page-link" th:aria-label="#{common.page.last}" th:href="@{/contexa/admin/policy-center(tab='list', policyPage=${totalPages - 1}, policyKeyword=${policyKeyword})}"><i class="fas fa-angle-double-right"></i></a>
                         </li>
                     </ul>
                 </nav>
@@ -894,7 +894,7 @@
 
                 <div id="sim-results" class="hidden">
                     <div id="sim-summary" class="grid grid-cols-4 gap-4 mb-6"></div>
-                    <div class="modern-table overflow-x-auto">
+                    <div class="modern-table overflow-x-auto" tabindex="0" role="region" th:aria-label="#{admin.policy.center.simulator.test.cases}">
                         <table class="min-w-full text-sm">
                             <thead><tr>
                                 <th class="py-3 px-4 text-left text-white text-xs uppercase font-semibold" th:text="#{admin.policy.center.simulator.th.user}">User</th>
@@ -932,7 +932,7 @@
                     </button>
                 </div>
 
-                <div id="matrix-container" class="modern-table overflow-x-auto">
+                <div id="matrix-container" class="modern-table overflow-x-auto" tabindex="0" role="region" th:aria-label="#{admin.policy.center.tab.matrix}">
                     <p class="text-sm p-6" style="color: #64748b;" th:text="#{admin.policy.center.matrix.empty}">Click search to load the matrix.</p>
                 </div>
 
@@ -1294,7 +1294,7 @@
                 box-shadow:0 4px 12px rgba(99,102,241,0.35);">
             <i class="fas fa-shield-alt" style="font-size:1rem;"></i> <span th:text="#{admin.policy.center.resource.create.permission.policy}">Create Permission & Policy</span>
         </button>
-        <button type="button" onclick="PolicyCenter.MultiSelect.clearSelection()"
+        <button type="button" onclick="PolicyCenter.MultiSelect.clearSelection()" th:aria-label="#{common.selection.clear}"
                 style="display:inline-flex;align-items:center;gap:0.5rem;padding:0.625rem 1rem;border-radius:0.75rem;
                 font-size:0.9375rem;cursor:pointer;transition:all 0.2s;
                 background:rgba(71,85,105,0.3);color:#94a3b8;border:1px solid rgba(71,85,105,0.4);">

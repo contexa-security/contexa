@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import io.contexa.contexacore.autonomous.context.model.ObjectiveDriftEvaluation;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.support.SessionExports;
 
 public class ObjectiveDriftEvaluator {
 
@@ -159,6 +160,32 @@ public class ObjectiveDriftEvaluator {
             facts.add(withinLimit
                     ? requestedItems + " requested items are within the objective's export limit of " + contract.maxExportItems() + "."
                     : requestedItems + " requested items exceed the objective's export limit of " + contract.maxExportItems() + ".");
+        }
+
+        // RL-6: the quantity limits the delegation itself states, apart from the objective's: the items one request may
+        // carry, and the items the agent may export in its session (this request included).
+        Integer perRequest = delegation.getMaxItemsPerRequest();
+        if (perRequest != null && requestedItems != null && "EXPORT".equalsIgnoreCase(currentOperation)) {
+            compared = true;
+            boolean withinLimit = requestedItems <= perRequest;
+            drift = drift || !withinLimit;
+            facts.add(withinLimit
+                    ? requestedItems + " requested items are within the delegation's limit of " + perRequest
+                            + " items per request."
+                    : requestedItems + " requested items exceed the delegation's limit of " + perRequest
+                            + " items per request.");
+        }
+        Integer total = delegation.getMaxItemsTotal();
+        if (total != null && requestedItems != null && "EXPORT".equalsIgnoreCase(currentOperation)) {
+            compared = true;
+            long inSession = SessionExports.exportedItems(context) + requestedItems;
+            boolean withinLimit = inSession <= total;
+            drift = drift || !withinLimit;
+            facts.add(withinLimit
+                    ? inSession + " items exported in the session with this request are within the delegation's limit of "
+                            + total + "."
+                    : inSession + " items exported in the session with this request exceed the delegation's limit of "
+                            + total + ".");
         }
 
         if (Boolean.FALSE.equals(delegation.getPrivilegedExportAllowed()) && "EXPORT".equalsIgnoreCase(currentOperation)) {

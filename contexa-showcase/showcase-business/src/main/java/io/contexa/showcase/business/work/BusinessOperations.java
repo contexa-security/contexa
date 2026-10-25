@@ -1,6 +1,7 @@
 package io.contexa.showcase.business.work;
 
 import io.contexa.showcase.business.work.BusinessViews.CustomerView;
+import io.contexa.showcase.business.work.BusinessViews.DocumentDeletionResult;
 import io.contexa.showcase.business.work.BusinessViews.DocumentFile;
 import io.contexa.showcase.business.work.BusinessViews.DocumentSummary;
 import io.contexa.showcase.business.work.BusinessViews.DocumentView;
@@ -33,6 +34,9 @@ public interface BusinessOperations {
                                         int limit);
 
     DocumentFile downloadDocument(BusinessRequest request, String documentKey);
+
+    /** docs/agent A6-R8: marks a document for deletion; the company's retention purge removes it later. */
+    DocumentDeletionResult deleteDocument(BusinessRequest request, String documentKey);
 
     ExportResult exportDocuments(BusinessRequest request, String projectKey, int items);
 

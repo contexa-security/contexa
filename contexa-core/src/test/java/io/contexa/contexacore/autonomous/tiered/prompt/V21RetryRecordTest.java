@@ -86,6 +86,40 @@ class V21RetryRecordTest {
                 .satisfies(retry -> assertThat(((Map<?, ?>) retry).get("failureReason")).isEqualTo(failure));
     }
 
+    /** An answer whose only fault is a code citing a line that exists but that the code may not cite (RL-4). */
+    private static final String UNSUPPORTED_CODE = "{\"action\":\"BLOCK\",\"hypotheses\":[{\"id\":\"H1\",\"name\":null,"
+            + "\"assessment\":\"POSSIBLE\",\"for\":[\"S1\"],\"against\":[\"F1\"]},{\"id\":\"H3\",\"name\":null,"
+            + "\"assessment\":\"MOST_LIKELY\",\"for\":[\"F1\"],\"against\":[]}],\"reasonCodes\":[{\"code\":"
+            + "\"DEVIATION_NETWORK\",\"fact\":\"F1\"}],\"reason\":\"The owner exports a project outside their work at"
+            + " night.\",\"riskScore\":0.9,\"confidence\":0.8,\"mitre\":null}";
+
+    /**
+     * RL-4: reason codes the lines do not support are the only fault, so the step does not ask again (a second answer
+     * may choose another action: in the A6 measurement three BLOCK answers became ALLOW that way). The first answer is
+     * kept and the codes are recorded as unresolved findings; with a made-up fact ID, as above, it still asks again.
+     */
+    @Test
+    void anAnswerWhoseOnlyFaultIsUnsupportedCodesIsKeptWithoutAskingAgain() {
+        SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V21.version());
+        JsonNode a3 = golden.cases().stream().filter(item -> "A3".equals(item.path("caseKey").asText())).findFirst()
+                .orElseThrow();
+        SecurityDecisionGoldenRender.RenderedCase rendered = golden.render(a3,
+                PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, properties);
+        AnsweringClient client = new AnsweringClient(UNSUPPORTED_CODE);
+        PipelineExecutionContext context = contextOf(rendered, "exec-v21-unsupported-codes");
+
+        Object response = new LLMExecutionStep(client).execute(requestOf(rendered), context).block();
+
+        assertThat(response).as("the first answer, as the model gave it").isEqualTo(UNSUPPORTED_CODE);
+        assertThat(client.calls).as("no second model call").isEqualTo(1);
+        assertThat(context.getMetadata("securityDecisionOutputRetryAttempted", Boolean.class)).isNotEqualTo(Boolean.TRUE);
+        assertThat(context.getMetadata(SecurityDecisionV21OutputInspector.UNRESOLVED_FINDINGS, String.class))
+                .contains("REASON_CODE_MISMATCH").contains("DEVIATION_NETWORK F1");
+        assertThat(context.getMetadata(SecurityDecisionV21OutputInspector.HYPOTHESES, List.class)).hasSize(2);
+    }
+
     /** An ESCALATE that cites only what the A3 prompt states. */
     private static final String CITED_ESCALATE = "{\"action\":\"ESCALATE\",\"hypotheses\":[{\"id\":\"H1\",\"name\":null,"
             + "\"assessment\":\"UNLIKELY\",\"for\":[\"S1\"],\"against\":[\"F1\",\"F4\"]},{\"id\":\"H2\",\"name\":null,"

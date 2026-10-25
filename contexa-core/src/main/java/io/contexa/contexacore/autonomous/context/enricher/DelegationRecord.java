@@ -38,6 +38,10 @@ import java.util.List;
  * @param recordedBy              who wrote the record (A2-10): the delegator, an agent, an administrator; null when
  *                                the host does not say
  * @param recordedAt              when the record was written; null when the host does not say
+ * @param maxItemsPerRequest      the most items one request under this delegation may carry (an export's item
+ *                                count), or null when the record states none (RL-6)
+ * @param maxItemsTotal           the most items the agent may move under this delegation in its session, or null
+ *                                when the record states none (RL-6)
  */
 public record DelegationRecord(
         String delegationId,
@@ -53,11 +57,23 @@ public record DelegationRecord(
         Boolean containmentOnly,
         Instant expiresAt,
         String recordedBy,
-        Instant recordedAt) {
+        Instant recordedAt,
+        Integer maxItemsPerRequest,
+        Integer maxItemsTotal) {
 
     public DelegationRecord {
         allowedOperations = allowedOperations == null ? List.of() : List.copyOf(allowedOperations);
         allowedResources = allowedResources == null ? List.of() : List.copyOf(allowedResources);
+    }
+
+    /** A record that states no quantity limit (the form before RL-6). */
+    public DelegationRecord(String delegationId, String delegatorId, String agentId, String objectiveId,
+                            String objectiveFamily, String objectiveSummary, List<String> allowedOperations,
+                            List<String> allowedResources, Boolean approvalRequired, Boolean privilegedExportAllowed,
+                            Boolean containmentOnly, Instant expiresAt, String recordedBy, Instant recordedAt) {
+        this(delegationId, delegatorId, agentId, objectiveId, objectiveFamily, objectiveSummary, allowedOperations,
+                allowedResources, approvalRequired, privilegedExportAllowed, containmentOnly, expiresAt, recordedBy,
+                recordedAt, null, null);
     }
 
     /** A record that does not say who wrote it or when (the form before A2-10). */
@@ -66,6 +82,6 @@ public record DelegationRecord(
                             List<String> allowedResources, Boolean approvalRequired, Boolean privilegedExportAllowed,
                             Boolean containmentOnly, Instant expiresAt) {
         this(delegationId, delegatorId, agentId, objectiveId, objectiveFamily, objectiveSummary, allowedOperations,
-                allowedResources, approvalRequired, privilegedExportAllowed, containmentOnly, expiresAt, null, null);
+                allowedResources, approvalRequired, privilegedExportAllowed, containmentOnly, expiresAt, null, null, null, null);
     }
 }

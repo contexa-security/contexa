@@ -190,7 +190,8 @@ public class CoreAutonomousEventAutoConfiguration {
     @ConditionalOnMissingBean
     public AgentAllowReuse agentAllowReuse(SecurityZeroTrustProperties securityZeroTrustProperties) {
         SecurityZeroTrustProperties.AllowReuse settings = securityZeroTrustProperties.getAgent().getAllowReuse();
-        return new AgentAllowReuse(settings.getMaxRequests(), settings.getMaxDistinctResources(), null);
+        return new AgentAllowReuse(settings.getMaxRequests(), settings.getMaxDistinctResources(),
+                settings.getSensitiveMaxDistinctResources(), null);
     }
 
     @Bean

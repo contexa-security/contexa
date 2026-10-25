@@ -46,6 +46,15 @@ public class BusinessRequestAttributes {
     }
 
     public void describeDocument(HttpServletRequest request, String documentKey) {
+        describeDocument(request, documentKey, "Document ");
+    }
+
+    /** docs/agent A6-R8: a deletion is labelled as what it is, so a read label never stands for a change. */
+    public void describeDocumentDeletion(HttpServletRequest request, String documentKey) {
+        describeDocument(request, documentKey, "Deletion of document ");
+    }
+
+    private void describeDocument(HttpServletRequest request, String documentKey, String what) {
         database.jdbc().query("""
                         select d.title, d.revision, d.project_key, p.display_name, d.sensitivity, d.document_type,
                                d.author_summary
@@ -53,7 +62,7 @@ public class BusinessRequestAttributes {
                          where d.document_key = :key""",
                 new MapSqlParameterSource("key", documentKey),
                 rs -> {
-                    String label = "Document " + documentKey + " '" + rs.getString(1) + "' revision " + rs.getString(2)
+                    String label = what + documentKey + " '" + rs.getString(1) + "' revision " + rs.getString(2)
                             + " (" + rs.getString(6) + ") of project " + rs.getString(3) + " " + rs.getString(4)
                             + SOURCE;
                     write(request, label, rs.getString(5));
@@ -88,11 +97,31 @@ public class BusinessRequestAttributes {
                 new MapSqlParameterSource("key", projectKey),
                 rs -> {
                     String label = "Export of " + items + " documents from project " + projectKey + " "
-                            + rs.getString(1) + ", which holds " + rs.getInt(3) + " documents" + SOURCE;
+                            + rs.getString(1) + ", which holds " + rs.getInt(3) + " documents" + destination(request)
+                            + SOURCE;
                     write(request, label, rs.getString(2));
                     scope(request, projectKey);
                     request.setAttribute(REQUEST_ITEMS, items);
                 });
+    }
+
+    /**
+     * docs/agent A6-R9: where an export says its documents go, as the business database knows it: a registered company
+     * destination by its kind, or a name no registry holds. The name is the requester's own words, so it is quoted
+     * and limited to address characters by the controller.
+     */
+    private String destination(HttpServletRequest request) {
+        String destination = request.getParameter(BusinessRequest.DESTINATION_PARAMETER);
+        if (destination == null || destination.isBlank()) {
+            return "";
+        }
+        String name = destination.trim();
+        String kind = database.jdbc().queryForList(
+                "select kind from export_destination where destination_key = :key",
+                new MapSqlParameterSource("key", name), String.class).stream().findFirst().orElse(null);
+        return ", delivered to destination '" + name + "' ("
+                + (kind == null ? "not a registered company destination"
+                : "INTERNAL".equals(kind) ? "a registered company share" : "a registered partner exchange") + ")";
     }
 
     public void describeGrant(HttpServletRequest request, String projectKey, String grantee, String responsibility) {

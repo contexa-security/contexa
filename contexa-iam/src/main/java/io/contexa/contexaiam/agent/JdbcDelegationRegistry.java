@@ -44,7 +44,7 @@ public class JdbcDelegationRegistry implements DelegationRegistry {
     private static final String COLUMNS = "delegation_id, tenant_key, delegator_id, agent_id, objective_id, "
             + "objective_family, objective_summary, allowed_operations, allowed_resources, approval_required, "
             + "privileged_export_allowed, containment_only, valid_from, expires_at, revoked_at, revoked_by, "
-            + "revoke_reason, recorded_by, recorded_at";
+            + "revoke_reason, recorded_by, recorded_at, max_items_per_request, max_items_total";
 
     private static final String SEPARATOR = "\n";
 
@@ -70,14 +70,14 @@ public class JdbcDelegationRegistry implements DelegationRegistry {
         AgentDelegation delegation = AgentDelegations.newDelegation(UUID.randomUUID().toString(), request,
                 maxValidity, clock.instant());
         jdbc.update("insert into agent_delegation_record (" + COLUMNS + ") "
-                        + "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        + "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 delegation.delegationId(), AgentRegistrations.tenantKey(delegation.tenantId()),
                 delegation.delegatorId(), delegation.agentId(), delegation.objectiveId(),
                 delegation.objectiveFamily(), delegation.objectiveSummary(), joined(delegation.allowedOperations()),
                 joined(delegation.allowedResources()), delegation.approvalRequired(),
                 delegation.privilegedExportAllowed(), delegation.containmentOnly(), timestamp(delegation.validFrom()),
                 timestamp(delegation.expiresAt()), null, null, null, delegation.recordedBy(),
-                timestamp(delegation.recordedAt()));
+                timestamp(delegation.recordedAt()), delegation.maxItemsPerRequest(), delegation.maxItemsTotal());
         return delegation;
     }
 
@@ -176,7 +176,13 @@ public class JdbcDelegationRegistry implements DelegationRegistry {
                 nullableBoolean(row, "containment_only"), instant(row.getTimestamp("valid_from")),
                 instant(row.getTimestamp("expires_at")), instant(row.getTimestamp("revoked_at")),
                 row.getString("revoked_by"), row.getString("revoke_reason"), row.getString("recorded_by"),
-                instant(row.getTimestamp("recorded_at")));
+                instant(row.getTimestamp("recorded_at")), nullableInteger(row, "max_items_per_request"),
+                nullableInteger(row, "max_items_total"));
+    }
+
+    private static Integer nullableInteger(ResultSet row, String column) throws SQLException {
+        int value = row.getInt(column);
+        return row.wasNull() ? null : value;
     }
 
     private static Boolean nullableBoolean(ResultSet row, String column) throws SQLException {

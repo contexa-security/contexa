@@ -98,12 +98,12 @@
                            class="px-3 py-1 rounded-md text-xs"
                            style="background:rgba(15,23,42,0.6);border:1px solid rgba(71,85,105,0.4);color:#e2e8f0;max-width:180px;"
                            th:placeholder="#{admin.security.monitor.search.placeholder}" />
-                    <button type="submit" class="text-xs px-2 py-1 rounded-md"
+                    <button type="submit" class="text-xs px-2 py-1 rounded-md" th:aria-label="#{common.search}"
                             style="background:rgba(99,102,241,0.3);color:#a5b4fc;border:1px solid rgba(99,102,241,0.5);">
                         <i class="fas fa-search"></i>
                     </button>
                     <a th:href="@{/contexa/admin/security-monitor(hours=${hours}, category=${category}, filter=${filter})}"
-                       class="text-xs px-2 py-1 rounded-md"
+                       class="text-xs px-2 py-1 rounded-md" th:aria-label="#{common.search.clear}"
                        style="color:#94a3b8;border:1px solid rgba(71,85,105,0.3);">
                         <i class="fas fa-times"></i>
                     </a>
@@ -121,7 +121,8 @@
                     <h3 class="text-base font-bold" style="color: #22d3ee;"><i class="fas fa-network-wired mr-2"></i><span th:text="#{admin.security.monitor.ip.access}">IP Address Access Status</span></h3>
                     <span class="text-xs" style="color: #64748b;" th:text="#{admin.security.monitor.ip.total(${totalIpGroups})}"></span>
                 </div>
-                <div class="modern-table overflow-x-auto mb-4">
+                <div class="modern-table overflow-x-auto mb-4" tabindex="0" role="region"
+                     th:aria-label="#{admin.security.monitor.ip.access}">
                     <table class="w-full">
                         <thead>
                         <tr>
@@ -144,7 +145,8 @@
                 <p class="text-xs mb-4" style="color: #64748b;" th:text="#{admin.security.monitor.ip.events.below}">Below is the full list of events with recorded IP addresses.</p>
             </div>
 
-            <div class="modern-table overflow-x-auto">
+            <div class="modern-table overflow-x-auto" tabindex="0" role="region"
+                 th:aria-label="#{admin.security.monitor.events.region}">
                 <table class="w-full">
                     <thead>
                     <tr>
@@ -209,7 +211,7 @@
                 </table>
             </div>
 
-            <div th:if="${logPage.totalPages > 1}" class="flex justify-center gap-2 mt-6">
+            <div th:if="${logPage.totalPages > 1}" class="flex flex-wrap justify-center gap-2 mt-6">
                 <a th:each="i : ${#numbers.sequence(0, logPage.totalPages - 1)}"
                    th:href="@{/contexa/admin/security-monitor(page=${i}, hours=${hours}, category=${category}, keyword=${keyword})}"
                    class="px-3 py-1 rounded text-sm"

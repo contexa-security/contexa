@@ -60,9 +60,13 @@ public final class SecurityDecisionOutputContractV4 {
     }
 
     public static final List<ReasonCode> REASON_CODES = List.of(
+            // v21.15 (RL-2): the delegation and the company policy are records too; a model that finds the work covered by
+            // either cites the line that says so under this code.
             code(Group.BUSINESS_RECORDS, "RECORD_COVERS_WORK",
-                    "you judged that this record covers this work by its target, purpose, period, limit and decision time",
-                    List.of("DECISION_FACTS.Approval", "DECISION_FACTS.Ticket", "DECISION_FACTS.RecordProvenance")),
+                    "you judged that this record, delegation or company policy covers this work by its target, purpose,"
+                            + " period, limit and decision time",
+                    List.of("DECISION_FACTS.Approval", "DECISION_FACTS.Ticket", "DECISION_FACTS.RecordProvenance",
+                            "DECISION_FACTS.Delegation", "DECISION_FACTS.Policy")),
             code(Group.BUSINESS_RECORDS, "RECORD_DECIDED_AFTER_REQUEST",
                     "the record was decided after this request",
                     List.of("DECISION_FACTS.Approval")),
@@ -159,7 +163,14 @@ public final class SecurityDecisionOutputContractV4 {
                     List.of("DECISION_FACTS.TemporaryElevation")),
             // v21.9 (A2-9): what the agent did so far in its session is part of its delegated run and its session.
             code(Group.DELEGATION, "DELEGATION_SCOPE_DRIFT",
-                    "the delegated run leaves the allowed objective, operations or resources",
+                    "the comparison of this request with the delegation says drift: it leaves the allowed operations,"
+                            + " resources or stated limits",
+                    List.of("DECISION_FACTS.Delegation", "SESSION.DelegationActivity")),
+            // v21.15 (RL-2): what the delegation's objective calls for is read from its words and the amounts the lines
+            // state; that reading is the model's judgment, apart from the core's own comparison above.
+            code(Group.DELEGATION, "DELEGATION_OBJECTIVE_EXCEEDED",
+                    "you judged that the amount, breadth or purpose of this request goes beyond what the delegation's"
+                            + " objective calls for",
                     List.of("DECISION_FACTS.Delegation", "SESSION.DelegationActivity")),
             code(Group.SESSION, "SESSION_SEQUENCE",
                     "you judged that the order, pace or amount of this session's requests changes the story",

@@ -307,6 +307,10 @@ public class CanonicalSecurityContext {
         private String objectiveDriftSummary;
         /** When the delegation ends (an instant). */
         private String expiresAt;
+        /** The most items one request under the delegation may carry, when the delegation states it (RL-6). */
+        private Integer maxItemsPerRequest;
+        /** The most items the agent may move under the delegation in its session, when it states it (RL-6). */
+        private Integer maxItemsTotal;
     }
 
     @Data

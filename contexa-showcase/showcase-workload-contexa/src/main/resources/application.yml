@@ -41,7 +41,7 @@ spring:
         options:
           model: ${SHOWCASE_CHAT_MODEL:gpt-5-nano}
     anthropic:
-      api-key: ${SHOWCASE_ANTHROPIC_API_KEY:}
+      api-key: ${SHOWCASE_ANTHROPIC_API_KEY:${ANTHROPIC_API_KEY:}}
       chat:
         options:
           model: ${SHOWCASE_ANTHROPIC_CHAT_MODEL:claude-haiku-5-5}
@@ -82,15 +82,18 @@ contexa:
       # The decision prompt bundle D runs (docs/showcase/판정층-수정계획.md 8절 1): without it a plain start runs the
       # core default bundle.
       prompt-bundle:
-        active: 2026.10.24-v21.14
+        active: 2026.10.25-v21.15
       # The model of each analysis layer (docs/showcase/판정층-수정계획.md E-7): Layer1 decides, Layer2 decides what
       # Layer1 could not. A model id with no runtime binding runs on a copy of the primary chat model; one that cannot
       # be made stops the start.
       llm:
         layer1:
           model: ${SHOWCASE_LAYER1_MODEL:gpt-6-luna}
+        # Layer 2 runs on Anthropic's Claude Sonnet 5.5 (user decision 2026-10-25, docs/agent 위임결정기록 DD-38); the
+        # chat binding below names the chat model that model id is resolved to. Layer 2 on OpenAI again:
+        # SHOWCASE_LAYER2_MODEL=gpt-6.1-sol.
         layer2:
-          model: ${SHOWCASE_LAYER2_MODEL:gpt-6.1-sol}
+          model: ${SHOWCASE_LAYER2_MODEL:claude-sonnet-5-5}
       layer1:
         open-ai-reasoning-effort: low
         max-output-tokens: 2048
@@ -111,6 +114,12 @@ contexa:
       issuer-uri: ${SHOWCASE_OAUTH2_ISSUER:http://127.0.0.1:19182}
       token-exchange-enabled: true
   llm:
+    bindings:
+      chat:
+        claude-sonnet-5-5:
+          bean-name: layer2AnthropicChatModel
+          provider: anthropic
+          model-id: claude-sonnet-5-5
     # The OpenAI models that take max_completion_tokens and the reasoning effort (the core default covers gpt-5 and o).
     model-capabilities:
       openai:

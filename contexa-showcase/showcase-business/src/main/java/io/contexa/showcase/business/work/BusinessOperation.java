@@ -41,7 +41,14 @@ public enum BusinessOperation {
      * {@code GET /api/projects/{projectKey}/documents?type=T&q=Q&limit=N}: the documents of a project, found by type and
      * title words (docs/agent A7-2a: how a business agent finds what to read).
      */
-    DOCUMENT_LIST(false);
+    DOCUMENT_LIST(false),
+
+    /**
+     * {@code POST /api/documents/{documentKey}/delete}: a document is marked for deletion (docs/agent A6-R8). The
+     * document stays readable until the company's retention purge, so the deletion is recorded and nothing in the
+     * company's data is lost, but it is a change a read-only delegation never covers.
+     */
+    DOCUMENT_DELETE(false);
 
     private final boolean bulk;
 

@@ -365,7 +365,7 @@ test('the main flow from the start to its end with the keyboard alone, the live 
   );
   await page.keyboard.press('Enter');
   await page.waitForURL(at('/benchmark'));
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(text('bench.r7.summary.title'));
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(text('bench.chart.summary.title'));
   await context.storageState({ path: join(info.project.outputDir, WALKED) });
 });
 
@@ -430,7 +430,7 @@ test('the menu sheet opens from the keyboard, holds the focus and gives it back'
   await page.keyboard.press('Enter');
   await page.waitForURL(at('/benchmark'));
   await expect(sheet).toBeHidden();
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(text('bench.r7.summary.title'));
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(text('bench.chart.summary.title'));
 
   // On a phone the menu is a sheet from the bottom: the focus goes into it and comes back the same way.
   await page.setViewportSize({ width: 390, height: 844 });

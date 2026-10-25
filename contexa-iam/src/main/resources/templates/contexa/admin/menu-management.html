@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.menu.management.title})}"></head>
 <body class="flex flex-col min-h-screen font-sans">
 
@@ -82,7 +82,7 @@
                         th:text="#{common.action.reset}">Reset</button>
             </div>
 
-            <div class="overflow-x-auto shadow-md rounded-lg">
+            <div class="overflow-x-auto shadow-md rounded-lg" tabindex="0" role="region" th:aria-label="#{admin.menu.management.title}">
                 <table class="min-w-full w-full text-sm text-left">
                     <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
                     <tr>
@@ -102,7 +102,7 @@
                                 th:style="${menu.parentId != null ? 'border-color:rgba(71,85,105,0.3);display:none;' : 'border-color:rgba(71,85,105,0.3);'}">
                                 <td class="py-4 px-6">
                                     <div class="flex items-center gap-2" th:style="${menu.parentId != null ? 'padding-left:2.5rem;' : ''}">
-                                        <button th:if="${parentIds != null and parentIds.contains(menu.id)}" type="button" class="toggle-group-btn" th:data-menu-id="${menu.id}" style="background:none;border:none;cursor:pointer;color:#a78bfa;font-size:1rem;width:1.5rem;padding:0;"><i class="fas fa-chevron-right"></i></button>
+                                        <button th:if="${parentIds != null and parentIds.contains(menu.id)}" type="button" class="toggle-group-btn" th:data-menu-id="${menu.id}" th:aria-label="#{admin.menu.toggle.group}" style="background:none;border:none;cursor:pointer;color:#a78bfa;font-size:1rem;width:1.5rem;padding:0;"><i class="fas fa-chevron-right"></i></button>
                                         <span th:if="${menu.icon != null and menu.icon.startsWith('<')}" style="display:inline-flex;align-items:center;width:1.25rem;height:1.25rem;color:#a78bfa;" th:utext="${menu.icon}"></span>
                                         <i th:if="${menu.icon != null and !menu.icon.isBlank() and !menu.icon.startsWith('<')}" th:class="${menu.icon}" style="color:#a78bfa;font-size:0.875rem;"></i>
                                         <i th:if="${menu.icon == null or menu.icon.isBlank()}" class="fas fa-file-alt" style="color:#64748b;font-size:0.7rem;"></i>

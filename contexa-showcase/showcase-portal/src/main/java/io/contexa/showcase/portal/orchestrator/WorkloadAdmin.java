@@ -279,6 +279,15 @@ public class WorkloadAdmin {
                 + "?action=" + URLEncoder.encode(action, StandardCharsets.UTF_8), null, null, Map.of()));
     }
 
+    /**
+     * docs/agent A6-R10: the judging model of control D fails for the model calls that name the run, or works again;
+     * fails unless D runs with showcase.dev.model-outage=true.
+     */
+    public void modelOutage(String runHex, boolean on) throws IOException {
+        String path = "/internal/dev/model-outage/" + URLEncoder.encode(runHex, StandardCharsets.UTF_8);
+        read(on ? engine("ops").postForm(path, null, null, Map.of()) : engine("ops").delete(path, null));
+    }
+
     private WorkloadClient plain(String runId) {
         return client(endpoints.b(), new RunIdentity(runId, null, null, null, null));
     }

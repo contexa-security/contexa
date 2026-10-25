@@ -466,7 +466,9 @@ public class LLMExecutionStep implements PipelineStep {
 
     /**
      * V-5: a v21 decision. An answer without a usable form, or one that says what the prompt's lines do not state, is
-     * asked again once with what was wrong; an answer cut at the output limit is asked again with twice the limit. The
+     * asked again once with what was wrong, except an answer whose only fault is reason codes the lines do not support
+     * (RL-4: kept as it is, the codes recorded as unresolved); an answer cut at the output limit is asked again with
+     * twice the limit. The
      * answer after the retry is kept as the model gave it unless it still has no usable form (a technical failure, as
      * for every bundle); what it still says wrongly is recorded. The action is the model's either way.
      */
@@ -488,6 +490,15 @@ public class LLMExecutionStep implements PipelineStep {
                     Inspection initialCheck = initial.inspection();
                     if (!initialCheck.requiresRetry()) {
                         context.addMetadata(SecurityDecisionV21OutputInspector.HYPOTHESES, initial.hypotheses());
+                        return Mono.just(rawResponse);
+                    }
+                    if (initial.unsupportedCodesOnly()) {
+                        // RL-4: the action and the explanations are sound; only reason codes cite a line that exists but
+                        // that they may not cite. Asking again would let the model choose another action (a retry turned a
+                        // BLOCK into an ALLOW), so the answer is kept and the codes are recorded as not supported.
+                        context.addMetadata(SecurityDecisionV21OutputInspector.HYPOTHESES, initial.hypotheses());
+                        context.addMetadata(SecurityDecisionV21OutputInspector.UNRESOLVED_FINDINGS,
+                                initialCheck.retryReason());
                         return Mono.just(rawResponse);
                     }
                     recordInitialSecurityDecisionFailure(context, initialCheck, rawResponse);

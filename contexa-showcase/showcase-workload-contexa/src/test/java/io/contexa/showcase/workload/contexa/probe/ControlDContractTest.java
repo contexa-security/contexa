@@ -8,6 +8,7 @@ import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.security.UnifiedUserDetailsService;
+import io.contexa.contexacore.std.llm.model.DynamicModelRegistry;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.showcase.business.client.WorkloadClient;
 import io.contexa.showcase.business.client.WorkloadClient.Response;
@@ -27,6 +28,8 @@ import io.contexa.showcase.workload.contexa.context.BusinessFrictionProvider;
 import io.contexa.showcase.workload.contexa.inbox.DemoInboxEmailService;
 import io.contexa.showcase.workload.contexa.internal.DevForcedActionController;
 import io.contexa.showcase.workload.contexa.internal.EndpointProtection;
+import io.contexa.showcase.workload.contexa.internal.ModelOutageController;
+import io.contexa.showcase.workload.contexa.observation.ModelOutage;
 import io.contexa.showcase.workload.contexa.observation.UsageLedger;
 import io.contexa.showcase.workload.contexa.principal.OrphanPrincipalSweeper;
 import io.contexa.showcase.workload.contexa.principal.SharedAccountGuard;
@@ -34,7 +37,9 @@ import io.contexa.showcase.workload.contexa.template.TemplateSnapshot;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.anthropic.AnthropicChatModel;
 import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -96,6 +101,15 @@ class ControlDContractTest {
 
     @Autowired
     private ObjectProvider<DevForcedActionController> forcedActions;
+
+    @Autowired
+    private ObjectProvider<ModelOutage> modelOutage;
+
+    @Autowired
+    private ObjectProvider<ModelOutageController> modelOutageController;
+
+    @Autowired
+    DynamicModelRegistry modelRegistry;
 
     @Autowired
     CustomDynamicAuthorizationManager authorization;
@@ -183,10 +197,27 @@ class ControlDContractTest {
                 + "or not account_locked)", Integer.class)).isZero();
     }
 
+    /**
+     * DD-38: Layer 1 runs on the OpenAI model and Layer 2 on Claude Sonnet 5.5. Each layer's model id is resolved by the
+     * engine to its own provider's chat model (the Layer 2 id through the chat binding in application.yml).
+     */
+    @Test
+    void layerOneRunsOnTheOpenAiModelAndLayerTwoOnTheAnthropicModel() {
+        assertThat(modelRegistry.getModel("gpt-6-luna")).isInstanceOf(OpenAiChatModel.class);
+        assertThat(modelRegistry.getModel("claude-sonnet-5-5")).isInstanceOf(AnthropicChatModel.class);
+    }
+
     /** Forced decisions exist only on a development stack that sets the flag; visitors never see one. */
     @Test
     void forcedDecisionsDoNotExistUnlessTheDevelopmentFlagIsSet() {
         assertThat(forcedActions.getIfAvailable()).isNull();
+    }
+
+    /** docs/agent A6-R10: the outage of the judging model exists only on a development stack that sets its flag. */
+    @Test
+    void theModelOutageDoesNotExistUnlessTheDevelopmentFlagIsSet() {
+        assertThat(modelOutage.getIfAvailable()).isNull();
+        assertThat(modelOutageController.getIfAvailable()).isNull();
     }
 
     @Test
@@ -334,6 +365,9 @@ class ControlDContractTest {
         requests.put("DOCUMENT_READ", new String[]{"GET", "/api/documents/" + workDatabase.jdbc()
                 .getJdbcTemplate().queryForObject("select min(document_key) from document where project_key = 'GB-500'",
                         String.class), null});
+        requests.put("DOCUMENT_DELETE", new String[]{"POST", "/api/documents/" + workDatabase.jdbc()
+                .getJdbcTemplate().queryForObject("select min(document_key) from document where project_key = 'GB-500'",
+                        String.class) + "/delete", null});
         requests.put("CUSTOMER_READ", new String[]{"GET", "/api/customers/CUS-0001", null});
         requests.put("ROLE_GRANT", new String[]{"POST", "/api/admin/role-grants",
                 "project=GB-500&grantee=eng-k&responsibility=REVIEW"});
@@ -367,6 +401,7 @@ class ControlDContractTest {
     void theProtectionOfEachEndpointIsReadFromTheCode() throws Exception {
         assertThat(EndpointProtection.describe()).containsEntry("POST /api/projects/*/exports", "sync")
                 .containsEntry("POST /api/admin/role-grants", "sync")
+                .containsEntry("POST /api/documents/*/delete", "sync")
                 .containsEntry("GET /api/documents/*", "async")
                 .containsEntry("GET /api/projects/*/exports/stream", "async")
                 .containsEntry("GET /api/projects", "none");

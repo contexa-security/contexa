@@ -154,6 +154,39 @@ class DelegationRegistryTest {
         assertThat(registry.deleteByDelegator(" ")).isZero();
     }
 
+    /** RL-6: the quantity limits a delegation states are kept with it, read by the decision, and kept when it is revoked. */
+    @Test
+    void theQuantityLimitsOfADelegationAreKeptReadAndSurviveItsRevocation() {
+        AgentDelegation recorded = registry.record(new AgentDelegationRequest(null, "alice", "report-agent", null,
+                "REPORTING", "Prepare the weekly HX-310 drawing report", List.of("READ", "EXPORT"), List.of("HX-310"),
+                null, null, null, NOW.minusSeconds(60), NOW.plus(Duration.ofHours(4)), null, null, 40, 1200));
+
+        assertThat(recorded.maxItemsPerRequest()).isEqualTo(40);
+        assertThat(recorded.maxItemsTotal()).isEqualTo(1200);
+        assertThat(recorded.toRecord().maxItemsPerRequest()).isEqualTo(40);
+        assertThat(recorded.toRecord().maxItemsTotal()).isEqualTo(1200);
+        AgentDelegation revoked = registry.revoke(recorded.delegationId(), "alice", "done").orElseThrow();
+        assertThat(revoked.maxItemsPerRequest()).isEqualTo(40);
+        assertThat(revoked.maxItemsTotal()).isEqualTo(1200);
+        // A delegation that states none keeps none.
+        AgentDelegation unlimited = registry.record(request(null, "alice", "other-agent", NOW.minusSeconds(60),
+                NOW.plus(Duration.ofHours(4)), List.of("READ"), List.of("HX-310")));
+        assertThat(unlimited.maxItemsPerRequest()).isNull();
+        assertThat(unlimited.maxItemsTotal()).isNull();
+    }
+
+    @Test
+    void aQuantityLimitBelowOneIsRefused() {
+        assertThatThrownBy(() -> registry.record(new AgentDelegationRequest(null, "alice", "report-agent", null,
+                "REPORTING", null, List.of("EXPORT"), List.of("HX-310"), null, null, null, NOW.minusSeconds(60),
+                NOW.plus(Duration.ofHours(4)), null, null, 0, null)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("maxItemsPerRequest");
+        assertThatThrownBy(() -> registry.record(new AgentDelegationRequest(null, "alice", "report-agent", null,
+                "REPORTING", null, List.of("EXPORT"), List.of("HX-310"), null, null, null, NOW.minusSeconds(60),
+                NOW.plus(Duration.ofHours(4)), null, null, null, -5)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("maxItemsTotal");
+    }
+
     private static AgentDelegationRequest request(String tenant, String delegator, String agent, Instant from,
                                                   Instant until, List<String> operations, List<String> resources) {
         return new AgentDelegationRequest(tenant, delegator, agent, null, "REPORTING",

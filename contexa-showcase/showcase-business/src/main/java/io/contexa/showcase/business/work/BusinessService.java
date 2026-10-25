@@ -1,6 +1,7 @@
 package io.contexa.showcase.business.work;
 
 import io.contexa.showcase.business.work.BusinessViews.CustomerView;
+import io.contexa.showcase.business.work.BusinessViews.DocumentDeletionResult;
 import io.contexa.showcase.business.work.BusinessViews.DocumentFile;
 import io.contexa.showcase.business.work.BusinessViews.DocumentSummary;
 import io.contexa.showcase.business.work.BusinessViews.DocumentView;
@@ -34,6 +35,9 @@ import java.util.UUID;
 public class BusinessService implements BusinessOperations {
 
     private static final Logger log = LoggerFactory.getLogger(BusinessService.class);
+
+    /** The most characters of an export destination the job keeps (the column's width). */
+    static final int DESTINATION_LENGTH = 120;
 
     private final WorkDatabase database;
     private final Clock clock;
@@ -110,6 +114,23 @@ public class BusinessService implements BusinessOperations {
                 + document.projectKey() + "\nsensitivity " + document.sensitivity() + "\n\n" + document.body() + "\n";
         return new DocumentFile(document.documentKey() + ".txt", "text/plain",
                 content.getBytes(StandardCharsets.UTF_8), document.projectKey());
+    }
+
+    @Override
+    public DocumentDeletionResult deleteDocument(BusinessRequest request, String documentKey) {
+        String projectKey = database.jdbc().queryForList("select project_key from document where document_key = :key",
+                new MapSqlParameterSource("key", documentKey), String.class).stream().findFirst()
+                .orElseThrow(() -> new BusinessNotFoundException("document", documentKey));
+        UUID deletionId = UUID.randomUUID();
+        database.jdbc().update("""
+                        insert into document_deletion (deletion_id, run_id, request_id, requested_by, document_key,
+                                                       project_key, requested_at)
+                        values (:id, :run, :request, :by, :document, :project, :at)""",
+                new MapSqlParameterSource("id", deletionId).addValue("run", request.runId())
+                        .addValue("request", request.requestId()).addValue("by", request.username())
+                        .addValue("document", documentKey).addValue("project", projectKey)
+                        .addValue("at", Timestamp.from(request.companyTime())));
+        return new DocumentDeletionResult(deletionId, documentKey, projectKey, request.companyTime());
     }
 
     @Override
@@ -229,16 +250,20 @@ public class BusinessService implements BusinessOperations {
     private void insertJob(UUID jobId, BusinessRequest request, String projectKey, String mode, int items) {
         database.jdbc().update("""
                         insert into export_job (job_id, run_id, request_id, control, username, project_key, mode,
-                                                requested_items, delivered_items, status, started_at, company_at)
+                                                requested_items, delivered_items, status, started_at, company_at,
+                                                destination)
                         values (:job, :run, :request, :control, :user, :project, :mode, :items, 0, 'RUNNING', :at,
-                                :companyAt)""",
+                                :companyAt, :destination)""",
                 new MapSqlParameterSource("job", jobId).addValue("run", request.runId())
                         .addValue("request", request.requestId()).addValue("control", request.control())
                         .addValue("user", request.username()).addValue("project", projectKey)
                         .addValue("mode", mode).addValue("items", items)
                         .addValue("at", Timestamp.from(clock.instant()))
                         .addValue("companyAt", request.companyTime() != null
-                                ? Timestamp.from(request.companyTime()) : null));
+                                ? Timestamp.from(request.companyTime()) : null)
+                        .addValue("destination", request.destination() == null ? null
+                                : request.destination().substring(0, Math.min(request.destination().length(),
+                                        DESTINATION_LENGTH))));
     }
 
     private void finishJob(UUID jobId, int delivered, String status, String manifest) {

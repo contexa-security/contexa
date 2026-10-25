@@ -28,11 +28,34 @@ class AgentTaskPathsTest {
                 null, null, null, null))).isEqualTo("/api/documents/DOC-7/download");
         assertThat(RunOrchestrator.agentPath(request(BusinessOperation.EXPORT, "GB-500", null, null, 40, null, null,
                 null, null))).isEqualTo("/api/projects/GB-500/exports?items=40");
+        assertThat(RunOrchestrator.agentPath(new Request(BusinessOperation.EXPORT, "HX-310", null, null, 40, null, null,
+                null, null, "TCK 9"))).as("the ticket an export claims goes in its query, encoded")
+                .isEqualTo("/api/projects/HX-310/exports?items=40&claimedTicket=TCK+9");
+        assertThat(RunOrchestrator.agentPath(new Request(BusinessOperation.EXPORT, "HX-310", null, null, 40, null,
+                null, null, null, null, "drop.example.net/in"))).as("where an export goes is in its query, encoded")
+                .isEqualTo("/api/projects/HX-310/exports?items=40&destination=drop.example.net%2Fin");
+        assertThat(RunOrchestrator.agentPath(new Request(BusinessOperation.EXPORT, "HX-310", null, null, 40, null,
+                null, null, null, "TCK-1", "design-share"))).isEqualTo(
+                "/api/projects/HX-310/exports?items=40&claimedTicket=TCK-1&destination=design-share");
+        assertThat(RunOrchestrator.agentPath(request(BusinessOperation.DOCUMENT_DELETE, null, "DOC-7", null, null,
+                null, null, null, null))).as("a deletion is a POST of its own").isEqualTo("/api/documents/DOC-7/delete");
+        assertThat(ControlSession.method(BusinessOperation.DOCUMENT_DELETE)).isEqualTo("POST");
+        assertThat(EngineDecision.synchronous(BusinessOperation.DOCUMENT_DELETE)).isTrue();
         assertThat(RunOrchestrator.agentPath(request(BusinessOperation.CUSTOMER_READ, null, null, "CUS-0001", null,
                 null, null, null, null))).isEqualTo("/api/customers/CUS-0001");
         assertThat(RunOrchestrator.agentPath(request(BusinessOperation.ROLE_GRANT, "HX-310", null, null, null, null,
                 null, "E-0042", "REVIEW"))).isEqualTo("/api/admin/role-grants?project=HX-310&grantee=E-0042"
                 + "&responsibility=REVIEW");
+    }
+
+    /** docs/agent A6-C14: the person names the run's own ticket to the agent; its key is made per run. */
+    @Test
+    void anInstructionNamesTheRunsOwnFactsByTheirPlaceInTheCase() {
+        assertThat(RunOrchestrator.withFactKeys("Export for incident {{TCK:1}} (approval {{APR:2}}).", "9e971454c4de"))
+                .isEqualTo("Export for incident TCK-9e971454c4de-1 (approval APR-9e971454c4de-2).");
+        assertThat(RunOrchestrator.withFactKeys("No fact is named, {{ticket}} stays.", "9e971454c4de"))
+                .isEqualTo("No fact is named, {{ticket}} stays.");
+        assertThat(RunOrchestrator.factKey("DLG", "9e971454c4de", 3)).isEqualTo("DLG-9e971454c4de-3");
     }
 
     @Test

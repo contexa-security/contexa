@@ -150,6 +150,7 @@ public class RunRegistry {
             rows += database.jdbc().update("delete from oncall_roster where run_id = :run", run);
             rows += database.jdbc().update("delete from travel_plan where run_id = :run", run);
             rows += database.jdbc().update("delete from role_grant where run_id = :run", run);
+            rows += database.jdbc().update("delete from document_deletion where run_id = :run", run);
             rows += database.jdbc().update("delete from document where run_id = :run", run);
             rows += database.jdbc().update("delete from agent_delegation where run_id = :run", run);
             rows += database.jdbc().update("delete from run_principal where run_id = :run", run);
@@ -168,6 +169,7 @@ public class RunRegistry {
                      + (select count(*) from oncall_roster where run_id = :run)
                      + (select count(*) from travel_plan where run_id = :run)
                      + (select count(*) from role_grant where run_id = :run)
+                     + (select count(*) from document_deletion where run_id = :run)
                      + (select count(*) from document where run_id = :run)
                      + (select count(*) from agent_delegation where run_id = :run)
                      + (select count(*) from run_principal where run_id = :run)""",

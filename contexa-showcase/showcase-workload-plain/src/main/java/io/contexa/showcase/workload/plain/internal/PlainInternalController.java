@@ -98,7 +98,8 @@ public class PlainInternalController {
         return RuleVersion.describe(lookup.exportApprovalPolicy(), List.of(
                 lookup.accessApprovalPolicy(BusinessOperation.ROLE_GRANT),
                 lookup.accessApprovalPolicy(BusinessOperation.CUSTOMER_READ),
-                lookup.accessApprovalPolicy(BusinessOperation.DOCUMENT_READ)));
+                lookup.accessApprovalPolicy(BusinessOperation.DOCUMENT_READ),
+                lookup.accessApprovalPolicy(BusinessOperation.DOCUMENT_DELETE)));
     }
 
     /**

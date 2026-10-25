@@ -65,6 +65,9 @@ class LiveDecisionMeasurementTest {
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         ProbeDatabase.register(registry, SIGNING_KEY);
+        // An opt-in measurement of the OpenAI model: its Layer 2 stays on that model, since Claude Sonnet 5.5 is not used
+        // for tests of their own (user decision 2026-10-25, DD-38).
+        registry.add("contexa.security.tiered.llm.layer2.model", () -> "gpt-6-luna");
     }
 
     @LocalServerPort

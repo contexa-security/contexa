@@ -369,6 +369,11 @@ public class SecurityZeroTrustProperties {
     public static class AllowReuse {
         private int maxRequests = 10;
         private int maxDistinctResources = 3;
+        /**
+         * The distinct resources an ALLOW answers when the resource is sensitive (SENSITIVE or CRITICAL); never more than
+         * {@code maxDistinctResources}. An agent that reads sensitive records one by one is decided again at each new one.
+         */
+        private int sensitiveMaxDistinctResources = 1;
     }
 
     /**

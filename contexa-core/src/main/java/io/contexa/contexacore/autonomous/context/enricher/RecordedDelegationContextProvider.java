@@ -152,6 +152,16 @@ public class RecordedDelegationContextProvider implements DelegationContextProvi
         delegation.setPrivilegedExportAllowed(bothAllow(delegation.getPrivilegedExportAllowed(),
                 record.privilegedExportAllowed()));
         delegation.setExpiresAt(earlier(delegation.getExpiresAt(), record.expiresAt()));
+        delegation.setMaxItemsPerRequest(lower(delegation.getMaxItemsPerRequest(), record.maxItemsPerRequest()));
+        delegation.setMaxItemsTotal(lower(delegation.getMaxItemsTotal(), record.maxItemsTotal()));
+    }
+
+    /** The lower of the limits that are stated; null when neither states one (RL-6). */
+    private static Integer lower(Integer stated, Integer recorded) {
+        if (stated == null) {
+            return recorded;
+        }
+        return recorded == null ? stated : Math.min(stated, recorded);
     }
 
     /** The recorded value; a different stated value is noted as a conflict. */

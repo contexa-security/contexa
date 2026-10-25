@@ -66,7 +66,23 @@ public record AgentDelegation(
         @Nullable String revokedBy,
         @Nullable String revokeReason,
         String recordedBy,
-        Instant recordedAt) {
+        Instant recordedAt,
+        @Nullable Integer maxItemsPerRequest,
+        @Nullable Integer maxItemsTotal) {
+
+    /** A delegation that states no quantity limit (the form before RL-6). */
+    public AgentDelegation(String delegationId, @Nullable String tenantId, String delegatorId, String agentId,
+                           @Nullable String objectiveId, @Nullable String objectiveFamily,
+                           @Nullable String objectiveSummary, List<String> allowedOperations,
+                           List<String> allowedResources, boolean approvalRequired,
+                           @Nullable Boolean privilegedExportAllowed, @Nullable Boolean containmentOnly,
+                           Instant validFrom, Instant expiresAt, @Nullable Instant revokedAt,
+                           @Nullable String revokedBy, @Nullable String revokeReason, String recordedBy,
+                           Instant recordedAt) {
+        this(delegationId, tenantId, delegatorId, agentId, objectiveId, objectiveFamily, objectiveSummary,
+                allowedOperations, allowedResources, approvalRequired, privilegedExportAllowed, containmentOnly,
+                validFrom, expiresAt, revokedAt, revokedBy, revokeReason, recordedBy, recordedAt, null, null);
+    }
 
     public AgentDelegation {
         allowedOperations = allowedOperations == null ? List.of() : List.copyOf(allowedOperations);
@@ -87,6 +103,6 @@ public record AgentDelegation(
     public DelegationRecord toRecord() {
         return new DelegationRecord(delegationId, delegatorId, agentId, objectiveId, objectiveFamily, objectiveSummary,
                 allowedOperations, allowedResources, approvalRequired, privilegedExportAllowed, containmentOnly, end(),
-                recordedBy, recordedAt);
+                recordedBy, recordedAt, maxItemsPerRequest, maxItemsTotal);
     }
 }

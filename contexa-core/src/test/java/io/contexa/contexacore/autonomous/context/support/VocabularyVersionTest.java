@@ -34,8 +34,9 @@ class VocabularyVersionTest {
 
     private static final Map<String, String> SOURCE_HASHES = Map.of(
             "vocab-2026.10.15", "ddafbb0027c6443991ada7f70a4df193228567672938af324fe64a0e8a69b151",
-            // W5-10 D6: a login of several methods keeps them all.
-            "vocab-2026.10.15.2", "9944fd99888713788b185af6d6c496c17254cb4627f9297d4a1b3292d58f01b7");
+            // W5-10 D6: a login of several methods keeps them all. The hash of the sources the version shipped with
+            // (commit 03e3b146e); the first value was taken from a draft of them that was never committed.
+            "vocab-2026.10.15.2", "9951d87828d7671c24bc11ca3fc2313a5fee8067d5429328597e419a760a8af6");
 
     @Test
     void theLoginOfSeveralMethodsIsTheVocabularyAfterTheFirst() {

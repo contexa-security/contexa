@@ -138,7 +138,7 @@ class AgentConfirmationStoreIntegrationTest {
                 List.of(), "Pending confirmation.", "ANSWERED", null, Map.of("totalTokens", 1100), AT,
                 AT.plusSeconds(4));
         AgentTaskProof.Proof proof = new AgentTaskProof.Proof(true, null, "Pending confirmation.", "ANSWERED", true,
-                List.of("HX-310"), null, 1, 1, 1, Map.of("D", new AgentTaskProof.Control(0, 0, 0, 0, 1, "REFUSED")),
+                List.of("HX-310"), null, 1, 1, 1, Map.of("D", new AgentTaskProof.Control(0, 0, 0, 0, 0, 1, "REFUSED")),
                 Map.of("totalTokens", 1100));
         store.agentTask(runId, "DELEGATED_AGENT", work, proof);
     }

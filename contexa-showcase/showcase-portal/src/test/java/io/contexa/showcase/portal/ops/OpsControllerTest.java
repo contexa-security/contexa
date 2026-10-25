@@ -35,4 +35,16 @@ class OpsControllerTest {
         assertThat(OpsController.delegatorAnswerTaken(null, 5)).isFalse();
         assertThat(OpsController.delegatorAnswerTaken("IGNORE", 0)).isFalse();
     }
+
+    /** docs/agent A6-5: an agent case is a legacy N or T case, or a measurement case (M, the attack number, A, B or N). */
+    @Test
+    void anAgentTaskKeyIsALegacyCaseOrAMeasurementCase() {
+        for (String key : new String[] {"N1", "T5", "M07A", "M07N", "M25B", "M25A2", "M10N", "M19L", "M19LN", "VN1C", "VT1E", "VT5C"}) {
+            assertThat(OpsController.agentTaskKeyTaken(key)).as(key).isTrue();
+        }
+        for (String key : new String[] {"M7A", "M07C", "M07", "x", "../N1", "M07A22", "S12", "", "VN1", "V1C", "VX1C",
+                "VT1D", "VT1CE", "vt1c", "M19LL", "M19LA", "M19LN2", "M19NL"}) {
+            assertThat(OpsController.agentTaskKeyTaken(key)).as(key).isFalse();
+        }
+    }
 }

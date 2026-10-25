@@ -16,9 +16,23 @@ public final class AgentWork {
     /**
      * One business request of the agent's work, as its tool asks for it: the operation and its target. Which of the
      * fields an operation uses is the operation's own (a document key for a read, a project and items for an export).
+     * {@code claimedTicket} (docs/agent A6-C14) is the ticket an export says it is for, and {@code destination}
+     * (docs/agent A6-R9) where an export says its documents go, both as the agent wrote them.
      */
     public record Request(BusinessOperation operation, String project, String document, String customer,
-                          Integer items, String type, String query, String grantee, String responsibility) {
+                          Integer items, String type, String query, String grantee, String responsibility,
+                          String claimedTicket, String destination) {
+
+        public Request(BusinessOperation operation, String project, String document, String customer, Integer items,
+                       String type, String query, String grantee, String responsibility, String claimedTicket) {
+            this(operation, project, document, customer, items, type, query, grantee, responsibility, claimedTicket,
+                    null);
+        }
+
+        public Request(BusinessOperation operation, String project, String document, String customer, Integer items,
+                       String type, String query, String grantee, String responsibility) {
+            this(operation, project, document, customer, items, type, query, grantee, responsibility, null, null);
+        }
     }
 
     /**

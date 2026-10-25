@@ -74,7 +74,9 @@ public final class AgentDelegations {
                 Boolean.TRUE.equals(request.approvalRequired()), request.privilegedExportAllowed(),
                 request.containmentOnly(), validFrom, request.expiresAt(), null, null, null,
                 text(request.recordedBy()) != null ? text(request.recordedBy()) : delegator,
-                request.recordedAt() != null ? request.recordedAt() : now);
+                request.recordedAt() != null ? request.recordedAt() : now,
+                limit(request.maxItemsPerRequest(), "maxItemsPerRequest"),
+                limit(request.maxItemsTotal(), "maxItemsTotal"));
     }
 
     /** The delegation revoked now by the person, unless it already ended. */
@@ -89,7 +91,15 @@ public final class AgentDelegations {
                 delegation.approvalRequired(), delegation.privilegedExportAllowed(), delegation.containmentOnly(),
                 delegation.validFrom(), delegation.expiresAt(), now,
                 required(revokedBy, "Who revokes is required"), text(reason), delegation.recordedBy(),
-                delegation.recordedAt());
+                delegation.recordedAt(), delegation.maxItemsPerRequest(), delegation.maxItemsTotal());
+    }
+
+    /** A quantity limit the delegation states: a positive number of items, or none. */
+    private static Integer limit(@Nullable Integer value, String name) {
+        if (value != null && value < 1) {
+            throw new IllegalArgumentException(name + " must be at least 1 when it is stated");
+        }
+        return value;
     }
 
     /**

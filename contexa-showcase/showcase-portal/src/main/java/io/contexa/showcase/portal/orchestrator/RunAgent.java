@@ -48,6 +48,9 @@ final class RunAgent {
     private final ScenarioDefinition.Agent definition;
     private String clientSecret;
     private String accountPassword;
+    private RunAgent relay;
+    /** The last number of the address the agent's sessions were made from; the fleet of the agent signs in from it too. */
+    private int host;
 
     RunAgent(String runHex, ScenarioDefinition.Agent definition, boolean account) {
         this.definition = definition;
@@ -55,6 +58,28 @@ final class RunAgent {
         this.clientId = agentId + "-client";
         this.account = account;
         this.scope = RbacPolicy.agentScope(definition.roleKey());
+    }
+
+    /**
+     * docs/agent A6-R12: the {@code number}-th agent of the same kind: the same role, network and client under a name of
+     * its own, with the same kind of credentials as this one.
+     */
+    RunAgent fleetMember(String runHex, int number) {
+        ScenarioDefinition.Agent own = new ScenarioDefinition.Agent(fleetName(definition.name(), number),
+                definition.title(), definition.roleKey(), definition.network(), definition.userAgent());
+        return new RunAgent(runHex, own, account);
+    }
+
+    static String fleetName(String name, int number) {
+        return name + "-f" + number;
+    }
+
+    int host() {
+        return host;
+    }
+
+    void host(int host) {
+        this.host = host;
     }
 
     /** The run's agent: named after the run and the case's agent name, so runs never share an agent. */
@@ -108,25 +133,83 @@ final class RunAgent {
         }
     }
 
+    /** docs/agent A6-R6: the agent that takes the first agent's token for its own; null when the run has none. */
+    RunAgent relay() {
+        return relay;
+    }
+
+    void relayVia(RunAgent relay) {
+        this.relay = relay;
+    }
+
     /** The agent acting for the person: a token exchanged from the person's workspace token. */
     ControlSession delegated(WorkloadClient personClient, WorkloadClient agentClient, String username,
                              String password, Instant at, WorkloadAdmin admin, ObjectMapper json) throws IOException {
+        return new ControlSession(Control.D, agentClient.withBearer(delegatedToken(personClient, agentClient, username,
+                password, at, admin, json)), json);
+    }
+
+    /** The access token the exchange of the person's workspace token gives the agent (its own token the actor). */
+    private String delegatedToken(WorkloadClient personClient, WorkloadClient agentClient, String username,
+                                  String password, Instant at, WorkloadAdmin admin, ObjectMapper json)
+            throws IOException {
         String personToken = workspaceToken(personClient, username, password, at, admin, json);
-        String actorToken = clientToken(agentClient, at, json);
-        Response exchanged = agentClient.postForm(TOKEN_ENDPOINT, UUID.randomUUID().toString(), at, Map.of(
+        return exchange(agentClient, personToken, clientToken(agentClient, at, json), scope, basic(), at, json,
+                "token exchange");
+    }
+
+    /**
+     * docs/agent A6-R6: the relay agent acting for the person through the first agent: it exchanges the token the first
+     * agent got (the subject) with its own client token (the actor) for a token of its own scope, so that the chain of
+     * actors has two. The first agent's scope need not cover the relay's.
+     */
+    ControlSession relayed(WorkloadClient personClient, WorkloadClient agentClient, WorkloadClient relayClient,
+                           String username, String password, Instant at, WorkloadAdmin admin, ObjectMapper json)
+            throws IOException {
+        if (relay == null) {
+            throw new IllegalStateException("The run has no relay agent");
+        }
+        String first = delegatedToken(personClient, agentClient, username, password, at, admin, json);
+        String second = exchange(relayClient, first, relay.clientToken(relayClient, at, json), relay.scope,
+                relay.basic(), at, json, "relayed token exchange");
+        return new ControlSession(Control.D, relayClient.withBearer(second), json);
+    }
+
+    private static String exchange(WorkloadClient client, String subjectToken, String actorToken, String scope,
+                                   Map<String, String> authorization, Instant at, ObjectMapper json, String what)
+            throws IOException {
+        Response exchanged = client.postForm(TOKEN_ENDPOINT, UUID.randomUUID().toString(), at, Map.of(
                 "grant_type", TOKEN_EXCHANGE,
-                "subject_token", personToken,
+                "subject_token", subjectToken,
                 "subject_token_type", ACCESS_TOKEN_TYPE,
                 "actor_token", actorToken,
                 "actor_token_type", ACCESS_TOKEN_TYPE,
-                "scope", scope), basic());
-        return new ControlSession(Control.D, agentClient.withBearer(accessToken(exchanged, "token exchange", json)),
-                json);
+                "scope", scope), authorization);
+        return accessToken(exchanged, what, json);
     }
 
     /** The agent acting on its own: its client credentials token. */
     ControlSession autonomous(WorkloadClient agentClient, Instant at, ObjectMapper json) throws IOException {
         return new ControlSession(Control.D, agentClient.withBearer(clientToken(agentClient, at, json)), json);
+    }
+
+    /** The internal client of the engine's authorization server (its secret is a server secret, never kept). */
+    static final String INTERNAL_CLIENT_ID = "default-client";
+
+    /**
+     * docs/agent A6-R4: a client credentials token of the engine's internal client, no agent's: the token endpoint gives
+     * a token without scope, the engine decides what a client that is registered as no agent may do.
+     */
+    static ControlSession internalClient(WorkloadClient agentClient, String secret, Instant at, ObjectMapper json)
+            throws IOException {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException("The internal client's secret is not set (SHOWCASE_OAUTH2_CLIENT_SECRET)");
+        }
+        String credentials = INTERNAL_CLIENT_ID + ":" + secret;
+        Response token = agentClient.postForm(TOKEN_ENDPOINT, UUID.randomUUID().toString(), at,
+                Map.of("grant_type", "client_credentials"), Map.of("Authorization", "Basic "
+                        + Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8))));
+        return new ControlSession(Control.D, agentClient.withBearer(accessToken(token, "internal client", json)), json);
     }
 
     /** The agent with its own account in the people's session flow. */

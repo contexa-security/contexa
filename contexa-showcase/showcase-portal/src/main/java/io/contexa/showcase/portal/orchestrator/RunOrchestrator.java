@@ -53,12 +53,16 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -185,6 +189,10 @@ public class RunOrchestrator {
         RunApprover approver = null;
         // docs/agent A7-0: the run's agent in control D, removed with the run.
         RunAgent agent = null;
+        // docs/agent A6-R10: whether the judging model of control D was switched off for this run.
+        boolean modelOutage = false;
+        // docs/agent A6-R12: the agents of the same kind beside the case's agent, removed with the run.
+        List<RunAgent> fleet = new ArrayList<>();
         try {
             checkRequestParts(scenario);
             JsonNode company = admin.company();
@@ -242,6 +250,20 @@ public class RunOrchestrator {
                         .contains(ScenarioDefinition.Sender.AGENT_SESSION));
                 // docs/agent OC-3: the run's security administrator registers the agent through the engine's API.
                 agent.credentials(approver.registerAgent(agent.registration(username)));
+                if (scenario.task() != null && scenario.task().relay() != null) {
+                    // docs/agent A6-R6: the second agent of the chain is registered by the same administrator.
+                    RunAgent relay = new RunAgent(runHex, scenario.task().relay(), false);
+                    relay.credentials(approver.registerAgent(relay.registration(username)));
+                    agent.relayVia(relay);
+                }
+                if (scenario.task() != null && scenario.task().fleet() != null) {
+                    // docs/agent A6-R12: the same administrator registers each member of the case's fleet.
+                    for (int number = 1; number <= scenario.task().fleet().size(); number++) {
+                        RunAgent member = agent.fleetMember(runHex, number);
+                        member.credentials(approver.registerAgent(member.registration(username)));
+                        fleet.add(member);
+                    }
+                }
                 stageStart = stage(stages, "agent", stageStart);
             }
 
@@ -264,6 +286,15 @@ public class RunOrchestrator {
             // docs/agent OC-1: the company's delegations reach the engine through its delegation admin API, as an
             // application's integration imports them; the engine decides every agent request with them.
             Map<String, String> delegationIds = recordDelegations(facts, agent, run, runHex, approver);
+            // docs/agent A6-R12: each member of the fleet signs in from the case's agent's address and client, and has
+            // the delegations the case states.
+            Map<RunAgent, Map<ScenarioDefinition.Sender, ControlSession>> fleetSessions = new LinkedHashMap<>();
+            Map<String, String> fleetDelegationIds = new LinkedHashMap<>();
+            for (RunAgent member : fleet) {
+                fleetSessions.put(member, agentSessions(member, scenario, run, username, password, signInTime,
+                        agent.host()));
+                fleetDelegationIds.putAll(recordDelegations(facts, member, run, runHex, approver));
+            }
 
             // W7-4: the request id every control sent each step with, for a later step that sends it again.
             Map<Control, Map<Integer, String>> sent = new EnumMap<>(Control.class);
@@ -326,8 +357,17 @@ public class RunOrchestrator {
                     agentSessions = agentSessions(agent, scenario, run, username, password,
                             workTime.minus(SIGN_IN_LEAD));
                 }
-                agentTask(runId, username, scenario, companyTime, forcedAction, responder, listener, approver,
-                        sessions, agentSessions, summaries, systemPromptHashes, sealedRequests);
+                if (scenario.task().modelOutageOn()) {
+                    // The model calls that name the run fail from here on, the work's own and nothing else's.
+                    admin.modelOutage(runHex, true);
+                    modelOutage = true;
+                }
+                List<Map<String, Object>> administratorActions = agentTask(runId, username, scenario, companyTime,
+                        forcedAction, responder, listener, approver, agent, delegationIds, run, sessions, agentSessions,
+                        summaries, systemPromptHashes, sealedRequests, fleet, fleetSessions, fleetDelegationIds);
+                if (!administratorActions.isEmpty()) {
+                    cleanup.put("administratorActions", administratorActions);
+                }
             }
             if (!learningActions.isEmpty()) {
                 cleanup.put("agentLearning", learningActions);
@@ -372,12 +412,28 @@ public class RunOrchestrator {
             status = "FAILED";
             failure = e.getClass().getSimpleName() + ": " + e.getMessage();
         } finally {
+            if (modelOutage) {
+                try {
+                    admin.modelOutage(runHex, false);
+                } catch (IOException | RuntimeException e) {
+                    log.error("Model outage could not be ended: runId={}", runId, e);
+                    cleanup.put("modelOutageError", e.getMessage());
+                }
+            }
             if (agent != null) {
                 try {
                     cleanup.put("agent", approver.removeAgent(agent.agentId()));
                 } catch (IOException | RuntimeException e) {
                     log.error("Agent cleanup failed: runId={}", runId, e);
                     cleanup.put("agentError", e.getMessage());
+                }
+            }
+            for (RunAgent member : fleet) {
+                try {
+                    cleanup.put("fleet " + member.agentId(), approver.removeAgent(member.agentId()));
+                } catch (IOException | RuntimeException e) {
+                    log.error("Fleet agent cleanup failed: runId={}", runId, e);
+                    cleanup.put("fleetError " + member.agentId(), e.getMessage());
                 }
             }
             cleanup.putAll(cleanup(runId, username));
@@ -464,59 +520,174 @@ public class RunOrchestrator {
      * person's session, as A7-0), at the company time the work has reached; the agent receives control D's answer.
      * The decisions are recorded once the work is done, so the agent works at its own pace as a real agent would.
      */
-    private void agentTask(String runId, String username, ScenarioDefinition scenario, Instant companyTime,
-                           String forcedAction, ChallengeResponder responder, RunListener listener, Approver approver,
-                           Map<Control, ControlSession> sessions,
-                           Map<ScenarioDefinition.Sender, ControlSession> agentSessions, List<StepSummary> summaries,
-                           List<String> systemPromptHashes, List<String> sealedRequests) throws IOException {
+    private List<Map<String, Object>> agentTask(String runId, String username, ScenarioDefinition scenario,
+                                                Instant companyTime, String forcedAction, ChallengeResponder responder,
+                                                RunListener listener, Approver approver, RunAgent agent,
+                                                Map<String, String> delegationIds, RunIdentity run,
+                                                Map<Control, ControlSession> sessions,
+                                                Map<ScenarioDefinition.Sender, ControlSession> agentSessions,
+                                                List<StepSummary> summaries, List<String> systemPromptHashes,
+                                                List<String> sealedRequests, List<RunAgent> fleet,
+                                                Map<RunAgent, Map<ScenarioDefinition.Sender, ControlSession>> fleetSessions,
+                                                Map<String, String> fleetDelegationIds) throws IOException {
         ScenarioDefinition.AgentTask task = scenario.task();
         if (agentTasks == null) {
             throw new IllegalStateException("This portal runs no business agent");
         }
-        if (task.sender() == null || task.sender() == ScenarioDefinition.Sender.PERSON) {
-            throw new IllegalArgumentException("An agent task is sent by the case's agent");
+        if (task.sender() == null) {
+            throw new IllegalArgumentException("An agent task is sent by the case's agent or by the person's session");
         }
         Map<ScenarioDefinition.Sender, ControlSession> workSessions = new EnumMap<>(agentSessions);
         if (task.runtime() != null) {
-            if (task.sender() == ScenarioDefinition.Sender.AGENT_SESSION) {
-                throw new IllegalArgumentException("Only an agent token can be used by another agent runtime");
+            if (task.sender() == ScenarioDefinition.Sender.PERSON) {
+                throw new IllegalArgumentException("The person's own session is not carried to another agent runtime");
             }
+            // An agent token or an agent session's cookie (docs/agent A6-R1) is used by another agent runtime.
             workSessions.put(task.sender(), agentSessions.get(task.sender()).carriedTo(
                     hostIn(task.runtime().network(), 10 + random.nextInt(200)), task.runtime().userAgent()));
         }
-        ControlSession agentSession = workSessions.get(task.sender());
+        // docs/agent A6-R5 (AT-05): an agent that drives the person's own session sends the person's requests, which
+        // control D decides as it decides a person's.
+        ControlSession agentSession = task.sender() == ScenarioDefinition.Sender.PERSON ? sessions.get(Control.D)
+                : workSessions.get(task.sender());
         List<SentStep> sentSteps = Collections.synchronizedList(new ArrayList<>());
         // docs/agent A7-3: the first request of the work control D asked the delegating person to confirm.
         AtomicReference<PendingConfirmation> pending = new AtomicReference<>();
         AtomicInteger steps = new AtomicInteger(scenario.steps().size());
+        // docs/agent A6-R7: what the run's security administrator does to the agent's standing while it works.
+        List<ScenarioDefinition.AgentTask.AdminAction> adminActions = task.adminActionsOn(task.sender());
+        List<Map<String, Object>> performed = Collections.synchronizedList(new ArrayList<>());
         long workOffset = workOffset(scenario);
         Instant workStarted = Instant.now();
-        AgentWork.Sender sender = request -> {
+        WorkSending sending = (request, work, answering) -> {
             int stepNo = steps.incrementAndGet();
             Step step = new Step(request.operation(), null, request.project(), request.customer(), request.items(),
                     workOffset + Duration.between(workStarted, Instant.now()).toSeconds(), Map.of(), null,
-                    request.grantee(), request.responsibility(), null, null, null, null, null, task.sender(), null);
+                    request.grantee(), request.responsibility(), null, null, task.headers(), null, null, task.sender(),
+                    null);
             String path = agentPath(request);
             Map<Control, ControlResult> results = dispatch(new StepCall(runId, username, scenario, step, stepNo, path,
                     companyTime.plusSeconds(step.offsetSeconds()), forcedAction, responder, listener, approver,
-                    noParts()), sessionsOf(step, sessions, workSessions));
+                    noParts()), sessionsOf(step, sessions, work));
             sentSteps.add(new SentStep(stepNo, step, path, results));
-            String body = agentSession.lastBody();
+            String body = answering.lastBody();
             if (ControlSession.agentConfirmationRequired(results.get(Control.D).outcome())) {
                 pending.compareAndSet(null, new PendingConfirmation(stepNo, step, path, body, Instant.now(),
                         companyTime.plusSeconds(step.offsetSeconds())));
             }
             return answer(stepNo, path, results, body);
         };
+        // docs/agent A6-R2: workers that send beside the agent with the same credentials, once the agent has sent the
+        // given number of requests; what they sent goes into the record of the work as requests of the work.
+        List<ScenarioDefinition.AgentTask.ParallelWork> parallelWork = task.parallel() == null ? List.of()
+                : task.parallel();
+        List<AgentWork.ToolCall> parallelCalls = Collections.synchronizedList(new ArrayList<>());
+        List<Future<?>> workers = Collections.synchronizedList(new ArrayList<>());
+        ExecutorService parallelPool = parallelWork.isEmpty() && task.fleet() == null ? null
+                : Executors.newCachedThreadPool(runnable -> {
+            Thread thread = new Thread(runnable, "showcase-parallel-work");
+            thread.setDaemon(true);
+            return thread;
+        });
+        Consumer<Integer> startParallel = sentByAgent -> {
+            for (ScenarioDefinition.AgentTask.ParallelWork work : parallelWork) {
+                if (work.startAfterToolCalls() != sentByAgent) {
+                    continue;
+                }
+                for (int copy = 1; copy <= work.copies(); copy++) {
+                    ControlSession lane = work.runtime() == null ? agentSession.copy() : agentSession.carriedTo(
+                            hostIn(work.runtime().network(), 10 + random.nextInt(200)), work.runtime().userAgent());
+                    Map<ScenarioDefinition.Sender, ControlSession> laneSessions = new EnumMap<>(workSessions);
+                    laneSessions.put(task.sender(), lane);
+                    String name = "parallel " + copy + " of " + work.copies();
+                    workers.add(parallelPool.submit(() -> {
+                        for (ScenarioDefinition.AgentTask.ParallelRequest sent : work.requests()) {
+                            AgentWork.Request request = new AgentWork.Request(sent.operation(), sent.project(),
+                                    sent.document(), null, sent.items(), null, null, null, null);
+                            try {
+                                AgentWork.Answer answer = sending.send(request, laneSessions, lane);
+                                parallelCalls.add(parallelCall(parallelCalls.size() + 1, request, answer, name));
+                            } catch (IOException | RuntimeException e) {
+                                parallelCalls.add(new AgentWork.ToolCall(parallelCalls.size() + 1,
+                                        toolName(request), parallelArguments(request, name), Instant.now(), false, null,
+                                        "The request could not be sent: " + e.getMessage()));
+                            }
+                        }
+                    }));
+                }
+            }
+            // docs/agent A6-R12: the members of the fleet send their requests from their own sessions.
+            if (task.fleet() != null && task.fleet().startAfterToolCalls() == sentByAgent) {
+                int number = 0;
+                for (RunAgent member : fleet) {
+                    number++;
+                    Map<ScenarioDefinition.Sender, ControlSession> own = fleetSessions.get(member);
+                    ControlSession lane = own.get(task.sender());
+                    Map<ScenarioDefinition.Sender, ControlSession> laneSessions = new EnumMap<>(workSessions);
+                    laneSessions.putAll(own);
+                    String name = "fleet member " + number + " of " + fleet.size();
+                    workers.add(parallelPool.submit(() -> {
+                        for (ScenarioDefinition.AgentTask.ParallelRequest sent : task.fleet().requests()) {
+                            AgentWork.Request request = new AgentWork.Request(sent.operation(), sent.project(),
+                                    sent.document(), null, sent.items(), null, null, null, null);
+                            try {
+                                AgentWork.Answer answer = sending.send(request, laneSessions, lane);
+                                parallelCalls.add(parallelCall(parallelCalls.size() + 1, request, answer, name));
+                            } catch (IOException | RuntimeException e) {
+                                parallelCalls.add(new AgentWork.ToolCall(parallelCalls.size() + 1,
+                                        toolName(request), parallelArguments(request, name), Instant.now(), false, null,
+                                        "The request could not be sent: " + e.getMessage()));
+                            }
+                        }
+                    }));
+                }
+            }
+        };
+        AtomicInteger sentByAgent = new AtomicInteger();
+        Set<Integer> acted = ConcurrentHashMap.newKeySet();
+        AgentWork.Sender sender = request -> {
+            AgentWork.Answer answer = sending.send(request, workSessions, agentSession);
+            int sentSoFar = sentByAgent.incrementAndGet();
+            administratorActs(adminActions, sentSteps.size(), approver, agent, delegationIds, run, performed, fleet,
+                    fleetDelegationIds, acted);
+            startParallel.accept(sentSoFar);
+            return answer;
+        };
+        startParallel.accept(0);
         BusinessAgentTools tools = new BusinessAgentTools(sender, task.maxToolCalls() != null ? task.maxToolCalls()
                 : agentTasks.maxToolCalls());
         Set<String> toolNames = task.tools().stream().map(BusinessAgentTools.TOOL_OF_OPERATION::get)
                 .filter(Objects::nonNull).collect(Collectors.toSet());
-        String instruction = task.instruction().getOrDefault("en", task.instruction().values().stream().findFirst()
-                .orElse(""));
+        String instruction = withFactKeys(task.instruction().getOrDefault("en", task.instruction().values().stream()
+                .findFirst().orElse("")), runId.substring("run-".length()));
         AgentWork.Transcript transcript = agentTasks.agent().run(agentTasks.models().modelOf(task.model()),
                 task.agentPrompt() != null ? task.agentPrompt() : BusinessAgent.DEFAULT_PROMPT, instruction, tools,
                 toolNames, task.maxSeconds() != null ? Duration.ofSeconds(task.maxSeconds()) : agentTasks.maxTime());
+        // docs/agent A6-R12: workers and fleets that start once the agent's work has ended (the count -1).
+        startParallel.accept(-1);
+        // The parallel workers finish before the work is recorded; a worker that does not finish in five minutes (a
+        // fleet member's requests are decided one after the other) is left out.
+        for (Future<?> worker : List.copyOf(workers)) {
+            try {
+                worker.get(300, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (ExecutionException | TimeoutException e) {
+                log.warn("A parallel worker of {} did not finish: {}", runId, e.toString());
+            }
+        }
+        if (parallelPool != null) {
+            parallelPool.shutdownNow();
+        }
+        if (!parallelCalls.isEmpty()) {
+            List<AgentWork.ToolCall> calls = new ArrayList<>(transcript.toolCalls());
+            synchronized (parallelCalls) {
+                calls.addAll(parallelCalls);
+            }
+            transcript = new AgentWork.Transcript(transcript.model(), transcript.systemPrompt(),
+                    transcript.instruction(), calls, transcript.finalAnswer(), transcript.stopReason(),
+                    transcript.failure(), transcript.usage(), transcript.startedAt(), transcript.finishedAt());
+        }
         List<SentStep> recorded;
         synchronized (sentSteps) {
             recorded = List.copyOf(sentSteps);
@@ -537,6 +708,98 @@ public class RunOrchestrator {
             store.agentConfirmation(runId, pending.get().stepNo(), confirm(pending.get(), scenario, responder,
                     agentSession, sessions.get(Control.D)));
         }
+        synchronized (performed) {
+            return List.copyOf(performed);
+        }
+    }
+
+    /**
+     * docs/agent A6-R7: the administrator's actions that fall after the work's {@code sent}-th request, through the
+     * engine's admin API. What each answered is kept with the run, so that an action control D refused is not mistaken
+     * for a stop the engine made.
+     */
+    private static void administratorActs(List<ScenarioDefinition.AgentTask.AdminAction> actions, int sent,
+                                          Approver approver, RunAgent agent, Map<String, String> delegationIds,
+                                          RunIdentity run, List<Map<String, Object>> performed, List<RunAgent> fleet,
+                                          Map<String, String> fleetDelegationIds, Set<Integer> acted) {
+        for (int index = 0; index < actions.size(); index++) {
+            ScenarioDefinition.AgentTask.AdminAction action = actions.get(index);
+            // Once, at the request the case names, or at the first request after it when workers beside the agent sent
+            // in between (the count of the work's requests then moves by more than one).
+            if (action.afterToolCalls() > sent || !acted.add(index)) {
+                continue;
+            }
+            Map<String, Object> record = new LinkedHashMap<>();
+            record.put("action", action.action());
+            record.put("afterToolCalls", sent);
+            record.put("reason", action.reason());
+            try {
+                switch (action.action()) {
+                    case "REVOKE_DELEGATION" -> {
+                        List<Integer> statuses = new ArrayList<>();
+                        for (String delegationId : delegationIds.values()) {
+                            statuses.add(approver.revokeDelegation(delegationId, action.reason()));
+                        }
+                        if (action.wholeKind()) {
+                            for (String delegationId : fleetDelegationIds.values()) {
+                                statuses.add(approver.revokeDelegation(delegationId, action.reason()));
+                            }
+                        }
+                        record.put("statuses", statuses);
+                    }
+                    case "STOP_AGENT" -> {
+                        List<Integer> statuses = new ArrayList<>();
+                        statuses.add(approver.deregisterAgent(run.tenant(), agent.agentId(), action.reason()));
+                        if (action.wholeKind()) {
+                            for (RunAgent member : fleet) {
+                                statuses.add(approver.deregisterAgent(run.tenant(), member.agentId(), action.reason()));
+                            }
+                        }
+                        record.put("statuses", statuses);
+                    }
+                    default -> throw new IllegalArgumentException("Unknown administrator action " + action.action());
+                }
+            } catch (IOException | RuntimeException e) {
+                record.put("failure", e.getClass().getSimpleName() + ": " + e.getMessage());
+            }
+            performed.add(record);
+        }
+    }
+
+    /** docs/agent A6-R2: sends one request of the work through the sessions of one worker (the agent or a parallel one). */
+    @FunctionalInterface
+    private interface WorkSending {
+
+        AgentWork.Answer send(AgentWork.Request request, Map<ScenarioDefinition.Sender, ControlSession> work,
+                              ControlSession answering) throws IOException;
+    }
+
+    /** The tool of an operation as the agent calls it (the proof reads the work's requests by it). */
+    static String toolName(AgentWork.Request request) {
+        return BusinessAgentTools.TOOL_OF_OPERATION.get(request.operation());
+    }
+
+    /** What a parallel worker sent, as the record of the work shows it: the arguments carry the worker's name. */
+    static Map<String, Object> parallelArguments(AgentWork.Request request, String worker) {
+        Map<String, Object> arguments = new LinkedHashMap<>();
+        if (request.project() != null) {
+            arguments.put("projectKey", request.project());
+        }
+        if (request.document() != null) {
+            arguments.put("documentKey", request.document());
+        }
+        if (request.items() != null) {
+            arguments.put("items", request.items());
+        }
+        arguments.put("worker", worker);
+        return arguments;
+    }
+
+    /** A request of a parallel worker as a call of the record of the work. */
+    static AgentWork.ToolCall parallelCall(int number, AgentWork.Request request, AgentWork.Answer answer,
+                                           String worker) {
+        return new AgentWork.ToolCall(number, toolName(request), parallelArguments(request, worker), Instant.now(),
+                true, answer, "HTTP " + answer.httpStatus());
     }
 
     /** docs/agent A7-3: a request of the agent's work control D asked its delegating person to confirm. */
@@ -624,9 +887,14 @@ public class RunOrchestrator {
                     + query("type", request.type(), "q", request.query());
             case DOCUMENT_READ -> "/api/documents/" + segment(request.document());
             case DOCUMENT_DOWNLOAD -> "/api/documents/" + segment(request.document()) + "/download";
+            case DOCUMENT_DELETE -> "/api/documents/" + segment(request.document()) + "/delete";
             case EXPORT, EXPORT_ASYNC -> "/api/projects/" + segment(request.project())
                     + (request.operation() == BusinessOperation.EXPORT_ASYNC ? "/exports/async" : "/exports")
-                    + "?items=" + (request.items() == null ? "" : request.items());
+                    + "?items=" + (request.items() == null ? "" : request.items())
+                    + (request.claimedTicket() == null ? "" : "&claimedTicket="
+                    + URLEncoder.encode(request.claimedTicket(), StandardCharsets.UTF_8))
+                    + (request.destination() == null ? "" : "&destination="
+                    + URLEncoder.encode(request.destination(), StandardCharsets.UTF_8));
             case EXPORT_STREAM -> "/api/projects/" + segment(request.project()) + "/exports/stream?items="
                     + (request.items() == null ? "" : request.items());
             case CUSTOMER_READ -> "/api/customers/" + segment(request.customer());
@@ -712,6 +980,9 @@ public class RunOrchestrator {
             throw new IllegalStateException("A delegation fact needs the case's agent");
         }
         for (RunFacts.Delegation delegation : facts.delegations()) {
+            if (!delegation.agentId().equals(agent.agentId())) {
+                continue;
+            }
             if (delegation.revoked()) {
                 throw new IllegalStateException("A revoked delegation fact has no import yet: "
                         + delegation.delegationKey());
@@ -731,6 +1002,9 @@ public class RunOrchestrator {
             body.put("recordedBy", delegation.recordedBy() != null ? "v" + runHex + "-" + delegation.recordedBy()
                     : null);
             body.put("recordedAt", delegation.recordedAt() != null ? delegation.recordedAt().toString() : null);
+            // docs/agent RL-6: the quantity limits the delegation states, when it states them.
+            body.put("maxItemsPerRequest", delegation.maxItemsPerRequest());
+            body.put("maxItemsTotal", delegation.maxItemsTotal());
             ids.put(delegation.delegationKey(), approver.recordDelegation(body));
         }
         return ids;
@@ -759,12 +1033,24 @@ public class RunOrchestrator {
                                                                          RunIdentity run, String username,
                                                                          String password, Instant at)
             throws IOException {
+        return agentSessions(agent, scenario, run, username, password, at, 0);
+    }
+
+    /**
+     * @param host the last number of the address to send from; 0 for one chosen at random (docs/agent A6-R12: a member
+     *             of the case's fleet sends from the case's agent's address)
+     */
+    private Map<ScenarioDefinition.Sender, ControlSession> agentSessions(RunAgent agent, ScenarioDefinition scenario,
+                                                                         RunIdentity run, String username,
+                                                                         String password, Instant at, int host)
+            throws IOException {
         Map<ScenarioDefinition.Sender, ControlSession> agentSessions = new EnumMap<>(ScenarioDefinition.Sender.class);
         if (agent == null) {
             return agentSessions;
         }
+        agent.host(host > 0 ? host : 10 + random.nextInt(200));
         RunIdentity agentRun = new RunIdentity(run.runId(), run.organization(), run.tenant(),
-                hostIn(agent.definition().network(), 10 + random.nextInt(200)), agent.definition().userAgent());
+                hostIn(agent.definition().network(), agent.host()), agent.definition().userAgent());
         WorkloadClient agentClient = new WorkloadClient(endpoints.of(Control.D), signer, agentRun,
                 endpoints.requestTimeout());
         for (ScenarioDefinition.Sender sender : senders(scenario)) {
@@ -776,6 +1062,16 @@ public class RunOrchestrator {
                         agentClient.freshSession(agentRun), username, password, at, admin, json);
                 case AUTONOMOUS_AGENT -> agent.autonomous(agentClient.freshSession(agentRun), at, json);
                 case AGENT_SESSION -> agent.session(agentClient.freshSession(agentRun), at, admin, json);
+                case INTERNAL_CLIENT -> RunAgent.internalClient(agentClient.freshSession(agentRun),
+                        System.getenv("SHOWCASE_OAUTH2_CLIENT_SECRET"), at, json);
+                case DELEGATED_RELAY -> {
+                    ScenarioDefinition.Agent relay = scenario.task().relay();
+                    RunIdentity relayRun = new RunIdentity(run.runId(), run.organization(), run.tenant(),
+                            hostIn(relay.network(), 10 + random.nextInt(200)), relay.userAgent());
+                    yield agent.relayed(agentClient.freshSession(run), agentClient.freshSession(agentRun),
+                            new WorkloadClient(endpoints.of(Control.D), signer, relayRun, endpoints.requestTimeout()),
+                            username, password, at, admin, json);
+                }
                 case PERSON -> throw new IllegalStateException("The person has no agent session");
             });
         }
@@ -1081,7 +1377,8 @@ public class RunOrchestrator {
 
     private String path(Step step, String runHex) throws IOException {
         boolean documentStep = step.operation() == BusinessOperation.DOCUMENT_READ
-                || step.operation() == BusinessOperation.DOCUMENT_DOWNLOAD;
+                || step.operation() == BusinessOperation.DOCUMENT_DOWNLOAD
+                || step.operation() == BusinessOperation.DOCUMENT_DELETE;
         return path(step, runHex, documentStep ? document(step, runHex) : null);
     }
 
@@ -1091,6 +1388,7 @@ public class RunOrchestrator {
             case PROJECT_LIST -> "/api/projects";
             case DOCUMENT_READ -> "/api/documents/" + documentKey;
             case DOCUMENT_DOWNLOAD -> "/api/documents/" + documentKey + "/download";
+            case DOCUMENT_DELETE -> "/api/documents/" + documentKey + "/delete";
             case EXPORT -> "/api/projects/" + step.project() + "/exports?items=" + step.items() + claim(step, runHex);
             case EXPORT_STREAM -> "/api/projects/" + step.project() + "/exports/stream?items=" + step.items()
                     + claim(step, runHex);
@@ -1238,6 +1536,17 @@ public class RunOrchestrator {
         return prefix + "-" + runHex + "-" + number;
     }
 
+    private static final Pattern FACT_KEY = Pattern.compile("\\{\\{(TCK|APR|DLG|DOC|ONC|TRV):(\\d+)}}");
+
+    /**
+     * docs/agent A6-C14: an instruction names the run's own facts by their place in the case ({@code {{TCK:1}}} is the
+     * key of the first fact, a ticket), since the keys are made per run: the person tells the agent which ticket.
+     */
+    static String withFactKeys(String text, String runHex) {
+        return FACT_KEY.matcher(text).replaceAll(match ->
+                Matcher.quoteReplacement(factKey(match.group(1), runHex, Integer.parseInt(match.group(2)))));
+    }
+
     private String document(Step step, String runHex) throws IOException {
         if (step.document().fact() != null) {
             return factKey("DOC", runHex, step.document().fact());
@@ -1290,7 +1599,21 @@ public class RunOrchestrator {
                         delegated.summary() != null ? delegated.summary().get("en") : null, delegated.operations(),
                         delegated.resources(), delegated.approvalRequired(), from, until,
                         "REVOKED".equals(fact.status()), scenario.protagonist(),
-                        fact.recordedAtOffset() == null ? from : companyTime.plus(fact.recordedAtOffset())));
+                        fact.recordedAtOffset() == null ? from : companyTime.plus(fact.recordedAtOffset()),
+                        delegated.maxItemsPerRequest(), delegated.maxItemsTotal()));
+            }
+        }
+        if (scenario.task() != null && scenario.task().fleet() != null) {
+            // docs/agent A6-R12: the person delegated the same work to each member of the case's fleet.
+            for (RunFacts.Delegation own : List.copyOf(delegations)) {
+                for (int member = 1; member <= scenario.task().fleet().size(); member++) {
+                    String key = factKey("DLG", runHex, number++);
+                    delegations.add(new RunFacts.Delegation(key, own.delegator(),
+                            RunAgent.agentId(runHex, RunAgent.fleetName(scenario.agent().name(), member)), key,
+                            own.objectiveFamily(), own.summary(), own.operations(), own.resources(),
+                            own.approvalRequired(), own.validFrom(), own.expiresAt(), own.revoked(), own.recordedBy(),
+                            own.recordedAt(), own.maxItemsPerRequest(), own.maxItemsTotal()));
+                }
             }
         }
         return new RunFacts(tickets, approvals, oncall, travel, documents, delegations);

@@ -69,8 +69,22 @@ public final class SecurityDecisionV21OutputInspector {
         }
     }
 
-    /** The inspection, with the explanations the answer gave as the record keeps them. */
-    public record V21Inspection(Inspection inspection, List<Map<String, Object>> hypotheses) {
+    /**
+     * The inspection, with the explanations the answer gave as the record keeps them. {@code unsupportedCodesOnly} is
+     * true when the only thing wrong is a reason code that cites a line which exists but which the code may not cite,
+     * or whose measured fact does not state what the code says (RL-4): the answer's action and explanations are
+     * sound, so asking the model again would only give it the chance to choose another action.
+     */
+    public record V21Inspection(Inspection inspection, List<Map<String, Object>> hypotheses,
+                                boolean unsupportedCodesOnly) {
+
+        public V21Inspection(Inspection inspection, List<Map<String, Object>> hypotheses) {
+            this(inspection, hypotheses, false);
+        }
+    }
+
+    /** What the answer says wrongly, in one text, and whether that is only reason codes the lines do not support. */
+    private record Violation(String text, boolean unsupportedCodesOnly) {
     }
 
     public V21Inspection inspect(String rawResponse, String requestId, String attempt, V21Check check) {
@@ -84,46 +98,58 @@ public final class SecurityDecisionV21OutputInspector {
             parseFailureCategory = "NONE";
         }
         List<SecurityDecisionV21FactChecks.Hypothesis> hypotheses = hypotheses(rawResponse);
-        String violation = parsingFallback ? null : violation(check, parsed, hypotheses);
+        Violation found = parsingFallback ? null : violation(check, parsed, hypotheses);
+        String violation = found != null ? found.text() : null;
         String retryReason = parsingFallback ? "PARSER_" + parseFailureCategory : violation;
         Inspection inspection = new Inspection(parsed, parsingFallback, parseFailureCategory,
                 inspectionContext.getMetadata("securityDecisionRawOutputHash", String.class),
                 inspectionContext.getMetadata("securityDecisionRawOutputLength", Integer.class),
                 violation, retryReason);
-        return new V21Inspection(inspection, records(hypotheses));
+        return new V21Inspection(inspection, records(hypotheses), found != null && found.unsupportedCodesOnly());
     }
 
     /** Everything the answer says wrongly, in one text the corrective retry names; null when it says nothing wrongly. */
-    private static String violation(V21Check check, SecurityDecisionResponseLite response,
-                                    List<SecurityDecisionV21FactChecks.Hypothesis> hypotheses) {
+    private static Violation violation(V21Check check, SecurityDecisionResponseLite response,
+                                       List<SecurityDecisionV21FactChecks.Hypothesis> hypotheses) {
         if (response == null || check == null) {
             return null;
         }
         SecurityDecisionFactChecks.DrawnPrompt drawn = SecurityDecisionFactChecks.DrawnPrompt.of(check.userPrompt());
         List<String> parts = new ArrayList<>();
+        boolean otherThanCodes = false;
+        boolean codesMadeUp = false;
         String claim = SecurityDecisionFactChecks.claimViolation(check.context(), drawn, response.getReasoning());
         if (claim != null) {
             parts.add(claim);
+            otherThanCodes = true;
         }
         if (response.getReasonCodes() == null || response.getReasonCodes().isEmpty()) {
             parts.add(SecurityDecisionV21FactChecks.REASON_CODES_MISSING);
+            otherThanCodes = true;
         }
         else {
-            String reasons = SecurityDecisionFactChecks.reasonViolation(SecurityDecisionV21FactChecks.reasonFindings(
-                    check.context(), drawn, response.getReasonCodes()));
+            List<SecurityDecisionFactChecks.ReasonFinding> findings = SecurityDecisionV21FactChecks.reasonFindings(
+                    check.context(), drawn, response.getReasonCodes());
+            String reasons = SecurityDecisionFactChecks.reasonViolation(findings);
             if (reasons != null) {
                 parts.add(reasons);
+                codesMadeUp = findings.stream().anyMatch(SecurityDecisionV21FactChecks::madeUp);
             }
         }
         String explanations = SecurityDecisionV21FactChecks.hypothesisViolation(drawn, hypotheses);
         if (explanations != null) {
             parts.add(explanations);
+            otherThanCodes = true;
         }
         if (check.secondPass() && "ESCALATE".equalsIgnoreCase(
                 response.getAction() != null ? response.getAction().trim() : null)) {
             parts.add(SECOND_PASS_ESCALATE);
+            otherThanCodes = true;
         }
-        return parts.isEmpty() ? null : String.join("; ", parts);
+        if (parts.isEmpty()) {
+            return null;
+        }
+        return new Violation(String.join("; ", parts), !otherThanCodes && !codesMadeUp);
     }
 
     /** The explanations of the answer's JSON object; none when it has no such list or no JSON object. */

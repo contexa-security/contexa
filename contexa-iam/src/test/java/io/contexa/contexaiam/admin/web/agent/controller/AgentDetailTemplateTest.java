@@ -76,14 +76,19 @@ class AgentDetailTemplateTest {
         AgentDelegation revoked = new AgentDelegation("dlg-2", null, "dave", "agent-7", null, null, null, List.of(),
                 List.of(), false, null, null, now.minusSeconds(7200), now.plusSeconds(3600), now.minusSeconds(60),
                 "admin-1", "hijacked", "dave", now.minusSeconds(7200));
+        AgentDelegation limited = new AgentDelegation("dlg-3", null, "erin", "agent-7", null, "REPORTING",
+                "Capped export", List.of("EXPORT"), List.of("HX-310"), false, null, null, now.minusSeconds(60),
+                now.plusSeconds(3600), null, null, null, "erin", now.minusSeconds(60), 40, 1200);
         delegations = List.of(AgentDelegationViews.DelegationView.of(valid, now),
-                AgentDelegationViews.DelegationView.of(revoked, now));
+                AgentDelegationViews.DelegationView.of(revoked, now), AgentDelegationViews.DelegationView.of(limited, now));
 
         String html = render(Locale.KOREAN, true, false);
 
         assertThat(html).contains(">위임<", ">carol<", "Weekly HX-310 report", ">유효<", ">철회됨<",
                 "action=\"/contexa/admin/agents/delegations/revoke\"", "name=\"delegationId\" value=\"dlg-1\"")
                 .doesNotContain("value=\"dlg-2\"").doesNotContain("??");
+        // RL-6: the quantity limits of a delegation, per request and in the session; none reads as a dash.
+        assertThat(html).contains(">수량 한도(요청당 / 세션 합계)<", ">40 / 1200<", ">- / -<".replace("- / -", "-"));
         delegations = List.of();
         assertThat(render(Locale.KOREAN, true, false)).contains("아직 이 에이전트에게 일을 맡긴 사람이 없습니다.");
     }

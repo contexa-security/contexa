@@ -36,6 +36,7 @@ import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import io.contexa.contexacore.autonomous.agent.AgentRegistrationRequest;
 import io.contexa.contexacore.autonomous.agent.AgentRegistry;
+import io.contexa.contexacore.autonomous.agent.AgentSighting;
 import io.contexa.contexacore.autonomous.agent.InMemoryAgentRegistry;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
@@ -279,6 +280,29 @@ class ZeroTrustEventPublisherTest {
                 "tenant-run-1");
 
         assertThat(payload).containsEntry("agentSponsorId", "dave").containsEntry("agentAccountableId", "dave");
+    }
+
+    /**
+     * CF-33 (found in the A6 measurement on the showcase's control D): the first request of an agent registered without
+     * a tenant reads that registration, and the sighting the engine records after it creates the agent's row under the
+     * request's tenant. That row only observed the agent and knows no sponsor, so it must not replace the registration:
+     * the agent's later requests keep their sponsor, and the company records the sponsor answers with.
+     */
+    @Test
+    void shouldKeepTheSponsorOfTheRegistrationAfterTheEngineHasSeenTheAgentInATenant() throws Exception {
+        InMemoryAgentRegistry registry = new InMemoryAgentRegistry();
+        registry.register(new AgentRegistrationRequest(null, "agent-sp-4", "Report agent", null, null, "carol", true));
+        DelegationStamp stamp = new DelegationStamp("agent-sp-4", "agent-sp-4", false, null, null, null, List.of(),
+                List.of(), null, null, null, null, Map.of("delegationResolver", "TOKEN"));
+
+        Map<String, Object> first = subjectPayload(stamp, registry, "tenant-run-1");
+        registry.observe(new AgentSighting("tenant-run-1", "agent-sp-4", "AUTONOMOUS_AGENT", null, null));
+        Map<String, Object> later = subjectPayload(stamp, registry, "tenant-run-1");
+
+        assertThat(first).containsEntry("agentAccountableId", "carol");
+        assertThat(later).containsEntry("agentRegistrationStatus", "ACTIVE")
+                .containsEntry("agentSponsorId", "carol")
+                .containsEntry("agentAccountableId", "carol");
     }
 
     private Map<String, Object> subjectPayload(DelegationStamp delegationStamp) throws Exception {

@@ -36,12 +36,24 @@ public final class AgentDelegationViews {
                                  String objectiveFamily, String objectiveSummary, List<String> allowedOperations,
                                  List<String> allowedResources, Boolean approvalRequired,
                                  Boolean privilegedExportAllowed, Boolean containmentOnly, Instant validFrom,
-                                 Instant expiresAt, String recordedBy, Instant recordedAt) {
+                                 Instant expiresAt, String recordedBy, Instant recordedAt, Integer maxItemsPerRequest,
+                                 Integer maxItemsTotal) {
+
+        /** A body that states no quantity limit (the form before RL-6). */
+        public DelegationBody(String tenantId, String delegatorId, String agentId, String objectiveId,
+                              String objectiveFamily, String objectiveSummary, List<String> allowedOperations,
+                              List<String> allowedResources, Boolean approvalRequired, Boolean privilegedExportAllowed,
+                              Boolean containmentOnly, Instant validFrom, Instant expiresAt, String recordedBy,
+                              Instant recordedAt) {
+            this(tenantId, delegatorId, agentId, objectiveId, objectiveFamily, objectiveSummary, allowedOperations,
+                    allowedResources, approvalRequired, privilegedExportAllowed, containmentOnly, validFrom, expiresAt,
+                    recordedBy, recordedAt, null, null);
+        }
 
         public AgentDelegationRequest toRequest() {
             return new AgentDelegationRequest(tenantId, delegatorId, agentId, objectiveId, objectiveFamily,
                     objectiveSummary, allowedOperations, allowedResources, approvalRequired, privilegedExportAllowed,
-                    containmentOnly, validFrom, expiresAt, recordedBy, recordedAt);
+                    containmentOnly, validFrom, expiresAt, recordedBy, recordedAt, maxItemsPerRequest, maxItemsTotal);
         }
     }
 
@@ -55,7 +67,8 @@ public final class AgentDelegationViews {
                                  List<String> allowedOperations, List<String> allowedResources,
                                  boolean approvalRequired, Boolean privilegedExportAllowed, Boolean containmentOnly,
                                  Instant validFrom, Instant expiresAt, Instant revokedAt, String revokedBy,
-                                 String revokeReason, String recordedBy, Instant recordedAt, String state) {
+                                 String revokeReason, String recordedBy, Instant recordedAt, Integer maxItemsPerRequest,
+                                 Integer maxItemsTotal, String state) {
 
         public static DelegationView of(AgentDelegation delegation, Instant now) {
             return new DelegationView(delegation.delegationId(), delegation.tenantId(), delegation.delegatorId(),
@@ -64,7 +77,7 @@ public final class AgentDelegationViews {
                     delegation.approvalRequired(), delegation.privilegedExportAllowed(), delegation.containmentOnly(),
                     delegation.validFrom(), delegation.expiresAt(), delegation.revokedAt(), delegation.revokedBy(),
                     delegation.revokeReason(), delegation.recordedBy(), delegation.recordedAt(),
-                    state(delegation, now));
+                    delegation.maxItemsPerRequest(), delegation.maxItemsTotal(), state(delegation, now));
         }
 
         /** VALID, NOT_STARTED, EXPIRED or REVOKED. */

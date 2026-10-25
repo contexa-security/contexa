@@ -1085,15 +1085,22 @@ public final class SecurityDecisionPromptDictionary {
             // v21.9 (A2-4): the delegation by its fields; its objective's free text is an untrusted text (A2-5).
             case "Delegation" -> with(entry,
                     "Delegated execution: the agent and the person it acts for, the chain depth, the objective, the"
-                            + " allowed operations and resources, the expiry, the proof and the comparison of this"
-                            + " request with the objective's scope",
+                            + " allowed operations and resources, the expiry, the quantity limits the delegation states"
+                            + " (RL-6), the proof and the comparison of this request with the objective's scope and"
+                            + " those limits",
                     "agent .+ for .+, chain depth \\d+, objective .+, allowed .+ on .+, expires .+, proof .+,"
                             + " drift (yes|no|not compared) \\(.+\\)",
                     List.of("agent report-agent for alice, chain depth 1, objective REPORTING, allowed READ/EXPORT on"
-                            + " PROJECT_DOCUMENTS/HX-310, expires 3 h after this request, proof signed token claim and"
-                            + " delegation record, drift no (Current action family is listed in delegated action scope"
-                            + " evidence; Current resource matches delegated raw resource constraints)"),
-                    "DELEGATION_SCOPE_DRIFT: whether the request stays within the delegation is the model's judgment");
+                                    + " PROJECT_DOCUMENTS/HX-310, expires 3 h after this request, proof signed token claim and"
+                                    + " delegation record, drift no (Current action family is listed in delegated action scope"
+                                    + " evidence; Current resource matches delegated raw resource constraints)",
+                            "agent report-agent for alice, chain depth 1, objective REPORTING, allowed READ/EXPORT on"
+                                    + " PROJECT_DOCUMENTS/HX-310, expires 3 h after this request, limits 40 items per request"
+                                    + " and 40 items in the session, proof signed token claim and delegation record, drift yes"
+                                    + " (400 requested items exceed the delegation's limit of 40 items per request.)"),
+                    "DELEGATION_SCOPE_DRIFT: the core's own comparison of the request with the delegation's operations,"
+                            + " resources and stated limits; DELEGATION_OBJECTIVE_EXCEEDED and RECORD_COVERS_WORK: whether"
+                            + " the request stays within what the delegation calls for is the model's judgment");
             case "DeviationsFromBaseline" -> with(entry,
                     "Differences from the usual: per dimension, the request's value, how often and when it was seen and"
                             + " the usual value, dimensions compared, overlap of the closest past record read for this"

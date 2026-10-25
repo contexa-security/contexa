@@ -5446,6 +5446,7 @@
   "main.agent.op.DOCUMENT_LIST": "List documents",
   "main.agent.op.DOCUMENT_READ": "Read a document",
   "main.agent.op.DOCUMENT_DOWNLOAD": "Download a document",
+  "main.agent.op.DOCUMENT_DELETE": "Delete a document",
   "main.agent.op.EXPORT": "Export",
   "main.agent.op.EXPORT_ASYNC": "Export",
   "main.agent.op.EXPORT_STREAM": "Export (streamed)",

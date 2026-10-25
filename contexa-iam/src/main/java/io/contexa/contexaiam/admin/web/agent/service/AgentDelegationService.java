@@ -68,7 +68,7 @@ public class AgentDelegationService {
                 request.objectiveId(), request.objectiveFamily(), request.objectiveSummary(),
                 request.allowedOperations(), request.allowedResources(), request.approvalRequired(),
                 request.privilegedExportAllowed(), request.containmentOnly(), request.validFrom(), request.expiresAt(),
-                delegator, null));
+                delegator, null, request.maxItemsPerRequest(), request.maxItemsTotal()));
         audit(AuditEventCategory.AGENT_DELEGATION_RECORDED, delegator, recorded, null);
         return recorded;
     }
@@ -84,7 +84,7 @@ public class AgentDelegationService {
                 request.approvalRequired(), request.privilegedExportAllowed(), request.containmentOnly(),
                 request.validFrom(), request.expiresAt(),
                 request.recordedBy() != null && !request.recordedBy().isBlank() ? request.recordedBy() : administrator,
-                request.recordedAt()));
+                request.recordedAt(), request.maxItemsPerRequest(), request.maxItemsTotal()));
         audit(AuditEventCategory.AGENT_DELEGATION_RECORDED, administrator, recorded, null);
         return recorded;
     }

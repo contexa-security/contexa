@@ -54,6 +54,10 @@ final class ProbeDatabase {
         registry.add("showcase.work.datasource.password", POSTGRES::getPassword);
         registry.add("showcase.internal.signing-key", () -> signingKey);
         registry.add("contexa.auth.oauth2.client-secret", () -> OAUTH2_CLIENT_SECRET);
+        // Layer 2 runs on Anthropic (DD-38): the probes build its chat model but never call it, so the start check of the key
+        // (a call to the Anthropic API) is off and the key is a placeholder.
+        registry.add("showcase.layer2.anthropic.verify-key", () -> "false");
+        registry.add("spring.ai.anthropic.api-key", () -> "probe-key-never-used");
     }
 
     static String randomKey() {

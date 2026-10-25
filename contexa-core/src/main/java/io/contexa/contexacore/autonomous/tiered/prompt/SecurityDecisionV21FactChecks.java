@@ -49,9 +49,14 @@ public final class SecurityDecisionV21FactChecks {
     public static final String HYPOTHESIS_MISMATCH = "HYPOTHESIS_MISMATCH";
     public static final String REASON_CODES_MISSING = "REASON_CODES_MISSING";
 
+    /** The finding reason of a code the output contract does not have: the answer made the code up. */
+    static final String NOT_A_CODE = "not a reason code of the output contract";
+    /** The finding reason of a fact ID the prompt does not give: the answer made the line up. */
+    static final String NO_SUCH_FACT = "the prompt gives no fact this ID";
+
     /** The codes that name the model's judgment of the lines they cite; the lines alone cannot fail them. */
     static final Set<String> JUDGMENT_CODES = Set.of("RECORD_COVERS_WORK", "RECORD_OTHER_TARGET", "NO_COVERING_RECORD",
-            "TRAVEL_EXPLAINS_NETWORK", "DATA_NATURE_MISMATCH", "SESSION_SEQUENCE");
+            "TRAVEL_EXPLAINS_NETWORK", "DATA_NATURE_MISMATCH", "SESSION_SEQUENCE", "DELEGATION_OBJECTIVE_EXCEEDED");
 
     /** The record codes the core measures exactly, with the failure of the record check that measures them. */
     private static final Map<String, PolicyReason> MEASURED_RECORD_CODES = Map.of(
@@ -90,6 +95,16 @@ public final class SecurityDecisionV21FactChecks {
             findings.add(finding(context, prompt, citation.code(), fact));
         }
         return findings;
+    }
+
+    /**
+     * Whether a finding that does not hold is one of the answer's own making: a code the contract does not have or a
+     * line the prompt does not give. Any other finding that does not hold is a disagreement about a line that exists
+     * (the code may not cite that entry, or the measured fact does not state what the code says).
+     */
+    public static boolean madeUp(ReasonFinding finding) {
+        return finding.outcome() == Outcome.MISMATCH
+                && (NOT_A_CODE.equals(finding.reason()) || NO_SUCH_FACT.equals(finding.reason()));
     }
 
     /**
@@ -133,13 +148,13 @@ public final class SecurityDecisionV21FactChecks {
                                          String fact) {
         Optional<SecurityDecisionOutputContractV4.ReasonCode> found = SecurityDecisionOutputContractV4.find(name);
         if (found.isEmpty()) {
-            return new ReasonFinding(name, fact, Outcome.MISMATCH, "not a reason code of the output contract");
+            return new ReasonFinding(name, fact, Outcome.MISMATCH, NOT_A_CODE);
         }
         SecurityDecisionOutputContractV4.ReasonCode code = found.get();
         String unknown = prompt.unknownIds().get(fact);
         String entry = prompt.lineIds().get(fact);
         if (unknown == null && entry == null) {
-            return new ReasonFinding(name, fact, Outcome.MISMATCH, "the prompt gives no fact this ID");
+            return new ReasonFinding(name, fact, Outcome.MISMATCH, NO_SUCH_FACT);
         }
         if (unknown != null) {
             boolean cited = "MATERIAL_MISSING_EVIDENCE".equals(name)

@@ -48,11 +48,12 @@
                            class="px-3 py-2 rounded-lg text-sm"
                            style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;max-width:220px;"
                            th:placeholder="#{admin.ip.search.placeholder}" />
-                    <button type="submit" class="px-3 py-2 rounded-lg text-sm font-medium text-white"
+                    <button type="submit" class="px-3 py-2 rounded-lg text-sm font-medium text-white" th:aria-label="#{common.search}"
                             style="background:linear-gradient(135deg,#6366f1,#4f46e5);">
                         <i class="fas fa-search"></i>
                     </button>
                     <a th:href="@{/contexa/admin/ip-management(type=${currentType})}" class="px-3 py-2 rounded-lg text-sm font-medium"
+                       th:aria-label="#{common.search.clear}"
                        style="color:#94a3b8;border:1px solid rgba(71,85,105,0.5);">
                         <i class="fas fa-times"></i>
                     </a>
@@ -71,8 +72,8 @@
                                style="background: rgba(15,23,42,0.6); border: 1px solid rgba(71,85,105,0.4); color: #e2e8f0;" />
                     </div>
                     <div class="min-w-[120px]">
-                        <label class="block text-xs mb-1" style="color: #94a3b8;" th:text="#{admin.ip.create.type}">Rule Type</label>
-                        <select name="ruleType" required class="cs-skip w-full px-3 py-2 rounded-md text-sm"
+                        <label for="ip-rule-type" class="block text-xs mb-1" style="color: #94a3b8;" th:text="#{admin.ip.create.type}">Rule Type</label>
+                        <select id="ip-rule-type" name="ruleType" required class="cs-skip w-full px-3 py-2 rounded-md text-sm"
                                 style="background: rgba(15,23,42,0.6); border: 1px solid rgba(71,85,105,0.4); color: #e2e8f0;">
                             <option value="DENY">DENY</option>
                             <option value="ALLOW">ALLOW</option>
@@ -86,8 +87,8 @@
                                style="background: rgba(15,23,42,0.6); border: 1px solid rgba(71,85,105,0.4); color: #e2e8f0;" />
                     </div>
                     <div class="min-w-[180px]">
-                        <label class="block text-xs mb-1" style="color: #94a3b8;" th:text="#{admin.ip.create.expires}">Expires At</label>
-                        <input type="datetime-local" name="expiresAt"
+                        <label for="ip-expires-at" class="block text-xs mb-1" style="color: #94a3b8;" th:text="#{admin.ip.create.expires}">Expires At</label>
+                        <input type="datetime-local" id="ip-expires-at" name="expiresAt"
                                class="w-full px-3 py-2 rounded-md text-sm"
                                style="background: rgba(15,23,42,0.6); border: 1px solid rgba(71,85,105,0.4); color: #e2e8f0;" />
                     </div>
@@ -99,7 +100,7 @@
                 </form>
             </div>
 
-            <div class="overflow-x-auto shadow-md rounded-lg">
+            <div class="overflow-x-auto shadow-md rounded-lg" tabindex="0" role="region" th:aria-label="#{admin.ip.title}">
                 <table class="min-w-full w-full text-sm text-left">
                     <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
                     <tr>
@@ -160,7 +161,7 @@
                 </table>
             </div>
 
-            <nav th:if="${rules != null and rules.totalPages > 1}" class="flex justify-center mt-6 gap-2">
+            <nav th:if="${rules != null and rules.totalPages > 1}" class="flex flex-wrap justify-center mt-6 gap-2">
                 <a th:if="${!rules.first}" th:href="@{/contexa/admin/ip-management(type=${currentType},keyword=${keyword},page=${rules.number - 1})}"
                    class="px-3 py-2 rounded text-sm" style="color:#94a3b8;border:1px solid rgba(71,85,105,0.3);">
                     &laquo;

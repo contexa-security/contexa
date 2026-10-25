@@ -40,5 +40,20 @@ public record AgentDelegationRequest(
         @Nullable Instant validFrom,
         Instant expiresAt,
         @Nullable String recordedBy,
-        @Nullable Instant recordedAt) {
+        @Nullable Instant recordedAt,
+        @Nullable Integer maxItemsPerRequest,
+        @Nullable Integer maxItemsTotal) {
+
+    /** A delegation that states no quantity limit (the form before RL-6). */
+    public AgentDelegationRequest(@Nullable String tenantId, String delegatorId, String agentId,
+                                  @Nullable String objectiveId, @Nullable String objectiveFamily,
+                                  @Nullable String objectiveSummary, @Nullable List<String> allowedOperations,
+                                  @Nullable List<String> allowedResources, @Nullable Boolean approvalRequired,
+                                  @Nullable Boolean privilegedExportAllowed, @Nullable Boolean containmentOnly,
+                                  @Nullable Instant validFrom, Instant expiresAt, @Nullable String recordedBy,
+                                  @Nullable Instant recordedAt) {
+        this(tenantId, delegatorId, agentId, objectiveId, objectiveFamily, objectiveSummary, allowedOperations,
+                allowedResources, approvalRequired, privilegedExportAllowed, containmentOnly, validFrom, expiresAt,
+                recordedBy, recordedAt, null, null);
+    }
 }

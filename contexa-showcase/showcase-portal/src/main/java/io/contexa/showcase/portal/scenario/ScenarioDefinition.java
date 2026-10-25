@@ -148,11 +148,66 @@ public record ScenarioDefinition(
                             @JsonInclude(JsonInclude.Include.NON_NULL) Long offsetSeconds,
                             @JsonInclude(JsonInclude.Include.NON_NULL) AgentRuntime runtime,
                             @JsonInclude(JsonInclude.Include.NON_NULL) Boolean newSession,
-                            @JsonInclude(JsonInclude.Include.NON_NULL) List<Sender> paths) {
+                            @JsonInclude(JsonInclude.Include.NON_NULL) List<Sender> paths,
+                            @JsonInclude(JsonInclude.Include.NON_NULL) Map<String, String> headers,
+                            @JsonInclude(JsonInclude.Include.NON_NULL) List<AdminAction> adminActions,
+                            @JsonInclude(JsonInclude.Include.NON_NULL) List<ParallelWork> parallel,
+                            @JsonInclude(JsonInclude.Include.NON_NULL) Agent relay,
+                            @JsonInclude(JsonInclude.Include.NON_NULL) Boolean modelOutage,
+                            @JsonInclude(JsonInclude.Include.NON_NULL) Fleet fleet) {
 
         public AgentTask {
             tools = tools == null ? List.of() : List.copyOf(tools);
             paths = paths == null ? null : List.copyOf(paths);
+            headers = headers == null ? null : Map.copyOf(headers);
+            adminActions = adminActions == null ? null : List.copyOf(adminActions);
+            parallel = parallel == null ? null : List.copyOf(parallel);
+        }
+
+        /** The work before docs/agent A6-R12 (no fleet); its definition hash is unchanged. */
+        public AgentTask(Map<String, String> instruction, String agentPrompt, Sender sender, String model,
+                         Integer maxToolCalls, Integer maxSeconds, List<BusinessOperation> tools, Proof proof,
+                         Long offsetSeconds, AgentRuntime runtime, Boolean newSession, List<Sender> paths,
+                         Map<String, String> headers, List<AdminAction> adminActions, List<ParallelWork> parallel,
+                         Agent relay, Boolean modelOutage) {
+            this(instruction, agentPrompt, sender, model, maxToolCalls, maxSeconds, tools, proof, offsetSeconds,
+                    runtime, newSession, paths, headers, adminActions, parallel, relay, modelOutage, null);
+        }
+
+        /** The work before docs/agent A6-R10 (no model outage); its definition hash is unchanged. */
+        public AgentTask(Map<String, String> instruction, String agentPrompt, Sender sender, String model,
+                         Integer maxToolCalls, Integer maxSeconds, List<BusinessOperation> tools, Proof proof,
+                         Long offsetSeconds, AgentRuntime runtime, Boolean newSession, List<Sender> paths,
+                         Map<String, String> headers, List<AdminAction> adminActions, List<ParallelWork> parallel,
+                         Agent relay) {
+            this(instruction, agentPrompt, sender, model, maxToolCalls, maxSeconds, tools, proof, offsetSeconds,
+                    runtime, newSession, paths, headers, adminActions, parallel, relay, null, null);
+        }
+
+        /** The work before docs/agent A6-R2 (no parallel requests); its definition hash is unchanged. */
+        public AgentTask(Map<String, String> instruction, String agentPrompt, Sender sender, String model,
+                         Integer maxToolCalls, Integer maxSeconds, List<BusinessOperation> tools, Proof proof,
+                         Long offsetSeconds, AgentRuntime runtime, Boolean newSession, List<Sender> paths,
+                         Map<String, String> headers, List<AdminAction> adminActions) {
+            this(instruction, agentPrompt, sender, model, maxToolCalls, maxSeconds, tools, proof, offsetSeconds,
+                    runtime, newSession, paths, headers, adminActions, null, null, null, null);
+        }
+
+        /** The work before docs/agent A6-R6 (no relay agent); its definition hash is unchanged. */
+        public AgentTask(Map<String, String> instruction, String agentPrompt, Sender sender, String model,
+                         Integer maxToolCalls, Integer maxSeconds, List<BusinessOperation> tools, Proof proof,
+                         Long offsetSeconds, AgentRuntime runtime, Boolean newSession, List<Sender> paths,
+                         Map<String, String> headers, List<AdminAction> adminActions, List<ParallelWork> parallel) {
+            this(instruction, agentPrompt, sender, model, maxToolCalls, maxSeconds, tools, proof, offsetSeconds,
+                    runtime, newSession, paths, headers, adminActions, parallel, null, null, null);
+        }
+
+        /** The work before docs/agent A6-R3 and A6-R7 (no claim headers, no administrator action); same hash. */
+        public AgentTask(Map<String, String> instruction, String agentPrompt, Sender sender, String model,
+                         Integer maxToolCalls, Integer maxSeconds, List<BusinessOperation> tools, Proof proof,
+                         Long offsetSeconds, AgentRuntime runtime, Boolean newSession, List<Sender> paths) {
+            this(instruction, agentPrompt, sender, model, maxToolCalls, maxSeconds, tools, proof, offsetSeconds,
+                    runtime, newSession, paths, null, null, null);
         }
 
         /** The work before docs/agent A6-R0 (one path, its sender); its definition hash is unchanged. */
@@ -160,7 +215,7 @@ public record ScenarioDefinition(
                          Integer maxToolCalls, Integer maxSeconds, List<BusinessOperation> tools, Proof proof,
                          Long offsetSeconds, AgentRuntime runtime, Boolean newSession) {
             this(instruction, agentPrompt, sender, model, maxToolCalls, maxSeconds, tools, proof, offsetSeconds,
-                    runtime, newSession, null);
+                    runtime, newSession, null, null, null);
         }
 
         /** docs/agent A6-D2: the paths the work is measured on; its sender alone when the case names none. */
@@ -171,7 +226,19 @@ public record ScenarioDefinition(
         /** The same work sent on another path. */
         public AgentTask on(Sender path) {
             return new AgentTask(instruction, agentPrompt, path, model, maxToolCalls, maxSeconds, tools, proof,
-                    offsetSeconds, runtime, newSession, paths);
+                    offsetSeconds, runtime, newSession, paths, headers, adminActions, parallel, relay, modelOutage,
+                    fleet);
+        }
+
+        /** docs/agent A6-R10: whether the judging model of control D is out while the work goes on. */
+        public boolean modelOutageOn() {
+            return Boolean.TRUE.equals(modelOutage);
+        }
+
+        /** The administrator's actions that fall on the path the work is sent on (those that name no path fall on all). */
+        public List<AdminAction> adminActionsOn(Sender path) {
+            return adminActions == null ? List.of() : adminActions.stream()
+                    .filter(action -> action.paths() == null || action.paths().contains(path)).toList();
         }
 
         public AgentTask(Map<String, String> instruction, String agentPrompt, Sender sender, String model,
@@ -183,6 +250,88 @@ public record ScenarioDefinition(
         /** Whether the work starts a session of its own. */
         public boolean startsNewSession() {
             return Boolean.TRUE.equals(newSession);
+        }
+
+        /** docs/agent RL-3: the same work in a session of its own (after the days of a history). */
+        public AgentTask startingSession() {
+            return startsNewSession() ? this : new AgentTask(instruction, agentPrompt, sender, model, maxToolCalls,
+                    maxSeconds, tools, proof, offsetSeconds, runtime, Boolean.TRUE, paths, headers, adminActions,
+                    parallel, relay, modelOutage, fleet);
+        }
+
+        /**
+         * docs/agent A6-R7: what the run's security administrator does to the agent's standing in control D while the
+         * work goes on, after the given number of the work's requests: {@code REVOKE_DELEGATION} (the delegation the
+         * work runs under) or {@code STOP_AGENT} (the agent's registration is removed, which also ends its credentials).
+         *
+         * @param afterToolCalls the number of requests the work has sent when the administrator acts
+         * @param action         REVOKE_DELEGATION or STOP_AGENT
+         * @param paths          the paths it falls on; null for every path
+         * @param reason         what the administrator writes
+         * @param fleet          docs/agent A6-R12: true when the action falls on the agents of the case's fleet too (the
+         *                       kill switch of a whole kind of agents), not on the case's agent alone
+         */
+        public record AdminAction(int afterToolCalls, String action,
+                                  @JsonInclude(JsonInclude.Include.NON_NULL) List<Sender> paths, String reason,
+                                  @JsonInclude(JsonInclude.Include.NON_NULL) Boolean fleet) {
+
+            public AdminAction {
+                paths = paths == null ? null : List.copyOf(paths);
+            }
+
+            /** The action before docs/agent A6-R12 (on the case's agent alone); its definition hash is unchanged. */
+            public AdminAction(int afterToolCalls, String action, List<Sender> paths, String reason) {
+                this(afterToolCalls, action, paths, reason, null);
+            }
+
+            public boolean wholeKind() {
+                return Boolean.TRUE.equals(fleet);
+            }
+        }
+
+        /**
+         * docs/agent A6-R12: {@code size} more agents of the same kind as the case's agent (the same role, network and
+         * client, so the same address), each registered with the delegations the case states for the agent and signed
+         * in on the work's path. Once the work has sent {@code startAfterToolCalls} requests every member sends the
+         * {@code requests} in order, at once; they count as requests of the work.
+         *
+         * @param size                how many members
+         * @param startAfterToolCalls how many requests the work has sent when the members start; -1 for after the work
+         *                            has ended
+         * @param requests            what each member sends, in order
+         */
+        public record Fleet(int size, int startAfterToolCalls, List<ParallelRequest> requests) {
+
+            public Fleet {
+                requests = requests == null ? List.of() : List.copyOf(requests);
+            }
+        }
+
+        /**
+         * docs/agent A6-R2: requests sent while the agent works, by a runtime holding the same credentials: once the work
+         * has sent {@code startAfterToolCalls} requests (0 for at the start) each of {@code copies} workers sends the
+         * {@code requests} in order, all at once. The workers use the credentials of the work's path, from the other
+         * runtime's network and client when one is named, else from the agent's own.
+         *
+         * @param startAfterToolCalls how many requests the work has sent when the workers start
+         * @param copies              how many workers send at once
+         * @param runtime             where they send from; null for the agent's own network and client
+         * @param requests            what each sends, in order
+         */
+        public record ParallelWork(int startAfterToolCalls, int copies,
+                                   @JsonInclude(JsonInclude.Include.NON_NULL) AgentRuntime runtime,
+                                   List<ParallelRequest> requests) {
+
+            public ParallelWork {
+                requests = requests == null ? List.of() : List.copyOf(requests);
+            }
+        }
+
+        /** One request of a parallel worker: an operation and its target. */
+        public record ParallelRequest(BusinessOperation operation,
+                                      @JsonInclude(JsonInclude.Include.NON_NULL) String project,
+                                      @JsonInclude(JsonInclude.Include.NON_NULL) String document,
+                                      @JsonInclude(JsonInclude.Include.NON_NULL) Integer items) {
         }
 
         /**
@@ -198,19 +347,30 @@ public record ScenarioDefinition(
          * @param deliverable  what the person expects back when the work is legitimate; null for an attack case
          * @param mustNotLeave the projects whose company data (documents, exported items, customer records) must not
          *                     leave the company in an attack case; empty for a legitimate case
-         * @param workNeeds    how many of those documents and records the given work itself needs (a runaway case
-         *                     reads the project it was given, beyond what the work needs); null for none
+         * @param workNeeds    how many of those documents, exported items and records the given work itself needs
+         *                     (a runaway case reads the project it was given, beyond what the work needs; a bulk
+         *                     export asks for more items than the work names); null for none
+         * @param destinations docs/agent A6-R9: the export destinations the work may deliver to (an export that names
+         *                     none goes to the company's default); an export of a protected project to any other
+         *                     destination leaves the company. Null when the case does not judge destinations
          */
         public record Proof(@JsonInclude(JsonInclude.Include.NON_NULL) String deliverable,
                             List<String> mustNotLeave,
-                            @JsonInclude(JsonInclude.Include.NON_NULL) Integer workNeeds) {
+                            @JsonInclude(JsonInclude.Include.NON_NULL) Integer workNeeds,
+                            @JsonInclude(JsonInclude.Include.NON_NULL) List<String> destinations) {
 
             public Proof {
                 mustNotLeave = mustNotLeave == null ? List.of() : List.copyOf(mustNotLeave);
+                destinations = destinations == null ? null : List.copyOf(destinations);
+            }
+
+            /** The proof before docs/agent A6-R9 (no destinations); its definition hash is unchanged. */
+            public Proof(String deliverable, List<String> mustNotLeave, Integer workNeeds) {
+                this(deliverable, mustNotLeave, workNeeds, null);
             }
 
             public Proof(String deliverable, List<String> mustNotLeave) {
-                this(deliverable, mustNotLeave, null);
+                this(deliverable, mustNotLeave, null, null);
             }
         }
     }
@@ -240,7 +400,17 @@ public record ScenarioDefinition(
         /** The agent acting on its own, with its own client credentials token. */
         AUTONOMOUS_AGENT,
         /** The agent signed in with its own account in the people's session flow. */
-        AGENT_SESSION
+        AGENT_SESSION,
+        /**
+         * docs/agent A6-R6: another agent, the task's relay agent, using the token the case's agent got for the person:
+         * it exchanges that token for its own, so the chain of actors has two (RFC 8693).
+         */
+        DELEGATED_RELAY,
+        /**
+         * docs/agent A6-R4: the client credentials token of the engine's internal client, which is no registered agent
+         * and no service client of the company (the agent's own token is {@link #AUTONOMOUS_AGENT}).
+         */
+        INTERNAL_CLIENT
     }
 
     public ScenarioDefinition(String key, int version, Map<String, String> title, String protagonist, boolean template,
@@ -316,9 +486,17 @@ public record ScenarioDefinition(
      * @param operations       the operations delegated, as the business operations name them
      * @param resources        the resources delegated; a project key names that project's records
      * @param approvalRequired whether a person must approve the agent's work
+     * @param maxItemsPerRequest the most items one request may carry, when the delegation states it (RL-6), else null
+     * @param maxItemsTotal the most items the agent may export in its session, when the delegation states it, else null
      */
     public record Delegated(Map<String, String> summary, List<String> operations, List<String> resources,
-                            boolean approvalRequired) {
+                            boolean approvalRequired, Integer maxItemsPerRequest, Integer maxItemsTotal) {
+
+        /** A delegation that states no quantity limit. */
+        public Delegated(Map<String, String> summary, List<String> operations, List<String> resources,
+                         boolean approvalRequired) {
+            this(summary, operations, resources, approvalRequired, null, null);
+        }
     }
 
     /**
@@ -423,6 +601,13 @@ public record ScenarioDefinition(
         /** docs/agent A7-0: who sends the step to control D; the person when the step names no one. */
         public Sender senderOrPerson() {
             return sender == null ? Sender.PERSON : sender;
+        }
+
+        /** docs/agent RL-3: the same step in a session of its own (the first step of a day after a history). */
+        public Step startingSession() {
+            return startsNewSession() ? this : new Step(operation, document, project, customer, items, offsetSeconds,
+                    expected, claimedTicket, grantee, responsibility, visitorSends, body, headers, requestIdOf,
+                    Boolean.TRUE, sender, learningAction);
         }
 
         /** docs/agent A6-R0: the same step sent by the case's agent on another path; a person's step stays. */

@@ -16,9 +16,11 @@
 package io.contexa.contexaidentity.security.core.bootstrap.configurer;
 
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
+import io.contexa.contexacommon.enums.StateType;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
+import io.contexa.contexaidentity.security.core.config.StateConfig;
 import io.contexa.contexaidentity.security.core.context.FlowContext;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.zerotrust.ZeroTrustAccessControlFilter;
@@ -74,6 +76,8 @@ class SecurityConfigurerIntegrationTest {
     void setUp() {
         platformConfig = PlatformConfig.builder().build();
         when(flowConfig.getTypeName()).thenReturn("form");
+        // A form login keeps its authentication in the session; a flow without a state reads as the token state.
+        when(flowConfig.getStateConfig()).thenReturn(new StateConfig("session", StateType.SESSION));
         flowContext = new FlowContext(flowConfig, httpSecurity, platformContext, platformConfig);
     }
 
