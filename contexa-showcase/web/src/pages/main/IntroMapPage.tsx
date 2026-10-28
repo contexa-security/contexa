@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useBenchmark, type BenchmarkCase } from '../../api/benchmark';
+import { Fold } from '../../components/main/Fold';
 import { MainScreen } from '../../components/main/MainScreen';
 import { SourceBadge } from '../../components/main/SourceBadge';
 import { THEMES } from '../../components/main/themes';
@@ -95,17 +96,22 @@ export default function IntroMapPage() {
           >
             <p id={`theme-${theme.id}`} className={styles.themeHead}>
               <b className={styles.themeName}>{t(`theme.${theme.id}.name`)}</b>
-              <span className={styles.themeLine}>{t(`theme.${theme.id}.line`)}</span>
             </p>
-            <ol className={styles.topics} data-count={THEME_GROUPS[theme.id].length}>
-              {THEME_GROUPS[theme.id].map(card)}
-            </ol>
+            {/* AC-N2: the theme's own line is the one that opens its topics. */}
+            <Fold name={`map-${theme.id}`} summary={t(`theme.${theme.id}.line`)}>
+              <ol className={styles.topics} data-count={THEME_GROUPS[theme.id].length}>
+                {THEME_GROUPS[theme.id].map(card)}
+              </ol>
+            </Fold>
           </section>
         ))}
       </div>
-      <ol className={styles.topics} data-count={AFTER.length} aria-label={t('main.1-2.after')}>
-        {AFTER.map(card)}
-      </ol>
+      {/* AC-N2: the themes are the view; the topics of each, and what follows them, wait under one line. */}
+      <Fold name="map-after" summary={t('main.1-2.after')}>
+        <ol className={styles.topics} data-count={AFTER.length} aria-label={t('main.1-2.after')}>
+          {AFTER.map(card)}
+        </ol>
+      </Fold>
     </MainScreen>
   );
 }

@@ -9,9 +9,10 @@ import { Chip } from '../../components/main/Chip';
 import { MainScreen } from '../../components/main/MainScreen';
 import { SourceBadge } from '../../components/main/SourceBadge';
 import { count } from '../../journey/format';
-import { screenAt } from '../../journey/journey';
+import { entryOf, screenAt } from '../../journey/journey';
+import { rememberedTrack } from '../../journey/trackMemory';
 import { latestOwnRun } from './latestRun';
-import { AGENT_CASE } from '../../api/agentCase';
+import { useAgentCaseKeys } from '../../api/agentCase';
 import { MAIN_CASES } from './mainCases';
 import styles from './SummaryPages.module.css';
 import { useCountUp } from './useCountUp';
@@ -62,26 +63,35 @@ export default function SummaryPage() {
   const insider = latestOwnRun(journey.data?.runs, MAIN_CASES.insider);
   const insiderResult = insider?.business['D'] ?? '';
   // docs/agent A7-3 (화면설계 4.5): the business agent's own run, named by what Contexa did with its requests.
-  const agent = latestOwnRun(journey.data?.runs, AGENT_CASE);
+  // Only a threatening case has an attack to count; a normal work case of the agent is not one.
+  const agent = latestOwnRun(journey.data?.runs, useAgentCaseKeys(), 'THREAT');
   const agentResult = agent?.business['D'] ?? '';
+  // 구현계획 NW-11: a visitor who only tried the agent's track has no attack run of the person's; the first card then
+  // names what Contexa let out of the agent's requests, from the agent's own run.
+  const first = attack ?? agent;
+  const firstIsAgent = attack === null && agent !== null;
   const [result] = useRunStepResults(attack?.runId ?? null, 1);
   const legacy = result?.layers.find((layer) => layer.control === 'B')?.evidence.deliveredItems ?? null;
   const contexa = benchmark.data?.controls.find((score) => score.control === 'D') ?? null;
   const fixed = benchmark.data?.controls.find((score) => score.control === 'C1') ?? null;
   const reason = quality.data?.reasonMatch ?? null;
+  // The wrap-up belongs to both tracks: it leads back to the next-chooser of the track the visitor came from.
+  const track = rememberedTrack();
   const predictions = (journey.data?.predictions ?? []).filter((score) => score.engineActual !== null);
   const cards = [
     {
       id: 'request',
-      value: attack ? attack.exposedItems : null,
+      value: first ? first.exposedItems : null,
       total: undefined,
       unit: true,
-      holds: attack !== null && attack.exposedItems === 0,
+      holds: first !== null && first.exposedItems === 0,
       line: attack
         ? t('main.8-1.request.line', { legacy: legacy === null ? '-' : count(legacy, language) })
-        : t('main.8-1.request.none'),
-      source: attack ? <SourceBadge kind="run" label={t('badge.run')} runId={attack.runId} /> : null,
-      to: '/attack/console',
+        : firstIsAgent
+          ? t('main.8-1.request.agentLine')
+          : t('main.8-1.request.none'),
+      source: first ? <SourceBadge kind="run" label={t('badge.run')} runId={first.runId} /> : null,
+      to: firstIsAgent ? '/agent/console' : '/attack/console',
     },
     {
       id: 'normal',
@@ -115,6 +125,7 @@ export default function SummaryPage() {
   return (
     <MainScreen
       title={t('main.8-1.title')}
+      back={track === null ? '/' : `${entryOf(track)}/next`}
       intro={
         <>
           {predictions.length > 0 ? (
@@ -149,7 +160,11 @@ export default function SummaryPage() {
         {cards.map((card) => (
           <li key={card.id} className={styles.card}>
             <b className={styles.cardTitle}>
-              {t(`main.8-1.${card.id}.${card.holds ? 'title' : 'titlePlain'}`)}
+              {t(
+                card.id === 'request' && firstIsAgent && !card.holds
+                  ? 'main.8-1.request.agentTitlePlain'
+                  : `main.8-1.${card.id}.${card.holds ? 'title' : 'titlePlain'}`,
+              )}
             </b>
             <p className={styles.big} data-holds={card.holds || undefined}>
               <Counted value={card.value} total={card.total} />
@@ -159,7 +174,7 @@ export default function SummaryPage() {
             <div className={styles.cardFoot}>
               {card.source}
               <Link to={card.to} className={styles.back}>
-                {t('main.8-1.back', { screen: screenAt('DEFAULT', card.to)?.number ?? '' })}
+                {t('main.8-1.back', { screen: t(`main.${screenAt('DEFAULT', card.to)?.number ?? ''}.name`) })}
               </Link>
             </div>
           </li>

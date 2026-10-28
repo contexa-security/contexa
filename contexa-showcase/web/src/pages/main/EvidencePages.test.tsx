@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -26,7 +26,12 @@ const FACTS = {
   stepNo: 1,
   available: true,
   reason: null,
-  bundle: { version: '2026.10.20-v21.8', hash: '9a9984bad390', selectionSource: 'CONFIGURATION', layout: 'v21' },
+  bundle: {
+    version: '2026.10.20-v21.8',
+    hash: '9a9984bad390',
+    selectionSource: 'CONFIGURATION',
+    layout: 'v21',
+  },
   blocks: [
     {
       block: 'REQUEST',
@@ -52,7 +57,12 @@ const FACTS = {
       facts: [
         fact(40, 'F1', 'DeviationsFromBaseline', '2 of 9 compared -> device Safari/18 on MAC', 'COMPUTED'),
         fact(42, 'F3', 'Policy', 'EXPORT_APPROVAL requires a covering approval; none found'),
-        fact(43, 'F4', 'Assignment', 'assigned to HX-310 (DESIGN); worked on HX-310 on 21 of the last 30 days'),
+        fact(
+          43,
+          'F4',
+          'Assignment',
+          'assigned to HX-310 (DESIGN); worked on HX-310 on 21 of the last 30 days',
+        ),
         fact(44, 'F5', 'Ticket', 'no ticket found'),
       ],
     },
@@ -82,13 +92,23 @@ const ANATOMY = {
       applied: 'BEFORE_RESPONSE',
       evidenceRefs: [],
     },
-    timings: { promptBuildMs: 80, ragVectorMs: null, llmLatencyMs: 16400, totalAnalysisMs: 16440, events: [] },
+    timings: {
+      promptBuildMs: 80,
+      ragVectorMs: null,
+      llmLatencyMs: 16400,
+      totalAnalysisMs: 16440,
+      events: [],
+    },
     timeline: [],
     sinceStartMs: [],
     promptTokens: 12780,
     completionTokens: 1025,
   },
-  learning: { template: { baselineUpdateCount: 49 }, atRunEnd: { baselineUpdateCount: 49 }, newBehaviourDocuments: [] },
+  learning: {
+    template: { baselineUpdateCount: 49 },
+    atRunEnd: { baselineUpdateCount: 49 },
+    newBehaviourDocuments: [],
+  },
   juxtaposition: {
     departures: [],
     companyFacts: [],
@@ -117,7 +137,10 @@ const QUALITY = {
   available: true,
   reason: null,
   bundle: FACTS.bundle,
-  seal: { packageHash: '31b477aa00112233445566778899aabbccddeeff00112233445566778813d4', capturedAt: '2026-10-20T23:31:18Z' },
+  seal: {
+    packageHash: '31b477aa00112233445566778899aabbccddeeff00112233445566778813d4',
+    capturedAt: '2026-10-20T23:31:18Z',
+  },
   inspection: {
     checks: [
       { code: 'SEAL_INTEGRITY', matched: 12, mismatched: 0, unverifiable: 0 },
@@ -181,14 +204,25 @@ function stepResult(c1: [string, number, number], d: [string, number, number]) {
 const S14 = {
   key: 'S14',
   version: 1,
-  title: { ko: '출장지에서 새 노트북으로 하는 새벽 정상 업무', en: 'Normal work at dawn from a business trip' },
+  title: {
+    ko: '출장지에서 새 노트북으로 하는 새벽 정상 업무',
+    en: 'Normal work at dawn from a business trip',
+  },
   classification: 'NORMAL',
   steps: 3,
   conditions: { employee: 'eng-k', timeSlot: 'DAWN', place: 'TRAVEL', device: 'NEW' },
   facts: [{ kind: 'TRAVEL', city: 'Singapore', network: '198.51.100.0/24' }],
   requests: [
-    { operation: 'DOCUMENT_READ', project: null, document: { project: 'HX-310', type: 'DRAWING', position: 5, fact: null } },
-    { operation: 'DOCUMENT_READ', project: null, document: { project: 'HX-310', type: 'DRAWING', position: 6, fact: null } },
+    {
+      operation: 'DOCUMENT_READ',
+      project: null,
+      document: { project: 'HX-310', type: 'DRAWING', position: 5, fact: null },
+    },
+    {
+      operation: 'DOCUMENT_READ',
+      project: null,
+      document: { project: 'HX-310', type: 'DRAWING', position: 6, fact: null },
+    },
     { operation: 'EXPORT', project: 'HX-310', document: null, items: 12 },
   ],
 };
@@ -319,6 +353,28 @@ describe('3-1, the seven stages (L-32, L-02)', () => {
     expect(screen.getByText('F3 Policy')).toBeInTheDocument();
   });
 
+  // 구현계획 AC-N2: the seven stages are the view; each stage's value and raw line, and the seal, the learning chart and
+  // the source wait under a line.
+  it("keeps each stage's value under a line of its own and the seal and the chart under one more", async () => {
+    const { container } = open(<EvidenceMapPage />, '/evidence/map');
+    await screen.findByText('2026.10.20-v21.8');
+    const values = Array.from(container.querySelectorAll('details[data-fold="stage-values"]'));
+    expect(values).toHaveLength(7);
+    expect(values.every((fold) => !(fold as HTMLDetailsElement).open)).toBe(true);
+    for (const fold of values) {
+      expect(fold.closest('li')?.querySelector('[data-raw]')).not.toBeNull();
+      expect(fold.contains(fold.closest('li')?.querySelector('[data-raw]') ?? null)).toBe(true);
+    }
+    // what each stage is sits with its value, so a stage in view is its name, the line that opens its value and its record
+    for (const fold of values) {
+      expect(fold.querySelector('[class*="stageSub"]')).not.toBeNull();
+    }
+    const seal = container.querySelector('details[data-fold="stage-seal"]') as HTMLDetailsElement | null;
+    expect(seal).not.toBeNull();
+    expect(seal?.open).toBe(false);
+    expect(seal?.textContent).toContain(i18n.t('main.3-1.sealWord'));
+  });
+
   it('sets the words of a raw line apart from its code', async () => {
     open(<EvidenceMapPage />, '/evidence/map');
     expect((await screen.findByText('2026.10.20-v21.8')).closest('code')).not.toBeNull();
@@ -336,8 +392,57 @@ describe('3-2, the inputs and the prompt lines (L-33, L-04)', () => {
     );
     expect(lines).toEqual([...lines].sort((a, b) => a - b));
     expect(lines).toContain(42);
-    expect(screen.getByText(i18n.t('main.3-2.lines', { lines: '003 · 004 · 007 · 012', count: 4 }))).toBeInTheDocument();
+    expect(
+      screen.getByText(i18n.t('main.3-2.lines', { lines: '003 · 004 · 007 · 012', count: 4 })),
+    ).toBeInTheDocument();
     expect(screen.getByText(i18n.t('main.3-2.lines', { lines: '035', count: 1 }))).toBeInTheDocument();
+    // the lines each input became sit with the prompt, under the fold that opens it
+    expect(
+      screen
+        .getByText(i18n.t('main.3-2.lines', { lines: '035', count: 1 }))
+        .closest('details[data-fold="prompt-lines"]'),
+    ).not.toBeNull();
+  });
+});
+
+describe('3-2 keeps the four inputs in view (구현계획 AC-N2)', () => {
+  it('shows the four inputs in plain words and keeps the prompt lines under one line', async () => {
+    const { container } = open(<EvidencePromptPage />, '/evidence/prompt');
+    await screen.findByText(i18n.t('main.3-2.legend'));
+    const fold = container.querySelector('details[data-fold="prompt-lines"]') as HTMLDetailsElement | null;
+    expect(fold).not.toBeNull();
+    expect(fold?.open).toBe(false);
+    const lines = Array.from(container.querySelectorAll('[data-line]'));
+    expect(lines.length).toBeGreaterThan(0);
+    expect(lines.every((line) => fold?.contains(line))).toBe(true);
+    // the four inputs are outside the fold
+    for (const group of ['learned', 'request', 'company', 'sensitivity']) {
+      const card = container.querySelector(`li[data-group="${group}"]:not([data-line])`);
+      expect(card, group).not.toBeNull();
+      expect(fold?.contains(card)).toBe(false);
+    }
+  });
+});
+
+describe('3-2 says each input in one short line (구현계획 AC-N2)', () => {
+  it('keeps the usual hours, devices and largest export of the learned pattern with the prompt lines, not in the card', async () => {
+    const { container } = open(<EvidencePromptPage />, '/evidence/prompt');
+    await screen.findByText(i18n.t('main.3-2.legend'));
+    const card = container.querySelector('li[data-group="learned"]:not([data-line])') as HTMLElement;
+    expect(card.textContent).not.toContain('평소 시각');
+    const fold = container.querySelector('details[data-fold="prompt-lines"]') as HTMLDetailsElement;
+    expect(fold.textContent).toContain('평소 시각');
+    expect(fold.textContent).toContain('평소 기기');
+  });
+});
+
+describe('3-2 keeps the button of the whole prompt with the prompt (구현계획 AC-N2)', () => {
+  it('has the whole-prompt button under the fold, not in the foot', async () => {
+    const { container } = open(<EvidencePromptPage />, '/evidence/prompt');
+    await screen.findByText(i18n.t('main.3-2.legend'));
+    const fold = container.querySelector('details[data-fold="prompt-lines"]') as HTMLDetailsElement;
+    expect(within(fold).getByRole('button', { name: i18n.t('main.3-2.whole') })).toBeInTheDocument();
+    expect(container.querySelector('[data-zone="actions"]')?.textContent).not.toContain(i18n.t('main.3-2.whole'));
   });
 });
 

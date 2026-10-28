@@ -81,8 +81,10 @@ export function BenchScreen({
   const { t } = useTranslation();
   const { search } = useBenchSetting();
   const at = BENCH_ORDER.indexOf(view);
-  const previous = at > 0 ? BENCH_ORDER[at - 1] : undefined;
-  const next = BENCH_ORDER[at + 1];
+  // A view beside the walk (the agent part) has no neighbours: back goes to the summary, and only its own main leads on.
+  const beside = at < 0;
+  const previous = at > 0 ? BENCH_ORDER[at - 1] : beside ? 'summary' : undefined;
+  const next = beside ? undefined : BENCH_ORDER[at + 1];
   const back = previous ? { to: `${BENCH_PATHS[previous]}${search}`, label: t('frame.back') } : null;
   const forward =
     main ??

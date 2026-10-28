@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useJourneyUpdate } from '../api/journey';
 import { useVisitor } from '../api/queries';
 import { nextScreen, previousScreen, type Difference } from './journey';
+import { rememberTrack } from './trackMemory';
 import { useJourneyPlace } from './useJourneyPlace';
 
 /**
@@ -18,6 +19,14 @@ export function useJourneyPosition() {
   const { route, screen } = place;
   const screenId = screen?.id ?? null;
   const act = screen?.act ?? null;
+  const track = screen?.track ?? null;
+
+  // The screens both tracks share lead back to the next-chooser of the track the visitor came from.
+  useEffect(() => {
+    if (track === 'A' || track === 'H') {
+      rememberTrack(track);
+    }
+  }, [track]);
 
   useEffect(() => {
     // Only the main flow is a place to return to; a "learn more" screen (group 0) leaves the stored place as it is, so
@@ -36,7 +45,6 @@ export function useJourneyPosition() {
     differences: place.differences,
     next: nextScreen(route, location.pathname),
     previous: previousScreen(route, location.pathname),
-    skip: place.skip,
     /** Marks a difference as seen where the screen shows it (thread: six places fill the badge). */
     see: (difference: Difference) => update({ difference }),
   };

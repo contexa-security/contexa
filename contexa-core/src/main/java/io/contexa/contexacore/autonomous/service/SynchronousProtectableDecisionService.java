@@ -30,6 +30,10 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacommon.security.bridge.AgentRequestConfirmation;
 import io.contexa.contexacore.autonomous.agent.AgentAllowReuse;
+import io.contexa.contexacore.autonomous.agent.AgentDecisionFlights;
+import io.contexa.contexacore.autonomous.context.support.ResourceImportanceResolver;
+import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedException;
+import java.util.Map;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
@@ -42,6 +46,7 @@ public class SynchronousProtectableDecisionService {
     private final ZeroTrustActionRepository actionRepository;
     private UnanalysedRequestRecorder unanalysedRequestRecorder;
     private AgentAllowReuse agentAllowReuse;
+    private AgentDecisionFlights agentDecisionFlights;
     private SecurityZeroTrustProperties.UnrecordedAgentRequest unrecordedAgentRequest =
             SecurityZeroTrustProperties.UnrecordedAgentRequest.DECIDE_IN_PLACE;
 
@@ -79,18 +84,135 @@ public class SynchronousProtectableDecisionService {
 
         // docs/agent A7-2: a synchronous request is decided itself; only a restriction in force answers it.
         if (zeroTrustEventListener.shouldPublishSynchronousAuthorizationEvent(event)) {
-            SecurityEvent securityEvent = ZeroTrustSecurityEventConverter.convert(event);
-            // The engine takes the request in here, as a collector does for an analysis it queues (Q-15).
-            securityEvent.addMetadata(DeletedAccountWriteFence.TAKEN_IN_AT, System.currentTimeMillis());
-            SecurityEventContext processingContext = securityPlaneAgent.processSecurityEvent(securityEvent);
-            agentDecided(event, contextBindingHash);
-            return currentResult(event, userId, contextBindingHash, processingContext);
+            if (flightsApply(event)) {
+                return analyzeInFlight(event, userId, contextBindingHash);
+            }
+            return decideInPlace(event, userId, contextBindingHash);
         }
 
         // The restriction in force answers the request without analysis; its session still keeps it (N-SES-1).
         SyncDecisionResult result = currentResult(event, userId, contextBindingHash, null);
         recordUnanalysed(event, result.action());
         return result;
+    }
+
+    /** The analysis of one request, in the request's own thread. */
+    private SyncDecisionResult decideInPlace(ZeroTrustSpringEvent event, String userId, String contextBindingHash) {
+        SecurityEvent securityEvent = ZeroTrustSecurityEventConverter.convert(event);
+        // The engine takes the request in here, as a collector does for an analysis it queues (Q-15).
+        securityEvent.addMetadata(DeletedAccountWriteFence.TAKEN_IN_AT, System.currentTimeMillis());
+        SecurityEventContext processingContext = securityPlaneAgent.processSecurityEvent(securityEvent);
+        agentDecided(event, contextBindingHash);
+        return currentResult(event, userId, contextBindingHash, processingContext);
+    }
+
+    /** Whether the flights take this request: an agent's request, with the flights on. */
+    private boolean flightsApply(ZeroTrustSpringEvent event) {
+        return agentDecisionFlights != null && agentDecisionFlights.enabled() && agentRequest(event);
+    }
+
+    /**
+     * docs/agent RL-12: an agent's request decided in place goes through the flights. The same question asked by many
+     * requests at once is analysed once, the analyses one agent has running are limited, and a restriction stored while
+     * the request waits, or right before it would be released, answers it. A request the engine has no place or time for
+     * is refused as busy; it is never let through without a verdict.
+     */
+    private SyncDecisionResult analyzeInFlight(ZeroTrustSpringEvent event, String userId, String contextBindingHash) {
+        AgentDecisionFlights.Request request = flightRequest(event, userId, contextBindingHash);
+        AgentDecisionFlights.Result<SyncDecisionResult> result;
+        try {
+            result = agentDecisionFlights.execute(request, ground(event, userId, contextBindingHash),
+                    () -> decideInPlace(event, userId, contextBindingHash));
+        } catch (RuntimeException failure) {
+            throw failure;
+        } catch (Exception failure) {
+            throw new IllegalStateException("The decision of an agent's request failed", failure);
+        }
+        switch (result.kind()) {
+            case LED:
+                return result.value();
+            case FAILED:
+                if (result.failure() instanceof RuntimeException failure) {
+                    throw failure;
+                }
+                throw new IllegalStateException("The decision this request waited for failed", result.failure());
+            case BUSY:
+                throw ZeroTrustAccessDeniedException.analysisBusy(event.getResource(),
+                        (int) Math.max(1, agentDecisionFlights.settings().maxWait().toSeconds()));
+            case COVERED:
+            case RESTRICTED:
+            default:
+                // Answered by the decision in force, not analysed: its session still keeps it (N-SES-1).
+                SyncDecisionResult answered = currentResult(event, userId, contextBindingHash, null);
+                if (!result.analysed()) {
+                    recordUnanalysed(event, answered.action());
+                }
+                return answered;
+        }
+    }
+
+    private AgentDecisionFlights.Request flightRequest(ZeroTrustSpringEvent event, String userId,
+                                                       String contextBindingHash) {
+        Map<String, Object> payload = event.getPayload();
+        return new AgentDecisionFlights.Request(decisionKey(event, userId), contextBindingHash,
+                AgentAllowReuse.operation(payload, event.getResource()), event.getResource(),
+                AgentAllowReuse.sensitive(payload), ResourceImportanceResolver.explicitlyNonSensitive(payload),
+                synchronous(event));
+    }
+
+    /** Whether the protected method is synchronous, as the request's facts say. */
+    private static boolean synchronous(ZeroTrustSpringEvent event) {
+        Object sync = event.getPayload() != null ? event.getPayload().get("protectableSync") : null;
+        return sync != null && Boolean.parseBoolean(sync.toString());
+    }
+
+    /** What the flights read of the stored state for one request. */
+    private AgentDecisionFlights.Ground ground(ZeroTrustSpringEvent event, String userId, String contextBindingHash) {
+        return new AgentDecisionFlights.Ground() {
+            @Override
+            public ZeroTrustAction restriction(AgentDecisionFlights.Request request) {
+                ZeroTrustAction action = confirmed(event, currentAction(event, userId, contextBindingHash));
+                return action == ZeroTrustAction.BLOCK || action == ZeroTrustAction.CHALLENGE
+                        || action == ZeroTrustAction.ESCALATE ? action : null;
+            }
+
+            @Override
+            public boolean covered(AgentDecisionFlights.Request request) {
+                // A synchronous request is decided on its own whatever was allowed before (A7-2); an asynchronous
+                // one is answered by the ALLOW in force as far as the anchor reaches (F-1).
+                return !request.sync() && agentAllowReuse != null
+                        && currentAction(event, userId, contextBindingHash) == ZeroTrustAction.ALLOW
+                        && agentAllowReuse.answers(request.subjectKey(), contextBindingHash, request.operation(),
+                        request.resource(), request.sensitive());
+            }
+
+            @Override
+            public boolean coveredJoined(AgentDecisionFlights.Request request) {
+                // The same, for a request that joined the flight whose ALLOW is in force: the request limit of the
+                // anchor does not count it.
+                return !request.sync() && agentAllowReuse != null
+                        && currentAction(event, userId, contextBindingHash) == ZeroTrustAction.ALLOW
+                        && agentAllowReuse.answersJoined(request.subjectKey(), contextBindingHash, request.operation(),
+                        request.resource(), request.sensitive());
+            }
+
+            @Override
+            public boolean decisionLanded(AgentDecisionFlights.Request request) {
+                return currentAction(event, userId, contextBindingHash) != ZeroTrustAction.PENDING_ANALYSIS;
+            }
+
+            @Override
+            public void allowed(AgentDecisionFlights.Request leader) {
+                if (agentAllowReuse != null) {
+                    agentAllowReuse.decided(leader.subjectKey(), leader.contextHash(), leader.operation(),
+                            leader.resource(), leader.sensitive());
+                }
+            }
+        };
+    }
+
+    public void setAgentDecisionFlights(AgentDecisionFlights agentDecisionFlights) {
+        this.agentDecisionFlights = agentDecisionFlights;
     }
 
     /**
@@ -119,8 +241,12 @@ public class SynchronousProtectableDecisionService {
         if (isEventShadowBoundary(event)) {
             return AsyncProtectableGate.PROCEED;
         }
-        ZeroTrustAction action = confirmed(event, currentAction(event, event.getUserId(),
-                zeroTrustEventListener.generateAuthorizationContextBindingHash(event)));
+        String gateContext = zeroTrustEventListener.generateAuthorizationContextBindingHash(event);
+        ZeroTrustAction action = confirmed(event, currentAction(event, event.getUserId(), gateContext));
+        if (action != ZeroTrustAction.PENDING_ANALYSIS && flightsApply(event)) {
+            // A verdict stands for the agent: the window in which requests passed before it is over.
+            agentDecisionFlights.verdictSeen(decisionKey(event, event.getUserId()));
+        }
         if (action == ZeroTrustAction.BLOCK || action == ZeroTrustAction.CHALLENGE
                 || action == ZeroTrustAction.ESCALATE) {
             recordUnanalysed(event, action);
@@ -131,6 +257,20 @@ public class SynchronousProtectableDecisionService {
         if (action == ZeroTrustAction.PENDING_ANALYSIS
                 && unrecordedAgentRequest == SecurityZeroTrustProperties.UnrecordedAgentRequest.DECIDE_IN_PLACE
                 && agentRequest(event) && AgentRequestConfirmation.current() == null) {
+            if (flightsApply(event)) {
+                // docs/agent RL-12: a few reads of a resource the host declared non-sensitive pass while the first
+                // is decided in the background; the first begins that decision, the others are only recorded.
+                AgentDecisionFlights.Pass pass = agentDecisionFlights.tryPass(
+                        flightRequest(event, event.getUserId(), gateContext),
+                        ground(event, event.getUserId(), gateContext));
+                if (pass == AgentDecisionFlights.Pass.LEAD) {
+                    return AsyncProtectableGate.PASS_AND_ANALYSE;
+                }
+                if (pass == AgentDecisionFlights.Pass.FOLLOW) {
+                    recordPassed(event);
+                    return AsyncProtectableGate.PASS_AND_RECORD;
+                }
+            }
             return AsyncProtectableGate.DECIDE_IN_PLACE;
         }
         // docs/agent F-1: an ALLOW answers an agent's later requests only for the same operation and a few resources;
@@ -155,7 +295,18 @@ public class SynchronousProtectableDecisionService {
     private void agentDecided(ZeroTrustSpringEvent event, String contextBindingHash) {
         if (agentAllowReuse != null && agentRequest(event)) {
             agentAllowReuse.decided(decisionKey(event, event.getUserId()), contextBindingHash,
-                    AgentAllowReuse.operation(event.getPayload(), event.getResource()), event.getResource());
+                    AgentAllowReuse.operation(event.getPayload(), event.getResource()), event.getResource(),
+                    AgentAllowReuse.sensitive(event.getPayload()));
+        }
+        if (agentDecisionFlights != null && agentRequest(event)) {
+            agentDecisionFlights.verdictSeen(decisionKey(event, event.getUserId()));
+        }
+    }
+
+    /** A request that passed before the verdict is a fact of its session; it is not learned. */
+    private void recordPassed(ZeroTrustSpringEvent event) {
+        if (unanalysedRequestRecorder != null) {
+            unanalysedRequestRecorder.recordPassed(event);
         }
     }
 
@@ -288,14 +439,22 @@ public class SynchronousProtectableDecisionService {
         return null;
     }
 
-    /** The restriction in force, or whether the request is decided in place; neither means it proceeds. */
-    public record AsyncProtectableGate(ZeroTrustAction restriction, boolean decideInPlace) {
+    /**
+     * The restriction in force, or whether the request is decided in place, or whether it passes before its verdict
+     * (RL-12) and whether its event is then analysed; none of these means it proceeds.
+     */
+    public record AsyncProtectableGate(ZeroTrustAction restriction, boolean decideInPlace, boolean passed,
+                                       boolean publishesEvent) {
 
-        public static final AsyncProtectableGate PROCEED = new AsyncProtectableGate(null, false);
-        public static final AsyncProtectableGate DECIDE_IN_PLACE = new AsyncProtectableGate(null, true);
+        public static final AsyncProtectableGate PROCEED = new AsyncProtectableGate(null, false, false, true);
+        public static final AsyncProtectableGate DECIDE_IN_PLACE = new AsyncProtectableGate(null, true, false, false);
+        /** It passes; its event is analysed in the background, and that analysis is the verdict the others wait for. */
+        public static final AsyncProtectableGate PASS_AND_ANALYSE = new AsyncProtectableGate(null, false, true, true);
+        /** It passes and is only recorded: a verdict is already pending. */
+        public static final AsyncProtectableGate PASS_AND_RECORD = new AsyncProtectableGate(null, false, true, false);
 
         public static AsyncProtectableGate restricted(ZeroTrustAction restriction) {
-            return new AsyncProtectableGate(restriction, false);
+            return new AsyncProtectableGate(restriction, false, false, false);
         }
     }
 

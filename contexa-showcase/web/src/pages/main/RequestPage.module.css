@@ -16,6 +16,18 @@
   background-color: var(--color-surface);
 }
 
+/* AC-N2: with every row of the request under the fold, the fold and the call stand in one column, the fold without a box. */
+.layout[data-fold-only] {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+.layout[data-fold-only] .info {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
 .label {
   margin: 0;
   padding: 0;

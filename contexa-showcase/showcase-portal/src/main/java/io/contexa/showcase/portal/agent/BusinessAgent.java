@@ -11,7 +11,6 @@ import org.springframework.ai.tool.ToolCallback;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -20,6 +19,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 /**
  * docs/agent A7-2b: a business agent doing the work a person gave it: a Spring AI chat client with the company's tools,
@@ -69,14 +69,22 @@ public class BusinessAgent {
         String failure = null;
         Map<String, Integer> usage = Map.of();
         try {
-            Future<ChatResponse> work = executor.submit(() -> ChatClient.create(chatModel).prompt()
-                    .system(systemPrompt).user(instruction).toolCallbacks(callbacks).call().chatResponse());
+            // The model's tool step reads the live run's cap from this thread (docs/agent Agent중심-화면 AC-3).
+            Future<ChatResponse> work = executor.submit(() -> {
+                AgentRunCap.bind(tools.cap());
+                try {
+                    return ChatClient.create(chatModel).prompt().system(systemPrompt).user(instruction)
+                            .toolCallbacks(callbacks).call().chatResponse();
+                } finally {
+                    AgentRunCap.bind(null);
+                }
+            });
             try {
                 ChatResponse response = work.get(limit.toMillis(), TimeUnit.MILLISECONDS);
-                answer = response != null && response.getResult() != null
-                        ? response.getResult().getOutput().getText() : null;
+                answer = answerOf(response);
                 usage = usage(response != null ? response.getMetadata().getUsage() : null);
-                stopReason = tools.budgetUsed() ? "TOOL_BUDGET" : "ANSWERED";
+                stopReason = tools.capReached() != null ? tools.capReached()
+                        : tools.budgetUsed() ? "TOOL_BUDGET" : "ANSWERED";
             } catch (TimeoutException e) {
                 tools.stop();
                 work.cancel(true);
@@ -98,20 +106,23 @@ public class BusinessAgent {
                 started, Instant.now());
     }
 
+    /**
+     * The model's final answer: the text of everything it wrote in its last response. A response may carry the text and
+     * the tool call as separate generations (Anthropic's does), so the first generation alone lost the explanation of a
+     * business agent on Claude (docs/agent model comparison 2026-10-27). A response with one generation reads as it did.
+     */
+    static String answerOf(ChatResponse response) {
+        if (response == null || response.getResult() == null) {
+            return null;
+        }
+        String joined = response.getResults().stream()
+                .map(generation -> generation.getOutput() == null ? null : generation.getOutput().getText())
+                .filter(text -> text != null && !text.isBlank())
+                .collect(Collectors.joining("\n"));
+        return joined.isEmpty() ? response.getResult().getOutput().getText() : joined;
+    }
+
     private static Map<String, Integer> usage(Usage usage) {
-        if (usage == null) {
-            return Map.of();
-        }
-        Map<String, Integer> tokens = new LinkedHashMap<>();
-        if (usage.getPromptTokens() != null) {
-            tokens.put("promptTokens", usage.getPromptTokens());
-        }
-        if (usage.getCompletionTokens() != null) {
-            tokens.put("completionTokens", usage.getCompletionTokens());
-        }
-        if (usage.getTotalTokens() != null) {
-            tokens.put("totalTokens", usage.getTotalTokens());
-        }
-        return tokens;
+        return AgentUsage.counts(usage);
     }
 }

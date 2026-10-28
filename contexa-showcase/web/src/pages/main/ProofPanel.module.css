@@ -29,6 +29,10 @@
   gap: var(--space-4);
 }
 
+.grid[data-single] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .card {
   display: flex;
   flex-direction: column;
@@ -73,7 +77,6 @@
   grid-area: sub;
   align-self: start;
 }
-
 
 /* What went out: one bar per approach, the answer opening under its row. */
 .bars {

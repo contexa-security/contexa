@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { skipTarget } from '../../journey/journey';
 import { useJourneyPosition } from '../../journey/useJourneyPosition';
 import experience from '../../pages/try/Experience.module.css';
 import { routeFlow } from './flow';
@@ -52,8 +51,6 @@ export function ScreenBody({
   const { t } = useTranslation();
   const position = useJourneyPosition();
   const flow = routeFlow(t, position);
-  const screen = position.screen;
-  const skip = screen && screen.type === 'T0' ? skipTarget('DEFAULT', screen.path) : null;
   return (
     <div className={experience.step}>
       <StepHeader title={title} purpose={purpose} source={source} />
@@ -69,7 +66,6 @@ export function ScreenBody({
       <ActionBar
         back={back === undefined ? flow.back : back}
         main={main === undefined ? flow.next : main}
-        skipTo={skip ? { to: skip.path, label: t('frame.skipPart') } : null}
       />
     </div>
   );

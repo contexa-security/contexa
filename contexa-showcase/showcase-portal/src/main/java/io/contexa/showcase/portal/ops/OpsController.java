@@ -30,6 +30,7 @@ import io.contexa.showcase.portal.replay.ReplayView;
 import io.contexa.showcase.portal.replay.ReplayViews;
 import io.contexa.showcase.portal.retention.RetentionJob;
 import io.contexa.showcase.portal.scenario.AgentPaths;
+import io.contexa.showcase.portal.scenario.DelegationChoice;
 import io.contexa.showcase.portal.scenario.ScenarioCatalog;
 import io.contexa.showcase.portal.scenario.AgentHistory;
 import io.contexa.showcase.portal.scenario.ScenarioDefinition;
@@ -43,6 +44,7 @@ import io.contexa.showcase.portal.template.TemplateStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -111,15 +113,15 @@ public class OpsController {
     private final ReactionEvaluator reactionVariants;
     private final InjectionEvaluator injectionVariants;
     private final ObjectMapper json;
+    /** docs/agent Agent중심-화면 AC-9: the agent part of the budget. */
+    private final OpsBudget budget;
     /** A harness batch name: letters, digits, dot, dash and underscore. */
     private static final Pattern BATCH = Pattern.compile("[A-Za-z0-9._-]{1,64}");
     /** The visitor mark of the harness's lab runs (W6-1). */
     private static final String HARNESS = "ops-harness";
-    private final ExecutorService executor = Executors.newSingleThreadExecutor(runnable -> {
-        Thread thread = new Thread(runnable, "showcase-ops-job");
-        thread.setDaemon(true);
-        return thread;
-    });
+    /** The most jobs the harness may run at once: a run waits most of its time (pacing, decisions), so several can go. */
+    static final int MAX_JOB_THREADS = 16;
+    private final ExecutorService executor;
     private final Map<String, Job> jobs = new ConcurrentHashMap<>();
 
     public OpsController(TemplateLearner learner, TemplateStore templates, RunOrchestrator orchestrator, RunStore runs,
@@ -132,7 +134,10 @@ public class OpsController {
                          ObjectProvider<TemplateMaintainer> templateMaintainer, CleanupRetrier cleanupRetrier,
                          LabComposer labComposer, LabStore labStore, ObjectProvider<ReactivityService> reactivity,
                          ReactivityRuns reactivityRuns, ReactionEvaluator reactionVariants,
-                         InjectionEvaluator injectionVariants, ObjectMapper json) {
+                         InjectionEvaluator injectionVariants, ObjectMapper json, OpsBudget budget,
+                         @Value("${showcase.ops.job-threads:1}") int jobThreads) {
+        this.budget = budget;
+        this.executor = jobExecutor(jobThreads);
         this.learner = learner;
         this.templates = templates;
         this.orchestrator = orchestrator;
@@ -162,6 +167,15 @@ public class OpsController {
         this.reactionVariants = reactionVariants;
         this.injectionVariants = injectionVariants;
         this.json = json;
+    }
+
+    /** One thread keeps the jobs in line (the default); more let the harness run that many jobs at once. */
+    static ExecutorService jobExecutor(int threads) {
+        return Executors.newFixedThreadPool(Math.max(1, Math.min(threads, MAX_JOB_THREADS)), runnable -> {
+            Thread thread = new Thread(runnable, "showcase-ops-job");
+            thread.setDaemon(true);
+            return thread;
+        });
     }
 
     /**
@@ -288,10 +302,20 @@ public class OpsController {
                                           @RequestParam(name = "path", required = false) String path,
                                           @RequestParam(name = "delegator", required = false) String delegator,
                                           @RequestParam(name = "retries", defaultValue = "0") int retries,
-                                          @RequestParam(name = "history", required = false) String history)
+                                          @RequestParam(name = "history", required = false) String history,
+                                          @RequestParam(name = "quantity", required = false) Integer quantity,
+                                          @RequestParam(name = "period", required = false) String period,
+                                          @RequestParam(name = "operations", required = false) String operations)
             throws IOException {
         if (repeat < 1 || repeat > 10 || !agentTaskKeyTaken(taskKey)
                 || !delegatorAnswerTaken(delegator, retries) || history != null && !AgentHistory.known(history)) {
+            return ResponseEntity.badRequest().build();
+        }
+        // docs/agent AS-12: the delegation of the editable case changed by one of the fixed values, as a visitor may
+        DelegationChoice choice;
+        try {
+            choice = new DelegationChoice(quantity, period, operations);
+        } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().build();
         }
         ChallengeResponder responder = delegator == null ? ChallengeResponder.AUTOMATIC
@@ -312,12 +336,18 @@ public class OpsController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().build();
         }
+        try {
+            onPath = choice.applyTo(onPath);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
         if (history != null) {
             // docs/agent RL-3: the agent brings the days of usual work an agent of its kind has behind it.
             onPath = AgentHistory.apply(onPath, history);
         }
         ScenarioDefinition run = onPath;
-        String subject = taskKey + (path == null ? "" : " " + path) + (delegator == null ? "" : " " + delegator)
+        String subject = taskKey + (choice.isEmpty() ? "" : " " + choice.key())
+                + (path == null ? "" : " " + path) + (delegator == null ? "" : " " + delegator)
                 + (retries == 0 ? "" : " " + retries) + (history == null ? "" : " history=" + history) + " x" + repeat;
         return ResponseEntity.ok(submit("AGENT_TASK", subject, results -> {
             for (int i = 0; i < repeat; i++) {
@@ -330,11 +360,13 @@ public class OpsController {
      * docs/agent A6-5: the keys of the agent task route: the A7-2 cases (N or T and digits) and the measurement cases
      * (M, the attack number of two digits, then A for the attack, B for a second attack variant or N for the
      * legitimate work, and one digit for a variant of it; L and LN for the attack and the legitimate work of a
-     * delegation that states its quantity limit as a value, RL-6), or a variant of a checking case (docs/agent A6-4: V, the
+     * delegation that states its quantity limit as a value, RL-6; O for an ambiguous goal whose scope the model
+     * decides itself, no scripted right path, RL-9; T and X for a burst of many workers sending at once, RL-12: a
+     * sensitive one and a large attack), or a variant of a checking case (docs/agent A6-4: V, the
      * checking case, then C for a variant of its condition or E of its wording).
      */
     static boolean agentTaskKeyTaken(String key) {
-        return key.matches("[NT]\\d+|M\\d{2}(?:[ABN]\\d?|L|LN)|V[NT]\\dC|V[NT]\\dE");
+        return key.matches("[NT]\\d+|ED\\d|M\\d{2}(?:[ABN]\\d?|L|LN|O|[TX])|V[NT]\\dC|V[NT]\\dE");
     }
 
     /**
@@ -714,6 +746,9 @@ public class OpsController {
         status.put("spaces", spaces);
         status.put("allotment", allotment.state());
         status.put("gate", watch.status());
+        // docs/agent Agent중심-화면 AC-9: the day's share of live agent runs and what the agent menu's job spent
+        status.put("agent", budget.agent());
+        status.put("menuJob", budget.menuJob());
         return ResponseEntity.ok(status);
     }
 

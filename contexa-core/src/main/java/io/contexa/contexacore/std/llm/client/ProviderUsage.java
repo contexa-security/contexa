@@ -63,6 +63,16 @@ public final class ProviderUsage {
         return nativeInteger(usage != null ? usage.getNativeUsage() : null, "cacheCreationInputTokens");
     }
 
+    /**
+     * The input tokens the provider served from its prompt cache: OpenAI's cached prompt tokens (counted inside its
+     * prompt tokens), else Anthropic's cache reads. Null when the provider reports none, which is not zero.
+     */
+    public static Integer cachedPromptTokens(Usage usage) {
+        Object nativeUsage = usage != null ? usage.getNativeUsage() : null;
+        Integer openAi = nativeInteger(nativeValue(nativeUsage, "promptTokensDetails"), "cachedTokens");
+        return openAi != null ? openAi : cacheReadTokens(usage);
+    }
+
     /** The reasoning tokens OpenAI counts inside its completion tokens; null when not reported. */
     public static Integer reasoningTokens(Usage usage) {
         Object nativeUsage = usage != null ? usage.getNativeUsage() : null;

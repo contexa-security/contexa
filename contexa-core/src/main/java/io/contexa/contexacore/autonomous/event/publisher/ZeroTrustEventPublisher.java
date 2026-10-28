@@ -21,6 +21,8 @@ import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.CredentialFacts;
 import io.contexa.contexacore.autonomous.event.support.InvocationArguments;
 import io.contexa.contexacommon.annotation.Protectable;
+import io.contexa.contexacommon.annotation.ResourceImportance;
+import io.contexa.contexacore.autonomous.context.support.ResourceImportanceResolver;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.security.bridge.BridgeSemanticBoundaryPolicy;
 import io.contexa.contexacommon.security.bridge.coverage.MissingBridgeContext;
@@ -738,6 +740,16 @@ public class ZeroTrustEventPublisher {
         resourceContextRegistry.findByResourceId(resourceId).ifPresent(descriptor -> {
             putIfAbsent(payload, "protectableResourceCategory", descriptor.resourceCategory());
             putIfAbsent(payload, "resourceSensitivity", descriptor.sensitivity());
+            if (descriptor.importance() != ResourceImportance.UNSPECIFIED) {
+                // RL-14: what the host declared on the method, as a fact of its own. A sensitive method also fills
+                // the sensitivity when neither the request nor the method states one, so that every reader of the
+                // sensitivity sees the same resource.
+                putIfAbsent(payload, ResourceImportanceResolver.PAYLOAD_KEY, descriptor.importance().name());
+                if (descriptor.importance() == ResourceImportance.SENSITIVE
+                        && !hasNonNullPayload(payload, "resourceSensitivity")) {
+                    payload.put("resourceSensitivity", ResourceImportance.SENSITIVE.name());
+                }
+            }
             putIfAbsent(payload, "resourceLabel", descriptor.businessLabel());
             putIfAbsent(payload, "resourceType", descriptor.resourceType());
             if (descriptor.allowedActionFamilies().size() == 1) {

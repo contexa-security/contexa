@@ -171,6 +171,8 @@ import io.contexa.contexacore.properties.EvidenceSigningProperties;
 import io.contexa.contexacore.verification.evidence.EvidenceSigner;
 import io.contexa.contexacore.verification.evidence.HmacEvidenceSigner;
 import io.contexa.contexacore.autonomous.agent.AgentAllowReuse;
+import io.contexa.contexacore.autonomous.agent.AgentDecisionFlights;
+import io.contexa.contexacore.autonomous.service.QueuedAgentEventRecheck;
 
 @AutoConfiguration
 @AutoConfigureAfter(name = {
@@ -752,15 +754,32 @@ public class CoreAutonomousAutoConfiguration {
             @Qualifier("llmAnalysisExecutor") Executor llmAnalysisExecutor,
             ObjectProvider<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterProvider,
             ZeroTrustActionRepository zeroTrustActionRepository,
-            ObjectProvider<SecurityDecisionEnforcementHandler> decisionEnforcementHandlerProvider
+            ObjectProvider<SecurityDecisionEnforcementHandler> decisionEnforcementHandlerProvider,
+            ObjectProvider<QueuedAgentEventRecheck> queuedAgentEventRecheckProvider
     ) {
         SecurityPlaneAgent agent = new SecurityPlaneAgent(
                 securityMonitor, dataStore, centralAuditFacade,
                 processingOrchestrator, securityPlaneProperties, llmAnalysisExecutor);
+        // docs/agent RL-12 (QD): an agent's queued event is read against the stored decisions again at its turn.
+        agent.setQueuedEventRecheck(event -> {
+            QueuedAgentEventRecheck recheck = queuedAgentEventRecheckProvider.getIfAvailable();
+            return recheck != null && recheck.answeredWithoutAnalysis(event);
+        });
         agent.setAiSecurityDecisionObservationWriterSupplier(aiSecurityDecisionObservationWriterProvider::getIfAvailable);
         agent.setZeroTrustActionRepository(zeroTrustActionRepository);
         agent.setDecisionEnforcementHandlerSupplier(decisionEnforcementHandlerProvider::getIfAvailable);
         return agent;
+    }
+
+    /** docs/agent RL-12 (QD): what answers a queued agent event without a new analysis when its turn comes. */
+    @Bean
+    @ConditionalOnMissingBean
+    public QueuedAgentEventRecheck queuedAgentEventRecheck(
+            ZeroTrustActionRepository zeroTrustActionRepository,
+            ObjectProvider<AgentAllowReuse> agentAllowReuse,
+            ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder) {
+        return new QueuedAgentEventRecheck(zeroTrustActionRepository, agentAllowReuse.getIfAvailable(),
+                unanalysedRequestRecorder.getIfAvailable());
     }
 
     @Bean
@@ -850,7 +869,8 @@ public class CoreAutonomousAutoConfiguration {
             ZeroTrustActionRepository actionRepository,
             ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder,
             SecurityZeroTrustProperties securityZeroTrustProperties,
-            ObjectProvider<AgentAllowReuse> agentAllowReuse) {
+            ObjectProvider<AgentAllowReuse> agentAllowReuse,
+            ObjectProvider<AgentDecisionFlights> agentDecisionFlights) {
         SynchronousProtectableDecisionService service = new SynchronousProtectableDecisionService(
                 zeroTrustEventPublisher,
                 zeroTrustEventListener,
@@ -861,6 +881,8 @@ public class CoreAutonomousAutoConfiguration {
         service.setUnrecordedAgentRequest(securityZeroTrustProperties.getProtectable().getUnrecordedAgentRequest());
         // docs/agent F-1: past what an ALLOW answers, an agent's request is decided in place.
         service.setAgentAllowReuse(agentAllowReuse.getIfAvailable());
+        // docs/agent RL-12: one agent's requests that come in numbers are analysed once per question.
+        service.setAgentDecisionFlights(agentDecisionFlights.getIfAvailable());
         return service;
     }
     /**

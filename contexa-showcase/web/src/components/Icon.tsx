@@ -4,6 +4,9 @@ import type { VerdictIcon } from '../domain/verdict';
 export type IconName =
   | VerdictIcon
   | 'user'
+  | 'delegate'
+  | 'agent'
+  | 'session'
   | 'pin'
   | 'box'
   | 'mail'
@@ -32,6 +35,9 @@ const PATHS: Record<IconName, string> = {
   hourglass: 'M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9s8 4 8 9',
   dash: 'M6 12h12',
   user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
+  delegate: 'M8 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2 20a6 6 0 0 1 12 0M16 8h6M19 5l3 3-3 3',
+  agent: 'M6 9h12v9H6zM12 9V5.5M12 4h.01M9.5 13h.01M14.5 13h.01M4 12.5v2.5M20 12.5v2.5',
+  session: 'M4 5h16v14H4zM4 9h16M7 7h.01M10 7h.01',
   pin: 'M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11zM12 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
   box: 'M4 8l8-4 8 4v8l-8 4-8-4zM4 8l8 4 8-4M12 12v8',
   mail: 'M4 6h16v12H4zM4 7l8 6 8-6',

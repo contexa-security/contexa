@@ -25,7 +25,7 @@ export function AdoptScene({ onRestart }: AdoptSceneProps) {
             <pre className={styles.pre} tabIndex={0} aria-label={excerpt.path.split('/').pop()}>
               <code>
                 {excerpt.lines.map((line, index) => (
-                  <span key={line} className={index === excerpt.highlight ? styles.lineOn : styles.lineOff}>
+                  <span key={line} className={excerpt.highlight.includes(index) ? styles.lineOn : styles.lineOff}>
                     {line}
                     {'\n'}
                   </span>

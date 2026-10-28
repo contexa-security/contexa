@@ -53,6 +53,115 @@ class AgentAllowReuseTest {
         assertThat(reuse.answers(KEY, "context-1", ActionFamily.READ, "DOC-4", false)).isFalse();
     }
 
+    /** RC-01: an ALLOW decided for a general resource never answers a sensitive one, whatever the sets would say. */
+    @Test
+    void anAllowDecidedForAGeneralResourceNeverAnswersASensitiveOne() {
+        AgentAllowReuse reuse = new AgentAllowReuse(10, 3, 1, null);
+        reuse.decided(KEY, "context-1", ActionFamily.READ, "DOC-1", false);
+
+        assertThat(reuse.answers(KEY, "context-1", ActionFamily.READ, "CUS-1", true)).isFalse();
+        assertThat(reuse.answers(KEY, "context-1", ActionFamily.READ, "DOC-2", false)).isTrue();
+    }
+
+    /** RC-02: an ALLOW decided for a sensitive resource answers general ones within the general limits. */
+    @Test
+    void anAllowDecidedForASensitiveResourceAnswersGeneralOnesWithinTheGeneralLimits() {
+        AgentAllowReuse reuse = new AgentAllowReuse(10, 3, 1, null);
+        reuse.decided(KEY, "context-1", ActionFamily.READ, "CUS-1", true);
+
+        assertThat(reuse.answers(KEY, "context-1", ActionFamily.READ, "DOC-2", false)).isTrue();
+        assertThat(reuse.answers(KEY, "context-1", ActionFamily.READ, "DOC-3", false)).isTrue();
+        assertThat(reuse.answers(KEY, "context-1", ActionFamily.READ, "DOC-4", false)).isTrue();
+        assertThat(reuse.answers(KEY, "context-1", ActionFamily.READ, "DOC-5", false))
+                .as("a fourth general resource").isFalse();
+        // The general resources it answered do not use up what it keeps for its own sensitive resource.
+        assertThat(reuse.answers(KEY, "context-1", ActionFamily.READ, "CUS-1", true)).isTrue();
+        assertThat(reuse.answers(KEY, "context-1", ActionFamily.READ, "CUS-2", true)).as("a second record").isFalse();
+    }
+
+    /** RC-03: the sensitive and the general ALLOW each keep their own anchor; one does not erase the other. */
+    @Test
+    void theSensitiveAndTheGeneralAnchorDoNotEraseEachOther() {
+        AgentAllowReuse reuse = new AgentAllowReuse(10, 3, 1, null);
+        reuse.decided(KEY, "context-1", ActionFamily.READ, "DOC-1", false);
+        reuse.decided(KEY, "context-1", ActionFamily.READ, "CUS-1", true);
+
+        assertThat(reuse.answers(KEY, "context-1", ActionFamily.READ, "DOC-2", false)).isTrue();
+        assertThat(reuse.answers(KEY, "context-1", ActionFamily.READ, "CUS-1", true)).isTrue();
+        assertThat(reuse.answers(KEY, "context-1", ActionFamily.READ, "CUS-2", true)).isFalse();
+    }
+
+    /** RC-04: a sensitive request is answered only by an anchor that names the sensitive resource it decided. */
+    @Test
+    void anAnchorThatNamesNoResourceAnswersNoSensitiveRequest() {
+        AgentAllowReuse reuse = new AgentAllowReuse(10, 3, 1, null);
+        reuse.decided(KEY, "context-1", ActionFamily.READ, null, true);
+        reuse.decided(KEY, "context-1", ActionFamily.READ, null, false);
+
+        assertThat(reuse.answers(KEY, "context-1", ActionFamily.READ, "CUS-1", true)).isFalse();
+        assertThat(reuse.answers(KEY, "context-1", ActionFamily.READ, "DOC-1", false)).isTrue();
+    }
+
+    /** The request limit, the operation and the context bind both anchors alike. */
+    @Test
+    void bothAnchorsAreBoundToTheirOperationContextAndRequestLimit() {
+        AgentAllowReuse reuse = new AgentAllowReuse(3, 3, 1, null);
+        reuse.decided(KEY, "context-1", ActionFamily.READ, "CUS-1", true);
+
+        assertThat(reuse.answers(KEY, "context-1", ActionFamily.EXPORT, "CUS-1", true)).as("another operation").isFalse();
+        assertThat(reuse.answers(KEY, "context-2", ActionFamily.READ, "CUS-1", true)).as("another context").isFalse();
+        assertThat(reuse.answers(KEY, "context-1", ActionFamily.READ, "CUS-1", true)).isTrue();
+        assertThat(reuse.answers(KEY, "context-1", ActionFamily.READ, "DOC-2", false)).isTrue();
+        assertThat(reuse.answers(KEY, "context-1", ActionFamily.READ, "CUS-1", true)).as("the fourth request").isFalse();
+    }
+
+    /**
+     * RL-12: a request that joined the decision while it was being made asks the same question as the one that began
+     * it, so the request limit does not count it; the resource limits and the binding to operation and context hold.
+     */
+    @Test
+    void requestsThatJoinedTheSameDecisionAreAnsweredBeyondTheRequestLimitButNotBeyondTheResourceLimit() {
+        AgentAllowReuse reuse = new AgentAllowReuse(3, 3, 1, null);
+        reuse.decided(KEY, "context-1", ActionFamily.READ, "CUS-1", true);
+
+        for (int joined = 0; joined < 50; joined++) {
+            assertThat(reuse.answersJoined(KEY, "context-1", ActionFamily.READ, "CUS-1", true)).as("joined %d", joined)
+                    .isTrue();
+        }
+        assertThat(reuse.answersJoined(KEY, "context-1", ActionFamily.READ, "CUS-2", true)).as("another record").isFalse();
+        assertThat(reuse.answersJoined(KEY, "context-1", ActionFamily.EXPORT, "CUS-1", true)).as("another operation").isFalse();
+        assertThat(reuse.answersJoined(KEY, "context-2", ActionFamily.READ, "CUS-1", true)).as("another context").isFalse();
+        // The joined requests did not use up the limit of the requests that come later.
+        assertThat(reuse.answers(KEY, "context-1", ActionFamily.READ, "CUS-1", true)).isTrue();
+        assertThat(reuse.answers(KEY, "context-1", ActionFamily.READ, "CUS-1", true)).isTrue();
+        assertThat(reuse.answers(KEY, "context-1", ActionFamily.READ, "CUS-1", true)).as("the third later request").isFalse();
+    }
+
+    @Test
+    void joinedGeneralRequestsKeepTheGeneralResourceLimitAndASensitiveAnchorAnswersThemToo() {
+        AgentAllowReuse reuse = new AgentAllowReuse(10, 3, 1, null);
+        reuse.decided(KEY, "context-1", ActionFamily.READ, "DOC-1", false);
+
+        assertThat(reuse.answersJoined(KEY, "context-1", ActionFamily.READ, "DOC-2", false)).isTrue();
+        assertThat(reuse.answersJoined(KEY, "context-1", ActionFamily.READ, "DOC-3", false)).isTrue();
+        assertThat(reuse.answersJoined(KEY, "context-1", ActionFamily.READ, "DOC-4", false)).as("a fourth resource").isFalse();
+        // The ALLOW of a general resource still never answers a sensitive one, joined or not.
+        assertThat(reuse.answersJoined(KEY, "context-1", ActionFamily.READ, "CUS-1", true)).isFalse();
+
+        AgentAllowReuse sensitive = new AgentAllowReuse(10, 3, 1, null);
+        sensitive.decided(KEY, "context-1", ActionFamily.READ, "CUS-1", true);
+        assertThat(sensitive.answersJoined(KEY, "context-1", ActionFamily.READ, "DOC-9", false)).isTrue();
+    }
+
+    @Test
+    void anAnchorThatNamesNoResourceAnswersNoJoinedSensitiveRequest() {
+        AgentAllowReuse reuse = new AgentAllowReuse(10, 3, 1, null);
+        reuse.decided(KEY, "context-1", ActionFamily.READ, null, true);
+
+        assertThat(reuse.answersJoined(KEY, "context-1", ActionFamily.READ, "CUS-1", true)).isFalse();
+        assertThat(reuse.answersJoined("nobody", "context-1", ActionFamily.READ, "CUS-1", true)).isFalse();
+    }
+
     @Test
     void aSensitiveLimitNeverExceedsTheGeneralOneAndTheOldConstructorKeepsTheOldBehaviour() {
         AgentAllowReuse capped = new AgentAllowReuse(10, 2, 5, null);
@@ -75,5 +184,18 @@ class AgentAllowReuseTest {
         assertThat(AgentAllowReuse.sensitive(Map.of("resourceSensitivity", "PUBLIC"))).isFalse();
         assertThat(AgentAllowReuse.sensitive(Map.of())).isFalse();
         assertThat(AgentAllowReuse.sensitive(null)).isFalse();
+    }
+
+    /** RL-14: the importance the method declares is read first, and a host value can raise it but not lower it. */
+    @Test
+    void theDeclaredImportanceDecidesBeforeTheWordsDo() {
+        assertThat(AgentAllowReuse.sensitive(Map.of("resourceImportance", "SENSITIVE"))).isTrue();
+        assertThat(AgentAllowReuse.sensitive(Map.of("resourceImportance", "SENSITIVE", "resourceSensitivity", "PUBLIC")))
+                .as("the host cannot lower a declared sensitive resource").isTrue();
+        assertThat(AgentAllowReuse.sensitive(Map.of("resourceImportance", "NON_SENSITIVE"))).isFalse();
+        assertThat(AgentAllowReuse.sensitive(Map.of("resourceImportance", "NON_SENSITIVE",
+                "resourceSensitivity", "RESTRICTED"))).as("the host can raise it for one request").isTrue();
+        assertThat(AgentAllowReuse.sensitive(Map.of("resourceImportance", "NON_SENSITIVE",
+                "resourceSensitivity", "INTERNAL"))).isFalse();
     }
 }

@@ -45,6 +45,9 @@ public class BaselineEvidence {
     private static final Pattern V20_USUAL_HOURS =
             Pattern.compile("(?m)^\\s*(?:\\[[A-Z0-9]+]\\s*)?UsualHours:\\s*(.+?)\\s*$");
     private static final Pattern V20_SEEN = Pattern.compile("\\bseen\\s+([0-9, ]+)");
+    /** The usual hours as the v20 line writes them: hours and ranges of hours, "10-11, 13-14, 17". */
+    private static final Pattern V20_HOUR_RANGES =
+            Pattern.compile("\\d{1,2}(?:\\s*-\\s*\\d{1,2})?(?:\\s*,\\s*\\d{1,2}(?:\\s*-\\s*\\d{1,2})?)*");
 
     /**
      * One request sent to teach the template, as the learner sent it and the engine answered it.
@@ -189,8 +192,13 @@ public class BaselineEvidence {
             return List.of();
         }
         int seen = usual.indexOf("(seen");
+        String ranges = (seen < 0 ? usual : usual.substring(0, seen)).trim();
+        // A line that holds no hours ("not learned", "unknown") gives none: the engine writes words when it has no profile.
+        if (!V20_HOUR_RANGES.matcher(ranges).matches()) {
+            return List.of();
+        }
         List<Integer> hours = new ArrayList<>();
-        for (String part : (seen < 0 ? usual : usual.substring(0, seen)).split(",")) {
+        for (String part : ranges.split(",")) {
             String range = part.trim();
             if (range.isEmpty()) {
                 continue;

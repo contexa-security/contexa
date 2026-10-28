@@ -9,6 +9,7 @@ import io.contexa.showcase.portal.agent.AgentTaskProof;
 import io.contexa.showcase.portal.agent.AgentWork;
 import io.contexa.showcase.portal.orchestrator.ControlEndpoints.Control;
 import io.contexa.showcase.portal.orchestrator.ControlSession.StepOutcome;
+import io.contexa.showcase.portal.scenario.ScenarioDefinition;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
@@ -17,10 +18,12 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.Timestamp;
 import java.util.HexFormat;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.UUID;
@@ -328,6 +331,7 @@ public class RunStore {
                         .addValue("usage", write(transcript.usage())).addValue("proof", write(proof))
                         .addValue("started", Timestamp.from(transcript.startedAt()))
                         .addValue("finished", Timestamp.from(transcript.finishedAt())));
+        agentCost(runId, transcript);
     }
 
     /**
@@ -407,6 +411,49 @@ public class RunStore {
                            and r.live_visitor_hash is null
                          order by r.started_at desc limit 1""", new MapSqlParameterSource("sha", definitionSha256))
                 .stream().findFirst();
+    }
+
+    /**
+     * docs/agent Agent중심-화면 AS-5: how many operator recordings a case's definition has and how many of them ended
+     * as the latest did at control D: it stopped the work at the same step, or never stopped it.
+     *
+     * @param runs         the recordings (completed, not forced, not a visitor's live run) of the definition
+     * @param sameAsLatest the recordings whose control D first stop step equals the latest recording's
+     * @param latestRunId  the latest recording; null when there is none
+     */
+    public record RecordedStats(int runs, int sameAsLatest, String latestRunId) {
+    }
+
+    public RecordedStats recordedAgentRunStats(String definitionSha256) {
+        List<Map<String, Object>> rows = jdbc.queryForList("""
+                        select r.run_id, t.proof->'controls'->'D'->>'firstStopStep' as stop_step
+                          from run r join run_agent_task t on t.run_id = r.run_id
+                         where r.scenario_sha256 = :sha and r.status = 'COMPLETED' and r.forced_action is null
+                           and r.live_visitor_hash is null
+                         order by r.started_at desc""", new MapSqlParameterSource("sha", definitionSha256));
+        if (rows.isEmpty()) {
+            return new RecordedStats(0, 0, null);
+        }
+        Object latest = rows.get(0).get("stop_step");
+        int same = (int) rows.stream().filter(row -> Objects.equals(row.get("stop_step"), latest)).count();
+        return new RecordedStats(rows.size(), same, (String) rows.get(0).get("run_id"));
+    }
+
+    /**
+     * The definition a run executed, as stored (docs/agent AS-12: a visitor's copy of the editable case with its one
+     * change differs from the case); empty for an unknown run, a run stored without it or one that cannot be read back.
+     */
+    public Optional<ScenarioDefinition> scenarioDefinition(String runId) {
+        List<String> stored = jdbc.queryForList("select scenario_definition::text from run where run_id = :run",
+                new MapSqlParameterSource("run", runId), String.class);
+        if (stored.isEmpty() || stored.get(0) == null || stored.get(0).isBlank() || "{}".equals(stored.get(0))) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(json.readValue(stored.get(0), ScenarioDefinition.class));
+        } catch (JsonProcessingException e) {
+            return Optional.empty();
+        }
     }
 
     /** docs/agent A7-2f: the agent task record of a run, as stored; empty for a run of scripted steps. */
@@ -496,7 +543,8 @@ public class RunStore {
         cost.put("decisions", jdbc.queryForList("""
                 select model, count(*) as calls, sum(prompt_tokens) as prompt_tokens,
                        sum(completion_tokens) as completion_tokens, sum(total_tokens) as total_tokens
-                  from cost_ledger where run_id = :run group by model order by model""", run));
+                  from cost_ledger where run_id = :run and kind <> 'AGENT_CHAT' group by model order by model""",
+                run));
         summary.put("cost", cost);
         return Optional.of(summary);
     }
@@ -512,8 +560,9 @@ public class RunStore {
     public void cost(String runId, String templateId, String requestId, JsonNode call) {
         jdbc.update("""
                         insert into cost_ledger (entry_id, run_id, template_id, request_id, kind, model, prompt_tokens,
-                                                 completion_tokens, total_tokens, elapsed_ms)
-                        values (:id, :run, :template, :request, :kind, :model, :prompt, :completion, :total, :elapsed)""",
+                                                 completion_tokens, total_tokens, elapsed_ms, cached_prompt_tokens)
+                        values (:id, :run, :template, :request, :kind, :model, :prompt, :completion, :total, :elapsed,
+                                :cached)""",
                 new MapSqlParameterSource("id", UUID.randomUUID()).addValue("run", runId)
                         .addValue("template", templateId)
                         .addValue("request", requestId == null ? null : UUID.fromString(requestId))
@@ -521,7 +570,35 @@ public class RunStore {
                         .addValue("prompt", call.path("promptTokens").asLong(0))
                         .addValue("completion", call.path("completionTokens").asLong(0))
                         .addValue("total", call.path("totalTokens").asLong(0))
-                        .addValue("elapsed", call.path("elapsedMs").asLong(0)));
+                        .addValue("elapsed", call.path("elapsedMs").asLong(0))
+                        // docs/agent Agent중심-화면 AC-8: null when the provider reported none (not zero)
+                        .addValue("cached", call.hasNonNull("cachedPromptTokens")
+                                ? call.path("cachedPromptTokens").asLong() : null));
+    }
+
+    /**
+     * docs/agent Agent중심-화면 AC-8: the business agent's own model usage, summed over its rounds, is a ledger row of
+     * the run beside the engine's, so the daily allotment counts what a live agent run really cost. A work with no
+     * measured usage (its time ran out or it failed) adds none.
+     */
+    private void agentCost(String runId, AgentWork.Transcript transcript) {
+        Map<String, Integer> usage = transcript.usage();
+        if (usage == null || usage.isEmpty()) {
+            return;
+        }
+        long prompt = usage.getOrDefault("promptTokens", 0);
+        long completion = usage.getOrDefault("completionTokens", 0);
+        ObjectNode call = json.createObjectNode();
+        call.put("kind", "AGENT_CHAT");
+        call.put("model", truncate(transcript.model(), 128));
+        call.put("promptTokens", prompt);
+        call.put("completionTokens", completion);
+        call.put("totalTokens", usage.containsKey("totalTokens") ? usage.get("totalTokens") : prompt + completion);
+        call.put("elapsedMs", Duration.between(transcript.startedAt(), transcript.finishedAt()).toMillis());
+        if (usage.containsKey("cachedPromptTokens")) {
+            call.put("cachedPromptTokens", usage.get("cachedPromptTokens"));
+        }
+        cost(runId, null, null, call);
     }
 
     public void spec(String runId, String specHash) {

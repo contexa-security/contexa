@@ -12,11 +12,14 @@ export async function inspect(page, root = 'main') {
   );
   const singleLetter = await page.evaluate(() => {
     const found = [];
+    const closedAbove = (el) => { for (let d = el.closest('details:not([open])'); d; d = d.parentElement?.closest('details:not([open])') ?? null) { const s = el.closest('summary'); if (!(s && s.parentElement === d)) return true; } return false; };
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     const range = document.createRange();
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       const text = node.textContent ?? '';
       if (text.trim().length < 2 || node.parentElement?.closest('[aria-hidden="true"]')) continue;
+      // What a closed fold holds is not on view: its boxes are not laid out as a reader would see them.
+      if (closedAbove(node.parentElement)) continue;
       const tops = (from, to) => {
         range.setStart(node, from);
         range.setEnd(node, to);

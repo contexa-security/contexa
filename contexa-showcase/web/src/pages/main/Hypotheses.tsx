@@ -1,6 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import type { Hypothesis, RunFacts } from '../../api/promptQuality';
 import { factKey } from '../../components/facts/factWords';
+import { Fold } from '../../components/main/Fold';
+import { useNarrow } from '../../hooks/useNarrow';
 import { factById } from './evidence';
 import styles from './EvidencePages.module.css';
 
@@ -19,11 +21,18 @@ const NAMED = ['H1', 'H2', 'H3', 'H4'];
 export function Hypotheses({
   hypotheses,
   facts,
+  compact = false,
 }: {
   readonly hypotheses: readonly Hypothesis[];
   readonly facts: RunFacts | null;
+  /**
+   * The first layers of a screen (구현계획 AC-N2): each explanation with its strength, and the facts for and against it
+   * one press away; the lead that says how the AI weighs stays on the layer that lays the whole decision open (3-3).
+   */
+  readonly compact?: boolean;
 }) {
   const { t } = useTranslation();
+  const narrow = useNarrow();
   if (hypotheses.length === 0) {
     return null;
   }
@@ -33,51 +42,82 @@ export function Hypotheses({
   };
   const listed = (ids: readonly string[]) =>
     ids.length > 0 ? ids.map(named).join(', ') : t('main.3-3.hypothesisNone');
+  const cites = (hypothesis: Hypothesis, both: readonly string[]) => (
+    <>
+      <span className={styles.codeCites}>
+        {t('main.3-3.hypothesisFacts', {
+          for: listed(hypothesis.for),
+          against: listed(hypothesis.against),
+        })}
+      </span>
+      {both.length > 0 ? (
+        <span className={styles.codeBoth}>
+          {t('main.3-3.hypothesisBoth', { facts: both.map(named).join(', ') })}
+        </span>
+      ) : null}
+    </>
+  );
+  const list = (
+    <ul className={styles.codes}>
+      {hypotheses.map((hypothesis) => {
+        const both = hypothesis.for.filter((id) => hypothesis.against.includes(id));
+        return (
+          <li key={hypothesis.id} className={styles.code}>
+            <span className={styles.hypothesisName}>
+              {NAMED.includes(hypothesis.id) ? (
+                t(compact ? `hypothesis.${hypothesis.id}.short` : `hypothesis.${hypothesis.id}`)
+              ) : (
+                <>
+                  {t('hypothesis.H5')}{' '}
+                  {hypothesis.name ? (
+                    <code className={styles.codeName} data-original>
+                      {hypothesis.name}
+                    </code>
+                  ) : null}
+                </>
+              )}{' '}
+              <span className={styles.assessment} data-level={hypothesis.assessment}>
+                {t(`hypothesis.assessment.${hypothesis.assessment}`, {
+                  defaultValue: hypothesis.assessment,
+                })}
+              </span>
+            </span>
+            {compact ? (
+              <Fold name="hypothesis-facts" summary={t('main.5-3.hypothesisFold')}>
+                {NAMED.includes(hypothesis.id) ? (
+                  <span className={styles.codeCites}>{t(`hypothesis.${hypothesis.id}.what`)}</span>
+                ) : null}
+                {cites(hypothesis, both)}
+              </Fold>
+            ) : (
+              cites(hypothesis, both)
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+  if (compact) {
+    // AC-N9: the explanations are what the screen is about, so they are open at a width that holds them; a phone gives them
+    // their own title to open, which keeps the verdict and the way on in one screen and a half.
+    return (
+      <section className={styles.panel} data-compact aria-labelledby="hypotheses-title">
+        <Fold name="hypotheses" summary={t('main.3-3.hypothesesTitle')} open={!narrow}>
+          <h2 id="hypotheses-title" className="visually-hidden">
+            {t('main.3-3.hypothesesTitle')}
+          </h2>
+          {list}
+        </Fold>
+      </section>
+    );
+  }
   return (
     <section className={styles.panel} aria-labelledby="hypotheses-title">
       <h2 id="hypotheses-title" className={styles.panelTitle}>
         {t('main.3-3.hypothesesTitle')}
       </h2>
       <p className={styles.panelNote}>{t('main.3-3.hypothesesLead')}</p>
-      <ul className={styles.codes}>
-        {hypotheses.map((hypothesis) => {
-          const both = hypothesis.for.filter((id) => hypothesis.against.includes(id));
-          return (
-            <li key={hypothesis.id} className={styles.code}>
-              <span className={styles.hypothesisName}>
-                {NAMED.includes(hypothesis.id) ? (
-                  t(`hypothesis.${hypothesis.id}`)
-                ) : (
-                  <>
-                    {t('hypothesis.H5')}{' '}
-                    {hypothesis.name ? (
-                      <code className={styles.codeName} data-original>
-                        {hypothesis.name}
-                      </code>
-                    ) : null}
-                  </>
-                )}{' '}
-                <span className={styles.assessment} data-level={hypothesis.assessment}>
-                  {t(`hypothesis.assessment.${hypothesis.assessment}`, {
-                    defaultValue: hypothesis.assessment,
-                  })}
-                </span>
-              </span>
-              <span className={styles.codeCites}>
-                {t('main.3-3.hypothesisFacts', {
-                  for: listed(hypothesis.for),
-                  against: listed(hypothesis.against),
-                })}
-              </span>
-              {both.length > 0 ? (
-                <span className={styles.codeBoth}>
-                  {t('main.3-3.hypothesisBoth', { facts: both.map(named).join(', ') })}
-                </span>
-              ) : null}
-            </li>
-          );
-        })}
-      </ul>
+      {list}
     </section>
   );
 }

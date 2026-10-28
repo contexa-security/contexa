@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,18 +27,24 @@ public class Measurements {
     }
 
     private final NamedParameterJdbcTemplate jdbc;
-    private final Prices prices;
+    private final ModelPricing pricing;
 
-    public Measurements(NamedParameterJdbcTemplate jdbc, Prices prices) {
+    /** docs/agent Agent중심-화면 AC-1: the cost report counts each model by its own price. */
+    public Measurements(NamedParameterJdbcTemplate jdbc, ModelPricing pricing) {
         this.jdbc = jdbc;
-        this.prices = prices;
+        this.pricing = pricing;
+    }
+
+    /** One price for every model, as before AC-1; kept for the tests that name their own price. */
+    public Measurements(NamedParameterJdbcTemplate jdbc, Prices prices) {
+        this(jdbc, ModelPricing.single(prices));
     }
 
     public Map<String, Object> since(Instant since) {
         MapSqlParameterSource window = new MapSqlParameterSource("since", Timestamp.from(since));
         Map<String, Object> report = new LinkedHashMap<>();
         report.put("since", since.toString());
-        report.put("prices", prices);
+        report.put("prices", pricing.describe());
         report.put("runs", jdbc.queryForList("""
                 select scenario_key, status, count(*) as runs from run
                  where started_at >= :since and forced_action is null
@@ -69,31 +76,53 @@ public class Measurements {
                   from run_arm_result a join run r on r.run_id = a.run_id
                  where r.started_at >= :since and r.forced_action is null group by a.control order by a.control""", window));
         report.put("runCost", cost("""
-                select c.kind, sum(c.prompt_tokens) as prompt_tokens, sum(c.completion_tokens) as completion_tokens,
-                       count(distinct c.run_id) as subjects
+                select c.kind, c.model, sum(c.prompt_tokens) as prompt_tokens,
+                       coalesce(sum(c.cached_prompt_tokens), 0) as cached_prompt_tokens,
+                       sum(c.completion_tokens) as completion_tokens, count(distinct c.run_id) as subjects
                   from cost_ledger c join run r on r.run_id = c.run_id
-                 where r.started_at >= :since and r.forced_action is null group by c.kind""", window));
+                 where r.started_at >= :since and r.forced_action is null group by c.kind, c.model""", window));
         report.put("templateCost", cost("""
-                select c.kind, sum(c.prompt_tokens) as prompt_tokens, sum(c.completion_tokens) as completion_tokens,
-                       count(distinct c.template_id) as subjects
+                select c.kind, c.model, sum(c.prompt_tokens) as prompt_tokens,
+                       coalesce(sum(c.cached_prompt_tokens), 0) as cached_prompt_tokens,
+                       sum(c.completion_tokens) as completion_tokens, count(distinct c.template_id) as subjects
                   from cost_ledger c join engine_template t on t.template_id = c.template_id
-                 where t.created_at >= :since group by c.kind""", window));
+                 where t.created_at >= :since group by c.kind, c.model""", window));
         return report;
     }
 
     private Map<String, Object> cost(String sql, MapSqlParameterSource window) {
-        List<Map<String, Object>> rows = jdbc.queryForList(sql, window);
+        List<Map<String, Object>> modelRows = jdbc.queryForList(sql, window);
         BigDecimal total = BigDecimal.ZERO;
         long subjects = 0;
-        for (Map<String, Object> row : rows) {
+        // Priced by each model's own price, then shown per kind as the report always did.
+        Map<String, Map<String, Object>> byKind = new LinkedHashMap<>();
+        for (Map<String, Object> row : modelRows) {
             long prompt = number(row.get("prompt_tokens"));
+            long cached = number(row.get("cached_prompt_tokens"));
             long completion = number(row.get("completion_tokens"));
-            double dollars = "EMBEDDING".equals(row.get("kind"))
-                    ? prompt * prices.embeddingInput() / 1_000_000d
-                    : prompt * prices.chatInput() / 1_000_000d + completion * prices.chatOutput() / 1_000_000d;
-            row.put("usd", BigDecimal.valueOf(dollars).setScale(6, RoundingMode.HALF_UP));
+            String kind = String.valueOf(row.get("kind"));
+            double dollars = pricing.usd(kind, (String) row.get("model"), prompt, cached, completion);
             total = total.add(BigDecimal.valueOf(dollars));
             subjects = Math.max(subjects, number(row.get("subjects")));
+            Map<String, Object> kindRow = byKind.computeIfAbsent(kind, key -> {
+                Map<String, Object> created = new LinkedHashMap<>();
+                created.put("kind", key);
+                created.put("prompt_tokens", 0L);
+                created.put("cached_prompt_tokens", 0L);
+                created.put("completion_tokens", 0L);
+                created.put("subjects", 0L);
+                created.put("usd", BigDecimal.ZERO);
+                return created;
+            });
+            kindRow.put("prompt_tokens", number(kindRow.get("prompt_tokens")) + prompt);
+            kindRow.put("cached_prompt_tokens", number(kindRow.get("cached_prompt_tokens")) + cached);
+            kindRow.put("completion_tokens", number(kindRow.get("completion_tokens")) + completion);
+            kindRow.put("subjects", Math.max(number(kindRow.get("subjects")), number(row.get("subjects"))));
+            kindRow.put("usd", ((BigDecimal) kindRow.get("usd")).add(BigDecimal.valueOf(dollars)));
+        }
+        List<Map<String, Object>> rows = new ArrayList<>(byKind.values());
+        for (Map<String, Object> kindRow : rows) {
+            kindRow.put("usd", ((BigDecimal) kindRow.get("usd")).setScale(6, RoundingMode.HALF_UP));
         }
         Map<String, Object> cost = new LinkedHashMap<>();
         cost.put("byKind", rows);

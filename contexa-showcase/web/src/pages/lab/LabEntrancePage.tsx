@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useLiveConfig } from '../../api/queries';
 import { Icon } from '../../components/Icon';
 import { NextLink } from '../../components/journey/StepParts';
+import { SubjectChip } from '../../components/main/SubjectChip';
 import { count } from '../../journey/format';
 import { WALK_STEPS } from './labPlace';
 import { LabScreen } from './LabScreen';
@@ -27,6 +28,30 @@ export default function LabEntrancePage() {
       back={null}
       main={<NextLink to="/lab/case" label={t('lab.r7.entrance.next')} />}
     >
+      <ul className={styles.doors} aria-label={t('lab.r7.entrance.pick')}>
+        <li>
+          <section className={styles.door} aria-labelledby="door-person">
+            <SubjectChip subject="person" />
+            <h2 id="door-person" className={styles.doorName}>
+              {t('lab.r7.entrance.person')}
+            </h2>
+            <span>{t('lab.r7.entrance.personLine')}</span>
+          </section>
+        </li>
+        <li>
+          <section className={styles.door} aria-labelledby="door-agent">
+            <SubjectChip subject="delegated" />
+            <h2 id="door-agent" className={styles.doorName}>
+              {t('lab.r7.entrance.agent')}
+            </h2>
+            <span>{t('lab.r7.entrance.agentLine')}</span>
+            <Link to="/lab/agent" className={styles.pathLink}>
+              {t('lab.r7.entrance.agentGo')}
+              <Icon name="arrowRight" />
+            </Link>
+          </section>
+        </li>
+      </ul>
       <ol className={styles.walk} aria-label={t('lab.r7.entrance.steps')}>
         {WALK_STEPS.map((step, index) => (
           <li key={step} className={styles.walkStep}>

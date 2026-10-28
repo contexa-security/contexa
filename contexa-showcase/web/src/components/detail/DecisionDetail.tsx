@@ -1,8 +1,12 @@
 import { useRef, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAgentRun } from '../../api/agentCase';
 import { useAnatomy, type DecisionAnatomyView } from '../../api/anatomy';
+import { HttpError } from '../../api/http';
 import { useRunScore } from '../../api/queries';
+import { subjectOfSender } from '../../domain/subject';
 import { ActionChip } from '../common/ActionChip';
+import { SubjectChip } from '../main/SubjectChip';
 import { Modal } from '../common/Modal';
 import { StateScreen } from '../StateScreen';
 import { AnswerTab } from './AnswerTab';
@@ -28,6 +32,14 @@ export function DecisionDetailModal() {
   const detail = useDetail();
   const score = useRunScore(detail.runId, 'detail', 1).data ?? null;
   const steps = score ? Math.max(1, score.executedSteps) : null;
+  // Who sent the requests (docs/agent Agent중심-화면 AS-1), read from the run's stored agent record: a run that has
+  // none was sent by a person. Nothing is drawn until the record has answered, so the chip is never a guess.
+  const agent = useAgentRun(detail.runId);
+  const sender = agent.data
+    ? subjectOfSender(agent.data.sender)
+    : agent.error instanceof HttpError && agent.error.status === 404
+      ? 'person'
+      : null;
   // The situation's plain name, the same one the lab and the benchmark show (R7-검수 V-45); a situation without one
   // keeps the definition's own name, shown as stored (frozen with the definition).
   const stored = score?.title?.[language] ?? null;
@@ -36,6 +48,12 @@ export function DecisionDetailModal() {
     <>
       {t('detail.r7.title')}{' '}
       {plain ? plain : stored ? <span data-original>{stored}</span> : t('detail.r7.unnamed')}
+      {sender ? (
+        <>
+          {' '}
+          <SubjectChip subject={sender} />
+        </>
+      ) : null}
     </>
   ) : (
     t('detail.r7.titleLoading')

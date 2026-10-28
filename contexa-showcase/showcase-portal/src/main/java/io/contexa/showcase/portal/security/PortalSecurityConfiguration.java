@@ -69,7 +69,13 @@ public class PortalSecurityConfiguration {
                                 // BM-S8: the decision quality an operator published for a setting.
                                 "/api/benchmark/decision-quality",
                                 // docs/agent A7-3: the business agent group's case and a run's agent work.
-                                "/api/agent-cases/*", "/api/runs/*/agent")
+                                "/api/agent-cases/*", "/api/runs/*/agent",
+                                // docs/agent Agent중심-화면 AC-5: the reference agent runs frozen as files.
+                                "/api/agent-snapshots", "/api/agent-snapshots/*",
+                                // docs/agent Agent중심-화면 AS-11: the agent part of the benchmark, counted from stored runs.
+                                "/api/benchmark/agent",
+                                // docs/agent Agent중심-화면 AC-4a: the agent menu's table and its stored answers.
+                                "/api/agent-menu", "/api/agent-menu/*/*")
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/predictions", "/api/shares",
                                 "/api/runs/*/steps/*/assessment", "/api/rules/evaluate", "/api/journey",

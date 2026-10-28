@@ -64,6 +64,22 @@ class BaselineEvidenceTest {
         assertThat(BaselineEvidence.normalAccessHours("UsualHours: 09-11, 14\n")).containsExactly(9, 10, 11, 14);
     }
 
+    /**
+     * Found by the full-screen audit of docs/agent stage S2 (2026-10-27): an engine with no learned profile for the
+     * actor writes "UsualHours: not learned", and reading it as hour ranges threw NumberFormatException, so the baseline
+     * card answered HTTP 500. A line that holds no hours gives no hours.
+     */
+    @Test
+    void aUsualHoursLineThatSaysNothingWasLearnedGivesNoHoursAndNoError() {
+        String prompt = "UsualHours: not learned\n";
+
+        assertThat(BaselineEvidence.normalAccessHours(prompt)).isEmpty();
+        assertThat(BaselineEvidence.observedHours(prompt)).isEmpty();
+        assertThat(BaselineEvidence.of(prompt, "run-1", 1, null).normalAccessHours()).isEmpty();
+        assertThat(BaselineEvidence.normalAccessHours("UsualHours: unknown (seen 9,10)\n")).isEmpty();
+        assertThat(BaselineEvidence.observedHours("UsualHours: unknown (seen 9,10)\n")).containsExactly(9, 10);
+    }
+
     @Test
     void aMissingLineGivesNoHours() {
         assertThat(BaselineEvidence.observedHours("CurrentAccessHourPresentInObservedHours: false\n")).isEmpty();

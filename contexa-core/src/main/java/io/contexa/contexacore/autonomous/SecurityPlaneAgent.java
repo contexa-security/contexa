@@ -103,6 +103,23 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
      */
     public static final String PROCESSING_STRATEGY_UNAVAILABLE = "processingStrategyUnavailable";
 
+    /**
+     * docs/agent RL-12 (QD): asked when a queued event's turn comes, before it is analysed. An event the stored decisions
+     * now answer is recorded by the check and is not analysed.
+     */
+    @FunctionalInterface
+    public interface QueuedEventRecheck {
+
+        /** True when the stored decisions answer the event; the check has then recorded it. */
+        boolean answeredWithoutAnalysis(SecurityEvent event);
+    }
+
+    private volatile QueuedEventRecheck queuedEventRecheck;
+
+    public void setQueuedEventRecheck(QueuedEventRecheck queuedEventRecheck) {
+        this.queuedEventRecheck = queuedEventRecheck;
+    }
+
     public void setAiSecurityDecisionObservationWriterSupplier(
             Supplier<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterSupplier) {
         this.aiSecurityDecisionObservationWriterSupplier = aiSecurityDecisionObservationWriterSupplier != null
@@ -146,6 +163,11 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             actorSerialExecutor.execute(analysisKey, () -> {
                 try {
                     event.addMetadata("analysisStartedAt", System.currentTimeMillis());
+                    if (answeredWhileQueued(event)) {
+                        event.addMetadata("analysisSkipped", "ANSWERED_BY_DECISION_IN_FORCE");
+                        event.addMetadata("analysisFinishedAt", System.currentTimeMillis());
+                        return;
+                    }
                     processSecurityEventWithinBudget(event);
                     processedEvents.incrementAndGet();
                     event.addMetadata("analysisFinishedAt", System.currentTimeMillis());
@@ -171,6 +193,21 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                     }
                 }
             });
+        }
+    }
+
+    /** Whether the stored decisions answer the event now that its turn has come; a check that fails answers nothing. */
+    private boolean answeredWhileQueued(SecurityEvent event) {
+        QueuedEventRecheck recheck = queuedEventRecheck;
+        if (recheck == null) {
+            return false;
+        }
+        try {
+            return recheck.answeredWithoutAnalysis(event);
+        } catch (RuntimeException failure) {
+            log.error("[SecurityPlaneAgent] The recheck of a queued event failed; the event is analysed: eventId={}",
+                    event.getEventId(), failure);
+            return false;
         }
     }
 

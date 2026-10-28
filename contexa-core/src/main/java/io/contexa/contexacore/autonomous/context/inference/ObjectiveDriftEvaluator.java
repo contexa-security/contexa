@@ -42,7 +42,7 @@ public class ObjectiveDriftEvaluator {
     public ObjectiveDriftEvaluation evaluate(
             CanonicalSecurityContext.Delegation delegation,
             CanonicalSecurityContext context) {
-        if (delegation == null || !Boolean.TRUE.equals(delegation.getDelegated())) {
+        if (delegation == null || !delegation.hasMandate()) {
             return new ObjectiveDriftEvaluation(null, null, null, null, List.of(), List.of(), List.of(), List.of());
         }
 

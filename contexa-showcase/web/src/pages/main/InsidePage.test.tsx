@@ -79,7 +79,7 @@ const BODIES: Readonly<Record<string, unknown>> = {
     seal: null,
     inspection: null,
     ribbon: null,
-    hypotheses: [],
+    hypotheses: [{ id: 'H3', name: null, assessment: 'MOST_LIKELY', for: ['R4'], against: ['F4'] }],
     reasonCodes: [
       { code: 'DATA_NATURE_MISMATCH', fact: 'R4' },
       { code: 'ASSIGNED_TARGET', fact: 'F4' },
@@ -166,5 +166,118 @@ describe('5-3, the insider judgment shown', () => {
     expect(
       screen.getByText(`${i18n.t('main.4-3.c2Note')} ${i18n.t('main.4-3.blindOne')}`),
     ).toBeInTheDocument();
+  });
+
+  // 구현계획 AC-N2: the verdict and what the AI weighed are the first view; the AI's own long reason and the facts it
+  // listed for and against each explanation are one press away.
+  it("folds the AI's own reason and the facts for and against each explanation, leaving the verdict and the explanations", async () => {
+    const { container } = open();
+    await screen.findByRole('radio', { name: new RegExp(i18n.t('main.4-4.step', { n: 2 })) });
+    const reason = container.querySelector('details[data-fold="reason"]') as HTMLDetailsElement | null;
+    expect(reason).not.toBeNull();
+    expect(reason?.open).toBe(false);
+    expect(reason?.textContent).toContain('Sales documents unrelated to design work.');
+    const facts = container.querySelector(
+      'details[data-fold="hypothesis-facts"]',
+    ) as HTMLDetailsElement | null;
+    expect(facts).not.toBeNull();
+    expect(facts?.open).toBe(false);
+    expect(facts?.textContent).toContain('R4');
+    // the explanation and its strength are outside the fold
+    const hypotheses = container.querySelector('[aria-labelledby="hypotheses-title"]') as HTMLElement;
+    const named = within(hypotheses).getByText(i18n.t('hypothesis.H3.short'));
+    expect(facts?.contains(named)).toBe(false);
+  });
+
+  // 구현계획 AC-N2: the first layer names each explanation by its short name; what it means waits with its facts.
+  it('names each explanation shortly in view and keeps its meaning with the facts under it', async () => {
+    const { container } = open();
+    await screen.findByRole('radio', { name: new RegExp(i18n.t('main.4-4.step', { n: 2 })) });
+    const hypotheses = container.querySelector('[aria-labelledby="hypotheses-title"]') as HTMLElement;
+    expect(within(hypotheses).getByText(i18n.t('hypothesis.H3.short'))).toBeInTheDocument();
+    expect(within(hypotheses).queryByText(i18n.t('hypothesis.H3'))).toBeNull();
+    const facts = container.querySelector('details[data-fold="hypothesis-facts"]') as HTMLDetailsElement;
+    expect(facts.textContent).toContain(i18n.t('hypothesis.H3.what'));
+  });
+
+  // 구현계획 AC-N11: a sentence that left the view is not lost: when the judgment applied from the next request on stays
+  // with the count of documents that left, one press away.
+  it('keeps the sentence that the judgment applied from the next request on under the count of documents that left', async () => {
+    const { container } = open();
+    await screen.findByRole('radio', { name: new RegExp(i18n.t('main.4-4.step', { n: 2 })) });
+    const fold = container.querySelector('details[data-fold="after-note"]') as HTMLDetailsElement | null;
+    expect(fold).not.toBeNull();
+    expect(fold?.open).toBe(false);
+    expect(fold?.querySelector('summary')).toHaveTextContent(i18n.t('main.5-3.after', { n: 2, count: 2 }));
+    expect(fold?.textContent).toContain(i18n.t('main.5-3.afterWhy'));
+  });
+
+  // 구현계획 AC-N9: on a phone the explanations wait under their own title; a wide screen has them open.
+  it('has the explanations open on a wide screen', async () => {
+    const { container } = open();
+    await screen.findByRole('radio', { name: new RegExp(i18n.t('main.4-4.step', { n: 2 })) });
+    const fold = container.querySelector('details[data-fold="hypotheses"]') as HTMLDetailsElement;
+    expect(fold.open).toBe(true);
+    expect(fold.querySelector('summary')).toHaveTextContent(i18n.t('main.3-3.hypothesesTitle'));
+  });
+
+  it('has the explanations under their title on a phone', async () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('40rem'),
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    })) as unknown as typeof window.matchMedia;
+    try {
+      const { container } = open();
+      await screen.findByRole('radio', { name: new RegExp(i18n.t('main.4-4.step', { n: 2 })) });
+      const fold = container.querySelector('details[data-fold="hypotheses"]') as HTMLDetailsElement;
+      expect(fold.open).toBe(false);
+      expect(fold.textContent).toContain(i18n.t('hypothesis.H3.short'));
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+
+  it('names the verdict card for a screen reader without drawing the label a second time', async () => {
+    const { container } = open();
+    await screen.findByRole('radio', { name: new RegExp(i18n.t('main.4-4.step', { n: 2 })) });
+    const label = container.querySelector('#verdict-hero') as HTMLElement;
+    expect(label).toHaveTextContent(i18n.t('main.verdictCard.label'));
+    expect(label).toHaveClass('visually-hidden');
+  });
+
+  it('says the values the model wrote once, not on every gauge, and leaves out the engine code of the verdict', async () => {
+    const { container } = open();
+    await screen.findByRole('radio', { name: new RegExp(i18n.t('main.4-4.step', { n: 2 })) });
+    const hero = container.querySelector('[aria-labelledby="verdict-hero"]') as HTMLElement;
+    expect(within(hero).queryByText(i18n.t('main.verdictCard.fromModel'))).toBeNull();
+    expect(within(hero).queryByText('BLOCK')).toBeNull();
+  });
+
+  it('stays under 300 characters at first sight (AC-N3), what a closed fold holds not counted', async () => {
+    const { container } = open();
+    await screen.findByRole('radio', { name: new RegExp(i18n.t('main.4-4.step', { n: 2 })) });
+    const main = container.querySelector('main')?.cloneNode(true) as HTMLElement;
+    main.querySelectorAll('details:not([open]) > :not(summary)').forEach((hidden) => hidden.remove());
+    expect((main.textContent ?? '').replace(/\s/g, '').length).toBeLessThan(300);
+  });
+
+  // 구현계획 NW-8 (R-N2): what the AI weighed stays in view, the rest folds under one line.
+  it('keeps the explanations the AI weighed in view and folds the chain, the existing security and the measurement', async () => {
+    const { container } = open();
+    await screen.findByRole('radio', { name: new RegExp(i18n.t('main.4-4.step', { n: 2 })) });
+    const fold = container.querySelector('details[data-fold="inside"]') as HTMLDetailsElement | null;
+    expect(fold).not.toBeNull();
+    expect(fold?.open).toBe(false);
+    expect(fold?.textContent).toContain(i18n.t('main.5-3.fold'));
+    expect(fold?.textContent).toContain(i18n.t('main.5-3.rules'));
+    expect(fold?.textContent).toContain(i18n.t('main.5-3.table'));
+    // the explanations are outside the fold
+    const hypotheses = container.querySelector('[aria-labelledby="hypotheses-title"]');
+    expect(hypotheses).not.toBeNull();
+    expect(fold?.contains(hypotheses)).toBe(false);
+    expect(fold?.contains(hero())).toBe(false);
   });
 });

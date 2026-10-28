@@ -8,6 +8,7 @@ import { MainScreen } from '../../components/main/MainScreen';
 import { useMeasuredCase } from '../../api/measured';
 import { SourceBadge } from '../../components/main/SourceBadge';
 import { StateScreen } from '../../components/StateScreen';
+import { Fold } from '../../components/main/Fold';
 import { count, seconds, utcTime } from '../../journey/format';
 import { breakable } from './breakable';
 import { factLine, learnedCompared, modelSummary, shortHash, useEvidenceRun } from './evidence';
@@ -99,7 +100,9 @@ export default function EvidenceMapPage() {
             total: count(lines.total, language),
           })
         : '…',
-      raw: quality?.bundle?.version ? { label: t('main.3-1.prompt.bundle'), code: quality.bundle.version } : null,
+      raw: quality?.bundle?.version
+        ? { label: t('main.3-1.prompt.bundle'), code: quality.bundle.version }
+        : null,
     },
     llm: {
       line: call
@@ -111,7 +114,9 @@ export default function EvidenceMapPage() {
           })
         : '…',
       // What the model itself answered, before the checks of the next stage.
-      raw: recorded.proposedAction ? { label: null, code: `proposedAction: ${recorded.proposedAction}` } : null,
+      raw: recorded.proposedAction
+        ? { label: null, code: `proposedAction: ${recorded.proposedAction}` }
+        : null,
     },
     verdict: {
       line: t('main.3-1.verdict.line', {
@@ -125,7 +130,9 @@ export default function EvidenceMapPage() {
     },
     seal: {
       line: t(added > 0 ? 'main.3-1.seal.added' : 'main.3-1.seal.notAdded', { n: added }),
-      raw: quality?.seal?.packageHash ? { label: null, code: `sha256 ${shortHash(quality.seal.packageHash)}` } : null,
+      raw: quality?.seal?.packageHash
+        ? { label: null, code: `sha256 ${shortHash(quality.seal.packageHash)}` }
+        : null,
     },
   };
   return (
@@ -139,9 +146,12 @@ export default function EvidenceMapPage() {
           >
             <span className={styles.stageNumber}>{index + 1}</span>
             <b className={styles.stageName}>{t(`main.3-1.${stage.id}`)}</b>
-            <span className={styles.stageSub}>{t(`main.3-1.${stage.id}.sub`)}</span>
-            <p className={styles.stageLine}>{values[stage.id]?.line}</p>
-            {values[stage.id]?.raw ? <RawLine raw={values[stage.id]?.raw ?? null} /> : null}
+            {/* AC-N2: the map is the view; this judgment's value of the stage and its raw name wait under one line. */}
+            <Fold name="stage-values" summary={t('main.3-1.valuesFold')}>
+              <span className={styles.stageSub}>{t(`main.3-1.${stage.id}.sub`)}</span>
+              <p className={styles.stageLine}>{values[stage.id]?.line}</p>
+              {values[stage.id]?.raw ? <RawLine raw={values[stage.id]?.raw ?? null} /> : null}
+            </Fold>
             <button
               type="button"
               className={styles.stageOpen}
@@ -152,53 +162,55 @@ export default function EvidenceMapPage() {
           </li>
         ))}
       </ol>
-      <div className={styles.sealLine}>
-        <span className={styles.sealWord}>{t('main.3-1.sealWord')}</span>
-        <code>sha256 {quality?.seal?.packageHash ? shortHash(quality.seal.packageHash) : '…'}</code>
-        <code className={styles.sealMeta}>{runId}</code>
-        {quality?.seal?.capturedAt ? (
-          <span className={styles.sealTime}>
-            {utcTime(quality.seal.capturedAt)} {t('main.utc')}
-          </span>
+      <Fold name="stage-seal" summary={t('main.3-1.sealFold')}>
+        <div className={styles.sealLine}>
+          <span className={styles.sealWord}>{t('main.3-1.sealWord')}</span>
+          <code>sha256 {quality?.seal?.packageHash ? shortHash(quality.seal.packageHash) : '…'}</code>
+          <code className={styles.sealMeta}>{runId}</code>
+          {quality?.seal?.capturedAt ? (
+            <span className={styles.sealTime}>
+              {utcTime(quality.seal.capturedAt)} {t('main.utc')}
+            </span>
+          ) : null}
+          <button
+            type="button"
+            className={styles.sealDownload}
+            onClick={() => {
+              void downloadRunRecord(runId, 1).then(setHash);
+            }}
+          >
+            {t('main.3-1.download')}
+          </button>
+          {hash ? (
+            <span className={styles.sealTime}>{t('main.3-1.downloaded', { hash: shortHash(hash) })}</span>
+          ) : null}
+        </div>
+        {runId ? (
+          <LedgerChart
+            rows={[
+              {
+                key: 'run',
+                name: t(evidence.own ? 'main.proof.ledger.attack' : 'main.proof.ledger.attackMeasured'),
+                runId,
+              },
+              ...(stack && stackCase
+                ? [
+                    {
+                      key: 'stack',
+                      name: t('main.proof.ledger.stack', { name: personName(t, stackCase.employee) }),
+                      runId: stack,
+                    },
+                  ]
+                : []),
+            ]}
+          />
         ) : null}
-        <button
-          type="button"
-          className={styles.sealDownload}
-          onClick={() => {
-            void downloadRunRecord(runId, 1).then(setHash);
-          }}
-        >
-          {t('main.3-1.download')}
-        </button>
-        {hash ? (
-          <span className={styles.sealTime}>{t('main.3-1.downloaded', { hash: shortHash(hash) })}</span>
-        ) : null}
-      </div>
-      {runId ? (
-        <LedgerChart
-          rows={[
-            {
-              key: 'run',
-              name: t(evidence.own ? 'main.proof.ledger.attack' : 'main.proof.ledger.attackMeasured'),
-              runId,
-            },
-            ...(stack && stackCase
-              ? [
-                  {
-                    key: 'stack',
-                    name: t('main.proof.ledger.stack', { name: personName(t, stackCase.employee) }),
-                    runId: stack,
-                  },
-                ]
-              : []),
-          ]}
+        <SourceBadge
+          kind={evidence.own ? 'run' : 'repeated'}
+          label={t(evidence.own ? 'badge.run' : 'main.evidence.measured')}
+          runId={runId}
         />
-      ) : null}
-      <SourceBadge
-        kind={evidence.own ? 'run' : 'repeated'}
-        label={t(evidence.own ? 'badge.run' : 'main.evidence.measured')}
-        runId={runId}
-      />
+      </Fold>
     </MainScreen>
   );
 }

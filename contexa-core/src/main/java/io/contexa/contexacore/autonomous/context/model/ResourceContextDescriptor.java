@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.autonomous.context.model;
 
+import io.contexa.contexacommon.annotation.ResourceImportance;
+
 import java.util.List;
 
 /**
@@ -24,6 +26,8 @@ import java.util.List;
  * @param resourceCategory the business category (W2-11); never a sensitivity grade
  * @param privileged       whether the resource is privileged; null when the host did not state it
  * @param exportSensitive  whether the resource exports sensitive data; null when the host did not state it
+ * @param importance       whether the host declares the resource sensitive or not (RL-14); {@code UNSPECIFIED} when it
+ *                         did not
  */
 public record ResourceContextDescriptor(
         String resourceId,
@@ -34,11 +38,28 @@ public record ResourceContextDescriptor(
         List<String> allowedRoleFamilies,
         List<String> allowedActionFamilies,
         Boolean privileged,
-        Boolean exportSensitive) {
+        Boolean exportSensitive,
+        ResourceImportance importance) {
 
     public ResourceContextDescriptor {
         allowedRoleFamilies = allowedRoleFamilies == null ? List.of() : List.copyOf(allowedRoleFamilies);
         allowedActionFamilies = allowedActionFamilies == null ? List.of() : List.copyOf(allowedActionFamilies);
+        importance = importance == null ? ResourceImportance.UNSPECIFIED : importance;
+    }
+
+    /** A descriptor that states no importance, as registries built it before RL-14. */
+    public ResourceContextDescriptor(
+            String resourceId,
+            String resourceType,
+            String businessLabel,
+            String resourceCategory,
+            String sensitivity,
+            List<String> allowedRoleFamilies,
+            List<String> allowedActionFamilies,
+            Boolean privileged,
+            Boolean exportSensitive) {
+        this(resourceId, resourceType, businessLabel, resourceCategory, sensitivity, allowedRoleFamilies,
+                allowedActionFamilies, privileged, exportSensitive, ResourceImportance.UNSPECIFIED);
     }
 
     /** A descriptor that states both flags and no category, as registries built it before W2-11. */

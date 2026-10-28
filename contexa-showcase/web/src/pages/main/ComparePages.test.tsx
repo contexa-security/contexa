@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RecapLine } from '../../api/journey';
 import i18n from '../../i18n';
+import { rememberTrack } from '../../journey/trackMemory';
 import ChangePage from './ChangePage';
 import DiffPage from './DiffPage';
 import RuleSwitchPage from './RuleSwitchPage';
@@ -102,6 +103,28 @@ const BENCHMARK = {
   suites: [{ suite: 'RULE_BLIND', cases: ['S13', 'S13T', 'S16'] }],
 };
 
+/** One approach's score in the repeated runs, with what 7-3's title reads: the attacks nothing stopped, the normal work stopped. */
+function score(control: string, missed: number, falseBlocks: number) {
+  const rate = (hits: number, total: number) => ({ hits, total, rate: hits / total, low: 0, high: 1, preliminary: false });
+  return {
+    control,
+    stopped: rate(0, 23),
+    stoppedAny: rate(23 - missed, 23),
+    stoppedMacro: null,
+    stoppedAnyMacro: null,
+    falseBlock: rate(falseBlocks, 19),
+    friction: rate(0, 19),
+    falseBlockMacro: null,
+    attackUnresolved: 0,
+    normalUnresolved: 0,
+    exposedItems: 0,
+    partlyStopped: 0,
+    missed,
+    normalPassed: 19 - falseBlocks,
+    notBlocked: rate(19 - falseBlocks, 19),
+  };
+}
+
 /** The two designed cases of 4-3 as the lab lists them: the same request, only the device apart. */
 function labCase(key: string, device: 'NEW' | 'USUAL') {
   return {
@@ -127,10 +150,18 @@ const OPTIONS = {
 };
 
 let predictions: readonly unknown[] = [];
+/** The runs the journey lists for the visitor, and the agent cases the portal opens (null: it lists none). */
+let visitorRuns: readonly RecapLine[] = [];
+let benchmarkBody: unknown = BENCHMARK;
+let agentCases: readonly unknown[] | null = null;
 
 beforeEach(async () => {
   await i18n.changeLanguage('ko');
   predictions = [];
+  visitorRuns = [...RUNS, AFTER];
+  benchmarkBody = BENCHMARK;
+  agentCases = null;
+  window.sessionStorage.clear();
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) => {
@@ -138,10 +169,11 @@ beforeEach(async () => {
         '/api/visitor': { predictions: {} },
         '/api/journey': {
           state: { route: 'DEFAULT', act: 7, step: 'compare', differences: [] },
-          runs: [...RUNS, AFTER],
+          runs: visitorRuns,
           predictions,
         },
-        '/api/benchmark': BENCHMARK,
+        '/api/benchmark': benchmarkBody,
+        ...(agentCases ? { '/api/live/config': { agentCases } } : {}),
         '/api/lab/options': OPTIONS,
         '/api/live/runs/current': LIVE,
         '/api/runs/run-s13t/steps/1/input-changes?against=run-s13': [
@@ -213,6 +245,17 @@ describe('7-1, the fixed rule turned on', () => {
 });
 
 describe('7-2, one condition changed', () => {
+  // 구현계획 AC-N9: before the first send the five waiting lanes, which name the approaches that will answer, sit under one line.
+  it('keeps the five waiting lanes under one line before anything was sent', async () => {
+    visitorRuns = [];
+    const { container } = open(<ChangePage />, '/compare/change');
+    expect(await screen.findByText(i18n.t('main.7-2.notSent'))).toBeInTheDocument();
+    const fold = container.querySelector('details[data-fold="change-lanes"]') as HTMLDetailsElement | null;
+    expect(fold).not.toBeNull();
+    expect(fold?.open).toBe(false);
+    expect(fold?.querySelectorAll('li[data-control]')).toHaveLength(5);
+  });
+
   it('names every approach of the run after by what it did, marked as having no set answer (V-05, V-06)', async () => {
     open(<ChangePage />, '/compare/change?change=time&sent=live-1');
     expect(await screen.findByText(i18n.t('main.7-2.unscored'))).toBeInTheDocument();
@@ -244,6 +287,21 @@ describe('7-2, one condition changed', () => {
 });
 
 describe('7-3, every repeated run', () => {
+  // 구현계획 NW-13: the title states what the repeated runs measured, and claims both only when the numbers say both.
+  it('states the counts of the measurement as its title when Contexa missed an attack', async () => {
+    benchmarkBody = { ...BENCHMARK, controls: [score('D', 2, 0), score('C1', 10, 8)] };
+    open(<RunsPage />);
+    expect(
+      await screen.findByRole('heading', { level: 1, name: i18n.t('main.7-3.titleCounts', { missed: 2, falseBlock: 0 }) }),
+    ).toBeInTheDocument();
+  });
+
+  it('says Contexa keeps both only when it missed none and blocked none while the fixed rule gave one up', async () => {
+    benchmarkBody = { ...BENCHMARK, controls: [score('D', 0, 0), score('C1', 10, 8)] };
+    open(<RunsPage />);
+    expect(await screen.findByRole('heading', { level: 1, name: i18n.t('main.7-3.title') })).toBeInTheDocument();
+  });
+
   it('names the disputed runs that have no dot beside the count of runs, and no measurement id (V-11, V-48)', async () => {
     open(<RunsPage />);
     expect(
@@ -268,5 +326,83 @@ describe('8-1, what you confirmed', () => {
     expect(
       await screen.findByText(i18n.t('main.8-1.insider.PARTLY_STOPPED', { n: '2', count: 2 })),
     ).toBeInTheDocument();
+  });
+
+  // 구현계획 NW-11: the wrap-up has no lane of its own to go back in; it leads back to the next-chooser the visitor came from.
+  it("leads back to the next-chooser of the track the visitor was on, the agent's or the person's", async () => {
+    rememberTrack('A');
+    const agent = open(<SummaryPage />);
+    expect(await screen.findByRole('link', { name: i18n.t('frame.back') })).toHaveAttribute('href', '/agent/next');
+    agent.unmount();
+    rememberTrack('H');
+    open(<SummaryPage />);
+    expect(await screen.findByRole('link', { name: i18n.t('frame.back') })).toHaveAttribute('href', '/person/next');
+  });
+
+  it('leads back to the start when the visitor stood on no track', async () => {
+    open(<SummaryPage />);
+    expect(await screen.findByRole('link', { name: i18n.t('frame.back') })).toHaveAttribute('href', '/');
+  });
+
+  it('names the screen to go back to by its name, never by its number', async () => {
+    open(<SummaryPage />);
+    const back = await screen.findAllByRole('link', { name: /다시 보기$/ });
+    expect(back.map((link) => link.textContent)).toEqual([
+      i18n.t('main.8-1.back', { screen: i18n.t('main.2-2.name') }),
+      i18n.t('main.8-1.back', { screen: i18n.t('main.7-3.name') }),
+      i18n.t('main.8-1.back', { screen: i18n.t('main.3-1.name') }),
+    ]);
+    expect(back.every((link) => !/\d-\d/.test(link.textContent ?? ''))).toBe(true);
+  });
+
+  // 구현계획 NW-11: a visitor who tried only the agent's track still sees what Contexa let out of the agent's requests.
+  describe("a visitor who tried only the agent's track", () => {
+    const AGENT_RUN = {
+      ...run('T5', 'BLOCK', 0, { A: 'MISSED', B: 'MISSED', C1: 'MISSED', C2: 'MISSED', D: 'STOPPED' }),
+      runId: 'run-t5',
+    };
+
+    it("fills the first card from the agent's own run and leads back to the agent's console", async () => {
+      visitorRuns = [AGENT_RUN];
+      open(<SummaryPage />);
+      expect(await screen.findByText(i18n.t('main.8-1.request.agentLine'))).toBeInTheDocument();
+      expect(screen.queryByText(i18n.t('main.8-1.request.none'))).toBeNull();
+      expect(screen.getByText(i18n.t('main.8-1.request.title'))).toBeInTheDocument();
+      const back = screen.getAllByRole('link', { name: /다시 보기$/ })[0];
+      expect(back).toHaveAttribute('href', '/agent/console');
+      expect(back).toHaveTextContent(i18n.t('main.6-2.name'));
+    });
+
+    it('says what the agent let out when data left, in the words of the agent', async () => {
+      visitorRuns = [{ ...AGENT_RUN, engineAction: 'ALLOW', exposedItems: 12 }];
+      open(<SummaryPage />);
+      expect(await screen.findByText(i18n.t('main.8-1.request.agentTitlePlain'))).toBeInTheDocument();
+      expect(screen.queryByText(i18n.t('main.8-1.request.titlePlain'))).toBeNull();
+    });
+
+    it("counts a threatening case chosen in the agent's chooser, not only the main case", async () => {
+      agentCases = [{ key: 'M10A', title: { ko: '회사 기록에 없는 위임' }, classification: 'THREAT', subject: 'AGENT' }];
+      visitorRuns = [{ ...AGENT_RUN, scenarioKey: 'M10A', runId: 'run-m10a' }];
+      open(<SummaryPage />);
+      expect(await screen.findByText(i18n.t('main.8-1.request.agentLine'))).toBeInTheDocument();
+    });
+
+    it('leaves the first card empty after a normal work case, which has no attack to count', async () => {
+      agentCases = [{ key: 'N1', title: { ko: '주간 보고서' }, classification: 'NORMAL', subject: 'AGENT' }];
+      visitorRuns = [{ ...run('N1', 'ALLOW', 12, { A: 'PASSED', B: 'PASSED', C1: 'PASSED', C2: 'PASSED', D: 'PASSED' }), classification: 'NORMAL' }];
+      open(<SummaryPage />);
+      expect(await screen.findByText(i18n.t('main.8-1.request.none'))).toBeInTheDocument();
+      expect(screen.queryByText(i18n.t('main.8-1.request.agentLine'))).toBeNull();
+    });
+  });
+
+  it("keeps the person's attack for the first card when the visitor tried both tracks", async () => {
+    visitorRuns = [
+      ...RUNS,
+      { ...run('T5', 'BLOCK', 0, { A: 'MISSED', B: 'MISSED', C1: 'MISSED', C2: 'MISSED', D: 'STOPPED' }), runId: 'run-t5' },
+    ];
+    open(<SummaryPage />);
+    expect(await screen.findByText(i18n.t('main.8-1.request.line', { legacy: '-' }), { exact: false })).toBeInTheDocument();
+    expect(screen.queryByText(i18n.t('main.8-1.request.agentLine'))).toBeNull();
   });
 });

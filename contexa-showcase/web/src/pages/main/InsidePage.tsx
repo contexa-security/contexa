@@ -5,6 +5,7 @@ import { useBenchmark, type BenchmarkCase } from '../../api/benchmark';
 import { useStepResult } from '../../api/lab';
 import { useRunFacts, useRunQuality } from '../../api/promptQuality';
 import { useRunScore } from '../../api/queries';
+import { Fold } from '../../components/main/Fold';
 import { Chip } from '../../components/main/Chip';
 import { MainLink, MainScreen } from '../../components/main/MainScreen';
 import { SourceBadge } from '../../components/main/SourceBadge';
@@ -128,7 +129,7 @@ export default function InsidePage() {
     <MainScreen title={t('main.5-3.title')} intro={intro}>
       {decided.length > 1 ? (
         <fieldset className={styles.picker}>
-          <legend className={styles.pickerLegend}>{t('main.5-3.pick')}</legend>
+          <legend className={`${styles.pickerLegend} visually-hidden`}>{t('main.5-3.pick')}</legend>
           {decided.map((step) => {
             const chip = verdictChip({ finalAction: step.action, unresolved: false });
             return (
@@ -155,72 +156,80 @@ export default function InsidePage() {
           })}
         </fieldset>
       ) : null}
-      <VerdictHero recorded={recorded} />
-      {leftBefore ? <p className={styles.note}>{t('main.5-3.after', { n: left, count: left })}</p> : null}
-      {/*
-       * B-13: two columns of about the same height, the explanations and the existing security's results beside the
-       * chain from the facts to the verdict, then the measured table over the whole width.
-       */}
-      <div className={evidenceStyles.verdict}>
-        <div className={evidenceStyles.column}>
-          <Hypotheses hypotheses={quality?.hypotheses ?? []} facts={facts} />
-          <section className={styles.card} aria-labelledby="inside-rules">
-            <h2 id="inside-rules" className={styles.cardTitle}>
-              {t('main.5-3.rules')}
-            </h2>
-            {EXISTING.map((control) => {
-              const chip = resultChip(results?.[control]);
-              return (
-                <div key={control} className={styles.grid2}>
-                  <b className={styles.rowName}>{t(`main.lane.${control}`)}</b>
-                  <span className={styles.chips}>
-                    <Chip kind={chip.kind}>{t(chip.key)}</Chip>
-                  </span>
-                </div>
-              );
-            })}
-          </section>
-        </div>
-        <ReasonChain codes={quality?.reasonCodes ?? []} facts={facts} action={action} />
-      </div>
-      <section className={styles.card} aria-labelledby="inside-table">
-        <h2 id="inside-table" className={styles.cardTitle}>
-          {t('main.5-3.table')}
-        </h2>
-        <div className={styles.grid3} data-head>
-          <span />
-          <span>{t('main.5-3.attack')}</span>
-          <span>{t('main.5-3.normal')}</span>
-        </div>
-        {COMPARED.map((control) => (
-          <div key={control} className={styles.grid3} data-contexa={control === 'D' || undefined}>
-            <b className={styles.rowName}>{t(`main.lane.${control}`)}</b>
-            <span className={styles.chips}>
-              {measuredChips(t, attack, control).map((chip) => (
-                <Chip key={chip.result} kind={chip.kind}>
-                  {chip.label}
-                </Chip>
-              ))}
-            </span>
-            <span className={styles.chips}>
-              {measuredChips(t, normal, control).map((chip) => (
-                <Chip key={chip.result} kind={chip.kind}>
-                  {chip.label}
-                </Chip>
-              ))}
-            </span>
+      <VerdictHero recorded={recorded} compact />
+      {leftBefore ? (
+        <Fold name="after-note" summary={t('main.5-3.after', { n: left, count: left })}>
+          <p className={styles.note}>{t('main.5-3.afterWhy')}</p>
+        </Fold>
+      ) : null}
+      {/* NW-8 (R-N2): what the AI weighed stays in view, the title's own question; the chain from the facts to the verdict, the
+          four existing approaches' answers and the measured table fold under one line. */}
+      <Hypotheses hypotheses={quality?.hypotheses ?? []} facts={facts} compact />
+      <Fold name="inside" summary={t('main.5-3.fold')}>
+        {/*
+         * B-13: the existing security's results beside the chain from the facts to the verdict, then the measured table
+         * over the whole width.
+         */}
+        <div className={evidenceStyles.verdict}>
+          <div className={evidenceStyles.column}>
+            <section className={styles.card} aria-labelledby="inside-rules">
+              <h2 id="inside-rules" className={styles.cardTitle}>
+                {t('main.5-3.rules')}
+              </h2>
+              {EXISTING.map((control) => {
+                const chip = resultChip(results?.[control]);
+                return (
+                  <div key={control} className={styles.grid2}>
+                    <b className={styles.rowName}>{t(`main.lane.${control}`)}</b>
+                    <span className={styles.chips}>
+                      <Chip kind={chip.kind}>{t(chip.key)}</Chip>
+                    </span>
+                  </div>
+                );
+              })}
+            </section>
           </div>
-        ))}
-        <SourceBadge
-          kind="repeated"
-          label={t('main.5-3.measured', {
-            runs: attack?.runs ?? 0,
-            count: attack?.runs ?? 0,
-            at: measuredAt ? utcTime(measuredAt).slice(0, 10) : '-',
-          })}
-        />
-      </section>
-      <p className={styles.note}>{note ? `${t('main.4-3.c2Note')} ${t(note)}` : t('main.4-3.c2Note')}</p>
+          <ReasonChain codes={quality?.reasonCodes ?? []} facts={facts} action={action} />
+        </div>
+        <section className={styles.card} aria-labelledby="inside-table">
+          <h2 id="inside-table" className={styles.cardTitle}>
+            {t('main.5-3.table')}
+          </h2>
+          <div className={styles.grid3} data-head>
+            <span />
+            <span>{t('main.5-3.attack')}</span>
+            <span>{t('main.5-3.normal')}</span>
+          </div>
+          {COMPARED.map((control) => (
+            <div key={control} className={styles.grid3} data-contexa={control === 'D' || undefined}>
+              <b className={styles.rowName}>{t(`main.lane.${control}`)}</b>
+              <span className={styles.chips}>
+                {measuredChips(t, attack, control).map((chip) => (
+                  <Chip key={chip.result} kind={chip.kind}>
+                    {chip.label}
+                  </Chip>
+                ))}
+              </span>
+              <span className={styles.chips}>
+                {measuredChips(t, normal, control).map((chip) => (
+                  <Chip key={chip.result} kind={chip.kind}>
+                    {chip.label}
+                  </Chip>
+                ))}
+              </span>
+            </div>
+          ))}
+          <SourceBadge
+            kind="repeated"
+            label={t('main.5-3.measured', {
+              runs: attack?.runs ?? 0,
+              count: attack?.runs ?? 0,
+              at: measuredAt ? utcTime(measuredAt).slice(0, 10) : '-',
+            })}
+          />
+        </section>
+        <p className={styles.note}>{note ? `${t('main.4-3.c2Note')} ${t(note)}` : t('main.4-3.c2Note')}</p>
+      </Fold>
       <div className={styles.badges}>
         <SourceBadge
           kind={evidence.own ? 'run' : 'repeated'}

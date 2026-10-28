@@ -22,10 +22,12 @@ public class UsageLedger {
      * @param promptSha256     hash of the normalised prompt (PromptFingerprint), for the isolation checks
      * @param promptPrincipals run principals the prompt mentions
      * @param systemPromptSha256 hash of the system message as sent; the execution specification's prompt hash
+     * @param cachedPromptTokens the prompt tokens the provider served from its prompt cache (docs/agent Agent중심-화면
+     *                           AC-8); null when the provider reports none, which is not zero
      */
     public record ModelCall(String kind, String model, long promptTokens, long completionTokens, long totalTokens,
                             long elapsedMs, boolean success, Instant finishedAt, String promptSha256,
-                            Set<String> promptPrincipals, String systemPromptSha256) {
+                            Set<String> promptPrincipals, String systemPromptSha256, Long cachedPromptTokens) {
     }
 
     public record Unattributed(long chatCalls, long chatTokens, long embeddingCalls, long embeddingTokens) {

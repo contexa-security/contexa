@@ -388,8 +388,48 @@ export interface LiveScenario {
   readonly classification: string;
 }
 
+/** An agent case the portal's settings open to run live (docs/agent Agent중심-화면 AS-6); its subject is AGENT. */
+export interface LiveAgentCase extends LiveScenario {
+  readonly subject: 'AGENT';
+}
+
+/** The one agent case whose delegation a visitor may edit, and the values the portal takes (AS-12). */
+export interface DelegationEdit {
+  readonly case: string;
+  readonly title: Localized;
+  readonly quantities: readonly number[];
+  readonly periods: readonly string[];
+  readonly operations: readonly string[];
+}
+
+/** The burst a visitor may send live (docs/agent Agent중심-화면 AS-13): the case, the most requests live, the measured size. */
+export interface LiveBurst {
+  readonly case: string;
+  readonly title: Localized;
+  /** The most requests a visitor may send at once, live. */
+  readonly most: number;
+  /** The requests of the stored measurement of the case. */
+  readonly measured: number;
+  /** The points one live burst costs. */
+  readonly points: number;
+}
+
 export interface LiveConfig {
   readonly scenarios: readonly LiveScenario[];
+  /** The burst a visitor may send live; absent when the portal offers none. */
+  readonly burst?: LiveBurst;
+  /** The case whose delegation a visitor may edit and the values to choose from; absent when the portal offers none. */
+  readonly delegationEdit?: DelegationEdit;
+  /** The agent cases open to run live; absent from a portal that does not list them. */
+  readonly agentCases?: readonly LiveAgentCase[];
+  /** The points an agent run costs, the agent runs a visitor may start a day and the ones left today (AC-2). */
+  readonly agentRunPoints?: number;
+  readonly dailyAgentRuns?: number;
+  readonly remainingAgentToday?: number;
+  /** The day's share of real agent runs for every visitor together, and the agent runs at once and their cap (AC-6). */
+  readonly liveTicketsLeft?: number;
+  readonly agentConcurrent?: number;
+  readonly agentRunsActive?: number;
   /** Present only when the human check is on. */
   readonly turnstileSiteKey: string | null;
   readonly dailyRuns: number;

@@ -32,7 +32,7 @@ export const ONE_CHANGE: readonly ConditionKey[] = ['timeSlot', 'place', 'device
  * along the walk the screen is. The rule tightening is a screen of its own beside the walk, so it has no place in it.
  */
 export const LAB_WALK = ['entrance', 'case', 'change', 'before', 'send', 'result'] as const;
-export type LabStep = (typeof LAB_WALK)[number] | 'rules';
+export type LabStep = (typeof LAB_WALK)[number] | 'rules' | 'agent';
 
 /** How far along the walk a step is (0-100), for the top bar's thin bar; none for the rule tightening. */
 export function walkProgress(step: LabStep): number | null {

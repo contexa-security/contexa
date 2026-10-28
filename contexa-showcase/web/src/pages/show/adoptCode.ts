@@ -6,8 +6,8 @@
 export interface CodeExcerpt {
   readonly path: string;
   readonly lines: readonly string[];
-  /** Index of the line to highlight. */
-  readonly highlight: number;
+  /** Indexes of the lines to highlight (an annotation may run over two lines). */
+  readonly highlight: readonly number[];
 }
 
 export const ADOPT_CODE: readonly CodeExcerpt[] = [
@@ -19,16 +19,17 @@ export const ADOPT_CODE: readonly CodeExcerpt[] = [
       '@EnableShowcaseBusiness',
       'public class ContexaWorkloadApplication {',
     ],
-    highlight: 0,
+    highlight: [0],
   },
   {
     path: 'showcase-workload-contexa/src/main/java/io/contexa/showcase/workload/contexa/business/ContexaBusinessOperations.java',
     lines: [
-      '    @Protectable(category = DOCUMENTS, actions = "EXPORT", exportSensitive = true)',
+      '    @Protectable(category = DOCUMENTS, actions = "EXPORT", exportSensitive = true,',
+      '            importance = ResourceImportance.SENSITIVE)',
       '    public ExportStream openExportStream(BusinessRequest request, String projectKey, int items) {',
       '        return delegate.openExportStream(request, projectKey, items);',
       '    }',
     ],
-    highlight: 0,
+    highlight: [0, 1],
   },
 ];

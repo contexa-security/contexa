@@ -73,7 +73,7 @@ export default function WherePage() {
                 <span
                   key={index}
                   className={styles.line}
-                  data-highlight={index === excerpt.highlight || undefined}
+                  data-highlight={excerpt.highlight.includes(index) || undefined}
                 >
                   {line}
                   {'\n'}

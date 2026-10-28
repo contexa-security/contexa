@@ -108,6 +108,34 @@ const CONSOLES = {
   '5-2': /\/insider\/console/,
 } as const;
 
+/**
+ * Waits on a console until its main button names the way on. The owner and the insider hold the account's mailbox, so
+ * an extra check the AI asks for waits for them: it is answered here from the demo inbox, as a visitor would, whichever
+ * way the AI decides (the judgment of a live request is the model's, not fixed).
+ */
+async function judgmentIn(page: Page, m: Dictionary, number: keyof typeof CONSOLES, timeout: number) {
+  const words = new RegExp(m[`main.${number}.cta`] ?? '');
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    const label =
+      (await mainButton(page)
+        .textContent()
+        .catch(() => '')) ?? '';
+    if (words.test(label)) {
+      return;
+    }
+    const useCode = page.getByRole('button', { name: m['try.challenge.useCode'] ?? '', exact: true });
+    const requestCode = page.getByRole('button', { name: m['try.challenge.requestCode'] ?? '', exact: true });
+    if (number !== '2-2' && (await useCode.isVisible().catch(() => false))) {
+      await useCode.click();
+    } else if (number !== '2-2' && (await requestCode.isVisible().catch(() => false))) {
+      await requestCode.click();
+    }
+    await page.waitForTimeout(1_000);
+  }
+  await expect(mainButton(page)).toHaveText(words, { timeout: 1_000 });
+}
+
 /** Sends a request from 2-1, 4-1 or 5-1 with a call picked, and waits on the console for the judgment. */
 async function send(
   page: Page,
@@ -119,7 +147,7 @@ async function send(
   await page.getByText(m[`main.request.call.${call}`] ?? '', { exact: true }).click();
   await mainButton(page).click();
   await page.waitForURL(CONSOLES[number]);
-  await expect(mainButton(page)).toHaveText(new RegExp(m[`main.${number}.cta`] ?? ''), { timeout });
+  await judgmentIn(page, m, number, timeout);
   // The console reads the run's own records once the portal stored the run.
   await expect
     .poll(async () => (await api<{ status: string }>(page, '/api/live/runs/current')).status, {
@@ -199,8 +227,6 @@ for (const language of ['ko', 'en'] as const) {
     const stats = await api<{ runs: { today: number }; engineDecisions: number }>(page, '/api/stats');
     await expect(page.locator('[data-zone="top"]')).toContainText(count(stats.engineDecisions, language));
     await checkScreen(page, '1-1');
-    await mainButton(page).click();
-    await page.waitForURL(/\/intro\/map/);
     const benchmark = await api<{
       scope: { runs: number; attackRuns: number; normalRuns: number };
       cases: readonly {
@@ -213,31 +239,17 @@ for (const language of ['ko', 'en'] as const) {
       }[];
       controls: readonly { control: string; missed: number; falseBlock: { hits: number; total: number } }[];
     }>(page, '/api/benchmark');
-    // The badges of the two themes' cases (IN-6): the stolen account and the insider.
-    for (const key of ['S13', 'S16']) {
-      const measured = benchmark.cases.find((found) => found.key === key);
-      if (measured?.cells.D) {
-        await expect(page.locator('main')).toContainText(
-          format(m['main.1-2.badge.measured'] ?? '', {
-            right: measured.cells.D.right,
-            counted: measured.cells.D.counted,
-          }),
-        );
-      }
-    }
-    await expect(page.getByRole('region', { name: m['theme.outside.name'] ?? '' })).toBeVisible();
-    await expect(page.getByRole('region', { name: m['theme.inside.name'] ?? '' })).toBeVisible();
-    await expect(page.locator('main')).toContainText(
-      format(m['main.1-2.badge.runs'] ?? '', { runs: benchmark.scope.runs }),
-    );
-    await checkScreen(page, '1-2');
-
-    // 2-0 and 2-1: the cover, then the request as the case defines it and the request line the engine received.
-    await mainButton(page).click();
-    await page.waitForURL(/\/attack$/);
-    await expect(page.locator('main h1')).toHaveText(m['cover.2.question'] ?? '');
-    await checkScreen(page, '2-0');
-    await mainButton(page).click();
+    // 1-1 to 2-1: the landing's one way into the demo, the two requests to choose from, the three persons, the request.
+    await page.getByRole('link', { name: m['main.1-1.cta'] ?? '' }).click();
+    await page.waitForURL(/\/choose$/);
+    await expect(page.locator('main h1')).toHaveText(m['main.C-1.title'] ?? '');
+    await checkScreen(page, 'C-1');
+    await page.locator('a[data-choice="person"]').click();
+    await page.waitForURL(/\/person$/);
+    await expect(page.locator('main h1')).toHaveText(m['main.H-1.title'] ?? '');
+    await checkScreen(page, 'H-1');
+    await page.locator('a[data-choice="attack"]').click();
+    // 2-1: the request as the case defines it and the request line the engine received.
     await page.waitForURL(/\/attack\/request/);
     const before = await api<{ comparison: { runId: string } | null }>(page, '/api/live/before/S13?step=1');
     if (before.comparison) {
@@ -268,21 +280,117 @@ for (const language of ['ko', 'en'] as const) {
     if (['ESCALATE', 'BLOCK', 'CHALLENGE'].includes(attackAction)) {
       await expect(page.locator('main h1')).toHaveText(m[`main.2-3.title.${attackAction}`] ?? '');
     }
-    if (received.sizeRatio) {
-      await expect(page.locator('main')).toContainText(
-        format(m['main.2-3.size.line'] ?? '', { times: count(received.sizeRatio.times, language) }),
-      );
-    }
     await expect(page.locator('[data-guide]')).toContainText(
       format(m['main.2-3.intro'] ?? '', { n: received.departureCount }),
     );
     await checkScreen(page, '2-3');
 
-    // 3-0 to 3-3: the run laid open, every value its stored record.
+    // 2-4: the reasons, the size ratio of the run, then the next-chooser.
     await mainButton(page).click();
-    await page.waitForURL(/\/evidence$/);
-    await checkScreen(page, '3-0');
+    await page.waitForURL(/\/attack\/reason/);
+    await expect(page.locator('main h1')).toHaveText(m['main.2-4.title'] ?? '');
+    if (received.sizeRatio) {
+      await expect(page.locator('main')).toContainText(
+        format(m['main.2-3.size.line'] ?? '', { times: count(received.sizeRatio.times, language) }),
+      );
+    }
+    await checkScreen(page, '2-4');
     await mainButton(page).click();
+    await page.waitForURL(/\/person\/next/);
+    await expect(page.locator('main h1')).toHaveText(m['main.H-6.title'] ?? '');
+    await checkScreen(page, 'H-6');
+    await page.locator('a[data-choice="opposite"]').click();
+
+    // 4-1 to 4-3: the real user's request, then the one line apart from the server's comparison of the two runs.
+    await page.waitForURL(/\/normal\/request/);
+    await checkScreen(page, '4-1');
+    await send(page, m, 'ALLOW', '4-2');
+    const normal = await api<{ runId: string }>(page, '/api/live/runs/current');
+    await consoleMatches(page, m, language, normal.runId);
+    await checkScreen(page, '4-2');
+    await mainButton(page).click();
+    await page.waitForURL(/\/normal\/diff/);
+    const changes = await api<readonly { key: string; before: string | null; now: string | null }[]>(
+      page,
+      `/api/runs/${normal.runId}/steps/1/input-changes?against=${attack.runId}`,
+    );
+    // One changed engine input is named (V-34), as the screen does.
+    const [onlyChange] = changes;
+    await expect(page.locator('[data-guide]')).toContainText(
+      changes.length === 1 && onlyChange
+        ? format(m['main.4-3.intro.one'] ?? '', {
+            name: onlyChange.key.startsWith('dim.') ? (m[onlyChange.key] ?? onlyChange.key) : onlyChange.key,
+          })
+        : format(m['main.4-3.intro'] ?? '', { n: changes.length }),
+    );
+    // The two cases are defined alike but for the device (IN-6), so the headline names that row.
+    await expect(page.locator('main h1')).toHaveText(
+      format(m['main.4-3.title.one'] ?? '', { row: m['main.request.row.place'] ?? '' }),
+    );
+    for (const change of changes) {
+      await expect.soft(page.locator('main')).toContainText(inputLine(m, change.key, change.before));
+      await expect.soft(page.locator('main')).toContainText(inputLine(m, change.key, change.now));
+    }
+    await checkScreen(page, '4-3');
+
+    // 4-3 leads to the next-chooser of the person's track; its way back is the chooser of the persons.
+    await mainButton(page).click();
+    await page.waitForURL(/\/person\/next/);
+    await page.locator('[data-zone="actions"] a:not([data-main])').click();
+    await page.waitForURL(/\/person$/);
+    await page.locator('a[data-choice="insider"]').click();
+
+    // 5-1 to 5-3 (IN-6): the insider's documents sent live, one row per document, then what the AI weighed.
+    await page.waitForURL(/\/insider\/request/);
+    await checkScreen(page, '5-1');
+    // The insider's three documents go a minute apart.
+    await send(page, m, 'BLOCK', '5-2', 2 * RUN_TIMEOUT);
+    const insider = await api<{ runId: string }>(page, '/api/live/runs/current');
+    await expect(page.locator('li[data-step]')).toHaveCount(3);
+    await checkScreen(page, '5-2');
+    await mainButton(page).click();
+    await page.waitForURL(/\/insider\/reason/);
+    const insiderAnatomy = await api<{ interpretation: { recorded: { finalAction: string | null } } }>(
+      page,
+      `/api/runs/${insider.runId}/steps/1/anatomy`,
+    );
+    const insiderAction = insiderAnatomy.interpretation.recorded.finalAction;
+    if (insiderAction) {
+      await expect(page.locator('main')).toContainText(m[`main.verdict.${insiderAction}`] ?? insiderAction);
+    }
+    const insiderQuality = await api<{ hypotheses?: readonly { id: string }[] }>(
+      page,
+      `/api/runs/${insider.runId}/steps/1/quality`,
+    );
+    if ((insiderQuality.hypotheses ?? []).length > 0) {
+      await expect(page.getByRole('heading', { name: m['main.3-3.hypothesesTitle'] ?? '' })).toBeVisible();
+    }
+    const s16 = benchmark.cases.find((found) => found.key === 'S16');
+    for (const [result, n] of Object.entries(s16?.results.C1 ?? {})) {
+      await expect.soft(page.locator('main')).toContainText(
+        format(
+          m[(s16?.runs ?? 0) === 1 && m['main.5-3.count_one'] ? 'main.5-3.count_one' : 'main.5-3.count'] ??
+            '',
+          {
+            word: m[`main.result.${result}`] ?? result,
+            n,
+            runs: s16?.runs ?? 0,
+          },
+        ),
+      );
+    }
+    await checkScreen(page, '5-3');
+
+    // 5-3 leads to the next-chooser; the deeper hub holds the screens the visitor has not walked.
+    await mainButton(page).click();
+    await page.waitForURL(/\/person\/next/);
+    await page.locator('a[data-choice="deeper"]').click();
+    await page.waitForURL(/\/deeper/);
+    await expect(page.locator('main h1')).toHaveText(m['main.D-1.title'] ?? '');
+    await checkScreen(page, 'D-1');
+
+    // 3-1 to 3-3 (deeper): the run laid open, every value its stored record.
+    await page.locator('a[data-choice="evidence"]').click();
     await page.waitForURL(/\/evidence\/map/);
     const anatomy = await api<{ promptLines: { total: number; system: number; user: number } | null }>(
       page,
@@ -328,46 +436,12 @@ for (const language of ['ko', 'en'] as const) {
       await expect.soft(page.locator('main')).toContainText(code.code);
     }
     await checkScreen(page, '3-3');
-
-    // 4-0 to 4-3: the real user's request, then the one line apart from the server's comparison of the two runs.
     await mainButton(page).click();
-    await page.waitForURL(/\/normal$/);
-    await checkScreen(page, '4-0');
-    await mainButton(page).click();
-    await page.waitForURL(/\/normal\/request/);
-    await checkScreen(page, '4-1');
-    await send(page, m, 'ALLOW', '4-2');
-    const normal = await api<{ runId: string }>(page, '/api/live/runs/current');
-    await consoleMatches(page, m, language, normal.runId);
-    await checkScreen(page, '4-2');
-    await mainButton(page).click();
-    await page.waitForURL(/\/normal\/diff/);
-    const changes = await api<readonly { key: string; before: string | null; now: string | null }[]>(
-      page,
-      `/api/runs/${normal.runId}/steps/1/input-changes?against=${attack.runId}`,
-    );
-    // One changed engine input is named (V-34), as the screen does.
-    const [onlyChange] = changes;
-    await expect(page.locator('[data-guide]')).toContainText(
-      changes.length === 1 && onlyChange
-        ? format(m['main.4-3.intro.one'] ?? '', {
-            name: onlyChange.key.startsWith('dim.') ? (m[onlyChange.key] ?? onlyChange.key) : onlyChange.key,
-          })
-        : format(m['main.4-3.intro'] ?? '', { n: changes.length }),
-    );
-    // The two cases are defined alike but for the device (IN-6), so the headline names that row.
-    await expect(page.locator('main h1')).toHaveText(
-      format(m['main.4-3.title.one'] ?? '', { row: m['main.request.row.place'] ?? '' }),
-    );
-    for (const change of changes) {
-      await expect.soft(page.locator('main')).toContainText(inputLine(m, change.key, change.before));
-      await expect.soft(page.locator('main')).toContainText(inputLine(m, change.key, change.now));
-    }
-    await checkScreen(page, '4-3');
+    await page.waitForURL(/\/deeper/);
 
     // 4-4: the real user checked on the way (FU-3), sent live; every extra check is answered with the demo inbox's
     // code, and each request's resend and the headline are the run's own records.
-    await mainButton(page).click();
+    await page.locator('a[data-choice="suspected"]').click();
     await page.waitForURL(/\/normal\/check/);
     await checkScreen(page, '4-4 before');
     await mainButton(page).click();
@@ -412,92 +486,11 @@ for (const language of ['ko', 'en'] as const) {
       ] ?? '',
     );
     await checkScreen(page, '4-4');
+    await mainButton(page).click();
+    await page.waitForURL(/\/deeper/);
 
-    // 5-0 to 5-3 (IN-6): the insider's documents sent live, one row per document, then what the AI weighed.
-    await mainButton(page).click();
-    await page.waitForURL(/\/insider$/);
-    await expect(page.locator('main h1')).toHaveText(m['cover.5.question'] ?? '');
-    await checkScreen(page, '5-0');
-    await mainButton(page).click();
-    await page.waitForURL(/\/insider\/request/);
-    await checkScreen(page, '5-1');
-    // The insider's three documents go a minute apart.
-    await send(page, m, 'BLOCK', '5-2', 2 * RUN_TIMEOUT);
-    const insider = await api<{ runId: string }>(page, '/api/live/runs/current');
-    await expect(page.locator('li[data-step]')).toHaveCount(3);
-    await checkScreen(page, '5-2');
-    await mainButton(page).click();
-    await page.waitForURL(/\/insider\/reason/);
-    const insiderAnatomy = await api<{ interpretation: { recorded: { finalAction: string | null } } }>(
-      page,
-      `/api/runs/${insider.runId}/steps/1/anatomy`,
-    );
-    const insiderAction = insiderAnatomy.interpretation.recorded.finalAction;
-    if (insiderAction) {
-      await expect(page.locator('main')).toContainText(m[`main.verdict.${insiderAction}`] ?? insiderAction);
-    }
-    const insiderQuality = await api<{ hypotheses?: readonly { id: string }[] }>(
-      page,
-      `/api/runs/${insider.runId}/steps/1/quality`,
-    );
-    if ((insiderQuality.hypotheses ?? []).length > 0) {
-      await expect(page.getByRole('heading', { name: m['main.3-3.hypothesesTitle'] ?? '' })).toBeVisible();
-    }
-    const s16 = benchmark.cases.find((found) => found.key === 'S16');
-    for (const [result, n] of Object.entries(s16?.results.C1 ?? {})) {
-      await expect.soft(page.locator('main')).toContainText(
-        format(m['main.5-3.count'] ?? '', {
-          word: m[`main.result.${result}`] ?? result,
-          n,
-          runs: s16?.runs ?? 0,
-        }),
-      );
-    }
-    await checkScreen(page, '5-3');
-
-    // 6-0 to 6-4 (docs/agent A7-3): the business agent sends its own requests live; control D asks the delegating
-    // employee, whom the visitor answers as, and the agent sends the request again with the confirmation.
-    await mainButton(page).click();
-    await page.waitForURL(/\/agent$/);
-    await expect(page.locator('main h1')).toHaveText(m['cover.6.question'] ?? '');
-    await checkScreen(page, '6-0');
-    await mainButton(page).click();
-    await page.waitForURL(/\/agent\/request/);
-    await expect(page.locator('main')).toContainText(m['main.6-1.source'] ?? '');
-    await checkScreen(page, '6-1');
-    await page.getByText(m['main.6-1.call.BLOCK'] ?? '', { exact: true }).click();
-    await mainButton(page).click();
-    await page.waitForURL(/\/agent\/console/);
-    await expect(mainButton(page)).toHaveText(new RegExp(m['main.6-2.cta'] ?? ''), { timeout: RUN_TIMEOUT });
-    const agentRun = await api<{
-      runId: string;
-      status: string;
-      agentConfirmation?: { stage: string } | null;
-    }>(page, '/api/live/runs/current');
-    await checkScreen(page, '6-2');
-    await mainButton(page).click();
-    await page.waitForURL(/\/agent\/reason/);
-    await checkScreen(page, '6-3');
-    await mainButton(page).click();
-    await page.waitForURL(/\/agent\/confirm/);
-    if (agentRun.agentConfirmation?.stage === 'ASKED') {
-      await page.getByRole('button', { name: m['main.6-4.approve'] ?? '' }).click();
-      await expect(page.locator('main h1')).toHaveText(m['main.6-4.title.approved'] ?? '', {
-        timeout: RUN_TIMEOUT,
-      });
-      const stored = await api<{
-        confirmation: { decision: string; reuse: { httpStatus: number } | null } | null;
-      }>(page, `/api/runs/${agentRun.runId}/agent`);
-      expect(stored.confirmation?.decision).toBe('APPROVE');
-      expect(stored.confirmation?.reuse?.httpStatus).toBe(403);
-    }
-    await checkScreen(page, '6-4');
-
-    // 7-0 to 7-3: the rule switch, one condition changed and sent for real, every run.
-    await mainButton(page).click();
-    await page.waitForURL(/\/compare$/);
-    await checkScreen(page, '7-0');
-    await mainButton(page).click();
+    // 7-1 to 7-3 (deeper): the rule switch, one condition changed and sent for real, every run.
+    await page.locator('a[data-choice="rules"]').click();
     await page.waitForURL(/\/compare\/rule/);
     const visited = await api<{ runs: readonly { scenarioKey: string; business: Record<string, string> }[] }>(
       page,
@@ -566,9 +559,100 @@ for (const language of ['ko', 'en'] as const) {
         );
     }
     await checkScreen(page, '7-3');
+    await mainButton(page).click();
+    await page.waitForURL(/\/deeper/);
+
+    // 1-2 (deeper): the map of what the demo checks, its measured badges from the portal's records.
+    // The map is the fifth deeper screen of the person's list: four stand in view, the rest wait under one line (AC-N5).
+    await page.locator('details[data-fold="choose-more"] summary').click();
+    await page.locator('a[data-choice="map"]').click();
+    await page.waitForURL(/\/intro\/map/);
+    // The badges of the two themes' cases (IN-6): the stolen account and the insider.
+    for (const key of ['S13', 'S16']) {
+      const measured = benchmark.cases.find((found) => found.key === key);
+      if (measured?.cells.D) {
+        await expect(page.locator('main')).toContainText(
+          format(m['main.1-2.badge.measured'] ?? '', {
+            right: measured.cells.D.right,
+            counted: measured.cells.D.counted,
+          }),
+        );
+      }
+    }
+    await expect(page.getByRole('region', { name: m['theme.outside.name'] ?? '' })).toBeVisible();
+    await expect(page.getByRole('region', { name: m['theme.inside.name'] ?? '' })).toBeVisible();
+    await expect(page.locator('main')).toContainText(
+      format(m['main.1-2.badge.runs'] ?? '', { runs: benchmark.scope.runs }),
+    );
+    await checkScreen(page, '1-2');
+    await mainButton(page).click();
+    await page.waitForURL(/\/deeper/);
+    await page.getByRole('link', { name: m['deeper.back'] ?? '', exact: true }).click();
+    await page.waitForURL(/\/person\/next/);
+    await page.locator('a[data-choice="other"]').click();
+    await page.waitForURL(/\/agent$/);
+    await expect(page.locator('main h1')).toHaveText(m['main.A-1.title'] ?? '');
+    await checkScreen(page, 'A-1');
+
+    // 6-1 to 6-7 (docs/agent A7-3): the business agent sends its own requests live; control D asks the delegating
+    // employee, whom the visitor answers as, and the agent sends the request again with the confirmation.
+    await page.locator('a[data-choice="T5"]').click();
+    await page.waitForURL(/\/agent\/request/);
+    await expect(page.locator('main')).toContainText(m['main.6-1.source'] ?? '');
+    await checkScreen(page, '6-1');
+    await page.getByText(m['main.6-1.call.BLOCK'] ?? '', { exact: true }).click();
+    await mainButton(page).click();
+    await page.waitForURL(/\/agent\/console/);
+    await expect(mainButton(page)).toHaveText(new RegExp(m['main.6-2.cta'] ?? ''), { timeout: RUN_TIMEOUT });
+    const agentRun = await api<{
+      runId: string;
+      status: string;
+      agentConfirmation?: { stage: string } | null;
+    }>(page, '/api/live/runs/current');
+    await checkScreen(page, '6-2');
+    await mainButton(page).click();
+    await page.waitForURL(/\/agent\/result/);
+    await checkScreen(page, '6-7');
+    await mainButton(page).click();
+    await page.waitForURL(/\/agent\/reason/);
+    await checkScreen(page, '6-3');
+    await mainButton(page).click();
+    await page.waitForURL(/\/agent\/next/);
+    await expect(page.locator('main h1')).toHaveText(m['main.A-6.title'] ?? '');
+    await checkScreen(page, 'A-6');
+    await page.locator('a[data-choice="deeper"]').click();
+    await page.waitForURL(/\/deeper/);
+    await page.locator('a[data-choice="confirm"]').click();
+    await page.waitForURL(/\/agent\/confirm/);
+    if (agentRun.agentConfirmation?.stage === 'ASKED') {
+      await page.getByRole('button', { name: m['main.6-4.approve'] ?? '' }).click();
+      await expect(page.locator('main h1')).toHaveText(m['main.6-4.title.approved'] ?? '', {
+        timeout: RUN_TIMEOUT,
+      });
+      const stored = await api<{
+        confirmation: { decision: string; reuse: { httpStatus: number } | null } | null;
+      }>(page, `/api/runs/${agentRun.runId}/agent`);
+      expect(stored.confirmation?.decision).toBe('APPROVE');
+      expect(stored.confirmation?.reuse?.httpStatus).toBe(403);
+    }
+    await checkScreen(page, '6-4');
+    await mainButton(page).click();
+    await page.waitForURL(/\/deeper/);
+    await page.locator('a[data-choice="end"]').click();
+    await page.waitForURL(/\/agent\/end/);
+    await checkScreen(page, '6-5');
+    await mainButton(page).click();
+    await page.waitForURL(/\/deeper/);
+    await page.locator('a[data-choice="burst"]').click();
+    await page.waitForURL(/\/agent\/burst/);
+    await checkScreen(page, '6-6');
+    await mainButton(page).click();
+    await page.waitForURL(/\/deeper/);
+    await page.getByRole('link', { name: m['deeper.back'] ?? '', exact: true }).click();
+    await page.waitForURL(/\/agent\/next/);
 
     // 8-1 and 8-2: the three numbers from their records, and the three ways on.
-    await mainButton(page).click();
+    await page.getByRole('link', { name: m['main.A-6.cta'] ?? '' }).click();
     await page.waitForURL(/\/summary$/);
     const contexa = benchmark.controls.find((score) => score.control === 'D');
     if (contexa) {
@@ -597,7 +681,7 @@ for (const language of ['ko', 'en'] as const) {
 
 test('an old address leads to the screen of the new flow that took its place', async ({ page }) => {
   for (const [from, to] of [
-    ['/part/1', '/attack'],
+    ['/part/1', '/attack/request'],
     ['/try/attacker/predict', '/attack/request'],
     ['/try/owner/result', '/normal/diff'],
     ['/try/summary/recap', '/summary'],

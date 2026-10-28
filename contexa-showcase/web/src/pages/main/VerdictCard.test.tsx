@@ -49,4 +49,15 @@ describe('a cited line cut at two lines (B-19)', () => {
     const original = screen.getByText('ASSIGNED_TARGET').closest('[data-original]');
     expect(original).toHaveTextContent(i18n.t('main.verdictCard.codeOriginal'));
   });
+
+  // 구현계획 AC-N6/N9 점검: while the plain words are not loaded yet the original code stands in their place, and
+  // `PAST_RECORD_SAME_TARGET` broke inside a word and left its last letter alone on a line (main-audit, 3-3).
+  it('lets a code that has no plain words yet break only after an underscore', () => {
+    render(
+      <ReasonChain codes={[{ code: 'NOT_YET_IN_THE_DICTIONARY', fact: 'F4' }]} facts={FACTS} action="CHALLENGE" />,
+    );
+    const stand = screen.getByText('NOT_YET_IN_THE_DICTIONARY');
+    expect(stand.tagName).toBe('B');
+    expect(stand.querySelectorAll('wbr')).toHaveLength(4);
+  });
 });

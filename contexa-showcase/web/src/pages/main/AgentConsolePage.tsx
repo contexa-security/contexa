@@ -1,15 +1,16 @@
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { AGENT_CASE, useAgentRun, useAgentTry, type AgentRunStep } from '../../api/agentCase';
+import { useAgentCaseKey, useAgentRun, useAgentSubject, useAgentTry, type AgentRunStep } from '../../api/agentCase';
 import type { LiveLayer } from '../../api/types';
 import { Term } from '../../components/common/Glossary';
-import { Chip } from '../../components/main/Chip';
 import { MainScreen } from '../../components/main/MainScreen';
 import { SourceBadge } from '../../components/main/SourceBadge';
 import { StateScreen } from '../../components/StateScreen';
-import { CONTROL_ORDER } from '../../domain/verdict';
 import { count } from '../../journey/format';
-import { AGENT_PATHS, CONFIRMATION_RULE, layersOf, outcomeChip } from './agentGroup';
+import { AGENT_PATHS, CONFIRMATION_RULE, layersOf } from './agentGroup';
+import { AgentChainLine } from './DelegationParts';
+import { AgentTimeline } from './AgentTimeline';
+import { MeasureNote } from './MeasureNote';
 import styles from './AgentPages.module.css';
 
 /** The run states during which the console still follows the agent's work. */
@@ -31,7 +32,8 @@ interface Row {
  */
 export default function AgentConsolePage() {
   const { t, i18n } = useTranslation();
-  const tried = useAgentTry(AGENT_CASE);
+  const tried = useAgentTry(useAgentCaseKey());
+  const subject = useAgentSubject();
   const live = tried.live;
   const status = live?.status ?? null;
   const readable = tried.runId !== null && (live === null || STORED.has(status ?? ''));
@@ -51,6 +53,7 @@ export default function AgentConsolePage() {
 
   return (
     <MainScreen
+      subject={subject}
       title={t('main.6-2.title')}
       intro={unsent ? t('main.6-2.intro.none') : t('main.6-2.intro')}
       live={live && (working || confirming) ? live.liveRunId : null}
@@ -64,60 +67,14 @@ export default function AgentConsolePage() {
       ) : null}
       {!unsent && !tried.pending ? (
         <div className={styles.stack}>
-          <p className={styles.subjectLine}>
-            <Chip kind="auth">
-              <Term term="delegatedAgent">{t('main.agent.subject')}</Term>
-            </Chip>
-            {tried.runId ? <SourceBadge kind="run" runId={tried.runId} /> : null}
-          </p>
-          {/* A narrow screen scrolls the rows sideways: the region takes the focus so a keyboard can scroll it. */}
-          <div className={styles.tableWrap} tabIndex={0} role="region" aria-labelledby="agent-rows-caption">
-            <table className={styles.table}>
-              <caption id="agent-rows-caption" className="visually-hidden">
-                {t('main.6-2.caption')}
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col">{t('main.6-2.request')}</th>
-                  {CONTROL_ORDER.map((control) => (
-                    <th key={control} scope="col">
-                      {t(`control.${control}.name`)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.stepNo}>
-                    <th scope="row" className={styles.requestCell}>
-                      <span className={styles.requestNo}>{t('main.6-2.step', { n: row.stepNo })}</span>
-                      {row.step?.path ? <code className={styles.path}>{row.step.path}</code> : null}
-                    </th>
-                    {CONTROL_ORDER.map((control) => {
-                      const layer = row.layers[control];
-                      if (!layer) {
-                        return (
-                          <td key={control}>
-                            <Chip kind="wait">{t('main.agent.outcome.WAITING')}</Chip>
-                          </td>
-                        );
-                      }
-                      const chip = outcomeChip(layer.outcome, layer.ruleId);
-                      return (
-                        <td key={control}>
-                          <Chip kind={chip.kind}>
-                            {i18n.exists(`main.agent.outcome.${chip.word}`)
-                              ? t(`main.agent.outcome.${chip.word}`)
-                              : chip.word}
-                          </Chip>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <AgentChainLine />
+          {tried.runId ? (
+            <p className={styles.subjectLine}>
+              <SourceBadge kind="run" runId={tried.runId} />
+            </p>
+          ) : null}
+          <MeasureNote own={tried.own} stopReason={run?.stopReason ?? null} />
+          <AgentTimeline rows={rows} />
           <p className={styles.note}>{t('main.6-2.legend')}</p>
           {working && rows.length === 0 ? <p className={styles.note}>{t('main.6-2.working')}</p> : null}
           {asked ? (

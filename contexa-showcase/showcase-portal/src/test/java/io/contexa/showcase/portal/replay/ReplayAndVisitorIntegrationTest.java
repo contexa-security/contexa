@@ -8,6 +8,8 @@ import io.contexa.showcase.portal.combination.CombinationStore;
 import io.contexa.showcase.portal.live.LiveAllotment;
 import io.contexa.showcase.portal.live.LiveQuota;
 import io.contexa.showcase.portal.orchestrator.Measurements;
+import io.contexa.showcase.portal.orchestrator.ModelPricing;
+import io.contexa.showcase.portal.orchestrator.RunStore;
 import io.contexa.showcase.portal.replay.PairDefinition.SceneKind;
 import io.contexa.showcase.portal.spec.ExecutionSpec;
 import io.contexa.showcase.portal.spec.ExecutionSpecStore;
@@ -278,6 +280,82 @@ class ReplayAndVisitorIntegrationTest {
         cost(live, 0, 4_000);
         assertThat(allotment.state().exhausted()).as("103 percent").isTrue();
         assertThat(jdbc.queryForObject("select count(*) from live_allotment_alert", Integer.class)).isEqualTo(1);
+    }
+
+    /**
+     * docs/agent Agent중심-화면 AC-1: the allotment counts each model by its own price. The day of 2026-10-26 (luna in
+     * 5,635,036 / out 486,275, sol in 140,239 / out 7,328) held $1.1604 and one price for all counted $0.4862: against a
+     * day's allotment of $0.80 the old count left the day open and the real spend closed it.
+     */
+    @Test
+    void theAllotmentCountsEachModelByItsOwnPrice() {
+        LocalDate day = LocalDate.now(ZoneOffset.UTC);
+        double perDay = 0.80;
+        double monthly = perDay * YearMonth.from(day).lengthOfMonth();
+        String spec = specs.record(spec());
+        String live = run("A3T", spec, true);
+        jdbc.update("update run set live_visitor_hash = ?, live_run = true where run_id = ?", "v".repeat(64), live);
+        // The ledger of the other tests of this class is not part of this day: start empty and leave it empty.
+        jdbc.update("delete from cost_ledger");
+        try {
+            cost(live, "gpt-6-luna", 5_635_036, 486_275);
+            cost(live, "gpt-6.1-sol", 140_239, 7_328);
+
+            LiveAllotment byModel = new LiveAllotment(namedJdbc, ModelPricing.defaults(0.02), monthly,
+                    Clock.systemUTC());
+            LiveAllotment onePrice = new LiveAllotment(namedJdbc, new Measurements.Prices(0.05, 0.40, 0.02, "old"),
+                    monthly, Clock.systemUTC());
+
+            assertThat(byModel.state().spentUsd()).isCloseTo(1.1603991, offset(0.000001));
+            assertThat(byModel.state().exhausted()).as("the real spend closes the day").isTrue();
+            assertThat(onePrice.state().spentUsd()).isCloseTo(0.4862, offset(0.0001));
+            assertThat(onePrice.state().exhausted()).as("the old count left it open").isFalse();
+        } finally {
+            jdbc.update("delete from cost_ledger");
+        }
+    }
+
+    /**
+     * docs/agent Agent중심-화면 AC-8: the ledger keeps the cached prompt tokens of a call, and the allotment prices them
+     * by the cached input price. A call that reports no cached count is priced in full.
+     */
+    @Test
+    void theAllotmentPricesCachedPromptTokensByTheCachedInputPrice() throws Exception {
+        LocalDate day = LocalDate.now(ZoneOffset.UTC);
+        double monthly = 1.0 * YearMonth.from(day).lengthOfMonth();
+        String live = run("A3T", specs.record(spec()), true);
+        jdbc.update("update run set live_visitor_hash = ?, live_run = true where run_id = ?", "v".repeat(64), live);
+        jdbc.update("delete from cost_ledger");
+        try {
+            RunStore runStore = new RunStore(namedJdbc, json);
+            // a decision call of the engine: 1,000,000 prompt tokens of which 800,000 cached, on luna
+            runStore.cost(live, null, UUID.randomUUID().toString(), json.readTree("""
+                    {"kind":"CHAT","model":"gpt-6-luna","promptTokens":1000000,"completionTokens":0,
+                     "totalTokens":1000000,"elapsedMs":900,"cachedPromptTokens":800000}"""));
+            LiveAllotment allotment = new LiveAllotment(namedJdbc, ModelPricing.defaults(0.02), monthly,
+                    Clock.systemUTC());
+
+            // 200,000 at 0.10 + 800,000 at 0.01 per million
+            assertThat(allotment.state().spentUsd()).isCloseTo(0.028, offset(1e-9));
+
+            // a call that reports no cached count is priced in full: the unknown is not counted as cached
+            runStore.cost(live, null, null, json.readTree("""
+                    {"kind":"CHAT","model":"gpt-6-luna","promptTokens":1000000,"completionTokens":0,
+                     "totalTokens":1000000,"elapsedMs":900}"""));
+            assertThat(allotment.state().spentUsd()).isCloseTo(0.028 + 0.10, offset(1e-9));
+            assertThat(jdbc.queryForList("select cached_prompt_tokens from cost_ledger order by recorded_at",
+                    Long.class)).containsExactly(800_000L, null);
+        } finally {
+            jdbc.update("delete from cost_ledger");
+        }
+    }
+
+    private void cost(String runId, String model, long promptTokens, long completionTokens) {
+        jdbc.update("""
+                        insert into cost_ledger (entry_id, run_id, kind, model, prompt_tokens, completion_tokens,
+                                                 total_tokens)
+                        values (?, ?, 'CHAT', ?, ?, ?, ?)""", UUID.randomUUID(), runId, model, promptTokens,
+                completionTokens, promptTokens + completionTokens);
     }
 
     private void cost(String runId, long promptTokens, long completionTokens) {

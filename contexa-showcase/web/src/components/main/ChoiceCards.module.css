@@ -1,0 +1,127 @@
+/* The cards of a choosing screen (T9): big, one choice each (구현계획 NW-3). */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Cards stand two by two, so a title keeps to a line or two; three cards stand in a row and one card alone fills it. */
+.cards[data-count='3'] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.cards[data-count='1'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.item {
+  display: flex;
+  min-inline-size: 0;
+}
+
+.card {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-4);
+  min-block-size: var(--pick-card-height);
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  text-decoration: none;
+  transition:
+    border-color var(--duration-base) var(--ease-standard),
+    background-color var(--duration-base) var(--ease-standard);
+}
+
+.card:hover {
+  border-color: var(--color-accent-line);
+  background-color: var(--color-surface-raised);
+}
+
+.card:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+.card[data-recommended] {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+}
+
+.mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 3.25rem;
+  block-size: 3.25rem;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.markIcon {
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+}
+
+.text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.badge {
+  align-self: flex-start;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+}
+
+.title {
+  font-size: var(--type-pick-card-title);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  text-wrap: balance;
+}
+
+.sub {
+  color: var(--color-text-body);
+  font-size: var(--type-pick-card-sub);
+  line-height: var(--leading-normal);
+}
+
+.go {
+  flex: none;
+  color: var(--color-accent);
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+}
+
+/* Three cards in a row need about 52rem at the body size; a narrower window stacks them. */
+@media (width <= 52rem) {
+  .cards[data-count='3'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (width <= 40rem) {
+  .cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .card {
+    padding: var(--space-4) var(--space-5);
+  }
+}

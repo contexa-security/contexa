@@ -12,6 +12,7 @@ import io.contexa.showcase.business.company.CompanyCalendar;
 import io.contexa.showcase.business.internal.InternalContextSigner;
 import io.contexa.showcase.business.run.RunFacts;
 import io.contexa.showcase.business.work.BusinessOperation;
+import io.contexa.showcase.portal.agent.AgentRunCap;
 import io.contexa.showcase.portal.agent.AgentTaskProof;
 import io.contexa.showcase.portal.agent.AgentTasks;
 import io.contexa.showcase.portal.agent.AgentWork;
@@ -80,6 +81,8 @@ public class RunOrchestrator {
 
     private final AnatomyStore anatomies;
 
+    /** The rule of the engine's gate that refuses a request under a delegation the person or an administrator revoked. */
+    static final String DELEGATION_REVOKED = "DELEGATION_REVOKED";
     /** How long a refused step of control D is watched for a decision record before it counts as an earlier one's. */
     static final Duration REFUSED_DECISION_WAIT = Duration.ofSeconds(5);
     /** Longest wait after the first decision record for the engine's closing event (R-22). */
@@ -559,8 +562,11 @@ public class RunOrchestrator {
         List<Map<String, Object>> performed = Collections.synchronizedList(new ArrayList<>());
         long workOffset = workOffset(scenario);
         Instant workStarted = Instant.now();
+        // docs/agent Agent중심-화면 AC-3: a visitor's live run has hard limits; the operator's measurement path has none.
+        AgentRunCap cap = listener.liveVisitor() != null && agentTasks.liveLimits() != null
+                ? new AgentRunCap(agentTasks.liveLimits()) : null;
         WorkSending sending = (request, work, answering) -> {
-            int stepNo = steps.incrementAndGet();
+            int stepNo = nextStep(steps, cap);
             Step step = new Step(request.operation(), null, request.project(), request.customer(), request.items(),
                     workOffset + Duration.between(workStarted, Instant.now()).toSeconds(), Map.of(), null,
                     request.grantee(), request.responsibility(), null, null, task.headers(), null, null, task.sender(),
@@ -603,7 +609,7 @@ public class RunOrchestrator {
                     workers.add(parallelPool.submit(() -> {
                         for (ScenarioDefinition.AgentTask.ParallelRequest sent : work.requests()) {
                             AgentWork.Request request = new AgentWork.Request(sent.operation(), sent.project(),
-                                    sent.document(), null, sent.items(), null, null, null, null);
+                                    sent.document(), sent.customer(), sent.items(), null, null, null, null);
                             try {
                                 AgentWork.Answer answer = sending.send(request, laneSessions, lane);
                                 parallelCalls.add(parallelCall(parallelCalls.size() + 1, request, answer, name));
@@ -629,7 +635,7 @@ public class RunOrchestrator {
                     workers.add(parallelPool.submit(() -> {
                         for (ScenarioDefinition.AgentTask.ParallelRequest sent : task.fleet().requests()) {
                             AgentWork.Request request = new AgentWork.Request(sent.operation(), sent.project(),
-                                    sent.document(), null, sent.items(), null, null, null, null);
+                                    sent.document(), sent.customer(), sent.items(), null, null, null, null);
                             try {
                                 AgentWork.Answer answer = sending.send(request, laneSessions, lane);
                                 parallelCalls.add(parallelCall(parallelCalls.size() + 1, request, answer, name));
@@ -654,8 +660,11 @@ public class RunOrchestrator {
             return answer;
         };
         startParallel.accept(0);
+        // docs/agent AS-12: an administrator's act the case puts before the work (a delegation revoked before it starts)
+        administratorActs(adminActions, 0, approver, agent, delegationIds, run, performed, fleet, fleetDelegationIds,
+                acted);
         BusinessAgentTools tools = new BusinessAgentTools(sender, task.maxToolCalls() != null ? task.maxToolCalls()
-                : agentTasks.maxToolCalls());
+                : agentTasks.maxToolCalls(), cap);
         Set<String> toolNames = task.tools().stream().map(BusinessAgentTools.TOOL_OF_OPERATION::get)
                 .filter(Objects::nonNull).collect(Collectors.toSet());
         String instruction = withFactKeys(task.instruction().getOrDefault("en", task.instruction().values().stream()
@@ -678,6 +687,13 @@ public class RunOrchestrator {
         }
         if (parallelPool != null) {
             parallelPool.shutdownNow();
+        }
+        // A limit the workers beside the agent reached after its work had ended is the run's stop reason too.
+        if (cap != null && cap.reached() != null && ("ANSWERED".equals(transcript.stopReason())
+                || "TOOL_BUDGET".equals(transcript.stopReason()))) {
+            transcript = new AgentWork.Transcript(transcript.model(), transcript.systemPrompt(),
+                    transcript.instruction(), transcript.toolCalls(), transcript.finalAnswer(), cap.reached(),
+                    transcript.failure(), transcript.usage(), transcript.startedAt(), transcript.finishedAt());
         }
         if (!parallelCalls.isEmpty()) {
             List<AgentWork.ToolCall> calls = new ArrayList<>(transcript.toolCalls());
@@ -772,6 +788,22 @@ public class RunOrchestrator {
 
         AgentWork.Answer send(AgentWork.Request request, Map<ScenarioDefinition.Sender, ControlSession> work,
                               ControlSession answering) throws IOException;
+    }
+
+    /**
+     * The number of the run's next request. A live run's decision limit (docs/agent Agent중심-화면 AC-3) is checked in the
+     * same step that takes the number, so workers beside the agent cannot pass it together; a refused request takes none.
+     */
+    static int nextStep(AtomicInteger steps, AgentRunCap cap) throws IOException {
+        while (true) {
+            int decided = steps.get();
+            if (cap != null && !cap.admitDecision(decided)) {
+                throw new IOException("The decision limit of a live run is reached");
+            }
+            if (steps.compareAndSet(decided, decided + 1)) {
+                return decided + 1;
+            }
+        }
     }
 
     /** The tool of an operation as the agent calls it (the proof reads the work's requests by it). */
@@ -1216,6 +1248,19 @@ public class RunOrchestrator {
     }
 
     /**
+     * How long a step's decision record is waited for. A request control D refused because of an earlier decision (an
+     * asynchronous one) or refused for the delegating person to confirm (whatever its operation) gets no record of its
+     * own, so it is watched only briefly; an export refused for its confirmation used to wait the whole time for a record
+     * that never comes, and the visitor saw the confirmation minutes late (docs/agent S3 finding). A synchronous step
+     * refused for another reason has its record before the response, and any other step keeps the full wait.
+     */
+    static Duration decisionWait(boolean synchronous, StepOutcome outcome, Duration full) {
+        boolean refused = "REFUSED".equals(outcome.outcome());
+        return refused && (!synchronous || ControlSession.agentConfirmationRequired(outcome)
+                || DELEGATION_REVOKED.equals(outcome.ruleId())) ? REFUSED_DECISION_WAIT : full;
+    }
+
+    /**
      * Control D's decision for a step. A synchronous step has its record before the response; an asynchronous one
      * gets it shortly after. A step the engine refused because of an earlier decision gets no record of its own.
      */
@@ -1224,8 +1269,7 @@ public class RunOrchestrator {
             return EngineDecision.none(json.createObjectNode());
         }
         boolean synchronous = EngineDecision.synchronous(step.operation());
-        Duration wait = "REFUSED".equals(outcome.outcome()) && !synchronous ? REFUSED_DECISION_WAIT
-                : endpoints.decisionWait();
+        Duration wait = decisionWait(synchronous, outcome, endpoints.decisionWait());
         Instant own = Instant.now().plus(wait);
         Instant deadline = decisionsBy != null && decisionsBy.isBefore(own) ? decisionsBy : own;
         Instant settleBy = null;

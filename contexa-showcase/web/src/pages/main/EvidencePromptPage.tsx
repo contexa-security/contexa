@@ -6,6 +6,7 @@ import { GhostButton, MainScreen } from '../../components/main/MainScreen';
 import { SourceBadge } from '../../components/main/SourceBadge';
 import { Icon } from '../../components/Icon';
 import { StateScreen } from '../../components/StateScreen';
+import { Fold } from '../../components/main/Fold';
 import { count } from '../../journey/format';
 import { plainValue } from '../try/experience';
 import { factLine, learnedCompared, useEvidenceRun } from './evidence';
@@ -57,14 +58,8 @@ export default function EvidencePromptPage() {
   // V-08: the run's own learned requests and the recent ones compared, as 2-2 and 3-1 name them.
   const learned = learnedCompared(t, anatomy.figures, language);
   const plain: Readonly<Record<GroupId, string>> = {
-    learned: learned
-      ? t('main.3-2.learned.value', {
-          learned,
-          hours: usualHours || '-',
-          devices: received?.usual['device']?.values.join(' · ') ?? '-',
-          largest: received?.usual['size']?.values[0] ?? '-',
-        })
-      : '…',
+    // The usual hours, devices and largest export are the prompt's own lines (004, 007, 012): they sit with them, in the fold.
+    learned: learned ?? '…',
     request: t('main.3-2.request.value', {
       clock: companyClock(t, received?.companyTime) ?? '-',
       project: request?.project ?? '-',
@@ -90,14 +85,11 @@ export default function EvidencePromptPage() {
       .filter((fact): fact is PromptFact => fact !== null)
       .map((fact) => ({ group: group.id, fact })),
   ).sort((a, b) => a.fact.line - b.fact.line);
-  const linesOf = (group: GroupId) => rows.filter((row) => row.group === group).map((row) => lineNumber(row.fact));
+  const linesOf = (group: GroupId) =>
+    rows.filter((row) => row.group === group).map((row) => lineNumber(row.fact));
   const lines = anatomy.promptLines;
   return (
-    <MainScreen
-      title={t('main.3-2.title')}
-      intro={t('main.3-2.intro')}
-      extra={<GhostButton onClick={() => detail.show(runId, 1, 'prompt')}>{t('main.3-2.whole')}</GhostButton>}
-    >
+    <MainScreen title={t('main.3-2.title')} intro={t('main.3-2.intro')}>
       <div className={styles.flow}>
         <ul className={styles.sources}>
           {GROUPS.map((group, index) => (
@@ -109,56 +101,74 @@ export default function EvidencePromptPage() {
             >
               <b className={styles.sourceName}>{t(`main.3-2.${group.id}`)}</b>
               <span className={styles.sourceValue}>{plain[group.id]}</span>
-              {linesOf(group.id).length > 0 ? (
-                <span className={styles.sourceLines}>
+            </li>
+          ))}
+        </ul>
+        {/* AC-N2: the four inputs are the view; the prompt lines they became wait under one line. */}
+        <Fold name="prompt-lines" summary={t('main.3-2.promptFold')}>
+          <p className={styles.promptNote}>
+            {t('main.3-2.learned.detail', {
+              hours: usualHours || '-',
+              devices: received?.usual['device']?.values.join(' · ') ?? '-',
+              largest: received?.usual['size']?.values[0] ?? '-',
+            })}
+          </p>
+          <GhostButton onClick={() => detail.show(runId, 1, 'prompt')}>{t('main.3-2.whole')}</GhostButton>
+          <ul className={styles.refs}>
+            {GROUPS.map((group) =>
+              linesOf(group.id).length > 0 ? (
+                <li key={group.id} className={styles.sourceLines} data-group={group.id}>
                   <Icon name="arrowRight" className={styles.sourceLinesIcon} />
+                  <b>{t(`main.3-2.${group.id}`)}</b>
                   {t('main.3-2.lines', {
                     lines: linesOf(group.id).join(' · '),
                     count: linesOf(group.id).length,
                   })}
+                </li>
+              ) : null,
+            )}
+          </ul>
+          <section className={styles.prompt} aria-labelledby="prompt-title">
+            <div className={styles.promptHead}>
+              <h2 id="prompt-title" className={styles.promptTitle}>
+                {lines
+                  ? t('main.3-2.promptTitle', { user: count(lines.user, language) })
+                  : t('main.3-2.promptTitlePlain')}
+              </h2>
+              {lines ? (
+                <span className={styles.promptNote}>
+                  {t('main.3-2.systemApart', { system: count(lines.system, language) })}
                 </span>
               ) : null}
-            </li>
-          ))}
-        </ul>
-        <section className={styles.prompt} aria-labelledby="prompt-title">
-          <div className={styles.promptHead}>
-            <h2 id="prompt-title" className={styles.promptTitle}>
-              {lines
-                ? t('main.3-2.promptTitle', { user: count(lines.user, language) })
-                : t('main.3-2.promptTitlePlain')}
-            </h2>
-            {lines ? (
-              <span className={styles.promptNote}>
-                {t('main.3-2.systemApart', { system: count(lines.system, language) })}
-              </span>
-            ) : null}
-          </div>
-          {facts && !facts.available ? (
-            <p className={styles.promptNote}>{t(`main.3-2.notAvailable.${facts.reason ?? 'NO_STEP'}`)}</p>
-          ) : (
-            <p className={styles.promptNote}>{t('main.3-2.legend')}</p>
-          )}
-          <ol className={styles.promptLines}>
-            {rows.map(({ group, fact }, index) => (
-              <li
-                key={`${group}-${fact.line}`}
-                className={styles.promptLine}
-                data-group={group}
-                data-line={fact.line}
-                style={{ animationDelay: `calc(var(--line-step) * ${index})` }}
-              >
-                <span className={styles.lineNo}>{lineNumber(fact)}</span>
-                <code className={styles.lineText}>
-                  {fact.factId ? `${fact.factId} ` : ''}
-                  {fact.label}: {fact.value}
-                </code>
-                {fact.source ? <span className={styles.grade}>{t(`main.grade.${fact.source}`)}</span> : null}
-              </li>
-            ))}
-          </ol>
-          <p className={styles.promptNote}>{t('main.3-2.asIs')}</p>
-        </section>
+            </div>
+            {facts && !facts.available ? (
+              <p className={styles.promptNote}>{t(`main.3-2.notAvailable.${facts.reason ?? 'NO_STEP'}`)}</p>
+            ) : (
+              <p className={styles.promptNote}>{t('main.3-2.legend')}</p>
+            )}
+            <ol className={styles.promptLines}>
+              {rows.map(({ group, fact }, index) => (
+                <li
+                  key={`${group}-${fact.line}`}
+                  className={styles.promptLine}
+                  data-group={group}
+                  data-line={fact.line}
+                  style={{ animationDelay: `calc(var(--line-step) * ${index})` }}
+                >
+                  <span className={styles.lineNo}>{lineNumber(fact)}</span>
+                  <code className={styles.lineText}>
+                    {fact.factId ? `${fact.factId} ` : ''}
+                    {fact.label}: {fact.value}
+                  </code>
+                  {fact.source ? (
+                    <span className={styles.grade}>{t(`main.grade.${fact.source}`)}</span>
+                  ) : null}
+                </li>
+              ))}
+            </ol>
+            <p className={styles.promptNote}>{t('main.3-2.asIs')}</p>
+          </section>
+        </Fold>
       </div>
       <SourceBadge
         kind={evidence.own ? 'run' : 'repeated'}

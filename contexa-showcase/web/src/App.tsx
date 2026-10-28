@@ -13,17 +13,25 @@ import { GlossaryModal } from './components/common/Glossary';
 import { DetailAddress } from './components/detail/DetailAddress';
 import { DETAIL_MODAL } from './components/detail/useDetail';
 import { AppHeader } from './components/AppHeader';
+import { COVER_REDIRECTS } from './journey/journey';
 import ReplayPage from './pages/ReplayPage';
+import GuidesPage from './pages/GuidesPage';
 import OpeningPage from './pages/main/OpeningPage';
 import {
   agentConfirmScreen,
+  agentEndScreen,
+  agentBurstScreen,
+  agentResultScreen,
+  agentChooseScreen,
+  attackReasonScreen,
+  agentNextScreen,
   agentConsoleScreen,
   agentReasonScreen,
   agentRequestScreen,
   approachesScreen,
-  briefingScreen,
   changeScreen,
   consoleScreen,
+  deeperScreen,
   diffScreen,
   checkScreen,
   evidenceMapScreen,
@@ -40,13 +48,17 @@ import {
   labEntranceScreen,
   labResultScreen,
   labRulesScreen,
+  labAgentScreen,
   labSendScreen,
   learnWhyScreen,
   learnedScreen,
   learnAfterScreen,
   moreScreen,
   nextScreen,
+  personChooseScreen,
+  personNextScreen,
   requestScreen,
+  trackChooseScreen,
   resultScreen,
   ruleSwitchScreen,
   runsScreen,
@@ -73,6 +85,7 @@ const BenchCasesPage = lazy(withDictionary(() => import('./pages/benchmark/Bench
 const BenchJudgmentPage = lazy(withDictionary(() => import('./pages/benchmark/BenchJudgmentPage')));
 const BenchReasoningPage = lazy(withDictionary(() => import('./pages/benchmark/BenchReasoningPage')));
 const BenchLimitsPage = lazy(withDictionary(() => import('./pages/benchmark/BenchLimitsPage')));
+const BenchAgentPage = lazy(withDictionary(() => import('./pages/benchmark/BenchAgentPage')));
 
 // The design mock and its sample data exist only in development builds; Vite removes this branch
 // from the production bundle, so no sample data can reach visitors.
@@ -88,34 +101,42 @@ export default function App() {
     <BrowserRouter>
       <Suspense fallback={<LoadingScreen />}>
         <Routes>
-          {/* The main flow (최종화면-구현계획 2절, IN-6, docs/agent A7-3): eight groups, each from group 2 to 7 opened by
-              its cover (T0). */}
+          {/* The main flow (첫화면-선택형-체험-구현계획 3절): the start chooses a track; the person's track and the agent's
+              each open with a chooser, walk the lanes of their cases and end in a next-chooser; the deeper screens sit
+              behind a hub. The old covers' addresses lead to the first screen of what they opened. */}
           <Route path="/" element={<OpeningPage />} />
+          <Route path="/choose" element={<trackChooseScreen.Screen />} />
+          <Route path="/person" element={<personChooseScreen.Screen />} />
+          <Route path="/person/next" element={<personNextScreen.Screen />} />
+          <Route path="/deeper" element={<deeperScreen.Screen />} />
+          {Object.entries(COVER_REDIRECTS).map(([cover, target]) => (
+            <Route key={cover} path={cover} element={<Navigate to={target} replace />} />
+          ))}
           <Route path="/intro/map" element={<introMapScreen.Screen />} />
-          <Route path="/attack" element={<briefingScreen.Screen />} />
           <Route path="/attack/request" element={<requestScreen.Screen role="attacker" />} />
           <Route path="/attack/console" element={<consoleScreen.Screen role="attacker" />} />
           <Route path="/attack/result" element={<resultScreen.Screen />} />
-          <Route path="/evidence" element={<briefingScreen.Screen />} />
+          <Route path="/attack/reason" element={<attackReasonScreen.Screen />} />
           <Route path="/evidence/map" element={<evidenceMapScreen.Screen />} />
           <Route path="/evidence/prompt" element={<evidencePromptScreen.Screen />} />
           <Route path="/evidence/verdict" element={<evidenceVerdictScreen.Screen />} />
-          <Route path="/normal" element={<briefingScreen.Screen />} />
           <Route path="/normal/request" element={<requestScreen.Screen role="owner" />} />
           <Route path="/normal/console" element={<consoleScreen.Screen role="owner" />} />
           <Route path="/normal/diff" element={<diffScreen.Screen />} />
           <Route path="/normal/check" element={<checkScreen.Screen />} />
-          <Route path="/insider" element={<briefingScreen.Screen />} />
           <Route path="/insider/request" element={<requestScreen.Screen role="insider" />} />
           <Route path="/insider/console" element={<consoleScreen.Screen role="insider" />} />
           <Route path="/insider/reason" element={<insideScreen.Screen />} />
           {/* docs/agent A7-3: the business agent group (화면설계 4절 AD-0 to AD-4). */}
-          <Route path="/agent" element={<briefingScreen.Screen />} />
+          <Route path="/agent" element={<agentChooseScreen.Screen />} />
+          <Route path="/agent/next" element={<agentNextScreen.Screen />} />
           <Route path="/agent/request" element={<agentRequestScreen.Screen />} />
           <Route path="/agent/console" element={<agentConsoleScreen.Screen />} />
           <Route path="/agent/reason" element={<agentReasonScreen.Screen />} />
           <Route path="/agent/confirm" element={<agentConfirmScreen.Screen />} />
-          <Route path="/compare" element={<briefingScreen.Screen />} />
+          <Route path="/agent/end" element={<agentEndScreen.Screen />} />
+          <Route path="/agent/burst" element={<agentBurstScreen.Screen />} />
+          <Route path="/agent/result" element={<agentResultScreen.Screen />} />
           <Route path="/compare/rule" element={<ruleSwitchScreen.Screen />} />
           <Route path="/compare/change" element={<changeScreen.Screen />} />
           {/* The attack inside the rules became group 2's stolen account (IN-6); its address leads to the insider. */}
@@ -161,6 +182,7 @@ export default function App() {
           <Route path="/end/:pairKey" element={<Navigate to="/summary" replace />} />
           <Route path="/library" element={<Navigate to="/lab" replace />} />
           <Route path="/adopt" element={<AdoptPage />} />
+          <Route path="/videos" element={<GuidesPage />} />
           <Route path="/privacy" element={<PolicyPage />} />
           <Route path="/run/:runId/detail" element={<DetailAddress />} />
           <Route path="/runs/:runId/steps/:stepNo" element={<DetailAddress />} />
@@ -171,6 +193,7 @@ export default function App() {
           <Route path="/lab/send" element={<labSendScreen.Screen />} />
           <Route path="/lab/result" element={<labResultScreen.Screen />} />
           <Route path="/lab/rules" element={<labRulesScreen.Screen />} />
+          <Route path="/lab/agent" element={<labAgentScreen.Screen />} />
           <Route path="/benchmark" element={<BenchSummaryPage />} />
           <Route path="/benchmark/approaches" element={<BenchApproachesPage />} />
           <Route path="/benchmark/cases" element={<BenchCasesPage />} />
@@ -179,6 +202,7 @@ export default function App() {
           <Route path="/benchmark/reasoning" element={<BenchReasoningPage />} />
           <Route path="/benchmark/prompt" element={<Navigate to="/benchmark/reasoning" replace />} />
           <Route path="/benchmark/limits" element={<BenchLimitsPage />} />
+          <Route path="/benchmark/agent" element={<BenchAgentPage />} />
           {DesignStatesPage ? <Route path="/design/states" element={<DesignStatesPage />} /> : null}
           {DesignPartsPage ? <Route path="/design/parts" element={<DesignPartsPage />} /> : null}
           <Route path="*" element={<OpeningPage />} />

@@ -20,6 +20,7 @@ export default defineConfig({
       'dictionarySplit.test.ts',
       'frameStyles.test.ts',
       'e2e/guideCaptions.test.mjs',
+      'e2e/guide/*.test.mjs',
     ],
   },
 });

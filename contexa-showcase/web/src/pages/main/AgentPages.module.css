@@ -20,6 +20,12 @@
   gap: var(--space-4);
 }
 
+.cardsWide {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
 .card,
 .callout {
   display: flex;
@@ -102,6 +108,14 @@
   overflow-wrap: anywhere;
 }
 
+/* An address in the timeline stays whole: a narrow screen scrolls the table (its region takes the focus) instead of
+   wrapping at a hyphen and leaving one letter alone. */
+.requestPath {
+  font-family: var(--font-mono);
+  font-size: var(--text-md);
+  white-space: nowrap;
+}
+
 .subjectLine {
   display: flex;
   flex-wrap: wrap;
@@ -161,6 +175,11 @@
 }
 
 /* The six columns keep their words whole; a narrower screen scrolls the region instead of squeezing them. */
+.groupRow th {
+  padding-block: var(--space-2);
+  background-color: var(--color-accent-soft);
+}
+
 .table {
   inline-size: 100%;
   min-inline-size: 48rem;
@@ -192,6 +211,26 @@
 .requestNo {
   color: var(--color-text);
   font-weight: var(--weight-bold);
+}
+
+.groupToggle {
+  min-block-size: 2.75rem;
+  padding: 0 var(--space-2);
+  border: 0;
+  background: transparent;
+  color: var(--color-accent);
+  font: inherit;
+  font-weight: var(--weight-bold);
+  text-align: start;
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+  cursor: pointer;
+}
+
+.groupFacts {
+  margin-inline-start: var(--space-3);
+  color: var(--color-text-muted);
+  font-weight: var(--weight-medium);
 }
 
 .recentList {
@@ -296,7 +335,8 @@
 }
 
 @media (width <= 64rem) {
-  .cards {
+  .cards,
+  .cardsWide {
     grid-template-columns: minmax(0, 1fr);
   }
 }

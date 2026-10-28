@@ -16,6 +16,7 @@ export const AGENT_PATHS = {
   console: '/agent/console',
   reason: '/agent/reason',
   confirm: '/agent/confirm',
+  burst: '/agent/burst',
 } as const;
 
 /** An offset in minutes from the work's company time in plain words: "7일 전", "2시간 전", "3시간 뒤". */
@@ -33,6 +34,10 @@ export function offsetWords(t: T, minutes: number): string {
 
 /** The delegation's period, from the work's company time: "작업 7일 전부터 작업 2시간 전까지". */
 export function periodWords(t: T, delegation: AgentDelegation): string {
+  if (delegation.status === 'REVOKED') {
+    // the administrator withdrew it before the work (AS-12): its period no longer matters
+    return t('main.agent.periodRevoked');
+  }
   const from = delegation.validFromMinutes;
   const until = delegation.validUntilMinutes;
   if (from === null && until === null) {
@@ -42,6 +47,35 @@ export function periodWords(t: T, delegation: AgentDelegation): string {
     return t('main.agent.periodFrom', { from: offsetWords(t, from ?? 0) });
   }
   return t('main.agent.periodValue', { from: offsetWords(t, from ?? 0), until: offsetWords(t, until) });
+}
+
+/** The company operation each tool of the business agent sends (the portal's BusinessAgentTools). */
+const OPERATION_OF_TOOL: Readonly<Record<string, string>> = {
+  listProjects: 'PROJECT_LIST',
+  listDocuments: 'DOCUMENT_LIST',
+  readDocument: 'DOCUMENT_READ',
+  downloadDocument: 'DOCUMENT_DOWNLOAD',
+  deleteDocument: 'DOCUMENT_DELETE',
+  exportDocuments: 'EXPORT',
+  readCustomer: 'CUSTOMER_READ',
+  grantRole: 'ROLE_GRANT',
+};
+
+/** The operation the step's tool sent; null for a step no tool sent or a tool this code does not know. */
+export function requestOperation(step: AgentRunStep): string | null {
+  return step.tool ? (OPERATION_OF_TOOL[step.tool.tool] ?? null) : null;
+}
+
+/** The resource the step's request names (its project, document or customer), else its address. */
+export function requestTarget(step: AgentRunStep): string {
+  const args = step.tool?.arguments ?? {};
+  for (const name of ['projectKey', 'documentKey', 'customerKey']) {
+    const value = args[name];
+    if (typeof value === 'string' && value !== '') {
+      return value;
+    }
+  }
+  return step.path;
 }
 
 /** An operation's name; its code when the dictionary has none. */

@@ -1084,7 +1084,8 @@ public final class SecurityDecisionPromptDictionary {
         return switch (entry.name()) {
             // v21.9 (A2-4): the delegation by its fields; its objective's free text is an untrusted text (A2-5).
             case "Delegation" -> with(entry,
-                    "Delegated execution: the agent and the person it acts for, the chain depth, the objective, the"
+                    "Delegated execution: the agent and the person it acts for (for an agent on its own, its sponsor,"
+                            + " whose standing delegation of the agent the line states), the chain depth, the objective, the"
                             + " allowed operations and resources, the expiry, the quantity limits the delegation states"
                             + " (RL-6), the proof and the comparison of this request with the objective's scope and"
                             + " those limits",

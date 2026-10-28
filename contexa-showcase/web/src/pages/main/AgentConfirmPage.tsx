@@ -2,18 +2,22 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import {
-  AGENT_CASE,
   useAgentCase,
+  useAgentCaseKey,
+  useAgentSubject,
   useAgentConfirmationAnswer,
   useAgentRun,
   useAgentTry,
   type AgentResent,
 } from '../../api/agentCase';
 import { Term } from '../../components/common/Glossary';
+import { useReferenceSnapshot } from '../../api/agentSnapshots';
 import { Chip } from '../../components/main/Chip';
 import { MainScreen } from '../../components/main/MainScreen';
+import { SnapshotBadge } from '../../components/main/SnapshotBadge';
 import { SourceBadge } from '../../components/main/SourceBadge';
 import { StateScreen } from '../../components/StateScreen';
+import { Fold } from '../../components/main/Fold';
 import { count } from '../../journey/format';
 import {
   AGENT_PATHS,
@@ -23,6 +27,7 @@ import {
   periodWords,
   plusMinutes,
 } from './agentGroup';
+import { MeasureNote } from './MeasureNote';
 import { companyClock } from './mainCases';
 import styles from './AgentPages.module.css';
 
@@ -43,8 +48,10 @@ type Shown = 'none' | 'asked' | 'approved' | 'rejected' | 'unanswered' | 'throug
 export default function AgentConfirmPage() {
   const { t, i18n } = useTranslation();
   const language = i18n.language === 'ko' ? 'ko' : 'en';
-  const agentCase = useAgentCase(AGENT_CASE);
-  const tried = useAgentTry(AGENT_CASE);
+  const caseKey = useAgentCaseKey();
+  const agentCase = useAgentCase(caseKey);
+  const subject = useAgentSubject();
+  const tried = useAgentTry(caseKey);
   const answer = useAgentConfirmationAnswer();
   const [answering, setAnswering] = useState(false);
   const live = tried.live;
@@ -52,7 +59,11 @@ export default function AgentConfirmPage() {
   const ownReadable = tried.runId !== null && (live === null || STORED.has(live.status));
   const runId = ownReadable ? tried.runId : (agentCase.data?.recorded?.runId ?? null);
   const record = useAgentRun(runId, asking?.stage ?? null);
-  const run = record.data ?? null;
+  // AC-5: with no run of the visitor's and no recording of the case, a frozen real run stands in (no model is called).
+  const snapshot = useReferenceSnapshot(
+    runId === null && tried.live === null && !agentCase.isPending && !tried.pending,
+  );
+  const run = record.data ?? snapshot?.run ?? null;
   const stored = run?.confirmation ?? null;
   const stop = firstStop(run);
   const delegation = agentCase.data?.delegation ?? null;
@@ -94,6 +105,7 @@ export default function AgentConfirmPage() {
 
   return (
     <MainScreen
+      subject={subject}
       title={t(`main.6-4.title.${shown}`)}
       intro={t(shown === 'none' ? 'main.6-4.intro.none' : 'main.6-4.intro')}
       waiting={asked ? { label: t('main.6-4.waiting'), hint: t('main.6-4.waitingHint') } : null}
@@ -110,7 +122,9 @@ export default function AgentConfirmPage() {
             <Chip kind="auth">
               <Term term="delegatorCheck">{t('main.agent.delegatorCheck')}</Term>
             </Chip>
-            {runId ? (
+            {snapshot && record.data === undefined ? (
+              <SnapshotBadge snapshot={snapshot} />
+            ) : runId ? (
               tried.runId === runId ? (
                 <SourceBadge kind="run" runId={runId} />
               ) : (
@@ -135,47 +149,6 @@ export default function AgentConfirmPage() {
           ) : null}
           {shown === 'asked' || shown === 'approved' || shown === 'rejected' || shown === 'unanswered' ? (
             <div className={styles.cards}>
-              <section className={styles.card} aria-labelledby="confirm-work">
-                <h2 id="confirm-work" className={styles.label}>
-                  <Term term="delegationRecord">{t('main.agent.work')}</Term>
-                </h2>
-                {delegation ? (
-                  <dl className={styles.rows}>
-                    <div className={styles.row}>
-                      <dt className={styles.rowName}>{t('main.agent.objective')}</dt>
-                      <dd className={styles.rowValue}>{delegation.summary[language]}</dd>
-                    </div>
-                    <div className={styles.row}>
-                      <dt className={styles.rowName}>{t('main.agent.scope')}</dt>
-                      <dd className={styles.rowValue}>
-                        {t('main.agent.scopeValue', {
-                          operations: delegation.operations
-                            .map((operation) => operationName(t, (key) => i18n.exists(key), operation))
-                            .join(', '),
-                          resources: delegation.resources.join(', '),
-                        })}
-                      </dd>
-                    </div>
-                    <div className={styles.row}>
-                      <dt className={styles.rowName}>{t('main.agent.period')}</dt>
-                      <dd className={styles.rowValue}>{periodWords(t, delegation)}</dd>
-                    </div>
-                  </dl>
-                ) : null}
-              </section>
-              <section className={styles.card} aria-labelledby="confirm-request">
-                <h2 id="confirm-request" className={styles.label}>
-                  {t('main.6-4.request')}
-                </h2>
-                <p className={styles.body}>
-                  <code className={styles.path}>
-                    {asking?.method ?? 'GET'} {asking?.target ?? stop?.path ?? ''}
-                  </code>
-                </p>
-                <p className={styles.note}>
-                  {t('main.6-3.at')}: {companyClock(t, requestAt) ?? '-'}
-                </p>
-              </section>
               <section className={styles.card} data-mark aria-labelledby="confirm-difference">
                 <h2 id="confirm-difference" className={styles.label}>
                   {t('main.6-3.difference')}
@@ -184,11 +157,7 @@ export default function AgentConfirmPage() {
                   {trigger && i18n.exists(`main.agent.trigger.${trigger}`)
                     ? t(`main.agent.trigger.${trigger}`)
                     : (trigger ?? '-')}
-                  {trigger === 'DELEGATION_ENDED' && ended
-                    ? ` ${t('main.6-3.endedVsAt', { ended: companyClock(t, ended), at: companyClock(t, requestAt) ?? '-' })}`
-                    : ''}
                 </p>
-                <p className={styles.note}>{t('main.6-3.byRecord')}</p>
               </section>
             </div>
           ) : null}
@@ -220,39 +189,115 @@ export default function AgentConfirmPage() {
               </div>
             </section>
           ) : null}
-          {shown === 'approved' || shown === 'rejected' ? (
-            <section className={styles.card} aria-labelledby="confirm-result">
-              <h2 id="confirm-result" className={styles.label}>
-                {t('main.6-4.result')}
-              </h2>
-              <dl className={styles.rows}>
-                <div className={styles.row}>
-                  <dt className={styles.rowName}>{t('main.6-4.authorization')}</dt>
-                  <dd className={styles.rowValue}>
-                    <code className={styles.path}>{authorization ?? t('main.6-4.noAuthorization')}</code>
-                  </dd>
-                </div>
-                <div className={styles.row}>
-                  <dt className={styles.rowName}>
-                    {t(shown === 'approved' ? 'main.6-4.resent' : 'main.6-4.resentRejected')}
-                  </dt>
-                  <dd className={styles.rowValue}>{resentWords(t, resend)}</dd>
-                </div>
-                {shown === 'approved' ? (
-                  <>
+          {shown === 'asked' || shown === 'approved' || shown === 'rejected' || shown === 'unanswered' ? (
+            <Fold name="confirm-record" summary={t('main.6-4.recordFold')}>
+              {shown === 'approved' || shown === 'rejected' ? (
+                <section className={styles.card} aria-labelledby="confirm-result">
+                  <h2 id="confirm-result" className={styles.label}>
+                    {t('main.6-4.result')}
+                  </h2>
+                  <dl className={styles.rows}>
                     <div className={styles.row}>
-                      <dt className={styles.rowName}>{t('main.6-4.reuse')}</dt>
-                      <dd className={styles.rowValue}>{resentWords(t, reuse)}</dd>
+                      <dt className={styles.rowName}>
+                        {t(shown === 'approved' ? 'main.6-4.resent' : 'main.6-4.resentRejected')}
+                      </dt>
+                      <dd className={styles.rowValue}>{resentWords(t, resend)}</dd>
                     </div>
-                    <div className={styles.row}>
-                      <dt className={styles.rowName}>{t('main.6-4.other')}</dt>
-                      <dd className={styles.rowValue}>{resentWords(t, other)}</dd>
-                    </div>
-                  </>
-                ) : null}
-              </dl>
-              <p className={styles.note}>{t('main.6-4.cost')}</p>
-            </section>
+                    {shown === 'approved' ? (
+                      <>
+                        <div className={styles.row}>
+                          <dt className={styles.rowName}>{t('main.6-4.reuse')}</dt>
+                          <dd className={styles.rowValue}>{resentWords(t, reuse)}</dd>
+                        </div>
+                        <div className={styles.row}>
+                          <dt className={styles.rowName}>{t('main.6-4.other')}</dt>
+                          <dd className={styles.rowValue}>{resentWords(t, other)}</dd>
+                        </div>
+                      </>
+                    ) : null}
+                  </dl>
+                  <p className={styles.note}>{t('main.6-4.cost')}</p>
+                </section>
+              ) : null}
+              <p className={styles.note}>{t('main.6-3.byRecord')}</p>
+              {trigger === 'DELEGATION_ENDED' && ended ? (
+                <p className={styles.note}>
+                  {t('main.6-3.endedVsAt', {
+                    ended: companyClock(t, ended),
+                    at: companyClock(t, requestAt) ?? '-',
+                  })}
+                </p>
+              ) : null}
+              <div className={styles.cards}>
+                <section className={styles.card} aria-labelledby="confirm-work">
+                  <h2 id="confirm-work" className={styles.label}>
+                    <Term term="delegationRecord">{t('main.agent.work')}</Term>
+                  </h2>
+                  {delegation ? (
+                    <dl className={styles.rows}>
+                      <div className={styles.row}>
+                        <dt className={styles.rowName}>{t('main.agent.objective')}</dt>
+                        <dd className={styles.rowValue}>{delegation.summary[language]}</dd>
+                      </div>
+                      <div className={styles.row}>
+                        <dt className={styles.rowName}>{t('main.agent.scope')}</dt>
+                        <dd className={styles.rowValue}>
+                          {t('main.agent.scopeValue', {
+                            operations: delegation.operations
+                              .map((operation) => operationName(t, (key) => i18n.exists(key), operation))
+                              .join(', '),
+                            resources: delegation.resources.join(', '),
+                          })}
+                        </dd>
+                      </div>
+                      <div className={styles.row}>
+                        <dt className={styles.rowName}>{t('main.agent.period')}</dt>
+                        <dd className={styles.rowValue}>{periodWords(t, delegation)}</dd>
+                      </div>
+                    </dl>
+                  ) : null}
+                </section>
+                <section className={styles.card} aria-labelledby="confirm-request">
+                  <h2 id="confirm-request" className={styles.label}>
+                    {t('main.6-4.request')}
+                  </h2>
+                  <p className={styles.body}>
+                    <code className={styles.path}>
+                      {asking?.method ?? 'GET'} {asking?.target ?? stop?.path ?? ''}
+                    </code>
+                  </p>
+                  <p className={styles.note}>
+                    {t('main.6-3.at')}: {companyClock(t, requestAt) ?? '-'}
+                  </p>
+                </section>
+              </div>
+              {shown === 'approved' || shown === 'rejected' ? (
+                <dl className={styles.rows}>
+                  <div className={styles.row}>
+                    <dt className={styles.rowName}>{t('main.6-4.authorization')}</dt>
+                    <dd className={styles.rowValue}>
+                      <code className={styles.path}>{authorization ?? t('main.6-4.noAuthorization')}</code>
+                    </dd>
+                  </div>
+                  {(
+                    [
+                      ['main.6-4.resent', resend],
+                      ['main.6-4.reuse', reuse],
+                      ['main.6-4.other', other],
+                    ] as const
+                  ).map(([name, value]) =>
+                    value?.ruleId && value.httpStatus !== null && value.httpStatus >= 300 ? (
+                      <div key={name} className={styles.row}>
+                        <dt className={styles.rowName}>{t('main.6-4.refusedBy', { what: t(name) })}</dt>
+                        <dd className={styles.rowValue}>
+                          <code className={styles.path}>{value.ruleId}</code>
+                        </dd>
+                      </div>
+                    ) : null,
+                  )}
+                </dl>
+              ) : null}
+            </Fold>
           ) : null}
           {shown === 'unanswered' ? (
             <p className={styles.body}>
@@ -269,6 +314,7 @@ export default function AgentConfirmPage() {
             </p>
           ) : null}
           {shown === 'blocked' ? <p className={styles.body}>{t('main.6-4.blockedLine')}</p> : null}
+          <MeasureNote own={ownReadable} stopReason={run?.stopReason ?? null} />
         </div>
       ) : null}
     </MainScreen>
@@ -303,7 +349,7 @@ function resent(
   };
 }
 
-/** "처리됨 · HTTP 200 · 5건" or "거부됨 · HTTP 403 · AGENT_CONFIRMATION_USED". */
+/** "처리됨 · HTTP 200 · 5건" or "거부됨 · HTTP 403"; the engine's rule code of a refusal waits in the fold. */
 function resentWords(t: ReturnType<typeof useTranslation>['t'], value: AgentResent | null): string {
   if (value === null || value.httpStatus === null) {
     return t('main.6-4.notSent');
@@ -311,5 +357,5 @@ function resentWords(t: ReturnType<typeof useTranslation>['t'], value: AgentRese
   if (value.httpStatus >= 200 && value.httpStatus < 300) {
     return t('main.6-4.served', { status: value.httpStatus, items: value.deliveredItems });
   }
-  return t('main.6-4.refused', { status: value.httpStatus, rule: value.ruleId ?? '-' });
+  return t('main.6-4.refused', { status: value.httpStatus });
 }

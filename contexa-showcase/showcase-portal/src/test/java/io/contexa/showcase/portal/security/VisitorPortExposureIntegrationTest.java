@@ -7,7 +7,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -28,11 +32,13 @@ import java.security.SecureRandom;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -158,6 +164,14 @@ class VisitorPortExposureIntegrationTest {
             // docs/agent A7-3: the business agent group reads its case as defined and a run's agent work, both stored.
             Map.entry("GET /api/agent-cases/{key}", Reach.READ),
             Map.entry("GET /api/runs/{runId}/agent", Reach.READ),
+            // docs/agent Agent중심-화면 AC-5: the frozen reference agent runs, files read as they are.
+            Map.entry("GET /api/agent-snapshots", Reach.READ),
+            Map.entry("GET /api/agent-snapshots/{label}", Reach.READ),
+            // docs/agent Agent중심-화면 AS-11: the agent part of the benchmark: stored runs counted, nothing run.
+            Map.entry("GET /api/benchmark/agent", Reach.READ),
+            // docs/agent Agent중심-화면 AC-4a: the agent menu: the table and one stored answer; no model is called.
+            Map.entry("GET /api/agent-menu", Reach.READ),
+            Map.entry("GET /api/agent-menu/{caseKey}/{path}", Reach.READ),
             Map.entry("POST /api/live/runs", Reach.GATED_ENGINE_START),
             Map.entry("POST /api/live/combinations", Reach.GATED_ENGINE_START),
             // The lab (docs/showcase/데모-재설계.md 5A.1): its choices, a composed case through the same cost gate, the
@@ -242,6 +256,70 @@ class VisitorPortExposureIntegrationTest {
                 .isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(http.getForEntity(ops + "/actuator/health", String.class).getStatusCode())
                 .isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    /**
+     * docs/agent Agent중심-화면 AS-12, AS-13, G-12 (3): a start the server cannot read (a value outside the lists of the
+     * delegation, a number of requests that is no number, a body that is no JSON) is refused with 400 like every other
+     * refusal of the start, not with the 403 a denied error page would give, and takes no points and starts no run.
+     */
+    @Test
+    void aStartTheServerCannotReadIsRefusedWith400AndTakesNothing() {
+        ResponseEntity<String> visit = http.getForEntity("/api/visitor", String.class);
+        List<String> cookies = visit.getHeaders().get(HttpHeaders.SET_COOKIE);
+        assertThat(cookies).isNotNull();
+        String cookie = cookies.stream().map(set -> set.split(";")[0]).collect(Collectors.joining("; "));
+        String xsrf = cookies.stream().map(set -> set.split(";")[0]).filter(set -> set.startsWith("XSRF-TOKEN="))
+                .map(set -> set.substring("XSRF-TOKEN=".length())).findFirst().orElse("");
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.add(HttpHeaders.COOKIE, cookie);
+        headers.add("X-XSRF-TOKEN", xsrf);
+
+        for (String body : List.of(
+                "{\"scenario\":\"ED1\",\"delegation\":{\"quantity\":401}}",
+                "{\"scenario\":\"ED1\",\"delegation\":{\"period\":\"FOREVER\"}}",
+                "{\"scenario\":\"ED1\",\"delegation\":{\"operations\":\"ALL\"}}",
+                "{\"scenario\":\"M41A\",\"copies\":\"many\"}",
+                "{\"scenario\":\"M41A\",\"copies\":11}",
+                "{bad json")) {
+            assertThat(http.exchange("/api/live/runs", HttpMethod.POST, new HttpEntity<>(body, headers), String.class)
+                    .getStatusCode()).as(body).isEqualTo(HttpStatus.BAD_REQUEST);
+        }
+        assertThat(http.exchange("/api/live/combinations", HttpMethod.POST, new HttpEntity<>("{bad json", headers),
+                String.class).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(jdbc.queryForObject("select count(*) from run where live_run", Integer.class)).isZero();
+    }
+
+    /**
+     * docs/agent Agent중심-화면 AC-6, AC-9: the visitor's configuration carries the day's share of live agent runs and
+     * the cap of agent runs at once; the operator's budget (the allotment, the share, the unit cost, what the menu job
+     * spent) answers on the operator port only, as data and as a page.
+     */
+    @Test
+    void theAgentShareAndTheCapAreInTheVisitorConfigAndTheBudgetAnswersOnTheOperatorPortOnly() {
+        ResponseEntity<String> config = http.getForEntity("/api/live/config", String.class);
+        assertThat(config.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(config.getBody()).contains("\"liveTicketsLeft\":", "\"agentConcurrent\":5", "\"agentRunsActive\":0");
+        // AS-13: the live burst is offered up to ten requests; the stored measurement's sixty are told apart
+        assertThat(config.getBody()).contains("\"burst\":{\"case\":\"M41A\"", "\"most\":10", "\"measured\":60", "\"points\":5");
+
+        String ops = "http://127.0.0.1:" + OPS_PORT;
+        ResponseEntity<String> status = http.getForEntity(ops + "/ops/live/status", String.class);
+        assertThat(status.getBody()).contains("\"agent\":{", "\"unitCostUsd\":", "\"ticketsLeft\":",
+                "\"remainingUsd\":", "\"agentRunsActive\":0", "\"menuJob\":");
+        ResponseEntity<String> page = http.getForEntity(ops + "/ops/budget", String.class);
+        assertThat(page.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(String.valueOf(page.getHeaders().getContentType())).startsWith("text/html");
+        assertThat(page.getBody()).contains("<title>", "allotment", "unit cost");
+        assertThat(http.getForEntity("/ops/budget", String.class).getStatusCode())
+                .as("never on the visitor port").isEqualTo(HttpStatus.NOT_FOUND);
+
+        // the definition hashes in force of the agent cases, for an independent recount of the benchmark (AS-11, G-13)
+        ResponseEntity<String> cases = http.getForEntity(ops + "/ops/agent-tasks", String.class);
+        assertThat(cases.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(cases.getBody()).contains("\"key\":\"T5\"", "\"sender\":\"DELEGATED_AGENT\"", "\"definitionSha256\":\"");
+        assertThat(http.getForEntity("/ops/agent-tasks", String.class).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test

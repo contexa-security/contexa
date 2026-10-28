@@ -105,17 +105,27 @@ function open() {
   );
 }
 
-// Review before the guide videos (2026-10-21, V-07): the company records card read as a third reason with a green check
-// for a rule that let the attack through.
-describe('the company records on the result of the attack', () => {
-  it('are a reference, not a numbered reason, and the rule that let the attack through reads as a miss', async () => {
+// 구현계획 NW-8: the reasons moved to their own screen (2-4); the result keeps the headline and the proof of the five approaches.
+describe('the result of the attack', () => {
+  it("says what Contexa did in the headline of the visitor's own run and leaves the reasons to the next screen", async () => {
     open();
-    const rule = i18n.t('main.lane.C2');
-    const passed = await screen.findByText(i18n.t('main.2-3.company.passed', { rule }));
-    expect(passed).toHaveTextContent('미탐');
-    const card = passed.closest('section');
-    expect(card).toHaveAttribute('data-reference');
-    expect(card?.querySelector('[data-ok]')).toBeNull();
-    expect(screen.getByText(i18n.t('main.2-3.company.label'))).not.toHaveTextContent('③');
+    expect(await screen.findByRole('heading', { level: 1, name: i18n.t('main.2-3.title.CHALLENGE') })).toBeInTheDocument();
+    expect(screen.queryByText(i18n.t('main.2-3.company.label'))).toBeNull();
+    expect(screen.queryByText(i18n.t('main.2-3.size.label'))).toBeNull();
+  });
+
+  // 구현계획 NW-8: what each approach answered is in view; the proof of the record and the learning fold under one line.
+  it('keeps what each approach answered in view and folds the proof and the learning under one line', async () => {
+    const { container } = open();
+    await screen.findByRole('heading', { level: 1, name: i18n.t('main.2-3.title.CHALLENGE') });
+    const fold = container.querySelector('details[data-fold="proof"]') as HTMLDetailsElement | null;
+    expect(fold).not.toBeNull();
+    expect(fold?.open).toBe(false);
+    expect(fold?.textContent).toContain(i18n.t('main.proof.fold'));
+    expect(fold?.textContent).toContain(i18n.t('main.proof.check.title'));
+    expect(fold?.textContent).toContain(i18n.t('main.proof.learn.title'));
+    // the bars of the five approaches are outside the fold
+    const out = screen.getByText(i18n.t('main.proof.out.title'));
+    expect(fold?.contains(out)).toBe(false);
   });
 });

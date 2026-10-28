@@ -1,6 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { captionLines, LINE_LIMIT, vtt } from './guideCaptions.mjs';
+import {
+  captionLines,
+  cueSeconds,
+  LINE_LIMIT,
+  LINE_LIMIT_NARROW,
+  readingProblems,
+  sceneSeconds,
+  vtt,
+} from './guideCaptions.mjs';
 
 const dictionaries = {
   ko: JSON.parse(readFileSync('src/i18n/ko.json', 'utf-8')),
@@ -24,6 +32,43 @@ describe('the guide captions', () => {
         }
       }
     }
+  });
+
+  // 가이드영상-제작기획안.md 6.2절: a phone's band holds about 19 Korean characters of 18 px bold, so its files are cut
+  // finer than the wide ones; the sentences are the same.
+  it('cut every scene line within the narrower limit of a phone too, into lines that read back as the line itself', () => {
+    expect(LINE_LIMIT_NARROW).toEqual({ ko: 18, en: 32 });
+    for (const [language, dictionary] of Object.entries(dictionaries)) {
+      for (const script of Object.values(scripts)) {
+        for (const key of script.scenes) {
+          const lines = captionLines(dictionary[key], LINE_LIMIT_NARROW[language]);
+          expect(lines.join(' '), key).toBe(dictionary[key]);
+          for (const line of lines) {
+            expect(line.length, `${language} ${line}`).toBeLessThanOrEqual(LINE_LIMIT_NARROW[language]);
+          }
+        }
+      }
+    }
+  });
+
+  it('give a line the time it needs to be read: 8 Korean or 17 English characters a second, at least 2.5 seconds', () => {
+    expect(cueSeconds('가'.repeat(28), 'ko')).toBeCloseTo(3.5, 5);
+    expect(cueSeconds('짧은 줄', 'ko')).toBe(2.5);
+    expect(cueSeconds('x'.repeat(54), 'en')).toBeCloseTo(54 / 17, 5);
+    expect(cueSeconds('Short', 'en')).toBe(2.5);
+  });
+
+  it('say how long a scene must last for every one of its lines to be read', () => {
+    expect(sceneSeconds('하나 둘 셋. 넷 다섯.', 'ko', 8)).toBeCloseTo(5, 5);
+    expect(sceneSeconds('가'.repeat(28), 'ko', 28)).toBeCloseTo(3.5, 5);
+  });
+
+  it('list the lines of a caption file that go by too fast to be read', () => {
+    const line = '가'.repeat(20);
+    const fast = vtt([{ key: 'a', start: 0 }], 2, { a: line }, 28);
+    expect(readingProblems(fast, 'ko')).toEqual([{ line, seconds: 2, needed: 2.5 }]);
+    const slow = vtt([{ key: 'a', start: 0 }], 6, { a: line }, 28);
+    expect(readingProblems(slow, 'ko')).toEqual([]);
   });
 
   it('cut at a sentence end first, then at a comma unless a cut at a space saves more than one line', () => {
@@ -77,6 +122,18 @@ describe('the guide captions', () => {
         const shipped = readFileSync(`public/guides/${file}`, 'utf-8');
         expect(shipped, `${id} ${language}`).toBe(
           vtt(video.scenes, video.end, dictionaries[language], LINE_LIMIT[language]),
+        );
+      }
+    }
+  });
+
+  it('ship the files cut for a phone beside them, for every video that lists them', () => {
+    for (const [id, video] of Object.entries(manifest)) {
+      expect(Object.keys(video.captionsNarrow ?? {}), id).toEqual(Object.keys(video.captions));
+      for (const [language, file] of Object.entries(video.captionsNarrow ?? {})) {
+        const shipped = readFileSync(`public/guides/${file}`, 'utf-8');
+        expect(shipped, `${id} ${language} phone`).toBe(
+          vtt(video.scenes, video.end, dictionaries[language], LINE_LIMIT_NARROW[language]),
         );
       }
     }

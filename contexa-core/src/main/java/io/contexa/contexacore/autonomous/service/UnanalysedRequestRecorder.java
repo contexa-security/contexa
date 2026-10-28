@@ -96,13 +96,29 @@ public class UnanalysedRequestRecorder {
         if (event == null || action == null || action == ZeroTrustAction.PENDING_ANALYSIS) {
             return;
         }
+        record(ZeroTrustSecurityEventConverter.convert(event), action, enforced(event));
+    }
+
+    /**
+     * The same for an event that is already a security event (RL-12): an agent's event that waited in the queue of its
+     * session and was answered by the decision in force when its turn came.
+     */
+    public void recordQueued(SecurityEvent securityEvent, ZeroTrustAction action) {
+        if (securityEvent == null || action == null || action == ZeroTrustAction.PENDING_ANALYSIS) {
+            return;
+        }
+        Object boundary = securityEvent.getMetadata() != null ? securityEvent.getMetadata().get("decisionBoundaryMode") : null;
+        boolean enforced = (securityZeroTrustProperties == null || securityZeroTrustProperties.isEnforcementEnabled())
+                && (boundary == null || !"SHADOW".equalsIgnoreCase(boundary.toString().trim()));
+        record(securityEvent, action, enforced);
+    }
+
+    private void record(SecurityEvent securityEvent, ZeroTrustAction action, boolean enforced) {
         try {
-            SecurityEvent securityEvent = ZeroTrustSecurityEventConverter.convert(event);
             if (recorder.committed(securityEvent)) {
                 return;
             }
             sessionNarrativeCollector.collect(securityEvent);
-            boolean enforced = enforced(event);
             recorder.commit(securityEvent, action.name(), enforced);
             if (action == ZeroTrustAction.ALLOW && enforced && verificationLearningService != null) {
                 // N-LRN-3: the first request sent again, after the passed step-up, of those a filter stopped under the
@@ -110,7 +126,28 @@ public class UnanalysedRequestRecorder {
                 verificationLearningService.learnResent(securityEvent);
             }
         } catch (RuntimeException e) {
-            log.error("Failed to record a request that was not analysed: userId={}", event.getUserId(), e);
+            log.error("Failed to record a request that was not analysed: userId={}", securityEvent.getUserId(), e);
+        }
+    }
+
+    /**
+     * Records a request that passed before its verdict was in (RL-12): the engine let it through, so it is part of what
+     * the session did, and it stands in the session as an allowed request. It is never learned, whatever the verdict
+     * that follows: nothing yet says that what it did is the user's usual behaviour.
+     */
+    public void recordPassed(ZeroTrustSpringEvent event) {
+        if (event == null) {
+            return;
+        }
+        try {
+            SecurityEvent securityEvent = ZeroTrustSecurityEventConverter.convert(event);
+            if (recorder.committed(securityEvent)) {
+                return;
+            }
+            sessionNarrativeCollector.collect(securityEvent);
+            recorder.commit(securityEvent, ZeroTrustAction.ALLOW.name(), false);
+        } catch (RuntimeException e) {
+            log.error("Failed to record a request that passed before its verdict: userId={}", event.getUserId(), e);
         }
     }
 

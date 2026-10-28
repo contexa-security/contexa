@@ -78,11 +78,16 @@ contexa:
             operations: [READ, EXPORT]
             resource-families: [PROJECT_DOCUMENTS]
             max-export-items: 500
+        # docs/agent RL-12: one agent's requests that come in numbers are analysed once per question, at most three
+        # analyses of one agent run at once, and a request the engine has no place for is refused with 429. Off until
+        # the measurement before and after (BR-0, BR-1) has been made: SHOWCASE_AGENT_FLIGHT=true turns it on.
+        flight:
+          enabled: ${SHOWCASE_AGENT_FLIGHT:false}
     tiered:
       # The decision prompt bundle D runs (docs/showcase/판정층-수정계획.md 8절 1): without it a plain start runs the
       # core default bundle.
       prompt-bundle:
-        active: 2026.10.25-v21.15
+        active: 2026.10.27-v21.17
       # The model of each analysis layer (docs/showcase/판정층-수정계획.md E-7): Layer1 decides, Layer2 decides what
       # Layer1 could not. A model id with no runtime binding runs on a copy of the primary chat model; one that cannot
       # be made stops the start.

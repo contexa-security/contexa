@@ -86,7 +86,13 @@ export default function RunsPage() {
   const protocol = data.scope.protocols[data.scope.protocols.length - 1] ?? null;
   return (
     <MainScreen
-      title={t(keepsBoth ? 'main.7-3.title' : 'main.7-3.titlePlain')}
+      title={
+        keepsBoth
+          ? t('main.7-3.title')
+          : contexa
+            ? t('main.7-3.titleCounts', { missed: contexa.missed, falseBlock: contexa.falseBlock.hits })
+            : t('main.7-3.titlePlain')
+      }
       intro={
         <>
           {t('main.7-3.intro', { cases: data.scope.cases, repeat: sentPerCase(data), runs: data.scope.runs })}

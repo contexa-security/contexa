@@ -31,6 +31,7 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 @Slf4j
 public class DeviceAwareOAuth2AuthorizationService implements OAuth2AuthorizationService {
@@ -45,6 +46,8 @@ public class DeviceAwareOAuth2AuthorizationService implements OAuth2Authorizatio
     private final JdbcTemplate jdbcTemplate;
     private final AuthContextProperties properties;
     private final TransactionTemplate transactionTemplate;
+    /** Reads an authorization on one connection (RL-15); null where no transaction manager was given. */
+    private final TransactionTemplate readTransactions;
 
     public DeviceAwareOAuth2AuthorizationService(
             OAuth2AuthorizationService delegate,
@@ -66,16 +69,46 @@ public class DeviceAwareOAuth2AuthorizationService implements OAuth2Authorizatio
         this.jdbcTemplate = jdbcTemplate;
         this.properties = properties;
         this.transactionTemplate = transactionTemplate;
+        this.readTransactions = readOnly(transactionTemplate);
+    }
+
+    private static TransactionTemplate readOnly(TransactionTemplate source) {
+        if (source == null || source.getTransactionManager() == null) {
+            return null;
+        }
+        TransactionTemplate reads = new TransactionTemplate(source.getTransactionManager(), source);
+        reads.setReadOnly(true);
+        return reads;
+    }
+
+    /**
+     * docs/agent RL-15. The delegate maps the row of an authorization while its query still holds the connection, and the
+     * row mapper looks the registered client up with a second query. Outside a transaction that is a second connection:
+     * when as many callers as the pool has connections read at once, each holds one and waits for another, and the pool
+     * of the engine stands still until the connection timeout ends the waits. Inside a transaction both queries use the
+     * connection the transaction holds, so every read holds one connection whatever the number of callers.
+     */
+    private <T> T onOneConnection(Supplier<T> read) {
+        return readTransactions == null ? read.get() : readTransactions.execute(status -> read.get());
     }
 
     @Override
     public void save(OAuth2Authorization authorization) {
         // Only a newly created authorization is a new login. Updates of an existing one, such as a
         // refresh token rotation or a logout invalidation, must not count against the login limit.
-        if (delegate.findById(authorization.getId()) == null) {
+        if (onOneConnection(() -> delegate.findById(authorization.getId())) == null) {
             enforceConcurrentLoginPolicy(authorization);
         }
-        delegate.save(authorization);
+        saveOnOneConnection(authorization);
+    }
+
+    /** The delegate reads the stored authorization before it writes, and that read has the same second query. */
+    private void saveOnOneConnection(OAuth2Authorization authorization) {
+        if (transactionTemplate == null) {
+            delegate.save(authorization);
+            return;
+        }
+        transactionTemplate.executeWithoutResult(status -> delegate.save(authorization));
     }
 
     @Override
@@ -85,12 +118,12 @@ public class DeviceAwareOAuth2AuthorizationService implements OAuth2Authorizatio
 
     @Override
     public OAuth2Authorization findById(String id) {
-        return delegate.findById(id);
+        return onOneConnection(() -> delegate.findById(id));
     }
 
     @Override
     public OAuth2Authorization findByToken(String token, OAuth2TokenType tokenType) {
-        return delegate.findByToken(token, tokenType);
+        return onOneConnection(() -> delegate.findByToken(token, tokenType));
     }
 
     public List<OAuth2Authorization> findActiveByPrincipalName(String principalName) {
@@ -133,7 +166,7 @@ public class DeviceAwareOAuth2AuthorizationService implements OAuth2Authorizatio
 
     private OAuth2Authorization safeFindById(String id) {
         try {
-            return delegate.findById(id);
+            return onOneConnection(() -> delegate.findById(id));
         } catch (Exception e) {
             log.error("[OAuth2] Failed to deserialize authorization {}: {}", id, e.getMessage());
             cleanupCorruptedAuthorization(id);
@@ -172,7 +205,7 @@ public class DeviceAwareOAuth2AuthorizationService implements OAuth2Authorizatio
                     metadata.put(OAuth2Authorization.Token.INVALIDATED_METADATA_NAME, true));
         }
 
-        delegate.save(builder.build());
+        saveOnOneConnection(builder.build());
     }
 
     public void invalidateAllByPrincipalName(String principalName) {

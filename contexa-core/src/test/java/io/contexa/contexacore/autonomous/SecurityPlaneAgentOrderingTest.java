@@ -148,6 +148,72 @@ class SecurityPlaneAgentOrderingTest {
         assertThat(maxInFlight.get()).isGreaterThanOrEqualTo(2);
     }
 
+    /** RL-12 (QD-01): a queued event the stored decisions answer when its turn comes is not analysed. */
+    @Test
+    @DisplayName("차례가 된 사건을 저장된 판정이 이미 답하면 분석하지 않는다 (RL-12)")
+    void shouldNotAnalyseAQueuedEventTheStoredDecisionsNowAnswer() throws Exception {
+        SecurityMonitoringService.SecurityEventBatchProcessor batchProcessor = initializeAgent(2);
+        when(dataStore.claimEventProcessing(anyString())).thenReturn(SecurityContextDataStore.EventProcessingClaim.ACQUIRED);
+        CopyOnWriteArrayList<String> analysed = new CopyOnWriteArrayList<>();
+        CopyOnWriteArrayList<String> answered = new CopyOnWriteArrayList<>();
+        CountDownLatch done = new CountDownLatch(3);
+        when(securityEventProcessor.process(any(SecurityEvent.class))).thenAnswer(invocation -> {
+            SecurityEvent event = invocation.getArgument(0);
+            analysed.add(event.getEventId());
+            done.countDown();
+            return SecurityEventContext.builder().securityEvent(event)
+                    .processingStatus(SecurityEventContext.ProcessingStatus.COMPLETED).build();
+        });
+        // the first event is analysed; once it is done the others find a restriction stored
+        agent.setQueuedEventRecheck(event -> {
+            boolean restricted = !analysed.isEmpty() && !"evt-1".equals(event.getEventId());
+            if (restricted) {
+                answered.add(event.getEventId());
+                done.countDown();
+            }
+            return restricted;
+        });
+
+        batchProcessor.processBatch(List.of(
+                event("evt-1", "same-user", "same-session"),
+                event("evt-2", "same-user", "same-session"),
+                event("evt-3", "same-user", "same-session")));
+
+        assertThat(done.await(5, TimeUnit.SECONDS)).isTrue();
+        assertThat(analysed).containsExactly("evt-1");
+        assertThat(answered).containsExactly("evt-2", "evt-3");
+    }
+
+    /** RL-12 (QD-03): nothing answers the event, so it is analysed as before; a check that fails answers nothing. */
+    @Test
+    @DisplayName("재확인이 답하지 못하거나 실패하면 사건은 이전처럼 분석된다 (RL-12)")
+    void shouldAnalyseAQueuedEventWhenTheRecheckAnswersNothingOrFails() throws Exception {
+        SecurityMonitoringService.SecurityEventBatchProcessor batchProcessor = initializeAgent(2);
+        when(dataStore.claimEventProcessing(anyString())).thenReturn(SecurityContextDataStore.EventProcessingClaim.ACQUIRED);
+        CopyOnWriteArrayList<String> analysed = new CopyOnWriteArrayList<>();
+        CountDownLatch done = new CountDownLatch(2);
+        when(securityEventProcessor.process(any(SecurityEvent.class))).thenAnswer(invocation -> {
+            SecurityEvent event = invocation.getArgument(0);
+            analysed.add(event.getEventId());
+            done.countDown();
+            return SecurityEventContext.builder().securityEvent(event)
+                    .processingStatus(SecurityEventContext.ProcessingStatus.COMPLETED).build();
+        });
+        agent.setQueuedEventRecheck(event -> {
+            if ("evt-2".equals(event.getEventId())) {
+                throw new IllegalStateException("store down");
+            }
+            return false;
+        });
+
+        batchProcessor.processBatch(List.of(
+                event("evt-1", "same-user", "same-session"),
+                event("evt-2", "same-user", "same-session")));
+
+        assertThat(done.await(5, TimeUnit.SECONDS)).isTrue();
+        assertThat(analysed).containsExactly("evt-1", "evt-2");
+    }
+
     private SecurityMonitoringService.SecurityEventBatchProcessor initializeAgent(int llmConcurrency) {
         SecurityPlaneProperties properties = new SecurityPlaneProperties();
         properties.getAgent().setAutoStart(false);

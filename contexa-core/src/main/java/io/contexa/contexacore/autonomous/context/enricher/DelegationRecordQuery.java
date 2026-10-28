@@ -28,6 +28,8 @@ import java.time.Instant;
  * @param delegationId the delegation the request names (for example from a token or session)
  * @param objectiveId  the work the request names
  * @param requestedAt  when the request was made, for records that change over time
+ * @param standing     RL-10: the lookup of the standing delegation of an agent on its own: {@code delegatorId} is the
+ *                     agent's sponsor, who may have recorded what the agent is for; false for the request's own lookup
  */
 public record DelegationRecordQuery(
         String tenantId,
@@ -35,5 +37,12 @@ public record DelegationRecordQuery(
         String agentId,
         String delegationId,
         String objectiveId,
-        Instant requestedAt) {
+        Instant requestedAt,
+        boolean standing) {
+
+    /** The request's own lookup (before RL-10). */
+    public DelegationRecordQuery(String tenantId, String delegatorId, String agentId, String delegationId,
+                                 String objectiveId, Instant requestedAt) {
+        this(tenantId, delegatorId, agentId, delegationId, objectiveId, requestedAt, false);
+    }
 }

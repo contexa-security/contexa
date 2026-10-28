@@ -399,6 +399,34 @@ class ObjectiveDriftEvaluatorTest {
         assertThat(aRead.facts()).noneMatch(fact -> fact.contains("delegation's limit"));
     }
 
+    /**
+     * RL-10: the standing delegation of an agent on its own is compared with the request as a delegation is, and a request
+     * that has neither is not compared.
+     */
+    @Test
+    void aStandingDelegationIsComparedWithTheRequestAsADelegationIs() {
+        CanonicalSecurityContext.Delegation standing = CanonicalSecurityContext.Delegation.builder()
+                .standing(true)
+                .objectiveFamily("DATA_EXPORT")
+                .allowedOperations(List.of("EXPORT"))
+                .maxItemsPerRequest(40)
+                .build();
+        CanonicalSecurityContext.Delegation neither = CanonicalSecurityContext.Delegation.builder()
+                .objectiveFamily("DATA_EXPORT")
+                .allowedOperations(List.of("EXPORT"))
+                .maxItemsPerRequest(40)
+                .build();
+
+        ObjectiveDriftEvaluation tenTimes = evaluator.evaluate(standing, documents("EXPORT", 400));
+        ObjectiveDriftEvaluation within = evaluator.evaluate(standing, documents("EXPORT", 40));
+        ObjectiveDriftEvaluation notCompared = evaluator.evaluate(neither, documents("EXPORT", 400));
+
+        assertThat(tenTimes.objectiveDrift()).isTrue();
+        assertThat(tenTimes.facts()).anyMatch(fact -> fact.contains("400 requested items exceed the delegation's limit of 40 items per request"));
+        assertThat(within.objectiveDrift()).isFalse();
+        assertThat(notCompared.objectiveDrift()).isNull();
+    }
+
     private static CanonicalSecurityContext.Delegation delegationTo(String resource) {
         return CanonicalSecurityContext.Delegation.builder()
                 .delegated(true)

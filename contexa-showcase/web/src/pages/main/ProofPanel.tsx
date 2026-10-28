@@ -9,6 +9,7 @@ import { count, utcTime } from '../../journey/format';
 import { CheckCounts } from './CheckCounts';
 import { inOrder, learnedAdded, shortHash } from './evidence';
 import styles from './ProofPanel.module.css';
+import { Fold } from '../../components/main/Fold';
 
 /** How many of the inspector's checks the panel names: the three that prove the record was not altered. */
 const PROOF_CHECKS = 3;
@@ -23,8 +24,8 @@ interface ProofPanelProps {
  * EV-1, the proof that a result is real (최종화면-구현계획 5차): what each approach actually answered to the same
  * request (its HTTP status and the items its answer carried, with the answer itself one press away), the engine
  * inspector's re-computation of this run's sealed record, and what the run added to the learned usual pattern. Every
- * value is the run's stored record; the bars only scale the stored counts. The two tall cards share the first row and
- * the learning card runs across the row under them, so no card leaves a hole beside the others (L-04).
+ * value is the run's stored record; the bars only scale the stored counts. What went out is in view; the inspector's
+ * checks and the learning sit under one line (구현계획 NW-8), side by side, the learning across the row under them.
  */
 export function ProofPanel({ runId, threat }: ProofPanelProps) {
   const { t } = useTranslation();
@@ -34,11 +35,17 @@ export function ProofPanel({ runId, threat }: ProofPanelProps) {
         <Icon name="check" className={styles.titleIcon} />
         {t('main.proof.title')}
       </h2>
-      <div className={styles.grid}>
+      <div className={styles.grid} data-single>
         <OutCard runId={runId} threat={threat} />
-        <CheckCard runId={runId} />
-        <LearnCard runId={runId} />
       </div>
+      {/* NW-8 (R-N2): what each approach answered is the result and stays in view; the proof that the record is real and
+          what the run added to the learned pattern fold under one line. */}
+      <Fold name="proof" summary={t('main.proof.fold')}>
+        <div className={styles.grid}>
+          <CheckCard runId={runId} />
+          <LearnCard runId={runId} />
+        </div>
+      </Fold>
     </section>
   );
 }

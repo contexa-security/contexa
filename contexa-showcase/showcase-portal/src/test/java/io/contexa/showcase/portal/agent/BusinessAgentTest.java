@@ -195,6 +195,130 @@ class BusinessAgentTest {
         assertThat(sent).isEmpty();
     }
 
+    // ---- docs/agent Agent중심-화면 AC-3: the hard limits of a visitor's live run
+
+    /** A model round that asks for a tool and used the given prompt tokens. */
+    private static String toolCallRound(int promptTokens) {
+        return TOOL_CALL.replace("\"prompt_tokens\":100", "\"prompt_tokens\":" + promptTokens);
+    }
+
+    @Test
+    void aLiveRunPastItsInputTokenLimitSendsNothingMoreAndAnswers() throws IOException {
+        // the usage Spring AI hands the tool step is the run's sum so far: 30,000 after round 1, 45,000 after round 2
+        String baseUrl = modelServer(List.of(toolCallRound(30_000), toolCallRound(15_000), FINAL), Duration.ZERO);
+        List<AgentWork.Request> sent = new ArrayList<>();
+        AgentRunCap cap = new AgentRunCap(new AgentRunCap.Limits(12, 20, 40_000));
+        BusinessAgentTools tools = new BusinessAgentTools(controlD(sent), 12, cap);
+        BusinessAgent agent = new BusinessAgent(new AgentModels("test-key", baseUrl, "gpt-6-luna", "none"));
+
+        Transcript work = agent.run("gpt-6-luna", BusinessAgent.DEFAULT_PROMPT, "work", tools,
+                Set.of("readDocument"), Duration.ofSeconds(30));
+
+        assertThat(work.stopReason()).isEqualTo("CAP_INPUT_TOKENS");
+        assertThat(work.finalAnswer()).as("the agent is told to answer and does").isEqualTo(
+                "The rotor drawing is revision 3.");
+        assertThat(sent).as("the second round's request went nowhere").hasSize(1);
+        assertThat(work.toolCalls()).hasSize(2);
+        assertThat(work.toolCalls().get(1).sent()).isFalse();
+        assertThat(work.toolCalls().get(1).result()).contains("give your final answer");
+        assertThat(modelRequests).as("one more round to answer, none after").hasSize(3);
+    }
+
+    @Test
+    void aLiveRunUnderItsInputTokenLimitIsNotTouched() throws IOException {
+        String baseUrl = modelServer(List.of(toolCallRound(30_000), FINAL), Duration.ZERO);
+        List<AgentWork.Request> sent = new ArrayList<>();
+        BusinessAgentTools tools = new BusinessAgentTools(controlD(sent), 12,
+                new AgentRunCap(new AgentRunCap.Limits(12, 20, 40_000)));
+        BusinessAgent agent = new BusinessAgent(new AgentModels("test-key", baseUrl, "gpt-6-luna", "none"));
+
+        Transcript work = agent.run("gpt-6-luna", BusinessAgent.DEFAULT_PROMPT, "work", tools,
+                Set.of("readDocument"), Duration.ofSeconds(30));
+
+        assertThat(work.stopReason()).isEqualTo("ANSWERED");
+        assertThat(sent).hasSize(1);
+    }
+
+    @Test
+    void theLiveToolCallLimitOverridesAHigherLimitOfTheCase() throws IOException {
+        String baseUrl = modelServer(List.of(TOOL_CALL, TOOL_CALL, TOOL_CALL, FINAL), Duration.ZERO);
+        List<AgentWork.Request> sent = new ArrayList<>();
+        // the case allows 40 calls; a live run may make 2
+        BusinessAgentTools tools = new BusinessAgentTools(controlD(sent), 40,
+                new AgentRunCap(new AgentRunCap.Limits(2, 20, 40_000)));
+        BusinessAgent agent = new BusinessAgent(new AgentModels("test-key", baseUrl, "gpt-6-luna", "none"));
+
+        Transcript work = agent.run("gpt-6-luna", BusinessAgent.DEFAULT_PROMPT, "work", tools,
+                Set.of("readDocument"), Duration.ofSeconds(30));
+
+        assertThat(sent).hasSize(2);
+        assertThat(work.stopReason()).isEqualTo("CAP_TOOL_CALLS");
+    }
+
+    @Test
+    void aCaseWhoseOwnBudgetIsBelowTheLiveLimitKeepsItsOwnStopReason() throws IOException {
+        String baseUrl = modelServer(List.of(TOOL_CALL, TOOL_CALL, TOOL_CALL, FINAL), Duration.ZERO);
+        List<AgentWork.Request> sent = new ArrayList<>();
+        BusinessAgentTools tools = new BusinessAgentTools(controlD(sent), 2,
+                new AgentRunCap(new AgentRunCap.Limits(12, 20, 40_000)));
+        BusinessAgent agent = new BusinessAgent(new AgentModels("test-key", baseUrl, "gpt-6-luna", "none"));
+
+        Transcript work = agent.run("gpt-6-luna", BusinessAgent.DEFAULT_PROMPT, "work", tools,
+                Set.of("readDocument"), Duration.ofSeconds(30));
+
+        assertThat(sent).hasSize(2);
+        assertThat(work.stopReason()).as("the live limit did not change this run").isEqualTo("TOOL_BUDGET");
+    }
+
+    @Test
+    void theDecisionLimitCountsEveryRequestOfTheRunAndStopsTheWork() throws IOException {
+        String baseUrl = modelServer(List.of(TOOL_CALL, TOOL_CALL, TOOL_CALL, FINAL), Duration.ZERO);
+        List<AgentWork.Request> sent = new ArrayList<>();
+        AgentRunCap cap = new AgentRunCap(new AgentRunCap.Limits(12, 4, 40_000));
+        // two requests of the person came first: the run's decisions so far are those plus what the work sent
+        int personSteps = 2;
+        AgentWork.Sender limited = request -> {
+            if (!cap.admitDecision(personSteps + sent.size())) {
+                throw new IOException("The decision limit of a live run is reached");
+            }
+            return controlD(sent).send(request);
+        };
+        BusinessAgentTools tools = new BusinessAgentTools(limited, 12, cap);
+        BusinessAgent agent = new BusinessAgent(new AgentModels("test-key", baseUrl, "gpt-6-luna", "none"));
+
+        Transcript work = agent.run("gpt-6-luna", BusinessAgent.DEFAULT_PROMPT, "work", tools,
+                Set.of("readDocument"), Duration.ofSeconds(30));
+
+        assertThat(sent).as("4 decisions less the person's 2").hasSize(2);
+        assertThat(work.stopReason()).isEqualTo("CAP_DECISIONS");
+        assertThat(work.toolCalls().get(2).sent()).isFalse();
+    }
+
+    @Test
+    void theFirstLimitReachedIsTheOneRecorded() {
+        AgentRunCap cap = new AgentRunCap(new AgentRunCap.Limits(12, 4, 40_000));
+
+        assertThat(cap.admitDecision(3)).isTrue();
+        assertThat(cap.admitDecision(4)).isFalse();
+        cap.inputTokens(50_000);
+
+        assertThat(cap.reached()).isEqualTo("CAP_DECISIONS");
+    }
+
+    @Test
+    void anAgentWorkWithoutALiveCapIsNotLimited() throws IOException {
+        String baseUrl = modelServer(List.of(toolCallRound(90_000), toolCallRound(90_000), FINAL), Duration.ZERO);
+        List<AgentWork.Request> sent = new ArrayList<>();
+        BusinessAgentTools tools = new BusinessAgentTools(controlD(sent), 5);
+        BusinessAgent agent = new BusinessAgent(new AgentModels("test-key", baseUrl, "gpt-6-luna", "none"));
+
+        Transcript work = agent.run("gpt-6-luna", BusinessAgent.DEFAULT_PROMPT, "work", tools,
+                Set.of("readDocument"), Duration.ofSeconds(30));
+
+        assertThat(work.stopReason()).as("the operator's measurement path is untouched").isEqualTo("ANSWERED");
+        assertThat(sent).hasSize(2);
+    }
+
     @Test
     void withoutAModelKeyTheWorkFailsWithThatReason() {
         BusinessAgentTools tools = new BusinessAgentTools(controlD(new ArrayList<>()), 5);

@@ -28,11 +28,45 @@
   font-weight: var(--weight-medium);
 }
 
+/* The place label with the subject chip beside it (AS-1); a screen without a subject keeps the plain label. */
+.place {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
 .head {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   margin-block-start: var(--space-2);
+}
+
+/* A guide link beside the title on a wide screen: the title and intro keep the left, the link the top right
+   (가이드영상-제작기획안.md 4.1절). A narrow screen keeps the column, with the link under the intro. */
+@media (width >= 64rem) {
+  .head:has(> [data-guide-slot]) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'title guide'
+      'intro intro';
+    column-gap: var(--space-6);
+    align-items: start;
+  }
+
+  .head > h1 {
+    grid-area: title;
+  }
+
+  .head > .intro {
+    grid-area: intro;
+  }
+
+  .head > [data-guide-slot] {
+    grid-area: guide;
+  }
 }
 
 .title {
@@ -128,7 +162,6 @@
   font-weight: var(--weight-bold);
   line-height: var(--leading-tight);
   text-decoration: none;
-  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -213,6 +246,5 @@ button.cta {
 
   .cta {
     flex: 1;
-    white-space: normal;
   }
 }

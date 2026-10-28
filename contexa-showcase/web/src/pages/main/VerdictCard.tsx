@@ -5,6 +5,7 @@ import type { PromptFact, RunFacts } from '../../api/promptQuality';
 import type { ReasonCode } from '../../api/types';
 import { Icon } from '../../components/Icon';
 import { reasonCodeKey } from '../../components/facts/reasonMeaning';
+import { Fold } from '../../components/main/Fold';
 import { breakable } from './breakable';
 import { factById } from './evidence';
 import styles from './VerdictCard.module.css';
@@ -30,10 +31,24 @@ const TONE: Readonly<Record<string, string>> = {
  * the verdict it chose, its risk score and confidence as gauges, each marked when the model wrote it, and the reason
  * it wrote in its own words. Every value is the run's stored record.
  */
-export function VerdictHero({ recorded }: { readonly recorded: Recorded }) {
+export function VerdictHero({
+  recorded,
+  compact = false,
+}: {
+  readonly recorded: Recorded;
+  /**
+   * The first layers of a screen (구현계획 AC-N2): the model's own words are long, so they wait behind their label, and
+   * "applied as proposed" is left unsaid (a change of the verdict is still said).
+   */
+  readonly compact?: boolean;
+}) {
   const { t } = useTranslation();
   const action = recorded.finalAction ?? recorded.proposedAction;
   const provenance = recorded.fieldProvenance ?? {};
+  const changed =
+    recorded.proposedAction !== null &&
+    recorded.finalAction !== null &&
+    recorded.proposedAction !== recorded.finalAction;
   return (
     <section
       className={styles.hero}
@@ -41,19 +56,21 @@ export function VerdictHero({ recorded }: { readonly recorded: Recorded }) {
       data-tone={action ? TONE[action] : undefined}
     >
       <div className={styles.decision}>
-        <h2 id="verdict-hero" className={styles.label}>
+        <h2 id="verdict-hero" className={compact ? 'visually-hidden' : styles.label}>
           {t('main.verdictCard.label')}
         </h2>
         <p className={styles.action}>{action ? t(`main.verdict.${action}`) : t('main.verdict.failed')}</p>
         <p className={styles.actionMeta}>
-          <code>{action ?? '—'}</code>
-          <span>
-            {recorded.proposedAction &&
-            recorded.finalAction &&
-            recorded.proposedAction !== recorded.finalAction
-              ? t('main.verdictCard.changed', { proposed: t(`main.verdict.${recorded.proposedAction}`) })
-              : t('main.verdictCard.same')}
-          </span>
+          {compact ? null : <code>{action ?? '—'}</code>}
+          {changed || !compact ? (
+            <span>
+              {changed
+                ? t('main.verdictCard.changed', {
+                    proposed: t(`main.verdict.${recorded.proposedAction ?? ''}`),
+                  })
+                : t('main.verdictCard.same')}
+            </span>
+          ) : null}
         </p>
       </div>
       <Gauge
@@ -61,18 +78,30 @@ export function VerdictHero({ recorded }: { readonly recorded: Recorded }) {
         value={recorded.riskScore}
         kind="risk"
         source={provenance['riskScore'] ?? null}
+        compact={compact}
       />
       <Gauge
         label={t('main.verdictCard.confidence')}
         value={recorded.confidence}
         kind="confidence"
         source={provenance['confidence'] ?? null}
+        compact={compact}
       />
       {recorded.reasoning ? (
-        <blockquote className={styles.reason}>
-          <span className={styles.reasonLabel}>{t('main.verdictCard.reason')}</span>
-          <q className={styles.reasonText}>{recorded.reasoning}</q>
-        </blockquote>
+        compact ? (
+          <div className={styles.reasonFold}>
+            <Fold name="reason" summary={t('main.verdictCard.reason')}>
+              <blockquote className={styles.reason}>
+                <q className={styles.reasonText}>{recorded.reasoning}</q>
+              </blockquote>
+            </Fold>
+          </div>
+        ) : (
+          <blockquote className={styles.reason}>
+            <span className={styles.reasonLabel}>{t('main.verdictCard.reason')}</span>
+            <q className={styles.reasonText}>{recorded.reasoning}</q>
+          </blockquote>
+        )
       ) : null}
     </section>
   );
@@ -84,11 +113,14 @@ function Gauge({
   value,
   kind,
   source,
+  compact,
 }: {
   readonly label: string;
   readonly value: number | null;
   readonly kind: 'risk' | 'confidence';
   readonly source: string | null;
+  /** The first layers say only what the model did not write; what it wrote is named once, by the label above. */
+  readonly compact: boolean;
 }) {
   const { t } = useTranslation();
   return (
@@ -104,7 +136,7 @@ function Gauge({
         <span>0</span>
         <span>1</span>
       </span>
-      {source ? (
+      {source && !(compact && source === 'MODEL') ? (
         <span className={styles.source} data-model={source === 'MODEL' || undefined}>
           {t(source === 'MODEL' ? 'main.verdictCard.fromModel' : 'main.verdictCard.notModel')}
         </span>
@@ -203,7 +235,7 @@ function ChainRow({
           const plain = t(reasonCodeKey(code), { defaultValue: '' });
           return (
             <li key={code.code} className={styles.code}>
-              <b className={styles.codePlain}>{plain || code.code}</b>
+              <b className={styles.codePlain}>{plain || breakable(code.code)}</b>
               {plain ? (
                 <span className={styles.codeName} data-original>
                   <span className={styles.codeTag}>{t('main.verdictCard.codeOriginal')}</span>{' '}

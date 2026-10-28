@@ -59,6 +59,10 @@ public class ZeroTrustExceptionHandler {
         if (answeredForAgent(ex, request, servletResponse)) {
             return null;
         }
+        if (ex.getBusyRetryAfterSeconds() > 0) {
+            // RL-12: refused because the engine had no place or time to analyse the request; try again later.
+            servletResponse.setHeader("Retry-After", Integer.toString(ex.getBusyRetryAfterSeconds()));
+        }
 
         ZeroTrustErrorResponse response = ZeroTrustErrorResponse.builder()
             .status(ex.getHttpStatus())

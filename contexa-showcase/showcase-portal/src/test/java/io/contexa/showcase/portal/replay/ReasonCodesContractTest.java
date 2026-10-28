@@ -41,7 +41,7 @@ class ReasonCodesContractTest {
     void everyReasonCodeOfTheOutputContractV4HasAMeaningOfItsOwnInBothLanguages() throws IOException {
         Set<String> codes = codes("SecurityDecisionOutputContractV4.java");
 
-        assertThat(codes).as("the reason codes of the output contract v4").hasSize(49);
+        assertThat(codes).as("the reason codes of the output contract v4").hasSize(50);
         for (String language : new String[]{"ko", "en"}) {
             assertThat(meanings(language, "reasonCodeV4.")).as(language).containsExactlyInAnyOrderElementsOf(codes);
         }

@@ -32,7 +32,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  min-block-size: 20rem;
+  min-block-size: 12rem;
   padding: var(--space-4);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -168,7 +168,16 @@
   align-items: start;
 }
 
-/* L-04: each input card is as tall as its words, and it names the prompt lines it became (L-33). */
+/* The prompt lines each input became (L-33), the first thing under the fold that opens the prompt. */
+.refs {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* L-04: each input card is as tall as its words (L-33). */
 .sources {
   --pipe-step: 200ms;
 
@@ -480,6 +489,7 @@
 
 /* An explanation's name breaks into lines of even length, so no word is left alone on its last line. */
 .hypothesisName {
+  font-size: var(--text-md);
   text-wrap: balance;
 }
 
@@ -550,12 +560,42 @@
 }
 
 @media (width <= 40rem) {
+  /* AC-N9: with each stage's value folded the cards are short, so two stand in a row. */
   .pipe {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
   }
 
+  .stageNumber {
+    inline-size: 1.375rem;
+    block-size: 1.375rem;
+    font-size: var(--text-xs);
+  }
+
+  /* The number stands beside the name, small enough that the longest name keeps its whole width; the rest runs under. */
   .stage {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--space-1) var(--space-1);
+    align-items: center;
     min-block-size: 0;
+    padding: var(--space-2) var(--space-3);
+  }
+
+  /* AC-N9: the closed explanations are one line like the other closed layers, not a box around one line. */
+  .panel[data-compact] {
+    padding: 0;
+    border: 0;
+    background-color: transparent;
+  }
+
+  .stage > :not(.stageNumber, .stageName) {
+    grid-column: 1 / -1;
+  }
+
+  .stageName {
+    overflow-wrap: normal;
+    word-break: keep-all;
   }
 
   /* A prompt line's grade goes under its text, so an engine word keeps its line whole. */

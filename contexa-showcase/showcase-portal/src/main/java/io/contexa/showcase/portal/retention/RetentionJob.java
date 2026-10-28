@@ -121,7 +121,8 @@ public class RetentionJob {
                  where coalesce(r.finished_at, r.started_at) < :cutoff and r.status <> 'RUNNING'
                    and not exists (select 1 from replay_record p where p.representative_run_id = r.run_id)
                    and not exists (select 1 from replay_run p where p.run_id = r.run_id)
-                   and not exists (select 1 from combination_record c where c.run_id = r.run_id)""",
+                   and not exists (select 1 from combination_record c where c.run_id = r.run_id)
+                   and not exists (select 1 from agent_menu m where m.run_id = r.run_id)""",
                 before(now, periods.runEvidence())));
         step(deleted, "costLedger", () -> jdbc.update("delete from cost_ledger where recorded_at < :cutoff",
                 before(now, periods.runEvidence())));

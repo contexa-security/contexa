@@ -442,6 +442,24 @@ describe('decision details: the window (RO-1)', () => {
     expect(screen.queryByText('시험 상황')).not.toBeInTheDocument();
   });
 
+  /**
+   * docs/agent Agent중심-화면 AS-1: the window says who sent the requests, as the stored record says: the sender of the
+   * run's agent work when it has one, a person when the run has none. It is never worked out from the screen it was
+   * opened from.
+   */
+  it("says who sent the requests from the run's agent record: an agent on a delegation, else a person", async () => {
+    served[`/api/runs/${RUN}/agent`] = { runId: RUN, sender: 'DELEGATED_AGENT', steps: [] };
+    open('summary');
+    const title = (await screen.findByText(word('bench.r7.caseName.A3'), { exact: false })).closest('h2');
+    expect(await within(required(title)).findByLabelText('보내는 쪽: 위임 에이전트')).toBeInTheDocument();
+  });
+
+  it('says a person sent the requests of a run that has no agent record', async () => {
+    open('summary');
+    const title = (await screen.findByText(word('bench.r7.caseName.A3'), { exact: false })).closest('h2');
+    expect(await within(required(title)).findByLabelText('보내는 쪽: 사람')).toBeInTheDocument();
+  });
+
   it("names a situation without a plain name as the server stored it, as the record's own words", async () => {
     served[`/api/runs/${RUN}/score`] = { ...score, scenarioKey: 'X9' };
     open('summary');

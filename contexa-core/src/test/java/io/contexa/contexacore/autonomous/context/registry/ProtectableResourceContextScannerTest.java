@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.context.registry;
 
 import io.contexa.contexacommon.annotation.Protectable;
+import io.contexa.contexacommon.annotation.ResourceImportance;
 import io.contexa.contexacore.autonomous.context.model.ResourceContextDescriptor;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
@@ -76,6 +77,54 @@ class ProtectableResourceContextScannerTest {
                 .resourceCategory()).isEqualTo("CUSTOMER_RECORDS");
     }
 
+    /** RL-14, IM-01: a method that says nothing about its importance is unspecified, and the annotation defaults so. */
+    @Test
+    void aMethodThatDeclaresNoImportanceIsUnspecified() throws Exception {
+        assertThat(Operations.class.getMethod("readDocument").getAnnotation(Protectable.class).importance())
+                .isEqualTo(ResourceImportance.UNSPECIFIED);
+
+        InMemoryResourceContextRegistry registry = scanned(new Operations());
+
+        assertThat(registry.findByResourceId(Operations.class.getName() + "#readDocument").orElseThrow().importance())
+                .isEqualTo(ResourceImportance.UNSPECIFIED);
+        assertThat(registry.findByResourceId(Operations.class.getName() + "#exportDocuments").orElseThrow()
+                .importance()).isEqualTo(ResourceImportance.UNSPECIFIED);
+    }
+
+    /** RL-14, IM-10: the descriptor carries the importance the annotation declares, on a method, a class and a proxy. */
+    @Test
+    void theDescriptorCarriesTheImportanceTheAnnotationDeclares() {
+        InMemoryResourceContextRegistry registry = scanned(new ImportanceOperations());
+
+        assertThat(registry.findByResourceId(ImportanceOperations.class.getName() + "#listTitles").orElseThrow()
+                .importance()).isEqualTo(ResourceImportance.NON_SENSITIVE);
+        assertThat(registry.findByResourceId(ImportanceOperations.class.getName() + "#exportAll").orElseThrow()
+                .importance()).isEqualTo(ResourceImportance.SENSITIVE);
+        assertThat(registry.findByResourceId(ImportanceOperations.class.getName() + "#readRecord").orElseThrow()
+                .importance()).isEqualTo(ResourceImportance.SENSITIVE);
+
+        InMemoryResourceContextRegistry classLevel = scanned(new SensitiveClass());
+        assertThat(classLevel.findByResourceId(SensitiveClass.class.getName() + "#readRecord").orElseThrow()
+                .importance()).isEqualTo(ResourceImportance.SENSITIVE);
+        // IM-09: the method's own declaration is the one the publisher finds, so it wins over the class's.
+        assertThat(classLevel.findByResourceId(SensitiveClass.class.getName() + "#listTitles").orElseThrow()
+                .importance()).isEqualTo(ResourceImportance.NON_SENSITIVE);
+
+        SensitiveLookup proxy = (SensitiveLookup) Proxy.newProxyInstance(getClass().getClassLoader(),
+                new Class<?>[] {SensitiveLookup.class}, (target, method, args) -> null);
+        assertThat(scanned(proxy).findByResourceId(SensitiveLookup.class.getName() + "#readCustomer").orElseThrow()
+                .importance()).isEqualTo(ResourceImportance.SENSITIVE);
+    }
+
+    /** A descriptor built the old way, without an importance, states none. */
+    @Test
+    void aDescriptorBuiltWithoutAnImportanceStatesNone() {
+        ResourceContextDescriptor descriptor = new ResourceContextDescriptor("resource", null, null, "CATEGORY",
+                "INTERNAL", List.of(), List.of("READ"), null, null);
+
+        assertThat(descriptor.importance()).isEqualTo(ResourceImportance.UNSPECIFIED);
+    }
+
     @Test
     void aDescriptorTheHostDefinesReplacesTheScannedOne() {
         DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
@@ -126,6 +175,38 @@ class ProtectableResourceContextScannerTest {
 
         public void revokeRole() {
         }
+    }
+
+    public static class ImportanceOperations {
+
+        @Protectable(importance = ResourceImportance.NON_SENSITIVE)
+        public void listTitles() {
+        }
+
+        @Protectable(importance = ResourceImportance.SENSITIVE, actions = "EXPORT")
+        public void exportAll() {
+        }
+
+        @Protectable(importance = ResourceImportance.SENSITIVE)
+        public void readRecord() {
+        }
+    }
+
+    @Protectable(importance = ResourceImportance.SENSITIVE)
+    public static class SensitiveClass {
+
+        public void readRecord() {
+        }
+
+        @Protectable(importance = ResourceImportance.NON_SENSITIVE)
+        public void listTitles() {
+        }
+    }
+
+    public interface SensitiveLookup {
+
+        @Protectable(category = "CUSTOMER_RECORDS", importance = ResourceImportance.SENSITIVE)
+        void readCustomer();
     }
 
     public interface CustomerLookup {

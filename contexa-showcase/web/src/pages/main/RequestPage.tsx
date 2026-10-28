@@ -5,7 +5,7 @@ import { useAnatomy, useBeforeSend } from '../../api/anatomy';
 import { useJourneyUpdate, type EngineCall } from '../../api/journey';
 import { useLabOptions, type LabCase, type LabEmployee } from '../../api/lab';
 import { usePublicSettings } from '../../api/settings';
-import { GuidePreview } from '../../components/guide/GuidePreview';
+import { Fold } from '../../components/main/Fold';
 import { MainButton, MainScreen } from '../../components/main/MainScreen';
 import { useRecordPath } from '../../components/replay/replayLine';
 import { StateScreen } from '../../components/StateScreen';
@@ -65,6 +65,14 @@ export default function RequestPage({ role }: { readonly role: Role }) {
   const authentication =
     comparison?.usualVsNow.find((row) => row.dimension === 'authenticationType')?.now ?? null;
 
+  const rows = found
+    ? requestRows(t, language, role, found.labCase, found.employee, {
+        clock: companyClock(t, comparison?.companyTime),
+        authentication: authentication === null ? null : plainValue(t, 'authenticationType', authentication),
+        exportLimit: settings.data?.businessRecord.assignedExportLimit ?? null,
+      })
+    : [];
+
   function send() {
     if (call === null) {
       return;
@@ -79,8 +87,6 @@ export default function RequestPage({ role }: { readonly role: Role }) {
     <MainScreen
       title={t(`main.${number}.title`)}
       intro={t(`main.${number}.intro`)}
-      // The guide to the console the send opens, before the first send of the attack (가이드영상-계획.md 3절, 1편).
-      guide={role === 'attacker' ? <GuidePreview id="console" /> : null}
       // The send waits for the visitor's call; the footer says so beside the button (B-09).
       nextNote={found && call === null ? t('main.request.pickFirst') : undefined}
       main={
@@ -92,37 +98,51 @@ export default function RequestPage({ role }: { readonly role: Role }) {
       {options.isPending ? <StateScreen kind="loading" /> : null}
       {options.data && !found ? <StateScreen kind="notReady" /> : null}
       {found ? (
-        <div className={styles.layout}>
+        <div className={styles.layout} {...(role === 'insider' ? {} : { 'data-fold-only': true })}>
           <section className={styles.info} aria-labelledby="request-info">
-            <h2 id="request-info" className={styles.label}>
+            <h2 id="request-info" className={role === 'insider' ? styles.label : 'visually-hidden'}>
               {t('main.request.info')}
             </h2>
-            <dl className={styles.rows}>
-              {requestRows(t, language, role, found.labCase, found.employee, {
-                clock: companyClock(t, comparison?.companyTime),
-                authentication:
-                  authentication === null ? null : plainValue(t, 'authenticationType', authentication),
-                exportLimit: settings.data?.businessRecord.assignedExportLimit ?? null,
-              }).map((row) => (
-                <div key={row.id} className={styles.row} data-mark={row.mark ?? undefined}>
-                  <dt className={styles.rowName}>{t(`main.request.row.${row.id}`)}</dt>
-                  <dd className={styles.rowValue}>{row.value}</dd>
-                </div>
-              ))}
-            </dl>
-            {/* The case number stays as a small reference, out of the heading (V-48). */}
-            <p className={styles.caseKey}>{t('main.request.caseKey', { key })}</p>
-            <p className={styles.http}>
-              <span className={styles.httpLabel}>{t('main.request.line')}</span>
-              {resource?.httpMethod && resource.requestPath ? (
-                <code className={styles.httpLine}>
-                  <b>{resource.httpMethod}</b> {resource.requestPath}
-                </code>
-              ) : (
-                <span className={styles.httpLine}>…</span>
-              )}
-              <span className={styles.httpTo}>{t('main.request.toFive')}</span>
-            </p>
+            {/* AC-N2: the intro tells the situation; only the insider's documents, which the call is made on, stay in view. */}
+            {role === 'insider' ? (
+              <dl className={styles.rows}>
+                {rows
+                  .filter((row) => row.id === 'what')
+                  .map((row) => (
+                    <div key={row.id} className={styles.row} data-mark={row.mark ?? undefined}>
+                      <dt className={styles.rowName}>{t(`main.request.row.${row.id}`)}</dt>
+                      <dd className={styles.rowValue}>{row.value}</dd>
+                    </div>
+                  ))}
+              </dl>
+            ) : null}
+            {/* NW-8: the rest of the request, the whole definition as it is sent, behind one line (R-N2). */}
+            <Fold name="request" summary={t('main.request.fold')}>
+              <dl className={styles.rows}>
+                {rows
+                  .filter((row) => role !== 'insider' || row.id !== 'what')
+                  .map((row) => (
+                    <div key={row.id} className={styles.row} data-mark={row.mark ?? undefined}>
+                      <dt className={styles.rowName}>{t(`main.request.row.${row.id}`)}</dt>
+                      <dd className={styles.rowValue}>{row.value}</dd>
+                    </div>
+                  ))}
+              </dl>
+              <p className={styles.caseKey}>{t('main.request.asDefined')}</p>
+              {/* The case number stays as a small reference, out of the heading (V-48). */}
+              <p className={styles.caseKey}>{t('main.request.caseKey', { key })}</p>
+              <p className={styles.http}>
+                <span className={styles.httpLabel}>{t('main.request.line')}</span>
+                {resource?.httpMethod && resource.requestPath ? (
+                  <code className={styles.httpLine}>
+                    <b>{resource.httpMethod}</b> {resource.requestPath}
+                  </code>
+                ) : (
+                  <span className={styles.httpLine}>…</span>
+                )}
+                <span className={styles.httpTo}>{t('main.request.toFive')}</span>
+              </p>
+            </Fold>
           </section>
           <fieldset className={styles.predict}>
             <legend className={styles.label}>{t('main.request.predict')}</legend>
@@ -139,7 +159,6 @@ export default function RequestPage({ role }: { readonly role: Role }) {
                 <span className={styles.choiceHint}>{t(`main.request.call.${choice}.hint`)}</span>
               </label>
             ))}
-            <p className={styles.note}>{t('main.request.noAnswer')}</p>
           </fieldset>
         </div>
       ) : null}

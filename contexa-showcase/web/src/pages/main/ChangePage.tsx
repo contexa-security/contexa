@@ -12,6 +12,7 @@ import { Chip } from '../../components/main/Chip';
 import { MainScreen } from '../../components/main/MainScreen';
 import { SourceBadge } from '../../components/main/SourceBadge';
 import { StateScreen } from '../../components/StateScreen';
+import { Fold } from '../../components/main/Fold';
 import { CONTROL_ORDER } from '../../domain/verdict';
 import { useLiveSend } from '../../hooks/useLiveSend';
 import { count } from '../../journey/format';
@@ -181,6 +182,20 @@ export default function ChangePage() {
       }),
     };
   };
+  const lanes = (idle: boolean) =>
+    CONTROL_ORDER.map((control) => (
+      <Lane
+        key={control}
+        control={control}
+        sub={subOf(control)}
+        layer={layers[control] ?? null}
+        threat={null}
+        decision={decision}
+        holding={control === 'D'}
+        wait={control === 'D' ? (analysis.data?.decisionWait ?? null) : null}
+        idle={idle}
+      />
+    ));
   return (
     <MainScreen
       title={t('main.7-2.title')}
@@ -240,21 +255,15 @@ export default function ChangePage() {
         <div className={styles.column}>
           <section className={styles.card} aria-label={t('main.console.lanes')}>
             {view ? null : <p className={styles.lanesNote}>{t('main.7-2.notSent')}</p>}
-            <ul className={styles.lanes}>
-              {CONTROL_ORDER.map((control) => (
-                <Lane
-                  key={control}
-                  control={control}
-                  sub={subOf(control)}
-                  layer={layers[control] ?? null}
-                  threat={null}
-                  decision={decision}
-                  holding={control === 'D'}
-                  wait={control === 'D' ? (analysis.data?.decisionWait ?? null) : null}
-                  idle={view === null}
-                />
-              ))}
-            </ul>
+            {/* AC-N9: before the first send the five waiting lanes name the approaches that will answer; they wait under
+                one line, and the lanes fill in place once a request is sent. */}
+            {view ? (
+              <ul className={styles.lanes}>{lanes(false)}</ul>
+            ) : (
+              <Fold name="change-lanes" summary={t('main.7-2.lanesFold')}>
+                <ul className={styles.lanes}>{lanes(true)}</ul>
+              </Fold>
+            )}
           </section>
           {step ? (
             <section className={styles.diffLines} aria-labelledby="prompt-diff">

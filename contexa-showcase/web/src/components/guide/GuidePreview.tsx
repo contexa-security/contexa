@@ -1,60 +1,44 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useGuides } from '../../api/guides';
-import { Modal } from '../common/Modal';
+import { useGuides, videoOf } from '../../api/guides';
+import type { GuideId } from './guideConfig';
+import { GuideWindow } from './GuideWindow';
+import { useWatched } from './guideWatched';
 import styles from './GuidePreview.module.css';
-import scripts from './guides.json';
 
-export type GuideId = keyof typeof scripts;
+export type { GuideId } from './guideConfig';
 
 /**
- * The preview at a feature's entrance (가이드영상-계획.md 4절): a quiet button naming the video's length, and a window
- * with the video, its caption tracks (the screen language's on by default) and the same lines as a transcript, for a
- * visitor watching without sound or with a screen reader. Nothing plays until the visitor presses Play; the window
- * closes like every modal. A guide that was not recorded yet draws nothing.
+ * The link to a guide video and its window (가이드영상-제작기획안.md 4·6절): a filled pill naming the video's length that
+ * turns into "watch again" once the video was watched to the end in this browser, and a window with the video, its
+ * captions on a band under it, the scene lines and the recording's date. Nothing plays until the visitor presses Play;
+ * the window closes like every modal. A guide that was not recorded yet draws nothing.
  */
-export function GuidePreview({ id }: { readonly id: GuideId }) {
+export function GuidePreview({ id, variant = 'head' }: { readonly id: GuideId; readonly variant?: 'head' | 'start' }) {
   const { t, i18n } = useTranslation();
   const guides = useGuides();
+  const watched = useWatched(id);
   const [open, setOpen] = useState(false);
-  const video = guides.data?.[id];
+  const video = videoOf(guides.data, id, i18n.language === 'ko' ? 'ko' : 'en');
   if (!video) {
     return null;
   }
-  const script = scripts[id];
-  const language = i18n.language === 'ko' ? 'ko' : 'en';
   const length = Math.round(video.durationSec);
   const minutes = Math.floor(length / 60);
   const seconds = length % 60;
   return (
-    <>
-      <button type="button" className={styles.button} aria-haspopup="dialog" onClick={() => setOpen(true)}>
-        <span className={styles.play} aria-hidden="true" />
-        {t('guide.preview', { minutes, seconds })}
+    <div className={styles.slot} data-guide-slot data-variant={variant}>
+      <button
+        type="button"
+        className={styles.link}
+        data-guide-link
+        aria-haspopup="dialog"
+        onClick={() => setOpen(true)}
+      >
+        <span className={styles.mark} data-watched={watched ? '' : undefined} aria-hidden="true" />
+        {t(watched ? 'guide.previewAgain' : 'guide.preview', { minutes, seconds })}
       </button>
-      <Modal open={open} onClose={() => setOpen(false)} title={t(script.title)} wide>
-        <video className={styles.video} src={`/guides/${video.file}`} controls preload="metadata">
-          {Object.entries(video.captions).map(([lang, file]) => (
-            <track
-              key={lang}
-              kind="captions"
-              srcLang={lang}
-              label={t(`guide.track.${lang}`)}
-              src={`/guides/${file}`}
-              default={lang === language}
-            />
-          ))}
-        </video>
-        <h3 className={styles.heading}>{t('guide.transcript')}</h3>
-        <ol className={styles.lines}>
-          {script.scenes.map((key) => (
-            <li key={key}>{t(key)}</li>
-          ))}
-        </ol>
-        <p className={styles.recorded}>
-          {t('guide.recorded', { date: video.recordedAt.slice(0, 10), screens: video.screens })}
-        </p>
-      </Modal>
-    </>
+      <GuideWindow id={id} video={video} open={open} onClose={() => setOpen(false)} />
+    </div>
   );
 }

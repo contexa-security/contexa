@@ -48,7 +48,7 @@ export const BENCH_MODALS = { method: 'method', approach: 'approach', benchCase:
  * The benchmark's views (화면재편-구현계획 RO-3; B-2 of docs/showcase/벤치마크-구현계획.md adds the approaches), in the
  * one order the action bar walks them.
  */
-export type BenchView = 'summary' | 'approaches' | 'cases' | 'judgment' | 'reasoning' | 'prompt' | 'limits';
+export type BenchView = 'summary' | 'approaches' | 'cases' | 'judgment' | 'reasoning' | 'prompt' | 'limits' | 'agent';
 
 // B-5 takes the old prompt view's place in the order; that view is no longer walked (its address leads to B-5).
 export const BENCH_ORDER: readonly BenchView[] = [
@@ -68,4 +68,6 @@ export const BENCH_PATHS: Readonly<Record<BenchView, string>> = {
   reasoning: '/benchmark/reasoning',
   prompt: '/benchmark/prompt',
   limits: '/benchmark/limits',
+  // docs/agent Agent중심-화면 AS-11: beside the walk; the agent screens lead to it and its way back is the summary.
+  agent: '/benchmark/agent',
 };

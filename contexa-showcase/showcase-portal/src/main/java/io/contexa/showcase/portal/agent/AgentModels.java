@@ -4,6 +4,7 @@ import org.springframework.ai.anthropic.AnthropicChatModel;
 import org.springframework.ai.anthropic.AnthropicChatOptions;
 import org.springframework.ai.anthropic.api.AnthropicApi;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.model.tool.ToolCallingManager;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
@@ -85,7 +86,8 @@ public class AgentModels {
             if (reasoningEffort != null && !reasoningEffort.isBlank()) {
                 options.reasoningEffort(reasoningEffort.trim());
             }
-            return OpenAiChatModel.builder().openAiApi(api.build()).defaultOptions(options.build()).build();
+            return OpenAiChatModel.builder().openAiApi(api.build()).defaultOptions(options.build())
+                    .toolCallingManager(new CappedToolCallingManager(ToolCallingManager.builder().build())).build();
         });
     }
 
@@ -98,6 +100,7 @@ public class AgentModels {
         return AnthropicChatModel.builder().anthropicApi(api.build())
                 .defaultOptions(AnthropicChatOptions.builder().model(name).maxTokens(ANTHROPIC_MAX_TOKENS)
                         .toolChoice(new AnthropicApi.ToolChoiceAuto(true)).build())
+                .toolCallingManager(new CappedToolCallingManager(ToolCallingManager.builder().build()))
                 .build();
     }
 }

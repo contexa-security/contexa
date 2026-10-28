@@ -288,7 +288,7 @@ final class SecurityDecisionPromptValues {
         values.value(FACTS, "BreakGlass", breakGlass(canonical != null ? canonical.getFrictionProfile() : null));
         // Dictionary 2.4: a request that is not delegated has no Delegation line (the v19 section says UNKNOWN).
         CanonicalSecurityContext.Delegation delegation = canonical != null ? canonical.getDelegation() : null;
-        if (delegation != null && Boolean.TRUE.equals(delegation.getDelegated())) {
+        if (delegation != null && delegation.hasMandate()) {
             // A2-4: the v21 line states the delegation by its fields, without its objective's free text (A2-5).
             // TO-2 (Q-84): the v20 line, the delegation unknowns without the instruction after them.
             values.value(FACTS, "Delegation", v21(values) ? AgentLineValues.delegation(canonical, at)

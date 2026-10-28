@@ -3,6 +3,7 @@ package io.contexa.showcase.portal.orchestrator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.showcase.business.internal.InternalContextSigner;
 import io.contexa.showcase.portal.agent.AgentModels;
+import io.contexa.showcase.portal.agent.AgentRunCap;
 import io.contexa.showcase.portal.agent.AgentTasks;
 import io.contexa.showcase.portal.agent.BusinessAgent;
 import io.contexa.showcase.portal.anatomy.AnatomyStore;
@@ -12,6 +13,7 @@ import io.contexa.showcase.portal.benchmark.BenchmarkView;
 import io.contexa.showcase.portal.combination.CombinationService;
 import io.contexa.showcase.portal.combination.CombinationStore;
 import io.contexa.showcase.portal.hook.HookStore;
+import io.contexa.showcase.portal.live.AgentRation;
 import io.contexa.showcase.portal.live.BaselineEvidence;
 import io.contexa.showcase.portal.live.DecisionWaits;
 import io.contexa.showcase.portal.live.LiveAllotment;
@@ -19,6 +21,7 @@ import io.contexa.showcase.portal.live.LiveGate;
 import io.contexa.showcase.portal.live.LiveGateWatch;
 import io.contexa.showcase.portal.live.LiveQuota;
 import io.contexa.showcase.portal.live.LiveRuns;
+import io.contexa.showcase.portal.live.RunCosts;
 import io.contexa.showcase.portal.live.TurnstileVerifier;
 import io.contexa.showcase.portal.measured.MeasuredCases;
 import io.contexa.showcase.portal.replay.PairCatalog;
@@ -109,7 +112,11 @@ public class OrchestrationConfiguration {
                 environment.getProperty("showcase.agent.reasoning-effort", "none"));
         return new AgentTasks(new BusinessAgent(models), models,
                 environment.getProperty("showcase.agent.max-tool-calls", Integer.class, 12),
-                Duration.ofSeconds(environment.getProperty("showcase.agent.max-seconds", Long.class, 300L)));
+                Duration.ofSeconds(environment.getProperty("showcase.agent.max-seconds", Long.class, 300L)),
+                // docs/agent Agent중심-화면 AC-3: the hard limits of a visitor's live run
+                new AgentRunCap.Limits(environment.getProperty("showcase.agent.live-cap.tool-calls", Integer.class, 12),
+                        environment.getProperty("showcase.agent.live-cap.decisions", Integer.class, 20),
+                        environment.getProperty("showcase.agent.live-cap.input-tokens", Integer.class, 40_000)));
     }
 
     @Bean
@@ -176,7 +183,8 @@ public class OrchestrationConfiguration {
                       @Value("${showcase.live.space-lifetime:PT30M}") Duration lifetime,
                       @Value("${showcase.live.space-inactivity:PT15M}") Duration inactivity,
                       @Value("${showcase.live.scenarios:all}") String scenarioKeys,
-                      @Value("${showcase.live.dev-forced-action:}") String forcedAction) {
+                      @Value("${showcase.live.dev-forced-action:}") String forcedAction,
+                      @Value("${showcase.live.agent-concurrent:5}") int agentConcurrent) {
         // One setting decides which designed cases visitors can run, on every screen (F-25): "all" (or empty) is
         // every case of the catalog, a list limits them.
         List<String> keys = scenarioKeys.isBlank() || "all".equalsIgnoreCase(scenarioKeys.trim())
@@ -185,7 +193,7 @@ public class OrchestrationConfiguration {
         keys.forEach(key -> scenarios.find(key)
                 .orElseThrow(() -> new IllegalStateException("Unknown live scenario " + key)));
         return new LiveRuns(orchestrator::run, new LiveRuns.Settings(maxConcurrent, maxQueue, startsPerMinute, lifetime,
-                inactivity, keys, forcedAction.isBlank() ? null : forcedAction), Clock.systemUTC());
+                inactivity, keys, forcedAction.isBlank() ? null : forcedAction, agentConcurrent), Clock.systemUTC());
     }
 
     /** Starts queued live runs as soon as the concurrency and the start rate allow, checked every second. */
@@ -232,8 +240,14 @@ public class OrchestrationConfiguration {
     LiveQuota liveQuota(NamedParameterJdbcTemplate jdbc,
                         @Value("${showcase.internal.signing-key:}") String signingKey,
                         @Value("${showcase.live.visitor-daily:10}") int visitorDaily,
-                        @Value("${showcase.live.address-daily:30}") int addressDaily) {
-        return new LiveQuota(jdbc, signingKey, visitorDaily, addressDaily, Clock.systemUTC());
+                        @Value("${showcase.live.address-daily:30}") int addressDaily,
+                        @Value("${showcase.live.points.person:1}") int personPoints,
+                        @Value("${showcase.live.points.agent:3}") int agentPoints,
+                        @Value("${showcase.live.points.burst:5}") int burstPoints,
+                        @Value("${showcase.live.agent-daily:2}") int agentDaily) {
+        // docs/agent Agent중심-화면 AC-2: the daily limits are in points; a person's run is one point.
+        return new LiveQuota(jdbc, signingKey, visitorDaily, addressDaily,
+                new LiveQuota.Weights(personPoints, agentPoints, burstPoints), agentDaily, Clock.systemUTC());
     }
 
     @Bean
@@ -275,16 +289,31 @@ public class OrchestrationConfiguration {
 
     @Bean
     @ConditionalOnProperty(name = "showcase.live.enabled", havingValue = "true")
-    LiveAllotment liveAllotment(NamedParameterJdbcTemplate jdbc, Measurements.Prices prices,
+    LiveAllotment liveAllotment(NamedParameterJdbcTemplate jdbc, ModelPricing pricing,
                                 @Value("${showcase.live.monthly-budget-usd:30}") double monthlyBudget) {
-        return new LiveAllotment(jdbc, prices, monthlyBudget, Clock.systemUTC());
+        return new LiveAllotment(jdbc, pricing, monthlyBudget, Clock.systemUTC());
+    }
+
+    /**
+     * docs/agent Agent중심-화면 AC-6: the day's share of live agent runs: what the allotment still holds over what an
+     * agent run costs on average ({@code showcase.live.agent-unit-cost-usd} counts until a visitor's run has a cost).
+     */
+    @Bean
+    @ConditionalOnProperty(name = "showcase.live.enabled", havingValue = "true")
+    AgentRation agentRation(LiveAllotment allotment, NamedParameterJdbcTemplate jdbc, ModelPricing pricing,
+                            @Value("${showcase.live.agent-unit-cost-usd:0.03}") double unitCostUsd) {
+        return new AgentRation(() -> {
+            LiveAllotment.State state = allotment.state();
+            return state.allotmentUsd() - state.spentUsd();
+        }, count -> RunCosts.latestVisitorAgentRuns(jdbc, pricing, count), unitCostUsd);
     }
 
     @Bean
     @ConditionalOnProperty(name = "showcase.live.enabled", havingValue = "true")
     LiveGate liveGate(CombinationService combinations, TurnstileVerifier turnstile, LiveAllotment allotment,
-                      LiveQuota quota, LiveRuns liveRuns, LiveGateWatch watch, TemplateCurrency templateCurrency) {
-        return new LiveGate(combinations, turnstile, allotment, quota, liveRuns, watch, templateCurrency);
+                      LiveQuota quota, LiveRuns liveRuns, LiveGateWatch watch, TemplateCurrency templateCurrency,
+                      AgentRation ration) {
+        return new LiveGate(combinations, turnstile, allotment, quota, liveRuns, watch, templateCurrency, ration);
     }
 
     /** Refusals of the gate by reason, with one error log in an hour that reaches the alert level (P5-SEC-07). */
@@ -319,20 +348,20 @@ public class OrchestrationConfiguration {
         return new IsolationSmoke(orchestrator, catalog, admin, cloneVerifier, endpoints, signer, objectMapper);
     }
 
-    /** Model prices per one million tokens (OpenAI standard tier price list read on 2026-10-05). */
+    /**
+     * docs/agent Agent중심-화면 AC-1: model prices per one million tokens, each model by its own price. The list is the
+     * benchmark's ({@code showcase.benchmark.prices}, "model=input/cachedInput/output;..."); blank gives the built-in
+     * prices. A model with no price is counted at the dearest known price and reported.
+     */
     @Bean
-    Measurements.Prices measurementPrices(
-                              @Value("${showcase.portal.pricing.chat-input:0.05}") double chatInput,
-                              @Value("${showcase.portal.pricing.chat-output:0.40}") double chatOutput,
-                              @Value("${showcase.portal.pricing.embedding-input:0.02}") double embeddingInput,
-                              @Value("${showcase.portal.pricing.source:OpenAI standard tier price list, 2026-10-05}")
-                              String source) {
-        return new Measurements.Prices(chatInput, chatOutput, embeddingInput, source);
+    ModelPricing modelPricing(@Value("${showcase.benchmark.prices:}") String prices,
+                              @Value("${showcase.portal.pricing.embedding-input:0.02}") double embeddingInput) {
+        return ModelPricing.parse(prices, embeddingInput);
     }
 
     @Bean
-    Measurements measurements(NamedParameterJdbcTemplate jdbc, Measurements.Prices prices) {
-        return new Measurements(jdbc, prices);
+    Measurements measurements(NamedParameterJdbcTemplate jdbc, ModelPricing pricing) {
+        return new Measurements(jdbc, pricing);
     }
 
     @Bean

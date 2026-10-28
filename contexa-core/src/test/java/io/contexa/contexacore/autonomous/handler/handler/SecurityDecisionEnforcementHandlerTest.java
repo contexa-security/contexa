@@ -367,6 +367,23 @@ class SecurityDecisionEnforcementHandlerTest {
     }
 
     @Test
+    @DisplayName("an ALLOW kept out by an active restriction sends no risk signal: the subject is still restricted (RL-13)")
+    void anAllowKeptOutByARestrictionSendsNoRiskSignal() {
+        InMemorySecurityContextDataStore store = new InMemorySecurityContextDataStore();
+        ContextObservationRecorder recorder = new ContextObservationRecorder(store);
+        SecurityDecisionEnforcementHandler handler = recordingHandler(recorder, store, null);
+        RiskSignalEmitter emitter = mock(RiskSignalEmitter.class);
+        handler.setRiskSignalEmitters(List.of(emitter));
+        when(actionRepository.writeFinalAction(eq("user-recorded"), eq(ZeroTrustAction.ALLOW), anyMap()))
+                .thenReturn(ZeroTrustActionRepository.FinalActionWrite.KEPT_STRICTER);
+
+        handler.handle(contextWith(sessionEvent("request-kept-signal"), allowed()));
+
+        verify(emitter, never()).emit(any(RiskSignal.class));
+        verify(actionRepository, never()).getPreviousActionFromHash(anyString());
+    }
+
+    @Test
     @DisplayName("a result whose processing ownership lapses before its write is neither written nor learned (W5-3)")
     void aResultThatLostItsOwnershipBeforeTheWriteLearnsNothing() {
         SecurityContextDataStore store = mock(SecurityContextDataStore.class);

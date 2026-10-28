@@ -36,7 +36,8 @@ describe('the dictionary in two parts (FC-4)', () => {
       'main.1-1.title',
       'main.2-1.title',
       'main.console.storing',
-      'cover.start',
+      'main.C-1.title',
+      'main.H-6.title',
       'frame.menu',
     ]) {
       expect(first.has(key), key).toBe(true);

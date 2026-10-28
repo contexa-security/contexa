@@ -106,6 +106,27 @@ class V21PromptTest {
         assertThat(rendered).allSatisfy(item -> assertThat(item.systemText()).isEqualTo(system));
     }
 
+    /**
+     * v21.17 (M10A, docs/agent 모델비교 5절): the system text says what a delegation's proof shows: a record the person
+     * wrote is the person's own hand-over, an access token's claim alone is the word of whoever holds the token. It says
+     * how to read the evidence and names no response: the verdict stays the model's own reasoning.
+     */
+    @Test
+    void theSystemTextSaysWhoseHandOverADelegationProofShowsAndNamesNoResponse() {
+        String system = rendered.get(0).systemText();
+        String reading = "How it is proven says whose hand-over it is: a delegation shown by a record the person wrote is"
+                + " the person's own hand-over; a delegation shown only by the access token's claim is the word of"
+                + " whoever holds the token, and no record shows that the person handed this work to the agent.";
+
+        assertThat(system).contains(reading)
+                .contains("H1 the agent doing the work that person handed to it (a hand-over the person's records show);");
+        assertThat(system.indexOf(reading)).as("it extends the sentence on how a delegation is proven")
+                .isGreaterThan(system.indexOf("until when, and how it is proven."))
+                .isLessThan(system.indexOf("Whether this request stays within it is yours to check"));
+        assertThat(List.of("ALLOW", "CHALLENGE", "BLOCK", "ESCALATE"))
+                .allSatisfy(response -> assertThat(reading).as("no response in the reading").doesNotContain(response));
+    }
+
     @Test
     void noUserPromptHoldsAConclusionOfTheCore() {
         assertThat(rendered).allSatisfy(item -> assertThat(CONCLUSION_WORDS)

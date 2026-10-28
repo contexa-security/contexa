@@ -34,6 +34,8 @@ public final class AgentHistory {
     static final String DEFAULT_PROJECT = "HX-310";
     static final String READ_TYPE = "DRAWING";
     private static final long DAY_SECONDS = Duration.ofDays(1).toSeconds();
+    /** The longest the engine lets a delegation last (its default, 30 days): the history may not stretch one past it. */
+    static final Duration LONGEST_DELEGATION = Duration.ofDays(30);
     /** The operations a history repeats, in the order of a working day. */
     private static final List<BusinessOperation> USUAL = List.of(BusinessOperation.DOCUMENT_LIST,
             BusinessOperation.DOCUMENT_READ, BusinessOperation.EXPORT);
@@ -64,7 +66,7 @@ public final class AgentHistory {
             return scenario;
         }
         Set<BusinessOperation> usual = usualOperations(scenario);
-        if (usual.isEmpty()) {
+        if (usual.isEmpty() || outlastsTheLimit(scenario)) {
             return scenario;
         }
         String project = projectOf(scenario);
@@ -126,6 +128,20 @@ public final class AgentHistory {
     private static boolean hasAgentBaseline(ScenarioDefinition.Sender sender) {
         return sender == ScenarioDefinition.Sender.DELEGATED_AGENT || sender == ScenarioDefinition.Sender.DELEGATED_RELAY
                 || sender == ScenarioDefinition.Sender.AUTONOMOUS_AGENT || sender == ScenarioDefinition.Sender.AGENT_SESSION;
+    }
+
+    /**
+     * Whether the history would stretch a delegation of the case past the longest the engine allows: it moves the start of
+     * a delegation back to before the first day, so one that already lasts the limit would last longer. Such a case gets
+     * no history rather than a changed delegation, since it is about a delegation of that length.
+     */
+    private static boolean outlastsTheLimit(ScenarioDefinition scenario) {
+        Duration earliest = Duration.ofSeconds(-DAYS * DAY_SECONDS - 3600);
+        return scenario.facts().stream()
+                .filter(fact -> "DELEGATION".equals(fact.kind()) && fact.validFromOffset() != null
+                        && fact.validUntilOffset() != null)
+                .anyMatch(fact -> fact.validUntilOffset().minus(fact.validFromOffset().compareTo(earliest) < 0
+                        ? fact.validFromOffset() : earliest).compareTo(LONGEST_DELEGATION) > 0);
     }
 
     /** Whether the agent's token is the exchange of a person's own sign-in (the agent acts for the person). */

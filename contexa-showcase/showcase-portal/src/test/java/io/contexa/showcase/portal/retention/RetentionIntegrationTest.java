@@ -113,8 +113,8 @@ class RetentionIntegrationTest {
                 + "where run_id like 'r-%' order by run_id", String.class))
                 .containsExactly("- true", RECENT_VISITOR + " true");
         assertThat(jdbc.queryForList("select run_id from run where run_id like 'ev-%' order by run_id", String.class))
-                .as("an old run that a recording shows, an old one of a cell record and a recent one stay")
-                .containsExactly("ev-cell", "ev-recent", "ev-shown");
+                .as("an old run that a recording shows, an old one of a cell record or of the agent menu and a recent one stay")
+                .containsExactly("ev-cell", "ev-menu", "ev-recent", "ev-shown");
         assertThat(jdbc.queryForList("select record_id from replay_record order by record_id", String.class))
                 .containsExactly("rec-draft-new", "rec-published", "rec-retired-new");
         assertThat(jdbc.queryForList("select model from cost_ledger order by model", String.class))
@@ -215,6 +215,7 @@ class RetentionIntegrationTest {
         oldRun("ev-old", 397, null);
         oldRun("ev-shown", 397, null);
         oldRun("ev-cell", 397, null);
+        oldRun("ev-menu", 397, null);
         oldRun("ev-recent", 395, "tpl-retired-used");
         jdbc.update("""
                 insert into execution_spec (spec_id, spec_hash, code_commit, engine_version, effective_mode,
@@ -229,6 +230,10 @@ class RetentionIntegrationTest {
         jdbc.update("""
                 insert into combination_record (combo_key, catalog_version, version_key, run_id, recorded_at)
                 values ('V', ?, ?, 'ev-cell', ?)""", CombinationCatalog.VERSION, "v".repeat(64), ago(397));
+        // docs/agent Agent중심-화면 AC-4a: the run that answers an agent menu combination is kept however old it is.
+        jdbc.update("""
+                insert into agent_menu (case_key, path, run_id, definition_sha, ran_at)
+                values ('M19A', 'SESSION', 'ev-menu', ?, ?)""", "m".repeat(64), ago(397));
         cost("old", 397);
         cost("recent", 395);
     }

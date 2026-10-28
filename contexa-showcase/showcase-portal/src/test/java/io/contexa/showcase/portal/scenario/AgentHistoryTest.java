@@ -190,6 +190,22 @@ class AgentHistoryTest {
     }
 
     @Test
+    void aCaseWhoseDelegationWouldOutlastTheEnginesLimitWithTheHistoryGetsNoHistory() throws IOException {
+        // The history moves the start of the delegation back by six days and an hour. A delegation that already lasts
+        // the engine's longest (30 days) would last longer than it may, and the engine refuses it (the real server,
+        // 2026-10-25: M32A and M11A, "A delegation may last at most PT720H"). Their history is left out, not their
+        // delegation changed: the case is about a delegation of that length.
+        for (String key : new String[] {"M32A", "M11A"}) {
+            ScenarioDefinition scenario = load(key);
+
+            assertThat(AgentHistory.apply(scenario, AgentHistory.USUAL_WORK)).as(key).isSameAs(scenario);
+        }
+        // A case that fits still gets its history.
+        ScenarioDefinition fits = load("M19A");
+        assertThat(AgentHistory.apply(fits, AgentHistory.USUAL_WORK)).isNotSameAs(fits);
+    }
+
+    @Test
     void anUnknownProfileOrACaseWithoutAnAgentIsRefused() throws IOException {
         assertThat(AgentHistory.known(AgentHistory.USUAL_WORK)).isTrue();
         assertThat(AgentHistory.known("OTHER")).isFalse();

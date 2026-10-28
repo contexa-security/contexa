@@ -59,7 +59,8 @@ describe('prompt trust words of the core source', () => {
         /code\(Group\.\w+,\s*"(\w+)"/g,
       ),
     ].map((match) => match[1] ?? '');
-    expect(v4).toHaveLength(49);
+    // 50 codes: the 49 of the v4 contract as first written and RECORD_COVERS_WORK (the record covers the work).
+    expect(v4).toHaveLength(50);
     expectWords(v4.map((code) => `reasonCodeV4.${code}`));
     // SC-7, SC-8: how a v21 decision judges, and the explanations it weighed.
     expectWords(['H1', 'H2', 'H3', 'H4', 'H5'].map((id) => `hypothesis.${id}`));

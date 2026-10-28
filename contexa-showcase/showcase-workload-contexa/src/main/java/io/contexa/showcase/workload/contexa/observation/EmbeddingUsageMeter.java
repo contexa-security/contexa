@@ -52,6 +52,6 @@ public class EmbeddingUsageMeter implements ObservationHandler<EmbeddingModelObs
         }
         ledger.record(principal == null ? null : "user:" + principal, new UsageLedger.ModelCall("EMBEDDING",
                 response == null || response.getMetadata() == null ? null : response.getMetadata().getModel(),
-                tokens, 0, tokens, 0, response != null, clock.instant(), null, Set.of(), null));
+                tokens, 0, tokens, 0, response != null, clock.instant(), null, Set.of(), null, null));
     }
 }

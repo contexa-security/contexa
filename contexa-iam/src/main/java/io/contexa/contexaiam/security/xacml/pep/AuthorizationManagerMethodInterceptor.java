@@ -165,6 +165,11 @@ public class AuthorizationManagerMethodInterceptor
                         publishEvent = false;
                         throw toZeroTrustAccessDeniedException(restriction, buildResourceId(mi, protectable));
                     }
+                } else if (gate.passed()) {
+                    // RL-12: one of the few reads of a resource the host declared non-sensitive that pass while the
+                    // first is decided. The first publishes its event, which is the analysis that decides; the others
+                    // are recorded by the gate and publish nothing, so one question is asked once.
+                    publishEvent = gate.publishesEvent();
                 } else if (gate.decideInPlace()) {
                     // A1-5: an agent request with no decision on record is not let through; it is decided here as a
                     // synchronous method's request is. One already being analysed for the same session waits.

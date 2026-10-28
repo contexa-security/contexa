@@ -42,13 +42,19 @@ export const learnedScreen = preloadable(withDictionary(() => import('./pages/in
 export const howScreen = preloadable(withDictionary(() => import('./pages/intro/HowPage')));
 export const timingScreen = preloadable(withDictionary(() => import('./pages/try/TimingPage')));
 export const stackScreen = preloadable(withDictionary(() => import('./pages/try/StackPage')));
-export const briefingScreen = preloadable(() => import('./pages/try/BriefingPage'));
 export const learnAfterScreen = preloadable(withDictionary(() => import('./pages/try/LearnAfterPage')));
 export const approachesScreen = preloadable(withDictionary(() => import('./pages/intro/ApproachesPage')));
+export const trackChooseScreen = preloadable(() => import('./pages/main/TrackChoosePage'));
+export const personChooseScreen = preloadable(() => import('./pages/main/PersonChoosePage'));
+export const personNextScreen = preloadable(() => import('./pages/main/PersonNextPage'));
+export const agentChooseScreen = preloadable(() => import('./pages/main/AgentChoosePage'));
+export const agentNextScreen = preloadable(() => import('./pages/main/AgentNextPage'));
+export const deeperScreen = preloadable(() => import('./pages/main/DeeperPage'));
 export const introMapScreen = preloadable(() => import('./pages/main/IntroMapPage'));
 export const requestScreen = preloadable(() => import('./pages/main/RequestPage'));
 export const consoleScreen = preloadable(() => import('./pages/main/ConsolePage'));
 export const resultScreen = preloadable(() => import('./pages/main/ResultPage'));
+export const attackReasonScreen = preloadable(() => import('./pages/main/AttackReasonPage'));
 export const evidenceMapScreen = preloadable(() => import('./pages/main/EvidenceMapPage'));
 export const evidencePromptScreen = preloadable(() => import('./pages/main/EvidencePromptPage'));
 export const evidenceVerdictScreen = preloadable(() => import('./pages/main/EvidenceVerdictPage'));
@@ -61,6 +67,9 @@ export const agentRequestScreen = preloadable(() => import('./pages/main/AgentRe
 export const agentConsoleScreen = preloadable(() => import('./pages/main/AgentConsolePage'));
 export const agentReasonScreen = preloadable(() => import('./pages/main/AgentReasonPage'));
 export const agentConfirmScreen = preloadable(() => import('./pages/main/AgentConfirmPage'));
+export const agentEndScreen = preloadable(() => import('./pages/main/AgentEndPage'));
+export const agentBurstScreen = preloadable(() => import('./pages/main/AgentBurstPage'));
+export const agentResultScreen = preloadable(() => import('./pages/main/AgentResultPage'));
 export const runsScreen = preloadable(() => import('./pages/main/RunsPage'));
 export const summaryScreen = preloadable(() => import('./pages/main/SummaryPage'));
 export const nextScreen = preloadable(() => import('./pages/main/NextPage'));
@@ -72,6 +81,7 @@ export const labBeforeScreen = preloadable(withDictionary(() => import('./pages/
 export const labSendScreen = preloadable(withDictionary(() => import('./pages/lab/LabSendPage')));
 export const labResultScreen = preloadable(withDictionary(() => import('./pages/lab/LabResultPage')));
 export const labRulesScreen = preloadable(withDictionary(() => import('./pages/lab/LabRulesPage')));
+export const labAgentScreen = preloadable(withDictionary(() => import('./pages/lab/LabAgentPage')));
 
 /** Each first screen's code, by the module the shared rule (src/firstScreens.ts) names. */
 const BY_MODULE: Readonly<Record<FirstScreenModule, { readonly preload: () => Promise<void> }>> = {
@@ -82,13 +92,19 @@ const BY_MODULE: Readonly<Record<FirstScreenModule, { readonly preload: () => Pr
   'pages/intro/LearnedPage': learnedScreen,
   'pages/intro/HowPage': howScreen,
   'pages/try/StackPage': stackScreen,
-  'pages/try/BriefingPage': briefingScreen,
   'pages/try/LearnAfterPage': learnAfterScreen,
   'pages/intro/ApproachesPage': approachesScreen,
+  'pages/main/TrackChoosePage': trackChooseScreen,
+  'pages/main/PersonChoosePage': personChooseScreen,
+  'pages/main/PersonNextPage': personNextScreen,
+  'pages/main/AgentChoosePage': agentChooseScreen,
+  'pages/main/AgentNextPage': agentNextScreen,
+  'pages/main/DeeperPage': deeperScreen,
   'pages/main/IntroMapPage': introMapScreen,
   'pages/main/RequestPage': requestScreen,
   'pages/main/ConsolePage': consoleScreen,
   'pages/main/ResultPage': resultScreen,
+  'pages/main/AttackReasonPage': attackReasonScreen,
   'pages/main/EvidenceMapPage': evidenceMapScreen,
   'pages/main/EvidencePromptPage': evidencePromptScreen,
   'pages/main/EvidenceVerdictPage': evidenceVerdictScreen,
@@ -101,6 +117,9 @@ const BY_MODULE: Readonly<Record<FirstScreenModule, { readonly preload: () => Pr
   'pages/main/AgentConsolePage': agentConsoleScreen,
   'pages/main/AgentReasonPage': agentReasonScreen,
   'pages/main/AgentConfirmPage': agentConfirmScreen,
+  'pages/main/AgentEndPage': agentEndScreen,
+  'pages/main/AgentBurstPage': agentBurstScreen,
+  'pages/main/AgentResultPage': agentResultScreen,
   'pages/main/RunsPage': runsScreen,
   'pages/main/SummaryPage': summaryScreen,
   'pages/main/NextPage': nextScreen,
@@ -112,6 +131,7 @@ const BY_MODULE: Readonly<Record<FirstScreenModule, { readonly preload: () => Pr
   'pages/lab/LabSendPage': labSendScreen,
   'pages/lab/LabResultPage': labResultScreen,
   'pages/lab/LabRulesPage': labRulesScreen,
+  'pages/lab/LabAgentPage': labAgentScreen,
 };
 
 /** How long the first render waits at most for the records of a step opened straight from its address. */

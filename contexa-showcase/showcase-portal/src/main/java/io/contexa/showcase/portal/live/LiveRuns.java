@@ -42,9 +42,25 @@ public class LiveRuns implements AutoCloseable {
      * @param startsPerMinute most runs that start within any 60 seconds; 0 for no start-rate limit
      * @param scenarioKeys    scenarios offered on the "try it yourself" page; cells of the grid are always offered
      * @param forcedAction    development-only forced decision (approval Q-23), null for the engine's own decisions
+     * @param agentConcurrent most runs of agents at once, running or waiting (docs/agent Agent중심-화면 AC-6); never
+     *                        below 1 or above {@link #MOST_AGENT_RUNS}
      */
     public record Settings(int maxConcurrent, int maxQueue, int startsPerMinute, Duration lifetime,
-                           Duration inactivity, List<String> scenarioKeys, String forcedAction) {
+                           Duration inactivity, List<String> scenarioKeys, String forcedAction, int agentConcurrent) {
+
+        public static final int DEFAULT_AGENT_CONCURRENT = 5;
+        public static final int MOST_AGENT_RUNS = 8;
+
+        public Settings {
+            agentConcurrent = Math.max(1, Math.min(MOST_AGENT_RUNS, agentConcurrent));
+        }
+
+        /** The settings with the default cap of agent runs at once. */
+        public Settings(int maxConcurrent, int maxQueue, int startsPerMinute, Duration lifetime, Duration inactivity,
+                        List<String> scenarioKeys, String forcedAction) {
+            this(maxConcurrent, maxQueue, startsPerMinute, lifetime, inactivity, scenarioKeys, forcedAction,
+                    DEFAULT_AGENT_CONCURRENT);
+        }
     }
 
     static final Duration START_WINDOW = Duration.ofMinutes(1);
@@ -55,6 +71,16 @@ public class LiveRuns implements AutoCloseable {
     public static final class Busy extends RuntimeException {
         Busy() {
             super("The live runs and their queue are full");
+        }
+    }
+
+    /**
+     * The agent runs at once are at their cap (docs/agent Agent중심-화면 AC-6). An agent run never waits for a place
+     * among the agent runs: the visitor is led to the stored runs.
+     */
+    public static final class AgentBusy extends RuntimeException {
+        AgentBusy() {
+            super("The live runs of agents are at their cap");
         }
     }
 
@@ -69,7 +95,7 @@ public class LiveRuns implements AutoCloseable {
         }
     }
 
-    private record Pending(LiveRun run, ScenarioDefinition scenario, Consumer<RunSummary> onFinish) {
+    private record Pending(LiveRun run, ScenarioDefinition scenario, Consumer<RunSummary> onFinish, boolean agent) {
     }
 
     /** Runs one scenario with the visitor answering control D's check; the orchestrator in production. */
@@ -93,6 +119,8 @@ public class LiveRuns implements AutoCloseable {
     private final Deque<Instant> starts = new ArrayDeque<>();
     private final Deque<Long> recentMillis = new ArrayDeque<>();
     private int running;
+    /** Runs of agents running or waiting: counted and refused in the same step that starts them. */
+    private int agentRuns;
 
     public LiveRuns(Runner runner, Settings settings, Clock clock) {
         this.runner = runner;
@@ -114,13 +142,20 @@ public class LiveRuns implements AutoCloseable {
         if (space.current != null && space.current.active()) {
             return space.current;
         }
+        boolean agent = scenario.task() != null;
+        if (agent && agentRuns >= settings.agentConcurrent()) {
+            throw new AgentBusy();
+        }
         boolean launchable = waiting.isEmpty() && canLaunch();
         if (!launchable && waiting.size() >= settings.maxQueue()) {
             throw new Busy();
         }
         LiveRun run = new LiveRun("live-" + HexFormat.of().formatHex(bytes()), visitor, scenario.key(), clock);
         space.current = run;
-        Pending pending = new Pending(run, scenario, onFinish);
+        if (agent) {
+            agentRuns++;
+        }
+        Pending pending = new Pending(run, scenario, onFinish, agent);
         if (launchable) {
             launch(pending);
         } else {
@@ -142,6 +177,16 @@ public class LiveRuns implements AutoCloseable {
 
     public synchronized boolean hasRoom() {
         return (waiting.isEmpty() && canLaunch()) || waiting.size() < settings.maxQueue();
+    }
+
+    /** Whether one more agent run fits under the cap of agent runs at once. */
+    public synchronized boolean hasAgentRoom() {
+        return agentRuns < settings.agentConcurrent();
+    }
+
+    /** The runs of agents going or waiting now. */
+    public synchronized int agentRunsActive() {
+        return agentRuns;
     }
 
     /** Runs started within the last minute. */
@@ -191,7 +236,15 @@ public class LiveRuns implements AutoCloseable {
             }
             LiveRun current = space.current;
             if (current != null && current.status() == LiveRun.Status.QUEUED) {
-                waiting.removeIf(pending -> pending.run() == current);
+                waiting.removeIf(pending -> {
+                    if (pending.run() != current) {
+                        return false;
+                    }
+                    if (pending.agent()) {
+                        agentRuns--;
+                    }
+                    return true;
+                });
                 current.expire();
             } else if (current != null && current.active()) {
                 // A run in progress finishes on its own; its space goes once it is done.
@@ -247,7 +300,7 @@ public class LiveRuns implements AutoCloseable {
                 log.error("Live run failed: scenario={}", pending.scenario().key(), e);
                 pending.run().fail(e.getClass().getSimpleName());
             } finally {
-                released(Duration.between(launched, clock.instant()));
+                released(Duration.between(launched, clock.instant()), pending.agent());
             }
             if (summary != null) {
                 try {
@@ -259,12 +312,15 @@ public class LiveRuns implements AutoCloseable {
         });
     }
 
-    private synchronized void released(Duration took) {
+    private synchronized void released(Duration took, boolean agent) {
         recentMillis.addLast(took.toMillis());
         while (recentMillis.size() > RECENT_RUNS) {
             recentMillis.pollFirst();
         }
         running--;
+        if (agent) {
+            agentRuns--;
+        }
         dispatch();
         renumber();
     }

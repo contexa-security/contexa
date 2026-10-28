@@ -133,6 +133,18 @@
   border-block-start: 1px solid var(--color-border);
 }
 
+/* The folded reason sits across the card like the open one (구현계획 AC-N2). */
+.reasonFold {
+  grid-column: 1 / -1;
+  padding-block-start: var(--space-2);
+  border-block-start: 1px solid var(--color-border);
+}
+
+.reasonFold .reason {
+  padding-block-start: 0;
+  border-block-start: none;
+}
+
 .reasonLabel {
   color: var(--color-text-muted);
   font-size: var(--text-sm);
@@ -277,9 +289,26 @@
   font-size: var(--text-lg);
 }
 
+/* AC-N9: the verdict stands over the two gauges, which stand side by side, so a narrow screen is not scrolled for them. */
 @media (width <= 64rem) {
   .hero {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4);
+  }
+
+  .decision {
+    grid-column: 1 / -1;
+  }
+
+  /* A half-width cell is too narrow for the name beside the value: the name stands over it, whole words only. */
+  .gauge {
     grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+  }
+
+  .gauge .label {
+    overflow-wrap: normal;
+    word-break: keep-all;
   }
 }
 

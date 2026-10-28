@@ -1,0 +1,139 @@
+/* AS-4: the delegation chain (who delegated, which agent, on what) and the record set against the request. */
+.chain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.node {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.icon {
+  flex: none;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  color: var(--color-accent);
+}
+
+.arrow {
+  flex: none;
+  inline-size: 1rem;
+  block-size: 1rem;
+  margin-inline-end: var(--space-1);
+  color: var(--color-text-muted);
+}
+
+.nodeText {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.nodeName {
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+}
+
+.nodeValue {
+  color: var(--color-text);
+  font-size: var(--text-md);
+  overflow-wrap: anywhere;
+}
+
+.compare {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-inline-size: 0;
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.compareTitle {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+}
+
+.goal {
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--text-md);
+}
+
+.address {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  overflow-wrap: anywhere;
+}
+
+.table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-md);
+}
+
+.table th,
+.table td {
+  padding: var(--space-2) var(--space-3);
+  border-block-end: 1px solid var(--color-border);
+  text-align: start;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.table thead th {
+  color: var(--color-text-muted);
+  font-weight: var(--weight-bold);
+}
+
+.table tbody th {
+  inline-size: 7.5rem;
+  color: var(--color-text-muted);
+  font-weight: var(--weight-bold);
+}
+
+.table td {
+  color: var(--color-text);
+}
+
+/* On a phone the two columns stack under their row's name, each with its own label. */
+@media (width <= 40rem) {
+  .table thead {
+    display: none;
+  }
+
+  .table tr {
+    display: block;
+    padding-block: var(--space-2);
+    border-block-end: 1px solid var(--color-border);
+  }
+
+  .table th,
+  .table td {
+    display: block;
+    padding: var(--space-1) 0;
+    border: 0;
+  }
+
+  .table tbody th {
+    inline-size: auto;
+  }
+
+  .table td::before {
+    content: attr(data-label) ': ';
+    color: var(--color-text-muted);
+  }
+}

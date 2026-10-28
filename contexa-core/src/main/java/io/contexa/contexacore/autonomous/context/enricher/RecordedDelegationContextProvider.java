@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.context.enricher;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacommon.security.subject.SubjectKind;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import lombok.extern.slf4j.Slf4j;
 
@@ -44,6 +45,11 @@ import java.util.Optional;
  * The outcome is kept in the context attributes: {@value #LOOKUP_ATTRIBUTE} ({@code FOUND}, {@code NOT_FOUND},
  * {@code AGENT_MISMATCH} or {@code FAILED}), {@value #RECORD_ID_ATTRIBUTE} and {@value #CONFLICTS_ATTRIBUTE} (the
  * stated facts the record overrode). A person's own request is never looked up.
+ *
+ * <p>RL-10: an agent on its own has no delegating person, so the lookup by its own subject finds nothing. When its
+ * registration names a sponsor, the record is looked up a second time with the sponsor as the delegator
+ * ({@link DelegationRecordQuery#standing()}): the standing delegation the sponsor recorded for the agent. It is applied
+ * the same way, except that the request is not marked as delegated, since the agent still acts on its own.
  */
 @Slf4j
 public class RecordedDelegationContextProvider implements DelegationContextProvider {
@@ -54,6 +60,8 @@ public class RecordedDelegationContextProvider implements DelegationContextProvi
     /** A2-10: who wrote the delegation's record and when, as the host states it. */
     public static final String RECORDED_BY_ATTRIBUTE = "delegationRecordedBy";
     public static final String RECORDED_AT_ATTRIBUTE = "delegationRecordedAt";
+    private static final String SUBJECT_KIND = "executionSubjectKind";
+    private static final String SPONSOR = "agentSponsorId";
 
     private final DelegationRecordLookup lookup;
 
@@ -84,8 +92,14 @@ public class RecordedDelegationContextProvider implements DelegationContextProvi
         }
 
         Optional<DelegationRecord> found;
+        boolean standing = false;
         try {
             found = lookup.find(query(event, context, agentId, delegationId));
+            String sponsorId = standingSponsor(attributes, agentId);
+            if ((found == null || found.isEmpty()) && sponsorId != null) {
+                found = lookup.find(standingQuery(event, context, agentId, sponsorId));
+                standing = found != null && found.isPresent();
+            }
         } catch (RuntimeException ex) {
             log.warn("Delegation record lookup failed for agent {}: {}", agentId, ex.getMessage(), ex);
             attributes.put(LOOKUP_ATTRIBUTE, "FAILED");
@@ -102,7 +116,7 @@ public class RecordedDelegationContextProvider implements DelegationContextProvi
         }
 
         List<String> conflicts = new ArrayList<>();
-        apply(record, delegation, conflicts);
+        apply(record, delegation, conflicts, standing);
         attributes.put(LOOKUP_ATTRIBUTE, "FOUND");
         if (text(record.delegationId()) != null) {
             attributes.put(RECORD_ID_ATTRIBUTE, record.delegationId().trim());
@@ -132,9 +146,33 @@ public class RecordedDelegationContextProvider implements DelegationContextProvi
                 text(context.getDelegation().getObjectiveId()), requestedAt);
     }
 
+    /**
+     * RL-10: the sponsor to look the standing delegation up for, or null. Only an agent on its own has one: it names
+     * the agent, the publisher recorded the sponsor from the registration, and the sponsor is another subject.
+     */
+    private static String standingSponsor(Map<String, Object> attributes, String agentId) {
+        if (agentId == null || !SubjectKind.AUTONOMOUS_AGENT.name().equals(text(attributes.get(SUBJECT_KIND)))) {
+            return null;
+        }
+        String sponsorId = text(attributes.get(SPONSOR));
+        return sponsorId == null || sponsorId.equals(agentId) ? null : sponsorId;
+    }
+
+    private static DelegationRecordQuery standingQuery(SecurityEvent event, CanonicalSecurityContext context,
+                                                       String agentId, String sponsorId) {
+        DelegationRecordQuery own = query(event, context, agentId, null);
+        return new DelegationRecordQuery(own.tenantId(), sponsorId, agentId, null, own.objectiveId(),
+                own.requestedAt(), true);
+    }
+
     private static void apply(DelegationRecord record, CanonicalSecurityContext.Delegation delegation,
-                              List<String> conflicts) {
-        delegation.setDelegated(true);
+                              List<String> conflicts, boolean standing) {
+        if (standing) {
+            // The agent acts on its own: the record is its sponsor's standing delegation, and the request is not delegated.
+            delegation.setStanding(true);
+        } else {
+            delegation.setDelegated(true);
+        }
         if (text(delegation.getAgentId()) == null && text(record.agentId()) != null) {
             delegation.setAgentId(record.agentId().trim());
         }

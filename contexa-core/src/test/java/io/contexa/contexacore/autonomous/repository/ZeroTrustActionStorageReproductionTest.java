@@ -85,27 +85,30 @@ class ZeroTrustActionStorageReproductionTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"CHALLENGE", "ESCALATE"})
+    @ValueSource(strings = {"CHALLENGE", "ESCALATE", "BLOCK"})
     void inMemoryAnotherSessionCannotLiftRestriction(String restriction) {
         assertAnotherSessionCannotLift(new InMemoryZeroTrustActionRepository(), ZeroTrustAction.valueOf(restriction));
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"CHALLENGE", "ESCALATE"})
+    @ValueSource(strings = {"CHALLENGE", "ESCALATE", "BLOCK"})
     @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
     void redisAnotherSessionCannotLiftRestriction(String restriction) {
         assertAnotherSessionCannotLift(redis, ZeroTrustAction.valueOf(restriction));
     }
 
-    @Test
-    void inMemoryConcurrentLessStrictWritesCannotLiftRestriction() throws Exception {
-        assertConcurrentLessStrictWritesCannotLift(new InMemoryZeroTrustActionRepository());
+    @ParameterizedTest
+    @ValueSource(strings = {"CHALLENGE", "BLOCK"})
+    void inMemoryConcurrentLessStrictWritesCannotLiftRestriction(String restriction) throws Exception {
+        assertConcurrentLessStrictWritesCannotLift(new InMemoryZeroTrustActionRepository(),
+                ZeroTrustAction.valueOf(restriction));
     }
 
-    @Test
+    @ParameterizedTest
+    @ValueSource(strings = {"CHALLENGE", "BLOCK"})
     @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
-    void redisConcurrentLessStrictWritesCannotLiftRestriction() throws Exception {
-        assertConcurrentLessStrictWritesCannotLift(redis);
+    void redisConcurrentLessStrictWritesCannotLiftRestriction(String restriction) throws Exception {
+        assertConcurrentLessStrictWritesCannotLift(redis, ZeroTrustAction.valueOf(restriction));
     }
 
     @Test
@@ -177,13 +180,13 @@ class ZeroTrustActionStorageReproductionTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"CHALLENGE", "ESCALATE"})
+    @ValueSource(strings = {"CHALLENGE", "ESCALATE", "BLOCK"})
     void inMemoryApprovedOverrideReleasesRestriction(String restriction) {
         assertApprovedOverrideReleases(new InMemoryZeroTrustActionRepository(), ZeroTrustAction.valueOf(restriction));
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"CHALLENGE", "ESCALATE"})
+    @ValueSource(strings = {"CHALLENGE", "ESCALATE", "BLOCK"})
     @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
     void redisApprovedOverrideReleasesRestriction(String restriction) {
         assertApprovedOverrideReleases(redis, ZeroTrustAction.valueOf(restriction));
@@ -279,29 +282,112 @@ class ZeroTrustActionStorageReproductionTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"CHALLENGE", "ESCALATE"})
+    @ValueSource(strings = {"CHALLENGE", "ESCALATE", "BLOCK"})
     void inMemoryLogoutKeepsRestriction(String restriction) {
         assertLogoutKeepsRestriction(new InMemoryZeroTrustActionRepository(), ZeroTrustAction.valueOf(restriction));
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"CHALLENGE", "ESCALATE"})
+    @ValueSource(strings = {"CHALLENGE", "ESCALATE", "BLOCK"})
     @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
     void redisLogoutKeepsRestriction(String restriction) {
         assertLogoutKeepsRestriction(redis, ZeroTrustAction.valueOf(restriction));
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"CHALLENGE", "ESCALATE"})
+    @ValueSource(strings = {"CHALLENGE", "ESCALATE", "BLOCK"})
     void inMemoryLessStrictFinalWriteTellsTheStricterActionWasKept(String restriction) {
         assertLessStrictWriteTellsKept(new InMemoryZeroTrustActionRepository(), ZeroTrustAction.valueOf(restriction));
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"CHALLENGE", "ESCALATE"})
+    @ValueSource(strings = {"CHALLENGE", "ESCALATE", "BLOCK"})
     @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
     void redisLessStrictFinalWriteTellsTheStricterActionWasKept(String restriction) {
         assertLessStrictWriteTellsKept(redis, ZeroTrustAction.valueOf(restriction));
+    }
+
+    /** RL-13: a BLOCK written again is applied (same strength), and it replaces the recorded analysis. */
+    @Test
+    void inMemoryBlockWrittenAgainIsApplied() {
+        assertBlockWrittenAgainIsApplied(new InMemoryZeroTrustActionRepository());
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
+    void redisBlockWrittenAgainIsApplied() {
+        assertBlockWrittenAgainIsApplied(redis);
+    }
+
+    /** RL-13: a BLOCK that only its flag holds (the analysis expired) is kept against a less strict write. */
+    @ParameterizedTest
+    @ValueSource(strings = {"ALLOW", "CHALLENGE", "ESCALATE"})
+    void inMemoryBlockHeldOnlyByItsFlagIsKept(String incoming) {
+        assertBlockHeldOnlyByItsFlagIsKept(new InMemoryZeroTrustActionRepository(), ZeroTrustAction.valueOf(incoming));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ALLOW", "CHALLENGE", "ESCALATE"})
+    @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
+    void redisBlockHeldOnlyByItsFlagIsKept(String incoming) {
+        assertBlockHeldOnlyByItsFlagIsKept(redis, ZeroTrustAction.valueOf(incoming));
+    }
+
+    /** RL-13: the administrator's release is not a final write, so an ALLOW after it takes effect. */
+    @Test
+    void inMemoryAllowAfterAdministratorReleaseOfBlockIsApplied() {
+        assertAllowAfterAdministratorReleaseIsApplied(new InMemoryZeroTrustActionRepository());
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
+    void redisAllowAfterAdministratorReleaseOfBlockIsApplied() {
+        assertAllowAfterAdministratorReleaseIsApplied(redis);
+    }
+
+    private static void assertBlockWrittenAgainIsApplied(ZeroTrustActionRepository repository) {
+        String user = user();
+        assertThat(repository.writeFinalAction(user, ZeroTrustAction.BLOCK, fields(SESSION_A)))
+                .isEqualTo(ZeroTrustActionRepository.FinalActionWrite.APPLIED);
+        assertThat(repository.writeFinalAction(user, ZeroTrustAction.BLOCK, fields(SESSION_B)))
+                .isEqualTo(ZeroTrustActionRepository.FinalActionWrite.APPLIED);
+        assertThat(repository.getCurrentAction(user, SESSION_A)).isEqualTo(ZeroTrustAction.BLOCK);
+        assertThat(repository.getAnalysisData(user).contextBindingHash()).isEqualTo(SESSION_B);
+        repository.removeAllUserData(user);
+    }
+
+    private static void assertBlockHeldOnlyByItsFlagIsKept(ZeroTrustActionRepository repository,
+                                                           ZeroTrustAction incoming) {
+        String user = user();
+        repository.setBlockedFlag(user);
+        assertThat(repository.getCurrentAction(user, SESSION_A)).isEqualTo(ZeroTrustAction.BLOCK);
+
+        assertThat(repository.writeFinalAction(user, incoming, fields(SESSION_A)))
+                .isEqualTo(ZeroTrustActionRepository.FinalActionWrite.KEPT_STRICTER);
+
+        assertThat(repository.getCurrentAction(user, SESSION_A)).isEqualTo(ZeroTrustAction.BLOCK);
+        assertThat(repository.getCurrentAction(user)).isEqualTo(ZeroTrustAction.BLOCK);
+        assertThat(repository.getActionFromHash(user)).as("nothing was written under the flag")
+                .isNotEqualTo(incoming);
+        repository.removeAllUserData(user);
+    }
+
+    private static void assertAllowAfterAdministratorReleaseIsApplied(ZeroTrustActionRepository repository) {
+        String user = user();
+        assertThat(repository.writeFinalAction(user, ZeroTrustAction.BLOCK, fields(SESSION_A)))
+                .isEqualTo(ZeroTrustActionRepository.FinalActionWrite.APPLIED);
+        repository.setBlockedFlag(user);
+        assertThat(repository.writeFinalAction(user, ZeroTrustAction.ALLOW, fields(SESSION_B)))
+                .isEqualTo(ZeroTrustActionRepository.FinalActionWrite.KEPT_STRICTER);
+
+        // What the administrator's approval does (BlockedUserService): the flag goes, the action is written anew.
+        repository.removeBlockedFlag(user);
+        repository.saveAction(user, ZeroTrustAction.ALLOW, null);
+
+        assertThat(repository.writeFinalAction(user, ZeroTrustAction.ALLOW, fields(SESSION_B)))
+                .isEqualTo(ZeroTrustActionRepository.FinalActionWrite.APPLIED);
+        assertThat(repository.getCurrentAction(user, SESSION_B)).isEqualTo(ZeroTrustAction.ALLOW);
+        repository.removeAllUserData(user);
     }
 
     @Test
@@ -348,8 +434,8 @@ class ZeroTrustActionStorageReproductionTest {
      * Writers of other contexts keep storing ALLOW while one writer stores CHALLENGE in the middle of
      * its own ALLOW stream. Every ALLOW that was not overwritten by the CHALLENGE must be refused.
      */
-    private static void assertConcurrentLessStrictWritesCannotLift(ZeroTrustActionRepository repository)
-            throws Exception {
+    private static void assertConcurrentLessStrictWritesCannotLift(ZeroTrustActionRepository repository,
+                                                                   ZeroTrustAction restriction) throws Exception {
         int writers = 8;
         int writesPerWriter = 20;
         ExecutorService pool = Executors.newFixedThreadPool(writers + 1);
@@ -373,7 +459,7 @@ class ZeroTrustActionStorageReproductionTest {
                     for (int write = 0; write < writesPerWriter / 2; write++) {
                         repository.saveFinalAction(user, ZeroTrustAction.ALLOW, fields(SESSION_A));
                     }
-                    boolean saved = repository.saveFinalAction(user, ZeroTrustAction.CHALLENGE, fields(SESSION_A));
+                    boolean saved = repository.saveFinalAction(user, restriction, fields(SESSION_A));
                     for (int write = 0; write < writesPerWriter / 2; write++) {
                         repository.saveFinalAction(user, ZeroTrustAction.ALLOW, fields(SESSION_A));
                     }
@@ -385,10 +471,10 @@ class ZeroTrustActionStorageReproductionTest {
                     allowWriter.get(30, TimeUnit.SECONDS);
                 }
 
-                assertThat(repository.getActionFromHash(user)).as("round %d", round).isEqualTo(ZeroTrustAction.CHALLENGE);
-                assertThat(repository.getCurrentAction(user, "context-hash-writer-0")).isEqualTo(ZeroTrustAction.CHALLENGE);
-                assertThat(repository.getCurrentAction(user, SESSION_B)).isEqualTo(ZeroTrustAction.CHALLENGE);
-                assertThat(repository.getLastVerifiedAction(user)).isEqualTo(ZeroTrustAction.CHALLENGE);
+                assertThat(repository.getActionFromHash(user)).as("round %d", round).isEqualTo(restriction);
+                assertThat(repository.getCurrentAction(user, "context-hash-writer-0")).isEqualTo(restriction);
+                assertThat(repository.getCurrentAction(user, SESSION_B)).isEqualTo(restriction);
+                assertThat(repository.getLastVerifiedAction(user)).isEqualTo(restriction);
                 assertThat(repository.getAnalysisData(user).contextBindingHash()).isEqualTo(SESSION_A);
                 repository.removeAllUserData(user);
             }

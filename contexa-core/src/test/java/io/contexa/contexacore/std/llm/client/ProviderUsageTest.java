@@ -40,6 +40,20 @@ class ProviderUsageTest {
     }
 
     @Test
+    void theCachedPromptTokensAreTheOnesTheProviderServedFromItsPromptCache() {
+        DefaultUsage anthropic = new DefaultUsage(3329, 838, 4167, new AnthropicApi.Usage(3329, 838, 12, 4372));
+        DefaultUsage openAi = new DefaultUsage(4337, 212, 4549, new OpenAiApi.Usage(212, 4337, 4549,
+                new OpenAiApi.Usage.PromptTokensDetails(null, 3840), null));
+        DefaultUsage openAiWithoutDetails = new DefaultUsage(4337, 212, 4549,
+                new OpenAiApi.Usage(212, 4337, 4549, null, null));
+
+        assertThat(ProviderUsage.cachedPromptTokens(anthropic)).isEqualTo(4372);
+        assertThat(ProviderUsage.cachedPromptTokens(openAi)).isEqualTo(3840);
+        assertThat(ProviderUsage.cachedPromptTokens(openAiWithoutDetails)).as("not reported is not zero").isNull();
+        assertThat(ProviderUsage.cachedPromptTokens(null)).isNull();
+    }
+
+    @Test
     void anOpenAiUsageKeepsItsCountsAndNamesItsReasoningTokens() {
         DefaultUsage usage = new DefaultUsage(4337, 212, 4549, new OpenAiApi.Usage(212, 4337, 4549, null,
                 new OpenAiApi.Usage.CompletionTokenDetails(157, null, null, null)));

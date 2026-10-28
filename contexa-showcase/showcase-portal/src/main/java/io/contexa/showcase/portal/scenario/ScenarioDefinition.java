@@ -230,6 +230,18 @@ public record ScenarioDefinition(
                     fleet);
         }
 
+        /** The same work with its parallel workers as given (docs/agent AS-13: a live burst of fewer workers). */
+        public AgentTask withParallel(List<ParallelWork> workers) {
+            return new AgentTask(instruction, agentPrompt, sender, model, maxToolCalls, maxSeconds, tools, proof,
+                    offsetSeconds, runtime, newSession, paths, headers, adminActions, workers, relay, modelOutage, fleet);
+        }
+
+        /** The same work with the administrator's actions as given (docs/agent AS-12: a delegation revoked before the work). */
+        public AgentTask withAdminActions(List<AdminAction> actions) {
+            return new AgentTask(instruction, agentPrompt, sender, model, maxToolCalls, maxSeconds, tools, proof,
+                    offsetSeconds, runtime, newSession, paths, headers, actions, parallel, relay, modelOutage, fleet);
+        }
+
         /** docs/agent A6-R10: whether the judging model of control D is out while the work goes on. */
         public boolean modelOutageOn() {
             return Boolean.TRUE.equals(modelOutage);
@@ -327,11 +339,17 @@ public record ScenarioDefinition(
             }
         }
 
-        /** One request of a parallel worker: an operation and its target. */
+        /** One request of a parallel worker: an operation and its target (a customer record for a customer read). */
         public record ParallelRequest(BusinessOperation operation,
                                       @JsonInclude(JsonInclude.Include.NON_NULL) String project,
                                       @JsonInclude(JsonInclude.Include.NON_NULL) String document,
-                                      @JsonInclude(JsonInclude.Include.NON_NULL) Integer items) {
+                                      @JsonInclude(JsonInclude.Include.NON_NULL) Integer items,
+                                      @JsonInclude(JsonInclude.Include.NON_NULL) String customer) {
+
+            /** A request that names no customer, as the parallel requests were written before RL-12. */
+            public ParallelRequest(BusinessOperation operation, String project, String document, Integer items) {
+                this(operation, project, document, items, null);
+            }
         }
 
         /**

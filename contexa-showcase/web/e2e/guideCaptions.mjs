@@ -11,6 +11,26 @@
  */
 export const LINE_LIMIT = { ko: 28, en: 54 };
 
+/**
+ * The longest line for a phone, whose caption band is about 340 px of 18 px bold text (가이드영상-제작기획안.md 6.2절):
+ * the same sentences cut finer, written to their own files (`<id>.<lang>.m.vtt`) that the window picks at phone width.
+ */
+export const LINE_LIMIT_NARROW = { ko: 18, en: 32 };
+
+/** How fast a line may go by: characters a second a first-time reader keeps up with, and the shortest time a line stays. */
+export const READING_CHARS_PER_SECOND = { ko: 8, en: 17 };
+export const MIN_CUE_SECONDS = 2.5;
+
+/** The time a line needs to be read. */
+export function cueSeconds(line, language) {
+  return Math.max(MIN_CUE_SECONDS, line.length / READING_CHARS_PER_SECOND[language]);
+}
+
+/** How long a scene must last for every line of its text, cut at `limit`, to be read. */
+export function sceneSeconds(text, language, limit) {
+  return captionLines(text, limit).reduce((sum, line) => sum + cueSeconds(line, language), 0);
+}
+
 const SENTENCE = /(?<=[.;!?])\s+/;
 const CLAUSE = /(?<=[,:])\s+/;
 const WORD = /\s+/;
@@ -146,4 +166,24 @@ export function vtt(scenes, end, dictionary, limit) {
     (cue, index) => `${index + 1}\n${stamp(cue.from)} --> ${stamp(cue.to)}\n${cue.line}`,
   );
   return `WEBVTT\n\n${blocks.join('\n\n')}\n`;
+}
+
+function seconds(stampText) {
+  const [hours, minutes, rest] = stampText.split(':');
+  return Number(hours) * 3600 + Number(minutes) * 60 + Number(rest);
+}
+
+/** The lines of a caption file that stay shorter than they need to be read (with how long they stay and need). */
+export function readingProblems(file, language) {
+  const problems = [];
+  for (const block of file.split(/\n\n+/).slice(1)) {
+    const [, times, ...text] = block.trim().split('\n');
+    const match = times?.match(/^(\S+) --> (\S+)$/);
+    if (!match) continue;
+    const line = text.join(' ');
+    const stayed = Math.round((seconds(match[2]) - seconds(match[1])) * 1000) / 1000;
+    const needed = Math.round(cueSeconds(line, language) * 1000) / 1000;
+    if (stayed < needed) problems.push({ line, seconds: stayed, needed });
+  }
+  return problems;
 }

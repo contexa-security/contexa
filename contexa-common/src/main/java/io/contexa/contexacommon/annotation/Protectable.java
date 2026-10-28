@@ -93,6 +93,19 @@ public @interface Protectable {
      */
     String[] actions() default {};
 
+    /**
+     * Whether the resource is sensitive or not, stated by the host on the resource itself. The engine uses it where
+     * requests come in numbers: the resources one ALLOW may answer, whether a request may pass before the first
+     * verdict is in, and whether a request is checked against the restrictions in force again right before it runs.
+     * It does not depend on whether the method reads or writes.
+     * <p>
+     * {@link ResourceImportance#SENSITIVE}: the host cannot lower it for a request. {@link
+     * ResourceImportance#NON_SENSITIVE}: a sensitivity the host states for a request can raise it. {@link
+     * ResourceImportance#UNSPECIFIED} (default) declares nothing, and the words of {@link #sensitivity()} or of the
+     * request are read as before.
+     */
+    ResourceImportance importance() default ResourceImportance.UNSPECIFIED;
+
     /** Whether the method is privileged. Only {@code true} declares it; {@code false} leaves it unstated. */
     boolean privileged() default false;
 

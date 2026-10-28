@@ -250,6 +250,56 @@ class AgentLineValuesTest {
         assertThat(AgentLineValues.agent(CanonicalSecurityContext.builder().build())).isNull();
     }
 
+    /**
+     * RL-10: the standing delegation of an agent on its own reads like a delegation, for its sponsor, and the agent stays
+     * an agent on its own: the line of its subject and its baseline do not say it acts for a person.
+     */
+    @Test
+    void aStandingDelegationIsStatedForTheSponsorAndTheAgentStaysOnItsOwn() {
+        CanonicalSecurityContext standing = standing();
+
+        String line = AgentLineValues.delegation(standing, AT);
+
+        assertThat(line).startsWith("agent report-agent for bob, chain depth 1, objective DATA_EXPORT, allowed EXPORT"
+                + " on HX-310, expires 3 h after this request, limits 40 items per request, proof delegation record, drift");
+        assertThat(AgentLineValues.delegationObjective(standing)).isEqualTo("Export this week's packages, 40 a day");
+        assertThat(AgentLineValues.delegationComplete(standing)).isTrue();
+        assertThat(AgentLineValues.agent(standing))
+                .isEqualTo(new AgentLineValues.Agent("report-agent", false, "bob", "ACTIVE"));
+    }
+
+    @Test
+    void anAgentOnItsOwnWithoutAStandingDelegationStatesNoDelegation() {
+        CanonicalSecurityContext alone = standing();
+        alone.getDelegation().setStanding(null);
+
+        assertThat(AgentLineValues.delegation(alone, AT)).isNull();
+        assertThat(AgentLineValues.delegationObjective(alone)).isNull();
+    }
+
+    private static CanonicalSecurityContext standing() {
+        Map<String, Object> attributes = new LinkedHashMap<>();
+        attributes.put("executionSubjectKind", SubjectKind.AUTONOMOUS_AGENT.name());
+        attributes.put("agentId", "report-agent");
+        attributes.put("agentSponsorId", "bob");
+        attributes.put("agentRegistrationStatus", "ACTIVE");
+        attributes.put(RecordedDelegationContextProvider.LOOKUP_ATTRIBUTE, "FOUND");
+        return CanonicalSecurityContext.builder()
+                .actor(CanonicalSecurityContext.Actor.builder().userId("report-agent").build())
+                .delegation(CanonicalSecurityContext.Delegation.builder()
+                        .standing(true)
+                        .agentId("report-agent")
+                        .objectiveFamily("DATA_EXPORT")
+                        .objectiveSummary("Export this week's packages, 40 a day")
+                        .allowedOperations(List.of("EXPORT"))
+                        .allowedResources(List.of("HX-310"))
+                        .expiresAt("2026-10-23T12:00:00Z")
+                        .maxItemsPerRequest(40)
+                        .build())
+                .attributes(attributes)
+                .build();
+    }
+
     private static CanonicalSecurityContext delegated() {
         Map<String, Object> attributes = new LinkedHashMap<>();
         attributes.put("executionSubjectKind", SubjectKind.DELEGATED_AGENT.name());

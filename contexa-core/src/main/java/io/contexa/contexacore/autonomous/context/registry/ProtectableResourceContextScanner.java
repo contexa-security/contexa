@@ -120,6 +120,7 @@ public class ProtectableResourceContextScanner implements SmartInitializingSingl
                 List.of(),
                 actions,
                 protectable.privileged() ? Boolean.TRUE : null,
-                protectable.exportSensitive() ? Boolean.TRUE : null);
+                protectable.exportSensitive() ? Boolean.TRUE : null,
+                protectable.importance());
     }
 }

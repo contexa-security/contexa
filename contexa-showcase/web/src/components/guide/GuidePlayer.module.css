@@ -1,0 +1,146 @@
+/*
+ * The guide window's player (가이드영상-제작기획안.md 6절). The caption is on a band under the video, outside the recorded
+ * screen: it never covers a line of it, so it can be big and bold, in one row. The browser's own caption is hidden (the
+ * tracks stay for its menu and for readers); in the browser's own full screen, where the band is not, it is shown.
+ */
+.player {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  container-type: inline-size;
+  border-radius: var(--radius-md);
+  background-color: var(--color-caption-bg);
+}
+
+.video {
+  display: block;
+  inline-size: 100%;
+  background-color: var(--color-video-bg);
+}
+
+.video::cue {
+  visibility: hidden;
+}
+
+.video:fullscreen::cue {
+  visibility: visible;
+}
+
+.bar {
+  display: flex;
+  gap: var(--space-scene-gap);
+  block-size: 4px;
+  background-color: var(--color-caption-bg);
+}
+
+.scene {
+  flex-basis: 0;
+  background-color: var(--color-border-strong);
+}
+
+.scene[data-now] {
+  background-color: var(--color-accent);
+}
+
+/* One row, bold, white on a solid band; 2.9% of the player's width, between 18 and 30 px. */
+.band {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 2em;
+  margin: 0;
+  padding: 0 var(--space-caption-pad);
+  overflow: hidden;
+  background-color: var(--color-caption-bg);
+  color: var(--color-caption-text);
+  font-family: var(--font-sans);
+  font-size: var(--type-caption-band);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-caption);
+  white-space: nowrap;
+}
+
+@supports (width: 1cqw) {
+  .band {
+    font-size: var(--type-caption-band-fluid);
+  }
+}
+
+/* A phone's band is about 44 px high (2.4 x 18 px). */
+@media (width <= 40rem) {
+  .band {
+    min-block-size: 2.4em;
+  }
+}
+
+.player:fullscreen {
+  justify-content: center;
+  background-color: var(--color-video-bg);
+}
+
+.player:fullscreen .video {
+  max-block-size: calc(100vh - 6rem);
+}
+
+.fullscreen {
+  align-self: flex-end;
+  min-block-size: 2.75rem;
+  margin-block-start: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background-color: transparent;
+  color: var(--color-text-body);
+  font: inherit;
+  font-size: var(--text-md);
+  cursor: pointer;
+}
+
+.fullscreen:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.recorded {
+  margin: var(--space-4) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.heading {
+  margin: var(--space-6) 0 var(--space-2);
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+.lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding-inline-start: var(--space-6);
+}
+
+/* A scene line that jumps to its scene when pressed. */
+.line {
+  min-block-size: 2.75rem;
+  padding: var(--space-1) 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  text-decoration: underline dotted;
+  text-underline-offset: 0.25em;
+  cursor: pointer;
+}
+
+.line:hover {
+  color: var(--color-accent);
+}
+
+.line:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}

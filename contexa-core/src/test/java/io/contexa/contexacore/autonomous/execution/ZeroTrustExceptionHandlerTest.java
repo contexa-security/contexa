@@ -64,6 +64,38 @@ class ZeroTrustExceptionHandlerTest {
     }
 
     @Test
+    @DisplayName("분석이 바빠 받지 못한 요청은 429와 Retry-After로 거절하고 통과시키지 않는다 (RL-12)")
+    void aRequestTheAnalysisCannotTakeInIsRefusedAsBusyWithRetryAfter() {
+        ZeroTrustExceptionHandler handler = new ZeroTrustExceptionHandler(starter(Optional.of("/mfa/select-factor")));
+
+        ResponseEntity<ZeroTrustErrorResponse> answer = handler.handleZeroTrustDenied(
+                ZeroTrustAccessDeniedException.analysisBusy("PaymentService.process", 10), request, response);
+
+        assertThat(answer.getStatusCode().value()).isEqualTo(429);
+        assertThat(answer.getBody().getCode()).isEqualTo("ZERO_TRUST_ANALYSIS_BUSY");
+        assertThat(answer.getBody().getAction()).isEqualTo("PENDING_ANALYSIS");
+        assertThat(answer.getBody().getMfaUrl()).as("busy is no challenge").isNull();
+        assertThat(response.getHeader("Retry-After")).isEqualTo("10");
+        assertThat(starts).hasValue(0);
+    }
+
+    @Test
+    @DisplayName("분석 시간 초과와 분석 필요 응답은 이전 그대로다 (RL-12)")
+    void theOtherPendingAnswersStayAsTheyWere() {
+        ZeroTrustExceptionHandler handler = new ZeroTrustExceptionHandler();
+
+        ResponseEntity<ZeroTrustErrorResponse> timeout = handler.handleZeroTrustDenied(
+                ZeroTrustAccessDeniedException.analysisTimeout("PaymentService.process", 3000), request, response);
+        ResponseEntity<ZeroTrustErrorResponse> required = handler.handleZeroTrustDenied(
+                ZeroTrustAccessDeniedException.analysisRequired("PaymentService.process"), request, response);
+
+        assertThat(timeout.getStatusCode().value()).isEqualTo(408);
+        assertThat(timeout.getBody().getCode()).isEqualTo("ZERO_TRUST_PENDING_ANALYSIS");
+        assertThat(required.getStatusCode().value()).isEqualTo(503);
+        assertThat(response.getHeader("Retry-After")).isNull();
+    }
+
+    @Test
     @DisplayName("CHALLENGE가 아닌 판정은 본인 확인 절차를 시작하지 않고 응답도 그대로다")
     void otherDecisionsDoNotStartIt() throws Exception {
         ZeroTrustExceptionHandler handler = new ZeroTrustExceptionHandler(starter(Optional.of("/mfa/select-factor")));

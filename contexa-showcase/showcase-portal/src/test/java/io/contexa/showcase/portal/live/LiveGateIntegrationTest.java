@@ -2,10 +2,13 @@ package io.contexa.showcase.portal.live;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.showcase.portal.combination.Combination;
+import io.contexa.showcase.portal.combination.CombinationCatalog;
 import io.contexa.showcase.portal.combination.CombinationService;
 import io.contexa.showcase.portal.combination.CombinationStore;
 import io.contexa.showcase.portal.orchestrator.Measurements;
 import io.contexa.showcase.portal.orchestrator.RunOrchestrator.RunSummary;
+import io.contexa.showcase.portal.scenario.BurstChoice;
+import io.contexa.showcase.portal.scenario.ScenarioDefinition;
 import io.contexa.showcase.portal.template.TemplateCurrency;
 import io.contexa.showcase.portal.template.TemplateStore;
 import org.junit.jupiter.api.AfterEach;
@@ -20,6 +23,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import java.io.InputStream;
 import java.net.URI;
 import java.security.SecureRandom;
 import java.time.Clock;
@@ -65,6 +69,9 @@ class LiveGateIntegrationTest {
 
     @Autowired
     NamedParameterJdbcTemplate jdbc;
+
+    @Autowired
+    ObjectMapper json;
 
     private final CountDownLatch release = new CountDownLatch(1);
     private final List<String> kept = new CopyOnWriteArrayList<>();
@@ -182,8 +189,201 @@ class LiveGateIntegrationTest {
         assertThat(kept).isEmpty();
     }
 
+    // ---- docs/agent Agent중심-화면 AC-2: a run is counted in points by its kind, and a visitor's agent runs are capped
+
+    @Test
+    void anAgentRunCostsThreePointsAndAVisitorsAgentRunsPerDayAreCapped() throws Exception {
+        LiveQuota quota = quota(10, 30, 2);
+        LiveGate gate = gate(cells(Optional.empty()), turnstileOff(), allotment(30), quota);
+
+        assertThat(gate.scenario("v1", ADDRESS, agentTask(), null)).isInstanceOf(LiveGate.Started.class);
+        assertThat(quota.remaining("v1")).as("10 points less 3").isEqualTo(7);
+        release.countDown();
+        await(() -> watch.status().finishedThisHour() == 1);
+        assertThat(gate.scenario("v1", ADDRESS, agentTask(), null)).isInstanceOf(LiveGate.Started.class);
+        await(() -> watch.status().finishedThisHour() == 2);
+
+        assertThat(gate.scenario("v1", ADDRESS, agentTask(), null))
+                .isEqualTo(new LiveGate.Refused("AGENT_LIMIT", null));
+        assertThat(quota.remaining("v1")).isEqualTo(4);
+        assertThat(quota.remainingAgentRuns("v1")).isZero();
+        assertThat(gate.combination("v1", ADDRESS, cell(), null)).as("a person's run is still one point")
+                .isInstanceOf(LiveGate.Started.class);
+        assertThat(quota.remaining("v1")).isEqualTo(3);
+    }
+
+    @Test
+    void aVisitorWhoseDailyPointsCannotHoldAnAgentRunIsRefusedAsOverTheVisitorLimit() throws Exception {
+        LiveQuota quota = quota(5, 30, 2);
+        LiveGate gate = gate(cells(Optional.empty()), turnstileOff(), allotment(30), quota);
+        release.countDown();
+
+        assertThat(gate.scenario("v1", ADDRESS, agentTask(), null)).isInstanceOf(LiveGate.Started.class);
+        await(() -> watch.status().finishedThisHour() == 1);
+
+        assertThat(gate.scenario("v1", ADDRESS, agentTask(), null))
+                .isEqualTo(new LiveGate.Refused("VISITOR_LIMIT", null));
+        assertThat(quota.remaining("v1")).as("a refusal takes nothing").isEqualTo(2);
+    }
+
+    @Test
+    void theAddressLimitCountsPointsToo() throws Exception {
+        LiveQuota quota = quota(10, 4, 2);
+        LiveGate gate = gate(cells(Optional.empty()), turnstileOff(), allotment(30), quota);
+        release.countDown();
+
+        assertThat(gate.scenario("v1", ADDRESS, agentTask(), null)).isInstanceOf(LiveGate.Started.class);
+        await(() -> watch.status().finishedThisHour() == 1);
+
+        assertThat(gate.scenario("v2", ADDRESS, agentTask(), null))
+                .isEqualTo(new LiveGate.Refused("ADDRESS_LIMIT", null));
+    }
+
+    @Test
+    void anAgentRunThatFailsGivesBackItsPointsAndItsDailyAgentCount() throws Exception {
+        runStatus.set(0, "FAILED");
+        LiveQuota quota = quota(10, 30, 2);
+        LiveGate gate = gate(cells(Optional.empty()), turnstileOff(), allotment(30), quota);
+
+        assertThat(gate.scenario("v1", ADDRESS, agentTask(), null)).isInstanceOf(LiveGate.Started.class);
+        release.countDown();
+
+        await(() -> quota.remaining("v1") == 10 && quota.remainingAgentRuns("v1") == 2);
+    }
+
+    @Test
+    void aPersonsTenRunsPerDayAreUnchanged() throws Exception {
+        LiveQuota quota = quota(10, 30, 2);
+        LiveGate gate = gate(cells(Optional.empty()), turnstileOff(), allotment(30), quota);
+        release.countDown();
+
+        for (int run = 1; run <= 10; run++) {
+            int finished = run;
+            assertThat(gate.scenario("v1", ADDRESS, personScenario(), null)).isInstanceOf(LiveGate.Started.class);
+            await(() -> watch.status().finishedThisHour() == finished);
+        }
+
+        assertThat(gate.scenario("v1", ADDRESS, personScenario(), null))
+                .isEqualTo(new LiveGate.Refused("VISITOR_LIMIT", null));
+        assertThat(quota.remaining("v1")).isZero();
+    }
+
+    // ---- docs/agent Agent중심-화면 AC-6: the agent runs at once are capped, and the day's share of them is counted
+
+    @Test
+    void anAgentRunPastTheConcurrentCapIsRefusedAsAgentBusyOnEveryStartPathAndGivesNothingBack() throws Exception {
+        LiveQuota quota = quota(10, 30, 2);
+        LiveGate gate = gate(cells(Optional.empty()), turnstileOff(), allotment(30), quota, 1, null);
+
+        assertThat(gate.scenario("v1", ADDRESS, agentTask(), null)).isInstanceOf(LiveGate.Started.class);
+        assertThat(gate.scenario("v2", ADDRESS, agentTask(), null)).isEqualTo(new LiveGate.Refused("AGENT_BUSY", null));
+        assertThat(gate.lab("v3", ADDRESS, agentTask(), null, summary -> { }))
+                .isEqualTo(new LiveGate.Refused("AGENT_BUSY", null));
+
+        assertThat(quota.remaining("v2")).as("a refusal takes no points").isEqualTo(10);
+        assertThat(quota.remainingAgentRuns("v2")).isEqualTo(2);
+        assertThat(quota.remaining("v3")).isEqualTo(10);
+        assertThat(gate.combination("v4", ADDRESS, cell(), null)).as("a person's run is not capped")
+                .isInstanceOf(LiveGate.Started.class);
+        release.countDown();
+        await(() -> watch.status().finishedThisHour() == 2);
+        assertThat(gate.scenario("v2", ADDRESS, agentTask(), null)).as("the place is free again")
+                .isInstanceOf(LiveGate.Started.class);
+        assertThat(watch.status().refusalsThisHour()).containsEntry("AGENT_BUSY", 2L);
+    }
+
+    @Test
+    void anAgentRunIsRefusedAsAllotmentWhenTheDaysShareHoldsNoRunWhileAPersonsRunStarts() throws Exception {
+        LiveQuota quota = quota(10, 30, 2);
+        AgentRation noShare = new AgentRation(() -> 0.01, count -> List.of(), 0.03);
+        LiveGate gate = gate(cells(Optional.empty()), turnstileOff(), allotment(30), quota, 5, noShare);
+
+        assertThat(gate.scenario("v1", ADDRESS, agentTask(), null)).isEqualTo(new LiveGate.Refused("ALLOTMENT", null));
+        assertThat(gate.lab("v1", ADDRESS, agentTask(), null, summary -> { }))
+                .isEqualTo(new LiveGate.Refused("ALLOTMENT", null));
+
+        assertThat(quota.remaining("v1")).as("a refusal takes no points").isEqualTo(10);
+        assertThat(gate.scenario("v1", ADDRESS, personScenario(), null)).as("a person's run is not rationed")
+                .isInstanceOf(LiveGate.Started.class);
+    }
+
+    @Test
+    void anAgentRunStartsWhileTheDaysShareHoldsOne() throws Exception {
+        AgentRation oneLeft = new AgentRation(() -> 0.03, count -> List.of(), 0.03);
+        LiveGate gate = gate(cells(Optional.empty()), turnstileOff(), allotment(30), quota(10, 30, 2), 5, oneLeft);
+
+        assertThat(gate.scenario("v1", ADDRESS, agentTask(), null)).isInstanceOf(LiveGate.Started.class);
+    }
+
+    // ---- docs/agent Agent중심-화면 AS-13: a live burst costs a burst's points and is one of the visitor's agent runs
+
+    @Test
+    void aBurstRunCostsFivePointsAndCountsAsOneOfTheVisitorsAgentRuns() throws Exception {
+        LiveQuota quota = quota(10, 30, 2);
+        LiveGate gate = gate(cells(Optional.empty()), turnstileOff(), allotment(30), quota);
+
+        assertThat(gate.scenario("v1", ADDRESS, burstTask(10), null)).isInstanceOf(LiveGate.Started.class);
+
+        assertThat(quota.remaining("v1")).as("10 points less 5").isEqualTo(5);
+        assertThat(quota.remainingAgentRuns("v1")).as("one of the two agent runs of the day is used").isEqualTo(1);
+        release.countDown();
+        await(() -> watch.status().finishedThisHour() == 1);
+        assertThat(gate.scenario("v1", ADDRESS, agentTask(), null)).isInstanceOf(LiveGate.Started.class);
+        await(() -> watch.status().finishedThisHour() == 2);
+        assertThat(gate.scenario("v1", ADDRESS, burstTask(10), null)).as("two agent runs are used")
+                .isEqualTo(new LiveGate.Refused("AGENT_LIMIT", null));
+    }
+
+    @Test
+    void aBurstRunThatFailsGivesBackItsFivePointsAndItsAgentRun() throws Exception {
+        runStatus.set(0, "FAILED");
+        LiveQuota quota = quota(10, 30, 2);
+        LiveGate gate = gate(cells(Optional.empty()), turnstileOff(), allotment(30), quota);
+
+        assertThat(gate.scenario("v1", ADDRESS, burstTask(10), null)).isInstanceOf(LiveGate.Started.class);
+        release.countDown();
+
+        await(() -> quota.remaining("v1") == 10 && quota.remainingAgentRuns("v1") == 2);
+    }
+
+    @Test
+    void theKindOfABurstIsBurstAndTheKindOfOtherCasesIsAsBefore() throws Exception {
+        assertThat(LiveGate.kindOf(burstTask(10))).isEqualTo(LiveQuota.Kind.BURST);
+        assertThat(LiveGate.kindOf(agentTask())).isEqualTo(LiveQuota.Kind.AGENT);
+        assertThat(LiveGate.kindOf(personScenario())).isEqualTo(LiveQuota.Kind.PERSON);
+    }
+
+    @Test
+    void theKindOfARunFollowsItsDefinition() throws Exception {
+        assertThat(LiveGate.kindOf(agentTask())).isEqualTo(LiveQuota.Kind.AGENT);
+        assertThat(LiveGate.kindOf(personScenario())).isEqualTo(LiveQuota.Kind.PERSON);
+    }
+
+    private ScenarioDefinition agentTask() throws Exception {
+        try (InputStream stream = LiveGateIntegrationTest.class.getResourceAsStream("/agent-tasks/T5.json")) {
+            return json.readValue(stream, ScenarioDefinition.class);
+        }
+    }
+
+    /** The burst case with its workers set to the number, as a visitor's start makes it. */
+    private ScenarioDefinition burstTask(int copies) throws Exception {
+        try (InputStream stream = LiveGateIntegrationTest.class.getResourceAsStream("/agent-tasks/M41A.json")) {
+            return BurstChoice.apply(json.readValue(stream, ScenarioDefinition.class), copies);
+        }
+    }
+
+    private ScenarioDefinition personScenario() throws Exception {
+        return CombinationCatalog.scenario(cell());
+    }
+
     private LiveGate gate(CombinationService cells, TurnstileVerifier turnstile, LiveAllotment allotment,
                           LiveQuota quota) {
+        return gate(cells, turnstile, allotment, quota, 5, null);
+    }
+
+    /** @param agentConcurrent most agent runs at once; @param ration the day's share of agent runs, null for none */
+    private LiveGate gate(CombinationService cells, TurnstileVerifier turnstile, LiveAllotment allotment,
+                          LiveQuota quota, int agentConcurrent, AgentRation ration) {
         live = new LiveRuns((scenario, forced, responder, listener) -> {
             listener.runStarted("run-" + scenario.key());
             try {
@@ -193,9 +393,9 @@ class LiveGateIntegrationTest {
             }
             return new RunSummary("run-" + scenario.key(), scenario.key(), "u", "org", runStatus.get(0), null,
                     List.of());
-        }, new LiveRuns.Settings(5, 5, 0, Duration.ofMinutes(30), Duration.ofMinutes(15), List.of(), null),
-                Clock.systemUTC());
-        return new LiveGate(cells, turnstile, allotment, quota, live, watch, templates());
+        }, new LiveRuns.Settings(5, 5, 0, Duration.ofMinutes(30), Duration.ofMinutes(15), List.of(), null,
+                agentConcurrent), Clock.systemUTC());
+        return new LiveGate(cells, turnstile, allotment, quota, live, watch, templates(), ration);
     }
 
     /** The current template of any employee, or none when {@link #templateCurrent} is false. */
@@ -243,6 +443,13 @@ class LiveGateIntegrationTest {
     private LiveQuota quota(int visitorDaily) {
         jdbc.getJdbcTemplate().update("delete from live_quota");
         return new LiveQuota(jdbc, SIGNING_KEY, visitorDaily, 30, Clock.systemUTC());
+    }
+
+    /** Points per day for a visitor and for an address, and the agent runs a visitor may start in a day. */
+    private LiveQuota quota(int visitorDaily, int addressDaily, int agentDaily) {
+        jdbc.getJdbcTemplate().update("delete from live_quota");
+        return new LiveQuota(jdbc, SIGNING_KEY, visitorDaily, addressDaily, LiveQuota.Weights.defaults(), agentDaily,
+                Clock.systemUTC());
     }
 
     private LiveAllotment allotment(double monthlyBudget) {

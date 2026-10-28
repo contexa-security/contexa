@@ -14,6 +14,8 @@ import io.contexa.showcase.portal.template.TemplateStore;
 import io.contexa.showcase.portal.replay.ReplayView;
 import io.contexa.showcase.portal.replay.ReplayViews;
 import io.contexa.showcase.portal.scenario.AgentTaskCatalog;
+import io.contexa.showcase.portal.scenario.BurstChoice;
+import io.contexa.showcase.portal.scenario.DelegationChoice;
 import io.contexa.showcase.portal.scenario.ScenarioCatalog;
 import io.contexa.showcase.portal.scenario.ScenarioDefinition;
 import io.contexa.showcase.portal.visitor.VisitorCookies;
@@ -23,6 +25,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -57,10 +61,29 @@ public class LiveController {
     /** Shape of a generated employee key (CompanyGenerator), checked before any lookup. */
     private static final Pattern EMPLOYEE_KEY = Pattern.compile("[a-z]{3}-[a-z0-9]{1,2}");
 
-    public record ScenarioOption(String key, Map<String, String> title, String classification) {
+    /**
+     * @param subject who sends the case's requests: PERSON, or AGENT for a case whose work a business agent does
+     *                (docs/agent Agent중심-화면 AS-6); a field added to the answer, the others are as they were
+     */
+    public record ScenarioOption(String key, Map<String, String> title, String classification, String subject) {
+
+        static ScenarioOption of(ScenarioDefinition scenario) {
+            return new ScenarioOption(scenario.key(), scenario.title(), scenario.oracle().classification(),
+                    scenario.task() != null ? "AGENT" : "PERSON");
+        }
     }
 
-    public record StartRequest(String scenario, String turnstileToken) {
+    /**
+     * @param delegation docs/agent Agent중심-화면 AS-12: one of the fixed changes of the delegation of the editable case;
+     *                   null for the case as it is. A value outside the lists is refused when the request is read.
+     * @param copies     docs/agent AS-13: the requests a live burst sends at once, 1 to ten; only the burst case takes
+     *                   it, and takes no start without it
+     */
+    public record StartRequest(String scenario, String turnstileToken, DelegationChoice delegation, Integer copies) {
+
+        public StartRequest(String scenario, String turnstileToken) {
+            this(scenario, turnstileToken, null, null);
+        }
     }
 
     public record CombinationRequest(String key, String turnstileToken) {
@@ -85,6 +108,11 @@ public class LiveController {
     /** docs/agent A7-3: the business agent cases a visitor can start (the agent group), apart from the catalog. */
     private final AgentTaskCatalog agentTasks;
     private final List<String> agentTaskKeys;
+    /** The agent cases a start may name: the open ones and the one whose delegation a visitor may edit. */
+    private final List<String> startableAgentKeys;
+    private final String editableCase;
+    /** docs/agent AS-13: the case a visitor may send a burst of (live up to ten requests at once); null for none. */
+    private final String burstCase;
     private final VisitorCookies cookies;
     private final ReplayViews views;
     private final WorkloadAdmin admin;
@@ -95,6 +123,8 @@ public class LiveController {
     private final BaselineEvidence evidence;
     private final BeforeSend before;
     private final DecisionWaits waits;
+    /** docs/agent Agent중심-화면 AC-6: the day's share of live agent runs. */
+    private final AgentRation ration;
     /** Inspector readings of closed analyses by request ID; a closed analysis's prompt does not change. */
     private final Map<String, List<CoreAdverseLabels.Reading>> adverseReadings = new ConcurrentHashMap<>();
 
@@ -102,13 +132,29 @@ public class LiveController {
                           TurnstileVerifier turnstile, ScenarioCatalog scenarios, VisitorCookies cookies,
                           ReplayViews views, WorkloadAdmin admin, TemplateCurrency templates,
                           BaselineEvidence evidence, BeforeSend before, DecisionWaits waits, ObjectMapper json,
-                          AgentTaskCatalog agentTasks,
-                          @Value("${showcase.live.agent-tasks:T5}") String agentTaskKeys) {
+                          AgentTaskCatalog agentTasks, AgentRation ration,
+                          @Value("${showcase.live.agent-tasks:" + DEFAULT_AGENT_TASKS + "}") String agentTaskKeys,
+                          @Value("${showcase.live.delegation-edit-case:" + DelegationChoice.EDITABLE_CASE + "}") String editableCase,
+                          @Value("${showcase.live.burst-case:" + BurstChoice.BURST_CASE + "}") String burstCase) {
+        this.ration = ration;
         this.agentTasks = agentTasks;
-        this.agentTaskKeys = Arrays.stream(agentTaskKeys.split(",")).map(String::trim)
-                .filter(key -> !key.isEmpty()).toList();
-        this.agentTaskKeys.forEach(key -> agentTasks.find(key)
-                .orElseThrow(() -> new IllegalStateException("Unknown live agent task " + key)));
+        this.agentTaskKeys = parseAgentTaskKeys(agentTaskKeys, agentTasks);
+        // docs/agent AS-12: the case whose delegation a visitor edits is started by name though it is no entry of the list
+        this.editableCase = editableCase.isBlank() ? null : editableCase.trim();
+        if (this.editableCase != null && !DelegationChoice.EDITABLE_CASE.equals(this.editableCase)) {
+            throw new IllegalStateException("Only the case " + DelegationChoice.EDITABLE_CASE + " has a delegation a visitor may edit");
+        }
+        if (this.editableCase != null) {
+            agentTasks.find(this.editableCase).orElseThrow(() -> new IllegalStateException("Unknown editable case " + this.editableCase));
+        }
+        this.burstCase = burstCase.isBlank() ? null : burstCase.trim();
+        if (this.burstCase != null && !BurstChoice.BURST_CASE.equals(this.burstCase)) {
+            throw new IllegalStateException("Only the case " + BurstChoice.BURST_CASE + " has a burst a visitor may send");
+        }
+        if (this.burstCase != null) {
+            agentTasks.find(this.burstCase).orElseThrow(() -> new IllegalStateException("Unknown burst case " + this.burstCase));
+        }
+        this.startableAgentKeys = startable(this.agentTaskKeys, this.editableCase, this.burstCase);
         this.views = views;
         this.waits = waits;
         this.evidence = evidence;
@@ -126,18 +172,116 @@ public class LiveController {
         this.cookies = cookies;
     }
 
+    /**
+     * docs/agent Agent중심-화면 AS-14: the agent cases open to visitors unless the settings say otherwise: the main case
+     * (the delegation ended before the work), its normal pair (the same work inside the delegation), a request that names
+     * a ticket the company does not have, an export to a destination the company does not list, and a delegation the
+     * company has no record of. Each is short: no history of days before the work and a few requests.
+     */
+    static final String DEFAULT_AGENT_TASKS = "T5,N1,M14A,M22A,M10A";
+
+    /** The most agent cases the settings may open: the day's share and the cap of agent runs are sized for a few. */
+    static final int MOST_OPEN_AGENT_CASES = 8;
+
+    /**
+     * The agent cases a start may name: the open ones, then the case whose delegation a visitor may edit and the burst
+     * case, which are started by name though they are no entry of the list.
+     */
+    static List<String> startable(List<String> open, String editableCase, String burstCase) {
+        List<String> startable = new ArrayList<>(open);
+        for (String extra : new String[]{editableCase, burstCase}) {
+            if (extra != null && !startable.contains(extra)) {
+                startable.add(extra);
+            }
+        }
+        return List.copyOf(startable);
+    }
+
+    /**
+     * The case a visitor's start runs: the named case with the visitor's choices applied to a copy. The delegation is
+     * taken by the editable case only; the number of requests by the burst case only, and the burst case runs live only
+     * with it (a visitor never runs the stored measurement's sixty).
+     *
+     * @throws IllegalArgumentException for a choice the case does not take or a value outside the lists
+     */
+    static ScenarioDefinition chosen(ScenarioDefinition scenario, DelegationChoice delegation, Integer copies) {
+        ScenarioDefinition result = scenario;
+        if (delegation != null && !delegation.isEmpty()) {
+            result = delegation.applyTo(result);
+        }
+        if (BurstChoice.isBurst(result) && copies == null) {
+            throw new IllegalArgumentException("A live burst needs the number of its requests");
+        }
+        return BurstChoice.apply(result, copies);
+    }
+
+    /** The keys of the open agent cases from the settings; unknown keys and more than eight are refused at start. */
+    static List<String> parseAgentTaskKeys(String configured, AgentTaskCatalog catalog) {
+        List<String> keys = Arrays.stream(configured.split(",")).map(String::trim).filter(key -> !key.isEmpty()).toList();
+        if (keys.size() > MOST_OPEN_AGENT_CASES) {
+            throw new IllegalStateException("At most " + MOST_OPEN_AGENT_CASES + " agent cases may be open to visitors, "
+                    + keys.size() + " are configured");
+        }
+        keys.forEach(key -> catalog.find(key)
+                .orElseThrow(() -> new IllegalStateException("Unknown live agent task " + key)));
+        return keys;
+    }
+
+    /**
+     * The definition a visitor's start names: a person scenario the live settings list, or an open agent case; nothing
+     * for any other key, however the catalog holds it.
+     */
+    static ScenarioDefinition resolve(String key, List<String> scenarioKeys, ScenarioCatalog scenarios,
+                                      List<String> agentTaskKeys, AgentTaskCatalog agentTasks) {
+        if (scenarioKeys.contains(key)) {
+            return scenarios.find(key).orElse(null);
+        }
+        return agentTaskKeys.contains(key) ? agentTasks.find(key).orElse(null) : null;
+    }
+
+    /** The agent cases the live settings open, as options whose subject is AGENT. */
+    static List<ScenarioOption> openAgentCases(AgentTaskCatalog catalog, List<String> keys) {
+        return keys.stream().map(key -> catalog.find(key).orElseThrow()).map(ScenarioOption::of).toList();
+    }
+
     @GetMapping("/api/live/config")
     public Map<String, Object> config(HttpServletRequest request) {
         List<ScenarioOption> options = live.settings().scenarioKeys().stream()
                 .map(key -> scenarios.find(key).orElseThrow())
-                .map(scenario -> new ScenarioOption(scenario.key(), scenario.title(),
-                        scenario.oracle().classification()))
+                .map(ScenarioOption::of)
                 .toList();
         Map<String, Object> config = new LinkedHashMap<>();
         config.put("scenarios", options);
+        // docs/agent Agent중심-화면 AS-6: the agent cases a visitor can run live, apart from the scenarios
+        config.put("agentCases", openAgentCases(agentTasks, agentTaskKeys));
+        // docs/agent AS-12: the case whose delegation a visitor may edit and the values a visitor may choose
+        if (editableCase != null) {
+            config.put("delegationEdit",
+                    DelegationChoice.describe(editableCase, agentTasks.find(editableCase).orElseThrow().title()));
+        }
+        // docs/agent AS-13: the case a visitor may send a burst of live, the most requests live and the stored measurement's
+        if (burstCase != null) {
+            ScenarioDefinition burst = agentTasks.find(burstCase).orElseThrow();
+            Map<String, Object> burstConfig = new LinkedHashMap<>();
+            burstConfig.put("case", burstCase);
+            burstConfig.put("title", burst.title());
+            burstConfig.put("most", BurstChoice.LIVE_MOST);
+            burstConfig.put("measured", burst.task().parallel().get(0).copies());
+            burstConfig.put("points", quota.weights().burst());
+            config.put("burst", burstConfig);
+        }
         config.put("turnstileSiteKey", turnstile.siteKey());
         config.put("dailyRuns", quota.visitorDaily());
         config.put("remainingToday", visitor(request).map(quota::remaining).orElse(quota.visitorDaily()));
+        // docs/agent Agent중심-화면 AC-2: the points an agent run costs and the agent runs left today
+        config.put("agentRunPoints", quota.weights().agent());
+        config.put("dailyAgentRuns", quota.agentDaily());
+        config.put("remainingAgentToday", visitor(request).map(quota::remainingAgentRuns)
+                .orElse(Math.min(quota.agentDaily(), quota.visitorDaily() / Math.max(1, quota.weights().agent()))));
+        // docs/agent Agent중심-화면 AC-6: the day's share of live agent runs and the cap of agent runs at once
+        config.put("liveTicketsLeft", ration.ticketsLeft());
+        config.put("agentConcurrent", live.settings().agentConcurrent());
+        config.put("agentRunsActive", live.agentRunsActive());
         config.put("paused", allotment.state().exhausted() || !live.hasRoom());
         return config;
     }
@@ -151,10 +295,16 @@ public class LiveController {
         if (start == null || start.scenario() == null) {
             return ResponseEntity.badRequest().build();
         }
-        ScenarioDefinition scenario = live.settings().scenarioKeys().contains(start.scenario())
-                ? scenarios.find(start.scenario()).orElse(null)
-                : agentTaskKeys.contains(start.scenario()) ? agentTasks.find(start.scenario()).orElse(null) : null;
+        ScenarioDefinition scenario = resolve(start.scenario(), live.settings().scenarioKeys(), scenarios,
+                startableAgentKeys, agentTasks);
         if (scenario == null) {
+            return ResponseEntity.badRequest().build();
+        }
+        try {
+            // docs/agent AS-12, AS-13: a copy of the case with the visitor's choices: one change of the editable case's
+            // delegation, or the number of requests (up to ten) of the burst case
+            scenario = chosen(scenario, start.delegation(), start.copies());
+        } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().build();
         }
         try {
@@ -162,6 +312,17 @@ public class LiveController {
         } catch (IOException e) {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of("reason", "ENGINE_UNAVAILABLE"));
         }
+    }
+
+    /**
+     * A body the server cannot read (not JSON, a value outside the lists of the delegation choice, a number of requests
+     * that is no number) is refused with 400 like every other refusal of a start. Left to the container it would be
+     * sent to the error page, which the visitor port does not open, and answer 403 (docs/agent Agent중심-화면 AS-12,
+     * AS-13: the server refuses a value outside the lists with 400).
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Void> unreadable() {
+        return ResponseEntity.badRequest().build();
     }
 
     @PostMapping("/api/live/combinations")
@@ -464,18 +625,23 @@ public class LiveController {
         return node.hasNonNull(field) ? node.path(field).asDouble() : null;
     }
 
+    /** The HTTP status of a reason the gate refuses a start for; every limit of a visitor is "too many requests". */
+    static HttpStatus statusOf(String reason) {
+        return switch (reason) {
+            case "VISITOR_LIMIT", "ADDRESS_LIMIT", "AGENT_LIMIT" -> HttpStatus.TOO_MANY_REQUESTS;
+            case "ALLOTMENT", "TEMPLATE" -> HttpStatus.SERVICE_UNAVAILABLE;
+            case "BUSY", "AGENT_BUSY" -> HttpStatus.CONFLICT;
+            default -> HttpStatus.FORBIDDEN;
+        };
+    }
+
     private ResponseEntity<Object> respond(LiveGate.Outcome outcome) {
         if (outcome instanceof LiveGate.Started started) {
             return ResponseEntity.status(HttpStatus.ACCEPTED).body(started.run().view());
         }
         LiveGate.Refused refused = (LiveGate.Refused) outcome;
         String reason = refused.reason();
-        HttpStatus status = switch (reason) {
-            case "VISITOR_LIMIT", "ADDRESS_LIMIT" -> HttpStatus.TOO_MANY_REQUESTS;
-            case "ALLOTMENT", "TEMPLATE" -> HttpStatus.SERVICE_UNAVAILABLE;
-            case "BUSY" -> HttpStatus.CONFLICT;
-            default -> HttpStatus.FORBIDDEN;
-        };
+        HttpStatus status = statusOf(reason);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("reason", reason);
         if (refused.fallback() != null) {

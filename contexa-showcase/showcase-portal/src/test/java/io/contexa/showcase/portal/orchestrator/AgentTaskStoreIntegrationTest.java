@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.showcase.portal.agent.AgentTaskProof;
 import io.contexa.showcase.portal.agent.AgentWork;
+import io.contexa.showcase.portal.scenario.AgentTaskCatalog;
+import io.contexa.showcase.portal.scenario.DelegationChoice;
+import io.contexa.showcase.portal.scenario.ScenarioDefinition;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -15,6 +18,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +50,24 @@ class AgentTaskStoreIntegrationTest {
         store = new RunStore(new NamedParameterJdbcTemplate(dataSource), new ObjectMapper().findAndRegisterModules());
     }
 
+    /** AS-12: the definition a run executed (the visitor's copy with its change) is read back as it was stored. */
+    @Test
+    void theDefinitionARunExecutedIsReadBackAsStored() throws Exception {
+        ScenarioDefinition base = new AgentTaskCatalog(json).find("ED1").orElseThrow();
+        ScenarioDefinition edited = new DelegationChoice(100, "EXPIRED", null).applyTo(base);
+        store.start(new RunStore.RunStart("run-edited-def", "ED1", 1, "E-0042", "kim", null, "org", "tenant", "10.0.0.1",
+                "laptop", AT, null, null, json.writeValueAsString(edited),
+                RunOrchestrator.definitionSha256(json, edited)));
+
+        ScenarioDefinition read = store.scenarioDefinition("run-edited-def").orElseThrow();
+
+        assertThat(read).isEqualTo(edited);
+        assertThat(store.scenarioDefinition("run-no-such")).isEmpty();
+        store.start(new RunStore.RunStart("run-no-def", "T1", 1, "E-0042", "kim", null, "org", "tenant", "10.0.0.1",
+                "laptop", AT, null, null, null, "b".repeat(64)));
+        assertThat(store.scenarioDefinition("run-no-def")).as("a run stored without its definition").isEmpty();
+    }
+
     @Test
     void theWorkAndWhatItProvesAreStoredWithTheRun() throws Exception {
         store.start(new RunStore.RunStart("run-agent-task", "T1", 1, "E-0042", "kim", null, "org", "tenant",
@@ -72,6 +94,87 @@ class AgentTaskStoreIntegrationTest {
         assertThat(stored.path("controls").path("D").path("firstStopStep").asInt()).isEqualTo(1);
         assertThat(stored.path("mustNotLeave").get(0).asText()).isEqualTo("HX-310");
         assertThat(store.agentTask("run-without-task")).isEmpty();
+    }
+
+    /**
+     * docs/agent Agent중심-화면 AC-8: the business agent's own model calls are in the cost ledger beside the engine's, so
+     * the allotment counts what a live agent run really cost; its cached prompt tokens are kept apart.
+     */
+    @Test
+    void theAgentsOwnModelUsageIsInTheCostLedgerWithItsCachedPromptTokens() {
+        store.start(new RunStore.RunStart("run-agent-ledger", "T1", 1, "E-0042", "kim", null, "org", "tenant",
+                "10.0.0.1", "laptop", AT, null, null, "{}", "c".repeat(64)));
+        AgentWork.Transcript work = new AgentWork.Transcript("gpt-6-luna", "prompt", "work", List.of(), "done",
+                "ANSWERED", null, Map.of("promptTokens", 20_000, "completionTokens", 500, "totalTokens", 20_500,
+                "cachedPromptTokens", 15_000), AT, AT.plusSeconds(12));
+
+        store.agentTask("run-agent-ledger", "DELEGATED_AGENT", work, null);
+
+        List<Map<String, Object>> ledger = jdbc.queryForList(
+                "select * from cost_ledger where run_id = 'run-agent-ledger'");
+        assertThat(ledger).singleElement().satisfies(row -> {
+            assertThat(row).containsEntry("kind", "AGENT_CHAT").containsEntry("model", "gpt-6-luna")
+                    .containsEntry("prompt_tokens", 20_000L).containsEntry("completion_tokens", 500L)
+                    .containsEntry("total_tokens", 20_500L).containsEntry("cached_prompt_tokens", 15_000L)
+                    .containsEntry("elapsed_ms", 12_000L);
+            assertThat(row.get("request_id")).as("no decision of the engine").isNull();
+        });
+    }
+
+    @Test
+    void aWorkWithoutAMeasuredUsageAddsNothingToTheLedger() {
+        store.start(new RunStore.RunStart("run-agent-no-usage", "T1", 1, "E-0042", "kim", null, "org", "tenant",
+                "10.0.0.1", "laptop", AT, null, null, "{}", "d".repeat(64)));
+        AgentWork.Transcript work = new AgentWork.Transcript("gpt-6-luna", "prompt", "work", List.of(), null,
+                "TIME_LIMIT", null, Map.of(), AT, AT.plusSeconds(300));
+
+        store.agentTask("run-agent-no-usage", "DELEGATED_AGENT", work, null);
+
+        assertThat(jdbc.queryForObject("select count(*) from cost_ledger where run_id = 'run-agent-no-usage'",
+                Integer.class)).isZero();
+    }
+
+    /**
+     * docs/agent Agent중심-화면 AS-5: the portal counts the operator recordings of an agent case's definition and how
+     * many of them ended as the latest did at control D (it stopped the work at the same step, or never), so the screens
+     * show a count the server made and never one they made up. Live runs of visitors are not recordings.
+     */
+    @Test
+    void theRecordingsOfACaseAreCountedWithHowManyEndedAsTheLatestDid() {
+        String sha = "e".repeat(64);
+        recording("run-rec-1", sha, 1, AT.plusSeconds(10), false);
+        recording("run-rec-2", sha, 1, AT.plusSeconds(20), false);
+        recording("run-rec-3", sha, null, AT.plusSeconds(30), false);
+        recording("run-rec-4", sha, 1, AT.plusSeconds(40), false);
+        recording("run-rec-live", sha, null, AT.plusSeconds(50), true);
+
+        RunStore.RecordedStats stats = store.recordedAgentRunStats(sha);
+
+        assertThat(stats.runs()).as("the live run of a visitor is not a recording").isEqualTo(4);
+        assertThat(stats.sameAsLatest()).as("the latest recording stopped at step 1: run-rec-1, -2 and -4").isEqualTo(3);
+        assertThat(stats.latestRunId()).isEqualTo("run-rec-4");
+    }
+
+    @Test
+    void aDefinitionWithoutRecordingsHasNoStats() {
+        RunStore.RecordedStats stats = store.recordedAgentRunStats("f".repeat(64));
+
+        assertThat(stats.runs()).isZero();
+        assertThat(stats.sameAsLatest()).isZero();
+        assertThat(stats.latestRunId()).isNull();
+    }
+
+    private void recording(String runId, String sha, Integer stopStep, Instant at, boolean live) {
+        store.start(new RunStore.RunStart(runId, "T5", 1, "E-0042", "kim", null, "org", "tenant", "10.0.0.1",
+                "laptop", at, null, live ? "v".repeat(64) : null, "{}", sha));
+        store.finish(runId, "COMPLETED", null, Map.of());
+        jdbc.update("update run set started_at = ? where run_id = ?", Timestamp.from(at), runId);
+        AgentWork.Transcript work = new AgentWork.Transcript("gpt-6-luna", "prompt", "work", List.of(), "done",
+                "ANSWERED", null, Map.of(), at, at.plusSeconds(5));
+        AgentTaskProof.Proof proof = new AgentTaskProof.Proof(true, null, "done", "ANSWERED", true, List.of(), null, 1, 1,
+                1, Map.of("D", new AgentTaskProof.Control(0, 0, 0, 0, 0, stopStep, stopStep == null ? null : "REFUSED")),
+                Map.of());
+        store.agentTask(runId, "DELEGATED_AGENT", work, proof);
     }
 
     @Test

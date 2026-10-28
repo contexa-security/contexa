@@ -357,3 +357,47 @@ export function useBenchmark(setting: string | null) {
     retry: false,
   });
 }
+
+/**
+ * The agent part of the benchmark (docs/agent Agent중심-화면 AS-11), as the portal counts it (AgentBenchmarkService) from
+ * the operator's recorded agent runs of the definitions in force: nothing here is computed by the screen.
+ */
+export interface AgentBenchPath {
+  readonly path: string;
+  readonly runs: number;
+  readonly attacks: number;
+  /** Attack runs none of the four existing controls stopped. */
+  readonly existingMissed: number;
+  /** Of those, the runs Contexa stopped. */
+  readonly contexaStopped: number;
+  readonly normals: number;
+  readonly falseBlocks: number;
+  /** The share of the missed attack runs Contexa stopped (0 to 1); null when none were missed. */
+  readonly contexaShare: number | null;
+}
+
+export interface AgentBenchmark {
+  readonly scope: {
+    readonly runs: number;
+    readonly cases: number;
+    readonly from: string | null;
+    readonly to: string | null;
+  };
+  readonly byPath: readonly AgentBenchPath[];
+  readonly total: AgentBenchPath;
+  /** Cases on a path run at least twice, and those whose runs did not end alike at control D. */
+  readonly variation: { readonly cells: number; readonly differing: number };
+  /** Catalog cases with no run of their definition in force. */
+  readonly notMeasured: readonly string[];
+  /** Cases with an attack run no control stopped, Contexa included. */
+  readonly contexaMissed: readonly string[];
+}
+
+export function useAgentBenchmark() {
+  return useQuery({
+    queryKey: ['agent-benchmark'],
+    queryFn: () => getJson<AgentBenchmark>('/api/benchmark/agent'),
+    staleTime: 60_000,
+    retry: false,
+  });
+}

@@ -1,6 +1,7 @@
 package io.contexa.showcase.portal.live;
 
 import io.contexa.showcase.portal.orchestrator.Measurements;
+import io.contexa.showcase.portal.orchestrator.ModelPricing;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -12,6 +13,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -28,32 +30,43 @@ public class LiveAllotment {
     }
 
     private final NamedParameterJdbcTemplate jdbc;
-    private final Measurements.Prices prices;
+    private final ModelPricing pricing;
     private final double monthlyBudgetUsd;
     private final Clock clock;
 
-    public LiveAllotment(NamedParameterJdbcTemplate jdbc, Measurements.Prices prices, double monthlyBudgetUsd,
-                         Clock clock) {
+    /** docs/agent Agent중심-화면 AC-1: each model's tokens are counted by that model's own price. */
+    public LiveAllotment(NamedParameterJdbcTemplate jdbc, ModelPricing pricing, double monthlyBudgetUsd, Clock clock) {
         this.jdbc = jdbc;
-        this.prices = prices;
+        this.pricing = pricing;
         this.monthlyBudgetUsd = monthlyBudgetUsd;
         this.clock = clock;
+    }
+
+    /** One price for every model, as before AC-1; kept for the tests that name their own price. */
+    public LiveAllotment(NamedParameterJdbcTemplate jdbc, Measurements.Prices prices, double monthlyBudgetUsd,
+                         Clock clock) {
+        this(jdbc, ModelPricing.single(prices), monthlyBudgetUsd, clock);
     }
 
     public State state() {
         LocalDate day = LocalDate.ofInstant(clock.instant(), ZoneOffset.UTC);
         double allotment = monthlyBudgetUsd / YearMonth.from(day).lengthOfMonth();
-        Map<String, Object> usage = jdbc.queryForMap("""
-                        select coalesce(sum(c.prompt_tokens) filter (where c.kind = 'CHAT'), 0) as chat_in,
-                               coalesce(sum(c.completion_tokens) filter (where c.kind = 'CHAT'), 0) as chat_out,
-                               coalesce(sum(c.prompt_tokens) filter (where c.kind = 'EMBEDDING'), 0) as embedding_in
+        // The model of each call is kept in the ledger, so each model is counted by its own price (AC-1).
+        List<Map<String, Object>> usage = jdbc.queryForList("""
+                        select c.kind, c.model, coalesce(sum(c.prompt_tokens), 0) as prompt_tokens,
+                               coalesce(sum(c.cached_prompt_tokens), 0) as cached_prompt_tokens,
+                               coalesce(sum(c.completion_tokens), 0) as completion_tokens
                           from cost_ledger c join run r on r.run_id = c.run_id
-                         where r.live_run and c.recorded_at >= :from and c.recorded_at < :to""",
+                         where r.live_run and c.recorded_at >= :from and c.recorded_at < :to
+                         group by c.kind, c.model""",
                 new MapSqlParameterSource("from", Timestamp.from(day.atStartOfDay().toInstant(ZoneOffset.UTC)))
                         .addValue("to", Timestamp.from(day.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC))));
-        double spent = (number(usage.get("chat_in")) * prices.chatInput()
-                + number(usage.get("chat_out")) * prices.chatOutput()
-                + number(usage.get("embedding_in")) * prices.embeddingInput()) / 1_000_000d;
+        double spent = 0d;
+        for (Map<String, Object> row : usage) {
+            spent += pricing.usd((String) row.get("kind"), (String) row.get("model"),
+                    (long) number(row.get("prompt_tokens")), (long) number(row.get("cached_prompt_tokens")),
+                    (long) number(row.get("completion_tokens")));
+        }
         boolean alerted = spent >= allotment * ALERT_RATIO && alert(day, spent, allotment);
         return new State(day, allotment, spent, alerted, spent >= allotment);
     }

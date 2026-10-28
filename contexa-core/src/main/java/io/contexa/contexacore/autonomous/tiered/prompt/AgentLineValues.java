@@ -147,12 +147,15 @@ public final class AgentLineValues {
     @Nullable
     public static String delegation(@Nullable CanonicalSecurityContext context, @Nullable Instant at) {
         CanonicalSecurityContext.Delegation delegation = context != null ? context.getDelegation() : null;
-        if (delegation == null || !Boolean.TRUE.equals(delegation.getDelegated())) {
+        if (delegation == null || !delegation.hasMandate()) {
             return null;
         }
         Map<String, Object> attributes = attributes(context);
         CanonicalSecurityContext.Actor actor = context.getActor();
-        String delegator = firstText(text(attributes.get("delegatorId")), actor != null ? actor.getUserId() : null);
+        // RL-10: a standing delegation is the agent's sponsor's; the actor is the agent itself.
+        String delegator = Boolean.TRUE.equals(delegation.getStanding())
+                ? firstText(text(attributes.get("agentSponsorId")), text(attributes.get("delegatorId")))
+                : firstText(text(attributes.get("delegatorId")), actor != null ? actor.getUserId() : null);
         int depth = integer(attributes.get("delegationChainDepth"));
         if (depth == 0) {
             depth = Math.max(1, integer(attributes.get(CredentialFacts.CHAIN_DEPTH)));
@@ -427,7 +430,7 @@ public final class AgentLineValues {
     @Nullable
     public static String delegationObjective(@Nullable CanonicalSecurityContext context) {
         CanonicalSecurityContext.Delegation delegation = context != null ? context.getDelegation() : null;
-        return delegation != null && Boolean.TRUE.equals(delegation.getDelegated())
+        return delegation != null && delegation.hasMandate()
                 ? text(delegation.getObjectiveSummary()) : null;
     }
 
@@ -440,7 +443,7 @@ public final class AgentLineValues {
     /** Whether the delegation names its agent, its objective and a scope, after the records were read (A2-6). */
     public static boolean delegationComplete(@Nullable CanonicalSecurityContext context) {
         CanonicalSecurityContext.Delegation delegation = context != null ? context.getDelegation() : null;
-        return delegation != null && Boolean.TRUE.equals(delegation.getDelegated())
+        return delegation != null && delegation.hasMandate()
                 && StringUtils.hasText(delegation.getAgentId())
                 && (StringUtils.hasText(delegation.getObjectiveFamily()) || StringUtils.hasText(delegation.getObjectiveId())
                         || StringUtils.hasText(delegation.getObjectiveSummary()))
@@ -470,7 +473,7 @@ public final class AgentLineValues {
 
     private static boolean delegated(@Nullable CanonicalSecurityContext context) {
         CanonicalSecurityContext.Delegation delegation = context != null ? context.getDelegation() : null;
-        return delegation != null && Boolean.TRUE.equals(delegation.getDelegated());
+        return delegation != null && delegation.hasMandate();
     }
 
     /** A coverage warning without an instruction after its fact (A2-6). */

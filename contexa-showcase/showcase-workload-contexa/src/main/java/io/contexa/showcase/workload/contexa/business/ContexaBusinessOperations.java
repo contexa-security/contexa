@@ -1,6 +1,7 @@
 package io.contexa.showcase.workload.contexa.business;
 
 import io.contexa.contexacommon.annotation.Protectable;
+import io.contexa.contexacommon.annotation.ResourceImportance;
 import io.contexa.showcase.business.work.BusinessOperations;
 import io.contexa.showcase.business.work.BusinessRequest;
 import io.contexa.showcase.business.work.BusinessService;
@@ -24,8 +25,12 @@ import java.util.List;
  * invalidates the learned templates.
  *
  * Each protected method declares what the engine compares its requests by: the business category, the action
- * family, and whether it is privileged or exports sensitive data (P2-CHANGE-11 ④). The sensitivity is not declared,
- * since the business application sets it on every request and a request value wins.
+ * family, and whether it is privileged or exports sensitive data (P2-CHANGE-11 ④). The sensitivity words are not
+ * declared, since the business application sets them on every request and a request value wins. What the application
+ * does declare is the importance of the resource (RL-14): the lists of a project's documents are non-sensitive, and a
+ * request for a confidential project raises it to sensitive; a single document is left unspecified, since its
+ * sensitivity depends on the document; everything that carries data out or changes access, and the customer records,
+ * are sensitive.
  */
 public class ContexaBusinessOperations implements BusinessOperations {
 
@@ -44,7 +49,7 @@ public class ContexaBusinessOperations implements BusinessOperations {
 
     /** docs/agent A7-2a: finding the documents to read is reading the project's documents. */
     @Override
-    @Protectable(category = DOCUMENTS, actions = "READ")
+    @Protectable(category = DOCUMENTS, actions = "READ", importance = ResourceImportance.NON_SENSITIVE)
     public List<DocumentSummary> listDocuments(BusinessRequest request, String projectKey, String type, String query,
                                                int limit) {
         return delegate.listDocuments(request, projectKey, type, query, limit);
@@ -58,7 +63,7 @@ public class ContexaBusinessOperations implements BusinessOperations {
 
     @Override
     /** docs/agent OC-2: a download is its own action, so the company's tickets can cover a read and not a download. */
-    @Protectable(category = DOCUMENTS, actions = "DOWNLOAD")
+    @Protectable(category = DOCUMENTS, actions = "DOWNLOAD", importance = ResourceImportance.SENSITIVE)
     public DocumentFile downloadDocument(BusinessRequest request, String documentKey) {
         return delegate.downloadDocument(request, documentKey);
     }
@@ -68,38 +73,42 @@ public class ContexaBusinessOperations implements BusinessOperations {
      * cover it, so the engine judges it as the change it is.
      */
     @Override
-    @Protectable(sync = true, category = DOCUMENTS, actions = "DELETE")
+    @Protectable(sync = true, category = DOCUMENTS, actions = "DELETE", importance = ResourceImportance.SENSITIVE)
     public DocumentDeletionResult deleteDocument(BusinessRequest request, String documentKey) {
         return delegate.deleteDocument(request, documentKey);
     }
 
     @Override
-    @Protectable(sync = true, category = DOCUMENTS, actions = "EXPORT", exportSensitive = true)
+    @Protectable(sync = true, category = DOCUMENTS, actions = "EXPORT", exportSensitive = true,
+            importance = ResourceImportance.SENSITIVE)
     public ExportResult exportDocuments(BusinessRequest request, String projectKey, int items) {
         return delegate.exportDocuments(request, projectKey, items);
     }
 
     @Override
-    @Protectable(category = DOCUMENTS, actions = "EXPORT", exportSensitive = true)
+    @Protectable(category = DOCUMENTS, actions = "EXPORT", exportSensitive = true,
+            importance = ResourceImportance.SENSITIVE)
     public ExportStream openExportStream(BusinessRequest request, String projectKey, int items) {
         return delegate.openExportStream(request, projectKey, items);
     }
 
     @Override
-    @Protectable(category = DOCUMENTS, actions = "EXPORT", exportSensitive = true)
+    @Protectable(category = DOCUMENTS, actions = "EXPORT", exportSensitive = true,
+            importance = ResourceImportance.SENSITIVE)
     public ExportResult exportDocumentsAsync(BusinessRequest request, String projectKey, int items) {
         return delegate.exportDocumentsAsync(request, projectKey, items);
     }
 
     @Override
-    @Protectable(category = "CUSTOMER_RECORDS", actions = "READ")
+    @Protectable(category = "CUSTOMER_RECORDS", actions = "READ", importance = ResourceImportance.SENSITIVE)
     public CustomerView readCustomer(BusinessRequest request, String customerKey) {
         return delegate.readCustomer(request, customerKey);
     }
 
     /** A privilege change is decided before it takes effect, like the export (deck A5). */
     @Override
-    @Protectable(sync = true, category = "PROJECT_ACCESS", actions = "ADMIN", privileged = true)
+    @Protectable(sync = true, category = "PROJECT_ACCESS", actions = "ADMIN", privileged = true,
+            importance = ResourceImportance.SENSITIVE)
     public RoleGrantResult grantRole(BusinessRequest request, String projectKey, String grantee,
                                      String responsibility) {
         return delegate.grantRole(request, projectKey, grantee, responsibility);

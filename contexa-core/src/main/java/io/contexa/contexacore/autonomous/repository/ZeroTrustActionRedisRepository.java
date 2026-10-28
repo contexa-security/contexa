@@ -54,17 +54,21 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
 
     /**
      * Replaces the analysis hash and the last verified keys unless the stored action refuses the
-     * new one. KEYS: analysis hash, last verified action, last verified context. ARGV: hash field
-     * names of action and previousAction, the refusing stored action values, the plain and stored
-     * value of every action, the analysis TTL in milliseconds (0 keeps no TTL), the action name, the
-     * last verified TTL in milliseconds, a context flag and value, then the hash field/value pairs.
-     * Returns 0 when refused and 1 when written.
+     * new one. KEYS: analysis hash, last verified action, last verified context, BLOCK flag. ARGV:
+     * hash field names of action and previousAction, whether the BLOCK flag refuses the new action
+     * ('1' when it is less strict than a BLOCK), the refusing stored action values, the plain and
+     * stored value of every action, the analysis TTL in milliseconds (0 keeps no TTL), the action
+     * name, the last verified TTL in milliseconds, a context flag and value, then the hash
+     * field/value pairs. Returns 0 when refused and 1 when written.
      */
     private static final DefaultRedisScript<Long> SAVE_FINAL_ACTION_SCRIPT = new DefaultRedisScript<>("""
             local actionField = ARGV[1]
             local previousField = ARGV[2]
+            if ARGV[3] == '1' and redis.call('GET', KEYS[4]) == 'true' then
+                return 0
+            end
             local current = redis.call('HGET', KEYS[1], actionField)
-            local index = 3
+            local index = 4
             local refusedCount = tonumber(ARGV[index])
             index = index + 1
             for i = index, index + refusedCount - 1 do
@@ -426,17 +430,19 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             return false;
         }
 
-        // A less strict result never replaces an active user-level CHALLENGE or ESCALATE, whichever
-        // session it was analysed for. The check and the write run in one script so that a concurrent
-        // final write cannot slip in between. A refused write is reported as applied because the
-        // stricter action stays in effect; reporting it as a failure would only cause retries.
+        // A less strict result never replaces an active user-level BLOCK, CHALLENGE or ESCALATE, whichever
+        // session it was analysed for (RL-13). A BLOCK is active while its analysis says so or its flag
+        // stands. The check and the write run in one script so that a concurrent final write cannot slip
+        // in between. A refused write is reported as applied because the stricter action stays in effect;
+        // reporting it as a failure would only cause retries.
         Long written;
         try {
             written = stringRedisTemplate.execute(SAVE_FINAL_ACTION_SCRIPT, RedisSerializer.byteArray(),
                     SCRIPT_RESULT_SERIALIZER,
                     List.of(ZeroTrustRedisKeys.autonomousActionAnalysis(userId),
                             ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId),
-                            ZeroTrustRedisKeys.autonomousLastVerifiedActionContext(userId)),
+                            ZeroTrustRedisKeys.autonomousLastVerifiedActionContext(userId),
+                            ZeroTrustRedisKeys.userBlocked(userId)),
                     finalActionScriptArgs(action, additionalFields).toArray());
         } catch (Exception exception) {
             log.error("[ZeroTrustActionRedisRepository] Failed to save final action: userId={}, action={}",
@@ -908,9 +914,11 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         List<byte[]> args = new ArrayList<>();
         args.add(serialize(hashKeySerializer, "action"));
         args.add(serialize(hashKeySerializer, "previousAction"));
+        args.add(utf8(ZeroTrustActionPrecedence.keepsActiveRestriction(ZeroTrustAction.BLOCK, action) ? "1" : "0"));
 
         List<byte[]> refusingValues = new ArrayList<>();
-        for (ZeroTrustAction active : List.of(ZeroTrustAction.CHALLENGE, ZeroTrustAction.ESCALATE)) {
+        for (ZeroTrustAction active : List.of(ZeroTrustAction.BLOCK, ZeroTrustAction.CHALLENGE,
+                ZeroTrustAction.ESCALATE)) {
             if (ZeroTrustActionPrecedence.keepsActiveRestriction(active, action)) {
                 refusingValues.add(utf8(active.name()));
                 refusingValues.add(serialize(hashValueSerializer, active.name()));

@@ -311,6 +311,19 @@ public class CanonicalSecurityContext {
         private Integer maxItemsPerRequest;
         /** The most items the agent may move under the delegation in its session, when it states it (RL-6). */
         private Integer maxItemsTotal;
+        /**
+         * RL-10: the delegation is the standing delegation its sponsor recorded for an agent on its own, not a delegation
+         * by a person the agent acts for. The request stays the agent's own ({@link #delegated} is not set).
+         */
+        private Boolean standing;
+
+        /**
+         * RL-10: whether a delegation of record applies to the request: the delegation of a request that acts for a
+         * person, or the standing delegation its sponsor recorded for an agent on its own.
+         */
+        public boolean hasMandate() {
+            return Boolean.TRUE.equals(delegated) || Boolean.TRUE.equals(standing);
+        }
     }
 
     @Data

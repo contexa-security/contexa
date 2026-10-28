@@ -303,6 +303,13 @@ public class SecurityZeroTrustProperties {
         private AllowReuse allowReuse = new AllowReuse();
 
         /**
+         * docs/agent RL-12: what the engine does when one agent's requests come in numbers: the same question is
+         * analysed once, the analyses one agent has running at once are limited, and a restriction stored while requests
+         * wait answers them. Off by default.
+         */
+        private Flight flight = new Flight();
+
+        /**
          * The business objectives the application declares, by objective family (the family a delegation record or
          * token names). A delegation of one of these objectives is compared with its contract; Contexa's own security
          * objectives stay known. Empty by default.
@@ -324,6 +331,32 @@ public class SecurityZeroTrustProperties {
      * docs/agent A5-4: the default narrowing. After a CHALLENGE, ESCALATE or BLOCK on an agent's request, or an ALLOW
      * whose risk reaches {@code riskThreshold}, the agent's later requests only read for {@code duration}.
      */
+    /**
+     * docs/agent RL-12. Requests that the engine cannot take in within {@code queueCapacity} and {@code wait} are
+     * refused with HTTP 429; no request is let through for lack of a verdict, except the few reads of a resource the host
+     * declared non-sensitive that {@code passBudget} allows while the first one is being decided.
+     */
+    @Data
+    public static class Flight {
+        /** Off, every agent request that no stored decision answers is analysed on its own, as before. */
+        private boolean enabled = false;
+        /** The analyses one agent may have running at once, whatever the contexts it works in. */
+        private int maxInFlightAnalyses = 3;
+        /** The requests of one agent that may wait for a place to be analysed. */
+        private int queueCapacity = 20;
+        /**
+         * The longest a request waits for a place, or for the verdict it follows. It covers one whole analysis: the
+         * first layer takes 4 to 10 seconds, and a case it passes to the second layer took 22 seconds on the showcase
+         * engine (the second layer's own limit is 30 seconds). A wait shorter than that refused requests whose
+         * verdict was a few seconds away (RL-12, I-25).
+         */
+        private Duration wait = Duration.ofSeconds(40);
+        /** The requests that may pass before the first verdict is in; 0 for none. */
+        private int passBudget = 3;
+        /** The kinds of operation that may pass (READ, ...); only for a resource the host declared non-sensitive. */
+        private List<String> passFamilies = new ArrayList<>(List.of("READ"));
+    }
+
     @Data
     public static class ScopeNarrowing {
         private boolean enabled = true;

@@ -135,6 +135,7 @@ public class LlmUsageMeter extends BaseAdvisor {
         long prompt = 0;
         long completion = 0;
         long total = 0;
+        Long cached = null;
         boolean success = response != null && response.chatResponse() != null;
         if (success) {
             ChatResponseMetadata metadata = response.chatResponse().getMetadata();
@@ -145,13 +146,15 @@ public class LlmUsageMeter extends BaseAdvisor {
                 prompt = counted == null ? 0 : counted;
                 completion = value(usage.getCompletionTokens());
                 total = value(ProviderUsage.totalTokens(usage));
+                Integer cachedTokens = ProviderUsage.cachedPromptTokens(usage);
+                cached = cachedTokens == null ? null : cachedTokens.longValue();
             }
         }
         String promptText = promptText(request);
         PromptFingerprint.Fingerprint fingerprint = PromptFingerprint.of(promptText);
         ledger.record(decisionId, new UsageLedger.ModelCall("CHAT", model, prompt, completion, total, elapsedMs,
                 success, clock.instant(), fingerprint.normalisedSha256(), fingerprint.principals(),
-                systemPromptSha256(request)));
+                systemPromptSha256(request), cached));
         ledger.keepPrompt(decisionId, PromptFingerprint.normalise(promptText));
     }
 

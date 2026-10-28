@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { BenchmarkRate } from '../../../api/benchmark';
 import { percent, percentFixed } from '../benchPlace';
 import { ChartTable } from './ChartTable';
-import { useNarrow } from './useNarrow';
+import { useNarrow } from '../../../hooks/useNarrow';
 import styles from './Charts.module.css';
 
 /** One approach on the scatter: how often it stopped attacks (up) against how often it blocked normal work (right). */

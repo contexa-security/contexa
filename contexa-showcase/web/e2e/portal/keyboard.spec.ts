@@ -66,7 +66,9 @@ function mainButton(page: Page) {
 type Target =
   | { readonly kind: 'main' }
   | { readonly kind: 'radio' }
+  | { readonly kind: 'choice'; readonly id: string }
   | { readonly kind: 'text'; readonly words: string; readonly within?: string }
+  | { readonly kind: 'summary'; readonly words: string }
   | { readonly kind: 'href'; readonly href: string; readonly within?: string };
 
 /** Whether the focused element is the one wanted. */
@@ -82,12 +84,16 @@ async function focused(page: Page, target: Target): Promise<boolean> {
         return element.hasAttribute('data-main') && element.closest('[data-zone="actions"]') !== null;
       case 'radio':
         return element instanceof HTMLInputElement && element.type === 'radio';
+      case 'choice':
+        return element.tagName === 'A' && element.getAttribute('data-choice') === wanted.id;
       case 'text':
         return (
           (element.tagName === 'BUTTON' || element.tagName === 'A') &&
           (element.textContent ?? '').trim() === wanted.words &&
           inside(wanted.within)
         );
+      case 'summary':
+        return element.tagName === 'SUMMARY' && (element.textContent ?? '').trim() === wanted.words;
       case 'href':
         return (
           element.tagName === 'A' && element.getAttribute('href') === wanted.href && inside(wanted.within)
@@ -206,8 +212,9 @@ async function detailWindow(page: Page, opener: Target, what: string) {
 }
 
 /**
- * 4-4: until the run has ended, Tab to the extra check's buttons as they come (ask for the code, confirm it from the
- * demo inbox) and press Enter, the way a keyboard user answers the check.
+ * 4-2, 4-4 and 5-2: the real user's and the insider's runs may meet an extra check, whichever way the AI decides. Until the
+ * run has ended, Tab to the extra check's buttons as they come (ask for the code, confirm it from the demo inbox) and press
+ * Enter, the way a keyboard user answers the check.
  */
 async function confirmChecks(page: Page, text: (key: string) => string, done: string) {
   const deadline = Date.now() + 2 * RUN_TIMEOUT;
@@ -237,20 +244,103 @@ async function confirmChecks(page: Page, text: (key: string) => string, done: st
     }
     await page.waitForTimeout(1_000);
   }
-  throw new Error(`the 4-4 run did not end in time on ${page.url()}`);
+  throw new Error(`the run did not end in time on ${page.url()}`);
 }
 
-/** The words of a screen's main button on the main flow (최종화면-구현계획 F0-3): a cover names its group. */
-function mainWords(screen: RouteScreen, text: (key: string) => string): string {
-  if (screen.type === 'T0') {
-    return text('cover.start').replace('{{name}}', text(`group.${screen.number.split('-')[0]}`));
-  }
+/** The words of a screen's main button on the main flow (최종화면-구현계획 F0-3, NW-6: no cover has a button of its own). */
+function mainWords(screen: { readonly number: string }, text: (key: string) => string): string {
   return text(`main.${screen.number}.cta`);
 }
 
+/** A card of a choosing screen: Tab to it, check its focus mark and press Enter (구현계획 NW-3). */
+async function chooseCard(page: Page, id: string, more: string) {
+  // A card kept back (AC-N5: four in view at most) waits under the fold's line: open it from the keyboard first.
+  if (
+    (await page.locator(`details[data-fold="choose-more"]:not([open]) a[data-choice="${id}"]`).count()) > 0
+  ) {
+    await tabTo(page, { kind: 'summary', words: more }, `the line that opens more choices on ${page.url()}`);
+    expect.soft(await focusMarked(page), 'focus mark on the line of more choices').toBe(true);
+    await page.keyboard.press('Enter');
+  }
+  await tabTo(page, { kind: 'choice', id }, `the card "${id}" of ${page.url()}`);
+  expect.soft(await focusMarked(page), `focus mark on the card "${id}" of ${page.url()}`).toBe(true);
+  await page.keyboard.press('Enter');
+}
+
+/** The way back in the foot of a screen: Tab to the link to `to`, check its focus mark and press Enter. */
+async function pressBack(page: Page, to: string) {
+  await tabTo(
+    page,
+    { kind: 'href', href: to, within: '[data-zone="actions"]' },
+    `the way back to ${to} from ${page.url()}`,
+  );
+  expect.soft(await focusMarked(page), `focus mark on the way back to ${to}`).toBe(true);
+  await page.keyboard.press('Enter');
+}
+
 /**
- * Walks the main flow with the keyboard from the start screen to the screen numbered `until`, every step the way a
- * keyboard user would take it, and returns the screen numbers it went through.
+ * The walk of the main flow by the keyboard, screen by screen (첫화면-선택형-체험-구현계획 3절): the flow is no longer one
+ * line, so each step names how its screen is left. `via` is a card ("card:person"), the way back ("back:/person") or the
+ * one main button ("main", the default); a screen with an action of its own does it first.
+ */
+interface Step {
+  readonly number: string;
+  readonly path: string;
+  readonly via?: string;
+}
+const WALK: readonly Step[] = [
+  { number: '1-1', path: '/', via: 'start' },
+  { number: 'C-1', path: '/choose', via: 'card:person' },
+  { number: 'H-1', path: '/person', via: 'card:attack' },
+  { number: '2-1', path: '/attack/request' },
+  { number: '2-2', path: '/attack/console' },
+  { number: '2-3', path: '/attack/result' },
+  { number: '2-4', path: '/attack/reason' },
+  { number: 'H-6', path: '/person/next', via: 'card:opposite' },
+  { number: '4-1', path: '/normal/request' },
+  { number: '4-2', path: '/normal/console' },
+  { number: '4-3', path: '/normal/diff' },
+  { number: 'H-6', path: '/person/next', via: 'back:/person' },
+  { number: 'H-1', path: '/person', via: 'card:insider' },
+  { number: '5-1', path: '/insider/request' },
+  { number: '5-2', path: '/insider/console' },
+  { number: '5-3', path: '/insider/reason' },
+  { number: 'H-6', path: '/person/next', via: 'card:deeper' },
+  { number: 'D-1', path: '/deeper', via: 'card:evidence' },
+  { number: '3-1', path: '/evidence/map' },
+  { number: '3-2', path: '/evidence/prompt' },
+  { number: '3-3', path: '/evidence/verdict' },
+  { number: 'D-1', path: '/deeper', via: 'card:suspected' },
+  { number: '4-4', path: '/normal/check' },
+  { number: 'D-1', path: '/deeper', via: 'card:rules' },
+  { number: '7-1', path: '/compare/rule' },
+  { number: '7-2', path: '/compare/change' },
+  { number: '7-3', path: '/compare/runs' },
+  { number: 'D-1', path: '/deeper', via: 'card:map' },
+  { number: '1-2', path: '/intro/map' },
+  { number: 'D-1', path: '/deeper', via: 'back:/person/next' },
+  { number: 'H-6', path: '/person/next', via: 'card:other' },
+  { number: 'A-1', path: '/agent', via: 'card:T5' },
+  { number: '6-1', path: '/agent/request' },
+  { number: '6-2', path: '/agent/console' },
+  { number: '6-7', path: '/agent/result' },
+  { number: '6-3', path: '/agent/reason' },
+  { number: 'A-6', path: '/agent/next', via: 'card:deeper' },
+  { number: 'D-1', path: '/deeper', via: 'card:confirm' },
+  { number: '6-4', path: '/agent/confirm' },
+  { number: 'D-1', path: '/deeper', via: 'card:end' },
+  { number: '6-5', path: '/agent/end' },
+  { number: 'D-1', path: '/deeper', via: 'card:burst' },
+  { number: '6-6', path: '/agent/burst' },
+  { number: 'D-1', path: '/deeper', via: 'back:/agent/next' },
+  { number: 'A-6', path: '/agent/next', via: 'main' },
+  { number: '8-1', path: '/summary' },
+  { number: '8-2', path: '/summary/next' },
+];
+
+/**
+ * Walks the main flow with the keyboard from the start screen to the `until`-th screen of the walk (the first screen
+ * with that number), every step the way a keyboard user would take it, and returns the screen numbers it went through.
  */
 async function walk(page: Page, language: 'ko' | 'en', until: string) {
   const words = dictionaries[language];
@@ -258,15 +348,37 @@ async function walk(page: Page, language: 'ko' | 'en', until: string) {
   await page.goto(`/?lng=${language}`);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(text('main.1-1.title'));
   const went: string[] = [];
-  for (const [index, screen] of ROUTE.entries()) {
+  for (const [index, step] of WALK.entries()) {
     if (index > 0) {
-      await arrived(page, screen.path);
+      await arrived(page, step.path);
     }
-    went.push(screen.number);
-    if (screen.number === until) {
+    went.push(step.number);
+    if (step.number === until) {
       return went;
     }
-    switch (screen.number) {
+    if (step.via === 'start') {
+      await tabTo(
+        page,
+        { kind: 'text', words: text('main.1-1.cta'), within: 'main' },
+        "the landing's way into the demo",
+      );
+      expect.soft(await focusMarked(page), "focus mark on the landing's way into the demo").toBe(true);
+      await page.keyboard.press('Enter');
+      continue;
+    }
+    if (step.via?.startsWith('card:')) {
+      await chooseCard(page, step.via.slice('card:'.length), text('choose.more'));
+      continue;
+    }
+    if (step.via?.startsWith('back:')) {
+      await pressBack(page, step.via.slice('back:'.length));
+      continue;
+    }
+    if (step.via === 'main' && step.number === 'A-6') {
+      await pressMain(page, text('main.A-6.cta'));
+      continue;
+    }
+    switch (step.number) {
       case '2-1':
       case '4-1':
       case '5-1':
@@ -276,12 +388,15 @@ async function walk(page: Page, language: 'ko' | 'en', until: string) {
       case '4-2':
       case '5-2':
         // The console plays by itself; its main button leads on once the judgment is in (the insider's three
-        // documents go a minute apart).
-        await expect(mainButton(page)).toHaveText(mainWords(screen, text), {
-          timeout: screen.number === '5-2' ? 2 * RUN_TIMEOUT : RUN_TIMEOUT,
-        });
+        // documents go a minute apart). The owner's and the insider's runs hold the account's mailbox, so an extra check
+        // the AI asks for is answered from the keyboard here, as a visitor would.
+        if (step.number === '2-2') {
+          await expect(mainButton(page)).toHaveText(mainWords(step, text), { timeout: RUN_TIMEOUT });
+        } else {
+          await confirmChecks(page, text, mainWords(step, text));
+        }
         await focusKept(page, 'the live judgment');
-        await pressMain(page, mainWords(screen, text));
+        await pressMain(page, mainWords(step, text));
         break;
       case '6-1':
         // docs/agent A7-3: the visitor gives the business agent the work; the agent sends its own requests.
@@ -289,9 +404,9 @@ async function walk(page: Page, language: 'ko' | 'en', until: string) {
         break;
       case '6-2':
         // The agent works by itself; the way on opens once its requests ended or a confirmation is asked.
-        await expect(mainButton(page)).toHaveText(mainWords(screen, text), { timeout: RUN_TIMEOUT });
+        await expect(mainButton(page)).toHaveText(mainWords(step, text), { timeout: RUN_TIMEOUT });
         await focusKept(page, "the agent's work");
-        await pressMain(page, mainWords(screen, text));
+        await pressMain(page, mainWords(step, text));
         break;
       case '6-4':
         // The visitor answers as the delegating employee while the run waits for it, from the keyboard.
@@ -304,27 +419,27 @@ async function walk(page: Page, language: 'ko' | 'en', until: string) {
           expect.soft(await focusMarked(page), 'focus mark on Approve').toBe(true);
           await page.keyboard.press('Enter');
         }
-        await expect(mainButton(page)).toHaveText(mainWords(screen, text), { timeout: RUN_TIMEOUT });
-        await pressMain(page, mainWords(screen, text));
+        await expect(mainButton(page)).toHaveText(mainWords(step, text), { timeout: RUN_TIMEOUT });
+        await pressMain(page, mainWords(step, text));
         break;
       case '4-4':
         // The real user's case goes live from here; every extra check is confirmed from the demo inbox by keyboard.
         await pressMain(page, text('main.request.send'));
-        await confirmChecks(page, text, mainWords(screen, text));
+        await confirmChecks(page, text, mainWords(step, text));
         await focusKept(page, 'the checked run');
-        await pressMain(page, mainWords(screen, text));
+        await pressMain(page, mainWords(step, text));
         break;
       case '2-3':
-        await expect(mainButton(page)).toHaveText(mainWords(screen, text));
+        await expect(mainButton(page)).toHaveText(mainWords(step, text));
         await detailWindow(
           page,
           { kind: 'text', words: text('main.2-3.reasons'), within: '[data-zone="body"]' },
           'the result\'s "see the reasons"',
         );
-        await pressMain(page, mainWords(screen, text));
+        await pressMain(page, mainWords(step, text));
         break;
       default:
-        await pressMain(page, mainWords(screen, text));
+        await pressMain(page, mainWords(step, text));
     }
   }
   return went;
@@ -350,7 +465,7 @@ test('the main flow from the start to its end with the keyboard alone, the live 
   test.setTimeout(4 * RUN_TIMEOUT + 600_000);
   const text = (key: string) => required(dictionaries.ko[key], `text ${key}`);
   const went = await walk(page, 'ko', '8-2');
-  expect(went).toEqual(ROUTE.map((screen) => screen.number));
+  expect(went).toEqual(WALK.map((step) => step.number));
 
   // The end: its three ways on are reached with Tab, each marked; Shift+Tab goes back to the benchmark, Enter opens it.
   for (const to of ['/adopt', '/benchmark', '/more']) {
@@ -375,7 +490,7 @@ test('the main flow from the start to 2-3 with the keyboard alone (en)', async (
   const text = (key: string) => required(dictionaries.en[key], `text ${key}`);
   const went = await walk(page, 'en', '2-3');
   expect(went).toEqual(
-    ROUTE.slice(0, ROUTE.findIndex((screen) => screen.number === '2-3') + 1).map((s) => s.number),
+    WALK.slice(0, WALK.findIndex((step) => step.number === '2-3') + 1).map((s) => s.number),
   );
   await expect(mainButton(page)).toHaveText(text('main.2-3.cta'));
   await tabTo(page, { kind: 'main' }, 'the main button of 2-3');
@@ -507,6 +622,10 @@ test('on a phone the focus never hides behind the fixed bottom bar and every pre
       // Let the screen's records arrive, so the sweep sees what a visitor sees.
       await page.waitForTimeout(800);
       const bar = page.locator('[data-zone="actions"]');
+      // the landing has no foot: its one button, "데모 시작하기", stands under the text (구현계획 NW-2)
+      if (path === '/' && (await bar.count()) === 0) {
+        continue;
+      }
       if ((await bar.count()) !== 1) {
         await note('no bottom bar', path, null);
         continue;

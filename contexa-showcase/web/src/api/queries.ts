@@ -109,10 +109,11 @@ export function useRuleCases() {
 }
 
 /** The development single space (P3); a 404 means it is not open on this portal. */
-export function useLiveConfig() {
+export function useLiveConfig(enabled = true) {
   return useQuery({
     queryKey: ['live-config'],
     queryFn: () => getJson<LiveConfig>('/api/live/config'),
+    enabled,
     ...STATIC,
   });
 }

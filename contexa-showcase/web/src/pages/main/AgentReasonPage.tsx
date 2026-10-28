@@ -1,11 +1,20 @@
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { AGENT_CASE, useAgentCase, useAgentRun, useAgentTry, type AgentRunView } from '../../api/agentCase';
-import { Term } from '../../components/common/Glossary';
+import {
+  useAgentCase,
+  useAgentCaseKey,
+  useAgentRun,
+  useAgentSubject,
+  useAgentTry,
+  type AgentRunView,
+} from '../../api/agentCase';
+import { useReferenceSnapshot } from '../../api/agentSnapshots';
 import { Chip } from '../../components/main/Chip';
 import { MainScreen } from '../../components/main/MainScreen';
+import { SnapshotBadge } from '../../components/main/SnapshotBadge';
 import { SourceBadge } from '../../components/main/SourceBadge';
 import { StateScreen } from '../../components/StateScreen';
+import { Fold } from '../../components/main/Fold';
 import { CONTROL_ORDER } from '../../domain/verdict';
 import { count } from '../../journey/format';
 import {
@@ -13,12 +22,11 @@ import {
   CONFIRMATION_RULE,
   existingAllPassed,
   firstStop,
-  operationName,
   outcomeChip,
-  periodWords,
   plusMinutes,
 } from './agentGroup';
-import { companyClock } from './mainCases';
+import { AgentChainLine, DelegationCompare } from './DelegationParts';
+import { MeasureNote } from './MeasureNote';
 import styles from './AgentPages.module.css';
 
 /** The run states in which the agent's work is stored. */
@@ -34,16 +42,22 @@ const STORED = new Set(['CONFIRMING', 'COMPLETED']);
  */
 export default function AgentReasonPage() {
   const { t, i18n } = useTranslation();
-  const language = i18n.language === 'ko' ? 'ko' : 'en';
-  const agentCase = useAgentCase(AGENT_CASE);
-  const tried = useAgentTry(AGENT_CASE);
+  const caseKey = useAgentCaseKey();
+  const agentCase = useAgentCase(caseKey);
+  const subject = useAgentSubject();
+  const tried = useAgentTry(caseKey);
   const ownReadable = tried.runId !== null && (tried.live === null || STORED.has(tried.live.status));
   const runId = ownReadable ? tried.runId : (agentCase.data?.recorded?.runId ?? null);
   const own = ownReadable;
   const record = useAgentRun(runId);
   const normal = useAgentRun(agentCase.data?.normalRecorded?.runId ?? null);
-  const run = record.data ?? null;
-  const delegation = agentCase.data?.delegation ?? null;
+  // AC-5: with no run of the visitor's and no recording of the case, a frozen real run stands in (no model is called).
+  const snapshot = useReferenceSnapshot(
+    runId === null && tried.live === null && !agentCase.isPending && !tried.pending,
+  );
+  const run = record.data ?? snapshot?.run ?? null;
+  // the delegation this run executed (a visitor's copy of the editable case differs from the case's own), else the case's
+  const delegation = run?.delegation ?? agentCase.data?.delegation ?? null;
   const stop = firstStop(run);
   const shown = stop ?? run?.steps[0] ?? null;
   const confirmation = run?.confirmation ?? null;
@@ -67,7 +81,7 @@ export default function AgentReasonPage() {
           : t('main.6-3.intro.plain', { step: stop.stepNo });
 
   return (
-    <MainScreen title={t('main.6-3.title')} intro={pending ? null : intro}>
+    <MainScreen title={t('main.6-3.title')} intro={pending ? null : intro} subject={subject}>
       {pending ? <StateScreen kind="loading" /> : null}
       {!pending && run === null ? (
         <p className={styles.note}>
@@ -77,77 +91,17 @@ export default function AgentReasonPage() {
       {run && shown ? (
         <div className={styles.stack}>
           <p className={styles.subjectLine}>
-            <Chip kind="auth">
-              <Term term="delegatedAgent">{t('main.agent.subject')}</Term>
-            </Chip>
-            {own ? (
+            {snapshot && record.data === undefined ? (
+              <SnapshotBadge snapshot={snapshot} />
+            ) : own ? (
               <SourceBadge kind="run" runId={run.runId} step={shown.stepNo} />
             ) : (
               <SourceBadge kind="repeated" runs={1} runId={run.runId} step={shown.stepNo} />
             )}
           </p>
-          <div className={styles.cards}>
-            <section className={styles.card} aria-labelledby="fact-work">
-              <h2 id="fact-work" className={styles.label}>
-                <Term term="delegationRecord">{t('main.agent.work')}</Term>
-              </h2>
-              {delegation ? (
-                <dl className={styles.rows}>
-                  <div className={styles.row}>
-                    <dt className={styles.rowName}>{t('main.agent.objective')}</dt>
-                    <dd className={styles.rowValue}>{delegation.summary[language]}</dd>
-                  </div>
-                  <div className={styles.row}>
-                    <dt className={styles.rowName}>
-                      <Term term="delegationScope">{t('main.agent.scope')}</Term>
-                    </dt>
-                    <dd className={styles.rowValue}>
-                      {t('main.agent.scopeValue', {
-                        operations: delegation.operations
-                          .map((operation) => operationName(t, (key) => i18n.exists(key), operation))
-                          .join(', '),
-                        resources: delegation.resources.join(', '),
-                      })}
-                    </dd>
-                  </div>
-                  <div className={styles.row}>
-                    <dt className={styles.rowName}>
-                      <Term term="delegationPeriod">{t('main.agent.period')}</Term>
-                    </dt>
-                    <dd className={styles.rowValue}>
-                      {periodWords(t, delegation)}
-                      {ended ? ` · ${t('main.agent.endedAt', { at: companyClock(t, ended) })}` : ''}
-                    </dd>
-                  </div>
-                </dl>
-              ) : null}
-            </section>
-            <section className={styles.card} aria-labelledby="fact-request">
-              <h2 id="fact-request" className={styles.label}>
-                {t('main.6-3.request')}
-              </h2>
-              <dl className={styles.rows}>
-                <div className={styles.row}>
-                  <dt className={styles.rowName}>{t('main.6-3.step')}</dt>
-                  <dd className={styles.rowValue}>
-                    {t('main.6-2.step', { n: shown.stepNo })}
-                    {shown.tool ? ` · ${shown.tool.tool}` : ''}
-                  </dd>
-                </div>
-                <div className={styles.row}>
-                  <dt className={styles.rowName}>{t('main.6-3.address')}</dt>
-                  <dd className={styles.rowValue}>
-                    <code className={styles.path}>{shown.path}</code>
-                  </dd>
-                </div>
-                <div className={styles.row}>
-                  <dt className={styles.rowName}>{t('main.6-3.at')}</dt>
-                  <dd className={styles.rowValue}>{companyClock(t, shown.companyTime) ?? '-'}</dd>
-                </div>
-              </dl>
-            </section>
+          <div className={styles.cardsWide}>
             <section className={styles.card} data-mark aria-labelledby="fact-difference">
-              <h2 id="fact-difference" className={styles.label}>
+              <h2 id="fact-difference" className="visually-hidden">
                 {t('main.6-3.difference')}
               </h2>
               {trigger ? (
@@ -155,12 +109,6 @@ export default function AgentReasonPage() {
                   {i18n.exists(`main.agent.trigger.${trigger}`)
                     ? t(`main.agent.trigger.${trigger}`)
                     : trigger}
-                  {trigger === 'DELEGATION_ENDED' && ended
-                    ? ` ${t('main.6-3.endedVsAt', {
-                        ended: companyClock(t, ended),
-                        at: companyClock(t, shown.companyTime) ?? '-',
-                      })}`
-                    : ''}
                 </p>
               ) : null}
               {action ? (
@@ -170,54 +118,68 @@ export default function AgentReasonPage() {
               ) : null}
               {!trigger && !action ? <p className={styles.body}>{t('main.6-3.noDifference')}</p> : null}
             </section>
+            <section className={styles.card} aria-labelledby="judgment">
+              <h2 id="judgment" className="visually-hidden">
+                {t('main.6-3.judgment')}
+              </h2>
+              <p className={styles.body}>
+                {stop === null
+                  ? t('main.6-3.allThrough')
+                  : asked
+                    ? t('main.6-3.byRecord')
+                    : action
+                      ? t('main.6-3.byAi', {
+                          calls: count(Number(stop.decision?.model_calls ?? 0), i18n.language),
+                        })
+                      : t('main.6-3.refused')}
+              </p>
+              {stop && action ? (
+                <SourceBadge
+                  kind={own ? 'run' : 'repeated'}
+                  runs={1}
+                  runId={run.runId}
+                  step={stop.stepNo}
+                  label={t('main.6-3.details')}
+                />
+              ) : null}
+            </section>
           </div>
-          <section className={styles.card} aria-labelledby="judgment">
-            <h2 id="judgment" className={styles.label}>
-              {t('main.6-3.judgment')}
-            </h2>
-            <p className={styles.body}>
-              {stop === null
-                ? t('main.6-3.allThrough')
-                : asked
-                  ? t('main.6-3.byRecord')
-                  : action
-                    ? t('main.6-3.byAi', {
-                        calls: count(Number(stop.decision?.model_calls ?? 0), i18n.language),
-                      })
-                    : t('main.6-3.refused')}
-            </p>
-            {stop && action ? (
-              <SourceBadge
-                kind={own ? 'run' : 'repeated'}
-                runs={1}
-                runId={run.runId}
-                step={stop.stepNo}
-                label={t('main.6-3.details')}
+          {/* AC-N2: the difference the engine named and the judgment are the view; the two records side by side, the
+              answers of the existing approaches and the normal pair are one press away. */}
+          <Fold name="agent-compare" summary={t('main.6-3.compareFold')}>
+            <AgentChainLine />
+            {delegation ? (
+              <DelegationCompare
+                delegation={delegation}
+                request={shown}
+                runCompanyTime={run.companyTime}
+                ended={ended}
               />
             ) : null}
-          </section>
-          <section className={styles.card} aria-labelledby="existing">
-            <h2 id="existing" className={styles.label}>
-              {t('main.6-3.existing')}
-            </h2>
-            <ul className={styles.chips}>
-              {CONTROL_ORDER.map((control) => {
-                const result = shown.outcomes[control];
-                const chip = outcomeChip(result?.outcome, result?.rule);
-                return (
-                  <li key={control} className={styles.chipItem}>
-                    <span className={styles.chipName}>{t(`control.${control}.name`)}</span>
-                    <Chip kind={chip.kind}>
-                      {i18n.exists(`main.agent.outcome.${chip.word}`)
-                        ? t(`main.agent.outcome.${chip.word}`)
-                        : chip.word}
-                    </Chip>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-          <NormalPair run={normal.data ?? null} pairKey={agentCase.data?.normalPair ?? null} />
+            <section className={styles.card} aria-labelledby="existing">
+              <h2 id="existing" className={styles.label}>
+                {t('main.6-3.existing')}
+              </h2>
+              <ul className={styles.chips}>
+                {CONTROL_ORDER.map((control) => {
+                  const result = shown.outcomes[control];
+                  const chip = outcomeChip(result?.outcome, result?.rule);
+                  return (
+                    <li key={control} className={styles.chipItem}>
+                      <span className={styles.chipName}>{t(`control.${control}.name`)}</span>
+                      <Chip kind={chip.kind}>
+                        {i18n.exists(`main.agent.outcome.${chip.word}`)
+                          ? t(`main.agent.outcome.${chip.word}`)
+                          : chip.word}
+                      </Chip>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+            <NormalPair run={normal.data ?? null} pairKey={agentCase.data?.normalPair ?? null} />
+            <MeasureNote own={own} stopReason={run.stopReason} />
+          </Fold>
         </div>
       ) : null}
     </MainScreen>

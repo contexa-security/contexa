@@ -1,14 +1,14 @@
 import { useLocation } from 'react-router-dom';
 import { useJourney } from '../api/journey';
 import { useVisitor } from '../api/queries';
-import { MORE_PATH, screenAt, skipTarget, type Route } from './journey';
+import { MORE_PATH, screenAt, type Route } from './journey';
 
 /** The address of the timing topic's resend screen, the screen a run sent "from=timing" belongs to. */
 const TIMING_RESEND = '/try/timing/try';
 
 /**
  * Where the visitor is, read only: the screen at this address on the main flow or in a "learn more" topic, the
- * differences seen and where "skip" leads from a cover. The top bar and the frame read it, so every screen shows the
+ * differences seen. The top bar and the frame read it, so every screen shows the
  * same place.
  */
 export function useJourneyPlace() {
@@ -23,7 +23,6 @@ export function useJourneyPlace() {
     route,
     screen: screenAt(route, path),
     differences: journey.data?.state.differences ?? [],
-    skip: skipTarget(route, location.pathname),
     /** The hub of "learn more", which is no screen of a topic but shows the same way back to the flow. */
     more: location.pathname === MORE_PATH,
   };

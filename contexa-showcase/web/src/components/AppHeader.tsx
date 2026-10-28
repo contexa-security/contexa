@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation } from 'react-router-dom';
+import { useGuides, videoOf } from '../api/guides';
 import { useJourney } from '../api/journey';
 import { useStats, useVisitor } from '../api/queries';
 import { setLanguage } from '../i18n';
 import { count } from '../journey/format';
-import { DEFAULT_ROUTE, GROUPS, MORE_PATH, topicOf } from '../journey/journey';
+import { DEFAULT_ROUTE, MORE_PATH, STEPS, topicOf } from '../journey/journey';
 import { useJourneyPlace } from '../journey/useJourneyPlace';
 import { useGlossary } from './common/glossaryTerms';
 import { Modal } from './common/Modal';
+import { GUIDE_IDS, guideEntry } from './guide/guideConfig';
 import { Icon } from './Icon';
 import styles from './AppHeader.module.css';
 
@@ -16,6 +18,7 @@ import styles from './AppHeader.module.css';
 const MENU = [
   { to: '/', key: 'frame.menu.restart' },
   { to: MORE_PATH, key: 'frame.menu.more' },
+  { to: '/videos', key: 'frame.menu.guides' },
   { to: '/lab', key: 'frame.menu.lab' },
   { to: '/benchmark', key: 'frame.menu.benchmark' },
   { to: '/adopt', key: 'frame.menu.adopt' },
@@ -41,18 +44,24 @@ interface AppHeaderProps {
 
 /**
  * The top bar (최종화면-구현계획 F0-2): the brand, the LIVE mark while a real request runs, today's real runs and the
- * decisions so far as the server counts them, the terms and the menu. Under it, on the main flow, the eight groups with
- * the finished ones ticked and the current one in gold; on a "learn more" screen the way back to the flow; elsewhere
- * the space and its step.
+ * decisions so far as the server counts them, the terms and the menu. Under it, on a track of the main flow, the
+ * track's name and its six steps with the finished ones ticked and the current one in gold (구현계획 NW-6); on a
+ * "learn more" screen the way back to the flow; elsewhere the space and its step.
  */
 export function AppHeader({ space = null, live = null }: AppHeaderProps = {}) {
   const { t, i18n } = useTranslation();
   const language = i18n.language === 'ko' ? 'ko' : 'en';
   const openGlossary = useGlossary();
+  // The list of the guide videos is in the menu once a video of the new flow was recorded (the old ones are not listed).
+  const guides = useGuides();
+  const hasGuides = GUIDE_IDS.some(
+    (id) => guideEntry(id).kind !== 'legacy' && videoOf(guides.data, id, language) !== undefined,
+  );
   const place = useJourneyPlace();
   const stats = useStats();
   const [open, setOpen] = useState(false);
-  const group = place.screen?.act ?? 0;
+  const track = place.screen?.track === 'A' || place.screen?.track === 'H' ? place.screen.track : null;
+  const step = place.screen?.step ?? null;
   const other = language === 'ko' ? 'en' : 'ko';
   const more = place.screen?.act === 0 || place.more;
   return (
@@ -68,7 +77,7 @@ export function AppHeader({ space = null, live = null }: AppHeaderProps = {}) {
           {live ? (
             <span className={styles.live} role="status" data-live>
               <span className={styles.liveDot} aria-hidden="true" />
-              <span>{t('top.live')}</span>
+              <span className={styles.liveText}>{t('top.live')}</span>
               <span className={styles.liveRun}>{live}</span>
             </span>
           ) : null}
@@ -100,21 +109,25 @@ export function AppHeader({ space = null, live = null }: AppHeaderProps = {}) {
             <span>{t('frame.menu')}</span>
           </button>
         </div>
-        {group > 0 ? (
-          <ol className={styles.groups} aria-label={t('top.groups')}>
-            {GROUPS.map((n) => {
-              const state = n < group ? 'done' : n === group ? 'now' : undefined;
+        {track ? (
+          <ol className={styles.groups} aria-label={t('top.steps', { track: t(`top.track.${track}`) })} data-track={track}>
+            <li className={styles.track}>
+              <Icon name={track === 'A' ? 'agent' : 'user'} className={styles.trackIcon} />
+              <span>{t(`top.track.${track}`)}</span>
+            </li>
+            {Array.from({ length: STEPS }, (_, index) => index + 1).map((n) => {
+              const state = step === null ? undefined : n < step ? 'done' : n === step ? 'now' : undefined;
               return (
                 <li
                   key={n}
                   className={styles.group}
                   data-state={state}
-                  aria-current={n === group ? 'step' : undefined}
+                  aria-current={n === step ? 'step' : undefined}
                 >
                   <span className={styles.groupMark} aria-hidden="true">
-                    {n < group ? <Icon name="check" className={styles.groupCheck} /> : n}
+                    {n < (step ?? 0) ? <Icon name="check" className={styles.groupCheck} /> : n}
                   </span>
-                  <span className={styles.groupName}>{t(`group.tab.${n}`)}</span>
+                  <span className={styles.groupName}>{t(`top.step.${n}`)}</span>
                   {state === 'done' ? <span className="visually-hidden"> {t('top.group.done')}</span> : null}
                 </li>
               );
@@ -137,7 +150,7 @@ export function AppHeader({ space = null, live = null }: AppHeaderProps = {}) {
       </header>
       <Modal open={open} onClose={() => setOpen(false)} title={t('frame.menu')}>
         <nav aria-label={t('frame.menu')} className={styles.menu}>
-          {MENU.map((item) => (
+          {MENU.filter((item) => item.to !== '/videos' || hasGuides).map((item) => (
             <Link key={item.to} to={item.to} className={styles.menuItem} onClick={() => setOpen(false)}>
               {t(item.key)}
             </Link>

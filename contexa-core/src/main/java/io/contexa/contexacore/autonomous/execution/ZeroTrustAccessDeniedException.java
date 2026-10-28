@@ -32,6 +32,9 @@ public class ZeroTrustAccessDeniedException extends AuthorizationDeniedException
 
     private final boolean analysisTimeout;
 
+    /** RL-12: the engine could not take the request in; it is refused, not passed. Zero when the exception is no such answer. */
+    private final int busyRetryAfterSeconds;
+
     public ZeroTrustAccessDeniedException(String action, String resourceId,
                                           Double riskScore, String reason) {
         super(formatMessage(action, reason));
@@ -40,6 +43,18 @@ public class ZeroTrustAccessDeniedException extends AuthorizationDeniedException
         this.riskScore = riskScore;
         this.reason = reason;
         this.analysisTimeout = false;
+        this.busyRetryAfterSeconds = 0;
+    }
+
+    private ZeroTrustAccessDeniedException(String resourceId, int retryAfterSeconds) {
+        super(formatMessage(ZeroTrustAction.PENDING_ANALYSIS.name(),
+                "The security analysis is busy for this agent; retry after " + retryAfterSeconds + " seconds"));
+        this.action = ZeroTrustAction.PENDING_ANALYSIS;
+        this.resourceId = resourceId;
+        this.riskScore = null;
+        this.reason = "The security analysis is busy for this agent; retry after " + retryAfterSeconds + " seconds";
+        this.analysisTimeout = false;
+        this.busyRetryAfterSeconds = Math.max(1, retryAfterSeconds);
     }
 
     public ZeroTrustAccessDeniedException(String action, String resourceId,
@@ -51,6 +66,16 @@ public class ZeroTrustAccessDeniedException extends AuthorizationDeniedException
         this.riskScore = riskScore;
         this.reason = reason;
         this.analysisTimeout = analysisTimeout;
+        this.busyRetryAfterSeconds = 0;
+    }
+
+    /**
+     * RL-12: an agent's request the engine had no place or time to analyse (the agent already has its limit of analyses
+     * running, the queue is full, or the wait ran out). The request is refused with HTTP 429 and a {@code Retry-After}.
+     * It is never let through for lack of an answer.
+     */
+    public static ZeroTrustAccessDeniedException analysisBusy(String resourceId, int retryAfterSeconds) {
+        return new ZeroTrustAccessDeniedException(resourceId, retryAfterSeconds);
     }
 
     public static ZeroTrustAccessDeniedException analysisTimeout(String resourceId, long timeoutMs) {
@@ -107,6 +132,9 @@ public class ZeroTrustAccessDeniedException extends AuthorizationDeniedException
         if (action == null) {
             return 403;
         }
+        if (busyRetryAfterSeconds > 0) {
+            return 429;
+        }
         if (action == ZeroTrustAction.PENDING_ANALYSIS && analysisTimeout) {
             return 408;
         }
@@ -114,7 +142,15 @@ public class ZeroTrustAccessDeniedException extends AuthorizationDeniedException
     }
 
     public String getErrorCode() {
+        if (busyRetryAfterSeconds > 0) {
+            return "ZERO_TRUST_ANALYSIS_BUSY";
+        }
         return "ZERO_TRUST_" + (action != null ? action.name() : "UNKNOWN");
+    }
+
+    /** The seconds after which the refused request may be sent again; zero when this is not a busy answer. */
+    public int getBusyRetryAfterSeconds() {
+        return busyRetryAfterSeconds;
     }
 
     public String getAction() {

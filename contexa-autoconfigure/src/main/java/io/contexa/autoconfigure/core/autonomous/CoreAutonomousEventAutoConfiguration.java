@@ -71,12 +71,16 @@ import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 import io.contexa.contexacore.autonomous.agent.AgentAllowReuse;
+import io.contexa.contexacore.autonomous.agent.AgentDecisionFlights;
+import io.contexa.contexacore.autonomous.context.support.ActionFamily;
 import io.contexa.contexacore.autonomous.agent.AgentContainmentService;
 import io.contexa.contexacore.autonomous.agent.AgentScopeNarrower;
 import io.contexa.contexacore.autonomous.agent.AgentScopeService;
@@ -192,6 +196,26 @@ public class CoreAutonomousEventAutoConfiguration {
         SecurityZeroTrustProperties.AllowReuse settings = securityZeroTrustProperties.getAgent().getAllowReuse();
         return new AgentAllowReuse(settings.getMaxRequests(), settings.getMaxDistinctResources(),
                 settings.getSensitiveMaxDistinctResources(), null);
+    }
+
+    /**
+     * docs/agent RL-12: one agent's requests that come in numbers are analysed once per question, under a limit of
+     * analyses running at once. contexa.security.zerotrust.agent.flight.*; off by default.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public AgentDecisionFlights agentDecisionFlights(SecurityZeroTrustProperties securityZeroTrustProperties) {
+        SecurityZeroTrustProperties.Flight settings = securityZeroTrustProperties.getAgent().getFlight();
+        Set<ActionFamily> passFamilies = EnumSet.noneOf(ActionFamily.class);
+        for (String name : settings.getPassFamilies()) {
+            ActionFamily family = ActionFamily.of(name);
+            if (family != null && family != ActionFamily.UNKNOWN) {
+                passFamilies.add(family);
+            }
+        }
+        return new AgentDecisionFlights(new AgentDecisionFlights.Settings(settings.isEnabled(),
+                settings.getMaxInFlightAnalyses(), settings.getQueueCapacity(), settings.getWait(),
+                settings.getPassBudget(), passFamilies));
     }
 
     @Bean

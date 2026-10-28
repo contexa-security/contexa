@@ -241,6 +241,102 @@ class RecordedDelegationContextProviderTest {
         assertThat(unlimitedRecord.getDelegation().getMaxItemsTotal()).isNull();
     }
 
+    /**
+     * RL-10: an agent on its own has no delegating person, but its sponsor may have recorded what the agent is for. The
+     * record is looked up a second time with the sponsor as the delegator, and it is a standing delegation: the request
+     * is still the agent's own, so it is not marked as delegated.
+     */
+    @Test
+    void anAgentOnItsOwnTakesTheStandingDelegationItsSponsorRecorded() {
+        List<DelegationRecordQuery> asked = new ArrayList<>();
+        RecordedDelegationContextProvider provider = new RecordedDelegationContextProvider(query -> {
+            asked.add(query);
+            return query.standing() ? Optional.of(standingRecord("agent-7", "sponsor-1")) : Optional.empty();
+        });
+        CanonicalSecurityContext context = autonomousContext("agent-7", "sponsor-1");
+
+        provider.enrich(event(), context);
+
+        assertThat(asked).containsExactly(
+                new DelegationRecordQuery("tenant-acme", "agent-7", "agent-7", null, null, REQUESTED_AT),
+                new DelegationRecordQuery("tenant-acme", "sponsor-1", "agent-7", null, null, REQUESTED_AT, true));
+        CanonicalSecurityContext.Delegation delegation = context.getDelegation();
+        assertThat(delegation.getStanding()).isTrue();
+        assertThat(Boolean.TRUE.equals(delegation.getDelegated())).as("the agent still acts on its own").isFalse();
+        assertThat(delegation.getObjectiveFamily()).isEqualTo("DATA_EXPORT");
+        assertThat(delegation.getAllowedOperations()).containsExactly("EXPORT");
+        assertThat(delegation.getMaxItemsPerRequest()).isEqualTo(40);
+        assertThat(context.getAttributes())
+                .containsEntry(RecordedDelegationContextProvider.LOOKUP_ATTRIBUTE, "FOUND")
+                .containsEntry(RecordedDelegationContextProvider.RECORDED_BY_ATTRIBUTE, "sponsor-1");
+    }
+
+    @Test
+    void aStandingLookupIsNotMadeForADelegatedAgentOrForAnAgentWithoutASponsor() {
+        List<DelegationRecordQuery> asked = new ArrayList<>();
+        RecordedDelegationContextProvider provider = new RecordedDelegationContextProvider(query -> {
+            asked.add(query);
+            return Optional.empty();
+        });
+        CanonicalSecurityContext delegated = autonomousContext("agent-7", "sponsor-1");
+        delegated.getAttributes().put("executionSubjectKind", "DELEGATED_AGENT");
+        CanonicalSecurityContext noSponsor = autonomousContext("agent-7", null);
+
+        provider.enrich(event(), delegated);
+        provider.enrich(event(), noSponsor);
+
+        assertThat(asked).as("one lookup each, as before").hasSize(2).noneMatch(DelegationRecordQuery::standing);
+        assertThat(delegated.getDelegation().getStanding()).isNull();
+        assertThat(noSponsor.getDelegation().getStanding()).isNull();
+    }
+
+    @Test
+    void anAgentOnItsOwnWithoutARecordOfItsSponsorLeavesTheContextAsItWas() {
+        RecordedDelegationContextProvider provider = new RecordedDelegationContextProvider(query -> Optional.empty());
+        CanonicalSecurityContext context = autonomousContext("agent-7", "sponsor-1");
+
+        provider.enrich(event(), context);
+
+        assertThat(context.getDelegation().getStanding()).isNull();
+        assertThat(context.getDelegation().getObjectiveFamily()).isNull();
+        assertThat(context.getAttributes()).containsEntry(RecordedDelegationContextProvider.LOOKUP_ATTRIBUTE, "NOT_FOUND");
+    }
+
+    @Test
+    void aStandingRecordForAnotherAgentIsNotApplied() {
+        RecordedDelegationContextProvider provider = new RecordedDelegationContextProvider(query ->
+                query.standing() ? Optional.of(standingRecord("agent-9", "sponsor-1")) : Optional.empty());
+        CanonicalSecurityContext context = autonomousContext("agent-7", "sponsor-1");
+
+        provider.enrich(event(), context);
+
+        assertThat(context.getDelegation().getStanding()).isNull();
+        assertThat(context.getAttributes()).containsEntry(RecordedDelegationContextProvider.LOOKUP_ATTRIBUTE,
+                "AGENT_MISMATCH");
+    }
+
+    private static DelegationRecord standingRecord(String agentId, String sponsorId) {
+        return new DelegationRecord("dlg-77", sponsorId, agentId, "weekly-export", "DATA_EXPORT",
+                "Export this week's design review packages, 40 documents a day", List.of("EXPORT"), List.of("HX-310"),
+                false, false, null, Instant.parse("2026-10-22T09:00:00Z"), sponsorId,
+                Instant.parse("2026-10-20T02:58:00Z"), 40, null);
+    }
+
+    /** An agent's own request: the subject is the agent, whose registration names its sponsor. */
+    private static CanonicalSecurityContext autonomousContext(String agentId, String sponsorId) {
+        Map<String, Object> attributes = new HashMap<>();
+        attributes.put("executionSubjectKind", "AUTONOMOUS_AGENT");
+        attributes.put("agentId", agentId);
+        if (sponsorId != null) {
+            attributes.put("agentSponsorId", sponsorId);
+        }
+        return CanonicalSecurityContext.builder()
+                .actor(CanonicalSecurityContext.Actor.builder().userId(agentId).tenantId("tenant-acme").build())
+                .delegation(CanonicalSecurityContext.Delegation.builder().agentId(agentId).build())
+                .attributes(attributes)
+                .build();
+    }
+
     private static DelegationRecord record(String agentId) {
         return new DelegationRecord("dlg-42", "alice", agentId, "monthly-report", "REPORTING",
                 "Prepare the October sales report", List.of("READ"), List.of("SALES_REPORT"),

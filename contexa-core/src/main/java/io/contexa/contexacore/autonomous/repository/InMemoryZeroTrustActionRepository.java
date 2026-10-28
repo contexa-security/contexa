@@ -345,8 +345,9 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
 
     /**
      * Stores the final analysis result unless it is less strict than an active user-level
-     * CHALLENGE or ESCALATE, whichever session it was analysed for. The stricter action then
-     * stays in effect and the write is reported as applied.
+     * BLOCK, CHALLENGE or ESCALATE, whichever session it was analysed for. A BLOCK is active
+     * while its analysis says so or its flag stands (the analysis may have expired). The stricter
+     * action then stays in effect and the write is reported as applied.
      */
     @Override
     public boolean saveFinalAction(String userId, ZeroTrustAction action, Map<String, Object> additionalFields) {
@@ -358,8 +359,11 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         lock.lock();
         try {
             AnalysisEntry active = analysisStore.get(userId);
-            boolean keepsActiveRestriction = active != null && active.action != null && !isExpired(active)
+            boolean analysisKeeps = active != null && active.action != null && !isExpired(active)
                     && ZeroTrustActionPrecedence.keepsActiveRestriction(ZeroTrustAction.fromString(active.action), action);
+            boolean flagKeeps = blockedUsers.contains(userId)
+                    && ZeroTrustActionPrecedence.keepsActiveRestriction(ZeroTrustAction.BLOCK, action);
+            boolean keepsActiveRestriction = analysisKeeps || flagKeeps;
             if (!keepsActiveRestriction) {
                 saveAction(userId, action, additionalFields);
             } else {

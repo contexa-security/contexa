@@ -17,7 +17,7 @@ package io.contexa.contexacore.autonomous.agent;
 
 import io.contexa.contexacore.autonomous.context.support.ActionFamily;
 import io.contexa.contexacore.autonomous.context.support.ActionFamilyResolver;
-import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
+import io.contexa.contexacore.autonomous.context.support.ResourceImportanceResolver;
 import org.springframework.lang.Nullable;
 
 import java.time.Clock;
@@ -38,6 +38,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * requests; the next one is decided again, with the session's requests in its narrative. For a sensitive resource the
  * ALLOW answers fewer distinct resources (RL-5): a customer list is enumerated one record at a time, and every record
  * past the first is worth its own decision.
+ * <p>
+ * An agent has two anchors, one for the ALLOW of a sensitive resource and one for the ALLOW of a general one (RL-12).
+ * They do not erase each other when decisions of both kinds come out together. The ALLOW of a general resource never
+ * answers a sensitive one; the ALLOW of a sensitive resource answers general ones within the general limits, and those
+ * do not use up what it keeps for its own sensitive resource. A decision recorded without its kind (the old call) keeps
+ * the old behaviour: one anchor, the limit chosen by the request that asks.
  */
 public class AgentAllowReuse {
 
@@ -65,12 +71,18 @@ public class AgentAllowReuse {
                 path != null ? path.toString() : resource);
     }
 
-    /** The request a decision was made on, and what its ALLOW answered since. */
-    private record Anchor(@Nullable String contextHash, ActionFamily operation, Set<String> resources, int requests,
-                          Instant at) {
+    /**
+     * The request a decision was made on, and what its ALLOW answered since. {@code resources} are the resources of
+     * the anchor's own kind; {@code covered} are the general resources a sensitive anchor answered besides.
+     */
+    private record Anchor(@Nullable String contextHash, ActionFamily operation, Set<String> resources,
+                          Set<String> covered, int requests, Instant at) {
     }
 
+    /** The anchors of a decision recorded without its kind (the old call). */
     private final Map<String, Anchor> anchors = new ConcurrentHashMap<>();
+    private final Map<String, Anchor> sensitiveAnchors = new ConcurrentHashMap<>();
+    private final Map<String, Anchor> generalAnchors = new ConcurrentHashMap<>();
     private final int maxRequests;
     private final int maxDistinctResources;
     private final int sensitiveMaxDistinctResources;
@@ -91,21 +103,30 @@ public class AgentAllowReuse {
     }
 
     /**
-     * Whether the request is for a sensitive resource: the sensitivity the resource declares, else the request states,
-     * classifies as SENSITIVE or CRITICAL.
+     * Whether the request is for a sensitive resource: the importance the host declared on the protected method
+     * (RL-14), else the sensitivity the resource declares or the request states, classified as SENSITIVE or CRITICAL.
      */
     public static boolean sensitive(@Nullable Map<String, ?> payload) {
-        if (payload == null) {
-            return false;
-        }
-        String resourceClass = SecuritySemanticNormalizer.normalizeResourceClass(payload.get("resourceSensitivity"),
-                payload.get("sensitivity"));
-        return "SENSITIVE".equals(resourceClass) || "CRITICAL".equals(resourceClass);
+        return ResourceImportanceResolver.sensitive(payload);
     }
 
-    /** The agent's request is decided: its ALLOW, if it is one, answers the later requests like it. */
+    /** The agent's request is decided, kind not stated: its ALLOW, if it is one, answers the later requests like it. */
     public void decided(String subjectKey, @Nullable String contextHash, ActionFamily operation,
                         @Nullable String resource) {
+        record(anchors, subjectKey, contextHash, operation, resource);
+    }
+
+    /**
+     * The agent's request is decided, and whether it is for a sensitive resource is stated (RL-12): its ALLOW, if it
+     * is one, becomes the anchor of its kind.
+     */
+    public void decided(String subjectKey, @Nullable String contextHash, ActionFamily operation,
+                        @Nullable String resource, boolean sensitive) {
+        record(sensitive ? sensitiveAnchors : generalAnchors, subjectKey, contextHash, operation, resource);
+    }
+
+    private void record(Map<String, Anchor> store, String subjectKey, @Nullable String contextHash,
+                        ActionFamily operation, @Nullable String resource) {
         if (subjectKey == null) {
             return;
         }
@@ -113,11 +134,11 @@ public class AgentAllowReuse {
         if (resource != null) {
             resources.add(resource);
         }
-        if (anchors.size() >= CAPACITY) {
+        if (store.size() >= CAPACITY) {
             Instant old = clock.instant().minus(FORGET_AFTER);
-            anchors.values().removeIf(anchor -> anchor.at().isBefore(old));
+            store.values().removeIf(anchor -> anchor.at().isBefore(old));
         }
-        anchors.put(subjectKey, new Anchor(contextHash, operation, resources, 1, clock.instant()));
+        store.put(subjectKey, new Anchor(contextHash, operation, resources, Set.of(), 1, clock.instant()));
     }
 
     /**
@@ -129,17 +150,53 @@ public class AgentAllowReuse {
         return answers(subjectKey, contextHash, operation, resource, false);
     }
 
-    /** The same, with the limit of a sensitive resource when the request is for one (RL-5). */
+    /** The same, with the limit of a sensitive resource when the request is for one (RL-5, RL-12). */
     public boolean answers(String subjectKey, @Nullable String contextHash, ActionFamily operation,
                            @Nullable String resource, boolean sensitive) {
+        return answers(subjectKey, contextHash, operation, resource, sensitive, true);
+    }
+
+    /**
+     * Whether the ALLOW that was just decided answers a request that joined it while it was being decided (RL-12). It
+     * asked the same question as the request that began the decision, so the request limit does not count it and it
+     * leaves that limit untouched for the requests that come later; the limits of the resources, the operation and the
+     * context hold as for any request.
+     */
+    public boolean answersJoined(String subjectKey, @Nullable String contextHash, ActionFamily operation,
+                                 @Nullable String resource, boolean sensitive) {
+        return answers(subjectKey, contextHash, operation, resource, sensitive, false);
+    }
+
+    private boolean answers(String subjectKey, @Nullable String contextHash, ActionFamily operation,
+                            @Nullable String resource, boolean sensitive, boolean counted) {
         if (subjectKey == null) {
             return false;
         }
-        int distinctLimit = sensitive ? sensitiveMaxDistinctResources : maxDistinctResources;
+        if (sensitive) {
+            // The ALLOW of a general resource never answers a sensitive one.
+            return answerSame(sensitiveAnchors, subjectKey, contextHash, operation, resource,
+                    sensitiveMaxDistinctResources, true, counted)
+                    || answerSame(anchors, subjectKey, contextHash, operation, resource,
+                    sensitiveMaxDistinctResources, false, counted);
+        }
+        return answerSame(generalAnchors, subjectKey, contextHash, operation, resource, maxDistinctResources, false,
+                counted)
+                || answerGeneralBySensitive(subjectKey, contextHash, operation, resource, counted)
+                || answerSame(anchors, subjectKey, contextHash, operation, resource, maxDistinctResources, false,
+                counted);
+    }
+
+    /**
+     * The anchor of the request's own kind. A sensitive request is answered only by an anchor that names the sensitive
+     * resource it decided ({@code needsNamedResource}): one that names none cannot say which record it allowed.
+     */
+    private boolean answerSame(Map<String, Anchor> store, String subjectKey, @Nullable String contextHash,
+                               ActionFamily operation, @Nullable String resource, int distinctLimit,
+                               boolean needsNamedResource, boolean counted) {
         boolean[] answered = new boolean[1];
-        anchors.computeIfPresent(subjectKey, (key, anchor) -> {
-            if (!Objects.equals(anchor.contextHash(), contextHash) || anchor.operation() != operation
-                    || anchor.requests() >= maxRequests) {
+        store.computeIfPresent(subjectKey, (key, anchor) -> {
+            if (!matches(anchor, contextHash, operation, counted)
+                    || (needsNamedResource && anchor.resources().isEmpty())) {
                 return anchor;
             }
             Set<String> resources = new HashSet<>(anchor.resources());
@@ -150,9 +207,36 @@ public class AgentAllowReuse {
                 return anchor;
             }
             answered[0] = true;
-            return new Anchor(anchor.contextHash(), operation, Set.copyOf(resources), anchor.requests() + 1,
-                    anchor.at());
+            return new Anchor(anchor.contextHash(), operation, Set.copyOf(resources), anchor.covered(),
+                    anchor.requests() + (counted ? 1 : 0), anchor.at());
         });
         return answered[0];
+    }
+
+    /** The ALLOW of a sensitive resource answering a general one, within the general limits. */
+    private boolean answerGeneralBySensitive(String subjectKey, @Nullable String contextHash, ActionFamily operation,
+                                             @Nullable String resource, boolean counted) {
+        boolean[] answered = new boolean[1];
+        sensitiveAnchors.computeIfPresent(subjectKey, (key, anchor) -> {
+            if (!matches(anchor, contextHash, operation, counted)) {
+                return anchor;
+            }
+            Set<String> covered = new HashSet<>(anchor.covered());
+            if (resource != null) {
+                covered.add(resource);
+            }
+            if (covered.size() > maxDistinctResources) {
+                return anchor;
+            }
+            answered[0] = true;
+            return new Anchor(anchor.contextHash(), operation, anchor.resources(), Set.copyOf(covered),
+                    anchor.requests() + (counted ? 1 : 0), anchor.at());
+        });
+        return answered[0];
+    }
+
+    private boolean matches(Anchor anchor, @Nullable String contextHash, ActionFamily operation, boolean counted) {
+        return Objects.equals(anchor.contextHash(), contextHash) && anchor.operation() == operation
+                && (!counted || anchor.requests() < maxRequests);
     }
 }

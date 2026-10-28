@@ -24,8 +24,10 @@
 
   /* Only the numbers inside small circles (the difference marks); never running text. */
   --text-xs: 1rem;
-  --text-sm: 1rem;
-  --text-md: 1rem;
+
+  /* 구현계획 NW-14 (AC-N6): the text a visitor reads is 20 px on a desktop; a phone keeps 18 px (below). */
+  --text-sm: 1.25rem;
+  --text-md: 1.25rem;
   --text-lg: 1.25rem;
   --text-xl: 1.75rem;
   --text-2xl: 2.5rem;
@@ -81,10 +83,12 @@
   --frame-foot-bottom: calc(var(--space-2) + env(safe-area-inset-bottom));
   --ring-live: 0 0 0 5px var(--color-live-soft);
   --ring-live-small: 0 0 0 2px var(--color-live-soft);
-  --type-title: 2.125rem;
+
+  /* 구현계획 NW-10: the title is the largest line of a screen, the body (the intro and the lines a visitor reads) 20 px. */
+  --type-title: 2.5rem;
   --type-emphasis: 1.75rem;
-  --type-body: 1.125rem;
-  --type-aside: 1rem;
+  --type-body: 1.25rem;
+  --type-aside: 1.25rem;
 
   /* The question of a part's briefing (T0), the largest line of the flow. */
   --type-statement: 3.375rem;
@@ -94,8 +98,28 @@
   --type-cover-cell: 1.4375rem;
   --type-cover-numeral: 23.75rem;
 
-  /* A guide video's caption, against the browser's own size (5% of the video's height): one row, small. */
-  --type-caption: 70%;
+  /*
+   * The choosing screens (T9) of the choose-and-test design (docs/showcase/첫화면-선택형-체험-개선기획안.md 6절): a strong
+   * title, one intro line and big cards. Title 44 px, intro 24 px, card title 24 px and card line 18 px on a desktop.
+   */
+  --type-pick-title: 2.75rem;
+  --type-pick-intro: 1.5rem;
+  --type-pick-card-title: 1.5rem;
+  --type-pick-card-sub: 1.125rem;
+  --pick-card-height: 6rem;
+  --pick-measure: 64rem;
+
+  /* A guide video's caption band under the video (가이드영상-제작기획안.md 6.2절): solid, white, bold, one row, 2.9% of
+     the player's width between 18 and 30 px (the fluid size needs container query units; the plain one is the fallback). */
+  --color-caption-bg: #060d1a;
+  --color-caption-text: #fff;
+  --color-video-bg: #000;
+  --type-caption-band: 1.125rem;
+  --type-caption-band-fluid: clamp(1.125rem, 2.9cqw, 1.875rem);
+  --leading-caption: 1.3;
+  --space-caption-pad: 1em;
+  --space-scene-gap: 2px;
+  --space-mark-nudge: 0.125rem;
   --leading-frame: 1.6;
 
   /* What the title zone and the action bar add to the 32 px block gap, and the phone bar's bottom padding. */
@@ -241,7 +265,7 @@
 @media (width <= 40rem) {
   :root {
     --text-sm: 1rem;
-    --text-md: 1.0625rem;
+    --text-md: 1.125rem;
     --frame-zone-gap: var(--space-10);
     --frame-block-gap: var(--space-6);
     --frame-inner-gap: var(--space-3);
@@ -249,15 +273,18 @@
     --frame-title-bottom: var(--space-6);
     --frame-gutter: var(--space-5);
     --frame-bar-height: 3.5rem;
-    --type-title: 1.75rem;
+    --type-title: 1.875rem;
     --type-emphasis: 1.375rem;
-    --type-body: 1rem;
+    --type-body: 1.125rem;
     --type-aside: 1rem;
     --type-statement: 2.25rem;
+    --type-pick-title: 2rem;
+    --type-pick-intro: 1.25rem;
+    --type-pick-card-title: 1.375rem;
+    --type-pick-card-sub: 1.125rem;
     --type-counter: 2rem;
     --type-summary: 2.5rem;
     --type-cover: 2rem;
-    --type-caption: 100%;
     --type-cover-cell: 1.25rem;
     --type-cover-numeral: 12rem;
   }

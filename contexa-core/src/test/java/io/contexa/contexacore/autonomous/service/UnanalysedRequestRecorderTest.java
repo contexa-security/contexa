@@ -155,6 +155,22 @@ class UnanalysedRequestRecorderTest {
                 .isEqualTo(Instant.parse("2026-09-30T03:17:00Z").toEpochMilli());
     }
 
+    /** RL-12: a request that passed before its verdict is a fact of its session, once, and is not learned. */
+    @Test
+    void aRequestThatPassedBeforeItsVerdictIsRecordedInItsSessionOnceAndIsNotLearned() {
+        SecurityLearningService learning = mock(SecurityLearningService.class);
+        UnanalysedRequestRecorder learningRecorder = learningRecorder(verification(learning));
+        ZeroTrustSpringEvent event = event("request-passed", "2026-09-30T03:17:00Z", 0);
+
+        learningRecorder.recordPassed(event);
+        learningRecorder.recordPassed(event);
+
+        assertThat(store.getRecentSessionDecisions(SESSION, 10)).singleElement().satisfies(line ->
+                assertThat(SessionDecisionRecord.decode(line).outcome()).isEqualTo("ALLOW"));
+        assertThat(store.getRecentWorkProfileObservations(null, "alice", 10)).isEmpty();
+        verify(learning, never()).learnVerifiedResend(any(), any(), any());
+    }
+
     @Test
     void aRestrictedRequestIsRecordedUnderTheRestrictionInForce() {
         unanalysed.record(event("request-1", "2026-09-30T03:17:00Z", 300), ZeroTrustAction.ALLOW);

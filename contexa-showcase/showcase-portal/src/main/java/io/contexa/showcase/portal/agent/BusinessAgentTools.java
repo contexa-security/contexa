@@ -39,13 +39,26 @@ public class BusinessAgentTools {
 
     private final AgentWork.Sender sender;
     private final int maxCalls;
+    private final int caseBudget;
+    private final AgentRunCap cap;
     private final List<ToolCall> calls = Collections.synchronizedList(new ArrayList<>());
     private volatile boolean stopped;
     private volatile boolean budgetUsed;
 
     public BusinessAgentTools(AgentWork.Sender sender, int maxCalls) {
+        this(sender, maxCalls, null);
+    }
+
+    /**
+     * @param maxCalls the case's tool call budget
+     * @param cap      the hard limits of a visitor's live run (docs/agent Agent중심-화면 AC-3), null for a run without
+     *                 them; its tool call limit lowers the budget, never raises it
+     */
+    public BusinessAgentTools(AgentWork.Sender sender, int maxCalls, AgentRunCap cap) {
         this.sender = sender;
-        this.maxCalls = maxCalls;
+        this.maxCalls = cap == null ? maxCalls : Math.min(maxCalls, cap.limits().toolCalls());
+        this.cap = cap;
+        this.caseBudget = maxCalls;
     }
 
     @Tool(description = "List the company's projects with their sensitivity and document counts.")
@@ -136,6 +149,16 @@ public class BusinessAgentTools {
         return budgetUsed;
     }
 
+    /** The hard limits of a live run; null for a run without them. */
+    public AgentRunCap cap() {
+        return cap;
+    }
+
+    /** The {@code CAP_*} reason a live run's limit stopped the work, or null. */
+    public String capReached() {
+        return cap == null ? null : cap.reached();
+    }
+
     /** No further call sends anything (the work's time is up). */
     public void stop() {
         stopped = true;
@@ -149,8 +172,17 @@ public class BusinessAgentTools {
             calls.add(new ToolCall(number, tool, arguments, at, false, null, result));
             return result;
         }
+        if (cap != null && cap.reached() != null) {
+            String result = "The limit of this run is reached; give your final answer now.";
+            calls.add(new ToolCall(number, tool, arguments, at, false, null, result));
+            return result;
+        }
         if (calls.stream().filter(ToolCall::sent).count() >= maxCalls) {
             budgetUsed = true;
+            if (cap != null && maxCalls < caseBudget) {
+                // the live limit, not the case's own budget, is what stopped this run
+                cap.reach(AgentRunCap.TOOL_CALLS);
+            }
             String result = "The tool call budget of this task is used up; give your final answer now.";
             calls.add(new ToolCall(number, tool, arguments, at, false, null, result));
             return result;

@@ -5,6 +5,7 @@ import io.contexa.showcase.portal.combination.CombinationCatalog;
 import io.contexa.showcase.portal.combination.CombinationService;
 import io.contexa.showcase.portal.orchestrator.RunOrchestrator.RunSummary;
 import io.contexa.showcase.portal.orchestrator.RunOrchestrator.StepSummary;
+import io.contexa.showcase.portal.scenario.BurstChoice;
 import io.contexa.showcase.portal.scenario.ScenarioDefinition;
 import io.contexa.showcase.portal.template.TemplateCurrency;
 
@@ -30,7 +31,7 @@ public class LiveGate {
     }
 
     /**
-     * @param reason   TEMPLATE, TURNSTILE_*, ALLOTMENT, BUSY, VISITOR_LIMIT or ADDRESS_LIMIT
+     * @param reason   TEMPLATE, TURNSTILE_*, ALLOTMENT, BUSY, AGENT_BUSY, VISITOR_LIMIT, ADDRESS_LIMIT or AGENT_LIMIT
      * @param fallback the refused cell's stored run, shown as a record instead; null without one
      */
     public record Refused(String reason, CombinationService.CombinationView fallback) implements Outcome {
@@ -43,9 +44,18 @@ public class LiveGate {
     private final LiveRuns live;
     private final LiveGateWatch watch;
     private final TemplateCurrency templates;
+    /** The day's share of live agent runs (docs/agent Agent중심-화면 AC-6); null for no ration. */
+    private final AgentRation ration;
 
     public LiveGate(CombinationService combinations, TurnstileVerifier turnstile, LiveAllotment allotment,
                     LiveQuota quota, LiveRuns live, LiveGateWatch watch, TemplateCurrency templates) {
+        this(combinations, turnstile, allotment, quota, live, watch, templates, null);
+    }
+
+    public LiveGate(CombinationService combinations, TurnstileVerifier turnstile, LiveAllotment allotment,
+                    LiveQuota quota, LiveRuns live, LiveGateWatch watch, TemplateCurrency templates,
+                    AgentRation ration) {
+        this.ration = ration;
         this.templates = templates;
         this.combinations = combinations;
         this.turnstile = turnstile;
@@ -102,10 +112,21 @@ public class LiveGate {
         if (allotment.state().exhausted()) {
             return refuse("ALLOTMENT");
         }
+        LiveQuota.Kind kind = kindOf(scenario);
+        if (kind != LiveQuota.Kind.PERSON) {
+            // docs/agent Agent중심-화면 AC-6: an agent run (a burst too) starts only while the day's share holds one and
+            // the agent runs at once are under their cap; otherwise the visitor is led to the stored runs.
+            if (ration != null && !ration.hasTicket()) {
+                return refuse("ALLOTMENT");
+            }
+            if (!live.hasAgentRoom()) {
+                return refuse("AGENT_BUSY");
+            }
+        }
         if (!live.hasRoom()) {
             return refuse("BUSY");
         }
-        LiveQuota.Refusal refusal = quota.take(visitor, address);
+        LiveQuota.Refusal refusal = quota.take(visitor, address, kind);
         if (refusal != null) {
             return refuse(refusal.name());
         }
@@ -113,16 +134,31 @@ public class LiveGate {
             LiveRun run = live.start(visitor, scenario, summary -> {
                 watch.finished(summary.steps().stream().anyMatch(StepSummary::unresolved));
                 if (!"COMPLETED".equals(summary.status())) {
-                    quota.giveBack(visitor, address);
+                    quota.giveBack(visitor, address, kind);
                 }
                 keep.accept(summary);
             });
             watch.passed(LiveGateWatch.STARTED);
             return new Started(run);
+        } catch (LiveRuns.AgentBusy e) {
+            // Another start took the last place between the check above and this start.
+            quota.giveBack(visitor, address, kind);
+            return refuse("AGENT_BUSY");
         } catch (LiveRuns.Busy e) {
-            quota.giveBack(visitor, address);
+            quota.giveBack(visitor, address, kind);
             return refuse("BUSY");
         }
+    }
+
+    /**
+     * docs/agent Agent중심-화면 AC-2, AS-13: a run of an agent task costs an agent's points, one that sends requests from
+     * many workers at once a burst's, any other a person's.
+     */
+    static LiveQuota.Kind kindOf(ScenarioDefinition scenario) {
+        if (scenario.task() == null) {
+            return LiveQuota.Kind.PERSON;
+        }
+        return BurstChoice.isBurst(scenario) ? LiveQuota.Kind.BURST : LiveQuota.Kind.AGENT;
     }
 
     private Refused refuse(String reason) {

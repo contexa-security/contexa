@@ -349,6 +349,66 @@ class AuthorizationManagerMethodInterceptorTest {
     }
 
     @Nested
+    @DisplayName("RL-12: an agent's request that passes before its verdict, and one the analysis cannot take in")
+    class AgentRequestsInNumbersTests {
+
+        private void enforceWith(SynchronousProtectableDecisionService.AsyncProtectableGate gate,
+                                 SecurityZeroTrustProperties.SecurityMode mode) {
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
+            interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
+            SecurityZeroTrustProperties properties = new SecurityZeroTrustProperties();
+            properties.setMode(mode);
+            interceptor.setSecurityZeroTrustProperties(properties);
+            when(synchronousProtectableDecisionService.asyncGate(methodInvocation, authentication)).thenReturn(gate);
+        }
+
+        @Test
+        @DisplayName("the first request that passes runs, and its event is published: it is the analysis that decides")
+        void thePassThatLeadsRunsAndPublishesItsEvent() throws Throwable {
+            when(methodInvocation.proceed()).thenReturn("result");
+            enforceWith(SynchronousProtectableDecisionService.AsyncProtectableGate.PASS_AND_ANALYSE,
+                    SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+
+            assertThat(interceptor.invoke(methodInvocation)).isEqualTo("result");
+
+            verify(methodInvocation).proceed();
+            verify(synchronousProtectableDecisionService, never()).analyze(any(MethodInvocation.class), any());
+            verify(zeroTrustEventPublisher).publishMethodAuthorization(any(), any(), anyBoolean(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a request that passes while a verdict is pending runs and publishes nothing: it is only recorded")
+        void aPassThatFollowsRunsAndPublishesNothing() throws Throwable {
+            when(methodInvocation.proceed()).thenReturn("result");
+            enforceWith(SynchronousProtectableDecisionService.AsyncProtectableGate.PASS_AND_RECORD,
+                    SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+
+            assertThat(interceptor.invoke(methodInvocation)).isEqualTo("result");
+
+            verify(methodInvocation).proceed();
+            verify(synchronousProtectableDecisionService, never()).analyze(any(MethodInvocation.class), any());
+            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a request the analysis has no place for is refused with 429 and never runs")
+        void aBusyAnalysisRefusesTheRequestAndTheMethodNeverRuns() throws Throwable {
+            enforceWith(SynchronousProtectableDecisionService.AsyncProtectableGate.DECIDE_IN_PLACE,
+                    SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            when(synchronousProtectableDecisionService.analyze(methodInvocation, authentication))
+                    .thenThrow(ZeroTrustAccessDeniedException.analysisBusy("ContexaBusinessOperations#readDocument", 10));
+
+            assertThatThrownBy(() -> interceptor.invoke(methodInvocation))
+                    .isInstanceOfSatisfying(ZeroTrustAccessDeniedException.class, denied -> {
+                        assertThat(denied.getHttpStatus()).isEqualTo(429);
+                        assertThat(denied.getBusyRetryAfterSeconds()).isEqualTo(10);
+                    });
+            verify(methodInvocation, never()).proceed();
+            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any(), any(), any());
+        }
+    }
+
+    @Nested
     @DisplayName("A1-5: an agent request with no decision on record at an asynchronous Protectable")
     class UnrecordedAgentRequestTests {
 

@@ -13,7 +13,6 @@ import {
   nextScreen,
   previousScreen,
   screenAt,
-  skipTarget,
   TOPICS,
   type Route as JourneyRoute,
   type Screen,
@@ -28,7 +27,6 @@ const place = vi.hoisted(() => ({
     route: 'DEFAULT' as JourneyRoute,
     screen: null as Screen | null,
     differences: [] as readonly number[],
-    skip: null as Screen | null,
   },
 }));
 vi.mock('../../journey/useJourneyPlace', () => ({ useJourneyPlace: () => place.current }));
@@ -53,7 +51,6 @@ function placeAt(path: string, differences: readonly number[]) {
     route: 'DEFAULT',
     screen,
     differences,
-    skip: skipTarget('DEFAULT', path),
   };
 }
 
@@ -108,13 +105,15 @@ describe('thread devices', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows the eight groups, the finished ones ticked and the current one named, and the rest in the menu (F0-2)', async () => {
-    placeAt('/normal/request', []);
-    at('/normal/request', <AppHeader />);
-    const groups = screen.getByRole('list', { name: '체험 진행' });
-    expect(groups.querySelectorAll('li')).toHaveLength(8);
-    expect(groups.querySelectorAll('[data-state="done"]')).toHaveLength(3);
-    expect(groups.querySelector('[aria-current="step"]')).toHaveTextContent('정상 사용 체험');
+  it("shows the track's name and its six steps, the finished ones ticked and the current one named, and the rest in the menu (NW-6)", async () => {
+    placeAt('/normal/console', []);
+    at('/normal/console', <AppHeader />);
+    const steps = screen.getByRole('list', { name: '사람 체험의 여섯 단계' });
+    // the track's chip and the six steps
+    expect(steps.querySelectorAll('li')).toHaveLength(7);
+    expect(steps).toHaveTextContent('사람');
+    expect(steps.querySelectorAll('[data-state="done"]')).toHaveLength(2);
+    expect(steps.querySelector('[aria-current="step"]')).toHaveTextContent('실행');
     await userEvent.click(screen.getByRole('button', { name: '메뉴' }));
     const menu = screen.getByRole('navigation', { name: '메뉴' });
     expect(menu).toHaveTextContent(
@@ -122,25 +121,31 @@ describe('thread devices', () => {
     );
   });
 
-  // Review before the guide videos (2026-10-21): the top numbers had no unit (P-13) and the English group tabs cut
-  // their names, the current one too (B-18).
-  it('counts the top numbers with their units and names a group tab by its short name', async () => {
-    placeAt('/attack/request', []);
-    const { unmount } = at('/attack/request', <AppHeader />);
+  // Review before the guide videos (2026-10-21): the top numbers had no unit (P-13); the steps of the track are named in
+  // both languages, the agent's track by its own name (NW-6).
+  it('counts the top numbers with their units and names the steps of a track in both languages', async () => {
+    placeAt('/agent/request', []);
+    const { unmount } = at('/agent/request', <AppHeader />);
     expect(screen.getByText(/오늘 실제 실행/)).toHaveTextContent('오늘 실제 실행 316회 · 누적 판단 7,658건');
     expect(
-      screen.getByRole('list', { name: '체험 진행' }).querySelector('[aria-current="step"]'),
-    ).toHaveTextContent('외부 공격: 훔친 계정');
+      screen.getByRole('list', { name: '에이전트 체험의 여섯 단계' }).querySelector('[aria-current="step"]'),
+    ).toHaveTextContent('예측');
     unmount();
     await i18n.changeLanguage('en');
     try {
-      at('/attack/request', <AppHeader />);
-      const tabs = screen.getByRole('list', { name: i18n.t('top.groups') });
-      expect(tabs.querySelector('[aria-current="step"]')).toHaveTextContent('Stolen account');
-      expect(tabs).toHaveTextContent('Insider');
+      at('/agent/request', <AppHeader />);
+      const steps = screen.getByRole('list', { name: i18n.t('top.steps', { track: i18n.t('top.track.A') }) });
+      expect(steps.querySelector('[aria-current="step"]')).toHaveTextContent('Predict');
+      expect(steps).toHaveTextContent('Agent');
     } finally {
       await i18n.changeLanguage('ko');
     }
+  });
+
+  it('draws no steps on a screen both tracks share (the start, the deeper hub, the wrap-up)', () => {
+    placeAt('/', []);
+    at('/', <AppHeader />);
+    expect(screen.queryByRole('list', { name: /여섯 단계/ })).toBeNull();
   });
 
   // Review before the guide videos (2026-10-21, P-33): the nine-step screen read only as the learning topic.

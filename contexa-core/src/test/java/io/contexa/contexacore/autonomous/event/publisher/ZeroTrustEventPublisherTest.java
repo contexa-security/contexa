@@ -23,6 +23,7 @@ import io.contexa.contexacore.autonomous.context.registry.InMemoryResourceContex
 import io.contexa.contexacommon.security.context.OfficialContextField;
 import io.contexa.contexacommon.security.context.OfficialContextRequestAttributes;
 import io.contexa.contexacommon.annotation.Protectable;
+import io.contexa.contexacommon.annotation.ResourceImportance;
 import io.contexa.contexacommon.security.bridge.AgentConfirmationFacts;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageLevel;
@@ -1293,6 +1294,94 @@ class ZeroTrustEventPublisherTest {
                 .containsEntry("travelElapsedMinutes", 40)
                 .containsEntry("previousLocation", "Busan, KR")
                 .doesNotContainKey("impossibleTravel");
+    }
+
+    /** RL-14, IM-11: the declared importance travels as its own fact, and a sensitive one fills a blank sensitivity. */
+    @Test
+    @DisplayName("the declared importance of the protected method travels with the request (RL-14)")
+    void shouldCarryTheDeclaredImportance() throws Exception {
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(
+                new MockHttpServletRequest("GET", "/api/customers/CUS-0001")));
+        ZeroTrustEventPublisher publisher = importancePublisher();
+
+        ZeroTrustSpringEvent sensitive = publisher.buildMethodAuthorizationEvent(
+                importanceInvocation("readCustomer"), new UsernamePasswordAuthenticationToken("alice", "n/a"), true, null);
+        ZeroTrustSpringEvent nonSensitive = publisher.buildMethodAuthorizationEvent(
+                importanceInvocation("listTitles"), new UsernamePasswordAuthenticationToken("alice", "n/a"), true, null);
+        ZeroTrustSpringEvent unspecified = publisher.buildMethodAuthorizationEvent(
+                importanceInvocation("readDocument"), new UsernamePasswordAuthenticationToken("alice", "n/a"), true, null);
+
+        assertThat(sensitive.getPayload())
+                .containsEntry("resourceImportance", "SENSITIVE")
+                // the sensitivity that other parts of the engine already read is filled when the method states none
+                .containsEntry("resourceSensitivity", "SENSITIVE");
+        assertThat(nonSensitive.getPayload())
+                .containsEntry("resourceImportance", "NON_SENSITIVE")
+                .doesNotContainKey("resourceSensitivity");
+        assertThat(unspecified.getPayload())
+                .doesNotContainKey("resourceImportance")
+                .doesNotContainKey("resourceSensitivity");
+    }
+
+    /** RL-14, IM-11: a sensitivity the request states, or the method's own words, stays; the importance is still carried. */
+    @Test
+    @DisplayName("the declared importance never replaces a sensitivity the request or the method states (RL-14)")
+    void shouldKeepTheStatedSensitivityBesideTheDeclaredImportance() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/customers/CUS-0001");
+        request.setAttribute("ctxa.context.resourceSensitivity", "PUBLIC");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        ZeroTrustEventPublisher publisher = importancePublisher();
+
+        ZeroTrustSpringEvent stated = publisher.buildMethodAuthorizationEvent(
+                importanceInvocation("readCustomer"), new UsernamePasswordAuthenticationToken("alice", "n/a"), true, null);
+        assertThat(stated.getPayload())
+                .containsEntry("resourceSensitivity", "PUBLIC")
+                .containsEntry("resourceImportance", "SENSITIVE");
+
+        // The method's own words stay too: the declared importance fills the sensitivity only when it is blank.
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(
+                new MockHttpServletRequest("GET", "/api/documents/DOC-1")));
+        ZeroTrustSpringEvent worded = publisher.buildMethodAuthorizationEvent(
+                importanceInvocation("readWorded"), new UsernamePasswordAuthenticationToken("alice", "n/a"), true, null);
+        assertThat(worded.getPayload())
+                .containsEntry("resourceSensitivity", "INTERNAL")
+                .containsEntry("resourceImportance", "SENSITIVE");
+    }
+
+    private static ZeroTrustEventPublisher importancePublisher() {
+        DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
+        beanFactory.registerSingleton("importance", new ImportanceService());
+        InMemoryResourceContextRegistry registry = new InMemoryResourceContextRegistry();
+        new ProtectableResourceContextScanner(beanFactory, registry).afterSingletonsInstantiated();
+        ZeroTrustEventPublisher publisher =
+                new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties());
+        publisher.setResourceContextRegistry(registry);
+        return publisher;
+    }
+
+    private static MethodInvocation importanceInvocation(String method) throws NoSuchMethodException {
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        when(invocation.getMethod()).thenReturn(ImportanceService.class.getMethod(method));
+        return invocation;
+    }
+
+    public static class ImportanceService {
+
+        @Protectable(importance = ResourceImportance.SENSITIVE)
+        public void readCustomer() {
+        }
+
+        @Protectable(importance = ResourceImportance.NON_SENSITIVE)
+        public void listTitles() {
+        }
+
+        @Protectable
+        public void readDocument() {
+        }
+
+        @Protectable(importance = ResourceImportance.SENSITIVE, sensitivity = "INTERNAL")
+        public void readWorded() {
+        }
     }
 
     private static ZeroTrustEventPublisher describedPublisher() {

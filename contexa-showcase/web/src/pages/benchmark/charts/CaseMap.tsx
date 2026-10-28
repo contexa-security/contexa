@@ -6,7 +6,7 @@ import { CONTROL_ORDER } from '../../../domain/verdict';
 import { controlName } from '../benchData';
 import { BENCH_MODALS } from '../benchPlace';
 import { CellLegend, RunCells, type RunCell } from './RunCells';
-import { useNarrow } from './useNarrow';
+import { useNarrow } from '../../../hooks/useNarrow';
 import styles from './Charts.module.css';
 
 interface Group {

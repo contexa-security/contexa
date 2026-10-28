@@ -1,0 +1,26 @@
+/* A layer of a screen: one line that opens what is behind it (구현계획 R-N2). */
+.fold {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.line {
+  cursor: pointer;
+
+  /* A phone finger needs 44 px: the line is the whole target that opens the fold (구현계획 NW-10). */
+  min-block-size: 2.75rem;
+  padding-block: var(--space-2);
+  color: var(--color-accent);
+  font-size: var(--type-body);
+  font-weight: var(--weight-bold);
+}
+
+.line:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+.fold[open] .line {
+  margin-block-end: var(--space-3);
+}

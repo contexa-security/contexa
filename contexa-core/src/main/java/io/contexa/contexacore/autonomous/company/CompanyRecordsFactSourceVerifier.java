@@ -179,7 +179,7 @@ public class CompanyRecordsFactSourceVerifier implements PromptFactSourceVerifie
 
     private static void delegationFacts(List<SourceFact> facts, AgentDelegation delegation,
                                         CanonicalSecurityContext context) {
-        if (context.getDelegation() != null && Boolean.TRUE.equals(context.getDelegation().getDelegated())) {
+        if (context.getDelegation() != null && context.getDelegation().hasMandate()) {
             facts.add(new SourceFact(PromptBlock.DECISION_FACTS, "Delegation", "agent " + delegation.agentId() + " for "
                     + delegation.delegatorId(), null, DELEGATIONS));
             String objective = text(delegation.objectiveFamily()) != null ? delegation.objectiveFamily()
