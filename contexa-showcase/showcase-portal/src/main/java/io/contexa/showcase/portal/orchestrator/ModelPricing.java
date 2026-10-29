@@ -6,8 +6,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -106,8 +108,8 @@ public final class ModelPricing {
 
     /** The prices as a report shows them: each model's, the embedding price and the models counted without a price. */
     public Map<String, Object> describe() {
-        Map<String, Object> view = new java.util.LinkedHashMap<>();
-        Map<String, Object> models = new java.util.TreeMap<>();
+        Map<String, Object> view = new LinkedHashMap<>();
+        Map<String, Object> models = new TreeMap<>();
         prices.forEach((model, price) -> models.put(model, Map.of("input", price.input(),
                 "cachedInput", price.cachedInput(), "output", price.output())));
         view.put("models", models);

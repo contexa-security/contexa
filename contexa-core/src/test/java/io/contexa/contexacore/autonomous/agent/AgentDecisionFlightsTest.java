@@ -38,6 +38,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -120,10 +121,10 @@ class AgentDecisionFlightsTest {
         final AtomicInteger running = new AtomicInteger();
         final AtomicInteger mostAtOnce = new AtomicInteger();
         final long millis;
-        final java.util.function.Function<Request, ZeroTrustAction> answer;
+        final Function<Request, ZeroTrustAction> answer;
         final ModelGround ground;
 
-        Script(ModelGround ground, long millis, java.util.function.Function<Request, ZeroTrustAction> answer) {
+        Script(ModelGround ground, long millis, Function<Request, ZeroTrustAction> answer) {
             this.ground = ground;
             this.millis = millis;
             this.answer = answer;

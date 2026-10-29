@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
 import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -52,7 +53,7 @@ class ContexaBusinessImportanceTest {
                 continue;
             }
             boolean carriesOutOrChanges = protectable.exportSensitive() || protectable.privileged()
-                    || protectable.actions().length == 1 && java.util.Set.of("EXPORT", "DELETE", "DOWNLOAD", "ADMIN")
+                    || protectable.actions().length == 1 && Set.of("EXPORT", "DELETE", "DOWNLOAD", "ADMIN")
                     .contains(protectable.actions()[0]);
             if (carriesOutOrChanges) {
                 assertThat(protectable.importance()).as(method.getName()).isEqualTo(ResourceImportance.SENSITIVE);
