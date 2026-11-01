@@ -1,7 +1,7 @@
 import { screen, within } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import watchedSource from '../../../components/guide/guideWatched.ts?raw';
+import watchedSource from '../tour/guideWatched.ts?raw';
 import languageSource from '../../../i18n/index.ts?raw';
 import i18n from '../../../i18n';
 import agentSource from '../../simulate/agent.ts?raw';
@@ -70,6 +70,20 @@ describe('the privacy policy', () => {
     expect(page).not.toHaveTextContent('판단 평가');
     expect(page).not.toHaveTextContent('이제 없습니다');
     expect(page).toHaveTextContent('지금 화면이 보내지 않습니다');
+  });
+
+  it('names every record the earlier screens left with its period, as the portal keeps them (UC-5 O-privacy)', async () => {
+    open();
+    const old = await screen.findByRole('list', { name: '전에 있던 화면이 남긴 기록' });
+    const items = within(old).getAllByRole('listitem').map((item) => item.textContent);
+    expect(items).toEqual([
+      '이해 확인 문항 건수(익명 건수) · 30일',
+      '결과 공유 카드 · 마지막 공유 뒤 90일',
+      '그룹을 처음 연 날짜별 익명 건수(누가 열었는지는 남기지 않음) · 30일',
+      '진행 위치(경로 · 그룹 · 단계 · 확인한 차이 · 처음 연 그룹) · 방문자 식별자와 함께 지움',
+      '판정 평가(평가한 요청 · 고른 답과 이유 · 시각) · 다른 방문자에게는 건수로만 보임 · 그 실행 기록과 함께 두고, 붙은 방문자 식별자만 지움',
+      '상황별 예측(허용 · 차단) · 방문자 식별자와 함께 지움',
+    ]);
   });
 
   it('reads the same in English', async () => {

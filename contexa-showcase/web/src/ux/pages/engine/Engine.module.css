@@ -267,6 +267,119 @@
   font-weight: var(--ux-weight-bold);
 }
 
+.subTitle {
+  margin: var(--ux-space-0);
+  color: var(--ux-text-2);
+  font-size: var(--ux-text-14);
+  font-weight: var(--ux-weight-semibold);
+}
+
+/* The results the server counted over a measured case's runs: a grade and how many runs had it. */
+.results {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--ux-space-2);
+}
+
+.result {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ux-space-1);
+  color: var(--ux-text-2);
+  font-size: var(--ux-text-13);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A part folded under "자세히": the facts an old screen showed beside this card (DEC-82). */
+.more summary {
+  color: var(--ux-link);
+  font-size: var(--ux-text-13);
+  cursor: pointer;
+}
+
+.moreBody {
+  display: grid;
+  gap: var(--ux-space-3);
+  padding-block-start: var(--ux-space-3);
+}
+
+.forced {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ux-space-2);
+  margin: var(--ux-space-0);
+  color: var(--ux-text-2);
+  font-size: var(--ux-text-13);
+}
+
+.release {
+  display: grid;
+  margin: var(--ux-space-0);
+  padding: var(--ux-space-0);
+  list-style: none;
+  counter-reset: release;
+}
+
+.releaseStage {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--ux-space-1) var(--ux-space-4);
+  padding-block: var(--ux-space-2);
+  border-block-end: var(--ux-hairline) solid var(--ux-line);
+  font-size: var(--ux-text-13);
+  font-variant-numeric: tabular-nums;
+  counter-increment: release;
+}
+
+.releaseStage::before {
+  content: counter(release);
+  color: var(--ux-text-3);
+}
+
+.releaseStage > span:first-child {
+  flex: 1;
+}
+
+.releaseStage:last-child {
+  border-block-end: 0;
+}
+
+.why {
+  display: block;
+  margin-block-start: var(--ux-space-1);
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-13);
+}
+
+.scroll {
+  overflow-x: auto;
+}
+
+.table {
+  inline-size: 100%;
+  min-inline-size: 32rem;
+  border-collapse: collapse;
+  font-size: var(--ux-text-13);
+  font-variant-numeric: tabular-nums;
+}
+
+.table th,
+.table td {
+  padding: var(--ux-space-2) var(--ux-space-3);
+  border-block-end: var(--ux-hairline) solid var(--ux-line);
+  text-align: start;
+  vertical-align: top;
+}
+
+.table thead th {
+  background-color: var(--ux-surface-2);
+  color: var(--ux-text-3);
+  font-weight: var(--ux-weight-semibold);
+  white-space: nowrap;
+}
+
 @media (width < 1280px) {
   .stages {
     grid-template-columns: repeat(4, minmax(0, 1fr));

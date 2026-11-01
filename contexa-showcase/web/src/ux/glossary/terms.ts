@@ -104,7 +104,7 @@ export const GLOSSARY: readonly GlossaryGroup[] = [
   {
     id: 'screens',
     terms: [
-      { id: 'startDemo', en: 'Start the demo', link: '/' },
+      { id: 'startDemo', en: 'Start the demo', link: '/start' },
       { id: 'next', en: 'Next' },
       { id: 'focusMode', en: 'Focus mode' },
       { id: 'policySimulator', en: 'Policy simulator', link: '/simulate/policy' },

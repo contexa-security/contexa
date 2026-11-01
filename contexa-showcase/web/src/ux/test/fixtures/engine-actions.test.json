@@ -1,0 +1,18 @@
+{
+  "ALLOW": {
+    "httpStatus": 200,
+    "ttlSeconds": 15
+  },
+  "CHALLENGE": {
+    "httpStatus": 401,
+    "ttlSeconds": 1800
+  },
+  "ESCALATE": {
+    "httpStatus": 423,
+    "ttlSeconds": 300
+  },
+  "BLOCK": {
+    "httpStatus": 403,
+    "ttlSeconds": null
+  }
+}

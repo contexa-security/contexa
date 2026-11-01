@@ -1,0 +1,309 @@
+{
+  "companyTime": "2026-09-30T14:20:00Z",
+  "layers": [
+    {
+      "control": "A",
+      "outcome": "DELIVERED",
+      "verdict": null,
+      "httpStatus": 200,
+      "ruleId": "RBAC",
+      "reason": "Role ENGINEER holds EXPORT",
+      "ruleFacts": {
+        "path": "/api/projects/HX-310/exports",
+        "role": "ENGINEER",
+        "method": "POST"
+      },
+      "evidence": {
+        "decisionId": "ae4646bc-0066-4936-971e-82ecc1f39770",
+        "verdict": null,
+        "timing": null,
+        "httpStatus": 200,
+        "outcome": "DELIVERED",
+        "deliveredItems": 480,
+        "engineReasoning": null,
+        "riskScore": null,
+        "confidence": null,
+        "unresolved": false,
+        "responseMs": 27,
+        "timeline": [],
+        "stream": null,
+        "modelCalls": []
+      }
+    },
+    {
+      "control": "B",
+      "outcome": "DELIVERED",
+      "verdict": null,
+      "httpStatus": 200,
+      "ruleId": "RBAC",
+      "reason": "Role ENGINEER holds EXPORT",
+      "ruleFacts": {
+        "path": "/api/projects/HX-310/exports",
+        "role": "ENGINEER",
+        "method": "POST"
+      },
+      "evidence": {
+        "decisionId": "2321fa13-c10a-4f48-9fac-6803daa0d833",
+        "verdict": null,
+        "timing": null,
+        "httpStatus": 200,
+        "outcome": "DELIVERED",
+        "deliveredItems": 480,
+        "engineReasoning": null,
+        "riskScore": null,
+        "confidence": null,
+        "unresolved": false,
+        "responseMs": 17,
+        "timeline": [],
+        "stream": null,
+        "modelCalls": []
+      }
+    },
+    {
+      "control": "C1",
+      "outcome": "DELIVERED",
+      "verdict": null,
+      "httpStatus": 200,
+      "ruleId": "C1-PASS",
+      "reason": "Within the time, volume and dormancy thresholds",
+      "ruleFacts": {
+        "items": 480,
+        "night": false,
+        "projectKey": "HX-310",
+        "companyTime": "2026-09-30T14:20:00Z",
+        "lastAccessDate": "2026-09-29",
+        "accessDaysLast30": 21
+      },
+      "evidence": {
+        "decisionId": "b86f1d20-3607-4991-8a15-ed4832a8d97b",
+        "verdict": null,
+        "timing": null,
+        "httpStatus": 200,
+        "outcome": "DELIVERED",
+        "deliveredItems": 480,
+        "engineReasoning": null,
+        "riskScore": null,
+        "confidence": null,
+        "unresolved": false,
+        "responseMs": 23,
+        "timeline": [],
+        "stream": null,
+        "modelCalls": []
+      }
+    },
+    {
+      "control": "C2",
+      "outcome": "DELIVERED",
+      "verdict": null,
+      "httpStatus": 200,
+      "ruleId": "C2-ASSIGNED",
+      "reason": "Assigned to the project and at most 500 items",
+      "ruleFacts": {
+        "items": 480,
+        "oncall": {
+          "team": "HX on-call",
+          "endsAt": "2026-10-05T09:00:00Z",
+          "onCall": true,
+          "startsAt": "2026-09-28T09:00:00Z",
+          "rosterKey": "ONC-HX-2026-09-28"
+        },
+        "policy": {
+          "policyKey": "EXPORT_APPROVAL",
+          "description": "An export of project documents needs an approval that covers the project and the item count, except an export of an assigned project of at most the assigned export limit, or an export covered by a ticket while the requester is on call.",
+          "assignedExportLimit": 500,
+          "ticketAndOncallExempt": true
+        },
+        "ticket": {
+          "kind": null,
+          "covered": false,
+          "purpose": null,
+          "approver": null,
+          "ticketKey": null,
+          "validFrom": null,
+          "mismatches": [
+            "NO_TICKET"
+          ],
+          "validUntil": null
+        },
+        "network": {
+          "city": null,
+          "kind": "OFFICE",
+          "country": null,
+          "network": "10.40.21.0/24",
+          "planKey": null,
+          "clientIp": "10.40.21.122"
+        },
+        "approval": {
+          "covered": false,
+          "purpose": null,
+          "approver": null,
+          "maxItems": 0,
+          "usedItems": null,
+          "validFrom": null,
+          "approvedAt": null,
+          "mismatches": [
+            "NO_APPROVAL"
+          ],
+          "validUntil": null,
+          "approvalKey": null
+        },
+        "assigned": {
+          "assigned": true,
+          "responsibility": "DESIGN"
+        },
+        "projectKey": "HX-310",
+        "accessDaysLast30": 21
+      },
+      "evidence": {
+        "decisionId": "28cfeab5-6535-4f34-a9a2-d02cde1a9820",
+        "verdict": null,
+        "timing": null,
+        "httpStatus": 200,
+        "outcome": "DELIVERED",
+        "deliveredItems": 480,
+        "engineReasoning": null,
+        "riskScore": null,
+        "confidence": null,
+        "unresolved": false,
+        "responseMs": 31,
+        "timeline": [],
+        "stream": null,
+        "modelCalls": []
+      }
+    },
+    {
+      "control": "D",
+      "outcome": "DELIVERED",
+      "verdict": "ALLOW",
+      "httpStatus": 200,
+      "ruleId": null,
+      "reason": null,
+      "ruleFacts": {},
+      "evidence": {
+        "decisionId": "79b92767-d987-44ed-9a52-e9ecb73afc05",
+        "verdict": "ALLOW",
+        "timing": "BEFORE_RESPONSE",
+        "httpStatus": 200,
+        "outcome": "DELIVERED",
+        "deliveredItems": 480,
+        "engineReasoning": "The assigned owner most likely makes a legitimate export: policy permits up to 500 items for an assigned target, though 480 greatly exceeds prior export sizes and could be an error.",
+        "riskScore": 0.22,
+        "confidence": 0.83,
+        "unresolved": false,
+        "responseMs": 8015,
+        "timeline": [
+          {
+            "type": "CONTEXT_COLLECTED",
+            "layer": null,
+            "action": null,
+            "atMs": 40,
+            "elapsedMs": null
+          },
+          {
+            "type": "LAYER1_START",
+            "layer": "LAYER1",
+            "action": null,
+            "atMs": 40,
+            "elapsedMs": null
+          },
+          {
+            "type": "LAYER1_COMPLETE",
+            "layer": "LAYER1",
+            "action": "ALLOW",
+            "atMs": 7986,
+            "elapsedMs": 7946
+          },
+          {
+            "type": "DECISION_APPLIED",
+            "layer": "LAYER1",
+            "action": "ALLOW",
+            "atMs": 7986,
+            "elapsedMs": null
+          }
+        ],
+        "stream": null,
+        "modelCalls": [
+          {
+            "model": "gpt-6-luna",
+            "promptTokens": 6232,
+            "completionTokens": 671,
+            "totalTokens": 6903,
+            "elapsedMs": 7911
+          }
+        ]
+      }
+    }
+  ],
+  "engineReason": {
+    "canonical": null,
+    "reasoning": "The assigned owner most likely makes a legitimate export: policy permits up to 500 items for an assigned target, though 480 greatly exceeds prior export sizes and could be an error.",
+    "evidenceRefs": [],
+    "deltas": [
+      "accessHour"
+    ],
+    "resourceSensitivity": "CONFIDENTIAL",
+    "baselineDeltaCount": 1,
+    "reasonCodes": [
+      {
+        "code": "ASSIGNED_TARGET",
+        "fact": "F4",
+        "contract": "V4"
+      },
+      {
+        "code": "DEVIATION_SIZE",
+        "fact": "F1",
+        "contract": "V4"
+      },
+      {
+        "code": "PAST_RECORD_SAME_TARGET",
+        "fact": "P2",
+        "contract": "V4"
+      },
+      {
+        "code": "BASELINE_MATCH",
+        "fact": "F2",
+        "contract": "V4"
+      }
+    ]
+  },
+  "companyFacts": [
+    {
+      "code": "ASSIGNED",
+      "value": "HX-310"
+    },
+    {
+      "code": "NO_APPROVAL",
+      "value": null
+    },
+    {
+      "code": "NO_TICKET",
+      "value": null
+    },
+    {
+      "code": "ON_CALL",
+      "value": null
+    },
+    {
+      "code": "ACCESS_DAYS_LAST_30",
+      "value": "21"
+    },
+    {
+      "code": "ITEMS",
+      "value": "480"
+    },
+    {
+      "code": "NETWORK_OFFICE",
+      "value": null
+    }
+  ],
+  "tally": {
+    "stopped": 0,
+    "passed": 5,
+    "other": 0
+  },
+  "existingTally": {
+    "stopped": 0,
+    "passed": 4,
+    "other": 0
+  }
+}

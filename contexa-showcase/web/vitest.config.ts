@@ -16,6 +16,7 @@ export default defineConfig({
       'screenIntegrity.test.ts',
       'firstScreenPreload.test.ts',
       'factWordsSource.test.ts',
+      'factKeySource.test.ts',
       'benchPromptPhone.test.ts',
       'dictionarySplit.test.ts',
       'frameStyles.test.ts',

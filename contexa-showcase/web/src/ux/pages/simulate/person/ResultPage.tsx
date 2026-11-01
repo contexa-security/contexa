@@ -3,13 +3,15 @@ import { Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAnatomy } from '../../../../api/anatomy';
 import { useStepResult, useLabOptions } from '../../../../api/lab';
 import { useRunScore, useStats } from '../../../../api/queries';
+import { useStepResponses } from '../../../../api/responses';
 import type { RunScore } from '../../../../api/types';
 import { CONTROL_ORDER } from '../../../../domain/verdict';
-import { formatDuration, formatNumber } from '../../../format';
+import { formatDuration, formatNumber, formatUtc } from '../../../format';
 import { CONTROL_TONE } from '../../../simulate/controls';
 import { CompareView } from '../../../simulate/CompareView';
 import { Evidence } from '../../../simulate/Evidence';
 import { FlowProgress, FlowSteps } from '../../../simulate/FlowFrame';
+import { StoredCheckRecord } from '../../../simulate/Recovery';
 import {
   EXISTING,
   conclusionKey,
@@ -32,6 +34,7 @@ import {
   Icon,
   Loading,
   Note,
+  PageHead,
   TabPanel,
   Tabs,
   VerdictBadge,
@@ -84,6 +87,8 @@ function Result({ scenario }: { readonly scenario: PersonCase }) {
     return (
       <>
         <FlowSteps current="result" />
+        {/* A visitor without a run of the scenario still lands on a titled screen (기획안 11절 2-3). */}
+        <PageHead title={t('ux.result.title')} />
         <Note>{t('ux.result.none')}</Note>
         <ButtonLink to={flowPath(key, 'review')} variant="primary" iconAfter="arrow-right">
           {t('ux.live.toReview')}
@@ -174,6 +179,7 @@ function RunResult({ caseKey, runId }: { readonly caseKey: PersonKey; readonly r
                 : t('ux.result.existing.mixed', { stopped, passed: 4 - stopped })}{' '}
             {action === 'CHALLENGE' ? t('ux.result.challengeMeans') : null}
           </p>
+          <StoredCheckRecord check={anatomy.data?.recovery?.challenge} className={styles.checkRecord} />
         </div>
         <dl className={styles.verdictSide}>
           {steps > 1 ? (
@@ -217,7 +223,7 @@ function RunResult({ caseKey, runId }: { readonly caseKey: PersonKey; readonly r
 
       <div className={styles.grid}>
         <div className={styles.column}>
-          <Exports score={data} requested={requested} />
+          <Exports score={data} requested={requested} runId={runId} step={step} steps={steps} />
           <Latency
             result={result.data}
             totalAnalysisMs={timings?.totalAnalysisMs ?? null}
@@ -240,7 +246,20 @@ function RunResult({ caseKey, runId }: { readonly caseKey: PersonKey; readonly r
 }
 
 /** The items each control handed over across the run, against the request's size, with the server's grading. */
-function Exports({ score, requested }: { readonly score: RunScore; readonly requested: number }) {
+function Exports({
+  score,
+  requested,
+  runId,
+  step,
+  steps,
+}: {
+  readonly score: RunScore;
+  readonly requested: number;
+  readonly runId: string;
+  /** The request the result rests on; its stored responses fold under the bars. */
+  readonly step: number;
+  readonly steps: number;
+}) {
   const { t, i18n } = useTranslation();
   const n = (value: number) => formatNumber(value, i18n.language);
   const most = Math.max(
@@ -288,7 +307,66 @@ function Exports({ score, requested }: { readonly score: RunScore; readonly requ
           <span />
         </li>
       </ul>
+      <Responses runId={runId} step={step} steps={steps} />
     </section>
+  );
+}
+
+/**
+ * What each control actually answered to the request, as the run stored it (P-8, the old 2-3 proof): the request line,
+ * when it was sent (UTC), the HTTP status and the start of the body, folded under the bars.
+ */
+function Responses({
+  runId,
+  step,
+  steps,
+}: {
+  readonly runId: string;
+  readonly step: number;
+  readonly steps: number;
+}) {
+  const { t } = useTranslation();
+  const responses = useStepResponses(runId, step).data ?? [];
+  if (responses.length === 0) {
+    return null;
+  }
+  const zone = t('ux.time.zone');
+  return (
+    <details className={styles.responses}>
+      <summary>
+        {t('ux.result.responses.more')}
+        {steps > 1 ? ` · ${t('ux.result.decidingStepValue', { n: step, total: steps })}` : null}
+      </summary>
+      <p className={styles.responsesNote}>{t('ux.result.responses.note')}</p>
+      <ul className={styles.responseList}>
+        {responses.map((response) => {
+          const control = t(`ux.control.short.${response.control}`, { defaultValue: response.control });
+          return (
+            <li key={response.control} className={styles.response}>
+              <p className={styles.responseHead}>
+                <b>{control}</b>
+                <code>
+                  {response.method} {response.path}
+                </code>
+                <span>HTTP {response.httpStatus ?? '—'}</span>
+                <span>
+                  {response.sentAt
+                    ? t('ux.result.responses.sent', { time: formatUtc(response.sentAt), zone })
+                    : '—'}
+                </span>
+              </p>
+              <pre
+                className={styles.responseBody}
+                tabIndex={0}
+                aria-label={t('ux.result.responses.body', { control })}
+              >
+                {response.excerpt ?? '—'}
+              </pre>
+            </li>
+          );
+        })}
+      </ul>
+    </details>
   );
 }
 

@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { FOOT, MENU, type MenuItem } from '../routes';
@@ -45,6 +46,86 @@ function NavLink({
   );
 }
 
+/** The menus where the demo is run (DEC-77): the start of the demo and the threat simulations. */
+const LIVE_GROUPS: ReadonlySet<string> = new Set(['live', 'simulate']);
+
+/**
+ * A live-demo menu item (DEC-77): a larger name with its icon in a tile and one line of what it runs. The link is named
+ * by the menu's name alone; the line describes it.
+ */
+function LiveNavLink({
+  item,
+  current,
+  onNavigate,
+}: {
+  readonly item: MenuItem;
+  readonly current: boolean;
+  readonly onNavigate: (() => void) | undefined;
+}) {
+  const { t } = useTranslation();
+  const descId = useId();
+  const label = t(`ux.menu.${item.id}`);
+  return (
+    <Link
+      to={item.path}
+      className={styles.liveItem}
+      aria-current={current ? 'page' : undefined}
+      aria-label={label}
+      aria-describedby={descId}
+      title={label}
+      onClick={onNavigate}
+    >
+      <span className={styles.liveIcon}>
+        <Icon name={item.icon} size="lg" />
+      </span>
+      <span className={styles.liveText}>
+        <span className={styles.liveLabel}>{label}</span>
+        <span id={descId} className={styles.liveDesc}>
+          {t(`ux.nav.desc.${item.id}`)}
+        </span>
+      </span>
+    </Link>
+  );
+}
+
+/**
+ * The live-demo panel at the top of the menu (DEC-77): a live dot and "real decision engine", then the start of the
+ * demo and the threat simulations as large items, the simulations under their own small heading.
+ */
+function LivePanel({
+  current,
+  onNavigate,
+}: {
+  readonly current: MenuItem | null;
+  readonly onNavigate: (() => void) | undefined;
+}) {
+  const { t } = useTranslation();
+  const titleId = useId();
+  return (
+    <section className={styles.livePanel} aria-labelledby={titleId}>
+      <p className={styles.liveHead}>
+        <span className={styles.liveDot} aria-hidden="true" />
+        <span id={titleId} className={styles.liveTitle}>
+          {t('ux.nav.group.live')}
+        </span>
+        <span className={styles.liveTag}>{t('ux.nav.live.engine')}</span>
+      </p>
+      {MENU.filter((group) => LIVE_GROUPS.has(group.id)).map((group) => (
+        <div key={group.id} className={styles.liveGroup}>
+          {group.id === 'live' ? null : <p className={styles.liveGroupTitle}>{t(`ux.nav.group.${group.id}`)}</p>}
+          <ul className={styles.liveList}>
+            {group.items.map((item) => (
+              <li key={item.id}>
+                <LiveNavLink item={item} current={current?.id === item.id} onNavigate={onNavigate} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 /**
  * The menu in the order a visitor walks (기획안 4절): the live demo, the threat simulations, the results, the
  * validation, adoption and operations, and the glossary and privacy at its foot. The same list fills the side menu, the
@@ -55,7 +136,8 @@ export function SideNav({ current, counts = {}, onNavigate }: SideNavProps) {
   return (
     <nav aria-label={t('ux.nav.label')} className={styles.nav}>
       <div className={styles.navGroups}>
-        {MENU.map((group) => (
+        <LivePanel current={current} onNavigate={onNavigate} />
+        {MENU.filter((group) => !LIVE_GROUPS.has(group.id)).map((group) => (
           <div key={group.id} className={styles.navGroup}>
             <p className={styles.navGroupTitle}>{t(`ux.nav.group.${group.id}`)}</p>
             <ul className={styles.navList}>
@@ -97,7 +179,7 @@ export function Brand({ inline = false }: { readonly inline?: boolean }) {
   const { t } = useTranslation();
   return (
     <Link
-      to="/"
+      to="/start"
       className={[styles.brand, inline ? styles.brandInline : ''].filter(Boolean).join(' ')}
       aria-label={`Contexa · ${t('ux.brand.tag')}`}
     >

@@ -1,0 +1,185 @@
+{
+  "available": true,
+  "reason": null,
+  "bundle": {
+    "version": "2026.10.20-v21.8",
+    "hash": "9a9984bad390876bdb72ac884d2ec21e19dc6b8a6c97afad0a8768b5d8e869e1",
+    "selectionSource": "CONFIGURATION",
+    "layout": "v21-dictionary-blocks"
+  },
+  "seal": {
+    "packageId": "5660b39a-7d06-49fd-b2ca-ffd27569d8fd",
+    "packageHash": "536f1a02a4ab0d2dd72d4bbedc0643bf169715c0f419d4361a500e51d9c4d9c0",
+    "capturedAt": "2026-10-20T12:31:56.348914Z"
+  },
+  "inspection": {
+    "verdict": "INCOMPLETE",
+    "inspectorVersion": "prompt-inspector/27",
+    "inspectedAt": "2026-10-31T03:26:10.152558Z",
+    "checks": [
+      {
+        "code": "SEAL_INTEGRITY",
+        "matched": 10,
+        "mismatched": 0,
+        "unverifiable": 0,
+        "mismatches": []
+      },
+      {
+        "code": "BUNDLE_TRACE",
+        "matched": 10,
+        "mismatched": 0,
+        "unverifiable": 0,
+        "mismatches": []
+      },
+      {
+        "code": "DICTIONARY_CONTRACT",
+        "matched": 0,
+        "mismatched": 0,
+        "unverifiable": 1,
+        "mismatches": []
+      },
+      {
+        "code": "DECISION_FACT_MATCH",
+        "matched": 0,
+        "mismatched": 0,
+        "unverifiable": 1,
+        "mismatches": []
+      },
+      {
+        "code": "FACT_ACCURACY",
+        "matched": 0,
+        "mismatched": 0,
+        "unverifiable": 1,
+        "mismatches": []
+      },
+      {
+        "code": "UNKNOWN_DECLARED",
+        "matched": 0,
+        "mismatched": 0,
+        "unverifiable": 1,
+        "mismatches": []
+      },
+      {
+        "code": "PAST_RECORD_NOTATION",
+        "matched": 0,
+        "mismatched": 0,
+        "unverifiable": 1,
+        "mismatches": []
+      },
+      {
+        "code": "SOURCE_TRUTH",
+        "matched": 0,
+        "mismatched": 0,
+        "unverifiable": 1,
+        "mismatches": []
+      },
+      {
+        "code": "SAME_FACT",
+        "matched": 0,
+        "mismatched": 0,
+        "unverifiable": 1,
+        "mismatches": []
+      },
+      {
+        "code": "REASON_MATCH",
+        "matched": 0,
+        "mismatched": 0,
+        "unverifiable": 1,
+        "mismatches": []
+      }
+    ]
+  },
+  "reasonCodes": [
+    {
+      "code": "ASSIGNED_TARGET",
+      "fact": "F4",
+      "contract": "V4"
+    },
+    {
+      "code": "DEVIATION_SIZE",
+      "fact": "F1",
+      "contract": "V4"
+    },
+    {
+      "code": "PAST_RECORD_SAME_TARGET",
+      "fact": "P2",
+      "contract": "V4"
+    },
+    {
+      "code": "BASELINE_MATCH",
+      "fact": "F2",
+      "contract": "V4"
+    }
+  ],
+  "hypotheses": [
+    {
+      "id": "H1",
+      "name": null,
+      "assessment": "MOST_LIKELY",
+      "for": [
+        "F3",
+        "F4",
+        "R5",
+        "R6",
+        "P2",
+        "S1",
+        "R8",
+        "R9"
+      ],
+      "against": [
+        "F1"
+      ]
+    },
+    {
+      "id": "H2",
+      "name": null,
+      "assessment": "UNLIKELY",
+      "for": [],
+      "against": [
+        "S1",
+        "S3",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "id": "H3",
+      "name": null,
+      "assessment": "POSSIBLE",
+      "for": [
+        "F1"
+      ],
+      "against": [
+        "F3",
+        "F4",
+        "R5",
+        "R6",
+        "P2"
+      ]
+    },
+    {
+      "id": "H4",
+      "name": null,
+      "assessment": "POSSIBLE",
+      "for": [
+        "F1",
+        "R6"
+      ],
+      "against": [
+        "R3",
+        "F4",
+        "P2"
+      ]
+    }
+  ],
+  "ribbon": {
+    "facts": 52,
+    "withSource": 51,
+    "factAccuracy": {
+      "matched": 0,
+      "total": 0
+    },
+    "contradictions": 0,
+    "unknown": 2
+  }
+}

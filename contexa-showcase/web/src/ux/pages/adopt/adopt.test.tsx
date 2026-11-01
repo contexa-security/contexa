@@ -92,6 +92,28 @@ describe('deployment and integration', () => {
     expect(without).not.toHaveTextContent('시나리오 검증의 정상 업무');
   });
 
+  it("folds the scenario validation's measured decisions by verdict and the ones it could not make beside the cost (옛 8-2)", async () => {
+    serve();
+    const shown = open('/adopt');
+    const links = await screen.findByRole('region', { name: '문서 · 저장소' });
+    const engine = benchmark.engine;
+    expect(await within(links).findByText(`시나리오 검증 실측 판정 ${engine.decisions}건 자세히`)).toBeInTheDocument();
+    const rows = within(links).getAllByRole('term').map((term) => `${term.textContent}${term.nextElementSibling?.textContent}`);
+    // The count leaves a verdict out when the validation made none of it, so the screen does too.
+    expect(rows).toEqual([
+      `허용${engine.actions.ALLOW}건`,
+      `추가 인증${engine.actions.CHALLENGE}건`,
+      `차단${engine.actions.BLOCK}건`,
+      `판정 실패${engine.unresolved}건 / ${engine.decisions}건`,
+    ]);
+    shown.unmount();
+    vi.unstubAllGlobals();
+    serve({ '/api/benchmark': 404 });
+    open('/adopt');
+    const without = await screen.findByRole('region', { name: '문서 · 저장소' });
+    expect(within(without).queryByText(/시나리오 검증 실측 판정/)).not.toBeInTheDocument();
+  });
+
   it("sets shadow mode with this demo's decisions and its mode now, and hides what it cannot read (ST-74, ST-78)", async () => {
     serve();
     const shown = open('/adopt?step=on');

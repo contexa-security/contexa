@@ -1,0 +1,98 @@
+{
+  "runId": "run-4f4e198f551f",
+  "scenarioKey": "S16",
+  "scenarioVersion": 1,
+  "status": "COMPLETED",
+  "truthSource": "RUN_SNAPSHOT",
+  "truth": {
+    "classification": "THREAT",
+    "allowedEngineActions": [
+      "CHALLENGE",
+      "ESCALATE",
+      "BLOCK"
+    ]
+  },
+  "definedSteps": 3,
+  "executedSteps": 3,
+  "business": {
+    "A": {
+      "result": "MISSED",
+      "exposedItems": 3,
+      "worstStep": 1
+    },
+    "B": {
+      "result": "MISSED",
+      "exposedItems": 3,
+      "worstStep": 1
+    },
+    "C1": {
+      "result": "MISSED",
+      "exposedItems": 3,
+      "worstStep": 1
+    },
+    "C2": {
+      "result": "MISSED",
+      "exposedItems": 3,
+      "worstStep": 1
+    },
+    "D": {
+      "result": "PARTLY_STOPPED",
+      "exposedItems": 2,
+      "worstStep": 1
+    }
+  },
+  "correct": {
+    "A": false,
+    "B": false,
+    "C1": false,
+    "C2": false
+  },
+  "verdicts": [
+    {
+      "score": {
+        "stepNo": 1,
+        "finalAction": "ALLOW",
+        "result": "MISSED",
+        "applicable": true,
+        "friction": false,
+        "applied": "NEXT_REQUEST"
+      },
+      "source": "MODEL",
+      "proposedAction": "ALLOW",
+      "decidedAt": "2026-10-31T17:25:57.316529Z"
+    },
+    {
+      "score": {
+        "stepNo": 2,
+        "finalAction": "BLOCK",
+        "result": "RIGHT",
+        "applicable": true,
+        "friction": false,
+        "applied": "NEXT_REQUEST"
+      },
+      "source": "MODEL",
+      "proposedAction": "BLOCK",
+      "decidedAt": "2026-10-31T17:26:38.679025Z"
+    },
+    {
+      "score": {
+        "stepNo": 3,
+        "finalAction": null,
+        "result": "NO_DECISION",
+        "applicable": false,
+        "friction": false,
+        "applied": "NONE"
+      },
+      "source": "PRIOR_DECISION",
+      "proposedAction": null,
+      "decidedAt": null
+    }
+  ],
+  "checks": [],
+  "title": {
+    "en": "Collecting sales-confidential documents inside an assigned project",
+    "ko": "담당 프로젝트 안의 영업 기밀 문서 수집"
+  },
+  "finishedAt": "2026-10-31T17:29:01.872347Z",
+  "rightControls": 0
+}

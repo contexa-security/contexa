@@ -8,6 +8,8 @@ export interface Column<Row> {
   readonly numeric?: boolean;
   /** The row's name: the strongest text of the row. */
   readonly strong?: boolean;
+  /** A sentence, not a name: the strong cell wraps instead of holding one line (the privacy table's items). */
+  readonly wrap?: boolean;
   readonly render: (row: Row) => ReactNode;
 }
 
@@ -68,6 +70,7 @@ export function DataTable<Row>({
                     data-k={column.header}
                     data-numeric={column.numeric || undefined}
                     data-strong={column.strong || undefined}
+                    data-wrap={column.wrap || undefined}
                   >
                     {column.render(row)}
                   </td>

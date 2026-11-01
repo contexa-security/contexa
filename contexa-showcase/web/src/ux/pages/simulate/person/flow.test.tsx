@@ -9,6 +9,7 @@ import anatomyOwner from '../../../test/fixtures/anatomy-owner.test.json';
 import beforeS13 from '../../../test/fixtures/before-S13.test.json';
 import beforeS13T from '../../../test/fixtures/before-S13T.test.json';
 import beforeS16 from '../../../test/fixtures/before-S16.test.json';
+import benchmarkFull from '../../../test/fixtures/benchmark-full.test.json';
 import factsAttacker from '../../../test/fixtures/facts-attacker.test.json';
 import anatomyInsider2 from '../../../test/fixtures/anatomy-insider-2.test.json';
 import factsInsider2 from '../../../test/fixtures/facts-insider-2.test.json';
@@ -106,6 +107,31 @@ const RULES_ANSWERED = {
   C2: { outcome: 'DELIVERED', httpStatus: 200, deliveredItems: 480, elapsedMs: 58 },
 } as const;
 
+/**
+ * A passed step-up as the portal returns the stored row (run_challenge): the attacker's real row's columns
+ * (anatomy-attacker.test.json, which the attacker never passed), here answered and sent again.
+ */
+function passedCheck(stepNo: number, delivered: number) {
+  return {
+    ...anatomyAttacker.recovery.challenge,
+    step_no: stepNo,
+    answered: true,
+    reason: null,
+    code_requested_at: '2026-10-20T12:31:48.120Z',
+    verified_at: '2026-10-20T12:32:05.402Z',
+    reissue_sent_at: '2026-10-20T12:32:05.480Z',
+    reissue_status: 200,
+    reissue_outcome: 'DELIVERED',
+    reissue_delivered: delivered,
+    reissue_elapsed_ms: 61,
+  };
+}
+
+/** The value a key-value row shows next to its name. */
+function valueOf(scope: HTMLElement, name: string) {
+  return within(scope).getByText(name).nextElementSibling;
+}
+
 function serve(extra: PortalStub['get'] = {}, postAnswers: PortalStub['postAnswers'] = {}) {
   return stubPortal({ get: { ...BASE, ...extra }, postAnswers });
 }
@@ -188,6 +214,20 @@ describe('step 2: reviewing the request and predicting', () => {
     expect(within(request).getAllByText('기준선 이탈')).toHaveLength(2);
     expect(within(request).getByText('HX-310 담당')).toBeInTheDocument();
     expect(within(request).getByText(beforeS13.comparison.runId)).toBeInTheDocument();
+    // The business context already names the approval record; the scenario definition is not repeated.
+    expect(within(request).getByText('승인 기록 없음')).toBeInTheDocument();
+    expect(within(request).queryByText('자세히 · 시나리오 정의')).toBeNull();
+  });
+
+  it('keeps the scenario approval record when the business context names none (P-8, 5-1)', async () => {
+    serve();
+    flow('/simulate/person/S16/review');
+    const request = await screen.findByRole('region', { name: '요청 사실' });
+    expect(await within(request).findByText('HX-310 담당')).toBeInTheDocument();
+    const definition = (await within(request).findByText('자세히 · 시나리오 정의')).closest(
+      'details',
+    ) as HTMLElement;
+    expect(valueOf(definition, '승인 기록')).toHaveTextContent('없음');
   });
 
   it('runs only after an expected decision, saving it before the live run (ST-6 path to step 3)', async () => {
@@ -331,6 +371,7 @@ describe('step 3: the live decision', () => {
     expect(
       within(progress)
         .getAllByRole('listitem')
+        .filter((item) => item.hasAttribute('data-state'))
         .map((item) => item.getAttribute('data-state')),
     ).toEqual(['done', 'done', 'done', 'now', 'wait']);
     expect(screen.getByRole('button', { name: '결과 · 판정 근거' })).toHaveAccessibleDescription(
@@ -397,6 +438,7 @@ describe('step 3: the live decision', () => {
         },
         decisionWait: null,
       },
+      '/api/benchmark': benchmarkFull,
     });
     flow('/simulate/person/S13/live');
     const link = await screen.findByRole('link', { name: '결과 · 판정 근거' });
@@ -406,6 +448,60 @@ describe('step 3: the live decision', () => {
     expect(await screen.findByText('학습 요청 49건 기준선 · 9개 항목 중 2개 이탈')).toBeInTheDocument();
     expect(screen.getByText('시스템 규칙 91줄 + 요청 상황 61줄')).toBeInTheDocument();
     expect(screen.getByText(/gpt-6-luna · 입력 6,787 · 출력 704 토큰/)).toBeInTheDocument();
+    // P-8 (2-2): the engine's events at their recorded times, each model call, and the measurement of the scenario.
+    const record = screen.getByText('자세히 · 엔진 기록').closest('details') as HTMLElement;
+    const events = within(record)
+      .getAllByRole('listitem')
+      .map((item) => item.textContent);
+    expect(events.slice(0, 4)).toEqual([
+      '업무 컨텍스트 수집+0.040초',
+      'AI 분석 시작+0.040초',
+      'AI 분석 완료 · CHALLENGE · 위험도 0.35 · 확신도 0.78+8.7초',
+      '판정 적용+8.7초',
+    ]);
+    expect(await within(record).findByText('호출 1 · 8.6초 · 입력 6,215 · 출력 660 토큰')).toBeInTheDocument();
+    expect(
+      await within(record).findByText('같은 시나리오 측정 1회 · Contexa 판정 추가 인증 1건'),
+    ).toBeInTheDocument();
+  });
+
+  it('names the first and the second pass when the engine analysed twice (P-8, 2-2)', async () => {
+    const stage = (type: string, atMs: number, extra: Partial<AnalysisView['stages'][number]> = {}) => ({
+      type,
+      atMs,
+      action: null,
+      layer: null,
+      riskScore: null,
+      confidence: null,
+      elapsedMs: null,
+      mitre: null,
+      ...extra,
+    });
+    serve({
+      '/api/live/runs/current': liveView({
+        steps: [{ stepNo: 1, operation: 'EXPORT', layers: RULES_ANSWERED }],
+      }),
+      '/api/live/runs/current/analysis?step=1': {
+        ...ANALYSIS_RUNNING,
+        stages: [
+          ...ANALYSIS_RUNNING.stages,
+          stage('LAYER1_COMPLETE', 6120, { action: 'ESCALATE', riskScore: 0.55, confidence: 0.4 }),
+          stage('LAYER2_START', 6130),
+        ],
+      },
+    });
+    flow('/simulate/person/S13/live');
+    const record = (await screen.findByText('자세히 · 엔진 기록')).closest('details') as HTMLElement;
+    expect(
+      within(record)
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual([
+      '업무 컨텍스트 수집+0.040초',
+      'AI 1차 분석 시작+0.040초',
+      'AI 1차 분석 완료 · ESCALATE · 위험도 0.55 · 확신도 0.40+6.1초',
+      'AI 2차 분석 시작+6.1초',
+    ]);
   });
 
   it('says it is not sent yet when there is no run (ST-19), and why a run ended without a decision (ST-16)', async () => {
@@ -605,6 +701,91 @@ describe('step 3: the live decision', () => {
     ]);
   });
 
+  it('folds the measured times of a passed step-up under its result (P-8, 2-2)', async () => {
+    serve({
+      '/api/live/runs/current': liveView({
+        scenario: 'S13T',
+        status: 'CHALLENGE',
+        challenge: {
+          stage: 'DONE',
+          code: null,
+          secondsLeft: 0,
+          attempts: 0,
+          error: null,
+          cause: null,
+          codeRequestedMs: 1200,
+          verifiedMs: 9800,
+          reissueSentMs: 9900,
+          reissueDoneMs: 10400,
+          reissueStatus: 200,
+          reissueOutcome: 'DELIVERED',
+          reissueDeliveredItems: 480,
+        },
+      }),
+    });
+    flow('/simulate/person/S13T/live');
+    const card = await screen.findByRole('region', { name: '추가 인증 요구' });
+    expect(within(card).getByText('추가 인증 통과 뒤 허용 · 480건 · HTTP 200')).toBeInTheDocument();
+    const times = within(card).getByText('자세히 · 추가 인증 요구 뒤 경과').closest('details') as HTMLElement;
+    expect(valueOf(times, '코드 요청')).toHaveTextContent('1.2초');
+    expect(valueOf(times, '코드 확인')).toHaveTextContent('9.8초');
+    expect(valueOf(times, '원래 요청 재전송')).toHaveTextContent('9.9초');
+    expect(valueOf(times, '재전송 응답 도착')).toHaveTextContent('10.4초');
+    expect(valueOf(times, '재전송 결과')).toHaveTextContent('DELIVERED · HTTP 200');
+  });
+
+  it('shows the time left on the release code (P-8, 2-2)', async () => {
+    serve({
+      '/api/live/runs/current': liveView({
+        scenario: 'S13T',
+        status: 'BLOCKED',
+        release: {
+          stage: 'CODE_SHOWN',
+          code: '731044',
+          secondsLeft: 87,
+          attempts: 0,
+          error: null,
+          cause: null,
+          reason: null,
+          block: null,
+          approverName: null,
+          codeRequestedMs: 300,
+          verifiedMs: null,
+          requestedMs: null,
+          approvedMs: null,
+          reissueSentMs: null,
+          reissueDoneMs: null,
+          reissueStatus: null,
+          reissueOutcome: null,
+          reissueDeliveredItems: null,
+        },
+      }),
+    });
+    flow('/simulate/person/S13T/live');
+    const card = await screen.findByRole('region', { name: '차단 해제' });
+    expect(within(card).getByRole('timer')).toHaveTextContent('87초 남음');
+    expect(within(card).getByTestId('inbox-code')).toHaveTextContent('731044');
+  });
+
+  it('keeps the request sent again after a stored step-up under its request (P-8, 5-2)', async () => {
+    const run = 'run-4f4e198f551f';
+    serve({
+      '/api/journey': journeyWith([{ scenarioKey: 'S16', runId: run }]),
+      [`/api/runs/${run}/steps/1/result`]: resultInsider2,
+      [`/api/runs/${run}/steps/2/result`]: resultInsider2,
+      [`/api/runs/${run}/steps/3/result`]: resultInsider2,
+      [`/api/runs/${run}/steps/2/anatomy`]: {
+        ...anatomyInsider2,
+        recovery: { challenge: passedCheck(2, 1), release: null },
+      },
+    });
+    flow('/simulate/person/S16/live');
+    const second = await screen.findByRole('region', { name: '요청 2의 응답' });
+    expect(await within(second).findByText('추가 인증 통과 뒤 허용 · 1건 · HTTP 200')).toBeInTheDocument();
+    const first = screen.getByRole('region', { name: '요청 1의 응답' });
+    expect(within(first).queryByText(/추가 인증 통과 뒤 허용/)).toBeNull();
+  });
+
   it('ends the step-up after three wrong codes and offers the way back (ST-11)', async () => {
     serve({
       '/api/live/runs/current': liveView({
@@ -782,6 +963,13 @@ describe('step 3: the live decision', () => {
 });
 
 describe('step 4: the result and the comparison', () => {
+  it('titles the result screen when the visitor has no run of the scenario yet (기획안 11절 2-3)', async () => {
+    serve();
+    flow('/simulate/person/S13/result');
+    expect(await screen.findByRole('heading', { level: 1, name: '결과 · 판정 근거' })).toBeInTheDocument();
+    expect(screen.getByText('이 시나리오의 실행 기록이 아직 없습니다.')).toBeInTheDocument();
+  });
+
   it('states the conclusion, the exports and the evidence from the server score of the run', async () => {
     serve();
     flow(`/simulate/person/S13/result?run=${ATTACKER_RUN}`);
@@ -797,13 +985,62 @@ describe('step 4: the result and the comparison', () => {
     expect(within(latency).getByText(/판정 8\.7초 · 응답 8\.7초/)).toBeInTheDocument();
     const evidence = screen.getByRole('region', { name: '판정 근거' });
     expect(await within(evidence).findByText('요청한 사람이 이 대상의 담당자입니다.')).toBeInTheDocument();
-    expect(within(evidence).getByText('건수가 평소 범위를 넘습니다.')).toBeInTheDocument();
+    expect(within(evidence).getByText('건수가 행위 기준선의 범위를 넘습니다.')).toBeInTheDocument();
     expect(within(evidence).getByText('원문')).toBeInTheDocument();
     expect(within(evidence).getByText('위험도 0.35 · 확신도 0.78')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'S13T 실행' })).toHaveAttribute(
       'href',
       '/simulate/person/S13T/review',
     );
+  });
+
+  it('folds what each control answered, as the run stored it, under the exported items (P-8, 2-3)', async () => {
+    const response = (control: string, httpStatus: number, deliveredItems: number, excerpt: string) => ({
+      control,
+      method: 'POST',
+      path: '/api/projects/HX-310/exports',
+      sentAt: '2026-10-20T12:31:37.512Z',
+      httpStatus,
+      deliveredItems,
+      elapsedMs: 50,
+      excerpt,
+    });
+    serve({
+      [`/api/runs/${ATTACKER_RUN}/steps/1/responses`]: [
+        response('A', 200, 480, '{"exportId":"EXP-1","items":480}'),
+        response('D', 401, 0, '{"error":"MFA_CHALLENGE_REQUIRED"}'),
+      ],
+    });
+    flow(`/simulate/person/S13/result?run=${ATTACKER_RUN}`);
+    const exports = await screen.findByRole('region', { name: '반출 건수 비교' });
+    const answers = (await within(exports).findByText('자세히 · 통제별 응답 원문')).closest(
+      'details',
+    ) as HTMLElement;
+    expect(within(answers).getAllByText('POST /api/projects/HX-310/exports')).toHaveLength(2);
+    expect(within(answers).getAllByText('보낸 시각 2026-10-20 12:31 세계 표준시')).toHaveLength(2);
+    expect(within(answers).getByText('HTTP 401')).toBeInTheDocument();
+    expect(within(answers).getByLabelText('Contexa 응답 원문')).toHaveTextContent(
+      '{"error":"MFA_CHALLENGE_REQUIRED"}',
+    );
+    expect(within(answers).getByLabelText('웹 방화벽 응답 원문')).toHaveTextContent('"items":480');
+    // The compromised account never passed its step-up: no stored check record is shown.
+    expect(screen.queryByText('자세히 · 저장된 추가 인증 기록')).toBeNull();
+  });
+
+  it('keeps the stored step-up record of a request that passed it (P-8, 4-4)', async () => {
+    serve({
+      [`/api/runs/${OWNER_RUN}/steps/1/anatomy`]: {
+        ...anatomyOwner,
+        recovery: { challenge: passedCheck(1, 480), release: null },
+      },
+    });
+    flow(`/simulate/person/S13T/result?run=${OWNER_RUN}`);
+    const record = (await screen.findByText('자세히 · 저장된 추가 인증 기록')).closest('details') as HTMLElement;
+    expect(valueOf(record, '추가 인증 요구')).toHaveTextContent('2026-10-20 12:31 세계 표준시');
+    expect(valueOf(record, '코드 받기')).toHaveTextContent('2026-10-20 12:31 세계 표준시');
+    expect(valueOf(record, '코드 확인')).toHaveTextContent('2026-10-20 12:32 세계 표준시');
+    expect(valueOf(record, '원래 요청 재시도')).toHaveTextContent('2026-10-20 12:32 세계 표준시');
+    expect(valueOf(record, '재전송 결과')).toHaveTextContent('추가 인증 통과 뒤 허용 · 480건 · HTTP 200');
   });
 
   it('rests the insider result on the request the engine blocked (run-4f4e198f551f, request 2 of 3)', async () => {
@@ -834,6 +1071,10 @@ describe('step 4: the result and the comparison', () => {
         { scenarioKey: 'S13', runId: ATTACKER_RUN },
         { scenarioKey: 'S13T', runId: OWNER_RUN },
       ]),
+      // The portal's InputComparison of the two fixtures' anatomies (anatomy-attacker / anatomy-owner): one line.
+      [`/api/runs/${OWNER_RUN}/steps/1/input-changes?against=${ATTACKER_RUN}`]: [
+        { key: 'dim.device', before: 'Safari/18 on MAC · false', now: 'Edge/140 on WINDOWS · true' },
+      ],
     });
     flow('/simulate/person/S13/result?tab=compare');
     expect(
@@ -849,6 +1090,14 @@ describe('step 4: the result and the comparison', () => {
       .filter((row) => row.hasAttribute('data-diff'))
       .map((row) => within(row).getByRole('rowheader').textContent);
     expect(changed).toEqual(['단말', '기준선 이탈']);
+    // P-8 (4-3): the portal's line-by-line comparison of the engine input, folded under the facts.
+    const inputs = (await screen.findByText('자세히 · 엔진 입력에서 다른 줄 1개')).closest('details') as HTMLElement;
+    expect(
+      within(within(inputs).getByRole('table', { name: '엔진 입력' }))
+        .getAllByRole('row')
+        .slice(1)
+        .map((row) => row.textContent),
+    ).toEqual(['단말Safari/18 on MAC · 기준선 이탈Edge/140 on WINDOWS · 기준선 안']);
     expect(screen.getByText('규칙 기반 통제는 두 요청을 구분하지 못했습니다')).toBeInTheDocument();
     const learning = screen.getByRole('region', { name: '기준선 학습' });
     expect(within(learning).getByText('49 → 49')).toBeInTheDocument();

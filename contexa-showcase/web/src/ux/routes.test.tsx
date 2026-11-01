@@ -123,6 +123,8 @@ const DEEPER = [
 
 function isNewAddress(pathname: string): boolean {
   return (
+    // The introduction (DEC-76) has no menu item of its own.
+    pathname === '/' ||
     ALL_ITEMS.some((item) => item.path === pathname) ||
     DEEPER.some((pattern) => matchPath(pattern, pathname) !== null)
   );
@@ -183,7 +185,8 @@ describe('the address table (UC-1, UC-2)', () => {
   it('names the menu of a deeper address', () => {
     expect(menuItemOf('/runs/run-1')?.id).toBe('runs');
     expect(menuItemOf('/simulate/person/S13/live')?.id).toBe('person');
-    expect(menuItemOf('/')?.id).toBe('home');
+    expect(menuItemOf('/start')?.id).toBe('home');
+    expect(menuItemOf('/')).toBeNull();
     expect(menuItemOf('/design/ux')).toBeNull();
   });
 

@@ -94,6 +94,69 @@ describe('detection compared', () => {
     expect(screen.getByRole('link', { name: '조건을 바꿔 실행하기' })).toHaveAttribute('href', '/simulate/policy?tab=compose');
   });
 
+  it('opens the prompt lines a composed run changed and counts the lines it left alone (옛 7-2)', async () => {
+    const composed = (runId: string, designed: boolean, changed: string[]) => ({
+      runId,
+      caseKey: 'S13',
+      designed,
+      changed,
+      conditions: {},
+      composedAt: '2026-10-31T01:00:00Z',
+      call: 'ATTACK',
+      approaches: {},
+    });
+    const step = {
+      stepNo: 1,
+      changed: [{ label: 'Time', before: ['Wed 14:20'], after: ['Wed 03:17'] }],
+      expected: ['Time'],
+      unexpected: [],
+      valueMatches: true,
+      passed: true,
+      notCompared: null,
+      unchangedLines: 37,
+    };
+    serve({
+      '/api/lab/runs/recent': [
+        composed('run-one', false, ['timeSlot']),
+        composed('run-two', false, ['timeSlot', 'device']),
+        composed('run-designed', true, []),
+      ],
+      '/api/lab/runs/run-one/delta': {
+        runId: 'run-one',
+        baseRunId: 'run-base',
+        condition: 'timeSlot',
+        value: 'DAWN',
+        available: true,
+        reason: null,
+        steps: [step],
+      },
+      '/api/lab/runs/run-two/delta': {
+        runId: 'run-two',
+        baseRunId: null,
+        condition: null,
+        value: null,
+        available: false,
+        reason: 'SEVERAL_CONDITIONS',
+        steps: [],
+      },
+    });
+    open('/compare?tab=change');
+    const table = await screen.findByRole('table', { name: '단일 조건 변경 실험' });
+    const toggles = within(table).getAllByText('프롬프트에서 달라진 줄 자세히');
+    // The designed run changed nothing, so it has no comparison to open.
+    expect(toggles).toHaveLength(2);
+    // The table lists the latest run first.
+    const [several, one] = toggles;
+    await userEvent.click(one as HTMLElement);
+    expect(await within(table).findByText('- Time: Wed 14:20')).toBeInTheDocument();
+    expect(within(table).getByText('+ Time: Wed 03:17')).toBeInTheDocument();
+    expect(
+      within(table).getByText('비교한 나머지 37줄은 같음 · 요청 번호 · 해시값처럼 실행마다 달라지는 줄은 세지 않음'),
+    ).toBeInTheDocument();
+    await userEvent.click(several as HTMLElement);
+    expect(await within(table).findByText('줄 비교 없음 · SEVERAL_CONDITIONS')).toBeInTheDocument();
+  });
+
   it('draws every measured run as a dot that opens its details, and says a failed read (ST-53)', async () => {
     serve();
     const first = open('/compare?tab=runs');

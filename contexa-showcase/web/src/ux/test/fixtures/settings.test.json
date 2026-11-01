@@ -1,0 +1,75 @@
+{
+  "waf": {
+    "image": "ghcr.io/coreruleset/coraza-crs:caddy-alpine",
+    "ruleSet": "OWASP Core Rule Set, defaults"
+  },
+  "permission": {
+    "roleRules": [
+      "GET /api/documents/*/download [ADMIN, ENGINEER, PARTNER, PM]",
+      "GET /api/projects/*/exports/stream [ADMIN, ENGINEER, PM]",
+      "POST /api/projects/*/exports/async [ADMIN, ENGINEER, PM]",
+      "POST /api/projects/*/exports [ADMIN, ENGINEER, PM]",
+      "GET /api/projects/*/documents [ADMIN, ENGINEER, PARTNER, PM]",
+      "POST /api/documents/*/delete [ADMIN, ENGINEER, PM]",
+      "GET /api/documents/* [ADMIN, ENGINEER, PARTNER, PM]",
+      "GET /api/customers/* [ADMIN, FINANCE, PM, SALES]",
+      "POST /api/admin/role-grants [ADMIN]",
+      "GET /api/projects [ADMIN, ENGINEER, FINANCE, PARTNER, PM, SALES]"
+    ]
+  },
+  "threshold": {
+    "nightStart": "22:00",
+    "nightEnd": "06:00",
+    "volumeLimit": 500,
+    "dormantWindowDays": 30
+  },
+  "businessRecord": {
+    "exportPolicyKey": "EXPORT_APPROVAL",
+    "assignedExportLimit": 500,
+    "ticketAndOncallExempt": true,
+    "historyWindowDays": 90,
+    "exportHistoryWindowDays": 30,
+    "accessPolicies": [
+      {
+        "policyKey": "ROLE_GRANT_APPROVAL",
+        "accountManagerExempt": false,
+        "assignedExempt": false,
+        "recentWorkDays": null
+      },
+      {
+        "policyKey": "CUSTOMER_ACCESS_APPROVAL",
+        "accountManagerExempt": true,
+        "assignedExempt": false,
+        "recentWorkDays": null
+      },
+      {
+        "policyKey": "DOCUMENT_ACCESS_APPROVAL",
+        "accountManagerExempt": false,
+        "assignedExempt": true,
+        "recentWorkDays": 90
+      },
+      {
+        "policyKey": "DOCUMENT_DELETE_APPROVAL",
+        "accountManagerExempt": false,
+        "assignedExempt": true,
+        "recentWorkDays": null
+      }
+    ]
+  },
+  "engine": {
+    "chatModel": "gpt-5-nano",
+    "effectiveMode": "ENFORCE",
+    "inspectorConditions": 18,
+    "layer1Model": "gpt-6-luna",
+    "layer2Model": "claude-sonnet-5-5"
+  },
+  "retention": {
+    "behaviorDays": 400,
+    "promptOriginalDays": 90
+  },
+  "ruleVersion": "6b1fa185fa23dc71d9a3b8900a50b3286ff5320219b4e0a602d54804eae1c3ab",
+  "sealedEvidence": {
+    "samplePercent": 100,
+    "cleanPeriodDays": 90
+  }
+}

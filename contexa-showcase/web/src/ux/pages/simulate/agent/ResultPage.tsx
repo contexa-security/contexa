@@ -1,10 +1,17 @@
 import { useTranslation } from 'react-i18next';
 import { Navigate, useParams, useSearchParams } from 'react-router-dom';
-import { useAgentRun, type AgentResent, type AgentRunView } from '../../../../api/agentCase';
+import {
+  useAgentCase,
+  useAgentRun,
+  type AgentDelegation,
+  type AgentResent,
+  type AgentRunView,
+} from '../../../../api/agentCase';
 import { useAgentSnapshot } from '../../../../api/agentSnapshots';
 import { useAnatomy } from '../../../../api/anatomy';
+import { useJourney } from '../../../../api/journey';
 import { CONTROL_ORDER } from '../../../../domain/verdict';
-import { formatNumber } from '../../../format';
+import { formatNumber, formatUtc } from '../../../format';
 import {
   AGENT_MAIN,
   CONFIRMATION_RULE,
@@ -12,7 +19,10 @@ import {
   agentConclusion,
   agentPath,
   firstStop,
+  plusMinutes,
+  recordedWords,
   rememberedCall,
+  senderWords,
   useAgentCases,
 } from '../../../simulate/agent';
 import { AgentCellBadge, AgentSteps } from '../../../simulate/AgentParts';
@@ -20,8 +30,10 @@ import { useRecordRows } from '../../../simulate/agentRows';
 import { CONTROL_TONE } from '../../../simulate/controls';
 import { Evidence } from '../../../simulate/Evidence';
 import { FlowProgress, FlowSteps } from '../../../simulate/FlowFrame';
+import { companyClock } from '../../../simulate/person';
 import { useAgentRuns, useGroupRuns } from '../../../simulate/useFlow';
-import { Badge, ButtonLink, CodeChip, EvalBadge, Icon, Loading, Note } from '../../../ui';
+import { Badge, ButtonLink, CodeChip, EvalBadge, Icon, Loading, Note, PageHead } from '../../../ui';
+import { breakable } from '../../../ui/breakable';
 import result from '../../../simulate/Result.module.css';
 import styles from '../../../simulate/Agent.module.css';
 import sim from '../../../simulate/Simulate.module.css';
@@ -72,6 +84,8 @@ function Result({ caseKey }: { readonly caseKey: string }) {
     return (
       <>
         <FlowSteps current="result" />
+        {/* A visitor without a run of the scenario still lands on a titled screen (기획안 11절 6-7). */}
+        <PageHead title={t('ux.agentResult.title')} />
         <Note>{t('ux.result.none')}</Note>
         <ButtonLink to={agentPath(caseKey, 'review')} variant="primary" iconAfter="arrow-right">
           {t('ux.live.toReview')}
@@ -99,6 +113,10 @@ function RunResult({ caseKey, run }: { readonly caseKey: string; readonly run: A
   const n = (value: number) => formatNumber(value, i18n.language);
   const runs = useAgentRuns();
   const rows = useRecordRows(run);
+  const agentCase = useAgentCase(caseKey).data ?? null;
+  const journey = useJourney();
+  // Whose run the screen shows (옛 MeasureNote): one of the visitor's own runs, or a stored run the address names.
+  const ownRun = journey.data ? journey.data.runs.some((line) => line.runId === run.runId) : null;
   const stop = firstStop(run);
   const conclusion = agentConclusion(run);
   const decided = [...run.steps].reverse().find((step) => step.decision?.final_action) ?? null;
@@ -166,9 +184,20 @@ function RunResult({ caseKey, run }: { readonly caseKey: string; readonly run: A
             </>
           ) : null}
           <dt>{t('ux.result.runId')}</dt>
-          <dd>
+          <dd className={styles.runLine}>
             <CodeChip value={run.runId} copy />
+            {ownRun === null ? null : (
+              <Badge tone="line">{t(ownRun ? 'ux.agentResult.source.own' : 'ux.agentResult.source.stored')}</Badge>
+            )}
           </dd>
+          {agentCase ? (
+            <>
+              <dt>{t('ux.agent.sender.label')}</dt>
+              <dd>{senderWords(t, agentCase.sender)}</dd>
+              <dt>{t('ux.agent.recorded.label')}</dt>
+              <dd>{recordedWords(t, agentCase.recorded, i18n.language) ?? '—'}</dd>
+            </>
+          ) : null}
         </dl>
       </section>
 
@@ -177,7 +206,14 @@ function RunResult({ caseKey, run }: { readonly caseKey: string; readonly run: A
           <Controls run={run} />
         </div>
         <div className={result.column}>
-          {confirmationStep !== null ? <Confirmation run={run} caseKey={caseKey} /> : null}
+          {confirmationStep !== null ? (
+            <Confirmation
+              run={run}
+              caseKey={caseKey}
+              stepNo={confirmationStep}
+              delegation={run.delegation ?? agentCase?.delegation ?? null}
+            />
+          ) : null}
           {evidenceStep ? (
             <Evidence
               runId={run.runId}
@@ -265,27 +301,86 @@ function Controls({ run }: { readonly run: AgentRunView }) {
       ) : (
         <Note>{t('ux.agentResult.controls.unscored')}</Note>
       )}
+      {proof ? (
+        <details className={[styles.more, styles.moreCard].join(' ')}>
+          <summary>{t('ux.agent.more')}</summary>
+          <div className={styles.countsScroll} role="region" aria-label={t('ux.table.scroll')} tabIndex={0}>
+            <table className={styles.counts}>
+              <caption className="ux-sr-only">{t('ux.agentResult.controls.kinds')}</caption>
+              <thead>
+                <tr>
+                  <th scope="col">{t('ux.lanes.control')}</th>
+                  {KINDS.map((kind) => (
+                    <th key={kind} scope="col">
+                      {t(`ux.agentResult.controls.${kind}`)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {CONTROL_ORDER.map((control) => {
+                  const counts = proof.controls[control];
+                  return (
+                    <tr key={control} data-contexa={control === 'D' || undefined}>
+                      <th scope="row">{t(`ux.control.${control}`)}</th>
+                      {KINDS.map((kind) => (
+                        <td key={kind}>{counts ? n(counts[kind]) : '—'}</td>
+                      ))}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      ) : null}
     </section>
   );
 }
+
+/** What left at a control, by kind, as the portal scored the work (the table's "data let go" is their sum). */
+const KINDS = ['documents', 'items', 'records', 'changes'] as const;
 
 function resentWords(t: ReturnType<typeof useTranslation>['t'], key: string, resent: AgentResent | null): string | null {
   if (resent === null || resent.httpStatus === null) {
     return null;
   }
-  return t(key, {
+  // A request sent again with the same confirmation, or another one, says what it handed over when it was served.
+  const served = resent.httpStatus >= 200 && resent.httpStatus < 300;
+  return t(served && key !== 'ux.agentResult.confirm.resend' ? `${key}Served` : key, {
     status: resent.httpStatus,
     n: resent.deliveredItems,
     count: resent.deliveredItems,
   }) + (resent.ruleId ? ` · ${resent.ruleId}` : '');
 }
 
+/** The confirmation's status after the answer, in words; its code for a status not named here, a dash without one. */
+function statusWords(t: ReturnType<typeof useTranslation>['t'], status: string | null | undefined): string {
+  return status ? t(`ux.agentResult.confirm.status.${status}`, { defaultValue: status }) : '—';
+}
+
 /** The delegating person's confirmation as stored, and for the main case the stored run in which they reported it. */
-function Confirmation({ run, caseKey }: { readonly run: AgentRunView; readonly caseKey: string }) {
+function Confirmation({
+  run,
+  caseKey,
+  stepNo,
+  delegation,
+}: {
+  readonly run: AgentRunView;
+  readonly caseKey: string;
+  /** The request control D asked the delegating person about. */
+  readonly stepNo: number;
+  /** The delegation the run executed: its period counts from the run's company time. */
+  readonly delegation: AgentDelegation | null;
+}) {
   const { t } = useTranslation();
   const report = useAgentSnapshot(caseKey === AGENT_MAIN ? REPORT_SNAPSHOT : null).data ?? null;
   const confirmation = run.confirmation;
   const reported = report?.run.confirmation ?? null;
+  const asked = run.steps.find((step) => step.stepNo === stepNo) ?? null;
+  const ended = plusMinutes(run.companyTime, delegation?.validUntilMinutes);
+  const yours = t('ux.agentResult.confirm.yours');
+  const theirs = t('ux.agentResult.confirm.reported');
   const lines = (stored: AgentRunView['confirmation']) =>
     [
       resentWords(t, 'ux.agentResult.confirm.resend', stored?.resend ?? null),
@@ -305,14 +400,26 @@ function Confirmation({ run, caseKey }: { readonly run: AgentRunView; readonly c
         </p>
       </header>
       <div className={styles.panelBody}>
+        {confirmation?.decision === 'APPROVE' ? (
+          <h3 className={styles.confirmTitle}>{t('ux.agentResult.confirm.approvedTitle')}</h3>
+        ) : null}
         <dl className={styles.calls}>
           <div className={styles.call}>
-            <dt>{t('ux.agentResult.confirm.yours')}</dt>
+            <dt>{yours}</dt>
             <dd>
               {confirmation?.decision
                 ? t(`ux.agent.delegator.decided.${confirmation.decision}`)
                 : t('ux.agentResult.confirm.unanswered')}
             </dd>
+            {confirmation?.decision ? null : (
+              <dd className={styles.counterNote}>
+                {t('ux.agentResult.confirm.whyLine', {
+                  why: confirmation?.reason
+                    ? t(`ux.agentResult.confirm.why.${confirmation.reason}`, { defaultValue: confirmation.reason })
+                    : '—',
+                })}
+              </dd>
+            )}
             {lines(confirmation).map((line) => (
               <dd key={line} className={styles.counterNote}>
                 {line}
@@ -334,6 +441,35 @@ function Confirmation({ run, caseKey }: { readonly run: AgentRunView; readonly c
             </div>
           ) : null}
         </dl>
+        <details className={styles.more}>
+          <summary>{t('ux.agent.more')}</summary>
+          <dl className={styles.moreFacts}>
+            <dt>{t('ux.agentResult.confirm.requestAt', { n: stepNo })}</dt>
+            <dd>{companyClock(t, asked?.companyTime)}</dd>
+            <dt>{t('ux.agentResult.confirm.delegationEnd')}</dt>
+            <dd>{companyClock(t, ended)}</dd>
+            <dt>
+              {t('ux.agentResult.confirm.after')} · {yours}
+            </dt>
+            <dd>{statusWords(t, confirmation?.after?.status)}</dd>
+            <dt>
+              {t('ux.agentResult.confirm.authorization')} · {yours}
+            </dt>
+            <dd>{confirmation?.after?.authorizationId ? <code>{breakable(confirmation.after.authorizationId)}</code> : '—'}</dd>
+            {reported && report ? (
+              <>
+                <dt>
+                  {t('ux.agentResult.confirm.after')} · {theirs}
+                </dt>
+                <dd>{statusWords(t, reported.after?.status)}</dd>
+                <dt>
+                  {t('ux.agentResult.confirm.capturedAt')} · {theirs}
+                </dt>
+                <dd>{`${formatUtc(report.capturedAt)} ${t('ux.runs.utc')}`}</dd>
+              </>
+            ) : null}
+          </dl>
+        </details>
       </div>
     </section>
   );

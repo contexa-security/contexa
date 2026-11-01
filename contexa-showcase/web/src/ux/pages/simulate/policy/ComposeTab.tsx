@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { BeforeSendView } from '../../../../api/anatomy';
@@ -6,17 +7,22 @@ import {
   startLabRun,
   useLabBefore,
   useLabOptions,
+  usePeerAssessments,
   useRecentLabRuns,
   useVersus,
   type LabCase,
   type LabConditions,
+  type LabFact,
   type LabOptions,
   type LabPrediction,
+  type RecentLabRun,
+  type Versus as VersusView,
   type VersusSide,
 } from '../../../../api/lab';
 import { postJson } from '../../../../api/http';
-import { useLiveConfig, useLiveRun, useVisitor } from '../../../../api/queries';
-import type { CaseResult, LiveRunView } from '../../../../api/types';
+import { useLabDelta, type LabDelta } from '../../../../api/promptQuality';
+import { useLiveAnalysis, useLiveConfig, useLiveRun, useVisitor } from '../../../../api/queries';
+import type { CaseResult, LiveLayer, LiveRunView, LiveStream } from '../../../../api/types';
 import { CONTROL_ORDER } from '../../../../domain/verdict';
 import { useLiveSend } from '../../../../hooks/useLiveSend';
 import {
@@ -27,21 +33,57 @@ import {
   conditionText,
   lineState,
   type ConditionKey,
-} from '../../../../pages/lab/labPlace';
-import { formatNumber } from '../../../format';
+} from '../../../simulate/labConditions';
+import { formatDuration, formatNumber } from '../../../format';
 import { agentCell } from '../../../simulate/agent';
 import { AgentCellBadge } from '../../../simulate/AgentParts';
 import { ChallengeCard } from '../../../simulate/Recovery';
 import { evalOf, verdictOf } from '../../../simulate/person';
 import { useLiveActions } from '../../../simulate/useLiveActions';
 import { useGroupRuns } from '../../../simulate/useFlow';
-import { Badge, Button, CodeChip, EvalBadge, Field, Loading, Note, Select, VerdictBadge } from '../../../ui';
+import { Badge, Button, CodeChip, EvalBadge, Field, KeyValue, Loading, Note, Select, VerdictBadge } from '../../../ui';
 import review from '../../../simulate/Review.module.css';
 import styles from './Policy.module.css';
 
 const ACTIVE = new Set(['QUEUED', 'STARTING', 'RUNNING', 'CHALLENGE', 'AWAITING', 'BLOCKED', 'CONFIRMING']);
 const CALLS = ['ATTACK', 'NORMAL', 'UNSURE'] as const;
 type Call = (typeof CALLS)[number];
+
+/**
+ * The scenario list's groups by the ground truth the definition sets: a threat, normal work, or none set (UNCERTAIN,
+ * S07 · S08), which is neither and must not read as normal work (UC-5 5절).
+ */
+const GROUPS = ['THREAT', 'NORMAL', 'OTHER'] as const;
+type Group = (typeof GROUPS)[number];
+const groupOf = (classification: string): Group =>
+  classification === 'THREAT' || classification === 'NORMAL' ? classification : 'OTHER';
+
+/** The extra-check stages the check card leaves out: the code went to the owner's mailbox, or the check was given up. */
+const CHECK_NOTES = new Set(['NO_MAILBOX', 'ABANDONED']);
+
+/**
+ * One company record of the case as its definition states it (UC-5 4-4, the old check screen's trip city): every value
+ * the record has, as the lab options carry it; a city by its name in the visitor's language when the dictionary has it.
+ */
+function factText(t: TFunction, fact: LabFact, language: 'ko' | 'en'): string {
+  const parts = [
+    fact.city ? t(`ux.policy.compose.city.${fact.city}`, { defaultValue: fact.city }) : null,
+    fact.country,
+    fact.network,
+    fact.ticketKind,
+    fact.project,
+    fact.document?.title ? (fact.document.title[language] ?? fact.document.title.en ?? null) : null,
+    fact.document?.author ?? null,
+    fact.approver,
+    typeof fact.maxItems === 'number'
+      ? t('ux.policy.compose.factMax', { n: formatNumber(fact.maxItems, language) })
+      : null,
+    fact.purpose,
+    fact.team,
+    fact.status,
+  ].filter((part): part is string => typeof part === 'string' && part !== '');
+  return parts.length > 0 ? parts.join(' · ') : '—';
+}
 
 /** The changed condition the address names, in the condition's own type; null when none or not a value of its list. */
 function changeOf(
@@ -92,6 +134,9 @@ export function ComposeTab() {
   const text = (key: ConditionKey, raw: unknown) => conditionText(t, key, raw, data, language);
   const field = (params.get('field') as ConditionKey | null) ?? null;
   const fields = labCase ? ONE_CHANGE.filter((key) => changeable(key, labCase)) : [];
+  const n = (value: number) => formatNumber(value, i18n.language);
+  // UC-5 L-case: who the scenario's employee is, by the business database's name and role.
+  const employee = labCase ? (data.employees.find((entry) => entry.key === labCase.conditions.employee) ?? null) : null;
   return (
     <div className={styles.stack}>
       <section className={styles.card} aria-labelledby="compose-case">
@@ -111,21 +156,47 @@ export function ComposeTab() {
                 onChange={(event) => set({ case: event.target.value || null, field: null, to: null, sent: null })}
               >
                 <option value="">{t('ux.policy.compose.pick')}</option>
-                {(['THREAT', 'NORMAL'] as const).map((kind) => (
-                  <optgroup key={kind} label={t(`ux.policy.compose.group.${kind}`)}>
-                    {data.cases
-                      .filter((candidate) => (kind === 'THREAT') === (candidate.classification === 'THREAT'))
-                      .map((candidate) => (
+                {GROUPS.map((kind) => {
+                  const members = data.cases.filter((candidate) => groupOf(candidate.classification) === kind);
+                  return members.length > 0 ? (
+                    <optgroup key={kind} label={t(`ux.policy.compose.group.${kind}`)}>
+                      {members.map((candidate) => (
                         <option key={candidate.key} value={candidate.key}>
                           {candidate.key} · {candidate.title[language] ?? candidate.title.en}
                         </option>
                       ))}
-                  </optgroup>
-                ))}
+                    </optgroup>
+                  ) : null;
+                })}
               </Select>
             )}
           </Field>
         </div>
+        {labCase ? (
+          <div className={styles.cardBody}>
+            <KeyValue
+              items={[
+                {
+                  label: t('ux.policy.compose.employee'),
+                  value: employee
+                    ? `${employee.displayName} · ${t(`ux.policy.compose.role.${employee.role}`, { defaultValue: employee.role })}`
+                    : '—',
+                },
+                {
+                  label: t('ux.policy.compose.truth'),
+                  value: t(`ux.policy.compose.truthOf.${groupOf(labCase.classification)}`, {
+                    value: labCase.classification,
+                  }),
+                },
+                // UC-5 4-4: the company records the case puts in the business database (S14's trip to Singapore).
+                ...labCase.facts.map((fact) => ({
+                  label: t(`ux.policy.compose.fact.${fact.kind}`, { defaultValue: fact.kind }),
+                  value: factText(t, fact, language),
+                })),
+              ]}
+            />
+          </div>
+        ) : null}
       </section>
 
       {labCase ? (
@@ -136,7 +207,9 @@ export function ComposeTab() {
               {t('ux.policy.compose.change')}
             </h2>
             <p className={styles.cardSub}>
-              {labCase.requests.length > 1 ? t('ux.policy.compose.changeSubSteps') : t('ux.policy.compose.changeSub')}
+              {labCase.requests.length > 1
+                ? t('ux.policy.compose.changeSubSteps', { n: n(labCase.requests.length) })
+                : t('ux.policy.compose.changeSub')}
             </p>
           </header>
           <div className={styles.pickers}>
@@ -150,7 +223,7 @@ export function ComposeTab() {
                   <option value="">{t('ux.policy.compose.asDesigned')}</option>
                   {fields.map((key) => (
                     <option key={key} value={key}>
-                      {t(`lab.field.${key}`)} · {text(key, labCase.conditions[key])}
+                      {t(`ux.cond.field.${key}`)} · {text(key, labCase.conditions[key])}
                     </option>
                   ))}
                 </Select>
@@ -177,6 +250,23 @@ export function ComposeTab() {
               </Field>
             ) : null}
           </div>
+          {/* UC-5 L-change: every condition as designed, also those a case of several requests keeps (items). */}
+          <div className={styles.cardBody}>
+            <details className={styles.more}>
+              <summary>{t('ux.policy.compose.original')}</summary>
+              <KeyValue
+                items={[
+                  {
+                    label: t('ux.policy.compose.requests'),
+                    value: t('ux.policy.compose.requestCount', { n: n(labCase.requests.length) }),
+                  },
+                  ...ONE_CHANGE.filter(
+                    (key) => labCase.conditions[key] !== null && labCase.conditions[key] !== undefined,
+                  ).map((key) => ({ label: t(`ux.cond.field.${key}`), value: text(key, labCase.conditions[key]) })),
+                ]}
+              />
+            </details>
+          </div>
         </section>
       ) : null}
 
@@ -184,6 +274,19 @@ export function ComposeTab() {
       {labCase ? <Send labCase={labCase} change={change} /> : null}
     </div>
   );
+}
+
+/**
+ * Whether a line the rules always keep applies, and when it does, which minimum response rules the engine found met
+ * (UC-5 L-before, the old screen's V-29), by their names; a rule without one keeps its code.
+ */
+function lineText(t: TFunction, view: BeforeSendView | null): string {
+  const state = lineState(view);
+  const met = state === 'applies' ? (view?.minimumRules?.rules ?? []).filter((rule) => rule.met === true) : [];
+  const words = t(`ux.cond.line.${state}`);
+  return met.length === 0
+    ? words
+    : [words, ...met.map((rule) => t(`ux.policy.before.rule.${rule.code}`, { defaultValue: rule.code }))].join(' · ');
 }
 
 /** ST-36: what the engine received in the latest real request of the scenario as designed and of the changed one. */
@@ -210,7 +313,7 @@ function Before({
   const rows: readonly (readonly [string, (view: BeforeSendView | null) => string])[] = [
     ['usual', (view) => (view ? t('ux.policy.before.count', { n: n(view.departureCount) }) : '—')],
     ['company', (view) => (view ? t('ux.policy.before.count', { n: n(view.companyAdverseCount) }) : '—')],
-    ['line', (view) => t(`lab.r7.before.line.${lineState(view)}`)],
+    ['line', (view) => lineText(t, view)],
   ];
   const differ =
     designed !== null && composed !== null && Boolean(designed.modelJudges) !== Boolean(composed.modelJudges);
@@ -224,7 +327,7 @@ function Before({
         <p className={styles.cardSub}>
           {change
             ? t('ux.policy.before.changed', {
-                name: t(`lab.field.${change.key}`),
+                name: t(`ux.cond.field.${change.key}`),
                 from: conditionText(t, change.key, labCase.conditions[change.key], options, language),
                 to: conditionText(t, change.key, change.value, options, language),
               })
@@ -315,6 +418,11 @@ function Send({ labCase, change }: { readonly labCase: LabCase; readonly change:
   );
   const view: LiveRunView | null = live.data && live.data.liveRunId === sent ? live.data : null;
   const active = view !== null && ACTIVE.has(view.status);
+  // UC-5 L-send: while Contexa still decides the first request, about how long the same case took (the portal's count).
+  const analysing = active && view.status !== 'QUEUED' && view.status !== 'STARTING';
+  const analysis = useLiveAnalysis(view?.liveRunId ?? null, 1, analysing);
+  const remaining =
+    analysing && !analysis.data?.decision ? (analysis.data?.decisionWait?.remainingSeconds ?? null) : null;
   const why = !runs.visitorReady
     ? t('ux.review.reason.visitor')
     : call === null
@@ -392,6 +500,16 @@ function Send({ labCase, change }: { readonly labCase: LabCase; readonly change:
             </h2>
             <p className={styles.cardSub}>{t(`ux.policy.live.status.${active ? 'going' : 'done'}`)}</p>
           </header>
+          {view.status === 'QUEUED' ? (
+            <div className={styles.cardBody}>
+              <Note icon="hourglass">
+                {t('ux.live.queued', { position: n(view.queuePosition) })}
+                {view.queueWaitSeconds !== null
+                  ? ` ${t('ux.live.queuedWait', { seconds: n(view.queueWaitSeconds) })}`
+                  : null}
+              </Note>
+            </div>
+          ) : null}
           <div className={styles.tableScroll} role="region" aria-label={t('ux.table.scroll')} tabIndex={0}>
             <table className={styles.table}>
               <caption className="ux-sr-only">{t('ux.policy.live.title')}</caption>
@@ -411,7 +529,10 @@ function Send({ labCase, change }: { readonly labCase: LabCase; readonly change:
                     <th scope="row">{t('ux.pick.requestNo', { n: step.stepNo })}</th>
                     {CONTROL_ORDER.map((control) => (
                       <td key={control}>
-                        <AgentCellBadge cell={agentCell(step.layers[control] ?? null)} />
+                        <span className={styles.liveCell}>
+                          <AgentCellBadge cell={agentCell(step.layers[control] ?? null)} />
+                          <LiveMeta layer={step.layers[control] ?? null} stream={step.streams?.[control] ?? null} />
+                        </span>
                       </td>
                     ))}
                   </tr>
@@ -419,14 +540,24 @@ function Send({ labCase, change }: { readonly labCase: LabCase; readonly change:
               </tbody>
             </table>
           </div>
+          {remaining !== null ? (
+            <div className={styles.cardBody}>
+              <Note icon="hourglass">{t('ux.policy.live.wait', { seconds: n(remaining) })}</Note>
+            </div>
+          ) : null}
           {view.challenge ? (
             <div className={styles.cardBody}>
-              <ChallengeCard
-                challenge={view.challenge}
-                act={actions.act}
-                onRestart={() => void send()}
-                resumed={null}
-              />
+              {CHECK_NOTES.has(view.challenge.stage) ? (
+                // UC-5 L-send: the check card draws nothing for these two; the old screen named them.
+                <Note icon="mail">{t(`ux.policy.live.check.${view.challenge.stage}`)}</Note>
+              ) : (
+                <ChallengeCard
+                  challenge={view.challenge}
+                  act={actions.act}
+                  onRestart={() => void send()}
+                  resumed={null}
+                />
+              )}
             </div>
           ) : null}
           {view.status === 'AWAITING' ? (
@@ -444,9 +575,36 @@ function Send({ labCase, change }: { readonly labCase: LabCase; readonly change:
         </section>
       ) : null}
 
-      {view && !active && view.runId ? <Versus runId={view.runId} /> : null}
+      {view && !active && view.runId ? <Versus runId={view.runId} steps={view.steps.length} /> : null}
     </>
   );
+}
+
+/**
+ * UC-5 L-send: what one control's answer took and handed over, as the live run reports it: its response time and items,
+ * or, while its export still streams, how far the items got (of the total the export announced).
+ */
+function LiveMeta({ layer, stream }: { readonly layer: LiveLayer | null; readonly stream: LiveStream | null }) {
+  const { t, i18n } = useTranslation();
+  const n = (value: number) => formatNumber(value, i18n.language);
+  const total = stream?.total ?? null;
+  const items = (count: number) =>
+    total !== null
+      ? t('ux.policy.live.itemsOf', { n: n(count), total: n(total) })
+      : t('ux.facts.items', { count, n: n(count) });
+  const time = (ms: number) => t('ux.time.seconds', { value: formatDuration(ms, i18n.language) });
+  if (layer) {
+    return (
+      <small className={styles.liveMeta}>
+        {time(layer.elapsedMs)} · {items(layer.deliveredItems)}
+      </small>
+    );
+  }
+  return stream ? (
+    <small className={styles.liveMeta}>
+      {time(stream.atMs)} · {items(stream.delivered)}
+    </small>
+  ) : null;
 }
 
 /**
@@ -463,7 +621,7 @@ function SideCell({ side, control }: { readonly side: VersusSide; readonly contr
 }
 
 /** ST-38: the server's comparison of this run against the latest run of the same scenario as designed. */
-function Versus({ runId }: { readonly runId: string }) {
+function Versus({ runId, steps }: { readonly runId: string; readonly steps: number }) {
   const { t, i18n } = useTranslation();
   const recent = useRecentLabRuns();
   const entry = recent.data?.find((item) => item.runId === runId) ?? null;
@@ -487,6 +645,7 @@ function Versus({ runId }: { readonly runId: string }) {
         <div className={styles.cardBody}>
           <Note>{t('ux.policy.result.noPair')}</Note>
           <Link to={`/runs/${encodeURIComponent(runId)}`}>{t('ux.live.raw')}</Link>
+          <RunFacts runId={runId} entry={entry} versus={null} steps={steps} />
         </div>
       ) : (
         <>
@@ -546,9 +705,149 @@ function Versus({ runId }: { readonly runId: string }) {
             <p className={styles.source}>
               <CodeChip value={versus.data.before.runId} /> → <CodeChip value={versus.data.now.runId} copy />
             </p>
+            <RunFacts runId={runId} entry={entry} versus={versus.data} steps={steps} />
           </div>
         </>
       )}
     </section>
+  );
+}
+
+/**
+ * UC-5 L-result: the run's facts beside the comparison, each as the portal gives it: the call stored with the run and
+ * whether it was right, the conditions the server found different between the two runs, and, in the details, the
+ * server's check that the change reached the decision prompt and other visitors' assessments of each request.
+ */
+function RunFacts({
+  runId,
+  entry,
+  versus,
+  steps,
+}: {
+  readonly runId: string;
+  readonly entry: RecentLabRun | null;
+  readonly versus: VersusView | null;
+  readonly steps: number;
+}) {
+  const { t } = useTranslation();
+  const delta = useLabDelta(runId);
+  const check = deltaKey(delta.data ?? null);
+  const changed = versus?.changedConditions;
+  return (
+    <>
+      <p className={styles.source}>
+        {t('ux.policy.result.call', {
+          call: entry?.call ? t(`ux.policy.send.call.${entry.call}`, { defaultValue: entry.call }) : '—',
+        })}{' '}
+        {entry?.callRight === true || entry?.callRight === false ? (
+          <Badge tone="line">{t(`ux.policy.result.callRight.${String(entry.callRight)}`)}</Badge>
+        ) : null}
+      </p>
+      {versus ? (
+        <p className={styles.source}>
+          {t('ux.policy.result.changed', {
+            list:
+              changed === null || changed === undefined
+                ? '—'
+                : changed.length === 0
+                  ? t('ux.policy.result.changedNone')
+                  : changed.map((name) => t(`ux.cond.field.${name}`, { defaultValue: name })).join(' · '),
+          })}
+        </p>
+      ) : null}
+      <details className={styles.more}>
+        <summary>{t('ux.policy.more')}</summary>
+        <div className={styles.moreBody}>
+          {check ? (
+            <p className={styles.source}>
+              {t(check)}
+              {delta.data?.baseRunId ? (
+                <>
+                  {' '}
+                  {t('ux.policy.result.deltaBase')} <CodeChip value={delta.data.baseRunId} />
+                </>
+              ) : null}
+            </p>
+          ) : null}
+          {Array.from({ length: Math.max(1, steps) }, (_, index) => (
+            <Peers key={index} runId={runId} stepNo={index + 1} named={steps > 1} />
+          ))}
+        </div>
+      </details>
+    </>
+  );
+}
+
+/**
+ * The server's check that the changed condition reached the decision prompt, in one line (the old screen's U-5): a
+ * request it found with other lines changed too, else the first request's finding; nothing for a run sent as designed
+ * or one still being checked.
+ */
+function deltaKey(delta: LabDelta | null): string | null {
+  if (!delta) {
+    return null;
+  }
+  if (!delta.available) {
+    return delta.reason === 'DESIGNED' || delta.reason === 'NOT_COMPLETED'
+      ? null
+      : delta.reason === 'SEVERAL_CONDITIONS' || delta.reason === 'NO_BASE'
+        ? `ux.policy.result.delta.${delta.reason}`
+        : 'ux.policy.result.delta.unavailable';
+  }
+  const failed = delta.steps.find((step) => step.notCompared === null && !step.passed);
+  const step = failed ?? delta.steps[0] ?? null;
+  if (!step) {
+    return null;
+  }
+  if (step.notCompared !== null) {
+    return 'ux.policy.result.delta.notCompared';
+  }
+  if (!step.passed) {
+    return 'ux.policy.result.delta.failed';
+  }
+  return step.notLookedUp
+    ? 'ux.policy.result.delta.notLookedUp'
+    : step.sameAsBase
+      ? 'ux.policy.result.delta.sameAsBase'
+      : 'ux.policy.result.delta.passed';
+}
+
+/** Other visitors' assessments of the same request, as the portal counts them after its delay (LabStore.Peers). */
+function Peers({ runId, stepNo, named }: { readonly runId: string; readonly stepNo: number; readonly named: boolean }) {
+  const { t, i18n } = useTranslation();
+  const peers = usePeerAssessments(runId, stepNo);
+  const n = (value: number) => formatNumber(value, i18n.language);
+  if (peers.isPending) {
+    return null;
+  }
+  const data = peers.data ?? null;
+  const reasons = data ? Object.entries(data.reasons) : [];
+  return (
+    <div className={styles.peers}>
+      <p className={styles.source}>
+        {named ? `${t('ux.pick.requestNo', { n: stepNo })} · ` : null}
+        {!data
+          ? t('ux.policy.result.peers.none')
+          : data.assessments === 0
+            ? t('ux.policy.result.peers.empty')
+            : t('ux.policy.result.peers.counts', {
+                n: n(data.assessments),
+                visitors: n(data.assessors),
+                sound: n(data.verdicts.SOUND ?? 0),
+                unsound: n(data.verdicts.UNSOUND ?? 0),
+                unsure: n(data.verdicts.UNSURE ?? 0),
+              })}
+      </p>
+      {data && reasons.length > 0 ? (
+        <p className={styles.source}>
+          {t('ux.policy.result.peers.reasons', {
+            list: reasons
+              .map(([reason, count]) => `${t(`ux.policy.result.peers.reason.${reason}`, { defaultValue: reason })} ${n(count)}`)
+              .join(' · '),
+          })}
+        </p>
+      ) : null}
+      {data ? <p className={styles.source}>{t('ux.policy.result.peers.rule', { hours: n(data.delayHours) })}</p> : null}
+    </div>
   );
 }

@@ -30,6 +30,7 @@
     "sourceExcerpts.test.ts",
     "screenIntegrity.test.ts",
     "factWordsSource.test.ts",
+    "factKeySource.test.ts",
     "benchPromptPhone.test.ts",
     "frameStyles.test.ts",
     "e2e"

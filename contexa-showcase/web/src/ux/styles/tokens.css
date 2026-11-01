@@ -5,8 +5,11 @@
  *
  * Type: exactly nine sizes (32 28 24 18 16 15 14 13 12) and four weights. Spacing: a 4 px grid. Colour: dark by default,
  * light under html[data-theme='light']; gold only for the logo, the main action, the current place and Contexa itself,
- * blue for links, selection and the AI's own steps.
+ * blue for links, selection and the AI's own steps. The code font (--ux-mono) is JetBrains Mono, loaded here.
  */
+@import url('@fontsource/jetbrains-mono/400.css');
+@import url('@fontsource/jetbrains-mono/600.css');
+
 :root {
   --ux-font:
     'Pretendard Demo', 'Pretendard Variable', pretendard, -apple-system, blinkmacsystemfont, 'Segoe UI',
@@ -25,6 +28,9 @@
   --ux-text-24: 1.5rem;
   --ux-text-28: 1.75rem;
   --ux-text-32: 2rem;
+
+  /* The introduction's wordmark only (DEC-76): the one size outside the nine steps. */
+  --ux-display: clamp(3.5rem, 13vw, 9.5rem);
   --ux-weight-regular: 400;
   --ux-weight-medium: 500;
   --ux-weight-semibold: 600;
@@ -35,6 +41,7 @@
   --ux-tracking-tight: -0.01em;
   --ux-tracking-group: 0.04em;
   --ux-tracking-normal: normal;
+  --ux-tracking-display: 0.16em;
 
   /* Spacing: the 4 px grid */
   --ux-space-0: 0;
@@ -61,7 +68,9 @@
   --ux-hairline-end: var(--ux-hairline) 0 0 var(--ux-line);
 
   /* Element sizes (기획안 5.2) */
-  --ux-side-width: 15.5rem;
+
+  /* 272: room for the live-demo panel's larger names (DEC-77; was 248). */
+  --ux-side-width: 17rem;
   --ux-rail-width: 4.5rem;
   --ux-top-height: 3.5rem;
   --ux-content-max: 82.5rem;
@@ -125,6 +134,9 @@
   /* Motion */
   --ux-duration-fast: 150ms;
   --ux-duration: 200ms;
+
+  /* The introduction's entrance (DEC-76). */
+  --ux-duration-slow: 900ms;
   --ux-ease: cubic-bezier(0.2, 0, 0, 1);
 
   /* Layers */
@@ -176,6 +188,7 @@
   --ux-backdrop: rgb(4 8 16 / 60%);
   --ux-shadow: 0 8px 24px rgb(0 0 0 / 35%);
   --ux-bar-surface: rgb(10 15 28 / 92%);
+  --ux-glow: 0 0 3rem rgb(230 184 79 / 38%);
 }
 
 html[data-theme='light'] {
@@ -216,11 +229,13 @@ html[data-theme='light'] {
   --ux-control-contexa: #b88415;
   --ux-shadow: 0 8px 24px rgb(15 23 42 / 10%);
   --ux-bar-surface: rgb(245 247 251 / 92%);
+  --ux-glow: 0 0 2.5rem rgb(184 132 21 / 22%);
 }
 
 @media (prefers-reduced-motion: reduce) {
   :root {
     --ux-duration-fast: 0ms;
     --ux-duration: 0ms;
+    --ux-duration-slow: 0ms;
   }
 }

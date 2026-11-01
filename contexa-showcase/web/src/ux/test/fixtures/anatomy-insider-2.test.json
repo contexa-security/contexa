@@ -1,0 +1,1708 @@
+{
+  "builderVersion": 13,
+  "runId": "run-4f4e198f551f",
+  "stepNo": 2,
+  "requestId": "9fb6960e-62c9-42d8-8117-2b9bbe5aa738",
+  "operation": "DOCUMENT_DOWNLOAD",
+  "context": {
+    "usualVsNow": [
+      {
+        "dimension": "accessHour",
+        "now": "14",
+        "inUsual": "true",
+        "labels": [
+          "SameAsBaseline"
+        ]
+      },
+      {
+        "dimension": "dayOfWeek",
+        "now": "Wed",
+        "inUsual": "true",
+        "labels": [
+          "SameAsBaseline"
+        ]
+      },
+      {
+        "dimension": "network",
+        "now": "10.40.21.0/24",
+        "inUsual": "true",
+        "labels": [
+          "SameAsBaseline"
+        ]
+      },
+      {
+        "dimension": "device",
+        "now": "Edge/140 on WINDOWS",
+        "inUsual": "true",
+        "labels": [
+          "SameAsBaseline"
+        ]
+      },
+      {
+        "dimension": "authenticationType",
+        "now": "PASSWORD+ONE_TIME_CODE",
+        "inUsual": "true",
+        "labels": [
+          "SameAsBaseline"
+        ]
+      },
+      {
+        "dimension": "target",
+        "now": "documentKey",
+        "inUsual": "UNKNOWN - no usual target of this kind",
+        "labels": [
+          "DeviationsFromBaseline"
+        ]
+      },
+      {
+        "dimension": "actionFamily",
+        "now": "READ",
+        "inUsual": "true",
+        "labels": [
+          "SameAsBaseline"
+        ]
+      },
+      {
+        "dimension": "resourceFamily",
+        "now": "SENSITIVE",
+        "inUsual": "true",
+        "labels": [
+          "SameAsBaseline"
+        ]
+      },
+      {
+        "dimension": "size",
+        "now": null,
+        "inUsual": "UNKNOWN - the request does not state it",
+        "labels": [
+          "DeviationsFromBaseline"
+        ]
+      },
+      {
+        "dimension": "rate",
+        "now": null,
+        "inUsual": "UNKNOWN - no usual rate in the view",
+        "labels": [
+          "DeviationsFromBaseline"
+        ]
+      }
+    ],
+    "usual": {
+      "summary": "Window 7d | Observations 19 | Days of week from 30d, 47 observations | Frequent protectable resources /api/projects/HX-310/exports, /api/documents/HX-310-DWG-00179, /api/documents/HX-310-DWG-00264, /api/documents/HX-310-DWG-00274, /api/documents/HX-310-DWG-00334, /api/documents/HX-310-DWG-00425/download | Frequent action families READ, EXPORT | Normal access hours 11, 12, 15, 16 | Protectable density 1.00",
+      "baselineView": {
+        "state": "ESTABLISHED",
+        "counts": {
+          "days": {
+            "1": 10,
+            "2": 9,
+            "3": 10,
+            "4": 9,
+            "5": 9
+          },
+          "rate": null,
+          "hours": {
+            "10": 1,
+            "11": 3,
+            "12": 6,
+            "14": 1,
+            "15": 4,
+            "16": 4
+          },
+          "logins": {
+            "PASSWORD+ONE_TIME_CODE": 19
+          },
+          "devices": {
+            "Edge/140 on WINDOWS": 19
+          },
+          "request": {
+            "DAY": {
+              "of": 47,
+              "days": 2,
+              "seen": 10,
+              "value": "Wed",
+              "lastMs": 1790178420000,
+              "ofDays": 10,
+              "firstMs": 1789550940000,
+              "retainedLastMs": 1790178420000
+            },
+            "TIME": {
+              "of": 19,
+              "days": 1,
+              "seen": 1,
+              "value": "14",
+              "lastMs": 1790260920000,
+              "ofDays": 5,
+              "firstMs": 1790260920000,
+              "retainedLastMs": 1790260920000
+            },
+            "ACTION": {
+              "of": 19,
+              "days": 5,
+              "seen": 15,
+              "value": "READ",
+              "lastMs": 1790686500000,
+              "ofDays": 5,
+              "firstMs": 1790176740000,
+              "retainedLastMs": 1790686500000
+            },
+            "DEVICE": {
+              "of": 19,
+              "days": 5,
+              "seen": 19,
+              "value": "Edge/140 on WINDOWS",
+              "lastMs": 1790697660000,
+              "ofDays": 5,
+              "firstMs": 1790176740000,
+              "retainedLastMs": 1790697660000
+            },
+            "TARGET": {
+              "of": 19,
+              "days": 0,
+              "seen": 0,
+              "value": "documentKey=DOC-4f4e198f551f-2",
+              "lastMs": null,
+              "ofDays": 5,
+              "firstMs": null,
+              "retainedLastMs": null
+            },
+            "NETWORK": {
+              "of": 19,
+              "days": 5,
+              "seen": 19,
+              "value": "10.40.21.0/24",
+              "lastMs": 1790697660000,
+              "ofDays": 5,
+              "firstMs": 1790176740000,
+              "retainedLastMs": 1790697660000
+            },
+            "LOGIN_METHOD": {
+              "of": 19,
+              "days": 5,
+              "seen": 19,
+              "value": "PASSWORD+ONE_TIME_CODE",
+              "lastMs": 1790697660000,
+              "ofDays": 5,
+              "firstMs": 1790176740000,
+              "retainedLastMs": 1790697660000
+            },
+            "RESOURCE_CLASS": {
+              "of": 19,
+              "days": 5,
+              "seen": 19,
+              "value": "SENSITIVE",
+              "lastMs": 1790697660000,
+              "ofDays": 5,
+              "firstMs": 1790176740000,
+              "retainedLastMs": 1790697660000
+            }
+          },
+          "targets": {
+            "projectKey=HX-310": 4,
+            "documentKey=HX-310-DWG-00179": 1,
+            "documentKey=HX-310-DWG-00264": 1,
+            "documentKey=HX-310-DWG-00274": 1,
+            "documentKey=HX-310-DWG-00334": 1,
+            "documentKey=HX-310-DWG-00425": 1,
+            "documentKey=HX-310-DWG-00536": 1,
+            "documentKey=HX-310-DWG-01053": 1,
+            "documentKey=HX-310-SPC-00232": 1,
+            "documentKey=HX-310-SPC-00548": 1,
+            "documentKey=HX-310-SPC-01026": 1,
+            "documentKey=HX-310-SPC-01030": 1,
+            "documentKey=HX-310-TST-00130": 1,
+            "documentKey=HX-310-TST-00693": 1,
+            "documentKey=HX-310-TST-00897": 1,
+            "documentKey=HX-310-TST-00922": 1
+          },
+          "networks": {
+            "10.40.21.0/24": 19
+          },
+          "dayObservations": 47,
+          "identityObservations": 19,
+          "vocabularyNotComparable": 0,
+          "busiestActiveHourRequests": 2
+        },
+        "seenDays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "seenHours": [
+          10,
+          11,
+          12,
+          14,
+          15,
+          16
+        ],
+        "usualDays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "exportSize": {
+          "exports": 4,
+          "medianItems": 10,
+          "largestItems": 15
+        },
+        "usualHours": [
+          11,
+          12,
+          15,
+          16
+        ],
+        "windowDays": 7,
+        "daysCovered": 5,
+        "windowBasis": "the last 7 days hold 19 observations",
+        "actionCounts": {
+          "READ": 15,
+          "EXPORT": 4
+        },
+        "observations": 19,
+        "usualDevices": [
+          "Edge/140 on WINDOWS"
+        ],
+        "usualTargets": [
+          "projectKey=HX-310"
+        ],
+        "evidenceGrade": "LIMITED",
+        "usualBrowsers": [
+          "Edge/140"
+        ],
+        "usualNetworks": [
+          "10.40.21.0/24"
+        ],
+        "evidenceCauses": [
+          "workProfile.protectableInvocationDensity needs caution: observations=19 | daysCovered=5 | fallback=100% | unknown=0% | evidenceState=fallback-derived | fallbackSources=className+methodName"
+        ],
+        "knownRareTasks": [],
+        "learnedUpdates": 48,
+        "resourceClasses": [
+          "SENSITIVE=19"
+        ],
+        "privilegedActions": 0,
+        "usualLoginMethods": [
+          "PASSWORD+ONE_TIME_CODE"
+        ],
+        "usualSessionMinutes": 23,
+        "readWriteExportRatio": "79:0:21",
+        "requestsPerActiveHour": 1.36,
+        "usualOperatingSystems": [
+          "WINDOWS"
+        ]
+      },
+      "normalAccessDays": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "normalAccessHours": [
+        11,
+        12,
+        15,
+        16
+      ],
+      "normalRequestRate": 1.36,
+      "frequentActionFamilies": [
+        "READ",
+        "EXPORT"
+      ],
+      "longTailLegitimateTasks": [],
+      "seasonalBusinessProfile": null,
+      "normalReadWriteExportRatio": "79:0:21",
+      "normalSessionLengthMinutes": 23,
+      "protectableResourceHeatmap": [
+        "/api/projects/HX-310/exports=4",
+        "/api/documents/HX-310-DWG-00179=1",
+        "/api/documents/HX-310-DWG-00264=1",
+        "/api/documents/HX-310-DWG-00274=1",
+        "/api/documents/HX-310-DWG-00334=1",
+        "/api/documents/HX-310-DWG-00425/download=1"
+      ],
+      "frequentProtectableResources": [
+        "/api/projects/HX-310/exports",
+        "/api/documents/HX-310-DWG-00179",
+        "/api/documents/HX-310-DWG-00264",
+        "/api/documents/HX-310-DWG-00274",
+        "/api/documents/HX-310-DWG-00334",
+        "/api/documents/HX-310-DWG-00425/download"
+      ],
+      "protectableInvocationDensity": 1.0,
+      "normalPrivilegedActionFrequency": 0.0,
+      "frequentSensitiveResourceCategories": [
+        "CONFIDENTIAL"
+      ]
+    },
+    "labelMatrix": {},
+    "request": {
+      "ipBand": "10.40.21.0/24",
+      "deviceOs": "WINDOWS",
+      "dayOfWeek": "3",
+      "pathFamily": "/api/documents/{documentKey}/download",
+      "requestPath": "/api/documents/DOC-4f4e198f551f-2/download",
+      "actionFamily": "READ",
+      "deviceBrowser": "Edge/140",
+      "resourceFamily": "SENSITIVE",
+      "requestTimestamp": null,
+      "currentAccessHour": "14",
+      "authenticationType": "PASSWORD+ONE_TIME_CODE"
+    },
+    "learning": {
+      "carryMissingFacts": [],
+      "carryRequiredFacts": [
+        "WorkProfileEvidenceState",
+        "ObservedPatternEvidenceScope",
+        "CurrentVsObservedDeltaCount",
+        "StrongestCurrentVsObservedDelta",
+        "CurrentVsObservedDeltaSummary",
+        "HistoricalComparableScope",
+        "HistoricalComparableCount",
+        "HistoricalComparableSummary",
+        "ComparableExample1",
+        "CurrentRequestCombinationEvidenceScope",
+        "CurrentRequestCombinationSeenCount",
+        "CurrentRequestCombinationComparedDimensions",
+        "CurrentRequestClosestObservedOverlap",
+        "StrongestCurrentRequestCombinationDelta",
+        "CurrentRequestCombinationSummary",
+        "ObservedComparableCombination1",
+        "CurrentAccessHour",
+        "CurrentAccessHourPresentInObservedHours",
+        "CurrentDayOfWeek",
+        "CurrentDayPresentInObservedDays",
+        "CurrentNetwork",
+        "CurrentNetworkPresentInObservedNetworks",
+        "CurrentBrowser",
+        "CurrentBrowserPresentInObservedBrowsers",
+        "CurrentOperatingSystem",
+        "CurrentOperatingSystemPresentInObservedOperatingSystems",
+        "CurrentDevice",
+        "CurrentDevicePresentInObservedDevices",
+        "CurrentPathFamily",
+        "CurrentPathPresentInObservedPaths",
+        "CurrentAuthenticationType",
+        "CurrentAuthenticationTypePresentInObservedAuthTypes",
+        "CurrentActionFamily",
+        "CurrentActionFamilyPresentInObservedActions",
+        "CurrentResourceFamily",
+        "CurrentResourceFamilyPresentInObservedResources"
+      ],
+      "strongestLearningDelta": null,
+      "historicalComparableScope": "PERSONAL_RETRIEVED_SUBSET",
+      "personalRetrievedDocCount": 12,
+      "personalBaselineEstablished": true,
+      "supportingBaselineAvailable": true,
+      "supportingRetrievedDocCount": 0,
+      "observedPatternEvidenceScope": "PERSONAL_BASELINE_PLUS_PERSONAL_RETRIEVED",
+      "observedComparableCombination1": "count=1 | hour=14 | auth=PASSWORD+ONE_TIME_CODE | browser=Edge/140 | action=READ | resource=SENSITIVE | path=/api/documents/{documentKey}/download",
+      "currentRequestCombinationSummary": "hour=14 | auth=PASSWORD+ONE_TIME_CODE | browser=Edge/140 | action=READ | resource=SENSITIVE | path=/api/documents/{documentKey}/download",
+      "currentRequestCombinationSeenCount": 1,
+      "currentRequestClosestObservedOverlap": "6/6",
+      "currentRequestCombinationEvidenceScope": "PERSONAL_RETRIEVED_SUBSET",
+      "strongestCurrentRequestCombinationDelta": "closestOverlap=6/6 | differing=none",
+      "currentRequestCombinationComparedDimensions": "accessHour, authenticationType, browser, actionFamily, resourceFamily, pathFamily"
+    },
+    "resource": {
+      "scope": "projectKey=HX-310",
+      "authorText": "Bid price floor, competitor price estimates and negotiation stance for the upcoming HX-310 tender.",
+      "httpMethod": "GET",
+      "pathFamily": "/api/documents/{documentKey}/download",
+      "privileged": null,
+      "resourceId": "io.contexa.showcase.workload.contexa.business.ContexaBusinessOperations#downloadDocument",
+      "requestPath": "/api/documents/DOC-4f4e198f551f-2/download",
+      "sensitivity": "HIGH",
+      "actionFamily": "READ",
+      "resourceType": null,
+      "businessLabel": "Document DOC-4f4e198f551f-2 'HX-310 competitive bid strategy memo (sales division only)' revision 1 (NOTE) of project HX-310 HX-310 shell-and-tube heat exchanger (source: business database)",
+      "resourceClass": "SENSITIVE",
+      "requestedItems": null,
+      "exportSensitive": null,
+      "resourceCategory": "PROJECT_DOCUMENTS",
+      "sensitiveResource": true,
+      "actionFamilySource": "host:protectableActionFamily",
+      "verificationRequired": true
+    },
+    "company": {
+      "onCall": null,
+      "travel": null,
+      "summary": "Company facts of this request were looked up in the company records.",
+      "policies": [
+        {
+          "policyId": "DOCUMENT_ACCESS_APPROVAL",
+          "statement": "A project document is read by an employee assigned to the project or who worked on it in the last 90 days, or under a ticket that covers the project.",
+          "exceptions": [
+            {
+              "kind": "ASSIGNED",
+              "limit": null
+            },
+            {
+              "kind": "RECENT_WORK",
+              "limit": 90
+            }
+          ],
+          "requirement": "TICKET",
+          "hostRequires": false,
+          "requiredTicketKind": null
+        }
+      ],
+      "assignment": {
+        "target": "HX-310",
+        "assigned": true,
+        "responsibility": "DESIGN"
+      },
+      "breakGlass": null,
+      "blockedUser": null,
+      "accessHistory": {
+        "days": 59,
+        "target": "HX-310",
+        "windowDays": 90,
+        "lastAccessDate": "2026-09-29"
+      },
+      "ticketRecords": [],
+      "approvalStatus": null,
+      "approvalGranted": null,
+      "approvalLineage": [],
+      "approvalMissing": false,
+      "approvalRecords": [],
+      "recordsHolderId": "v4f4e198f551f-eng-k",
+      "approvalRequired": false,
+      "approvalTicketId": null,
+      "recentBlockCount": 0,
+      "checkedRecordKinds": [
+        "ASSIGNMENT",
+        "TICKET",
+        "ACCESS_HISTORY",
+        "TRAVEL"
+      ],
+      "pendingApproverRoles": [],
+      "recentChallengeCount": 0,
+      "recentEscalationCount": 0,
+      "recordsHolderRelation": "SUBJECT",
+      "recentDeniedAccessCount": null,
+      "approvalDecisionAgeMinutes": null
+    },
+    "coverage": {
+      "level": "BUSINESS_AWARE",
+      "summary": "Business-aware context is available for role, resource, and session reasoning. Bridge coverage: AUTHORIZATION_CONTEXT.",
+      "availableFacts": [
+        "Actor identity is available.",
+        "Session identity is available.",
+        "Effective roles are available.",
+        "Current request authorization effect is available.",
+        "Resource identity is available.",
+        "Resource business label is available.",
+        "Resource sensitivity is available.",
+        "Session MFA state is available.",
+        "Device context is available.",
+        "Location context is available.",
+        "Observed work pattern evidence is available through personal work profile signals.",
+        "Session narrative is available.",
+        "Personal work profile evidence is available but provisional.",
+        "Role scope profile evidence is available but provisional.",
+        "Friction and approval history is available.",
+        "Bridge coverage metadata is available.",
+        "Bridge authentication source is available.",
+        "Bridge authorization source is available.",
+        "Bridge summary: Bridge completeness reached authentication and partial authorization context for the current request.",
+        "Context trust profile is available for PERSONAL_WORK_PROFILE.",
+        "Context provenance summary: collector=PROTECTABLE_WORK_PROFILE_COLLECTOR,window=7d,observations=19,daysCovered=5,resourceSources=requestPath,actionSources=protectableActionFamily,resourceFallback=0%,actionFallback=0%",
+        "Context trust profile is available for ROLE_SCOPE_PROFILE.",
+        "Context provenance summary: Effective roles SC_ENGINEER | Roles from effectiveRoles | Permissions from authorities | Allowed role-scope observations 50"
+      ],
+      "remediationHints": [
+        "Propagate effective permissions or scope tags for broader authorization-scope analysis when they exist.",
+        "Propagate request anomaly signals such as bot user-agent, referer, language, TLS, and header-order observations when available.",
+        "Increase allowed observations and reduce fallback-derived work profile fields before treating personal work profile as a strong reasoning anchor.",
+        "Increase explicit role-scope evidence and reduce fallback-derived comparisons before treating role scope as a strong reasoning anchor.",
+        "Attach peer cohort deltas through enterprise cohort enrichment when available.",
+        "Attach reinforced cases, hard negatives, and reasoning memory facts from enterprise memory services when available.",
+        "Increase explicit collector signals and evidence coverage before using PERSONAL_WORK_PROFILE as a strong reasoning anchor.",
+        "Increase explicit collector signals and evidence coverage before using ROLE_SCOPE_PROFILE as a strong reasoning anchor."
+      ],
+      "confidenceWarnings": [
+        "Broader authorization scope metadata is unavailable; do not infer permissions beyond the current request authorization effect.",
+        "Request intent signals are partial; client anomaly reasoning should remain conservative.",
+        "Personal work profile evidence is LIMITED: workProfile.protectableInvocationDensity needs caution: observations=19 | daysCovered=5 | fallback=100% | unknown=0% | evidenceState=fallback-derived | fallbackSources=className+methodName; do not treat it as a standalone proof of normal behavior.",
+        "Role scope profile exists but remains thin, fallback-heavy, or comparison-incomplete; do not treat it as a standalone proof of authorized business scope.",
+        "Peer cohort delta is missing; cohort-based deviation claims should remain conservative.",
+        "Reasoning memory is missing; avoid assuming prior validated cases or XAI-backed precedents exist.",
+        "Context evidence for PERSONAL_WORK_PROFILE is LIMITED: workProfile.protectableInvocationDensity needs caution: observations=19 | daysCovered=5 | fallback=100% | unknown=0% | evidenceState=fallback-derived | fallbackSources=className+methodName; do not use it as a standalone reasoning anchor.",
+        "workProfile.protectableInvocationDensity has thin or fallback-heavy evidence; observations=19 | daysCovered=5 | fallback=100% | unknown=0% | evidenceState=fallback-derived",
+        "This profile describes enacted post-auth access behavior, not approved business intent, approval lineage, or delegated objective.",
+        "Scope limitation: Use this profile to understand enacted work patterns after authorization, not to infer business objective by itself.",
+        "Scope limitation: Approval lineage, delegated intent, and human purpose require friction, delegation, or enterprise memory context.",
+        "Context evidence for ROLE_SCOPE_PROFILE is thin, fallback-heavy, or comparison-incomplete; do not use it as a standalone reasoning anchor.",
+        "Role scope field roleScope.recentPermissionChanges has thin or fallback-heavy evidence; do not use it as a standalone reasoning anchor.",
+        "This profile describes enacted or denied authorization scope after authentication, not the full tenant policy graph or business objective by itself.",
+        "Scope limitation: Use this profile to understand role-scoped reach and recent permission-change evidence after authorization, not to infer human purpose by itself.",
+        "Scope limitation: Approval lineage, delegated objective, and business intent still require friction, delegation, or enterprise memory context."
+      ],
+      "missingCriticalFacts": []
+    },
+    "rag": {
+      "ragSearchId": "8ab97e18-53e2-4f7d-88b2-268dd2ab34b1",
+      "ragTimedOut": false,
+      "ragVectorMs": 15,
+      "ragRelevance": "MIXED_OR_DIFFERENT_RESOURCE",
+      "ragSearchMode": "EXACT_PAST_RECORD_LOOKUP",
+      "ragSearchScope": {
+        "limit": 12,
+        "order": [
+          "requestPath in firstPaths first",
+          "timestamp desc nulls last",
+          "id"
+        ],
+        "userId": "v4f4e198f551f-eng-k",
+        "agentId": null,
+        "filters": [
+          "documentType == behavior",
+          "userId == scope.userId",
+          "retrievalPurpose == scope.retrievalPurpose (when set)",
+          "actionFamily == scope.actionFamily",
+          "sessionId not in scope.excludedSessionIds",
+          "learningState not in (HELD, QUARANTINED)",
+          "agentId == scope.agentId, or no agentId for a person's request",
+          "tenantId == scope.tenantId when the record has one, else organizationId == scope.organizationId when the record has one"
+        ],
+        "tenantId": "tenant-4f4e198f551f",
+        "firstPaths": [],
+        "actionFamily": "READ",
+        "organizationId": "org-4f4e198f551f",
+        "retrievalPurpose": "security_investigation",
+        "excludedSessionIds": [
+          "<SESSION>",
+          "<SESSION>"
+        ]
+      },
+      "ragUnavailable": false,
+      "ragApplicability": "DOCUMENTS_RETRIEVED",
+      "ragFullTimeoutMs": 8000,
+      "ragRequestedTopK": 12,
+      "ragRetrievalState": "AVAILABLE",
+      "ragSearchExecuted": true,
+      "ragSkippedQueries": [
+        "PERSONAL_QUERY",
+        "BROAD_QUERY",
+        "BASELINE_QUERY",
+        "SUPPORTING_QUERY"
+      ],
+      "ragProjectionState": "PROJECTED",
+      "ragPastRecordCounts": {
+        "action": "READ",
+        "entryPoint": "GET /api/documents/{documentKey}/download",
+        "sameTarget": 0,
+        "otherTargets": 37,
+        "sameTargetLast": null,
+        "targetNotKnown": 0,
+        "otherTargetsLast": "2026-09-29T12:55",
+        "entryPointRecords": 10
+      },
+      "ragSearchQueryCount": 1,
+      "ragInteractiveWaitMs": 600,
+      "ragPermissionFiltered": false,
+      "ragDeniedDocumentCount": 0,
+      "ragPastDeniedDecisions": [],
+      "ragRuntimeBudgetPolicy": "INTERACTIVE_WAIT_CANCEL_ON_TIMEOUT",
+      "ragCandidateDocumentCount": 37,
+      "ragProjectedToFinalPrompt": true,
+      "ragAuthorizedDocumentCount": 12,
+      "ragStatusProjectedToFinalPrompt": true
+    },
+    "prompt": {
+      "promptVersion": "2026.10.30-v21.19",
+      "omittedSections": [],
+      "promptSectionSet": [
+        "SYSTEM_INSTRUCTION",
+        "DECISION_CONTRACT",
+        "SECOND PASS"
+      ],
+      "llmUserPromptLength": 9581,
+      "llmTotalPromptLength": 23616,
+      "llmSystemPromptLength": 14035,
+      "promptContractViolations": [],
+      "promptEvidenceCompleteness": "PARTIAL",
+      "compactedLineCountBySection": {},
+      "promptContractViolationCount": 0
+    },
+    "session": {
+      "device": {
+        "os": "WINDOWS",
+        "browser": "Edge",
+        "language": null,
+        "osVersion": null,
+        "browserVersion": "140",
+        "fingerprintMatch": null,
+        "screenResolution": null
+      },
+      "session": {
+        "newUser": null,
+        "clientIp": "10.40.21.68",
+        "newDevice": false,
+        "sessionId": "<SESSION>",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0",
+        "newSession": false,
+        "blockedUser": null,
+        "mfaVerified": true,
+        "lastMfaUsedAt": "2026-09-30T14:18:00Z",
+        "passwordAgeDays": null,
+        "recentBlockCount": 0,
+        "currentAccessHour": 14,
+        "authenticationTime": "2026-09-30T14:18:00Z",
+        "authenticationType": "PASSWORD+ONE_TIME_CODE",
+        "concurrentSessions": null,
+        "recentRequestCount": null,
+        "challengeVerifiedAt": null,
+        "failedLoginAttempts": 0,
+        "recentChallengeCount": 0,
+        "recentMfaElsewhereAt": null,
+        "recentEscalationCount": 0,
+        "recentMfaFailureCount": null,
+        "authenticationAssurance": "AAL2",
+        "failedLoginWindowMinutes": 5
+      },
+      "location": {
+        "asn": null,
+        "city": null,
+        "ipBand": "10.40.21.0/24",
+        "country": null,
+        "movement": null,
+        "networkZone": "CORPORATE"
+      },
+      "authorization": {
+        "policyId": null,
+        "scopeTags": [],
+        "privileged": null,
+        "decisionTime": "2026-10-31T17:26:13.869654Z",
+        "policyVersion": null,
+        "effectiveRoles": [
+          "SC_ENGINEER"
+        ],
+        "authorizationEffect": "ALLOW",
+        "effectivePermissions": [],
+        "methodExecutionFailure": null,
+        "methodExecutionOutcome": "COMPLETED",
+        "privilegedAuthoritySignals": []
+      }
+    },
+    "template": {
+      "status": "READY",
+      "allowed": 50,
+      "ready_at": "2026-10-31T01:38:00.130510Z",
+      "requests": 50,
+      "chat_model": "gpt-5-nano",
+      "created_at": "2026-10-31T01:18:18.000475Z",
+      "retired_at": null,
+      "template_id": "tpl-eng-k-20261031011817-1",
+      "employee_key": "eng-k",
+      "learned_under": "35fb830fcc060bd3c1c0ff904d94e524722c6e93e8dd9990b0c6877c881e2606",
+      "model_settings": {
+        "layer1Model": {
+          "model": "gpt-6-luna",
+          "verbosity": "low",
+          "maxOutputTokens": 4096,
+          "reasoningEffort": "low"
+        },
+        "layer2Model": {
+          "model": "claude-sonnet-5-5",
+          "verbosity": null,
+          "maxOutputTokens": 2560,
+          "reasoningEffort": null
+        }
+      },
+      "embedding_model": "text-embedding-3-small",
+      "identity_checks": 0,
+      "memory_documents": 50,
+      "baseline_update_count": 47,
+      "work_profile_observations": 47
+    }
+  },
+  "interpretation": {
+    "calls": [
+      {
+        "callNo": 1,
+        "model": "gpt-6-luna",
+        "requestOptions": {
+          "seed": 1,
+          "model": "gpt-6-luna",
+          "stream": false,
+          "verbosity": "low",
+          "messageCount": 2,
+          "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+              "name": "custom_schema",
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action",
+                  "hypotheses",
+                  "reasonCodes",
+                  "reason",
+                  "riskScore",
+                  "confidence",
+                  "mitre"
+                ],
+                "properties": {
+                  "mitre": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "action": {
+                    "enum": [
+                      "ALLOW",
+                      "CHALLENGE",
+                      "ESCALATE",
+                      "BLOCK"
+                    ],
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "riskScore": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "maximum": 1,
+                    "minimum": 0
+                  },
+                  "confidence": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "maximum": 1,
+                    "minimum": 0
+                  },
+                  "hypotheses": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "name",
+                        "assessment",
+                        "for",
+                        "against"
+                      ],
+                      "properties": {
+                        "id": {
+                          "enum": [
+                            "H1",
+                            "H2",
+                            "H3",
+                            "H4",
+                            "H5"
+                          ],
+                          "type": "string"
+                        },
+                        "for": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^[BSRFPU][0-9]{1,2}$"
+                          }
+                        },
+                        "name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "against": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^[BSRFPU][0-9]{1,2}$"
+                          }
+                        },
+                        "assessment": {
+                          "enum": [
+                            "MOST_LIKELY",
+                            "POSSIBLE",
+                            "UNLIKELY",
+                            "NO_EVIDENCE"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "maxItems": 5,
+                    "minItems": 1
+                  },
+                  "reasonCodes": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "fact"
+                      ],
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "RECORD_COVERS_WORK",
+                            "RECORD_DECIDED_AFTER_REQUEST",
+                            "RECORD_OUTSIDE_PERIOD",
+                            "RECORD_OTHER_TARGET",
+                            "RECORD_OVER_LIMIT",
+                            "RECORD_CUMULATIVE_OVER_LIMIT",
+                            "NO_COVERING_RECORD",
+                            "POLICY_NOT_KNOWN",
+                            "TICKET_CLAIM_FALSE",
+                            "ASSIGNED_TARGET",
+                            "ON_CALL",
+                            "TRAVEL_EXPLAINS_NETWORK",
+                            "BREAK_GLASS",
+                            "DEVIATION_TIME",
+                            "DEVIATION_DAY",
+                            "DEVIATION_NETWORK",
+                            "DEVIATION_DEVICE",
+                            "DEVIATION_LOGIN_METHOD",
+                            "DEVIATION_TARGET",
+                            "DEVIATION_ACTION",
+                            "DEVIATION_RESOURCE_CLASS",
+                            "DEVIATION_SIZE",
+                            "DEVIATION_RATE",
+                            "DEVIATION_MOVEMENT",
+                            "SESSION_DEVICE_CHANGE",
+                            "SESSION_NETWORK_CHANGE",
+                            "BASELINE_MATCH",
+                            "BASELINE_NOT_ESTABLISHED",
+                            "DATA_NATURE_MISMATCH",
+                            "ROLE_SCOPE_OUTSIDE",
+                            "RECENT_PERMISSION_CHANGE",
+                            "TEMPORARY_ELEVATION",
+                            "VALUE_FROM_UNTRUSTED_OUTPUT",
+                            "DELEGATION_SCOPE_DRIFT",
+                            "DELEGATION_OBJECTIVE_EXCEEDED",
+                            "SESSION_SEQUENCE",
+                            "REPEAT_IN_SESSION",
+                            "PRIOR_CHALLENGE_IN_SESSION",
+                            "CHALLENGE_VERIFIED_IN_SESSION",
+                            "FAILED_LOGINS",
+                            "MFA_FAILURES",
+                            "PAST_RECORD_SAME_TARGET",
+                            "PAST_DENIED_SAME_ACTION",
+                            "VALIDATED_CASE_MATCH",
+                            "CLIENT_SIGNAL_TAMPERING",
+                            "TENANT_CONFLICT",
+                            "AUTHORIZATION_CONFLICT",
+                            "DATA_CONFLICT",
+                            "THREAT_MATCH",
+                            "MATERIAL_CONTRADICTION",
+                            "MATERIAL_MISSING_EVIDENCE"
+                          ],
+                          "type": "string",
+                          "description": "RECORD_COVERS_WORK: you judged that this record, delegation or company policy covers this work by its target, purpose, period, limit and decision time\nRECORD_DECIDED_AFTER_REQUEST: the record was decided after this request\nRECORD_OUTSIDE_PERIOD: this request is outside the record's period\nRECORD_OTHER_TARGET: the record is for another target or purpose than this request\nRECORD_OVER_LIMIT: this request asks for more than the record allows\nRECORD_CUMULATIVE_OVER_LIMIT: what was already used under the record and this request together exceed its limit\nNO_COVERING_RECORD: you judged that no record stated for this request covers the work the policy asks a record for\nPOLICY_NOT_KNOWN: the company policy for this work is not known\nTICKET_CLAIM_FALSE: the ticket the requester names does not exist\nASSIGNED_TARGET: the requester is assigned to the target\nON_CALL: the requester is on call at the request time\nTRAVEL_EXPLAINS_NETWORK: you judged that a trip explains the network of this request\nBREAK_GLASS: an emergency access is declared\nDEVIATION_TIME: the time is not among the usual ones\nDEVIATION_DAY: the day is not among the usual ones\nDEVIATION_NETWORK: the network is not among the usual ones\nDEVIATION_DEVICE: the device is not among the usual ones\nDEVIATION_LOGIN_METHOD: the login method is not among the usual ones\nDEVIATION_TARGET: the target is not among the usual ones\nDEVIATION_ACTION: the action is not among the usual ones\nDEVIATION_RESOURCE_CLASS: the resource class is not among the usual ones\nDEVIATION_SIZE: the size is beyond the usual sizes\nDEVIATION_RATE: the request rate is beyond the usual rate\nDEVIATION_MOVEMENT: the movement from the previous place\nSESSION_DEVICE_CHANGE: the device changed within the session\nSESSION_NETWORK_CHANGE: the network address changed within the session\nBASELINE_MATCH: the compared dimensions are among the usual ones\nBASELINE_NOT_ESTABLISHED: the personal baseline is not established, so a comparison shows little\nDATA_NATURE_MISMATCH: you judged that what the data is does not fit the requester's role, assignment or usual work\nROLE_SCOPE_OUTSIDE: you judged that the action or category is not among what the scope group does\nRECENT_PERMISSION_CHANGE: a recent permission change\nTEMPORARY_ELEVATION: a temporary elevation is active\nVALUE_FROM_UNTRUSTED_OUTPUT: a value of this request's call arguments first appeared in the output of a tool, and neither the user's request nor the company's records name it\nDELEGATION_SCOPE_DRIFT: the comparison of this request with the delegation says drift: it leaves the allowed operations, resources or stated limits\nDELEGATION_OBJECTIVE_EXCEEDED: you judged that the amount, breadth or purpose of this request goes beyond what the delegation's objective calls for\nSESSION_SEQUENCE: you judged that the order, pace or amount of this session's requests changes the story\nREPEAT_IN_SESSION: the same action repeats in the session\nPRIOR_CHALLENGE_IN_SESSION: an earlier challenge or non-allow decision in this session\nCHALLENGE_VERIFIED_IN_SESSION: a challenge was passed in this session\nFAILED_LOGINS: recent failed logins\nMFA_FAILURES: recent MFA failures\nPAST_RECORD_SAME_TARGET: an earlier allowed record on the same target\nPAST_DENIED_SAME_ACTION: a recent non-allow decision or refusal of the same action\nVALIDATED_CASE_MATCH: a validated case matches\nCLIENT_SIGNAL_TAMPERING: a measured client tampering signal\nTENANT_CONFLICT: a tenant or organization conflict\nAUTHORIZATION_CONFLICT: an authorization conflict\nDATA_CONFLICT: a data conflict\nTHREAT_MATCH: a match with threat knowledge\nMATERIAL_CONTRADICTION: facts that weigh in the judgment contradict each other\nMATERIAL_MISSING_EVIDENCE: a fact that would separate the explanations is missing"
+                        },
+                        "fact": {
+                          "type": "string",
+                          "pattern": "^[BSRFPU][0-9]{1,2}$"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "maxItems": 5,
+                    "minItems": 1
+                  }
+                },
+                "additionalProperties": false
+              },
+              "strict": true
+            }
+          },
+          "prompt_cache_key": "contexa-c7aed87094f44aefc6b42bb113850d75",
+          "reasoning_effort": "low",
+          "max_completion_tokens": 2048
+        },
+        "finishReason": "stop",
+        "promptTokens": 7129,
+        "completionTokens": 774,
+        "reasoningTokens": 361,
+        "elapsedMs": 10528,
+        "success": true,
+        "failure": null,
+        "httpStatus": 200,
+        "answer": "{\n  \"action\": \"ESCALATE\",\n  \"hypotheses\": [\n    {\n      \"id\": \"H1\",\n      \"name\": null,\n      \"assessment\": \"POSSIBLE\",\n      \"for\": [\"F4\", \"F8\", \"F1\", \"S1\"],\n      \"against\": [\"R6\", \"U1\"]\n    },\n    {\n      \"id\": \"H2\",\n      \"name\": null,\n      \"assessment\": \"UNLIKELY\",\n      \"for\": [],\n      \"against\": [\"S1\", \"S3\", \"R7\", \"R8\"]\n    },\n    {\n      \"id\": \"H3\",\n      \"name\": null,\n      \"assessment\": \"POSSIBLE\",\n      \"for\": [\"R6\", \"F4\", \"F8\"],\n      \"against\": [\"F4\", \"F3\"]\n    },\n    {\n      \"id\": \"H4\",\n      \"name\": null,\n      \"assessment\": \"UNLIKELY\",\n      \"for\": [],\n      \"against\": [\"S4\", \"R3\"]\n    }\n  ],\n  \"reasonCodes\": [\n    {\n      \"code\": \"DATA_NATURE_MISMATCH\",\n      \"fact\": \"R6\"\n    },\n    {\n      \"code\": \"ASSIGNED_TARGET\",\n      \"fact\": \"F4\"\n    },\n    {\n      \"code\": \"SESSION_SEQUENCE\",\n      \"fact\": \"S4\"\n    },\n    {\n      \"code\": \"MATERIAL_MISSING_EVIDENCE\",\n      \"fact\": \"U1\"\n    }\n  ],\n  \"reason\": \"Escalation is warranted because the assigned project and ordinary session context support legitimate work, but this sensitive document’s sales-only bid strategy does not clearly fit the engineer’s work, and intent evidence is incomplete.\",\n  \"riskScore\": 0.56,\n  \"confidence\": 0.7,\n  \"mitre\": null\n}",
+        "parsedAnswer": {
+          "mitre": null,
+          "action": "ESCALATE",
+          "reason": "Escalation is warranted because the assigned project and ordinary session context support legitimate work, but this sensitive document’s sales-only bid strategy does not clearly fit the engineer’s work, and intent evidence is incomplete.",
+          "riskScore": 0.56,
+          "confidence": 0.7,
+          "hypotheses": [
+            {
+              "id": "H1",
+              "for": [
+                "F4",
+                "F8",
+                "F1",
+                "S1"
+              ],
+              "name": null,
+              "against": [
+                "R6",
+                "U1"
+              ],
+              "assessment": "POSSIBLE"
+            },
+            {
+              "id": "H2",
+              "for": [],
+              "name": null,
+              "against": [
+                "S1",
+                "S3",
+                "R7",
+                "R8"
+              ],
+              "assessment": "UNLIKELY"
+            },
+            {
+              "id": "H3",
+              "for": [
+                "R6",
+                "F4",
+                "F8"
+              ],
+              "name": null,
+              "against": [
+                "F4",
+                "F3"
+              ],
+              "assessment": "POSSIBLE"
+            },
+            {
+              "id": "H4",
+              "for": [],
+              "name": null,
+              "against": [
+                "S4",
+                "R3"
+              ],
+              "assessment": "UNLIKELY"
+            }
+          ],
+          "reasonCodes": [
+            {
+              "code": "DATA_NATURE_MISMATCH",
+              "fact": "R6"
+            },
+            {
+              "code": "ASSIGNED_TARGET",
+              "fact": "F4"
+            },
+            {
+              "code": "SESSION_SEQUENCE",
+              "fact": "S4"
+            },
+            {
+              "code": "MATERIAL_MISSING_EVIDENCE",
+              "fact": "U1"
+            }
+          ]
+        },
+        "maskedPlaces": 0,
+        "sentAt": "2026-10-31T17:26:13.952673Z",
+        "finishedAt": "2026-10-31T17:26:24.480673Z",
+        "systemPromptSha256": "c7aed87094f44aefc6b42bb113850d75faa5f170c5cadc00844e31b83d3d02d6"
+      },
+      {
+        "callNo": 2,
+        "model": "claude-sonnet-5-5",
+        "requestOptions": {
+          "model": "claude-sonnet-5-5",
+          "stream": false,
+          "max_tokens": 2560,
+          "messageCount": 1,
+          "output_format": {
+            "type": "json_schema",
+            "schema": {
+              "type": "object",
+              "required": [
+                "action",
+                "hypotheses",
+                "reasonCodes",
+                "reason",
+                "riskScore",
+                "confidence",
+                "mitre"
+              ],
+              "properties": {
+                "mitre": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "action": {
+                  "enum": [
+                    "ALLOW",
+                    "CHALLENGE",
+                    "ESCALATE",
+                    "BLOCK"
+                  ],
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "riskScore": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "confidence": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "hypotheses": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "name",
+                      "assessment",
+                      "for",
+                      "against"
+                    ],
+                    "properties": {
+                      "id": {
+                        "enum": [
+                          "H1",
+                          "H2",
+                          "H3",
+                          "H4",
+                          "H5"
+                        ],
+                        "type": "string"
+                      },
+                      "for": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[BSRFPU][0-9]{1,2}$"
+                        }
+                      },
+                      "name": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "against": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[BSRFPU][0-9]{1,2}$"
+                        }
+                      },
+                      "assessment": {
+                        "enum": [
+                          "MOST_LIKELY",
+                          "POSSIBLE",
+                          "UNLIKELY",
+                          "NO_EVIDENCE"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "minItems": 1
+                },
+                "reasonCodes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "code",
+                      "fact"
+                    ],
+                    "properties": {
+                      "code": {
+                        "enum": [
+                          "RECORD_COVERS_WORK",
+                          "RECORD_DECIDED_AFTER_REQUEST",
+                          "RECORD_OUTSIDE_PERIOD",
+                          "RECORD_OTHER_TARGET",
+                          "RECORD_OVER_LIMIT",
+                          "RECORD_CUMULATIVE_OVER_LIMIT",
+                          "NO_COVERING_RECORD",
+                          "POLICY_NOT_KNOWN",
+                          "TICKET_CLAIM_FALSE",
+                          "ASSIGNED_TARGET",
+                          "ON_CALL",
+                          "TRAVEL_EXPLAINS_NETWORK",
+                          "BREAK_GLASS",
+                          "DEVIATION_TIME",
+                          "DEVIATION_DAY",
+                          "DEVIATION_NETWORK",
+                          "DEVIATION_DEVICE",
+                          "DEVIATION_LOGIN_METHOD",
+                          "DEVIATION_TARGET",
+                          "DEVIATION_ACTION",
+                          "DEVIATION_RESOURCE_CLASS",
+                          "DEVIATION_SIZE",
+                          "DEVIATION_RATE",
+                          "DEVIATION_MOVEMENT",
+                          "SESSION_DEVICE_CHANGE",
+                          "SESSION_NETWORK_CHANGE",
+                          "BASELINE_MATCH",
+                          "BASELINE_NOT_ESTABLISHED",
+                          "DATA_NATURE_MISMATCH",
+                          "ROLE_SCOPE_OUTSIDE",
+                          "RECENT_PERMISSION_CHANGE",
+                          "TEMPORARY_ELEVATION",
+                          "VALUE_FROM_UNTRUSTED_OUTPUT",
+                          "DELEGATION_SCOPE_DRIFT",
+                          "DELEGATION_OBJECTIVE_EXCEEDED",
+                          "SESSION_SEQUENCE",
+                          "REPEAT_IN_SESSION",
+                          "PRIOR_CHALLENGE_IN_SESSION",
+                          "CHALLENGE_VERIFIED_IN_SESSION",
+                          "FAILED_LOGINS",
+                          "MFA_FAILURES",
+                          "PAST_RECORD_SAME_TARGET",
+                          "PAST_DENIED_SAME_ACTION",
+                          "VALIDATED_CASE_MATCH",
+                          "CLIENT_SIGNAL_TAMPERING",
+                          "TENANT_CONFLICT",
+                          "AUTHORIZATION_CONFLICT",
+                          "DATA_CONFLICT",
+                          "THREAT_MATCH",
+                          "MATERIAL_CONTRADICTION",
+                          "MATERIAL_MISSING_EVIDENCE"
+                        ],
+                        "type": "string",
+                        "description": "RECORD_COVERS_WORK: you judged that this record, delegation or company policy covers this work by its target, purpose, period, limit and decision time\nRECORD_DECIDED_AFTER_REQUEST: the record was decided after this request\nRECORD_OUTSIDE_PERIOD: this request is outside the record's period\nRECORD_OTHER_TARGET: the record is for another target or purpose than this request\nRECORD_OVER_LIMIT: this request asks for more than the record allows\nRECORD_CUMULATIVE_OVER_LIMIT: what was already used under the record and this request together exceed its limit\nNO_COVERING_RECORD: you judged that no record stated for this request covers the work the policy asks a record for\nPOLICY_NOT_KNOWN: the company policy for this work is not known\nTICKET_CLAIM_FALSE: the ticket the requester names does not exist\nASSIGNED_TARGET: the requester is assigned to the target\nON_CALL: the requester is on call at the request time\nTRAVEL_EXPLAINS_NETWORK: you judged that a trip explains the network of this request\nBREAK_GLASS: an emergency access is declared\nDEVIATION_TIME: the time is not among the usual ones\nDEVIATION_DAY: the day is not among the usual ones\nDEVIATION_NETWORK: the network is not among the usual ones\nDEVIATION_DEVICE: the device is not among the usual ones\nDEVIATION_LOGIN_METHOD: the login method is not among the usual ones\nDEVIATION_TARGET: the target is not among the usual ones\nDEVIATION_ACTION: the action is not among the usual ones\nDEVIATION_RESOURCE_CLASS: the resource class is not among the usual ones\nDEVIATION_SIZE: the size is beyond the usual sizes\nDEVIATION_RATE: the request rate is beyond the usual rate\nDEVIATION_MOVEMENT: the movement from the previous place\nSESSION_DEVICE_CHANGE: the device changed within the session\nSESSION_NETWORK_CHANGE: the network address changed within the session\nBASELINE_MATCH: the compared dimensions are among the usual ones\nBASELINE_NOT_ESTABLISHED: the personal baseline is not established, so a comparison shows little\nDATA_NATURE_MISMATCH: you judged that what the data is does not fit the requester's role, assignment or usual work\nROLE_SCOPE_OUTSIDE: you judged that the action or category is not among what the scope group does\nRECENT_PERMISSION_CHANGE: a recent permission change\nTEMPORARY_ELEVATION: a temporary elevation is active\nVALUE_FROM_UNTRUSTED_OUTPUT: a value of this request's call arguments first appeared in the output of a tool, and neither the user's request nor the company's records name it\nDELEGATION_SCOPE_DRIFT: the comparison of this request with the delegation says drift: it leaves the allowed operations, resources or stated limits\nDELEGATION_OBJECTIVE_EXCEEDED: you judged that the amount, breadth or purpose of this request goes beyond what the delegation's objective calls for\nSESSION_SEQUENCE: you judged that the order, pace or amount of this session's requests changes the story\nREPEAT_IN_SESSION: the same action repeats in the session\nPRIOR_CHALLENGE_IN_SESSION: an earlier challenge or non-allow decision in this session\nCHALLENGE_VERIFIED_IN_SESSION: a challenge was passed in this session\nFAILED_LOGINS: recent failed logins\nMFA_FAILURES: recent MFA failures\nPAST_RECORD_SAME_TARGET: an earlier allowed record on the same target\nPAST_DENIED_SAME_ACTION: a recent non-allow decision or refusal of the same action\nVALIDATED_CASE_MATCH: a validated case matches\nCLIENT_SIGNAL_TAMPERING: a measured client tampering signal\nTENANT_CONFLICT: a tenant or organization conflict\nAUTHORIZATION_CONFLICT: an authorization conflict\nDATA_CONFLICT: a data conflict\nTHREAT_MATCH: a match with threat knowledge\nMATERIAL_CONTRADICTION: facts that weigh in the judgment contradict each other\nMATERIAL_MISSING_EVIDENCE: a fact that would separate the explanations is missing"
+                      },
+                      "fact": {
+                        "type": "string",
+                        "pattern": "^[BSRFPU][0-9]{1,2}$"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "minItems": 1
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "systemCacheBlocks": 1
+        },
+        "finishReason": "end_turn",
+        "promptTokens": 13033,
+        "completionTokens": 1733,
+        "reasoningTokens": 1283,
+        "elapsedMs": 14156,
+        "success": true,
+        "failure": null,
+        "httpStatus": 200,
+        "answer": "{\"action\":\"BLOCK\",\"hypotheses\":[{\"id\":\"H1\",\"name\":null,\"assessment\":\"POSSIBLE\",\"for\":[\"F4\",\"F3\",\"F8\",\"R5\"],\"against\":[\"R4\",\"F1\"]},{\"id\":\"H2\",\"name\":null,\"assessment\":\"UNLIKELY\",\"for\":[],\"against\":[\"S1\",\"R7\",\"R8\",\"F2\",\"S3\"]},{\"id\":\"H3\",\"name\":null,\"assessment\":\"MOST_LIKELY\",\"for\":[\"R4\",\"F4\",\"F5\",\"F7\"],\"against\":[\"F3\",\"F8\"]},{\"id\":\"H4\",\"name\":null,\"assessment\":\"UNLIKELY\",\"for\":[],\"against\":[\"S4\",\"F7\"]}],\"reasonCodes\":[{\"code\":\"DATA_NATURE_MISMATCH\",\"fact\":\"R4\"},{\"code\":\"NO_COVERING_RECORD\",\"fact\":\"F5\"},{\"code\":\"REPEAT_IN_SESSION\",\"fact\":\"F7\"},{\"code\":\"BASELINE_MATCH\",\"fact\":\"F2\"}],\"reason\":\"Identity signals match the owner, so this is likely insider misuse: an engineer reading a high-sensitivity bid strategy memo labelled sales-division-only, with no ticket or record covering it, in a second read this session.\",\"riskScore\":0.6,\"confidence\":0.55,\"mitre\":[\"T1078\",\"T1213\"]}",
+        "parsedAnswer": {
+          "mitre": [
+            "T1078",
+            "T1213"
+          ],
+          "action": "BLOCK",
+          "reason": "Identity signals match the owner, so this is likely insider misuse: an engineer reading a high-sensitivity bid strategy memo labelled sales-division-only, with no ticket or record covering it, in a second read this session.",
+          "riskScore": 0.6,
+          "confidence": 0.55,
+          "hypotheses": [
+            {
+              "id": "H1",
+              "for": [
+                "F4",
+                "F3",
+                "F8",
+                "R5"
+              ],
+              "name": null,
+              "against": [
+                "R4",
+                "F1"
+              ],
+              "assessment": "POSSIBLE"
+            },
+            {
+              "id": "H2",
+              "for": [],
+              "name": null,
+              "against": [
+                "S1",
+                "R7",
+                "R8",
+                "F2",
+                "S3"
+              ],
+              "assessment": "UNLIKELY"
+            },
+            {
+              "id": "H3",
+              "for": [
+                "R4",
+                "F4",
+                "F5",
+                "F7"
+              ],
+              "name": null,
+              "against": [
+                "F3",
+                "F8"
+              ],
+              "assessment": "MOST_LIKELY"
+            },
+            {
+              "id": "H4",
+              "for": [],
+              "name": null,
+              "against": [
+                "S4",
+                "F7"
+              ],
+              "assessment": "UNLIKELY"
+            }
+          ],
+          "reasonCodes": [
+            {
+              "code": "DATA_NATURE_MISMATCH",
+              "fact": "R4"
+            },
+            {
+              "code": "NO_COVERING_RECORD",
+              "fact": "F5"
+            },
+            {
+              "code": "REPEAT_IN_SESSION",
+              "fact": "F7"
+            },
+            {
+              "code": "BASELINE_MATCH",
+              "fact": "F2"
+            }
+          ]
+        },
+        "maskedPlaces": 0,
+        "sentAt": "2026-10-31T17:26:24.520014Z",
+        "finishedAt": "2026-10-31T17:26:38.676014Z",
+        "systemPromptSha256": "c7aed87094f44aefc6b42bb113850d75faa5f170c5cadc00844e31b83d3d02d6"
+      }
+    ],
+    "recorded": {
+      "proposedAction": "BLOCK",
+      "finalAction": "BLOCK",
+      "riskScore": 0.6,
+      "confidence": 0.55,
+      "reasoning": "Identity signals match the owner, so this is likely insider misuse: an engineer reading a high-sensitivity bid strategy memo labelled sales-division-only, with no ticket or record covering it, in a second read this session.",
+      "reasoningCode": null,
+      "mitre": null,
+      "unresolved": false,
+      "failureType": null,
+      "fallbackCategory": null,
+      "applied": "NEXT_REQUEST",
+      "fieldProvenance": {
+        "mitre": "ABSENT",
+        "reasoning": "MODEL",
+        "riskScore": "MODEL",
+        "confidence": "MODEL",
+        "reasonCodes": "MODEL",
+        "evidenceRefs": "ABSENT"
+      },
+      "repairApplied": false,
+      "repairFields": [],
+      "evidenceRefs": []
+    },
+    "modelReasoning": null,
+    "reasoningDiffers": false,
+    "contractLines": [],
+    "timings": {
+      "queueWaitMs": 1,
+      "promptBuildMs": 33,
+      "ragVectorMs": 15,
+      "llmLatencyMs": 24769,
+      "totalAnalysisMs": 24769,
+      "events": [
+        {
+          "type": "CONTEXT_COLLECTED",
+          "layer": null,
+          "mitre": null,
+          "action": null,
+          "detail": "/api/documents/DOC-4f4e198f551f-2/download",
+          "elapsedMs": null,
+          "reasoning": null,
+          "riskScore": null,
+          "confidence": null,
+          "observedAt": "2026-10-31T17:26:13.909873200Z"
+        },
+        {
+          "type": "LAYER1_START",
+          "layer": "LAYER1",
+          "mitre": null,
+          "action": null,
+          "detail": null,
+          "elapsedMs": null,
+          "reasoning": null,
+          "riskScore": null,
+          "confidence": null,
+          "observedAt": "2026-10-31T17:26:13.909873200Z"
+        },
+        {
+          "type": "LAYER1_COMPLETE",
+          "layer": "LAYER1",
+          "mitre": null,
+          "action": "ESCALATE",
+          "detail": null,
+          "elapsedMs": 10574,
+          "reasoning": "Escalating to Layer2 for deeper analysis",
+          "riskScore": 0.56,
+          "confidence": 0.7,
+          "observedAt": "2026-10-31T17:26:24.483691400Z"
+        },
+        {
+          "type": "LAYER2_START",
+          "layer": "LAYER2",
+          "mitre": null,
+          "action": null,
+          "detail": "Layer1 requested expert review based on contextual ambiguity",
+          "elapsedMs": null,
+          "reasoning": null,
+          "riskScore": null,
+          "confidence": null,
+          "observedAt": "2026-10-31T17:26:24.483691400Z"
+        },
+        {
+          "type": "LAYER2_COMPLETE",
+          "layer": "LAYER2",
+          "mitre": null,
+          "action": "BLOCK",
+          "detail": null,
+          "elapsedMs": 14195,
+          "reasoning": "Identity signals match the owner, so this is likely insider misuse: an engineer reading a high-sensitivity bid strategy memo labelled sales-division-only, with no ticket or record covering it, in a second read this session.",
+          "riskScore": 0.6,
+          "confidence": 0.55,
+          "observedAt": "2026-10-31T17:26:38.678024600Z"
+        },
+        {
+          "type": "DECISION_APPLIED",
+          "layer": "LAYER2",
+          "mitre": null,
+          "action": "BLOCK",
+          "detail": null,
+          "elapsedMs": null,
+          "reasoning": null,
+          "riskScore": null,
+          "confidence": null,
+          "observedAt": "2026-10-31T17:26:38.678024600Z"
+        }
+      ]
+    },
+    "timeline": [
+      {
+        "at": "2026-10-31T17:26:13.909873200Z",
+        "kind": "EVENT",
+        "name": "CONTEXT_COLLECTED",
+        "callNo": null,
+        "layer": null,
+        "detail": null
+      },
+      {
+        "at": "2026-10-31T17:26:13.909873200Z",
+        "kind": "EVENT",
+        "name": "LAYER1_START",
+        "callNo": null,
+        "layer": "LAYER1",
+        "detail": null
+      },
+      {
+        "at": "2026-10-31T17:26:13.952673Z",
+        "kind": "CALL_SENT",
+        "name": "call 1",
+        "callNo": 1,
+        "layer": null,
+        "detail": null
+      },
+      {
+        "at": "2026-10-31T17:26:24.480673Z",
+        "kind": "CALL_ANSWERED",
+        "name": "call 1",
+        "callNo": 1,
+        "layer": null,
+        "detail": "stop"
+      },
+      {
+        "at": "2026-10-31T17:26:24.483691400Z",
+        "kind": "EVENT",
+        "name": "LAYER1_COMPLETE",
+        "callNo": null,
+        "layer": "LAYER1",
+        "detail": "ESCALATE"
+      },
+      {
+        "at": "2026-10-31T17:26:24.483691400Z",
+        "kind": "EVENT",
+        "name": "LAYER2_START",
+        "callNo": null,
+        "layer": "LAYER2",
+        "detail": null
+      },
+      {
+        "at": "2026-10-31T17:26:24.520014Z",
+        "kind": "CALL_SENT",
+        "name": "call 2",
+        "callNo": 2,
+        "layer": null,
+        "detail": null
+      },
+      {
+        "at": "2026-10-31T17:26:38.676014Z",
+        "kind": "CALL_ANSWERED",
+        "name": "call 2",
+        "callNo": 2,
+        "layer": null,
+        "detail": "end_turn"
+      },
+      {
+        "at": "2026-10-31T17:26:38.678024600Z",
+        "kind": "EVENT",
+        "name": "LAYER2_COMPLETE",
+        "callNo": null,
+        "layer": "LAYER2",
+        "detail": "BLOCK"
+      },
+      {
+        "at": "2026-10-31T17:26:38.678024600Z",
+        "kind": "EVENT",
+        "name": "DECISION_APPLIED",
+        "callNo": null,
+        "layer": "LAYER2",
+        "detail": "BLOCK"
+      }
+    ],
+    "promptTokens": 20162,
+    "completionTokens": 2507,
+    "sinceStartMs": [
+      0,
+      0,
+      42,
+      10570,
+      10573,
+      10573,
+      10610,
+      24766,
+      24768,
+      24768
+    ]
+  },
+  "truth": {
+    "classification": "THREAT",
+    "allowedEngineActions": [
+      "CHALLENGE",
+      "ESCALATE",
+      "BLOCK"
+    ],
+    "rationale": {
+      "en": "Designed insider behaviour: design engineer K, on a weekday afternoon from the office with the usual PC, downloads three sales-confidential documents (customer pricing and margins, bid strategy, contract terms) from K's own HX-310 project folder one minute apart. Account, permission, assignment, time, device and count are all within K's usual range, and the company policy requires no approval for downloading documents of an assigned project. K usually works with design drawings and design documents; these are sales-division-only confidential documents unrelated to design work. The expected answer is not given to the model.",
+      "ko": "설계된 내부자 행위: 설계 엔지니어 K가 평일 오후 사무실의 평소 PC로, 자기 담당 HX-310 프로젝트 폴더에 있는 영업 기밀 문서 세 건(고객 단가·마진, 입찰 전략, 계약 조건)을 1분 간격으로 내려받는다. 계정·권한·담당·시각·기기·건수가 모두 평소 범위이고, 회사 규정은 담당 프로젝트 문서 내려받기에 승인을 요구하지 않는다. K가 평소 다루는 것은 설계 도면과 설계 문서이며, 이 문서들은 설계 업무와 관계없는 영업본부 전용 기밀이다. 정답은 모델에게 주지 않는다."
+    },
+    "counterpoint": {
+      "en": "Counterpoint: a design engineer may take part in a cost review or in technical support of a bid. This case therefore also accepts an extra check or a hold for review instead of a block.",
+      "ko": "반론: 설계 엔지니어도 원가 검토나 입찰 기술 지원에 참여할 수 있다. 그래서 이 사례는 차단 대신 추가 인증이나 검토 대기도 맞는 대응으로 인정한다."
+    },
+    "truthSource": "RUN_SNAPSHOT",
+    "verdict": {
+      "score": {
+        "stepNo": 2,
+        "finalAction": "BLOCK",
+        "result": "RIGHT",
+        "applicable": true,
+        "friction": false,
+        "applied": "NEXT_REQUEST"
+      },
+      "source": "MODEL",
+      "proposedAction": "BLOCK",
+      "decidedAt": "2026-10-31T17:26:38.679025Z"
+    },
+    "business": {
+      "result": "PARTLY_STOPPED",
+      "exposedItems": 2,
+      "worstStep": 1
+    },
+    "businessCorrect": null,
+    "scenarioSha256": "93e034cf7c20c2b40a26b8d53bb3d1299d2eb52fb8a6a0e5633dbab5ee4a24c0"
+  },
+  "juxtaposition": {
+    "departures": [],
+    "companyFacts": [],
+    "sensitivity": "HIGH",
+    "modelReasoning": null,
+    "recordedReasoning": "Identity signals match the owner, so this is likely insider misuse: an engineer reading a high-sensitivity bid strategy memo labelled sales-division-only, with no ticket or record covering it, in a second read this session.",
+    "coreAdverseLabels": [],
+    "adverseChecked": 0,
+    "adverseMet": 0
+  },
+  "recovery": null,
+  "learning": {
+    "atRunEnd": {
+      "behaviourDocuments": 51,
+      "baselineUpdateCount": 48,
+      "roleScopeObservations": 51,
+      "workProfileObservations": 48,
+      "permissionChangeObservations": 0
+    },
+    "template": {
+      "behaviourDocuments": 50,
+      "baselineUpdateCount": 47,
+      "roleScopeObservations": 50,
+      "workProfileObservations": 47,
+      "permissionChangeObservations": 0
+    },
+    "capturedAt": "2026-10-31T17:29:01.596760900Z",
+    "templateId": "tpl-eng-k-20261031011817-1",
+    "templateCapturedAt": "2026-10-31T01:38:00.150564500Z",
+    "newBehaviourDocuments": [
+      {
+        "action": "ALLOW",
+        "content": "User accessed /api/documents/DOC-4f4e198f551f-1/download via GET from 10.40.21.68 using Edge/140 on WINDOWS at 14:20 (Wed)\nMfaVerified: true\nNewSession: true\nSensitiveResource: true\n",
+        "sourceIp": "10.40.21.68",
+        "riskScore": 0.3,
+        "timestamp": "2026-09-30T14:20",
+        "confidence": 0.6,
+        "httpMethod": "GET",
+        "requestPath": "/api/documents/DOC-4f4e198f551f-1/download",
+        "userAgentOS": "WINDOWS",
+        "analysisDepth": 2,
+        "proposedAction": "ALLOW",
+        "autonomousAction": "ALLOW",
+        "userAgentBrowser": "Edge/140",
+        "resourceSensitivity": "CONFIDENTIAL",
+        "technicalFallbackApplied": false
+      }
+    ]
+  },
+  "promptLines": {
+    "total": 165,
+    "system": 95,
+    "user": 70,
+    "systemPhysical": 100,
+    "userPhysical": 77,
+    "sections": [
+      {
+        "name": "USER BASELINE (learned; time zone UTC)",
+        "bundle": "USER_BASELINE",
+        "lines": 17
+      },
+      {
+        "name": "SESSION (time zone UTC)",
+        "bundle": "SESSION",
+        "lines": 7
+      },
+      {
+        "name": "REQUEST (time zone UTC)",
+        "bundle": "REQUEST",
+        "lines": 10
+      },
+      {
+        "name": "RECORDS AND COMPARISONS (time zone UTC)",
+        "bundle": "DECISION_FACTS",
+        "lines": 10
+      },
+      {
+        "name": "PAST RECORDS (scope PERSONAL_RETRIEVED_SUBSET; time zone UTC)",
+        "bundle": "PAST_RECORDS",
+        "lines": 9
+      },
+      {
+        "name": "UNKNOWN",
+        "bundle": "UNKNOWN",
+        "lines": 3
+      },
+      {
+        "name": "UNTRUSTED TEXT (untrusted)",
+        "bundle": "UNTRUSTED_TEXT",
+        "lines": 11
+      },
+      {
+        "name": "SECOND PASS (only the facts gathered after the first pass)",
+        "bundle": "SECOND_PASS",
+        "lines": 3
+      }
+    ],
+    "bundles": [
+      {
+        "bundle": "RULES",
+        "lines": 95
+      },
+      {
+        "bundle": "REQUEST",
+        "lines": 10
+      },
+      {
+        "bundle": "SESSION",
+        "lines": 7
+      },
+      {
+        "bundle": "USER_BASELINE",
+        "lines": 17
+      },
+      {
+        "bundle": "DECISION_FACTS",
+        "lines": 10
+      },
+      {
+        "bundle": "UNKNOWN",
+        "lines": 3
+      },
+      {
+        "bundle": "PAST_RECORDS",
+        "lines": 9
+      },
+      {
+        "bundle": "UNTRUSTED_TEXT",
+        "lines": 11
+      },
+      {
+        "bundle": "SECOND_PASS",
+        "lines": 3
+      },
+      {
+        "bundle": "OTHER",
+        "lines": 0
+      }
+    ],
+    "layout": "V20_BLOCKS"
+  },
+  "figures": {
+    "workProfileWindow": "7d",
+    "workProfileObservations": 19,
+    "baselineBefore": 47,
+    "baselineAfter": 48,
+    "baselineAdded": 1,
+    "documentsBefore": 50,
+    "documentsAfter": 51,
+    "documentsForThisRequest": 0,
+    "departureCount": 0
+  }
+}

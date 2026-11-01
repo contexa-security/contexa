@@ -167,6 +167,9 @@ function ThresholdTab() {
   const normals = cases.filter((item) => item.classification === 'NORMAL').length;
   const changes = result.data?.changed.filter((change) => change.control === control) ?? [];
   const isDefault = current === original;
+  // UC-5 L-rules: the control's handling with the default and with this value, as the rule engine gave it (null unknown).
+  const stateOf = (stopped: boolean | null) =>
+    t(`ux.policy.changes.state.${stopped === null ? 'unknown' : stopped ? 'stops' : 'passes'}`);
   return (
     <div className={styles.stack}>
       <section className={styles.card} aria-label={t('ux.policy.setting')}>
@@ -280,13 +283,16 @@ function ThresholdTab() {
                   <span>{title?.[i18n.language === 'ko' ? 'ko' : 'en'] ?? change.scenario}</span>
                   <span className={styles.changeWas}>
                     {t(`ux.policy.changes.${change.classification === 'THREAT' ? 'attack' : 'normal'}`)} ·{' '}
-                    {t(change.now ? 'ux.policy.changes.stops' : 'ux.policy.changes.passes')}
+                    {t('ux.policy.changes.move', { before: stateOf(change.before), now: stateOf(change.now) })}
                   </span>
                 </li>
               );
             })}
           </ul>
         </section>
+      ) : result.data ? (
+        // UC-5 L-rules: the server found no scenario decided differently; the old screen said so in one line.
+        <Note>{t('ux.policy.changes.none')}</Note>
       ) : null}
 
       <Note>

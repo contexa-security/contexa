@@ -20,8 +20,8 @@ describe('VerdictChip', () => {
     await i18n.changeLanguage('en');
     for (const [verdict, word] of [
       ['ALLOW', 'Pass'],
-      ['CHALLENGE', 'Extra check'],
-      ['ESCALATE', 'Held (analysis unfinished)'],
+      ['CHALLENGE', 'Step-up authentication'],
+      ['ESCALATE', 'Held for review (analysis unfinished)'],
       ['BLOCK', 'Block'],
     ] as const) {
       const { unmount } = render(<VerdictChip verdict={verdict} />);

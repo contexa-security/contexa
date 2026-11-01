@@ -1,19 +1,21 @@
 import type { TFunction } from 'i18next';
-import type { BeforeSendView } from '../../api/anatomy';
+import type { BeforeSendView, StoredCheck } from '../../api/anatomy';
 import type { LabCase, LabEmployee } from '../../api/lab';
 import type { CaseResult, LiveDecision, LiveLayer, RunScore } from '../../api/types';
 import type { Verdict } from '../../domain/verdict';
-import type { Role } from '../../pages/main/mainCases';
 import type { EvalResult } from '../verdict';
 import type { UxIconName } from '../ui/Icon';
 
 /**
  * The person threat scenarios of the threat simulation (기획안 7.0): the compromised account (S13), the legitimate user
  * sending the same request (S13T, the control run) and the insider inside the permission (S16). The role and the
- * experience key are the ones the portal stores the visitor's prediction under (src/pages/main/mainCases.ts).
+ * experience key are the ones the portal stores the visitor's prediction under.
  */
 export const PERSON_KEYS = ['S13', 'S13T', 'S16'] as const;
 export type PersonKey = (typeof PERSON_KEYS)[number];
+
+/** A person case's role: the attacker with the stolen account, the account's owner, the insider. */
+export type Role = 'attacker' | 'owner' | 'insider';
 
 export interface PersonCase {
   readonly key: PersonKey;
@@ -177,7 +179,12 @@ export function contextChips(
   t: TFunction,
   facts: readonly { readonly code: string; readonly value: string | null }[],
 ): readonly string[] {
-  return facts.map((fact) => t(`ux.biz.${fact.code}`, { value: fact.value ?? '', defaultValue: fact.code }));
+  // An approval that states its purpose names it (the old console's APPROVAL_COVERS line, P-8 · DEC-82).
+  return facts.map((fact) =>
+    fact.code === 'APPROVAL_COVERS' && fact.value
+      ? t('ux.biz.APPROVAL_COVERS_value', { value: fact.value })
+      : t(`ux.biz.${fact.code}`, { value: fact.value ?? '', defaultValue: fact.code }),
+  );
 }
 
 /**
@@ -227,8 +234,9 @@ export function evalOf(result: CaseResult | null | undefined): EvalResult | null
     case 'STOPPED':
       return 'correct';
     case 'PASSED':
-    case 'PASSED_AFTER_CHECK':
       return 'normal';
+    case 'PASSED_AFTER_CHECK':
+      return 'afterCheck';
     case 'PARTLY_STOPPED':
       return 'partial';
     case 'MISSED':
@@ -297,4 +305,16 @@ const RESTRICTIVE = new Set(['CHALLENGE', 'ESCALATE', 'BLOCK']);
 export function decidingStep(score: RunScore): number {
   const restricting = score.verdicts.find((verdict) => RESTRICTIVE.has(verdict.score.finalAction ?? ''));
   return restricting?.score.stepNo ?? score.verdicts[score.verdicts.length - 1]?.score.stepNo ?? 1;
+}
+
+/**
+ * The request sent again after a passed check, as the run stored it (run_challenge): the items it handed over and its
+ * HTTP status; null when the check was not passed or the request was not sent again.
+ */
+export function storedResend(
+  check: StoredCheck | null | undefined,
+): { readonly items: number; readonly status: number } | null {
+  return check?.answered && typeof check.reissue_status === 'number'
+    ? { items: check.reissue_delivered ?? 0, status: check.reissue_status }
+    : null;
 }

@@ -18,6 +18,7 @@ import {
 } from '../../../simulate/person';
 import { Badge, ButtonLink, FlagBadge, Icon, PageHead, type UxIconName } from '../../../ui';
 import styles from '../../../simulate/Flow.module.css';
+import { breakable } from '../../../ui/breakable';
 
 /**
  * Step 1 of the threat simulation (기획안 7.0 d-pick): one shared request — the same account, time, network, login and
@@ -81,7 +82,7 @@ export default function PickPage() {
                 sub={items !== null ? t('ux.home.replay.export', { n: n(items) }) : null}
               >
                 <code className={styles.mono} title={request?.requestPath ?? undefined}>
-                  {request?.httpMethod ?? ''} {shortPath(request?.requestPath)}
+                  {request?.httpMethod ?? ''} {breakable(shortPath(request?.requestPath))}
                 </code>
               </SharedFact>
             </dl>
@@ -154,7 +155,7 @@ function SharedFact({
       </dt>
       <dd>
         {children}
-        {sub ? <span className={styles.sharedSub}>{sub}</span> : null}
+        {sub ? <span className={styles.sharedSub}>{typeof sub === 'string' ? breakable(sub) : sub}</span> : null}
       </dd>
     </div>
   );

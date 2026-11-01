@@ -2,11 +2,12 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useAnatomy, useBeforeSend, useReceived } from '../../../../api/anatomy';
+import { useBenchmark } from '../../../../api/benchmark';
 import { useLabOptions, type LabCase } from '../../../../api/lab';
 import { useTeasers } from '../../../../api/teasers';
 import type { LiveDecision, LiveLayer, LiveRunView } from '../../../../api/types';
 import { CONTROL_ORDER, type ControlId } from '../../../../domain/verdict';
-import { useTryAnalysis, useTryRun } from '../../../../pages/try/steps/tryRun';
+import { useTryAnalysis, useTryRun } from '../../../simulate/tryRun';
 import { formatDuration, formatNumber } from '../../../format';
 import { ControlLanes, type LaneRow } from '../../../simulate/ControlLanes';
 import { DecisionProgress } from '../../../simulate/DecisionProgress';
@@ -17,6 +18,7 @@ import {
   controlVerdict,
   flowPath,
   personCase,
+  storedResend,
   type PersonCase,
 } from '../../../simulate/person';
 import { useRecordedRun } from '../../../simulate/RecordedFallback';
@@ -61,6 +63,7 @@ function Live({ scenario }: { readonly scenario: PersonCase }) {
   const runs = usePersonRuns();
   const recordedRun = useRecordedRun(key);
   const teasers = useTeasers();
+  const benchmark = useBenchmark(null);
   const asked = useRef<string | null>(null);
   const triedRelease = useRef<string | null>(null);
   const attacker = scenario.role === 'attacker';
@@ -132,6 +135,8 @@ function Live({ scenario }: { readonly scenario: PersonCase }) {
   const resumed = teasers.data?.teasers.find((teaser) => teaser.key === 'CHALLENGE_OUTCOMES')?.values[
     'resumed'
   ];
+  const benchmarkCase = benchmark.data?.cases.find((candidate) => candidate.key === key) ?? null;
+  const measured = benchmarkCase ? { runs: benchmarkCase.runs, actions: benchmarkCase.engineActions } : null;
 
   const head = (status: ReactNode = null) => (
     <PageHead
@@ -256,6 +261,7 @@ function Live({ scenario }: { readonly scenario: PersonCase }) {
             compared={comparison?.comparedCount ?? null}
             departed={comparison?.departureCount ?? null}
             httpStatus={view.steps.find((step) => step.stepNo === panelStep)?.layers.D?.httpStatus ?? null}
+            measured={measured}
           />
           {comparison && !received.data ? (
             <p className={styles.sourceNote}>
@@ -354,6 +360,10 @@ function StepLanes({
 }) {
   const { t, i18n } = useTranslation();
   const own = useTryAnalysis(multi && stepNo > 1 ? view : null, stored, stepNo);
+  // A run read from its stored records has no live check card; the request sent again after a passed check is the
+  // step's own stored record (P-8, 5-2).
+  const storedCheck = useAnatomy(stored ? view.runId : null, stepNo).data?.recovery?.challenge ?? null;
+  const resend = storedResend(storedCheck);
   const stepDecision = stepNo === 1 ? decision : own.decision;
   const layers = view.steps.find((step) => step.stepNo === stepNo)?.layers ?? {};
   const language = i18n.language === 'ko' ? 'ko' : 'en';
@@ -383,6 +393,17 @@ function StepLanes({
         </p>
       ) : null}
       <ControlLanes rows={rows} label={t('ux.live.lanes')} />
+      {resend ? (
+        <p className={styles.resent}>
+          <Badge tone="allow" icon="check">
+            {t('ux.recovery.retried', {
+              count: resend.items,
+              n: formatNumber(resend.items, i18n.language),
+              status: resend.status,
+            })}
+          </Badge>
+        </p>
+      ) : null}
     </section>
   );
 }

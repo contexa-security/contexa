@@ -121,6 +121,22 @@
   font-size: var(--ux-text-12);
 }
 
+/* The scenario's own approval record, folded (P-8) */
+.definition {
+  padding: var(--ux-space-0) var(--ux-space-5) var(--ux-space-3);
+  color: var(--ux-text-2);
+  font-size: var(--ux-text-13);
+}
+
+.definition summary {
+  color: var(--ux-link);
+  cursor: pointer;
+}
+
+.definition > dl {
+  margin-block-start: var(--ux-space-2);
+}
+
 /* The five controls in one line each */
 .controls {
   display: grid;

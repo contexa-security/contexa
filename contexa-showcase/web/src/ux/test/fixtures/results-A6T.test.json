@@ -1,0 +1,620 @@
+{
+  "runId": "run-47366ff6ce8e",
+  "steps": [
+    {
+      "companyTime": "2026-09-30T14:20:00Z",
+      "layers": [
+        {
+          "control": "D",
+          "outcome": "DELIVERED",
+          "verdict": "ALLOW",
+          "httpStatus": 200,
+          "ruleId": null,
+          "reason": null,
+          "ruleFacts": {},
+          "evidence": {
+            "decisionId": "5eda75e0-4088-4a87-840b-71f81ff4280f",
+            "verdict": "ALLOW",
+            "timing": "NEXT_REQUEST",
+            "httpStatus": 200,
+            "outcome": "DELIVERED",
+            "deliveredItems": 1,
+            "engineReasoning": "Legitimate incident-recovery work is most likely: the ticket covers HX-200 at this time and the session matches the usual network and device, though the sensitive resource class is new.",
+            "riskScore": 0.18,
+            "confidence": 0.78,
+            "unresolved": false,
+            "responseMs": 44,
+            "timeline": [
+              {
+                "type": "CONTEXT_COLLECTED",
+                "layer": null,
+                "action": null,
+                "atMs": 44,
+                "elapsedMs": null
+              },
+              {
+                "type": "LAYER1_START",
+                "layer": "LAYER1",
+                "action": null,
+                "atMs": 44,
+                "elapsedMs": null
+              },
+              {
+                "type": "LAYER1_COMPLETE",
+                "layer": "LAYER1",
+                "action": "ALLOW",
+                "atMs": 10217,
+                "elapsedMs": 10173
+              },
+              {
+                "type": "DECISION_APPLIED",
+                "layer": "LAYER1",
+                "action": "ALLOW",
+                "atMs": 10217,
+                "elapsedMs": null
+              }
+            ],
+            "stream": null,
+            "modelCalls": [
+              {
+                "model": "gpt-6-luna",
+                "promptTokens": 6212,
+                "completionTokens": 805,
+                "totalTokens": 7017,
+                "elapsedMs": 10131
+              }
+            ]
+          }
+        }
+      ],
+      "engineReason": {
+        "canonical": null,
+        "reasoning": "Legitimate incident-recovery work is most likely: the ticket covers HX-200 at this time and the session matches the usual network and device, though the sensitive resource class is new.",
+        "evidenceRefs": [],
+        "deltas": [
+          "authenticationType",
+          "resourceFamily",
+          "pathFamily"
+        ],
+        "resourceSensitivity": "CONFIDENTIAL",
+        "baselineDeltaCount": 1,
+        "reasonCodes": [
+          {
+            "code": "RECORD_COVERS_WORK",
+            "fact": "F5",
+            "contract": "V4"
+          },
+          {
+            "code": "DEVIATION_RESOURCE_CLASS",
+            "fact": "F1",
+            "contract": "V4"
+          },
+          {
+            "code": "BASELINE_MATCH",
+            "fact": "F2",
+            "contract": "V4"
+          }
+        ]
+      },
+      "companyFacts": [
+        {
+          "code": "TICKET_COVERS",
+          "value": "TCK-47366ff6ce8e-1"
+        },
+        {
+          "code": "NETWORK_OFFICE",
+          "value": null
+        }
+      ],
+      "tally": {
+        "stopped": 0,
+        "passed": 5,
+        "other": 0
+      },
+      "existingTally": {
+        "stopped": 0,
+        "passed": 4,
+        "other": 0
+      }
+    },
+    {
+      "companyTime": "2026-09-30T14:21:00Z",
+      "layers": [
+        {
+          "control": "D",
+          "outcome": "DELIVERED",
+          "verdict": "ALLOW",
+          "httpStatus": 200,
+          "ruleId": null,
+          "reason": null,
+          "ruleFacts": {},
+          "evidence": {
+            "decisionId": "84d12aa3-15dc-47d3-a698-dad374f88c38",
+            "verdict": "ALLOW",
+            "timing": "NEXT_REQUEST",
+            "httpStatus": 200,
+            "outcome": "DELIVERED",
+            "deliveredItems": 1,
+            "engineReasoning": "Legitimate incident-recovery work is most likely: the ticket covers HX-200 and its check finds no mismatch, though sensitive customer data is unusual and the session has read another target.",
+            "riskScore": 0.34,
+            "confidence": 0.72,
+            "unresolved": false,
+            "responseMs": 57,
+            "timeline": [
+              {
+                "type": "CONTEXT_COLLECTED",
+                "layer": null,
+                "action": null,
+                "atMs": 62,
+                "elapsedMs": null
+              },
+              {
+                "type": "LAYER1_START",
+                "layer": "LAYER1",
+                "action": null,
+                "atMs": 62,
+                "elapsedMs": null
+              },
+              {
+                "type": "LAYER1_COMPLETE",
+                "layer": "LAYER1",
+                "action": "ALLOW",
+                "atMs": 8709,
+                "elapsedMs": 8647
+              },
+              {
+                "type": "DECISION_APPLIED",
+                "layer": "LAYER1",
+                "action": "ALLOW",
+                "atMs": 8709,
+                "elapsedMs": null
+              }
+            ],
+            "stream": null,
+            "modelCalls": [
+              {
+                "model": "gpt-6-luna",
+                "promptTokens": 6257,
+                "completionTokens": 681,
+                "totalTokens": 6938,
+                "elapsedMs": 8606
+              }
+            ]
+          }
+        }
+      ],
+      "engineReason": {
+        "canonical": null,
+        "reasoning": "Legitimate incident-recovery work is most likely: the ticket covers HX-200 and its check finds no mismatch, though sensitive customer data is unusual and the session has read another target.",
+        "evidenceRefs": [],
+        "deltas": [
+          "authenticationType",
+          "resourceFamily",
+          "pathFamily"
+        ],
+        "resourceSensitivity": "CONFIDENTIAL",
+        "baselineDeltaCount": 1,
+        "reasonCodes": [
+          {
+            "code": "RECORD_COVERS_WORK",
+            "fact": "F5",
+            "contract": "V4"
+          },
+          {
+            "code": "DEVIATION_RESOURCE_CLASS",
+            "fact": "F1",
+            "contract": "V4"
+          },
+          {
+            "code": "BASELINE_MATCH",
+            "fact": "F2",
+            "contract": "V4"
+          },
+          {
+            "code": "DATA_NATURE_MISMATCH",
+            "fact": "F8",
+            "contract": "V4"
+          },
+          {
+            "code": "SESSION_SEQUENCE",
+            "fact": "F7",
+            "contract": "V4"
+          }
+        ]
+      },
+      "companyFacts": [
+        {
+          "code": "TICKET_COVERS",
+          "value": "TCK-47366ff6ce8e-1"
+        },
+        {
+          "code": "NETWORK_OFFICE",
+          "value": null
+        }
+      ],
+      "tally": {
+        "stopped": 0,
+        "passed": 5,
+        "other": 0
+      },
+      "existingTally": {
+        "stopped": 0,
+        "passed": 4,
+        "other": 0
+      }
+    },
+    {
+      "companyTime": "2026-09-30T14:22:00Z",
+      "layers": [
+        {
+          "control": "D",
+          "outcome": "DELIVERED",
+          "verdict": "ALLOW",
+          "httpStatus": 200,
+          "ruleId": null,
+          "reason": null,
+          "ruleFacts": {},
+          "evidence": {
+            "decisionId": "eaf3127a-e6fa-44aa-b238-2d3329bc217b",
+            "verdict": "ALLOW",
+            "timing": "NEXT_REQUEST",
+            "httpStatus": 200,
+            "outcome": "DELIVERED",
+            "deliveredItems": 1,
+            "engineReasoning": "The covering incident ticket and familiar network and device support legitimate work, despite a first-time sensitive resource and successive customer reads that differ from the user's usual records.",
+            "riskScore": 0.3,
+            "confidence": 0.78,
+            "unresolved": false,
+            "responseMs": 53,
+            "timeline": [
+              {
+                "type": "CONTEXT_COLLECTED",
+                "layer": null,
+                "action": null,
+                "atMs": 52,
+                "elapsedMs": null
+              },
+              {
+                "type": "LAYER1_START",
+                "layer": "LAYER1",
+                "action": null,
+                "atMs": 52,
+                "elapsedMs": null
+              },
+              {
+                "type": "LAYER1_COMPLETE",
+                "layer": "LAYER1",
+                "action": "ALLOW",
+                "atMs": 8504,
+                "elapsedMs": 8452
+              },
+              {
+                "type": "DECISION_APPLIED",
+                "layer": "LAYER1",
+                "action": "ALLOW",
+                "atMs": 8504,
+                "elapsedMs": null
+              }
+            ],
+            "stream": null,
+            "modelCalls": [
+              {
+                "model": "gpt-6-luna",
+                "promptTokens": 6285,
+                "completionTokens": 688,
+                "totalTokens": 6973,
+                "elapsedMs": 8401
+              }
+            ]
+          }
+        }
+      ],
+      "engineReason": {
+        "canonical": null,
+        "reasoning": "The covering incident ticket and familiar network and device support legitimate work, despite a first-time sensitive resource and successive customer reads that differ from the user's usual records.",
+        "evidenceRefs": [],
+        "deltas": [
+          "authenticationType",
+          "resourceFamily",
+          "pathFamily"
+        ],
+        "resourceSensitivity": "CONFIDENTIAL",
+        "baselineDeltaCount": 1,
+        "reasonCodes": [
+          {
+            "code": "RECORD_COVERS_WORK",
+            "fact": "F5",
+            "contract": "V4"
+          },
+          {
+            "code": "DEVIATION_RESOURCE_CLASS",
+            "fact": "F1",
+            "contract": "V4"
+          },
+          {
+            "code": "SESSION_SEQUENCE",
+            "fact": "S4",
+            "contract": "V4"
+          },
+          {
+            "code": "ROLE_SCOPE_OUTSIDE",
+            "fact": "F8",
+            "contract": "V4"
+          },
+          {
+            "code": "BASELINE_MATCH",
+            "fact": "F2",
+            "contract": "V4"
+          }
+        ]
+      },
+      "companyFacts": [
+        {
+          "code": "TICKET_COVERS",
+          "value": "TCK-47366ff6ce8e-1"
+        },
+        {
+          "code": "NETWORK_OFFICE",
+          "value": null
+        }
+      ],
+      "tally": {
+        "stopped": 0,
+        "passed": 5,
+        "other": 0
+      },
+      "existingTally": {
+        "stopped": 0,
+        "passed": 4,
+        "other": 0
+      }
+    },
+    {
+      "companyTime": "2026-09-30T14:23:00Z",
+      "layers": [
+        {
+          "control": "D",
+          "outcome": "DELIVERED",
+          "verdict": "ALLOW",
+          "httpStatus": 200,
+          "ruleId": null,
+          "reason": null,
+          "ruleFacts": {},
+          "evidence": {
+            "decisionId": "b247f885-a4fa-4904-a5fa-bf6979be8c77",
+            "verdict": "ALLOW",
+            "timing": "NEXT_REQUEST",
+            "httpStatus": 200,
+            "outcome": "DELIVERED",
+            "deliveredItems": 1,
+            "engineReasoning": "Legitimate incident-recovery work is most likely: the timely ticket covers HX-200, though sensitive customer data, the unfamiliar category, and repeated customer reads are unusual for this account.",
+            "riskScore": 0.34,
+            "confidence": 0.73,
+            "unresolved": false,
+            "responseMs": 47,
+            "timeline": [
+              {
+                "type": "CONTEXT_COLLECTED",
+                "layer": null,
+                "action": null,
+                "atMs": 49,
+                "elapsedMs": null
+              },
+              {
+                "type": "LAYER1_START",
+                "layer": "LAYER1",
+                "action": null,
+                "atMs": 49,
+                "elapsedMs": null
+              },
+              {
+                "type": "LAYER1_COMPLETE",
+                "layer": "LAYER1",
+                "action": "ALLOW",
+                "atMs": 10146,
+                "elapsedMs": 10096
+              },
+              {
+                "type": "DECISION_APPLIED",
+                "layer": "LAYER1",
+                "action": "ALLOW",
+                "atMs": 10146,
+                "elapsedMs": null
+              }
+            ],
+            "stream": null,
+            "modelCalls": [
+              {
+                "model": "gpt-6-luna",
+                "promptTokens": 6313,
+                "completionTokens": 827,
+                "totalTokens": 7140,
+                "elapsedMs": 10062
+              }
+            ]
+          }
+        }
+      ],
+      "engineReason": {
+        "canonical": null,
+        "reasoning": "Legitimate incident-recovery work is most likely: the timely ticket covers HX-200, though sensitive customer data, the unfamiliar category, and repeated customer reads are unusual for this account.",
+        "evidenceRefs": [],
+        "deltas": [
+          "authenticationType",
+          "resourceFamily",
+          "pathFamily"
+        ],
+        "resourceSensitivity": "CONFIDENTIAL",
+        "baselineDeltaCount": 1,
+        "reasonCodes": [
+          {
+            "code": "RECORD_COVERS_WORK",
+            "fact": "F5",
+            "contract": "V4"
+          },
+          {
+            "code": "DEVIATION_RESOURCE_CLASS",
+            "fact": "F1",
+            "contract": "V4"
+          },
+          {
+            "code": "DATA_NATURE_MISMATCH",
+            "fact": "F8",
+            "contract": "V4"
+          },
+          {
+            "code": "SESSION_SEQUENCE",
+            "fact": "F7",
+            "contract": "V4"
+          },
+          {
+            "code": "BASELINE_MATCH",
+            "fact": "F2",
+            "contract": "V4"
+          }
+        ]
+      },
+      "companyFacts": [
+        {
+          "code": "TICKET_COVERS",
+          "value": "TCK-47366ff6ce8e-1"
+        },
+        {
+          "code": "NETWORK_OFFICE",
+          "value": null
+        }
+      ],
+      "tally": {
+        "stopped": 0,
+        "passed": 5,
+        "other": 0
+      },
+      "existingTally": {
+        "stopped": 0,
+        "passed": 4,
+        "other": 0
+      }
+    },
+    {
+      "companyTime": "2026-09-30T14:24:00Z",
+      "layers": [
+        {
+          "control": "D",
+          "outcome": "DELIVERED",
+          "verdict": "ALLOW",
+          "httpStatus": 200,
+          "ruleId": null,
+          "reason": null,
+          "ruleFacts": {},
+          "evidence": {
+            "decisionId": "e6bd1e06-aaaf-4074-b805-a0011402b110",
+            "verdict": "ALLOW",
+            "timing": "NEXT_REQUEST",
+            "httpStatus": 200,
+            "outcome": "DELIVERED",
+            "deliveredItems": 1,
+            "engineReasoning": "Legitimate incident-recovery work is most likely: the timely ticket covers HX-200 and the host check finds no mismatch, despite repeated customer reads and a first-time sensitive resource class.",
+            "riskScore": 0.25,
+            "confidence": 0.76,
+            "unresolved": false,
+            "responseMs": 53,
+            "timeline": [
+              {
+                "type": "CONTEXT_COLLECTED",
+                "layer": null,
+                "action": null,
+                "atMs": 50,
+                "elapsedMs": null
+              },
+              {
+                "type": "LAYER1_START",
+                "layer": "LAYER1",
+                "action": null,
+                "atMs": 51,
+                "elapsedMs": null
+              },
+              {
+                "type": "LAYER1_COMPLETE",
+                "layer": "LAYER1",
+                "action": "ALLOW",
+                "atMs": 6996,
+                "elapsedMs": 6944
+              },
+              {
+                "type": "DECISION_APPLIED",
+                "layer": "LAYER1",
+                "action": "ALLOW",
+                "atMs": 6996,
+                "elapsedMs": null
+              }
+            ],
+            "stream": null,
+            "modelCalls": [
+              {
+                "model": "gpt-6-luna",
+                "promptTokens": 6341,
+                "completionTokens": 575,
+                "totalTokens": 6916,
+                "elapsedMs": 6896
+              }
+            ]
+          }
+        }
+      ],
+      "engineReason": {
+        "canonical": null,
+        "reasoning": "Legitimate incident-recovery work is most likely: the timely ticket covers HX-200 and the host check finds no mismatch, despite repeated customer reads and a first-time sensitive resource class.",
+        "evidenceRefs": [],
+        "deltas": [
+          "authenticationType",
+          "resourceFamily",
+          "pathFamily"
+        ],
+        "resourceSensitivity": "CONFIDENTIAL",
+        "baselineDeltaCount": 1,
+        "reasonCodes": [
+          {
+            "code": "RECORD_COVERS_WORK",
+            "fact": "F5",
+            "contract": "V4"
+          },
+          {
+            "code": "SESSION_SEQUENCE",
+            "fact": "S4",
+            "contract": "V4"
+          },
+          {
+            "code": "DEVIATION_RESOURCE_CLASS",
+            "fact": "F1",
+            "contract": "V4"
+          },
+          {
+            "code": "BASELINE_MATCH",
+            "fact": "F2",
+            "contract": "V4"
+          }
+        ]
+      },
+      "companyFacts": [
+        {
+          "code": "TICKET_COVERS",
+          "value": "TCK-47366ff6ce8e-1"
+        },
+        {
+          "code": "NETWORK_OFFICE",
+          "value": null
+        }
+      ],
+      "tally": {
+        "stopped": 0,
+        "passed": 5,
+        "other": 0
+      },
+      "existingTally": {
+        "stopped": 0,
+        "passed": 4,
+        "other": 0
+      }
+    }
+  ]
+}

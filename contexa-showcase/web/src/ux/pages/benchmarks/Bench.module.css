@@ -73,6 +73,7 @@
 .shareValue {
   color: var(--ux-text);
   font-variant-numeric: tabular-nums;
+  word-break: keep-all;
 }
 
 .shareStrong {
@@ -108,7 +109,7 @@
 .code {
   font-family: var(--ux-mono);
   font-size: var(--ux-text-13);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .hash {
@@ -116,7 +117,7 @@
   color: var(--ux-text-3);
   font-family: var(--ux-mono);
   font-size: var(--ux-text-12);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .tableNote {

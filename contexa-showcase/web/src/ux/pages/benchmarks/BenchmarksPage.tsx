@@ -29,7 +29,7 @@ import {
 import BenchDetail from './BenchDetail';
 import { DirectionWord, ImpactTable, LimitsCard, PairedCell, ShareCell } from './BenchParts';
 import styles from './Bench.module.css';
-import { breakable } from '../../ui/breakable';
+import { breakable, chunked } from '../../ui/breakable';
 
 const VIEWS = ['overview', ...BENCH_IDS, 'method'] as const;
 type View = (typeof VIEWS)[number];
@@ -291,7 +291,7 @@ function Method({ bundle }: { readonly bundle: Bundle }) {
                   <th scope="row">
                     <span className={styles.testName}>{freeze.id}</span>
                     <code className={styles.hash} title={freeze.sha256}>
-                      {`sha256 ${freeze.sha256.slice(0, 12)}…`}
+                      sha256 {chunked(`${freeze.sha256.slice(0, 12)}…`)}
                     </code>
                   </th>
                   <td
@@ -308,7 +308,7 @@ function Method({ bundle }: { readonly bundle: Bundle }) {
                   </td>
                   <td data-k={t('ux.bench.method.col.path')}>
                     {t('ux.bench.method.path', { n: n(freeze.decisionPathFiles) })}
-                    <code className={styles.hash}>{freeze.decisionPathHash.slice(0, 12)}</code>
+                    <code className={styles.hash}>{chunked(freeze.decisionPathHash.slice(0, 12))}</code>
                   </td>
                   <td data-k={t('ux.bench.method.col.used')}>{freeze.usedBy.join(' · ')}</td>
                 </tr>
@@ -397,7 +397,7 @@ function Method({ bundle }: { readonly bundle: Bundle }) {
                     <code className={styles.code}>{breakable(source.path)}</code>
                   </th>
                   <td data-k={'sha256'}>
-                    <code className={styles.hash}>{source.sha256}</code>
+                    <code className={styles.hash}>{chunked(source.sha256, 8)}</code>
                   </td>
                 </tr>
               ))}

@@ -322,6 +322,12 @@
   background-color: var(--ux-block);
 }
 
+/* Handled normally after a step-up (DEC-82): the allow tone as a ring, apart from a plain pass. */
+.dot[data-eval='afterCheck'] {
+  border: var(--ux-step-border) solid var(--ux-allow);
+  background-color: transparent;
+}
+
 /* A rate: the share, the counts with the range, and a thin meter. */
 .rate {
   display: grid;

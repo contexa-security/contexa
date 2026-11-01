@@ -9,11 +9,12 @@ import { useLabOptions, useRunStepResults } from '../../../../api/lab';
 import { useMeasuredCase } from '../../../../api/measured';
 import { useLiveConfig } from '../../../../api/queries';
 import type { LiveRunView } from '../../../../api/types';
-import { priorOf, verdictOf } from '../../../../components/inside/meterRows';
+import { priorOf, verdictOf } from '../../../simulate/meterRows';
 import { useLiveSend } from '../../../../hooks/useLiveSend';
-import { formatNumber } from '../../../format';
-import { agentCell } from '../../../simulate/agent';
-import { DelegationChain, Instruction } from '../../../simulate/AgentParts';
+import { formatNumber, formatUtc } from '../../../format';
+import { agentCell, chainResource } from '../../../simulate/agent';
+import { AgentSteps, DelegationChain, Instruction, SenderBadge } from '../../../simulate/AgentParts';
+import { useRecordRows } from '../../../simulate/agentRows';
 import { GroupTabs } from '../../../simulate/FlowFrame';
 import { PERSON_KEYS } from '../../../simulate/person';
 import { useGroupRuns } from '../../../simulate/useFlow';
@@ -163,10 +164,13 @@ function BurstTab() {
             <p className={styles.check}>{burst.title[language] ?? burst.title.en ?? caseKey}</p>
             {data ? (
               <>
+                <p className={styles.caseLine}>
+                  <SenderBadge sender={data.sender} />
+                </p>
                 <DelegationChain
                   delegator={t(`ux.person.${data.protagonist}`, { defaultValue: data.protagonist })}
                   agent={data.agentTitle[language] ?? data.agentName}
-                  resource={data.delegation?.resources[0] ?? '—'}
+                  resource={chainResource(data.delegation)}
                 />
                 <Instruction text={data.instruction[language] ?? data.instruction.en ?? ''} />
               </>
@@ -269,7 +273,7 @@ function BurstTab() {
           {t('ux.surge.step.result')}
         </h2>
         <p className={styles.sectionDesc}>{t('ux.surge.resultDesc')}</p>
-        {stored.pending ? <Loading rows={4} /> : <Comparison own={own} ownCount={own ? own.requests : null} pair={pair} />}
+        {stored.pending ? <Loading rows={4} /> : <Comparison own={own} pair={pair} />}
         {others.length > 0 ? <OtherBursts pairs={others} /> : null}
       </section>
     </>
@@ -309,20 +313,79 @@ function Counters({ view, own }: { readonly view: LiveRunView | null; readonly o
   );
 }
 
-const ROWS = ['requests', 'delivered', 'refused', 'busy', 'withVerdict', 'modelCalls'] as const;
+/** A burst's counts as the portal made them from the run's steps (AS-10, AS-13), the first stop among them (옛 6-6). */
+const ROWS = [
+  'requests',
+  'delivered',
+  'refused',
+  'busy',
+  'withVerdict',
+  'modelCalls',
+  'deliveredAfterFirstStop',
+  'firstStopStep',
+] as const;
 
-/** The visitor's burst beside the stored measurement of sixty, with the merging of decisions on and off. */
-function Comparison({
+/** One burst's counts: the visitor's own (when sent) beside the stored measurement with merging on and off. */
+function BurstTable({
+  caption,
   own,
-  ownCount,
   pair,
 }: {
+  readonly caption: string;
   readonly own: BurstSummary | null;
-  readonly ownCount: number | null;
-  readonly pair: BurstPair | null;
+  readonly pair: BurstPair;
 }) {
   const { t, i18n } = useTranslation();
   const n = (value: number) => formatNumber(value, i18n.language);
+  const value = (summary: BurstSummary, row: (typeof ROWS)[number]) =>
+    row !== 'firstStopStep'
+      ? n(summary[row])
+      : summary.firstStopStep === null
+        ? t('ux.agentResult.controls.never')
+        : t('ux.pick.requestNo', { n: summary.firstStopStep });
+  return (
+    <div className={styles.countsScroll} role="region" aria-label={t('ux.table.scroll')} tabIndex={0}>
+      <table className={styles.counts}>
+        <caption className="ux-sr-only">{caption}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{t('ux.surge.row.label')}</th>
+            {own ? <th scope="col">{t('ux.surge.col.own', { n: n(own.requests) })}</th> : null}
+            <th scope="col">{t('ux.surge.col.on')}</th>
+            <th scope="col">{t('ux.surge.col.off')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ROWS.map((row) => (
+            <tr key={row} data-contexa={row === 'modelCalls' || undefined}>
+              <th scope="row">{t(`ux.surge.row.${row}`)}</th>
+              {own ? <td>{value(own, row)}</td> : null}
+              <td>{value(pair.on.summary, row)}</td>
+              <td>{value(pair.off.summary, row)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Where a stored measurement comes from: its two runs, and when the run with merging on was stored. */
+function Source({ pair }: { readonly pair: BurstPair }) {
+  const { t } = useTranslation();
+  return (
+    <p className={styles.counterNote}>
+      {t('ux.surge.source')} <CodeChip value={pair.on.runId} /> <CodeChip value={pair.off.runId} />{' '}
+      {t('ux.surge.capturedAt', { at: `${formatUtc(pair.on.capturedAt)} ${t('ux.runs.utc')}` })}
+    </p>
+  );
+}
+
+/** The visitor's burst beside the stored measurement of sixty, with the merging of decisions on and off. */
+function Comparison({ own, pair }: { readonly own: BurstSummary | null; readonly pair: BurstPair | null }) {
+  const { t, i18n } = useTranslation();
+  const n = (value: number) => formatNumber(value, i18n.language);
+  const onRows = useRecordRows(pair?.on.run);
   if (!pair) {
     return <Note>{t('ux.surge.noMeasurement')}</Note>;
   }
@@ -330,30 +393,13 @@ function Comparison({
   const off = pair.off.summary;
   const same = on.delivered === off.delivered;
   return (
-    <div className={styles.panel}>
-      <div className={styles.countsScroll} role="region" aria-label={t('ux.table.scroll')} tabIndex={0}>
-        <table className={styles.counts}>
-          <caption className="ux-sr-only">{t('ux.surge.step.result')}</caption>
-          <thead>
-            <tr>
-              <th scope="col">{t('ux.surge.row.label')}</th>
-              {own ? <th scope="col">{t('ux.surge.col.own', { n: n(ownCount ?? 0) })}</th> : null}
-              <th scope="col">{t('ux.surge.col.on')}</th>
-              <th scope="col">{t('ux.surge.col.off')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ROWS.map((row) => (
-              <tr key={row} data-contexa={row === 'modelCalls' || undefined}>
-                <th scope="row">{t(`ux.surge.row.${row}`)}</th>
-                {own ? <td>{n(own[row])}</td> : null}
-                <td>{n(on[row])}</td>
-                <td>{n(off[row])}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <section className={styles.panel} aria-labelledby={`surge-case-${pair.burst}`}>
+      <header className={styles.panelHead}>
+        <h3 id={`surge-case-${pair.burst}`} className={styles.panelTitle}>
+          {t(`ux.surge.case.${pair.burst}`, { defaultValue: pair.burst })}
+        </h3>
+      </header>
+      <BurstTable caption={t('ux.surge.step.result')} own={own} pair={pair} />
       <div className={styles.panelBody}>
         {own ? (
           <p className={styles.sectionDesc}>
@@ -371,48 +417,36 @@ function Comparison({
             deliveredOff: n(off.delivered),
           })}
         </p>
-        <p className={styles.counterNote}>
-          {t('ux.surge.source')} <CodeChip value={pair.on.runId} /> <CodeChip value={pair.off.runId} />
-        </p>
+        <Source pair={pair} />
+        {onRows.length > 0 ? (
+          <details className={styles.more}>
+            <summary>{t('ux.surge.timeline')}</summary>
+            <AgentSteps rows={onRows} caption={t('ux.surge.timeline')} decisions />
+          </details>
+        ) : null}
       </div>
-    </div>
+    </section>
   );
 }
 
 /** The two other stored bursts: sensitive records and exports outside the delegation, each with merging on and off. */
 function OtherBursts({ pairs }: { readonly pairs: readonly BurstPair[] }) {
-  const { t, i18n } = useTranslation();
-  const n = (value: number) => formatNumber(value, i18n.language);
+  const { t } = useTranslation();
   return (
     <details className={styles.panel}>
       <summary className={styles.panelHead}>{t('ux.surge.others', { n: pairs.length })}</summary>
-      <div className={styles.countsScroll} role="region" aria-label={t('ux.table.scroll')} tabIndex={0}>
-        <table className={styles.counts}>
-          <caption className="ux-sr-only">{t('ux.surge.others', { n: pairs.length })}</caption>
-          <thead>
-            <tr>
-              <th scope="col">{t('ux.surge.row.label')}</th>
-              <th scope="col">{t('ux.surge.row.requests')}</th>
-              <th scope="col">{t('ux.surge.row.delivered')}</th>
-              <th scope="col">{t('ux.surge.row.busy')}</th>
-              <th scope="col">{t('ux.surge.col.callsOnOff')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pairs.map((pair) => (
-              <tr key={pair.burst}>
-                <th scope="row">{t(`ux.surge.case.${pair.burst}`, { defaultValue: pair.burst })}</th>
-                <td>{n(pair.on.summary.requests)}</td>
-                <td>{n(pair.on.summary.delivered)}</td>
-                <td>{n(pair.on.summary.busy)}</td>
-                <td>
-                  {n(pair.on.summary.modelCalls)} / {n(pair.off.summary.modelCalls)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {pairs.map((pair) => {
+        const name = t(`ux.surge.case.${pair.burst}`, { defaultValue: pair.burst });
+        return (
+          <section key={pair.burst} className={styles.otherBurst} aria-labelledby={`surge-case-${pair.burst}`}>
+            <h3 id={`surge-case-${pair.burst}`} className={styles.panelTitle}>
+              {name}
+            </h3>
+            <BurstTable caption={name} own={null} pair={pair} />
+            <Source pair={pair} />
+          </section>
+        );
+      })}
     </details>
   );
 }
@@ -454,6 +488,13 @@ function RepeatTab() {
   return (
     <>
       <p className={[styles.sectionDesc, styles.repeatDesc].join(' ')}>{t('ux.surge.repeat.desc')}</p>
+      {view?.status === 'QUEUED' ? (
+        <Note icon="hourglass">
+          {t('ux.live.queued', { position: view.queuePosition })}
+          {view.queueWaitSeconds !== null ? ` ${t('ux.live.queuedWait', { seconds: view.queueWaitSeconds })}` : ''}
+        </Note>
+      ) : null}
+      {view !== null && ENDED.has(view.status) ? <Note tone="warn">{t('ux.live.failed')}</Note> : null}
       <div className={styles.section}>
         <RepeatLane
           title={t('ux.surge.repeat.work')}

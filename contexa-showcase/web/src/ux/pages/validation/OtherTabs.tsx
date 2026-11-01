@@ -27,10 +27,29 @@ export function AgentTab() {
   }
   const view = agent.data;
   const total = view.total;
+  const build = view.build ?? null;
+  const buildLine = build ? (
+    <p className={styles.line}>
+      {t('ux.validation.agent.build', {
+        commit: build.codeCommit,
+        engine: build.engineVersion,
+        bundle: build.promptBundle ?? '—',
+        mode: build.effectiveMode,
+        setting: build.settingHash.slice(0, 12),
+      })}
+    </p>
+  ) : null;
   if (view.scope.runs === 0 || !total) {
-    return <p className={styles.line}>{t('ux.validation.agent.empty')}</p>;
+    return (
+      <div className={styles.stack}>
+        <p className={styles.line}>
+          {t(build ? 'ux.validation.agent.emptyBuild' : 'build' in view ? 'ux.validation.agent.noBuild' : 'ux.validation.agent.empty')}
+        </p>
+        {buildLine}
+      </div>
+    );
   }
-  const uncertain = (view as typeof view & { readonly uncertain?: readonly string[] }).uncertain ?? [];
+  const uncertain = view.uncertain ?? [];
   const columns = ['runs', 'attacks', 'existingMissed', 'contexaStopped', 'normals', 'falseBlocks'] as const;
   return (
     <div className={styles.stack}>
@@ -49,6 +68,7 @@ export function AgentTab() {
           to: view.scope.to ? formatUtc(view.scope.to).slice(0, 10) : '—',
         })}
       </p>
+      {buildLine}
       <Card title={t('ux.validation.agent.paths')} sub={t('ux.validation.agent.source')} flush>
         <div className={styles.scroll} role="region" aria-label={t('ux.table.scroll')} tabIndex={0}>
           <table className={styles.table} data-stack>

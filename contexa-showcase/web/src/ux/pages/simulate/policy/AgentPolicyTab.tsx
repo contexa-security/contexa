@@ -1,14 +1,63 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { NO_CHOICE, type DelegationChoice } from '../../../../api/agentCase';
+import { NO_CHOICE, type AgentRunStep, type DelegationChoice } from '../../../../api/agentCase';
 import { useAgentMenu, useAgentMenuAnswer, type AgentMenuAnswer } from '../../../../api/agentMenu';
 import { useLiveConfig } from '../../../../api/queries';
-import { formatUtc } from '../../../format';
+import { CONTROL_ORDER } from '../../../../domain/verdict';
+import { formatNumber, formatUtc } from '../../../format';
 import { agentConclusion, agentPath, firstStop } from '../../../simulate/agent';
 import { AgentSteps, DelegationFacts } from '../../../simulate/AgentParts';
 import { useRecordRows } from '../../../simulate/agentRows';
-import { Badge, ButtonLink, CodeChip, Field, Loading, Note, Select } from '../../../ui';
+import { Badge, ButtonLink, CodeChip, Field, KeyValue, Loading, Note, Select } from '../../../ui';
 import styles from './Policy.module.css';
+
+/** The fewest alike requests in a row the old timeline folded into one line (pages/main/timelineFolding.ts FOLD_AT). */
+const FOLD_AT = 5;
+
+/** What makes two requests alike, as the old timeline read it: the same address and every control's same answer. */
+function sameness(step: AgentRunStep): string {
+  const answers = Object.keys(step.outcomes)
+    .sort()
+    .map((control) => `${control}:${step.outcomes[control]?.outcome ?? ''}/${step.outcomes[control]?.rule ?? ''}`)
+    .join(';');
+  return `${step.path}|${answers}`;
+}
+
+interface Burst {
+  readonly from: number;
+  readonly to: number;
+  readonly count: number;
+  readonly verdicts: number;
+  readonly calls: number;
+}
+
+/**
+ * UC-5 L-agent: every run of {@link FOLD_AT} or more alike requests, with how many of them Contexa decided on their own
+ * and how many model calls they made, read from each stored step's decision (the old timeline's folded line).
+ */
+function burstsOf(steps: readonly AgentRunStep[]): readonly Burst[] {
+  const bursts: Burst[] = [];
+  let at = 0;
+  while (at < steps.length) {
+    const key = sameness(steps[at] as AgentRunStep);
+    let end = at + 1;
+    while (end < steps.length && sameness(steps[end] as AgentRunStep) === key) {
+      end += 1;
+    }
+    if (end - at >= FOLD_AT) {
+      const group = steps.slice(at, end);
+      bursts.push({
+        from: (group[0] as AgentRunStep).stepNo,
+        to: (group[group.length - 1] as AgentRunStep).stepNo,
+        count: group.length,
+        verdicts: group.filter((step) => Boolean(step.decision?.final_action)).length,
+        calls: group.reduce((sum, step) => sum + Number(step.decision?.model_calls ?? 0), 0),
+      });
+    }
+    at = end;
+  }
+  return bursts;
+}
 
 /**
  * The agent policy (기획안 11 L-agent, DEC-34): an agent's requests come with the same token; what happens when the
@@ -26,7 +75,8 @@ export function AgentPolicyTab() {
 }
 
 function DelegationEdit() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const n = (value: number) => formatNumber(value, i18n.language);
   const config = useLiveConfig();
   const menu = useAgentMenu();
   const edit = config.data?.delegationEdit ?? null;
@@ -47,6 +97,12 @@ function DelegationEdit() {
     return null;
   }
   const paths = menu.data?.paths ?? ['OAUTH2_DELEGATED', 'OAUTH2_AGENT', 'SESSION'];
+  const points = config.data?.agentRunPoints;
+  const tickets = config.data?.liveTicketsLeft;
+  const costs = [
+    points === undefined ? null : t('ux.policy.agent.quota', { points: n(points) }),
+    tickets === undefined ? null : t('ux.policy.agent.tickets', { n: n(tickets) }),
+  ].filter((line): line is string => line !== null);
   const query = new URLSearchParams({
     quantity: String(picked.quantity ?? ''),
     period: picked.period ?? '',
@@ -123,6 +179,8 @@ function DelegationEdit() {
         <ButtonLink to={agentPath(edit.case, 'review', `?${query.toString()}`)} variant="primary" iconAfter="arrow-right">
           {t('ux.policy.agent.runReal')}
         </ButtonLink>
+        {/* UC-5 L-agent: what a real agent run costs the visitor and how many the day's share still pays for. */}
+        {costs.length > 0 ? <p className={styles.source}>{costs.join(' · ')}</p> : null}
       </div>
     </section>
   );
@@ -226,6 +284,106 @@ function Answer({
         {showDelegation ? <DelegationFacts delegation={answer.run.delegation ?? answer.caseView.delegation} /> : null}
       </div>
       {rows.length > 0 ? <AgentSteps rows={rows} caption={t('ux.agentLive.steps.title')} /> : null}
+      <div className={styles.cardBody}>
+        <AnswerMore answer={answer} />
+      </div>
     </>
+  );
+}
+
+/**
+ * UC-5 L-agent: the stored run's facts the old menu showed below its timeline, each as the portal gives it: who the
+ * scenario and this run send as, the portal's scoring of the work (requests sent, what the work needs, and per control
+ * the first stop, what it let out and what went beyond the need), and every burst of alike requests.
+ */
+function AnswerMore({ answer }: { readonly answer: AgentMenuAnswer }) {
+  const { t, i18n } = useTranslation();
+  const n = (value: number) => formatNumber(value, i18n.language);
+  const sender = (value: string) => t(`ux.policy.agent.sender.${value}`, { defaultValue: value });
+  const proof = answer.run.proof ?? null;
+  const bursts = burstsOf(answer.run.steps);
+  const head = `${styles.proofCell} ${styles.proofHead}`;
+  const num = `${styles.proofCell} ${styles.proofNum}`;
+  return (
+    <details className={styles.more}>
+      <summary>{t('ux.policy.more')}</summary>
+      <div className={styles.moreBody}>
+        <KeyValue
+          items={[
+            { label: t('ux.policy.agent.caseSender'), value: sender(answer.caseView.sender) },
+            { label: t('ux.policy.agent.runSender'), value: sender(answer.run.sender) },
+            { label: t('ux.policy.agent.sent'), value: proof ? n(proof.sent) : '—' },
+            {
+              label: t('ux.policy.agent.needs'),
+              value: !proof ? '—' : proof.workNeeds === null ? t('ux.policy.agent.needsNone') : n(proof.workNeeds),
+            },
+          ]}
+        />
+        {proof ? (
+          <div className={styles.tableScroll} role="region" aria-label={t('ux.table.scroll')} tabIndex={0}>
+            <table className={styles.proofTable}>
+              <caption className="ux-sr-only">{t('ux.policy.agent.proof.title')}</caption>
+              <thead>
+                <tr>
+                  {[
+                    'ux.lanes.control',
+                    'ux.policy.agent.proof.firstStop',
+                    'ux.policy.agent.proof.documents',
+                    'ux.policy.agent.proof.items',
+                    'ux.policy.agent.proof.records',
+                    'ux.policy.agent.proof.changes',
+                    'ux.policy.agent.proof.beyond',
+                  ].map((key) => (
+                    <th key={key} scope="col" className={head}>
+                      {t(key)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {CONTROL_ORDER.map((control) => {
+                  const counts = proof.controls[control] ?? null;
+                  const value = (count: number | undefined) => (count === undefined ? '—' : n(count));
+                  return (
+                    <tr key={control}>
+                      <th scope="row" className={styles.proofCell}>
+                        {t(`ux.control.short.${control}`)}
+                      </th>
+                      <td className={styles.proofCell}>
+                        {!counts
+                          ? '—'
+                          : counts.firstStopStep === null
+                            ? t('ux.policy.agent.proof.never')
+                            : t('ux.pick.requestNo', { n: counts.firstStopStep })}
+                      </td>
+                      {[counts?.documents, counts?.items, counts?.records, counts?.changes, counts?.beyondNeed].map(
+                        (count, index) => (
+                          <td key={index} className={num}>
+                            {value(count)}
+                          </td>
+                        ),
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <Note>{t('ux.policy.agent.proof.unscored')}</Note>
+        )}
+        {bursts.map((burst) => (
+          <p key={burst.from} className={styles.source}>
+            {t('ux.policy.agent.burst', {
+              n: n(burst.count),
+              from: burst.from,
+              to: burst.to,
+              verdicts: n(burst.verdicts),
+              calls: n(burst.calls),
+            })}
+          </p>
+        ))}
+      </div>
+    </details>
   );
 }

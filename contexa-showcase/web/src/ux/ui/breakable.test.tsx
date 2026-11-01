@@ -33,5 +33,6 @@ describe('a machine name that breaks at its parts', () => {
     expect(pieces('claude-sonnet-5-5')).toEqual(['claude-', 'sonnet-', '5-5']);
     expect(pieces('contexa-injecagent-v1')).toEqual(['contexa-', 'injecagent-', 'v1']);
     expect(pieces('S13')).toEqual(['S13']);
+    expect(pieces('PASSWORD+ONE_TIME_CODE')).toEqual(['PASSWORD+', 'ONE_', 'TIME_', 'CODE']);
   });
 });

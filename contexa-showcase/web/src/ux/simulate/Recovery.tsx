@@ -1,8 +1,10 @@
 import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { StoredCheck } from '../../api/anatomy';
 import type { LiveChallenge, LiveRelease } from '../../api/types';
-import { formatNumber } from '../format';
-import { Badge, Button, CodeChip, Field, Note, Stepper, TextArea, TextInput } from '../ui';
+import { formatDuration, formatNumber, formatUtc } from '../format';
+import { Badge, Button, CodeChip, Field, KeyValue, Note, Stepper, TextArea, TextInput } from '../ui';
+import { storedResend } from './person';
 import type { LiveAction } from './useLiveActions';
 import styles from './Recovery.module.css';
 
@@ -128,20 +130,23 @@ export function ChallengeCard({
         </p>
       ) : null}
       {stage === 'DONE' ? (
-        <p className={styles.done}>
-          <Badge tone="allow" icon="check">
-            {t('ux.recovery.retried', {
-              count: challenge.reissueDeliveredItems ?? 0,
-              n: formatNumber(challenge.reissueDeliveredItems ?? 0, i18n.language),
-              status: challenge.reissueStatus ?? '—',
-            })}
-          </Badge>
-          {resumed !== null ? (
-            <span className={styles.measured}>
-              {t('ux.recovery.measured', { n: formatNumber(resumed, i18n.language) })}
-            </span>
-          ) : null}
-        </p>
+        <>
+          <p className={styles.done}>
+            <Badge tone="allow" icon="check">
+              {t('ux.recovery.retried', {
+                count: challenge.reissueDeliveredItems ?? 0,
+                n: formatNumber(challenge.reissueDeliveredItems ?? 0, i18n.language),
+                status: challenge.reissueStatus ?? '—',
+              })}
+            </Badge>
+            {resumed !== null ? (
+              <span className={styles.measured}>
+                {t('ux.recovery.measured', { n: formatNumber(resumed, i18n.language) })}
+              </span>
+            ) : null}
+          </p>
+          <CheckTimes challenge={challenge} />
+        </>
       ) : null}
       {stage === 'CANCELLED' ? (
         <>
@@ -166,6 +171,96 @@ export function ChallengeCard({
         </>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * How long each step of a passed check took from the moment it came back, and what the request sent again returned, as
+ * the live run measured them (P-8), folded under the result.
+ */
+function CheckTimes({ challenge }: { readonly challenge: LiveChallenge }) {
+  const { t, i18n } = useTranslation();
+  const seconds = (ms: number | null) =>
+    ms === null ? '—' : t('ux.time.seconds', { value: formatDuration(ms, i18n.language) });
+  return (
+    <details className={styles.more}>
+      <summary>{t('ux.recovery.times.more')}</summary>
+      <KeyValue
+        items={[
+          { label: t('ux.recovery.times.codeRequested'), value: seconds(challenge.codeRequestedMs) },
+          { label: t('ux.recovery.times.verified'), value: seconds(challenge.verifiedMs) },
+          { label: t('ux.recovery.times.reissueSent'), value: seconds(challenge.reissueSentMs) },
+          { label: t('ux.recovery.times.reissueDone'), value: seconds(challenge.reissueDoneMs) },
+          {
+            label: t('ux.recovery.times.outcome'),
+            value: `${challenge.reissueOutcome ?? '—'} · HTTP ${challenge.reissueStatus ?? '—'}`,
+          },
+        ]}
+      />
+    </details>
+  );
+}
+
+/**
+ * A stored check of a request with the clock times the portal keeps for its steps (run_challenge). The portal returns
+ * these columns with the row; src/api/anatomy.ts StoredCheck does not name them yet.
+ */
+export type TimedCheck = StoredCheck & {
+  readonly challenged_at?: string | null;
+  readonly code_requested_at?: string | null;
+  readonly verified_at?: string | null;
+  readonly reissue_sent_at?: string | null;
+};
+
+const RECORD_STEPS = [
+  { id: 'asked', at: 'challenged_at' },
+  { id: 'code', at: 'code_requested_at' },
+  { id: 'check', at: 'verified_at' },
+  { id: 'retry', at: 'reissue_sent_at' },
+] as const;
+
+/**
+ * A passed check as the run stored it (P-8, the old 4-4 record): the clock time (UTC) of each of its four steps and what
+ * the request sent again returned, folded. Nothing for a request without a passed check; the code itself is never kept.
+ */
+export function StoredCheckRecord({
+  check,
+  className,
+}: {
+  readonly check: TimedCheck | null | undefined;
+  readonly className?: string | undefined;
+}) {
+  const { t, i18n } = useTranslation();
+  if (!check?.answered) {
+    return null;
+  }
+  const resend = storedResend(check);
+  const zone = t('ux.time.zone');
+  return (
+    <details className={className ? `${styles.more} ${className}` : styles.more}>
+      <summary>{t('ux.recovery.record.more')}</summary>
+      <KeyValue
+        items={[
+          ...RECORD_STEPS.map((step) => {
+            const at = check[step.at] ?? null;
+            return {
+              label: t(`ux.recovery.check.step.${step.id}`),
+              value: at ? `${formatUtc(at)} ${zone}` : '—',
+            };
+          }),
+          {
+            label: t('ux.recovery.times.outcome'),
+            value: resend
+              ? t('ux.recovery.retried', {
+                  count: resend.items,
+                  n: formatNumber(resend.items, i18n.language),
+                  status: resend.status,
+                })
+              : '—',
+          },
+        ]}
+      />
+    </details>
   );
 }
 
@@ -226,9 +321,16 @@ export function ReleaseCard({
         steps={RELEASE_STEPS.map((step) => t(`ux.recovery.release.step.${step}`))}
         current={releaseStep(stage)}
       />
+      {stage === 'BLOCKED' || stage === 'CODE_SHOWN' ? (
+        <p className={styles.body}>
+          {stage === 'BLOCKED' ? `${t('ux.recovery.release.body')} ` : null}
+          <span role="timer" className={styles.timer}>
+            {t('ux.recovery.secondsLeft', { seconds: release.secondsLeft })}
+          </span>
+        </p>
+      ) : null}
       {stage === 'BLOCKED' ? (
         <>
-          <p className={styles.body}>{t('ux.recovery.release.body')}</p>
           <div className={styles.actions}>
             <Button variant="primary" icon="key-round" onClick={() => void act('release-start')}>
               {t('ux.recovery.release.start')}

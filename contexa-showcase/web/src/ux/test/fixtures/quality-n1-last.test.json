@@ -1,0 +1,174 @@
+{
+  "available": true,
+  "reason": null,
+  "bundle": {
+    "version": "2026.10.25-v21.16",
+    "hash": "e9ae6e7134b05cd92c219caa24cad74ef9692413d5a63328d0e2f5c3b4ae30f5",
+    "selectionSource": "CONFIGURATION",
+    "layout": "v21-dictionary-blocks"
+  },
+  "seal": {
+    "packageId": "159f7487-4982-4931-b457-c6519669b8ae",
+    "packageHash": "7fbe727d63b9052576d2fb0b4e9559b3c04691223c65d76b47c09ebb0d029788",
+    "capturedAt": "2026-10-26T08:23:51.032624Z"
+  },
+  "inspection": {
+    "verdict": "INCOMPLETE",
+    "inspectorVersion": "prompt-inspector/27",
+    "inspectedAt": "2026-10-31T04:38:22.142962Z",
+    "checks": [
+      {
+        "code": "SEAL_INTEGRITY",
+        "matched": 9,
+        "mismatched": 0,
+        "unverifiable": 1,
+        "mismatches": []
+      },
+      {
+        "code": "BUNDLE_TRACE",
+        "matched": 10,
+        "mismatched": 0,
+        "unverifiable": 0,
+        "mismatches": []
+      },
+      {
+        "code": "DICTIONARY_CONTRACT",
+        "matched": 0,
+        "mismatched": 0,
+        "unverifiable": 1,
+        "mismatches": []
+      },
+      {
+        "code": "DECISION_FACT_MATCH",
+        "matched": 0,
+        "mismatched": 0,
+        "unverifiable": 1,
+        "mismatches": []
+      },
+      {
+        "code": "FACT_ACCURACY",
+        "matched": 0,
+        "mismatched": 0,
+        "unverifiable": 1,
+        "mismatches": []
+      },
+      {
+        "code": "UNKNOWN_DECLARED",
+        "matched": 0,
+        "mismatched": 0,
+        "unverifiable": 1,
+        "mismatches": []
+      },
+      {
+        "code": "PAST_RECORD_NOTATION",
+        "matched": 0,
+        "mismatched": 0,
+        "unverifiable": 1,
+        "mismatches": []
+      },
+      {
+        "code": "SOURCE_TRUTH",
+        "matched": 0,
+        "mismatched": 0,
+        "unverifiable": 1,
+        "mismatches": []
+      },
+      {
+        "code": "SAME_FACT",
+        "matched": 0,
+        "mismatched": 0,
+        "unverifiable": 1,
+        "mismatches": []
+      },
+      {
+        "code": "REASON_MATCH",
+        "matched": 0,
+        "mismatched": 0,
+        "unverifiable": 1,
+        "mismatches": []
+      }
+    ]
+  },
+  "reasonCodes": [
+    {
+      "code": "RECORD_COVERS_WORK",
+      "fact": "F7",
+      "contract": "V4"
+    },
+    {
+      "code": "ASSIGNED_TARGET",
+      "fact": "F2",
+      "contract": "V4"
+    },
+    {
+      "code": "SESSION_SEQUENCE",
+      "fact": "S4",
+      "contract": "V4"
+    }
+  ],
+  "hypotheses": [
+    {
+      "id": "H1",
+      "name": null,
+      "assessment": "MOST_LIKELY",
+      "for": [
+        "F2",
+        "F7",
+        "F8",
+        "S1",
+        "S4"
+      ],
+      "against": [
+        "F5"
+      ]
+    },
+    {
+      "id": "H2",
+      "name": null,
+      "assessment": "POSSIBLE",
+      "for": [
+        "R1",
+        "R10"
+      ],
+      "against": [
+        "S1",
+        "F8"
+      ]
+    },
+    {
+      "id": "H3",
+      "name": null,
+      "assessment": "UNLIKELY",
+      "for": [
+        "F5"
+      ],
+      "against": [
+        "F2",
+        "F7",
+        "F8"
+      ]
+    },
+    {
+      "id": "H4",
+      "name": null,
+      "assessment": "UNLIKELY",
+      "for": [
+        "F5"
+      ],
+      "against": [
+        "S4",
+        "F7"
+      ]
+    }
+  ],
+  "ribbon": {
+    "facts": 48,
+    "withSource": 43,
+    "factAccuracy": {
+      "matched": 0,
+      "total": 0
+    },
+    "contradictions": 0,
+    "unknown": 2
+  }
+}

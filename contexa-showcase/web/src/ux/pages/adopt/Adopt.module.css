@@ -170,6 +170,17 @@
   font-size: var(--ux-text-13);
 }
 
+/* The measured decisions folded under "자세히" (옛 8-2 운영 지표, DEC-82). */
+.more summary {
+  color: var(--ux-link);
+  font-size: var(--ux-text-13);
+  cursor: pointer;
+}
+
+.moreBody {
+  padding-block-start: var(--ux-space-3);
+}
+
 @media (width < 1024px) {
   .split {
     grid-template-columns: minmax(0, 1fr);

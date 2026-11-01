@@ -1,7 +1,9 @@
 import type { TFunction } from 'i18next';
-import type { AgentDelegation, AgentRunStep, AgentRunView } from '../../api/agentCase';
+import type { AgentDelegation, AgentRecorded, AgentRunStep, AgentRunView } from '../../api/agentCase';
 import { useLiveConfig } from '../../api/queries';
+import { subjectOfSender } from '../../domain/subject';
 import type { Verdict } from '../../domain/verdict';
+import { formatNumber } from '../format';
 
 /** Control D's answer to an agent's request its delegating person must confirm first (docs/agent A5-2). */
 export const CONFIRMATION_RULE = 'AGENT_CONFIRMATION_REQUIRED';
@@ -129,6 +131,49 @@ export function periodMarks(
   // A little room on either side so a mark at the edge is still seen.
   const at = (minutes: number) => 0.04 + ((minutes - from) / span) * 0.92;
   return { start: at(fromMinutes), end: at(untilMinutes), now: at(0) };
+}
+
+/**
+ * The delegation chain's resource as the delegation records it: every resource, else the project it names (옛
+ * DelegationParts.AgentChainLine), else a dash.
+ */
+export function chainResource(delegation: AgentDelegation | null | undefined): string {
+  if (!delegation) {
+    return '—';
+  }
+  if (delegation.resources.length > 0) {
+    return delegation.resources.join(', ');
+  }
+  return delegation.project ? delegation.project : '—';
+}
+
+/** Who sends the case's requests, from the portal's case sender (AS-1); the sender's code for a kind not named here. */
+export function senderWords(t: TFunction, sender: string): string {
+  const subject = subjectOfSender(sender);
+  return subject ? t(`ux.agent.sender.${subject}`) : sender;
+}
+
+/**
+ * The operator's recordings of the case and how many ended as the latest did, both counted by the portal (AS-5); null
+ * before any recording.
+ */
+export function recordedWords(t: TFunction, recorded: AgentRecorded | null | undefined, language: string): string | null {
+  if (!recorded) {
+    return null;
+  }
+  return t('ux.agent.recorded.value', {
+    runs: formatNumber(recorded.runs, language),
+    same: formatNumber(recorded.sameAsLatest, language),
+  });
+}
+
+/** A company time some minutes after another (the delegation's end from the run's company time); null without both. */
+export function plusMinutes(companyTime: string | null | undefined, minutes: number | null | undefined): string | null {
+  if (!companyTime || minutes === null || minutes === undefined) {
+    return null;
+  }
+  const at = new Date(companyTime).getTime();
+  return Number.isNaN(at) ? null : new Date(at + minutes * 60_000).toISOString();
 }
 
 /** An operation of the agent's tools in the visitor's words; its code when the dictionary has none. */

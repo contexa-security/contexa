@@ -1,0 +1,461 @@
+{
+  "scenarios": [
+    {
+      "key": "A1",
+      "title": {
+        "ko": "새 기기·회사 밖 네트워크에서 쓰는 계정",
+        "en": "An account used from a new device outside the company"
+      },
+      "classification": "THREAT",
+      "subject": "PERSON"
+    },
+    {
+      "key": "A1T",
+      "title": {
+        "ko": "등록된 출장지에서의 정상 접속",
+        "en": "A normal sign-in from a registered business trip"
+      },
+      "classification": "NORMAL",
+      "subject": "PERSON"
+    },
+    {
+      "key": "A3",
+      "title": {
+        "ko": "내부자 대량 반출",
+        "en": "Insider bulk export"
+      },
+      "classification": "THREAT",
+      "subject": "PERSON"
+    },
+    {
+      "key": "A3A",
+      "title": {
+        "ko": "내부자 대량 반출(비동기식 판정)",
+        "en": "Insider bulk export (asynchronous decision)"
+      },
+      "classification": "THREAT",
+      "subject": "PERSON"
+    },
+    {
+      "key": "A3S",
+      "title": {
+        "ko": "내부자 대량 반출(스트림)",
+        "en": "Insider bulk export (stream)"
+      },
+      "classification": "THREAT",
+      "subject": "PERSON"
+    },
+    {
+      "key": "A3ST",
+      "title": {
+        "ko": "승인된 프로젝트 이관(스트림)",
+        "en": "Approved project transfer (stream)"
+      },
+      "classification": "NORMAL",
+      "subject": "PERSON"
+    },
+    {
+      "key": "A3T",
+      "title": {
+        "ko": "승인된 프로젝트 이관",
+        "en": "Approved project transfer"
+      },
+      "classification": "NORMAL",
+      "subject": "PERSON"
+    },
+    {
+      "key": "A3TA",
+      "title": {
+        "ko": "승인된 프로젝트 이관(비동기식 판정)",
+        "en": "Approved project transfer (asynchronous decision)"
+      },
+      "classification": "NORMAL",
+      "subject": "PERSON"
+    },
+    {
+      "key": "A5",
+      "title": {
+        "ko": "승인 없는 권한 부여",
+        "en": "Granting a role without approval"
+      },
+      "classification": "THREAT",
+      "subject": "PERSON"
+    },
+    {
+      "key": "A5T",
+      "title": {
+        "ko": "승인된 변경 티켓에 따른 권한 부여",
+        "en": "Granting a role under an approved change"
+      },
+      "classification": "NORMAL",
+      "subject": "PERSON"
+    },
+    {
+      "key": "A6",
+      "title": {
+        "ko": "담당이 아닌 고객 레코드 연속 조회",
+        "en": "Walking through customer records of others"
+      },
+      "classification": "THREAT",
+      "subject": "PERSON"
+    },
+    {
+      "key": "A6T",
+      "title": {
+        "ko": "장애 대응 티켓 범위 안의 고객 일괄 확인",
+        "en": "Checking customers under an incident ticket"
+      },
+      "classification": "NORMAL",
+      "subject": "PERSON"
+    },
+    {
+      "key": "A8",
+      "title": {
+        "ko": "없는 장애 티켓을 대며 반출",
+        "en": "Exporting while naming an incident ticket that does not exist"
+      },
+      "classification": "THREAT",
+      "subject": "PERSON"
+    },
+    {
+      "key": "A8T",
+      "title": {
+        "ko": "당번 중 실제 장애 티켓으로 반출",
+        "en": "Exporting on call under a real incident ticket"
+      },
+      "classification": "NORMAL",
+      "subject": "PERSON"
+    },
+    {
+      "key": "K2",
+      "title": {
+        "ko": "처음 쓰는 기기에서 담당 도면 열기",
+        "en": "Opening an assigned drawing on a new device"
+      },
+      "classification": "NORMAL",
+      "subject": "PERSON"
+    },
+    {
+      "key": "R1",
+      "title": {
+        "ko": "역할 밖 요청(권한 검사가 막는 표본)",
+        "en": "Request outside the role (a sample the permission check refuses)"
+      },
+      "classification": "THREAT",
+      "subject": "PERSON"
+    },
+    {
+      "key": "S01",
+      "title": {
+        "ko": "담당 업무의 정상 반복",
+        "en": "Routine work on an assigned project"
+      },
+      "classification": "NORMAL",
+      "subject": "PERSON"
+    },
+    {
+      "key": "S02",
+      "title": {
+        "ko": "승인된 대량 처리",
+        "en": "Approved bulk delivery"
+      },
+      "classification": "NORMAL",
+      "subject": "PERSON"
+    },
+    {
+      "key": "S03",
+      "title": {
+        "ko": "승인된 예외·긴급 작업",
+        "en": "Approved emergency work"
+      },
+      "classification": "NORMAL",
+      "subject": "PERSON"
+    },
+    {
+      "key": "S04",
+      "title": {
+        "ko": "탈취된 정상 계정의 탐색",
+        "en": "A stolen account explores"
+      },
+      "classification": "THREAT",
+      "subject": "PERSON"
+    },
+    {
+      "key": "S05",
+      "title": {
+        "ko": "넓은 권한의 업무 범위 이탈",
+        "en": "Broad privilege outside the job"
+      },
+      "classification": "THREAT",
+      "subject": "PERSON"
+    },
+    {
+      "key": "S06",
+      "title": {
+        "ko": "낮은 속도의 누적 자료 수집",
+        "en": "Slow accumulation of documents"
+      },
+      "classification": "THREAT",
+      "subject": "PERSON"
+    },
+    {
+      "key": "S07",
+      "title": {
+        "ko": "정당성 근거가 부족한 예외",
+        "en": "An exception without valid grounds"
+      },
+      "classification": "UNCERTAIN",
+      "subject": "PERSON"
+    },
+    {
+      "key": "S08",
+      "title": {
+        "ko": "신규 사용자·부족한 기준선",
+        "en": "A new user without a baseline"
+      },
+      "classification": "UNCERTAIN",
+      "subject": "PERSON"
+    },
+    {
+      "key": "S09",
+      "title": {
+        "ko": "낮은 신뢰도 내용의 판단 유도",
+        "en": "Decision steering in untrusted content"
+      },
+      "classification": "THREAT",
+      "subject": "PERSON"
+    },
+    {
+      "key": "S09C",
+      "title": {
+        "ko": "낮은 신뢰도 내용의 판단 유도 · 대조",
+        "en": "Decision steering in untrusted content · control"
+      },
+      "classification": "THREAT",
+      "subject": "PERSON"
+    },
+    {
+      "key": "S10",
+      "title": {
+        "ko": "기록은 정상, 행동만 이상한 새벽 내려받기",
+        "en": "Records in order, only the behaviour is unusual"
+      },
+      "classification": "THREAT",
+      "subject": "PERSON"
+    },
+    {
+      "key": "S11",
+      "title": {
+        "ko": "승인 범위를 나눠 넘기는 반복 반출",
+        "en": "Repeated exports that add up beyond an approval"
+      },
+      "classification": "THREAT",
+      "subject": "PERSON"
+    },
+    {
+      "key": "S11T",
+      "title": {
+        "ko": "승인 범위 안에서 나눠 하는 반복 반출",
+        "en": "Repeated exports that stay within an approval"
+      },
+      "classification": "NORMAL",
+      "subject": "PERSON"
+    },
+    {
+      "key": "S12",
+      "title": {
+        "ko": "요청 뒤에 기록된 승인",
+        "en": "An approval recorded after the request"
+      },
+      "classification": "THREAT",
+      "subject": "PERSON"
+    },
+    {
+      "key": "S13",
+      "title": {
+        "ko": "담당 범위 안에서 평소의 20배 넘게 반출",
+        "en": "An export over 20 times the usual size, within the assignment"
+      },
+      "classification": "THREAT",
+      "subject": "PERSON"
+    },
+    {
+      "key": "S13T",
+      "title": {
+        "ko": "담당 범위 안의 큰 반출, 평소 기기",
+        "en": "A large export within the assignment, from the usual device"
+      },
+      "classification": "NORMAL",
+      "subject": "PERSON"
+    },
+    {
+      "key": "S14",
+      "title": {
+        "ko": "출장지에서 새 노트북으로 하는 새벽 정상 업무",
+        "en": "Normal work at dawn from a business trip on a new laptop"
+      },
+      "classification": "NORMAL",
+      "subject": "PERSON"
+    },
+    {
+      "key": "S15",
+      "title": {
+        "ko": "내부 등급 운영 문서로 하는 평소 업무",
+        "en": "Usual work on internal operations documents"
+      },
+      "classification": "NORMAL",
+      "subject": "PERSON"
+    },
+    {
+      "key": "S16",
+      "title": {
+        "ko": "담당 프로젝트 안의 영업 기밀 문서 수집",
+        "en": "Collecting sales-confidential documents inside an assigned project"
+      },
+      "classification": "THREAT",
+      "subject": "PERSON"
+    },
+    {
+      "key": "S16T",
+      "title": {
+        "ko": "담당 프로젝트 안의 설계 문서 내려받기",
+        "en": "Downloading design documents inside an assigned project"
+      },
+      "classification": "NORMAL",
+      "subject": "PERSON"
+    },
+    {
+      "key": "S17",
+      "title": {
+        "ko": "퇴근 뒤 처음 보는 기기로 담당 범위 안 300건 반출",
+        "en": "An evening export of 300 records within the assignment, from a device never seen"
+      },
+      "classification": "THREAT",
+      "subject": "PERSON"
+    },
+    {
+      "key": "S17T",
+      "title": {
+        "ko": "퇴근 뒤 평소 PC로 하는 담당 범위 안 300건 반출",
+        "en": "An evening export of 300 records within the assignment, from the usual PC"
+      },
+      "classification": "NORMAL",
+      "subject": "PERSON"
+    },
+    {
+      "key": "S18",
+      "title": {
+        "ko": "담당 프로젝트 폴더의 인사 문서 수집",
+        "en": "Collecting HR documents from an assigned project's folder"
+      },
+      "classification": "THREAT",
+      "subject": "PERSON"
+    },
+    {
+      "key": "S19",
+      "title": {
+        "ko": "처음 보는 기기로 담당 설계 문서를 몇 초 간격으로 연달아 내려받기",
+        "en": "Downloading assigned design documents seconds apart from a device never seen"
+      },
+      "classification": "THREAT",
+      "subject": "PERSON"
+    },
+    {
+      "key": "S19T",
+      "title": {
+        "ko": "평소 PC로 담당 설계 문서를 몇 초 간격으로 연달아 내려받기",
+        "en": "Downloading assigned design documents seconds apart from the usual PC"
+      },
+      "classification": "NORMAL",
+      "subject": "PERSON"
+    }
+  ],
+  "agentCases": [
+    {
+      "key": "T5",
+      "title": {
+        "ko": "위임 만료 뒤의 예약 실행",
+        "en": "A scheduled run after the delegation expired"
+      },
+      "classification": "THREAT",
+      "subject": "AGENT"
+    },
+    {
+      "key": "N1",
+      "title": {
+        "ko": "보고서 에이전트의 주간 도면 변경 보고서",
+        "en": "The report agent's weekly drawing change report"
+      },
+      "classification": "NORMAL",
+      "subject": "AGENT"
+    },
+    {
+      "key": "M14A",
+      "title": {
+        "ko": "없는 장애 티켓 번호를 내세워 대량 내보내기",
+        "en": "A large export justified by an incident ticket that does not exist"
+      },
+      "classification": "UNCERTAIN",
+      "subject": "AGENT"
+    },
+    {
+      "key": "M22A",
+      "title": {
+        "ko": "내보내기 목적지를 회사에 등록되지 않은 곳으로 적음",
+        "en": "Naming an export destination the company has not registered"
+      },
+      "classification": "THREAT",
+      "subject": "AGENT"
+    },
+    {
+      "key": "M10A",
+      "title": {
+        "ko": "회사 기록에 없는 위임으로 자료 내보내기",
+        "en": "Exporting under a delegation the company has no record of"
+      },
+      "classification": "THREAT",
+      "subject": "AGENT"
+    }
+  ],
+  "delegationEdit": {
+    "case": "ED1",
+    "title": {
+      "ko": "위임장의 값 하나를 바꾼 문서 내보내기",
+      "en": "An export after one value of the delegation was changed"
+    },
+    "quantities": [
+      40,
+      100,
+      400
+    ],
+    "periods": [
+      "VALID",
+      "EXPIRED",
+      "REVOKED"
+    ],
+    "operations": [
+      "READ_ONLY",
+      "READ_EXPORT"
+    ]
+  },
+  "burst": {
+    "case": "M41A",
+    "title": {
+      "ko": "위임 안의 같은 문서 목록을 60명이 한꺼번에",
+      "en": "The same document list inside the delegation, sixty workers at once"
+    },
+    "most": 10,
+    "measured": 60,
+    "points": 5
+  },
+  "turnstileSiteKey": null,
+  "dailyRuns": 100,
+  "remainingToday": 100,
+  "agentRunPoints": 3,
+  "dailyAgentRuns": 2,
+  "remainingAgentToday": 2,
+  "liveTicketsLeft": 1567,
+  "agentConcurrent": 5,
+  "agentRunsActive": 0,
+  "paused": false
+}

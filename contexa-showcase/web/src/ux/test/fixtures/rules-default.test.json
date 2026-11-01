@@ -1,0 +1,29 @@
+{
+  "tallies": {
+    "C1": {
+      "attacks": 19,
+      "attacksStopped": 10,
+      "normals": 16,
+      "normalsBlocked": 6,
+      "normalsChecked": 0,
+      "undecided": 0
+    },
+    "C2": {
+      "attacks": 19,
+      "attacksStopped": 11,
+      "normals": 16,
+      "normalsBlocked": 0,
+      "normalsChecked": 0,
+      "undecided": 0
+    },
+    "D": {
+      "attacks": 19,
+      "attacksStopped": 17,
+      "normals": 16,
+      "normalsBlocked": 0,
+      "normalsChecked": 4,
+      "undecided": 0
+    }
+  },
+  "changed": []
+}

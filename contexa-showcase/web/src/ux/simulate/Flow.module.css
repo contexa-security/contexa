@@ -3,7 +3,7 @@
 .mono {
   font-family: var(--ux-mono);
   font-size: var(--ux-text-13);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 /* Progress: "scenarios run in this group n / 3" */

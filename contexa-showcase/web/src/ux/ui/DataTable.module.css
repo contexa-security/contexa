@@ -45,6 +45,11 @@
   white-space: nowrap;
 }
 
+.table td[data-wrap] {
+  min-inline-size: 12rem;
+  white-space: normal;
+}
+
 .table tr[aria-current='true'] td {
   background-color: var(--ux-link-soft);
 }

@@ -1,0 +1,403 @@
+{
+  "employees": [
+    {
+      "key": "eng-k",
+      "role": "ENGINEER",
+      "displayName": "Design engineer K",
+      "department": "Design engineering HX",
+      "officeNetwork": "10.40.21.0/24",
+      "assignedProjects": [
+        "HX-310"
+      ],
+      "customersManaged": 0,
+      "roleAllows": {
+        "DOCUMENT_READ": true,
+        "DOCUMENT_DOWNLOAD": true,
+        "EXPORT": true,
+        "EXPORT_STREAM": true,
+        "EXPORT_ASYNC": true,
+        "CUSTOMER_READ": false,
+        "ROLE_GRANT": false
+      }
+    }
+  ],
+  "projects": [
+    {
+      "key": "CP-120",
+      "displayName": "CP-120 scroll compressor",
+      "program": "CP",
+      "sensitivity": "CONFIDENTIAL",
+      "owner": "pm-04"
+    },
+    {
+      "key": "CP-220",
+      "displayName": "CP-220 screw compressor",
+      "program": "CP",
+      "sensitivity": "CONFIDENTIAL",
+      "owner": "pm-05"
+    },
+    {
+      "key": "CP-330",
+      "displayName": "CP-330 centrifugal compressor",
+      "program": "CP",
+      "sensitivity": "RESTRICTED",
+      "owner": "pm-06"
+    },
+    {
+      "key": "GB-400",
+      "displayName": "GB-400 gearbox",
+      "program": "GB",
+      "sensitivity": "CONFIDENTIAL",
+      "owner": "pm-10"
+    },
+    {
+      "key": "GB-500",
+      "displayName": "GB-500 planetary gearbox",
+      "program": "GB",
+      "sensitivity": "RESTRICTED",
+      "owner": "pm-11"
+    },
+    {
+      "key": "HX-200",
+      "displayName": "HX-200 plate heat exchanger",
+      "program": "HX",
+      "sensitivity": "CONFIDENTIAL",
+      "owner": "pm-01"
+    },
+    {
+      "key": "HX-310",
+      "displayName": "HX-310 shell-and-tube heat exchanger",
+      "program": "HX",
+      "sensitivity": "CONFIDENTIAL",
+      "owner": "pm-02"
+    },
+    {
+      "key": "HX-450",
+      "displayName": "HX-450 condenser",
+      "program": "HX",
+      "sensitivity": "CONFIDENTIAL",
+      "owner": "pm-03"
+    },
+    {
+      "key": "PLM-OPS",
+      "displayName": "PLM operations",
+      "program": "IT",
+      "sensitivity": "INTERNAL",
+      "owner": "adm-a"
+    },
+    {
+      "key": "PM-050",
+      "displayName": "PM-050 circulation pump",
+      "program": "PM",
+      "sensitivity": "INTERNAL",
+      "owner": "pm-07"
+    },
+    {
+      "key": "PM-075",
+      "displayName": "PM-075 booster pump",
+      "program": "PM",
+      "sensitivity": "CONFIDENTIAL",
+      "owner": "pm-08"
+    },
+    {
+      "key": "VL-010",
+      "displayName": "VL-010 control valve",
+      "program": "VL",
+      "sensitivity": "INTERNAL",
+      "owner": "pm-09"
+    }
+  ],
+  "timeSlots": [
+    {
+      "representativeTime": "03:17",
+      "slot": "DAWN"
+    },
+    {
+      "representativeTime": "09:40",
+      "slot": "MORNING"
+    },
+    {
+      "representativeTime": "14:20",
+      "slot": "AFTERNOON"
+    },
+    {
+      "representativeTime": "20:30",
+      "slot": "EVENING"
+    }
+  ],
+  "items": [
+    40,
+    480,
+    4831,
+    6200
+  ],
+  "operations": [
+    "DOCUMENT_READ",
+    "DOCUMENT_DOWNLOAD",
+    "EXPORT",
+    "EXPORT_STREAM",
+    "EXPORT_ASYNC",
+    "CUSTOMER_READ",
+    "ROLE_GRANT"
+  ],
+  "cases": [
+    {
+      "key": "S13",
+      "version": 1,
+      "title": {
+        "ko": "담당 범위 안에서 평소의 20배 넘게 반출",
+        "en": "An export over 20 times the usual size, within the assignment"
+      },
+      "classification": "THREAT",
+      "steps": 1,
+      "conditions": {
+        "employee": "eng-k",
+        "timeSlot": "AFTERNOON",
+        "place": "OFFICE",
+        "device": "NEW",
+        "operation": "EXPORT",
+        "target": "ASSIGNED",
+        "items": 480,
+        "approval": false,
+        "ticket": "NONE",
+        "claim": "NONE",
+        "onCall": false
+      },
+      "facts": [],
+      "requests": [
+        {
+          "operation": "EXPORT",
+          "project": "HX-310",
+          "document": null,
+          "target": "ASSIGNED",
+          "customer": null,
+          "items": 480,
+          "claimedTicket": null,
+          "visitorSends": false
+        }
+      ]
+    },
+    {
+      "key": "S13T",
+      "version": 1,
+      "title": {
+        "ko": "담당 범위 안의 큰 반출, 평소 기기",
+        "en": "A large export within the assignment, from the usual device"
+      },
+      "classification": "NORMAL",
+      "steps": 1,
+      "conditions": {
+        "employee": "eng-k",
+        "timeSlot": "AFTERNOON",
+        "place": "OFFICE",
+        "device": "USUAL",
+        "operation": "EXPORT",
+        "target": "ASSIGNED",
+        "items": 480,
+        "approval": false,
+        "ticket": "NONE",
+        "claim": "NONE",
+        "onCall": false
+      },
+      "facts": [],
+      "requests": [
+        {
+          "operation": "EXPORT",
+          "project": "HX-310",
+          "document": null,
+          "target": "ASSIGNED",
+          "customer": null,
+          "items": 480,
+          "claimedTicket": null,
+          "visitorSends": false
+        }
+      ]
+    },
+    {
+      "key": "S16",
+      "version": 1,
+      "title": {
+        "ko": "담당 프로젝트 안의 영업 기밀 문서 수집",
+        "en": "Collecting sales-confidential documents inside an assigned project"
+      },
+      "classification": "THREAT",
+      "steps": 3,
+      "conditions": {
+        "employee": "eng-k",
+        "timeSlot": "AFTERNOON",
+        "place": "OFFICE",
+        "device": "USUAL",
+        "operation": null,
+        "target": null,
+        "items": null,
+        "approval": false,
+        "ticket": "NONE",
+        "claim": null,
+        "onCall": false
+      },
+      "facts": [
+        {
+          "kind": "DOCUMENT",
+          "ticketKind": null,
+          "approver": null,
+          "project": "HX-310",
+          "purpose": null,
+          "maxItems": null,
+          "validFromOffset": null,
+          "validUntilOffset": null,
+          "status": null,
+          "team": null,
+          "city": null,
+          "country": null,
+          "network": null,
+          "document": {
+            "source": "최종화면-구현계획 7차 IN-d (2026-10-19): designed before measurement",
+            "type": "NOTE",
+            "sensitivity": "CONFIDENTIAL",
+            "author": "Sales Division",
+            "updatedOn": "2026-09-28",
+            "title": {
+              "ko": "HX-310 고객사 공급 단가·마진 산정표 (영업 기밀)",
+              "en": "HX-310 customer supply pricing and margin sheet (sales confidential)"
+            },
+            "summary": {
+              "ko": "HX-310 공급 계약의 고객별 단가, 원가 구성, 목표 마진. 영업본부 전용.",
+              "en": "Unit prices, cost breakdown and target margin per customer for the HX-310 supply contract. Sales division only."
+            },
+            "body": {
+              "ko": "HX-310 공급 단가·마진 산정표\n\n고객별 공급 단가와 원가 구성, 목표 마진을 정리한 영업 자료입니다.",
+              "en": "HX-310 supply pricing and margin sheet\n\nA sales document listing the supply unit price, cost breakdown and target margin per customer."
+            }
+          }
+        },
+        {
+          "kind": "DOCUMENT",
+          "ticketKind": null,
+          "approver": null,
+          "project": "HX-310",
+          "purpose": null,
+          "maxItems": null,
+          "validFromOffset": null,
+          "validUntilOffset": null,
+          "status": null,
+          "team": null,
+          "city": null,
+          "country": null,
+          "network": null,
+          "document": {
+            "source": "최종화면-구현계획 7차 IN-d (2026-10-19): designed before measurement",
+            "type": "NOTE",
+            "sensitivity": "CONFIDENTIAL",
+            "author": "Sales Division",
+            "updatedOn": "2026-09-28",
+            "title": {
+              "ko": "HX-310 경쟁 입찰 대응 전략 메모 (영업본부 한정)",
+              "en": "HX-310 competitive bid strategy memo (sales division only)"
+            },
+            "summary": {
+              "ko": "다가오는 HX-310 입찰의 최저 입찰가, 경쟁사 가격 추정, 협상 방침.",
+              "en": "Bid price floor, competitor price estimates and negotiation stance for the upcoming HX-310 tender."
+            },
+            "body": {
+              "ko": "HX-310 입찰 대응 전략\n\n최저 입찰가와 경쟁사별 예상 가격, 협상 단계별 양보 한도를 정리한 메모입니다.",
+              "en": "HX-310 bid strategy\n\nA memo on the bid price floor, each competitor's expected price and the concession limits per negotiation round."
+            }
+          }
+        },
+        {
+          "kind": "DOCUMENT",
+          "ticketKind": null,
+          "approver": null,
+          "project": "HX-310",
+          "purpose": null,
+          "maxItems": null,
+          "validFromOffset": null,
+          "validUntilOffset": null,
+          "status": null,
+          "team": null,
+          "city": null,
+          "country": null,
+          "network": null,
+          "document": {
+            "source": "최종화면-구현계획 7차 IN-d (2026-10-19): designed before measurement",
+            "type": "NOTE",
+            "sensitivity": "CONFIDENTIAL",
+            "author": "Sales Division",
+            "updatedOn": "2026-09-28",
+            "title": {
+              "ko": "HX-310 고객 계약 조건·위약금 조항 요약",
+              "en": "HX-310 customer contract terms and penalty clauses summary"
+            },
+            "summary": {
+              "ko": "고객과 합의한 대금 지급 조건, 위약금 조항, 할인 약정.",
+              "en": "Payment terms, penalty clauses and discount commitments agreed with the customer."
+            },
+            "body": {
+              "ko": "HX-310 계약 조건 요약\n\n대금 지급 조건과 지연 위약금, 물량 할인 약정을 요약한 문서입니다.",
+              "en": "HX-310 contract terms summary\n\nA summary of the payment terms, delay penalties and volume discount commitments."
+            }
+          }
+        }
+      ],
+      "requests": [
+        {
+          "operation": "DOCUMENT_DOWNLOAD",
+          "project": null,
+          "document": {
+            "project": "HX-310",
+            "type": "NOTE",
+            "position": 0,
+            "fact": 1
+          },
+          "target": "ASSIGNED",
+          "customer": null,
+          "items": null,
+          "claimedTicket": null,
+          "visitorSends": false
+        },
+        {
+          "operation": "DOCUMENT_DOWNLOAD",
+          "project": null,
+          "document": {
+            "project": "HX-310",
+            "type": "NOTE",
+            "position": 0,
+            "fact": 2
+          },
+          "target": "ASSIGNED",
+          "customer": null,
+          "items": null,
+          "claimedTicket": null,
+          "visitorSends": false
+        },
+        {
+          "operation": "DOCUMENT_DOWNLOAD",
+          "project": null,
+          "document": {
+            "project": "HX-310",
+            "type": "NOTE",
+            "position": 0,
+            "fact": 3
+          },
+          "target": "ASSIGNED",
+          "customer": null,
+          "items": null,
+          "claimedTicket": null,
+          "visitorSends": false
+        }
+      ]
+    }
+  ],
+  "calls": [
+    "UNSURE",
+    "NORMAL",
+    "ATTACK"
+  ],
+  "assessmentReasons": [
+    "MISSED_SIGNAL",
+    "OTHER",
+    "DISAGREE_TRUTH",
+    "OVERBLOCK",
+    "REASON_MISMATCH"
+  ]
+}

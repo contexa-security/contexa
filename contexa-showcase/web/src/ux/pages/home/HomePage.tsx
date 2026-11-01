@@ -6,6 +6,7 @@ import { useLabOptions } from '../../../api/lab';
 import { useLiveConfig, useStats } from '../../../api/queries';
 import { CONTROL_ORDER } from '../../../domain/verdict';
 import { formatNumber, formatSeconds, formatUtc, localTime } from '../../format';
+import { useHookRepeats } from '../../runs/hookMeasurement';
 import { ControlLanes, type LaneRow } from '../../simulate/ControlLanes';
 import { EXISTING, companyClock, controlVerdict, deviceWords, flowPath } from '../../simulate/person';
 import { ButtonLink, CodeChip, EmptyState, ErrorState, Icon, Loading } from '../../ui';
@@ -174,6 +175,7 @@ function RecordedRunCard({ column }: { readonly column: HookColumn }) {
   const anatomy = useAnatomy(column.runId, 1);
   const received = useReceived(column.runId, 1);
   const options = useLabOptions();
+  const repeats = useHookRepeats(column);
   const n = (value: number) => formatNumber(value, i18n.language);
   const layers = column.result.layers;
   const layerOf = (control: string) => layers.find((layer) => layer.control === control) ?? null;
@@ -262,8 +264,8 @@ function RecordedRunCard({ column }: { readonly column: HookColumn }) {
       </div>
       <p className={styles.recordNote}>
         {t('ux.home.replay.measurement', {
-          runs: n(column.measurement.runs),
-          same: n(column.measurement.sameResult),
+          runs: n(repeats?.runs ?? column.measurement.runs),
+          same: n(repeats?.same ?? column.measurement.sameResult),
         })}
       </p>
     </section>

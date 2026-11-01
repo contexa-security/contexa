@@ -92,6 +92,13 @@
   white-space: nowrap;
 }
 
+/* A narrow card puts the unit under the number instead of past the card's edge. */
+.kpiValue:has(.kpiUnit) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+
 .kpiUnit {
   margin-inline-start: var(--ux-space-1);
   color: var(--ux-text-3);

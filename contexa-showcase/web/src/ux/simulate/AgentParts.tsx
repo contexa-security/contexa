@@ -1,13 +1,63 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { AgentDelegation } from '../../api/agentCase';
-import { CONTROL_ORDER } from '../../domain/verdict';
+import type { AgentDelegation, AgentRecorded } from '../../api/agentCase';
+import { CONTROL_ORDER, type Verdict } from '../../domain/verdict';
 import { formatNumber } from '../format';
 import { Badge, DataTable, Icon, VerdictBadge, type Column, type UxIconName } from '../ui';
-import { delegationState, offsetWords, operationWords, periodMarks, type AgentCell } from './agent';
+import {
+  delegationState,
+  offsetWords,
+  operationWords,
+  periodMarks,
+  recordedWords,
+  senderWords,
+  type AgentCell,
+} from './agent';
 import type { AgentRow } from './agentRows';
 import { CONTROL_TONE } from './controls';
 import styles from './Agent.module.css';
+
+/** Who sends the case's requests, as the portal's case names its sender (AS-1). */
+export function SenderBadge({ sender }: { readonly sender: string }) {
+  const { t } = useTranslation();
+  return (
+    <Badge tone="line">
+      {t('ux.agent.sender.label')} · {senderWords(t, sender)}
+    </Badge>
+  );
+}
+
+/**
+ * The facts every agent screen shows once beside the case: who sends its requests, and how many times the operator
+ * recorded the case with how many of them ending as the latest did (AS-1, AS-5; counted by the portal).
+ */
+export function CaseFacts({
+  sender,
+  recorded,
+}: {
+  readonly sender: string;
+  readonly recorded: AgentRecorded | null;
+}) {
+  const { t, i18n } = useTranslation();
+  return (
+    <>
+      <SenderBadge sender={sender} />
+      <span className={styles.caseRecorded}>
+        {t('ux.agent.recorded.label')} {recordedWords(t, recorded, i18n.language) ?? '—'}
+      </span>
+    </>
+  );
+}
+
+const OWN_VERDICTS: ReadonlySet<string> = new Set(['ALLOW', 'CHALLENGE', 'ESCALATE', 'BLOCK']);
+
+/** Contexa's own decision of one request as stored: its badge, the code for any other word, a dash without one. */
+function OwnVerdict({ verdict }: { readonly verdict: string | null | undefined }) {
+  if (!verdict) {
+    return <>—</>;
+  }
+  return OWN_VERDICTS.has(verdict) ? <VerdictBadge verdict={verdict as Verdict} /> : <code>{verdict}</code>;
+}
 
 /** The delegation chain (기획안 7.6): the person who delegated → the AI agent → the resource it works on. */
 export function DelegationChain({
@@ -184,11 +234,14 @@ export function AgentSteps({
   rows,
   caption,
   marked = null,
+  decisions = false,
 }: {
   readonly rows: readonly AgentRow[];
   readonly caption: string;
   /** The request the delegating person was asked about: its row carries the mark. */
   readonly marked?: number | null;
+  /** Adds each request's own stored decision and its model calls (a stored run's rows only). */
+  readonly decisions?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const columns: Column<AgentRow>[] = [
@@ -226,6 +279,22 @@ export function AgentSteps({
       render: (row) =>
         row.items === null ? '…' : t('ux.facts.items', { count: row.items, n: formatNumber(row.items, i18n.language) }),
     },
+    ...(decisions
+      ? [
+          {
+            key: 'verdict',
+            header: t('ux.agent.steps.verdict'),
+            render: (row: AgentRow) => <OwnVerdict verdict={row.verdict} />,
+          },
+          {
+            key: 'calls',
+            header: t('ux.agent.steps.calls'),
+            numeric: true,
+            render: (row: AgentRow) =>
+              row.modelCalls === null || row.modelCalls === undefined ? '—' : formatNumber(row.modelCalls, i18n.language),
+          },
+        ]
+      : []),
   ];
   return (
     <DataTable

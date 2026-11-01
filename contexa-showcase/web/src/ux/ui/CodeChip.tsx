@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from './Icon';
 import styles from './CodeChip.module.css';
+import { breakable } from './breakable';
 
 interface CodeChipProps {
   /** A run ID, a hash, a scenario code: shown in the fixed-width face, whole. */
@@ -21,7 +22,7 @@ export function CodeChip({ value, copy = false }: CodeChipProps) {
     return () => window.clearTimeout(timer);
   }, [copied]);
   if (!copy) {
-    return <code className={styles.chip}>{value}</code>;
+    return <code className={styles.chip}>{breakable(value)}</code>;
   }
   return (
     <span className={styles.wrap}>
@@ -37,7 +38,7 @@ export function CodeChip({ value, copy = false }: CodeChipProps) {
           );
         }}
       >
-        <code>{value}</code>
+        <code>{breakable(value)}</code>
         <Icon name={copied ? 'copy-check' : 'copy'} size="xs" />
       </button>
       <span role="status" className={copied ? styles.copied : 'ux-sr-only'}>

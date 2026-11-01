@@ -756,6 +756,104 @@
   font-weight: var(--ux-weight-semibold);
 }
 
+/* The facts every agent screen shows once beside the case: who sends its requests, the operator's recordings */
+.caseRecorded {
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-13);
+  font-weight: var(--ux-weight-regular);
+}
+
+.caseLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ux-space-2);
+  margin: var(--ux-space-0);
+}
+
+.runLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ux-space-2);
+}
+
+/* "자세히": the facts that do not change the outcome, folded beside the part they belong to (P-8) */
+.more summary {
+  color: var(--ux-link);
+  font-size: var(--ux-text-13);
+  cursor: pointer;
+}
+
+.more[open] > summary {
+  margin-block-end: var(--ux-space-2);
+}
+
+.moreCard {
+  padding: var(--ux-space-3) var(--ux-space-5) var(--ux-space-4);
+  border-block-start: var(--ux-hairline) solid var(--ux-line);
+}
+
+.moreFacts {
+  display: grid;
+
+  /* A long name (English) takes at most 40% and wraps, so the value never shrinks to a letter's width. */
+  grid-template-columns: fit-content(40%) minmax(0, 1fr);
+  gap: var(--ux-space-2) var(--ux-space-4);
+  margin: var(--ux-space-0);
+  font-size: var(--ux-text-13);
+}
+
+.moreFacts dt {
+  color: var(--ux-text-3);
+}
+
+.moreFacts dd {
+  min-inline-size: 0;
+  margin: var(--ux-space-0);
+  color: var(--ux-text);
+
+  /* break-word: an id breaks at its parts (<wbr>), never a letter alone (I-10 measure). */
+  overflow-wrap: break-word;
+}
+
+.moreList {
+  display: grid;
+  gap: var(--ux-space-1);
+  margin: var(--ux-space-0);
+  padding: var(--ux-space-0);
+  color: var(--ux-text);
+  font-size: var(--ux-text-13);
+  list-style: none;
+}
+
+.morePath {
+  color: var(--ux-text-2);
+  font-family: var(--ux-mono);
+  font-size: var(--ux-text-12);
+  overflow-wrap: anywhere;
+}
+
+.moreText {
+  margin: var(--ux-space-0);
+  color: var(--ux-text-2);
+  font-size: var(--ux-text-13);
+}
+
+.confirmTitle {
+  margin: var(--ux-space-0);
+  color: var(--ux-text);
+  font-size: var(--ux-text-15);
+  font-weight: var(--ux-weight-semibold);
+}
+
+.otherBurst {
+  display: grid;
+  gap: var(--ux-space-3);
+  padding: var(--ux-space-4) var(--ux-space-5);
+  border-block-start: var(--ux-hairline) solid var(--ux-line);
+}
+
 @media (width < 1024px) {
   .review,
   .liveLayout {

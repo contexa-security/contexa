@@ -5,6 +5,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import type { DecisionAnatomyView } from '../../../api/anatomy';
 import { getJson } from '../../../api/http';
 import { useAnatomy } from '../../../api/anatomy';
+import { useMeasuredCase } from '../../../api/measured';
 import { formatDuration, formatNumber, formatUtc, localTime } from '../../format';
 import { decisionOf, existingStops, useRunLog, useScenarioTitle, type LogRow, type RunSource } from '../../runs/runLog';
 import { CONTROL_TONE } from '../../simulate/controls';
@@ -35,7 +36,7 @@ import styles from './Runs.module.css';
 const PAGE = 10;
 const SOURCES: readonly RunSource[] = ['own', 'public', 'measured'];
 const VERDICTS = ['ALLOW', 'CHALLENGE', 'ESCALATE', 'BLOCK', 'NONE'] as const;
-const RESULTS = ['correct', 'normal', 'partial', 'missed', 'falsePositive', 'none'] as const;
+const RESULTS = ['correct', 'normal', 'afterCheck', 'partial', 'missed', 'falsePositive', 'none'] as const;
 const PERIODS = { day: 86_400_000, week: 604_800_000 } as const;
 
 /**
@@ -417,6 +418,12 @@ function RunBody({ row }: { readonly row: LogRow }) {
           <dd>
             {titleOf(row.scenarioKey, row.score?.title, i18n.language)} ({row.scenarioKey})
           </dd>
+          {row.sentence ? (
+            <>
+              <dt>{t('ux.runs.panel.situation')}</dt>
+              <dd>{row.sentence[i18n.language === 'ko' ? 'ko' : 'en'] ?? row.sentence.en}</dd>
+            </>
+          ) : null}
           <dt>{t('ux.runs.col.source')}</dt>
           <dd>{t(`ux.runs.source.${row.source}`)}</dd>
           <dt>{t('ux.runs.col.at')}</dt>
@@ -461,6 +468,9 @@ function RunBody({ row }: { readonly row: LogRow }) {
         <ul className={styles.controls}>
           {(['A', 'B', 'C1', 'C2', 'D'] as const).map((control) => {
             const business = row.score?.business[control] ?? null;
+            // The server's grade of each control against the ground truth: a normal run an existing control halted
+            // reads as a false positive, a threat it let through as missed (the old replay's wrong mark).
+            const graded = evalOf(business?.result);
             return (
               <li key={control}>
                 <span className={styles.controlName}>
@@ -468,9 +478,12 @@ function RunBody({ row }: { readonly row: LogRow }) {
                   {t(`ux.control.short.${control}`)}
                 </span>
                 {business ? (
-                  <Badge tone={business.exposedItems > 0 && row.score?.truth.classification === 'THREAT' ? 'block' : 'none'}>
-                    {t('ux.runs.exported', { n: n(business.exposedItems), count: business.exposedItems })}
-                  </Badge>
+                  <span className={styles.controlBadges}>
+                    {graded ? <EvalBadge result={graded} /> : null}
+                    <Badge tone={business.exposedItems > 0 && row.score?.truth.classification === 'THREAT' ? 'block' : 'none'}>
+                      {t('ux.runs.exported', { n: n(business.exposedItems), count: business.exposedItems })}
+                    </Badge>
+                  </span>
                 ) : (
                   '…'
                 )}
@@ -479,6 +492,59 @@ function RunBody({ row }: { readonly row: LogRow }) {
           })}
         </ul>
       </DetailGroup>
+      <Measurement row={row} />
     </>
+  );
+}
+
+/** The order the results of a measurement are listed in; a result the portal adds later comes last. */
+const RESULT_ORDER: readonly string[] = ['STOPPED', 'PARTLY_STOPPED', 'PASSED_AFTER_CHECK', 'PASSED', 'HALTED', 'MISSED'];
+
+/**
+ * The current measurement of the run's scenario (the old replay's source line, P-8): how many runs it holds and how
+ * many ended with each result, as the portal counted them, and whether this run is one of them with its start. Nothing
+ * when the scenario has no run in the current measurement.
+ */
+function Measurement({ row }: { readonly row: LogRow }) {
+  const { t, i18n } = useTranslation();
+  const measured = useMeasuredCase(row.scenarioKey || null).data ?? null;
+  if (!measured) {
+    return null;
+  }
+  const n = (value: number) => formatNumber(value, i18n.language);
+  const rank = (key: string) => {
+    const index = RESULT_ORDER.indexOf(key);
+    return index < 0 ? RESULT_ORDER.length : index;
+  };
+  const results = Object.entries(measured.results).sort((left, right) => rank(left[0]) - rank(right[0]));
+  const mine = measured.list.find((run) => run.runId === row.runId) ?? null;
+  return (
+    <DetailGroup title={t('ux.runs.panel.measure')}>
+      <dl className={styles.kv}>
+        <dt>{t('ux.runs.measure.runs')}</dt>
+        <dd>{t('ux.runs.measure.count', { count: measured.runs, n: n(measured.runs) })}</dd>
+        <dt>{t('ux.runs.measure.results')}</dt>
+        <dd>
+          {results.length > 0
+            ? results
+                .map(([result, count]) =>
+                  t('ux.runs.measure.result', {
+                    result: t(`ux.validation.result.${result}`, { defaultValue: result }),
+                    n: n(count),
+                  }),
+                )
+                .join(' · ')
+            : '—'}
+        </dd>
+        <dt>{t('ux.runs.measure.this')}</dt>
+        <dd>
+          {mine
+            ? t('ux.runs.measure.in', {
+                at: mine.startedAt ? `${formatUtc(mine.startedAt)} ${t('ux.runs.utc')}` : '—',
+              })
+            : t('ux.runs.measure.out')}
+        </dd>
+      </dl>
+    </DetailGroup>
   );
 }

@@ -13,6 +13,10 @@ export interface AgentRow {
   readonly cells: Readonly<Record<ControlId, AgentCell>>;
   /** Items control D handed over for the request; null while unknown. */
   readonly items: number | null;
+  /** Contexa's own decision of the request as stored (decision.final_action); null without one, absent while live. */
+  readonly verdict?: string | null;
+  /** The model calls of the request's own decision as stored; null without one, absent while live. */
+  readonly modelCalls?: number | null;
 }
 
 export function useLiveRows(view: LiveRunView | null): readonly AgentRow[] {
@@ -43,6 +47,8 @@ export function useRecordRows(run: AgentRunView | null | undefined): readonly Ag
         ]),
       ) as Record<ControlId, AgentCell>,
       items: layers.D?.deliveredItems ?? null,
+      verdict: step.decision?.final_action ?? null,
+      modelCalls: step.decision?.model_calls ?? null,
     };
   });
 }

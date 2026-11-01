@@ -23,11 +23,13 @@ export const UX_VERDICTS: Readonly<Record<Verdict, UxVerdict>> = {
 };
 
 /** How a run's outcome is graded against the scenario's ground truth (평가 뱃지: no icon). */
-export type EvalResult = 'correct' | 'normal' | 'partial' | 'missed' | 'falsePositive';
+export type EvalResult = 'correct' | 'normal' | 'afterCheck' | 'partial' | 'missed' | 'falsePositive';
 
 export const EVAL_TONES: Readonly<Record<EvalResult, VerdictTone>> = {
   correct: 'allow',
   normal: 'allow',
+  // Handled normally after a step-up: the allow tone, drawn as a ring where a dot shows it (DEC-82).
+  afterCheck: 'allow',
   partial: 'stepup',
   missed: 'block',
   falsePositive: 'block',

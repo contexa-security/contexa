@@ -103,12 +103,12 @@
 .navGroups {
   flex: 1 1 auto;
   overflow-y: auto;
-  padding: var(--ux-space-2) var(--ux-space-3) var(--ux-space-4);
+  padding: var(--ux-space-2) var(--ux-space-3) var(--ux-space-1);
 }
 
 .navGroupTitle {
   margin: var(--ux-space-0);
-  padding: var(--ux-space-5) var(--ux-space-2) var(--ux-space-2);
+  padding: var(--ux-space-3) var(--ux-space-2) var(--ux-space-1);
   color: var(--ux-text-3);
   font-size: var(--ux-text-12);
   font-weight: var(--ux-weight-semibold);
@@ -135,7 +135,7 @@
   display: flex;
   align-items: center;
   gap: var(--ux-space-3);
-  block-size: var(--ux-control);
+  block-size: var(--ux-control-sm);
   padding: var(--ux-space-0) var(--ux-space-3);
   border-radius: var(--ux-radius-md);
   color: var(--ux-text-2);
@@ -186,6 +186,142 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* The live-demo panel (DEC-77): the menus where the demo runs, larger and framed, with a live dot. */
+.livePanel {
+  display: grid;
+  gap: var(--ux-space-2);
+  margin-block: var(--ux-space-2) var(--ux-space-1);
+  padding: var(--ux-space-3) var(--ux-space-2) var(--ux-space-2);
+  border: var(--ux-hairline) solid var(--ux-brand-line);
+  border-radius: var(--ux-radius-lg);
+  background: linear-gradient(180deg, var(--ux-brand-soft), transparent);
+}
+
+.liveHead {
+  display: flex;
+  align-items: center;
+  gap: var(--ux-space-2);
+  margin: var(--ux-space-0);
+  padding: var(--ux-space-0) var(--ux-space-2);
+}
+
+@keyframes live-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--ux-allow-bg);
+  }
+
+  50% {
+    box-shadow: 0 0 0 var(--ux-space-1) var(--ux-allow-bg);
+  }
+}
+
+.liveDot {
+  flex: none;
+  inline-size: var(--ux-dot);
+  block-size: var(--ux-dot);
+  border-radius: var(--ux-radius-round);
+  background-color: var(--ux-allow);
+  animation: live-pulse calc(var(--ux-duration) * 10) var(--ux-ease) infinite;
+}
+
+.liveTitle {
+  color: var(--ux-text);
+  white-space: nowrap;
+  font-size: var(--ux-text-13);
+  font-weight: var(--ux-weight-bold);
+  letter-spacing: var(--ux-tracking-group);
+}
+
+.liveTag {
+  margin-inline-start: auto;
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-12);
+  white-space: nowrap;
+}
+
+.liveGroup {
+  display: grid;
+  gap: var(--ux-space-1);
+}
+
+.liveGroupTitle {
+  margin: var(--ux-space-0);
+  padding: var(--ux-space-1) var(--ux-space-2) var(--ux-space-0);
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-12);
+  font-weight: var(--ux-weight-semibold);
+  letter-spacing: var(--ux-tracking-group);
+}
+
+.liveList {
+  display: grid;
+  gap: var(--ux-space-1);
+  margin: var(--ux-space-0);
+  padding: var(--ux-space-0);
+  list-style: none;
+}
+
+.liveItem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--ux-space-3);
+  padding: var(--ux-space-1) var(--ux-space-2);
+  border: var(--ux-hairline) solid transparent;
+  border-radius: var(--ux-radius-md);
+  color: var(--ux-text);
+  text-decoration: none;
+}
+
+.liveIcon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: var(--ux-control);
+  block-size: var(--ux-control);
+  border-radius: var(--ux-radius-md);
+  background-color: var(--ux-surface-3);
+  color: var(--ux-link);
+}
+
+.liveText {
+  display: grid;
+  min-inline-size: 0;
+}
+
+/* A live item's name and line wrap rather than lose words to an ellipsis. */
+.liveLabel {
+  font-size: var(--ux-text-16);
+  font-weight: var(--ux-weight-semibold);
+  line-height: var(--ux-leading-tight);
+}
+
+.liveDesc {
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-12);
+  line-height: var(--ux-leading-tight);
+}
+
+.liveItem:hover {
+  border-color: var(--ux-line-strong);
+  background-color: var(--ux-surface-2);
+}
+
+.liveItem:hover .liveIcon {
+  background-color: var(--ux-link-soft);
+}
+
+.liveItem[aria-current='page'] {
+  border-color: var(--ux-brand-line);
+  background-color: var(--ux-brand-soft);
+}
+
+.liveItem[aria-current='page'] .liveIcon {
+  background-color: var(--ux-brand);
+  color: var(--ux-brand-ink);
+}
+
 /* Icon rail: the names stay for assistive technology and show on hover (title); a line parts the groups. */
 .app[data-rail] .brand {
   justify-content: center;
@@ -226,6 +362,33 @@
 
 .app[data-rail] .side .navItem[aria-current='page']::before {
   inset-inline-start: calc(var(--ux-space-2) * -1);
+}
+
+/* On the rail the live panel keeps its tiles and its live dot; the words stay for assistive technology. */
+.app[data-rail] .side .livePanel {
+  padding: var(--ux-space-2) var(--ux-space-0);
+}
+
+.app[data-rail] .side .liveHead {
+  justify-content: center;
+  padding: var(--ux-space-0);
+}
+
+.app[data-rail] .side .liveTitle,
+.app[data-rail] .side .liveTag,
+.app[data-rail] .side .liveGroupTitle,
+.app[data-rail] .side .liveText {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.app[data-rail] .side .liveItem {
+  justify-content: center;
+  padding: var(--ux-space-1);
 }
 
 /* Top bar */

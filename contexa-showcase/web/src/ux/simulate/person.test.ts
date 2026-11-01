@@ -105,6 +105,15 @@ describe('the request facts', () => {
       '당번 근무 중',
     ]);
   });
+
+  it('names the purpose an approval states, and leaves it out when it states none (DEC-82)', () => {
+    expect(
+      contextChips(i18n.t, [
+        { code: 'APPROVAL_COVERS', value: 'QUARTERLY_AUDIT' },
+        { code: 'APPROVAL_COVERS', value: null },
+      ]),
+    ).toEqual(['승인 기록 있음 · 목적 QUARTERLY_AUDIT', '승인 기록 있음']);
+  });
 });
 
 describe('the decisions on the screen', () => {
@@ -126,6 +135,9 @@ describe('the decisions on the screen', () => {
     expect(evalOf('STOPPED')).toBe('correct');
     expect(evalOf('MISSED')).toBe('missed');
     expect(evalOf('HALTED')).toBe('falsePositive');
+    // DEC-82: a pass after a step-up stays apart from a plain pass (the old screens' own mark).
+    expect(evalOf('PASSED')).toBe('normal');
+    expect(evalOf('PASSED_AFTER_CHECK')).toBe('afterCheck');
     expect(evalOf('NOT_SCORED')).toBeNull();
     const score = (result: string, action: string | null) =>
       ({

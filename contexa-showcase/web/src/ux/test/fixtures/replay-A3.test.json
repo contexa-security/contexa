@@ -1,0 +1,17 @@
+{
+  "key": "A3",
+  "question": {
+    "ko": "관리자 A가 새벽 03:17, 담당이 아닌 프로젝트의 설계 문서 4,831건을 내보내려 합니다.",
+    "en": "At 03:17, admin A tries to export 4,831 design documents from a project they are not assigned to."
+  },
+  "scenes": [
+    {
+      "runId": "run-f1ca01d70aad",
+      "recordedAt": "2026-10-21T01:29:03.229649Z"
+    },
+    {
+      "runId": "run-9e971454c4de",
+      "recordedAt": "2026-10-21T01:29:03.242098Z"
+    }
+  ]
+}

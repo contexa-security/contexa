@@ -17,6 +17,8 @@ export interface LogRow {
   readonly lab: boolean;
   /** When the run was recorded: its start (own, public) or its end (measured); null when unknown. */
   readonly at: string | null;
+  /** A recorded replay scene's situation sentence (공개 녹화 실행); null for any other run. */
+  readonly sentence: Localized | null;
   /** The server's score of the run; null while it is read or when it could not be read. */
   readonly score: RunScore | null;
 }
@@ -55,6 +57,7 @@ export function useRunLog() {
       scenarioKey: run.scenarioKey,
       lab: run.lab,
       at: run.startedAt ?? null,
+      sentence: null,
     }));
   const published: Omit<LogRow, 'score'>[] = [
     ...(hook.data
@@ -64,6 +67,7 @@ export function useRunLog() {
           scenarioKey: column.caseKey,
           lab: false,
           at: column.startedAt,
+          sentence: null,
         }))
       : []),
     ...replays.flatMap((replay) =>
@@ -73,6 +77,7 @@ export function useRunLog() {
         scenarioKey: replay.data?.key ?? '',
         lab: false,
         at: scene.recordedAt,
+        sentence: scene.sentence ?? null,
       })),
     ),
   ];
@@ -100,6 +105,7 @@ export function useRunLog() {
       scenarioKey: run.scenarioKey,
       lab: false,
       at: run.finishedAt ?? null,
+      sentence: null,
       score: run,
     })),
   ].sort((a, b) => (b.at ?? '').localeCompare(a.at ?? ''));

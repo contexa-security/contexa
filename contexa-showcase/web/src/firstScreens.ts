@@ -4,13 +4,15 @@
  * same rule into index.html so the browser starts reading them together with the application's code instead of after
  * it has run. Free of imports so the build can read it.
  *
- * UX-R1 (구현계획서 DEC-14): the first screens are the start of the demo and the threat simulation's steps; the old
+ * UX-R1 (구현계획서 DEC-14, DEC-76): the first screens are the introduction, the start of the demo and the threat
+ * simulation's steps; the old
  * screens have no address of their own any more (their addresses lead to the new places).
  */
 
 /** Whole addresses, checked first. */
 export const FIRST_SCREEN_ADDRESSES = {
-  '/': 'ux/pages/home/HomePage',
+  '/': 'ux/pages/intro/IntroPage',
+  '/start': 'ux/pages/home/HomePage',
   '/simulate/person': 'ux/pages/simulate/person/PickPage',
 } as const;
 

@@ -223,6 +223,62 @@
   font-size: var(--ux-text-12);
 }
 
+/* The engine's record behind the rows, folded (P-8) */
+.logMore {
+  margin-block-start: var(--ux-space-3);
+  padding-block-start: var(--ux-space-3);
+  border-block-start: var(--ux-hairline) solid var(--ux-line);
+  color: var(--ux-text-2);
+  font-size: var(--ux-text-13);
+}
+
+.logMore summary {
+  color: var(--ux-link);
+  cursor: pointer;
+}
+
+.logHead {
+  margin: var(--ux-space-3) var(--ux-space-0) var(--ux-space-1);
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-12);
+  font-weight: var(--ux-weight-semibold);
+}
+
+.log {
+  display: grid;
+  gap: var(--ux-space-1);
+  margin: var(--ux-space-0);
+  padding: var(--ux-space-0);
+  list-style: none;
+}
+
+.log li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--ux-space-1) var(--ux-space-3);
+  line-height: var(--ux-leading-body);
+  overflow-wrap: anywhere;
+}
+
+.logAt {
+  color: var(--ux-text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.logMeasured {
+  margin: var(--ux-space-3) var(--ux-space-0) var(--ux-space-0);
+  line-height: var(--ux-leading-body);
+}
+
+/* A request sent again after a stored step-up, under its rows */
+.resent {
+  margin: var(--ux-space-0);
+  padding: var(--ux-space-3) var(--ux-space-5);
+  border-block-start: var(--ux-hairline) solid var(--ux-line);
+}
+
 /* The way on */
 .footer {
   display: flex;

@@ -188,6 +188,14 @@
   gap: var(--ux-space-2);
 }
 
+/* A control's grade and its export side by side, wrapping under each other in a narrow panel. */
+.controlBadges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ux-space-1);
+}
+
 @media (width < 1280px) {
   .filters {
     grid-template-columns: repeat(3, minmax(0, 1fr));

@@ -69,14 +69,14 @@ afterEach(() => {
 
 describe('the top bar', () => {
   it('shows whether live decisions run and the portal counts', async () => {
-    open('/');
+    open('/start');
     expect(await screen.findByText('실시간 판정 가동')).toBeInTheDocument();
     const counts = await screen.findByText(/오늘 방문자 실행/);
     expect(counts).toHaveTextContent('오늘 방문자 실행 8 · 누적 판정 13,733');
   });
 
   it('switches the theme and remembers it', async () => {
-    open('/');
+    open('/start');
     await userEvent.click(screen.getByRole('button', { name: '라이트 테마로 바꾸기' }));
     expect(document.documentElement).toHaveAttribute('data-theme', 'light');
     expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe('light');
@@ -94,7 +94,7 @@ describe('the top bar', () => {
 
 describe('the search', () => {
   it('opens with Ctrl K, filters the menus and opens the chosen one with Enter', async () => {
-    open('/');
+    open('/start');
     fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
     const dialog = await screen.findByRole('dialog', { name: '검색' });
     const box = within(dialog).getByRole('combobox', { name: '검색' });
@@ -109,7 +109,7 @@ describe('the search', () => {
   });
 
   it('opens a run ID straight in the decision details', async () => {
-    open('/');
+    open('/start');
     await userEvent.click(screen.getByRole('button', { name: '메뉴 · 실행 ID · 용어 검색' }));
     const box = within(await screen.findByRole('dialog', { name: '검색' })).getByRole('combobox');
     await userEvent.type(box, 'run-04cdd89264f7{Enter}');
@@ -139,7 +139,7 @@ describe('the menu', () => {
 
   it('opens as a drawer on narrow screens and closes when a menu is chosen', async () => {
     stubMedia(true);
-    open('/');
+    open('/start');
     expect(screen.queryByRole('complementary')).toBeNull();
     const button = screen.getByRole('button', { name: '메뉴 열기' });
     await userEvent.click(button);
@@ -150,13 +150,32 @@ describe('the menu', () => {
     expect(drawer).not.toHaveAttribute('open');
   });
 
-  it('lists the groups in the visitor order with the foot menus last', async () => {
-    open('/');
+  it('frames the menus where the demo runs as the live-demo panel, each named and described (DEC-77)', async () => {
+    open('/start');
     const nav = await screen.findByRole('navigation', { name: '주 메뉴' });
+    const panel = within(nav).getByRole('region', { name: '라이브 데모' });
+    expect(panel).toHaveTextContent('실제 판정 엔진');
+    const links = within(panel).getAllByRole('link');
+    expect(links.map((link) => link.getAttribute('aria-label'))).toEqual([
+      '데모 시작',
+      '계정 탈취 · 내부자 위협',
+      'AI 에이전트 위임 남용',
+      '요청 급증 대응',
+      '정책 시뮬레이터',
+    ]);
+    expect(within(panel).getByRole('link', { name: '데모 시작' })).toHaveAttribute('aria-current', 'page');
+    expect(within(panel).getByRole('link', { name: '요청 급증 대응' })).toHaveAccessibleDescription('동시 요청 · 판정 통합');
+    expect(within(nav).getByRole('link', { name: '판정 이력' })).not.toHaveAttribute('aria-describedby');
+  });
+
+  it('lists the groups in the visitor order with the foot menus last', async () => {
+    open('/start');
+    const nav = await screen.findByRole('navigation', { name: '주 메뉴' });
+    // A live-demo item's link carries one more line under its name (DEC-77); every link keeps the name as its title.
     expect(
       within(nav)
         .getAllByRole('link')
-        .map((link) => link.textContent),
+        .map((link) => link.getAttribute('title')),
     ).toEqual([
       '데모 시작',
       '계정 탈취 · 내부자 위협',

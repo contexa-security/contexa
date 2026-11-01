@@ -1,10 +1,11 @@
 import { useTranslation } from 'react-i18next';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { useAgentRun } from '../../../api/agentCase';
+import { NO_CHOICE, useAgentCase, useAgentRun } from '../../../api/agentCase';
 import { useAnatomy } from '../../../api/anatomy';
 import { HttpError } from '../../../api/http';
 import { useRunScore } from '../../../api/queries';
-import { formatDuration, formatUtc } from '../../format';
+import { subjectOfSender } from '../../../domain/subject';
+import { formatDuration, formatNumber, formatUtc } from '../../format';
 import { decisionOf, useScenarioTitle } from '../../runs/runLog';
 import { agentPath, useAgentCases } from '../../simulate/agent';
 import { PERSON_KEYS, evalOf, flowPath, verdictOf, type PersonKey } from '../../simulate/person';
@@ -53,6 +54,9 @@ export default function RunDetailPage() {
   const tab: TabId = TABS.includes(params.get('tab') as TabId) ? (params.get('tab') as TabId) : 'summary';
   const anatomy = useAnatomy(runId, step);
   const agent = useAgentRun(runId);
+  const caseKey = score.data?.scenarioKey ?? null;
+  // An agent run's case: its operator recordings are counted by the portal (AS-5), shown where the case is named.
+  const agentCase = useAgentCase(caseKey ?? '', NO_CHOICE, Boolean(agent.data && caseKey));
   const cases = useAgentCases();
   const titleOf = useScenarioTitle();
   const set = (key: string, value: string) => {
@@ -78,7 +82,7 @@ export default function RunDetailPage() {
   }
   const data = anatomy.data;
   const recorded = data.interpretation.recorded;
-  const key = score.data?.scenarioKey ?? null;
+  const key = caseKey;
   const graded = evalOf(score.data?.business.D?.result);
   const decidedAt = score.data?.verdicts.find((verdict) => verdict.score.stepNo === step)?.decidedAt ?? null;
   const resource = data.context.resource ?? null;
@@ -91,6 +95,14 @@ export default function RunDetailPage() {
         : null;
   const none = noDecisionKey(data);
   const classification = data.truth.classification;
+  // Who sent the agent's requests, as the run records it (AS-1); a sender this code does not know is shown as recorded.
+  const subject = agent.data ? subjectOfSender(agent.data.sender) : null;
+  const sender = agent.data
+    ? subject && subject !== 'person'
+      ? t(`ux.detail.sender.${subject}`)
+      : agent.data.sender
+    : null;
+  const recordings = agentCase.data?.recorded ?? null;
   return (
     <>
       <PageHead
@@ -103,7 +115,15 @@ export default function RunDetailPage() {
             {graded ? <EvalBadge result={graded} /> : null}
             {agent.data ? (
               <Badge tone="line" icon="bot">
-                {t('ux.detail.agent')}
+                {t('ux.detail.agent')} · {sender}
+              </Badge>
+            ) : null}
+            {recordings && recordings.runs > 0 ? (
+              <Badge tone="line">
+                {t('ux.detail.recorded', {
+                  runs: formatNumber(recordings.runs, i18n.language),
+                  same: formatNumber(recordings.sameAsLatest, i18n.language),
+                })}
               </Badge>
             ) : null}
           </>

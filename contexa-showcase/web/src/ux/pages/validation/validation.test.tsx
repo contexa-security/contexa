@@ -9,6 +9,7 @@ import cases from '../../test/fixtures/cases.test.json';
 import decision from '../../test/fixtures/decision-quality.test.json';
 import prompt from '../../test/fixtures/prompt-quality.test.json';
 import settings from '../../test/fixtures/settings.test.json';
+import stats from '../../test/fixtures/stats.test.json';
 import m41aOff from '../../test/fixtures/snapshot-m41a-off.test.json';
 import m41aOn from '../../test/fixtures/snapshot-m41a-on.test.json';
 import m41tOff from '../../test/fixtures/snapshot-m41t-off.test.json';
@@ -67,6 +68,19 @@ afterEach(() => {
 });
 
 describe('the scenario validation', () => {
+  it('names the build it measured and whether that is the build running now (UC-14)', async () => {
+    const running = (codeCommit: string) => ({ ...stats, spec: { ...stats.spec, codeCommit } });
+    serve({ '/api/stats': running(full.spec.codeCommit) });
+    const first = open('/validation');
+    expect(await screen.findByText('현재 빌드로 측정')).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`빌드 ${full.spec.codeCommit}`))).toBeInTheDocument();
+    first.unmount();
+    vi.unstubAllGlobals();
+    serve({ '/api/stats': running('0000000newer') });
+    open('/validation');
+    expect(await screen.findByText('현재 빌드로 재측정 예정')).toBeInTheDocument();
+  });
+
   it("says first that it is our own measurement, and sums the runs up with the portal's counts (DEC-51)", async () => {
     serve();
     open('/validation');
@@ -194,6 +208,38 @@ describe('the scenario validation', () => {
     serve({ '/api/benchmark/agent': 500 });
     open('/validation?tab=agent');
     expect(await screen.findByText('에이전트 측정 결과를 불러오지 못했습니다.')).toBeInTheDocument();
+  });
+
+  it('names the build the agent runs were counted for, and says when none of it is counted yet (DEC-86)', async () => {
+    const build = {
+      settingHash: SETTING,
+      codeCommit: '46351d11c852-dirty',
+      engineVersion: '0.1.0',
+      effectiveMode: 'ENFORCE',
+      promptBundle: '2026.10.30-v21.19',
+    };
+    const line = `현재 빌드로 측정: 코드 46351d11c852-dirty · 엔진 0.1.0 · 프롬프트 묶음 2026.10.30-v21.19 · 모드 ENFORCE. 사람 시나리오 측정(측정 설정 ${SETTING.slice(0, 12)})과 같은 빌드이며, 모델 설정도 같아야 셉니다.`;
+    serve({ '/api/benchmark/agent': { ...agent, build } });
+    const first = open('/validation?tab=agent');
+    expect(await screen.findByText(line)).toBeInTheDocument();
+    first.unmount();
+    serve({
+      '/api/benchmark/agent': {
+        ...agent,
+        scope: { runs: 0, cases: 0, from: null, to: null },
+        byPath: [],
+        build,
+      },
+    });
+    const second = open('/validation?tab=agent');
+    expect(
+      await screen.findByText('현재 빌드로 센 에이전트 실행이 아직 없습니다. 이전 빌드의 실행은 세지 않습니다.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText(line)).toBeInTheDocument();
+    second.unmount();
+    serve({ '/api/benchmark/agent': { ...agent, scope: { runs: 0, cases: 0, from: null, to: null }, build: null } });
+    open('/validation?tab=agent');
+    expect(await screen.findByText('현재 측정 설정이 없어 에이전트 실행을 세지 않았습니다.')).toBeInTheDocument();
   });
 
   it('names the scenarios Contexa missed every time, with the reason it wrote', async () => {

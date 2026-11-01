@@ -158,6 +158,79 @@
   text-align: end;
 }
 
+/* The stored check of the request, folded under the conclusion (P-8) */
+.checkRecord {
+  margin-block-start: var(--ux-space-3);
+}
+
+/* Each control's stored response, folded under the bars (P-8) */
+.responses {
+  padding: var(--ux-space-3) var(--ux-space-6) var(--ux-space-4);
+  border-block-start: var(--ux-hairline) solid var(--ux-line);
+  color: var(--ux-text-2);
+  font-size: var(--ux-text-13);
+}
+
+.responses summary {
+  color: var(--ux-link);
+  cursor: pointer;
+}
+
+.responsesNote {
+  margin: var(--ux-space-2) var(--ux-space-0) var(--ux-space-3);
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-12);
+  line-height: var(--ux-leading-body);
+}
+
+.responseList {
+  display: grid;
+  gap: var(--ux-space-4);
+  margin: var(--ux-space-0);
+  padding: var(--ux-space-0);
+  list-style: none;
+}
+
+.response {
+  display: grid;
+  gap: var(--ux-space-2);
+  min-inline-size: 0;
+}
+
+.responseHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ux-space-1) var(--ux-space-3);
+  margin: var(--ux-space-0);
+  font-variant-numeric: tabular-nums;
+}
+
+.responseHead b {
+  color: var(--ux-text);
+  font-weight: var(--ux-weight-semibold);
+}
+
+.responseHead code {
+  font-family: var(--ux-mono);
+  overflow-wrap: anywhere;
+}
+
+.responseBody {
+  max-block-size: 12rem;
+  margin: var(--ux-space-0);
+  padding: var(--ux-space-3);
+  overflow: auto;
+  border-radius: var(--ux-radius-md);
+  background-color: var(--ux-code-bg);
+  color: var(--ux-code-text);
+  font-family: var(--ux-mono);
+  font-size: var(--ux-text-12);
+  line-height: var(--ux-leading-body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* Latency */
 .latency {
   display: grid;
@@ -444,6 +517,28 @@
 .table tbody tr:last-child th,
 .table tbody tr:last-child td {
   border-block-end: 0;
+}
+
+/* The engine's input lines that differ between the two runs, folded under the facts (P-8) */
+.inputs,
+.inputsNone {
+  margin: var(--ux-space-0);
+  padding: var(--ux-space-3) var(--ux-space-6) var(--ux-space-4);
+  border-block-start: var(--ux-hairline) solid var(--ux-line);
+  color: var(--ux-text-2);
+  font-size: var(--ux-text-13);
+}
+
+.inputs summary {
+  color: var(--ux-link);
+  cursor: pointer;
+}
+
+.inputsSub {
+  margin: var(--ux-space-2) var(--ux-space-0) var(--ux-space-3);
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-12);
+  line-height: var(--ux-leading-body);
 }
 
 .bottom {

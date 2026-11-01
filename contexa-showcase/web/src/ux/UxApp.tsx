@@ -1,8 +1,15 @@
 import { lazy } from 'react';
 import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
-import { homeScreen, liveScreen, pickScreen, resultScreen, reviewScreen, withDictionary } from '../screens';
-import { PendingScreen } from './pages/PendingScreen';
-import { ALL_ITEMS, OLD_ADDRESSES, fillTarget, oldBenchmarkTarget, oldDetailTarget, oldGlossaryTarget } from './routes';
+import {
+  homeScreen,
+  introScreen,
+  liveScreen,
+  pickScreen,
+  resultScreen,
+  reviewScreen,
+  withDictionary,
+} from '../screens';
+import { OLD_ADDRESSES, fillTarget, oldBenchmarkTarget, oldDetailTarget, oldGlossaryTarget } from './routes';
 import { Shell } from './shell/Shell';
 
 // The screens built so far (구현계획서 4절) are the first screens of src/screens.tsx; a menu without one opens its
@@ -46,30 +53,6 @@ function OldAddress({ to }: { readonly to: string }) {
   return <Navigate replace to={oldDetailTarget(search) ?? target} />;
 }
 
-/** The menus whose screens are built; the others open their pending screen until their stage (DEC-15). */
-const BUILT: ReadonlySet<string> = new Set([
-  'home',
-  'person',
-  'agent',
-  'surge',
-  'policy',
-  'runs',
-  'engine',
-  'compare',
-  'benchmarks',
-  'validation',
-  'metrics',
-  'adopt',
-  'glossary',
-  'privacy',
-  'tour',
-]);
-
-/** The menus each screen sits under, with the deeper addresses a menu owns (a case's step, a run, a benchmark). */
-const DEEPER: readonly (readonly [string, (typeof ALL_ITEMS)[number]['id']])[] = [
-  ['/benchmarks/:bench', 'benchmarks'],
-];
-
 /**
  * The application's addresses (구현계획서 3절): every menu inside the frame, the old addresses leading to their new
  * place, and anything else to the start of the demo. An old shared decision-details window (`?modal=detail`) opens the
@@ -83,8 +66,10 @@ export function UxApp() {
   }
   return (
     <Routes>
+      {/* The introduction stands alone, without the menu (DEC-76); the demo starts at /start (DEC-78). */}
+      <Route path="/" element={<introScreen.Screen />} />
       <Route element={<Shell />}>
-        <Route path="/" element={<homeScreen.Screen />} />
+        <Route path="/start" element={<homeScreen.Screen />} />
         <Route path="/simulate/person" element={<pickScreen.Screen />} />
         <Route path="/simulate/person/:caseKey/review" element={<reviewScreen.Screen />} />
         <Route path="/simulate/person/:caseKey/live" element={<liveScreen.Screen />} />
@@ -107,16 +92,10 @@ export function UxApp() {
         <Route path="/glossary" element={<GlossaryPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/tour" element={<TourPage />} />
-        {ALL_ITEMS.filter((item) => !BUILT.has(item.id)).map((item) => (
-          <Route key={item.id} path={item.path} element={<PendingScreen menu={item.id} />} />
-        ))}
-        {DEEPER.filter(([, menu]) => !BUILT.has(menu)).map(([path, menu]) => (
-          <Route key={path} path={path} element={<PendingScreen menu={menu} />} />
-        ))}
         {Object.entries(OLD_ADDRESSES).map(([from, to]) => (
           <Route key={from} path={from} element={<OldAddress to={to} />} />
         ))}
-        <Route path="*" element={<Navigate replace to="/" />} />
+        <Route path="*" element={<Navigate replace to="/start" />} />
       </Route>
       {PartsPage ? <Route path="/design/ux" element={<PartsPage />} /> : null}
       {OldDesignStatesPage ? <Route path="/design/states" element={<OldDesignStatesPage />} /> : null}

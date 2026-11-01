@@ -162,7 +162,9 @@ describe('step 1: the agent scenarios', () => {
     const n1 = screen.getByRole('article', { name: caseN1.title.ko });
     expect(within(n1).getByText('대조군')).toBeInTheDocument();
     const m14a = screen.getByRole('article', { name: caseM14A.title.ko });
-    expect(within(m14a).getByText('정답 미지정 · 판정이 갈리는 시나리오')).toBeInTheDocument();
+    // Two tags (I-10 measure: one tag with both ran past a narrow card).
+    expect(within(m14a).getByText('정답 미지정')).toBeInTheDocument();
+    expect(within(m14a).getByText('판정이 갈리는 시나리오')).toBeInTheDocument();
     expect(await within(m14a).findByText(/점수에서 제외/)).toBeInTheDocument();
     const m10a = screen.getByRole('article', { name: caseM10A.title.ko });
     expect(await within(m10a).findByText('위임 등록 없음')).toBeInTheDocument();
@@ -287,6 +289,29 @@ describe('step 2: the delegation and the call', () => {
     expect(await screen.findByText(/정답 미지정 시나리오입니다/)).toBeInTheDocument();
   });
 
+  it('shows the sender, the operator recordings, the real runs left and the latest recording\'s requests (P-8, 옛 6-1)', async () => {
+    serve();
+    flow('/simulate/agent/N1/review');
+    expect(await screen.findByRole('heading', { level: 1, name: caseN1.title.ko })).toBeInTheDocument();
+    expect(screen.getByText('요청 주체 · 위임 에이전트')).toBeInTheDocument();
+    expect(screen.getByText('운영자 기록 5회 · 최근 기록과 같은 결과 5회')).toBeInTheDocument();
+    expect(screen.getByText(`전체 방문자 실제 실행 오늘 남은 ${liveConfig.liveTicketsLeft.toLocaleString('ko-KR')}회`)).toBeInTheDocument();
+    const recent = (await screen.findByText('같은 시나리오 최근 운영자 기록의 요청 · 회사 시각')).closest('details');
+    expect(recent).not.toBeNull();
+    const items = within(recent as HTMLElement).getAllByRole('listitem');
+    expect(items).toHaveLength(runN1.steps.length);
+    expect(items[0]).toHaveTextContent(`요청 1 수요일 14:20 ${runN1.steps[0]?.path ?? ''}`);
+  });
+
+  it('names no recording for a case without one, and the project when the delegation lists no resource (P-8)', async () => {
+    const noResource = { ...caseT5, delegation: { ...caseT5.delegation, resources: [] } };
+    serve({ '/api/agent-cases/T5': noResource });
+    flow('/simulate/agent/T5/review');
+    const chain = await screen.findByRole('list', { name: '위임 사슬' });
+    expect(within(chain).getByText(caseT5.delegation.project)).toBeInTheDocument();
+    expect(screen.getByText('운영자 기록 —')).toBeInTheDocument();
+  });
+
   it('leads a case the portal does not open back to step 1 (DEC-27)', async () => {
     serve();
     flow('/simulate/agent/S13/review');
@@ -311,7 +336,7 @@ describe('step 3: the agent at work and the delegating person', () => {
     expect(within(table).getAllByText('허용')).toHaveLength(2);
   });
 
-  it('asks the visitor as the delegating person and sends the answer (ST-24)', async () => {
+  it('asks the visitor as the delegating person and sends the answer (ST-24, ST-25)', async () => {
     const posts = serve(
       {
         '/api/live/runs/current': liveView({
@@ -347,6 +372,39 @@ describe('step 3: the agent at work and the delegating person', () => {
     expect(screen.getByText('다시 보낸 요청: HTTP 200 · 1건 전달')).toBeInTheDocument();
   });
 
+  // The portal sends the request again after a rejection too, but the second use and another request only after an
+  // approval (ChallengeResponder.answer).
+  it('shows a rejection and the request sent again, without the approval-only rows (ST-25)', async () => {
+    const posts = serve(
+      {
+        '/api/live/runs/current': liveView({
+          status: 'CONFIRMING',
+          runId: T5_RUN,
+          steps: [{ stepNo: 1, operation: 'DOCUMENT_LIST', layers: ASKED_LAYERS }],
+          agentConfirmation: confirmation({}),
+        }),
+      },
+      {
+        '/api/live/runs/current/agent-confirmation': {
+          status: 200,
+          body: liveView({
+            status: 'RUNNING',
+            runId: T5_RUN,
+            agentConfirmation: confirmation({ stage: 'DONE', decision: 'REJECT', resendStatus: 403, resendDeliveredItems: 0 }),
+          }),
+        },
+      },
+    );
+    flow('/simulate/agent/T5/live');
+    const panel = await screen.findByRole('region', { name: '요청 1에 대한 위임자 확인' });
+    await userEvent.click(within(panel).getByRole('button', { name: '거절' }));
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toEqual({ path: '/api/live/runs/current/agent-confirmation', body: { approve: false } });
+    expect(await screen.findByText('위임자가 거절했습니다')).toBeInTheDocument();
+    expect(screen.getByText('다시 보낸 요청: HTTP 403 · 0건 전달')).toBeInTheDocument();
+    expect(screen.queryByText(/^같은 확인을 다시 쓴 요청|^다른 요청/)).not.toBeInTheDocument();
+  });
+
   it('says why a confirmation ended without an answer (ST-26)', async () => {
     serve({
       '/api/live/runs/current': liveView({
@@ -369,6 +427,23 @@ describe('step 3: the agent at work and the delegating person', () => {
     expect(within(table).getByText('위임자 확인')).toBeInTheDocument();
   });
 
+  it('keeps the live run ID, the agent tokens and the decision model calls under the details (P-8, 옛 6-2)', async () => {
+    serve({ '/api/live/runs/current': liveView({ scenario: 'N1', status: 'COMPLETED', runId: N1_RUN }) });
+    flow('/simulate/agent/N1/live');
+    expect(await screen.findByRole('link', { name: '결과 · 판정 근거' })).toBeInTheDocument();
+    expect(screen.getByText('요청 주체 · 위임 에이전트')).toBeInTheDocument();
+    expect(screen.getByText('운영자 기록 5회 · 최근 기록과 같은 결과 5회')).toBeInTheDocument();
+    const more = screen.getByText('자세히').closest('details') as HTMLElement;
+    expect(within(more).getByText('실시간 실행 ID').nextElementSibling).toHaveTextContent('live-a1');
+    expect(within(more).getByText('에이전트 토큰').nextElementSibling).toHaveTextContent(
+      runN1.cost.agent.totalTokens.toLocaleString('ko-KR'),
+    );
+    const model = runN1.cost.decisions[0];
+    expect(within(more).getByText('판정 모델 호출').nextElementSibling).toHaveTextContent(
+      `${model?.calls ?? 0}회 · ${model?.model ?? ''} ${model?.calls ?? 0}회`,
+    );
+  });
+
   it('offers a new run and a stored run when the run failed (ST-16)', async () => {
     serve({
       '/api/live/runs/current': liveView({ status: 'FAILED' }),
@@ -382,6 +457,13 @@ describe('step 3: the agent at work and the delegating person', () => {
 });
 
 describe('step 4: the result', () => {
+  it('titles the result screen when the visitor has no run of the scenario yet (기획안 11절 6-7)', async () => {
+    serve();
+    flow('/simulate/agent/T5/result');
+    expect(await screen.findByRole('heading', { level: 1, name: '결과' })).toBeInTheDocument();
+    expect(screen.getByText('이 시나리오의 실행 기록이 아직 없습니다.')).toBeInTheDocument();
+  });
+
   it('concludes from the run record and sets the stored report beside the approval (DEC-26)', async () => {
     serve();
     flow(`/simulate/agent/T5/result?run=${T5_RUN}`);
@@ -395,6 +477,82 @@ describe('step 4: the result', () => {
     expect(within(confirm).getByText(reportT5.runId)).toBeInTheDocument();
     expect(screen.getByText('이 실행에는 AI 판정 기록이 없습니다.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'N1 실행' })).toHaveAttribute('href', '/simulate/agent/N1/review');
+  });
+
+  it('says whose run it is, the sender and the recordings beside the run ID (P-8, 옛 6-4 · 6-7)', async () => {
+    serve();
+    const first = flow(`/simulate/agent/T5/result?run=${T5_RUN}`);
+    const side = (await screen.findByText('실행 ID')).closest('dl') as HTMLElement;
+    expect(await within(side).findByText('저장된 실제 실행')).toBeInTheDocument();
+    expect(within(side).getByText('요청 주체').nextElementSibling).toHaveTextContent('위임 에이전트');
+    expect(within(side).getByText('운영자 기록').nextElementSibling).toHaveTextContent('—');
+    first.unmount();
+    serve({
+      '/api/journey': {
+        ...JOURNEY,
+        runs: [{ runId: N1_RUN, scenarioKey: 'N1', classification: 'NORMAL', status: 'COMPLETED', lab: false }],
+      },
+    });
+    flow(`/simulate/agent/N1/result?run=${N1_RUN}`);
+    const own = (await screen.findByText('실행 ID')).closest('dl') as HTMLElement;
+    expect(await within(own).findByText('내 실행')).toBeInTheDocument();
+    expect(within(own).getByText('운영자 기록').nextElementSibling).toHaveTextContent('5회 · 최근 기록과 같은 결과 5회');
+  });
+
+  it('keeps what each control let go by kind under the details, the table showing their sum (P-8, 옛 6-7)', async () => {
+    const counts = { ...runT5.proof.controls.A, documents: 3, items: 120, records: 0, changes: 1 };
+    serve({
+      [`/api/runs/${T5_RUN}/agent`]: { ...runT5, proof: { ...runT5.proof, controls: { ...runT5.proof.controls, A: counts } } },
+    });
+    flow(`/simulate/agent/T5/result?run=${T5_RUN}`);
+    const kinds = await screen.findByRole('table', { name: '통제별 내준 자료 구분' });
+    expect(within(kinds).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual([
+      '보안 통제',
+      '문서',
+      '항목',
+      '고객 기록',
+      '권한 변경',
+    ]);
+    const waf = within(kinds).getByRole('row', { name: /웹 방화벽/ });
+    expect(within(waf).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['3', '120', '0', '1']);
+    const sums = screen.getByRole('table', { name: '통제별 결과' });
+    expect(within(within(sums).getByRole('row', { name: /웹 방화벽/ })).getAllByRole('cell')[1]).toHaveTextContent('124');
+  });
+
+  it('titles the approval, and keeps the request time, the delegation end, the status and the record number (P-8, 옛 6-4 · 6-5)', async () => {
+    serve();
+    flow(`/simulate/agent/T5/result?run=${T5_RUN}`);
+    const confirm = await screen.findByRole('region', { name: '위임자 응답별 결과' });
+    expect(within(confirm).getByRole('heading', { level: 3, name: '위임자 승인 · 요청 1회 처리' })).toBeInTheDocument();
+    const more = within(confirm).getByText('자세히').closest('details') as HTMLElement;
+    const value = (label: string) => within(more).getByText(label).nextElementSibling;
+    expect(value('요청 1 시각(회사 시각)')).toHaveTextContent('수요일 14:20');
+    // The run's company time 14:20 with the delegation ending 120 minutes before it.
+    expect(value('위임 기간 끝(회사 시각)')).toHaveTextContent('수요일 12:20');
+    expect(value('확인 뒤 상태 · 이 실행')).toHaveTextContent('승인됨');
+    expect(value('인가 기록 번호 · 이 실행')).toHaveTextContent(runT5.confirmation.after.authorizationId);
+    expect(await within(more).findByText('확인 뒤 상태 · 신고한 실제 기록')).toBeInTheDocument();
+    expect(value('확인 뒤 상태 · 신고한 실제 기록')).toHaveTextContent('—');
+    expect(value('저장 시각 · 신고한 실제 기록')).toHaveTextContent('2026-10-26 15:29 (세계 표준시)');
+  });
+
+  it('says what a request served with the same confirmation handed over, and why a confirmation got no answer (P-8, 옛 6-4)', async () => {
+    const served = { ...runT5.confirmation.reuse, httpStatus: 200, outcome: 'DELIVERED', deliveredItems: 1, ruleId: null };
+    serve({ [`/api/runs/${T5_RUN}/agent`]: { ...runT5, confirmation: { ...runT5.confirmation, reuse: served } } });
+    const view = flow(`/simulate/agent/T5/result?run=${T5_RUN}`);
+    expect(await screen.findByText('같은 확인을 다시 쓴 요청: HTTP 200 · 1건')).toBeInTheDocument();
+    view.unmount();
+    serve({
+      [`/api/runs/${T5_RUN}/agent`]: {
+        ...runT5,
+        confirmation: { ...runT5.confirmation, decision: null, reason: 'EXPIRED', after: null, resend: null, reuse: null, other: null },
+      },
+    });
+    flow(`/simulate/agent/T5/result?run=${T5_RUN}`);
+    const confirm = await screen.findByRole('region', { name: '위임자 응답별 결과' });
+    expect(within(confirm).getByText('응답 없음')).toBeInTheDocument();
+    expect(within(confirm).getByText('답이 없는 이유: 확인 시간 만료')).toBeInTheDocument();
+    expect(within(confirm).queryByRole('heading', { level: 3 })).not.toBeInTheDocument();
   });
 
   it('shows every request let through with the engine\'s evidence, and the browser-kept call beside what happened', async () => {

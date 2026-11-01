@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useAnatomy, useBeforeSend } from '../../../../api/anatomy';
 import { useJourneyUpdate } from '../../../../api/journey';
-import { useLabOptions } from '../../../../api/lab';
+import { useLabOptions, type LabCase } from '../../../../api/lab';
 import { useLiveConfig, useStats } from '../../../../api/queries';
 import { useLiveSend } from '../../../../hooks/useLiveSend';
 import { formatNumber, formatSeconds } from '../../../format';
@@ -20,7 +20,7 @@ import {
 import { useRecordedRun } from '../../../simulate/RecordedFallback';
 import { usePersonRuns } from '../../../simulate/useFlow';
 import { CONTROL_TONE } from '../../../simulate/controls';
-import { Badge, Button, ButtonLink, CodeChip, FlagBadge, Icon, Note, PageHead } from '../../../ui';
+import { Badge, Button, ButtonLink, CodeChip, FlagBadge, Icon, KeyValue, Note, PageHead } from '../../../ui';
 import styles from '../../../simulate/Review.module.css';
 
 type Call = 'ALLOW' | 'BLOCK';
@@ -68,6 +68,18 @@ function Review({ scenario }: { readonly scenario: PersonCase }) {
   const chips = comparison ? contextChips(t, comparison.businessFacts) : [];
   const truth = truthOf(labCase?.classification);
   const decision = stats.data?.decisionTime ?? null;
+  // The approval record as the scenario defines it (P-8, the old request screen): kept for a request whose business
+  // context names no approval at all (the insider's downloads), as the case's own values.
+  const approvalWords = (of: LabCase) => {
+    const approval = of.facts.find((fact) => fact.kind === 'APPROVAL') ?? null;
+    return approval
+      ? t('ux.review.definition.approvalValue', {
+          purpose: approval.purpose ?? '—',
+          max: approval.maxItems === null ? '—' : n(approval.maxItems),
+          approver: approval.approver ?? '—',
+        })
+      : t('ux.review.definition.none');
+  };
   const reason = !runs.visitorReady
     ? t('ux.review.reason.visitor')
     : chosen === null
@@ -131,6 +143,12 @@ function Review({ scenario }: { readonly scenario: PersonCase }) {
           <p className={styles.source}>
             {t('ux.review.source')} <CodeChip value={comparison.runId} />
           </p>
+        ) : null}
+        {comparison && labCase && !comparison.businessFacts.some((fact) => APPROVAL_CODES.has(fact.code)) ? (
+          <details className={styles.definition}>
+            <summary>{t('ux.review.definition.more')}</summary>
+            <KeyValue items={[{ label: t('ux.review.definition.approval'), value: approvalWords(labCase) }]} />
+          </details>
         ) : null}
       </section>
 
@@ -230,6 +248,9 @@ function Review({ scenario }: { readonly scenario: PersonCase }) {
     </>
   );
 }
+
+/** The business-context codes that already say whether an approval record covers the request. */
+const APPROVAL_CODES: ReadonlySet<string> = new Set(['APPROVAL_COVERS', 'NO_APPROVAL']);
 
 function Mark({ mark }: { readonly mark: BaselineMark }) {
   const { t } = useTranslation();

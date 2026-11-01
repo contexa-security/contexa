@@ -1,0 +1,358 @@
+{
+  "runId": "run-bf56ef4fa669",
+  "steps": [
+    {
+      "companyTime": "2026-09-30T14:20:00Z",
+      "layers": [
+        {
+          "control": "D",
+          "outcome": "DELIVERED",
+          "verdict": "BLOCK",
+          "httpStatus": 200,
+          "ruleId": null,
+          "reason": null,
+          "ruleFacts": {},
+          "evidence": {
+            "decisionId": "4b9e33b3-1387-4ea1-a496-143d50661ac6",
+            "verdict": "BLOCK",
+            "timing": "NEXT_REQUEST",
+            "httpStatus": 200,
+            "outcome": "DELIVERED",
+            "deliveredItems": 1,
+            "engineReasoning": "Insider misuse is most likely: the sensitive customer read has no required ticket or account-manager exception and differs from prior document work, while the familiar session provides little specific support for takeover.",
+            "riskScore": 0.77,
+            "confidence": 0.74,
+            "unresolved": false,
+            "responseMs": 59,
+            "timeline": [
+              {
+                "type": "CONTEXT_COLLECTED",
+                "layer": null,
+                "action": null,
+                "atMs": 55,
+                "elapsedMs": null
+              },
+              {
+                "type": "LAYER1_START",
+                "layer": "LAYER1",
+                "action": null,
+                "atMs": 55,
+                "elapsedMs": null
+              },
+              {
+                "type": "LAYER1_COMPLETE",
+                "layer": "LAYER1",
+                "action": "ESCALATE",
+                "atMs": 9568,
+                "elapsedMs": 9512
+              },
+              {
+                "type": "LAYER2_START",
+                "layer": "LAYER2",
+                "action": null,
+                "atMs": 9568,
+                "elapsedMs": null
+              },
+              {
+                "type": "LAYER2_COMPLETE",
+                "layer": "LAYER2",
+                "action": "BLOCK",
+                "atMs": 23594,
+                "elapsedMs": 14027
+              },
+              {
+                "type": "DECISION_APPLIED",
+                "layer": "LAYER2",
+                "action": "BLOCK",
+                "atMs": 23595,
+                "elapsedMs": null
+              }
+            ],
+            "stream": null,
+            "modelCalls": [
+              {
+                "model": "gpt-6-luna",
+                "promptTokens": 6144,
+                "completionTokens": 863,
+                "totalTokens": 7007,
+                "elapsedMs": 9473
+              },
+              {
+                "model": "gpt-6.1-sol",
+                "promptTokens": 6186,
+                "completionTokens": 339,
+                "totalTokens": 6525,
+                "elapsedMs": 8477
+              },
+              {
+                "model": "gpt-6.1-sol",
+                "promptTokens": 6559,
+                "completionTokens": 269,
+                "totalTokens": 6828,
+                "elapsedMs": 5505
+              }
+            ]
+          }
+        }
+      ],
+      "engineReason": {
+        "canonical": null,
+        "reasoning": "Insider misuse is most likely: the sensitive customer read has no required ticket or account-manager exception and differs from prior document work, while the familiar session provides little specific support for takeover.",
+        "evidenceRefs": [],
+        "deltas": [
+          "authenticationType",
+          "resourceFamily",
+          "pathFamily"
+        ],
+        "resourceSensitivity": "CONFIDENTIAL",
+        "baselineDeltaCount": 1,
+        "reasonCodes": [
+          {
+            "code": "NO_COVERING_RECORD",
+            "fact": "F3",
+            "contract": "V4"
+          },
+          {
+            "code": "NO_COVERING_RECORD",
+            "fact": "F5",
+            "contract": "V4"
+          },
+          {
+            "code": "DEVIATION_RESOURCE_CLASS",
+            "fact": "F1",
+            "contract": "V4"
+          },
+          {
+            "code": "BASELINE_MATCH",
+            "fact": "F2",
+            "contract": "V4"
+          }
+        ]
+      },
+      "companyFacts": [
+        {
+          "code": "NO_TICKET",
+          "value": null
+        },
+        {
+          "code": "NETWORK_OFFICE",
+          "value": null
+        }
+      ],
+      "tally": {
+        "stopped": 1,
+        "passed": 4,
+        "other": 0
+      },
+      "existingTally": {
+        "stopped": 1,
+        "passed": 3,
+        "other": 0
+      }
+    },
+    {
+      "companyTime": "2026-09-30T14:21:00Z",
+      "layers": [
+        {
+          "control": "D",
+          "outcome": "STOPPED",
+          "verdict": "NONE",
+          "httpStatus": 403,
+          "ruleId": "ACCOUNT_BLOCKED",
+          "reason": "Your account has been blocked due to security concerns",
+          "ruleFacts": {},
+          "evidence": {
+            "decisionId": null,
+            "verdict": "NONE",
+            "timing": "PRIOR_DECISION",
+            "httpStatus": 403,
+            "outcome": "STOPPED",
+            "deliveredItems": 0,
+            "engineReasoning": null,
+            "riskScore": null,
+            "confidence": null,
+            "unresolved": false,
+            "responseMs": 42,
+            "timeline": [],
+            "stream": null,
+            "modelCalls": []
+          }
+        }
+      ],
+      "engineReason": null,
+      "companyFacts": [
+        {
+          "code": "NO_TICKET",
+          "value": null
+        },
+        {
+          "code": "NETWORK_OFFICE",
+          "value": null
+        }
+      ],
+      "tally": {
+        "stopped": 2,
+        "passed": 3,
+        "other": 0
+      },
+      "existingTally": {
+        "stopped": 1,
+        "passed": 3,
+        "other": 0
+      }
+    },
+    {
+      "companyTime": "2026-09-30T14:22:00Z",
+      "layers": [
+        {
+          "control": "D",
+          "outcome": "STOPPED",
+          "verdict": "NONE",
+          "httpStatus": 403,
+          "ruleId": "ACCOUNT_BLOCKED",
+          "reason": "Your account has been blocked due to security concerns",
+          "ruleFacts": {},
+          "evidence": {
+            "decisionId": null,
+            "verdict": "NONE",
+            "timing": "PRIOR_DECISION",
+            "httpStatus": 403,
+            "outcome": "STOPPED",
+            "deliveredItems": 0,
+            "engineReasoning": null,
+            "riskScore": null,
+            "confidence": null,
+            "unresolved": false,
+            "responseMs": 45,
+            "timeline": [],
+            "stream": null,
+            "modelCalls": []
+          }
+        }
+      ],
+      "engineReason": null,
+      "companyFacts": [
+        {
+          "code": "NO_TICKET",
+          "value": null
+        },
+        {
+          "code": "NETWORK_OFFICE",
+          "value": null
+        }
+      ],
+      "tally": {
+        "stopped": 2,
+        "passed": 3,
+        "other": 0
+      },
+      "existingTally": {
+        "stopped": 1,
+        "passed": 3,
+        "other": 0
+      }
+    },
+    {
+      "companyTime": "2026-09-30T14:23:00Z",
+      "layers": [
+        {
+          "control": "D",
+          "outcome": "STOPPED",
+          "verdict": "NONE",
+          "httpStatus": 403,
+          "ruleId": "ACCOUNT_BLOCKED",
+          "reason": "Your account has been blocked due to security concerns",
+          "ruleFacts": {},
+          "evidence": {
+            "decisionId": null,
+            "verdict": "NONE",
+            "timing": "PRIOR_DECISION",
+            "httpStatus": 403,
+            "outcome": "STOPPED",
+            "deliveredItems": 0,
+            "engineReasoning": null,
+            "riskScore": null,
+            "confidence": null,
+            "unresolved": false,
+            "responseMs": 76,
+            "timeline": [],
+            "stream": null,
+            "modelCalls": []
+          }
+        }
+      ],
+      "engineReason": null,
+      "companyFacts": [
+        {
+          "code": "NO_TICKET",
+          "value": null
+        },
+        {
+          "code": "NETWORK_OFFICE",
+          "value": null
+        }
+      ],
+      "tally": {
+        "stopped": 2,
+        "passed": 3,
+        "other": 0
+      },
+      "existingTally": {
+        "stopped": 1,
+        "passed": 3,
+        "other": 0
+      }
+    },
+    {
+      "companyTime": "2026-09-30T14:24:00Z",
+      "layers": [
+        {
+          "control": "D",
+          "outcome": "STOPPED",
+          "verdict": "NONE",
+          "httpStatus": 403,
+          "ruleId": "ACCOUNT_BLOCKED",
+          "reason": "Your account has been blocked due to security concerns",
+          "ruleFacts": {},
+          "evidence": {
+            "decisionId": null,
+            "verdict": "NONE",
+            "timing": "PRIOR_DECISION",
+            "httpStatus": 403,
+            "outcome": "STOPPED",
+            "deliveredItems": 0,
+            "engineReasoning": null,
+            "riskScore": null,
+            "confidence": null,
+            "unresolved": false,
+            "responseMs": 48,
+            "timeline": [],
+            "stream": null,
+            "modelCalls": []
+          }
+        }
+      ],
+      "engineReason": null,
+      "companyFacts": [
+        {
+          "code": "NO_TICKET",
+          "value": null
+        },
+        {
+          "code": "NETWORK_OFFICE",
+          "value": null
+        }
+      ],
+      "tally": {
+        "stopped": 2,
+        "passed": 3,
+        "other": 0
+      },
+      "existingTally": {
+        "stopped": 1,
+        "passed": 3,
+        "other": 0
+      }
+    }
+  ]
+}

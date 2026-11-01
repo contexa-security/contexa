@@ -1,6 +1,6 @@
 import { useJourney, type RecapLine } from '../../api/journey';
 import { useLiveConfig, useVisitor } from '../../api/queries';
-import { latestOwnRun } from '../../pages/main/latestRun';
+import { latestOwnRun } from './latestRun';
 import { sortAgentKeys } from './agent';
 import { PERSON, PERSON_KEYS, type PersonKey } from './person';
 

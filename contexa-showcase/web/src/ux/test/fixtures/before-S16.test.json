@@ -1,0 +1,238 @@
+{
+  "comparison": {
+    "runId": "run-d399d3a50c57",
+    "stepNo": 1,
+    "startedAt": "2026-10-31T07:31:35.706777Z",
+    "companyTime": "2026-09-30T14:20:00Z",
+    "usualVsNow": [
+      {
+        "dimension": "accessHour",
+        "now": "14",
+        "inUsual": "true",
+        "labels": [
+          "SameAsBaseline"
+        ]
+      },
+      {
+        "dimension": "dayOfWeek",
+        "now": "Wed",
+        "inUsual": "true",
+        "labels": [
+          "SameAsBaseline"
+        ]
+      },
+      {
+        "dimension": "network",
+        "now": "10.40.21.0/24",
+        "inUsual": "true",
+        "labels": [
+          "SameAsBaseline"
+        ]
+      },
+      {
+        "dimension": "device",
+        "now": "Edge/140 on WINDOWS",
+        "inUsual": "true",
+        "labels": [
+          "SameAsBaseline"
+        ]
+      },
+      {
+        "dimension": "authenticationType",
+        "now": "PASSWORD+ONE_TIME_CODE",
+        "inUsual": "true",
+        "labels": [
+          "SameAsBaseline"
+        ]
+      },
+      {
+        "dimension": "target",
+        "now": "documentKey",
+        "inUsual": "UNKNOWN - no usual target of this kind",
+        "labels": [
+          "DeviationsFromBaseline"
+        ]
+      },
+      {
+        "dimension": "actionFamily",
+        "now": "READ",
+        "inUsual": "true",
+        "labels": [
+          "SameAsBaseline"
+        ]
+      },
+      {
+        "dimension": "resourceFamily",
+        "now": "SENSITIVE",
+        "inUsual": "true",
+        "labels": [
+          "SameAsBaseline"
+        ]
+      },
+      {
+        "dimension": "size",
+        "now": null,
+        "inUsual": "UNKNOWN - the request does not state it",
+        "labels": [
+          "DeviationsFromBaseline"
+        ]
+      },
+      {
+        "dimension": "rate",
+        "now": null,
+        "inUsual": "UNKNOWN - no usual rate in the view",
+        "labels": [
+          "DeviationsFromBaseline"
+        ]
+      }
+    ],
+    "usual": {
+      "accessHour": {
+        "label": "UsualHours",
+        "values": [
+          "11",
+          "12",
+          "15",
+          "16"
+        ]
+      },
+      "dayOfWeek": {
+        "label": "UsualDays",
+        "values": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+        ]
+      },
+      "network": {
+        "label": "UsualNetworks",
+        "values": [
+          "10.40.21.0/24"
+        ]
+      },
+      "device": {
+        "label": "UsualDevices",
+        "values": [
+          "Edge/140 on WINDOWS"
+        ]
+      },
+      "authenticationType": {
+        "label": "UsualLoginMethods",
+        "values": [
+          "PASSWORD+ONE_TIME_CODE"
+        ]
+      },
+      "target": {
+        "label": "UsualTargets",
+        "values": [
+          "projectKey=HX-310"
+        ]
+      },
+      "actionFamily": {
+        "label": "UsualActions",
+        "values": [
+          "READ",
+          "EXPORT"
+        ]
+      },
+      "resourceFamily": {
+        "label": "UsualResourceClass",
+        "values": [
+          "SENSITIVE"
+        ]
+      },
+      "size": {
+        "label": "UsualExportSize",
+        "values": [
+          "15"
+        ]
+      }
+    },
+    "departures": [],
+    "departureCount": 0,
+    "companyAdverse": [],
+    "company": {
+      "onCall": null,
+      "travel": null,
+      "summary": "Company facts of this request were looked up in the company records.",
+      "policies": [
+        {
+          "policyId": "DOCUMENT_ACCESS_APPROVAL",
+          "statement": "A project document is read by an employee assigned to the project or who worked on it in the last 90 days, or under a ticket that covers the project.",
+          "exceptions": [
+            {
+              "kind": "ASSIGNED",
+              "limit": null
+            },
+            {
+              "kind": "RECENT_WORK",
+              "limit": 90
+            }
+          ],
+          "requirement": "TICKET",
+          "hostRequires": false,
+          "requiredTicketKind": null
+        }
+      ],
+      "assignment": {
+        "target": "HX-310",
+        "assigned": true,
+        "responsibility": "DESIGN"
+      },
+      "breakGlass": null,
+      "blockedUser": null,
+      "accessHistory": {
+        "days": 59,
+        "target": "HX-310",
+        "windowDays": 90,
+        "lastAccessDate": "2026-09-29"
+      },
+      "ticketRecords": [],
+      "approvalStatus": null,
+      "approvalGranted": null,
+      "approvalLineage": [],
+      "approvalMissing": false,
+      "approvalRecords": [],
+      "recordsHolderId": "vd399d3a50c57-eng-k",
+      "approvalRequired": false,
+      "approvalTicketId": null,
+      "recentBlockCount": 0,
+      "checkedRecordKinds": [
+        "ASSIGNMENT",
+        "TICKET",
+        "ACCESS_HISTORY",
+        "TRAVEL"
+      ],
+      "pendingApproverRoles": [],
+      "recentChallengeCount": 0,
+      "recentEscalationCount": 0,
+      "recordsHolderRelation": "SUBJECT",
+      "recentDeniedAccessCount": null,
+      "approvalDecisionAgeMinutes": null
+    },
+    "companyFacts": [],
+    "businessFacts": [
+      {
+        "code": "ASSIGNED",
+        "value": "HX-310"
+      },
+      {
+        "code": "NO_TICKET",
+        "value": null
+      },
+      {
+        "code": "NETWORK_OFFICE",
+        "value": null
+      }
+    ],
+    "sensitivity": "HIGH",
+    "boundary": null,
+    "minimumRules": null,
+    "modelJudges": true,
+    "comparedCount": 7,
+    "sizeRatio": null,
+    "companyAdverseCount": 0
+  }
+}

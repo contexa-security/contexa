@@ -2,9 +2,8 @@
  * Design tokens of the Contexa Showcase. Every color, size, spacing, radius, shadow and motion value
  * used by the application comes from this file; stylelint rejects literal values elsewhere.
  * One dark console theme for every visitor (최종화면-구현계획 F0-4); no light theme follows the system.
+ * The code font (JetBrains Mono) is loaded by src/ux/styles/tokens.css, which every screen loads too.
  */
-@import url('@fontsource/jetbrains-mono/400.css');
-@import url('@fontsource/jetbrains-mono/600.css');
 
 :root {
   /* Typography */

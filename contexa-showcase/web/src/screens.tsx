@@ -34,8 +34,9 @@ export function preloadable<P extends object>(load: () => Promise<{ default: Com
   };
 }
 
-// The first screens (UX-R1, DEC-14): the start of the demo and the threat simulation's steps. Their words are in the
+// The first screens (UX-R1, DEC-14, DEC-76): the introduction, the start of the demo and the threat simulation's steps. Their words are in the
 // first part of the dictionary (dictionarySplit.ts), so they are drawn without waiting for the rest.
+export const introScreen = preloadable(() => import('./ux/pages/intro/IntroPage'));
 export const homeScreen = preloadable(() => import('./ux/pages/home/HomePage'));
 export const pickScreen = preloadable(() => import('./ux/pages/simulate/person/PickPage'));
 export const reviewScreen = preloadable(() => import('./ux/pages/simulate/person/ReviewPage'));
@@ -44,6 +45,7 @@ export const resultScreen = preloadable(() => import('./ux/pages/simulate/person
 
 /** Each first screen's code, by the module the shared rule (src/firstScreens.ts) names. */
 const BY_MODULE: Readonly<Record<FirstScreenModule, { readonly preload: () => Promise<void> }>> = {
+  'ux/pages/intro/IntroPage': introScreen,
   'ux/pages/home/HomePage': homeScreen,
   'ux/pages/simulate/person/PickPage': pickScreen,
   'ux/pages/simulate/person/ReviewPage': reviewScreen,

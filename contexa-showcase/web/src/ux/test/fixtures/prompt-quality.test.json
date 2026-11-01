@@ -1,0 +1,136 @@
+{
+  "batch": null,
+  "batches": {
+    "delivery": "p8v20-delivery-20261017T0029",
+    "reaction": "p8v20-reaction-20261017T0029",
+    "injection": "p8v20-injection-20261017T0029"
+  },
+  "setting": "9e2611179f57395424bf56f28ce7f628a6972514ff651fdbc0e99d6273671e79",
+  "accuracy": {
+    "low": 0.9540437045850131,
+    "high": 0.9914278020553485,
+    "hits": 245,
+    "rate": 0.98,
+    "total": 250,
+    "preliminary": false
+  },
+  "delivery": {
+    "low": 0.7411599827511859,
+    "high": 1.0,
+    "hits": 11,
+    "rate": 1.0,
+    "total": 11,
+    "preliminary": false
+  },
+  "protocol": "protocol-541025e6",
+  "reaction": {
+    "direction": {
+      "low": 0.9421756818388973,
+      "high": 0.9981196526609477,
+      "hits": 93,
+      "rate": 0.9893617021276596,
+      "total": 94,
+      "preliminary": false
+    },
+    "consistency": {
+      "low": null,
+      "high": null,
+      "hits": 0,
+      "rate": null,
+      "total": 0,
+      "preliminary": false
+    },
+    "minimumKept": {
+      "low": 0.9441965323292892,
+      "high": 0.9999999999999999,
+      "hits": 65,
+      "rate": 1.0,
+      "total": 65,
+      "preliminary": false
+    }
+  },
+  "injection": {
+    "changed": 1,
+    "unchanged": {
+      "low": 0.48686549668097007,
+      "high": 0.9743210440510253,
+      "hits": 6,
+      "rate": 0.8571428571428571,
+      "total": 7,
+      "preliminary": true
+    }
+  },
+  "comparison": {
+    "bundle": "2026.10.16-v20.24",
+    "attackNow": {
+      "low": 0.954180263735425,
+      "high": 1.0,
+      "hits": 80,
+      "rate": 1.0,
+      "total": 80,
+      "preliminary": false
+    },
+    "normalNow": {
+      "low": 0.23708065705320355,
+      "high": 0.445827858248363,
+      "hits": 25,
+      "rate": 0.3333333333333333,
+      "total": 75,
+      "preliminary": false
+    },
+    "attackBefore": {
+      "low": 0.7529927291394518,
+      "high": 0.9414302824959915,
+      "hits": 42,
+      "rate": 0.875,
+      "total": 48,
+      "preliminary": false
+    },
+    "normalBefore": {
+      "low": 0.0287480892712918,
+      "high": 0.21827010276918848,
+      "hits": 3,
+      "rate": 0.08333333333333333,
+      "total": 36,
+      "preliminary": false
+    },
+    "baselineBundle": null,
+    "baselineProtocol": "protocol-1bda51ee"
+  },
+  "invariance": {
+    "decisions": {
+      "low": 0.9286499658256813,
+      "high": 1.0,
+      "hits": 50,
+      "rate": 1.0,
+      "total": 50,
+      "preliminary": false
+    },
+    "firstStepFacts": {
+      "low": 0.9708620041018919,
+      "high": 0.9999999999999999,
+      "hits": 128,
+      "rate": 1.0,
+      "total": 128,
+      "preliminary": false
+    },
+    "decisionChanges": 0
+  },
+  "measuredAt": "2026-10-17T02:57:43.466459Z",
+  "consistency": {
+    "low": 0.9286499658256813,
+    "high": 1.0,
+    "hits": 50,
+    "rate": 1.0,
+    "total": 50,
+    "preliminary": false
+  },
+  "reasonMatch": {
+    "low": 0.9845620667926908,
+    "high": 1.0,
+    "hits": 245,
+    "rate": 1.0,
+    "total": 245,
+    "preliminary": false
+  }
+}

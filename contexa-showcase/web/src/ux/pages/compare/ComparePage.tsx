@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useReceived } from '../../../api/anatomy';
@@ -6,6 +6,7 @@ import { useBenchmark } from '../../../api/benchmark';
 import { useHook } from '../../../api/hook';
 import { useJourney } from '../../../api/journey';
 import { useLabOptions, useRecentLabRuns } from '../../../api/lab';
+import { useLabDelta } from '../../../api/promptQuality';
 import { useRunScore, useVisitor } from '../../../api/queries';
 import { usePublicSettings } from '../../../api/settings';
 import type { CaseResult } from '../../../api/types';
@@ -296,7 +297,8 @@ function ChangeTab() {
                   <td>
                     {run.designed
                       ? t('ux.compareMenu.mine.designed')
-                      : run.changed.map((key) => t(`lab.field.${key}`, { defaultValue: key })).join(' · ')}
+                      : run.changed.map((key) => t(`ux.cond.field.${key}`, { defaultValue: key })).join(' · ')}
+                    {run.designed ? null : <LineDelta runId={run.runId} />}
                   </td>
                   <td>{run.call ? t(`ux.policy.send.call.${run.call}`, { defaultValue: run.call }) : '—'}</td>
                   <td>
@@ -312,6 +314,55 @@ function ChangeTab() {
         {t('ux.compareMenu.mine.compose')}
       </ButtonLink>
     </section>
+  );
+}
+
+/** The prompt lines the change changed (옛 7-2): the portal's comparison of the two sealed prompts, read once opened. */
+function LineDelta({ runId }: { readonly runId: string }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  return (
+    <details className={styles.more} onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary>{t('ux.compareMenu.mine.delta')}</summary>
+      {open ? <LineDeltaBody runId={runId} /> : null}
+    </details>
+  );
+}
+
+function LineDeltaBody({ runId }: { readonly runId: string }) {
+  const { t, i18n } = useTranslation();
+  const delta = useLabDelta(runId);
+  if (delta.isPending) {
+    return <Loading rows={2} />;
+  }
+  if (!delta.data) {
+    return <Note tone="warn">{t('ux.compareMenu.mine.deltaFailed')}</Note>;
+  }
+  // The first request's comparison, as the old screen showed it; a step the server did not compare says why.
+  const step = delta.data.steps.find((candidate) => candidate.stepNo === 1) ?? null;
+  const why = delta.data.available ? (step?.notCompared ?? null) : delta.data.reason;
+  if (step === null || why !== null) {
+    return <p className={styles.muted}>{t('ux.compareMenu.mine.deltaUnavailable', { reason: why ?? '—' })}</p>;
+  }
+  return (
+    <div className={styles.delta}>
+      {step.changed.length === 0 ? <p className={styles.muted}>{t('ux.compareMenu.mine.deltaNone')}</p> : null}
+      {step.changed.map((line) => (
+        <div key={line.label} className={styles.diffPair}>
+          <code data-side="before" lang="en">
+            - {line.label}: {line.before.join(', ')}
+          </code>
+          <code data-side="after" lang="en">
+            + {line.label}: {line.after.join(', ')}
+          </code>
+        </div>
+      ))}
+      {step.unchangedLines != null ? (
+        <p className={styles.muted}>
+          {t('ux.compareMenu.mine.unchanged', { n: formatNumber(step.unchangedLines, i18n.language) })}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -383,6 +434,7 @@ function RunsTab() {
                           to={`/runs/${encodeURIComponent(dot.runId)}`}
                           className={styles.dot}
                           data-tone={graded ? EVAL_TONES[graded] : 'none'}
+                          data-eval={graded ?? undefined}
                           aria-label={t('ux.compareMenu.runs.dot', {
                             run: dot.runId,
                             key: dot.key,
@@ -405,9 +457,9 @@ function RunsTab() {
         })}
       </div>
       <ul className={styles.legend}>
-        {(['correct', 'normal', 'partial', 'missed', 'falsePositive'] as const).map((graded) => (
+        {(['correct', 'normal', 'afterCheck', 'partial', 'missed', 'falsePositive'] as const).map((graded) => (
           <li key={graded}>
-            <i className={styles.dot} data-tone={EVAL_TONES[graded]} aria-hidden="true" />
+            <i className={styles.dot} data-tone={EVAL_TONES[graded]} data-eval={graded} aria-hidden="true" />
             {t(`ux.runs.result.${graded}`)}
           </li>
         ))}

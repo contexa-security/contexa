@@ -3,7 +3,8 @@
   display: inline-flex;
   align-items: center;
   gap: var(--ux-space-1);
-  block-size: var(--ux-code);
+  max-inline-size: 100%;
+  min-block-size: var(--ux-code);
   padding: var(--ux-space-0) var(--ux-space-2);
   border: 0;
   border-radius: var(--ux-radius-sm);
@@ -12,9 +13,17 @@
   font-family: var(--ux-mono);
   font-size: var(--ux-text-13);
   font-weight: var(--ux-weight-medium);
-  line-height: var(--ux-leading-none);
+  line-height: var(--ux-leading-tight);
   white-space: nowrap;
   vertical-align: middle;
+}
+
+/* A value longer than its place (a sealed package's UUID in a narrow card) wraps at its parts, inside the chip. */
+.chip code,
+code.chip {
+  min-inline-size: 0;
+  white-space: normal;
+  overflow-wrap: break-word;
 }
 
 .chip code {

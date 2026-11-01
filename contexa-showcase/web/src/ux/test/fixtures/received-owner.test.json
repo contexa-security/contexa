@@ -1,0 +1,289 @@
+{
+  "runId": "run-0781df5c8463",
+  "stepNo": 1,
+  "startedAt": "2026-10-20T12:31:47.567560Z",
+  "companyTime": "2026-09-30T14:20:00Z",
+  "usualVsNow": [
+    {
+      "dimension": "accessHour",
+      "now": "14",
+      "inUsual": "true",
+      "labels": [
+        "SameAsBaseline"
+      ]
+    },
+    {
+      "dimension": "dayOfWeek",
+      "now": "Wed",
+      "inUsual": "true",
+      "labels": [
+        "SameAsBaseline"
+      ]
+    },
+    {
+      "dimension": "network",
+      "now": "10.40.21.0/24",
+      "inUsual": "true",
+      "labels": [
+        "SameAsBaseline"
+      ]
+    },
+    {
+      "dimension": "device",
+      "now": "Edge/140 on WINDOWS",
+      "inUsual": "true",
+      "labels": [
+        "SameAsBaseline"
+      ]
+    },
+    {
+      "dimension": "authenticationType",
+      "now": "PASSWORD+ONE_TIME_CODE",
+      "inUsual": "true",
+      "labels": [
+        "SameAsBaseline"
+      ]
+    },
+    {
+      "dimension": "target",
+      "now": "projectKey",
+      "inUsual": "true",
+      "labels": [
+        "SameAsBaseline"
+      ]
+    },
+    {
+      "dimension": "actionFamily",
+      "now": "EXPORT",
+      "inUsual": "true",
+      "labels": [
+        "SameAsBaseline"
+      ]
+    },
+    {
+      "dimension": "resourceFamily",
+      "now": "SENSITIVE",
+      "inUsual": "true",
+      "labels": [
+        "SameAsBaseline"
+      ]
+    },
+    {
+      "dimension": "size",
+      "now": "480 items",
+      "inUsual": "false",
+      "labels": [
+        "DeviationsFromBaseline"
+      ]
+    },
+    {
+      "dimension": "rate",
+      "now": null,
+      "inUsual": "UNKNOWN - no usual rate in the view",
+      "labels": [
+        "DeviationsFromBaseline"
+      ]
+    }
+  ],
+  "usual": {
+    "accessHour": {
+      "label": "UsualHours",
+      "values": [
+        "11",
+        "12",
+        "15",
+        "16"
+      ]
+    },
+    "dayOfWeek": {
+      "label": "UsualDays",
+      "values": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5"
+      ]
+    },
+    "network": {
+      "label": "UsualNetworks",
+      "values": [
+        "10.40.21.0/24"
+      ]
+    },
+    "device": {
+      "label": "UsualDevices",
+      "values": [
+        "Edge/140 on WINDOWS"
+      ]
+    },
+    "authenticationType": {
+      "label": "UsualLoginMethods",
+      "values": [
+        "PASSWORD"
+      ]
+    },
+    "target": {
+      "label": "UsualTargets",
+      "values": [
+        "projectKey=HX-310"
+      ]
+    },
+    "actionFamily": {
+      "label": "UsualActions",
+      "values": [
+        "READ",
+        "EXPORT"
+      ]
+    },
+    "resourceFamily": {
+      "label": "UsualResourceClass",
+      "values": [
+        "SENSITIVE"
+      ]
+    },
+    "size": {
+      "label": "UsualExportSize",
+      "values": [
+        "15"
+      ]
+    }
+  },
+  "departures": [
+    {
+      "dimension": "size",
+      "now": "480 items",
+      "inUsual": "false",
+      "labels": [
+        "DeviationsFromBaseline"
+      ]
+    }
+  ],
+  "departureCount": 1,
+  "companyAdverse": [],
+  "company": {
+    "onCall": {
+      "team": "HX on-call",
+      "endsAt": "2026-10-05T09:00:00Z",
+      "onCall": true,
+      "rosterId": "ONC-HX-2026-09-28",
+      "startsAt": "2026-09-28T09:00:00Z"
+    },
+    "travel": null,
+    "summary": "Company facts of this request were looked up in the business database.",
+    "policies": [
+      {
+        "policyId": "EXPORT_APPROVAL",
+        "statement": "An export of project documents needs an approval that covers the project and the item count, except an export of an assigned project of at most the assigned export limit, or an export covered by a ticket while the requester is on call.",
+        "exceptions": [
+          {
+            "kind": "ASSIGNED",
+            "limit": 500
+          },
+          {
+            "kind": "TICKET_WHILE_ON_CALL",
+            "limit": null
+          }
+        ],
+        "requirement": "APPROVAL",
+        "hostRequires": false,
+        "requiredTicketKind": null
+      }
+    ],
+    "assignment": {
+      "target": "HX-310",
+      "assigned": true,
+      "responsibility": "DESIGN"
+    },
+    "breakGlass": null,
+    "blockedUser": null,
+    "accessHistory": {
+      "days": 21,
+      "target": "HX-310",
+      "windowDays": 30,
+      "lastAccessDate": "2026-09-29"
+    },
+    "ticketRecords": [],
+    "approvalStatus": "NO_COVERING_APPROVAL",
+    "approvalGranted": false,
+    "approvalLineage": [
+      "Verified by the business database (showcase_work): requester assigned to project HX-310: yes",
+      "Verified by the business database (showcase_work): no approval of the requester exists for this project.",
+      "Verified by the business database (showcase_work): no ITSM ticket of the requester exists.",
+      "Verified by the business database (showcase_work): requester is on call (HX on-call) until 2026-10-05T09:00:00Z.",
+      "Verified by the business database (showcase_work): days with access to project HX-310 in the last 30 days: 21; last access on 2026-09-29.",
+      "Verified by the business database (showcase_work): request network 10.40.21.0/24 is a company office network.",
+      "Verified by the business database (showcase_work): company policy EXPORT_APPROVAL (An export of project documents needs an approval that covers the project and the item count, except an export of an assigned project of at most the assigned export limit, or an export covered by a ticket while the requester is on call. Assigned export limit: 500 items.) requires an approval for this export: no",
+      "These facts describe this request only; they are not authentication, MFA completion or a security action release."
+    ],
+    "approvalMissing": false,
+    "approvalRecords": [],
+    "approvalRequired": false,
+    "approvalTicketId": null,
+    "recentBlockCount": 0,
+    "checkedRecordKinds": [
+      "ASSIGNMENT",
+      "APPROVAL",
+      "TICKET",
+      "ON_CALL",
+      "ACCESS_HISTORY",
+      "TRAVEL"
+    ],
+    "pendingApproverRoles": [],
+    "recentChallengeCount": 0,
+    "recentEscalationCount": 0,
+    "recentDeniedAccessCount": null,
+    "approvalDecisionAgeMinutes": null
+  },
+  "companyFacts": [
+    "Verified by the business database (showcase_work): requester assigned to project HX-310: yes",
+    "Verified by the business database (showcase_work): no approval of the requester exists for this project.",
+    "Verified by the business database (showcase_work): no ITSM ticket of the requester exists.",
+    "Verified by the business database (showcase_work): requester is on call (HX on-call) until 2026-10-05T09:00:00Z.",
+    "Verified by the business database (showcase_work): days with access to project HX-310 in the last 30 days: 21; last access on 2026-09-29.",
+    "Verified by the business database (showcase_work): request network 10.40.21.0/24 is a company office network.",
+    "Verified by the business database (showcase_work): company policy EXPORT_APPROVAL (An export of project documents needs an approval that covers the project and the item count, except an export of an assigned project of at most the assigned export limit, or an export covered by a ticket while the requester is on call. Assigned export limit: 500 items.) requires an approval for this export: no",
+    "These facts describe this request only; they are not authentication, MFA completion or a security action release."
+  ],
+  "businessFacts": [
+    {
+      "code": "ASSIGNED",
+      "value": "HX-310"
+    },
+    {
+      "code": "NO_APPROVAL",
+      "value": null
+    },
+    {
+      "code": "NO_TICKET",
+      "value": null
+    },
+    {
+      "code": "ON_CALL",
+      "value": null
+    },
+    {
+      "code": "ACCESS_DAYS_LAST_30",
+      "value": "21"
+    },
+    {
+      "code": "ITEMS",
+      "value": "480"
+    },
+    {
+      "code": "NETWORK_OFFICE",
+      "value": null
+    }
+  ],
+  "sensitivity": "HIGH",
+  "boundary": null,
+  "minimumRules": null,
+  "modelJudges": true,
+  "comparedCount": 9,
+  "sizeRatio": {
+    "items": 480,
+    "usualLargest": 15,
+    "times": 32
+  },
+  "companyAdverseCount": 0
+}

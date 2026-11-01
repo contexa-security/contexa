@@ -13,6 +13,15 @@ const COOKIES = [
 ] as const;
 type CookieRow = (typeof COOKIES)[number];
 
+/**
+ * What the earlier screens left that the portal still keeps until its period (UC-5 O-privacy, checked against the
+ * portal's code): quiz and group counts (`anonymous_tally`, 30 days), share cards (90 days after the last share), the
+ * progress row (`visitor_journey`, deleted with the visitor), decision assessments (`visitor_assessment`, kept with the
+ * run, the visitor's hash cleared; other visitors see them as counts) and per-situation predictions (`prediction`,
+ * deleted with the visitor). The current screens send none of them.
+ */
+const OLD = ['quiz', 'share', 'groups', 'journey', 'assessment', 'scene'] as const;
+
 /** What the screens keep in this browser (theme, language, the guide videos watched, an agent case's expectation). */
 const STORAGE = [
   { name: 'showcase.theme', key: 'theme', place: 'local' },
@@ -45,7 +54,7 @@ export default function PrivacyPage() {
             rowKey={(row) => row}
             rows={DATA}
             columns={[
-              { key: 'info', header: t('ux.privacy.col.info'), strong: true, render: (row) => t(`ux.privacy.data.${row}.info`) },
+              { key: 'info', header: t('ux.privacy.col.info'), strong: true, wrap: true, render: (row) => t(`ux.privacy.data.${row}.info`) },
               { key: 'purpose', header: t('ux.privacy.col.purpose'), render: (row) => t(`ux.privacy.data.${row}.purpose`) },
               { key: 'kept', header: t('ux.privacy.col.kept'), render: (row) => t(`ux.privacy.data.${row}.kept`) },
             ]}
@@ -101,6 +110,11 @@ export default function PrivacyPage() {
             <p className={styles.line}>{t('ux.privacy.external.turnstile')}</p>
             <p className={styles.line}>{t('ux.privacy.external.model')}</p>
             <p className={styles.line}>{t('ux.privacy.external.old')}</p>
+            <ul className={styles.list} aria-label={t('ux.privacy.old.title')}>
+              {OLD.map((item) => (
+                <li key={item}>{t(`ux.privacy.old.${item}`)}</li>
+              ))}
+            </ul>
           </div>
         </Card>
       </div>

@@ -118,7 +118,8 @@
   color: var(--ux-brand-ink);
 }
 
-@media (width < 640px) {
+/* Below 1024 (the drawer width) only the current step keeps its name: four English names overflow at 768. */
+@media (width < 1024px) {
   .steps {
     inline-size: 100%;
   }

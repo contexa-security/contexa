@@ -102,6 +102,21 @@
   font-size: var(--ux-text-13);
 }
 
+/* The check's measured times and the stored record, folded (P-8) */
+.more {
+  color: var(--ux-text-2);
+  font-size: var(--ux-text-13);
+}
+
+.more summary {
+  color: var(--ux-link);
+  cursor: pointer;
+}
+
+.more > dl {
+  margin-block-start: var(--ux-space-3);
+}
+
 .admin {
   display: grid;
   gap: var(--ux-space-3);

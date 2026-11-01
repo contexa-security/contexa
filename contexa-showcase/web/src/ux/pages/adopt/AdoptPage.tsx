@@ -216,10 +216,49 @@ function Steps() {
                 {t('ux.adopt.costLink')}
               </Link>
             </p>
+            <MeasuredDecisions />
           </div>
         </Card>
       </div>
     </div>
+  );
+}
+
+/** The verdicts in the order the old operations strip stacked them. */
+const ACTIONS = ['ALLOW', 'CHALLENGE', 'ESCALATE', 'BLOCK'] as const;
+
+/**
+ * The engine as an operated product (옛 8-2 OpsStrip): over every decision the scenario validation measured, how many
+ * of each verdict and how many it could not make, as the benchmark counted them. A verdict the count leaves out is
+ * left out here too.
+ */
+function MeasuredDecisions() {
+  const { t, i18n } = useTranslation();
+  const benchmark = useBenchmark(null);
+  const engine = benchmark.data?.engine ?? null;
+  const n = (value: number) => formatNumber(value, i18n.language);
+  if (!engine) {
+    return null;
+  }
+  return (
+    <details className={styles.more}>
+      <summary>{t('ux.adopt.measured.summary', { n: n(engine.decisions) })}</summary>
+      <div className={styles.moreBody}>
+        <KeyValue
+          alignEnd
+          items={[
+            ...ACTIONS.filter((action) => engine.actions[action] !== undefined).map((action) => ({
+              label: <VerdictBadge verdict={action} />,
+              value: t('ux.adopt.record.count', { n: n(engine.actions[action] ?? 0) }),
+            })),
+            {
+              label: t('ux.adopt.measured.unresolved'),
+              value: t('ux.adopt.measured.unresolvedValue', { n: n(engine.unresolved), of: n(engine.decisions) }),
+            },
+          ]}
+        />
+      </div>
+    </details>
   );
 }
 

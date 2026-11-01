@@ -1,0 +1,842 @@
+{
+  "scope": {
+    "runs": 44,
+    "attackRuns": 23,
+    "normalRuns": 19,
+    "otherRuns": 2,
+    "cases": 41,
+    "protocols": [
+      {
+        "protocolId": "protocol-7b925e8e",
+        "repeat": 5,
+        "cases": 41,
+        "plannedRuns": 205,
+        "startedAt": "2026-10-20T11:46:40.091675Z",
+        "finishedAt": "2026-10-20T12:42:36.972468Z",
+        "completedRuns": 44,
+        "failedRuns": 0,
+        "forcedRuns": 0
+      }
+    ],
+    "fewestRunsPerCase": 1,
+    "mostRunsPerCase": 2
+  },
+  "controls": [
+    {
+      "control": "A",
+      "stopped": {
+        "hits": 1,
+        "total": 23,
+        "rate": 0.043478260869565216,
+        "low": 0.0077164669621267445,
+        "high": 0.20991586494059142,
+        "preliminary": false
+      },
+      "stoppedAny": {
+        "hits": 1,
+        "total": 23,
+        "rate": 0.043478260869565216,
+        "low": 0.0077164669621267445,
+        "high": 0.20991586494059142,
+        "preliminary": false
+      },
+      "stoppedMacro": 0.047619047619047616,
+      "stoppedAnyMacro": 0.047619047619047616,
+      "falseBlock": {
+        "hits": 0,
+        "total": 19,
+        "rate": 0.0,
+        "low": 0.0,
+        "high": 0.16818436536845052,
+        "preliminary": false
+      },
+      "friction": {
+        "hits": 0,
+        "total": 19,
+        "rate": 0.0,
+        "low": 0.0,
+        "high": 0.16818436536845052,
+        "preliminary": false
+      },
+      "falseBlockMacro": 0.0,
+      "attackUnresolved": 0,
+      "normalUnresolved": 0,
+      "exposedItems": 23171,
+      "partlyStopped": 0,
+      "normalPassed": 19,
+      "missed": 22,
+      "notBlocked": {
+        "hits": 19,
+        "total": 19,
+        "rate": 1.0,
+        "low": 0.8318156346315496,
+        "high": 1.0,
+        "preliminary": false
+      }
+    },
+    {
+      "control": "B",
+      "stopped": {
+        "hits": 1,
+        "total": 23,
+        "rate": 0.043478260869565216,
+        "low": 0.0077164669621267445,
+        "high": 0.20991586494059142,
+        "preliminary": false
+      },
+      "stoppedAny": {
+        "hits": 1,
+        "total": 23,
+        "rate": 0.043478260869565216,
+        "low": 0.0077164669621267445,
+        "high": 0.20991586494059142,
+        "preliminary": false
+      },
+      "stoppedMacro": 0.047619047619047616,
+      "stoppedAnyMacro": 0.047619047619047616,
+      "falseBlock": {
+        "hits": 0,
+        "total": 19,
+        "rate": 0.0,
+        "low": 0.0,
+        "high": 0.16818436536845052,
+        "preliminary": false
+      },
+      "friction": {
+        "hits": 0,
+        "total": 19,
+        "rate": 0.0,
+        "low": 0.0,
+        "high": 0.16818436536845052,
+        "preliminary": false
+      },
+      "falseBlockMacro": 0.0,
+      "attackUnresolved": 0,
+      "normalUnresolved": 0,
+      "exposedItems": 23171,
+      "partlyStopped": 0,
+      "normalPassed": 19,
+      "missed": 22,
+      "notBlocked": {
+        "hits": 19,
+        "total": 19,
+        "rate": 1.0,
+        "low": 0.8318156346315496,
+        "high": 1.0,
+        "preliminary": false
+      }
+    },
+    {
+      "control": "C1",
+      "stopped": {
+        "hits": 12,
+        "total": 23,
+        "rate": 0.5217391304347826,
+        "low": 0.3296242986421849,
+        "high": 0.7076313046005427,
+        "preliminary": false
+      },
+      "stoppedAny": {
+        "hits": 13,
+        "total": 23,
+        "rate": 0.5652173913043478,
+        "low": 0.3681104930501695,
+        "high": 0.7436563166780135,
+        "preliminary": false
+      },
+      "stoppedMacro": 0.5238095238095238,
+      "stoppedAnyMacro": 0.5714285714285714,
+      "falseBlock": {
+        "hits": 8,
+        "total": 19,
+        "rate": 0.42105263157894735,
+        "low": 0.2314162039203038,
+        "high": 0.6372444853483988,
+        "preliminary": false
+      },
+      "friction": {
+        "hits": 0,
+        "total": 19,
+        "rate": 0.0,
+        "low": 0.0,
+        "high": 0.16818436536845052,
+        "preliminary": false
+      },
+      "falseBlockMacro": 0.4444444444444444,
+      "attackUnresolved": 0,
+      "normalUnresolved": 0,
+      "exposedItems": 803,
+      "partlyStopped": 1,
+      "normalPassed": 11,
+      "missed": 10,
+      "notBlocked": {
+        "hits": 11,
+        "total": 19,
+        "rate": 0.5789473684210527,
+        "low": 0.36275551465160105,
+        "high": 0.7685837960796962,
+        "preliminary": false
+      }
+    },
+    {
+      "control": "C2",
+      "stopped": {
+        "hits": 14,
+        "total": 23,
+        "rate": 0.6086956521739131,
+        "low": 0.4078517960374599,
+        "high": 0.7784262201761787,
+        "preliminary": false
+      },
+      "stoppedAny": {
+        "hits": 15,
+        "total": 23,
+        "rate": 0.6521739130434783,
+        "low": 0.4488997690689164,
+        "high": 0.8118894536301776,
+        "preliminary": false
+      },
+      "stoppedMacro": 0.5714285714285714,
+      "stoppedAnyMacro": 0.6190476190476191,
+      "falseBlock": {
+        "hits": 0,
+        "total": 19,
+        "rate": 0.0,
+        "low": 0.0,
+        "high": 0.16818436536845052,
+        "preliminary": false
+      },
+      "friction": {
+        "hits": 0,
+        "total": 19,
+        "rate": 0.0,
+        "low": 0.0,
+        "high": 0.16818436536845052,
+        "preliminary": false
+      },
+      "falseBlockMacro": 0.0,
+      "attackUnresolved": 0,
+      "normalUnresolved": 0,
+      "exposedItems": 3496,
+      "partlyStopped": 1,
+      "normalPassed": 19,
+      "missed": 8,
+      "notBlocked": {
+        "hits": 19,
+        "total": 19,
+        "rate": 1.0,
+        "low": 0.8318156346315496,
+        "high": 1.0,
+        "preliminary": false
+      }
+    },
+    {
+      "control": "D",
+      "stopped": {
+        "hits": 7,
+        "total": 23,
+        "rate": 0.30434782608695654,
+        "low": 0.15603828020972454,
+        "high": 0.5086612906057261,
+        "preliminary": false
+      },
+      "stoppedAny": {
+        "hits": 21,
+        "total": 23,
+        "rate": 0.9130434782608695,
+        "low": 0.7320359570190598,
+        "high": 0.9758205045927666,
+        "preliminary": false
+      },
+      "stoppedMacro": 0.2857142857142857,
+      "stoppedAnyMacro": 0.9047619047619048,
+      "falseBlock": {
+        "hits": 0,
+        "total": 19,
+        "rate": 0.0,
+        "low": 0.0,
+        "high": 0.16818436536845052,
+        "preliminary": false
+      },
+      "friction": {
+        "hits": 3,
+        "total": 19,
+        "rate": 0.15789473684210525,
+        "low": 0.055203710399278266,
+        "high": 0.3756592764317668,
+        "preliminary": false
+      },
+      "falseBlockMacro": 0.0,
+      "attackUnresolved": 0,
+      "normalUnresolved": 0,
+      "exposedItems": 8059,
+      "partlyStopped": 14,
+      "normalPassed": 16,
+      "missed": 2,
+      "notBlocked": {
+        "hits": 19,
+        "total": 19,
+        "rate": 1.0,
+        "low": 0.8318156346315496,
+        "high": 1.0,
+        "preliminary": false
+      }
+    }
+  ],
+  "cases": [
+    {
+      "key": "A1",
+      "classification": "THREAT",
+      "runResults": {
+        "run-66c9a323f945": {
+          "A": "MISSED",
+          "B": "MISSED",
+          "C1": "MISSED",
+          "C2": "STOPPED",
+          "D": "PARTLY_STOPPED"
+        },
+        "run-c2f5718b3ffc": {
+          "A": "MISSED",
+          "B": "MISSED",
+          "C1": "MISSED",
+          "C2": "STOPPED",
+          "D": "PARTLY_STOPPED"
+        }
+      }
+    },
+    {
+      "key": "A1T",
+      "classification": "NORMAL",
+      "runResults": {
+        "run-586d6f270c8c": {
+          "A": "PASSED",
+          "B": "PASSED",
+          "C1": "PASSED",
+          "C2": "PASSED",
+          "D": "PASSED"
+        },
+        "run-feb8d93ed2c1": {
+          "A": "PASSED",
+          "B": "PASSED",
+          "C1": "PASSED",
+          "C2": "PASSED",
+          "D": "PASSED"
+        }
+      }
+    },
+    {
+      "key": "A3",
+      "classification": "THREAT",
+      "runResults": {
+        "run-f1ca01d70aad": {
+          "A": "MISSED",
+          "B": "MISSED",
+          "C1": "STOPPED",
+          "C2": "STOPPED",
+          "D": "STOPPED"
+        },
+        "run-b0d5b4f9da7f": {
+          "A": "MISSED",
+          "B": "MISSED",
+          "C1": "STOPPED",
+          "C2": "STOPPED",
+          "D": "STOPPED"
+        }
+      }
+    },
+    {
+      "key": "A3A",
+      "classification": "THREAT",
+      "runResults": {
+        "run-71104ba3250f": {
+          "A": "MISSED",
+          "B": "MISSED",
+          "C1": "STOPPED",
+          "C2": "STOPPED",
+          "D": "PARTLY_STOPPED"
+        }
+      }
+    },
+    {
+      "key": "A3S",
+      "classification": "THREAT",
+      "runResults": {
+        "run-6f8e926ff024": {
+          "A": "MISSED",
+          "B": "MISSED",
+          "C1": "STOPPED",
+          "C2": "STOPPED",
+          "D": "PARTLY_STOPPED"
+        }
+      }
+    },
+    {
+      "key": "A3ST",
+      "classification": "NORMAL",
+      "runResults": {
+        "run-83f034bc6ecc": {
+          "A": "PASSED",
+          "B": "PASSED",
+          "C1": "HALTED",
+          "C2": "PASSED",
+          "D": "PASSED"
+        }
+      }
+    },
+    {
+      "key": "A3T",
+      "classification": "NORMAL",
+      "runResults": {
+        "run-9e971454c4de": {
+          "A": "PASSED",
+          "B": "PASSED",
+          "C1": "HALTED",
+          "C2": "PASSED",
+          "D": "PASSED"
+        }
+      }
+    },
+    {
+      "key": "A3TA",
+      "classification": "NORMAL",
+      "runResults": {
+        "run-7cfc9c91e9cd": {
+          "A": "PASSED",
+          "B": "PASSED",
+          "C1": "HALTED",
+          "C2": "PASSED",
+          "D": "PASSED"
+        }
+      }
+    },
+    {
+      "key": "A5",
+      "classification": "THREAT",
+      "runResults": {
+        "run-2531e4155dac": {
+          "A": "MISSED",
+          "B": "MISSED",
+          "C1": "MISSED",
+          "C2": "STOPPED",
+          "D": "STOPPED"
+        }
+      }
+    },
+    {
+      "key": "A5T",
+      "classification": "NORMAL",
+      "runResults": {
+        "run-93d1b757491d": {
+          "A": "PASSED",
+          "B": "PASSED",
+          "C1": "PASSED",
+          "C2": "PASSED",
+          "D": "PASSED"
+        }
+      }
+    },
+    {
+      "key": "A6",
+      "classification": "THREAT",
+      "runResults": {
+        "run-bf56ef4fa669": {
+          "A": "MISSED",
+          "B": "MISSED",
+          "C1": "MISSED",
+          "C2": "STOPPED",
+          "D": "PARTLY_STOPPED"
+        }
+      }
+    },
+    {
+      "key": "A6T",
+      "classification": "NORMAL",
+      "runResults": {
+        "run-47366ff6ce8e": {
+          "A": "PASSED",
+          "B": "PASSED",
+          "C1": "PASSED",
+          "C2": "PASSED",
+          "D": "PASSED"
+        }
+      }
+    },
+    {
+      "key": "A8",
+      "classification": "THREAT",
+      "runResults": {
+        "run-380cfa4c6dff": {
+          "A": "MISSED",
+          "B": "MISSED",
+          "C1": "STOPPED",
+          "C2": "STOPPED",
+          "D": "STOPPED"
+        }
+      }
+    },
+    {
+      "key": "A8T",
+      "classification": "NORMAL",
+      "runResults": {
+        "run-1757482a48c7": {
+          "A": "PASSED",
+          "B": "PASSED",
+          "C1": "HALTED",
+          "C2": "PASSED",
+          "D": "PASSED"
+        }
+      }
+    },
+    {
+      "key": "K2",
+      "classification": "NORMAL",
+      "runResults": {
+        "run-0a19ab899827": {
+          "A": "PASSED",
+          "B": "PASSED",
+          "C1": "PASSED",
+          "C2": "PASSED",
+          "D": "PASSED"
+        }
+      }
+    },
+    {
+      "key": "R1",
+      "classification": "THREAT",
+      "runResults": {
+        "run-8ddb21acf432": {
+          "A": "STOPPED",
+          "B": "STOPPED",
+          "C1": "STOPPED",
+          "C2": "STOPPED",
+          "D": "STOPPED"
+        }
+      }
+    },
+    {
+      "key": "S01",
+      "classification": "NORMAL",
+      "runResults": {
+        "run-10cfd4a047a6": {
+          "A": "PASSED",
+          "B": "PASSED",
+          "C1": "PASSED",
+          "C2": "PASSED",
+          "D": "PASSED"
+        }
+      }
+    },
+    {
+      "key": "S02",
+      "classification": "NORMAL",
+      "runResults": {
+        "run-357e7d1947c4": {
+          "A": "PASSED",
+          "B": "PASSED",
+          "C1": "HALTED",
+          "C2": "PASSED",
+          "D": "PASSED"
+        }
+      }
+    },
+    {
+      "key": "S03",
+      "classification": "NORMAL",
+      "runResults": {
+        "run-d00f69bdfbee": {
+          "A": "PASSED",
+          "B": "PASSED",
+          "C1": "HALTED",
+          "C2": "PASSED",
+          "D": "PASSED"
+        }
+      }
+    },
+    {
+      "key": "S04",
+      "classification": "THREAT",
+      "runResults": {
+        "run-fb17a207d34d": {
+          "A": "MISSED",
+          "B": "MISSED",
+          "C1": "PARTLY_STOPPED",
+          "C2": "PARTLY_STOPPED",
+          "D": "PARTLY_STOPPED"
+        }
+      }
+    },
+    {
+      "key": "S05",
+      "classification": "THREAT",
+      "runResults": {
+        "run-6a46f1261f0f": {
+          "A": "MISSED",
+          "B": "MISSED",
+          "C1": "MISSED",
+          "C2": "STOPPED",
+          "D": "PARTLY_STOPPED"
+        }
+      }
+    },
+    {
+      "key": "S06",
+      "classification": "THREAT",
+      "runResults": {
+        "run-19cdb77eb24b": {
+          "A": "MISSED",
+          "B": "MISSED",
+          "C1": "STOPPED",
+          "C2": "STOPPED",
+          "D": "PARTLY_STOPPED"
+        }
+      }
+    },
+    {
+      "key": "S07",
+      "classification": "UNCERTAIN",
+      "runResults": {
+        "run-f8de0cbcf754": {
+          "A": "NOT_SCORED",
+          "B": "NOT_SCORED",
+          "C1": "NOT_SCORED",
+          "C2": "NOT_SCORED",
+          "D": "NOT_SCORED"
+        }
+      }
+    },
+    {
+      "key": "S08",
+      "classification": "UNCERTAIN",
+      "runResults": {
+        "run-c11e6d59ca1b": {
+          "A": "NOT_SCORED",
+          "B": "NOT_SCORED",
+          "C1": "NOT_SCORED",
+          "C2": "NOT_SCORED",
+          "D": "NOT_SCORED"
+        }
+      }
+    },
+    {
+      "key": "S09",
+      "classification": "THREAT",
+      "runResults": {
+        "run-4314803adfde": {
+          "A": "MISSED",
+          "B": "MISSED",
+          "C1": "STOPPED",
+          "C2": "STOPPED",
+          "D": "PARTLY_STOPPED"
+        }
+      }
+    },
+    {
+      "key": "S09C",
+      "classification": "THREAT",
+      "runResults": {
+        "run-1cc910699239": {
+          "A": "MISSED",
+          "B": "MISSED",
+          "C1": "STOPPED",
+          "C2": "STOPPED",
+          "D": "PARTLY_STOPPED"
+        }
+      }
+    },
+    {
+      "key": "S10",
+      "classification": "THREAT",
+      "runResults": {
+        "run-202bd2067d43": {
+          "A": "MISSED",
+          "B": "MISSED",
+          "C1": "STOPPED",
+          "C2": "MISSED",
+          "D": "PARTLY_STOPPED"
+        }
+      }
+    },
+    {
+      "key": "S11",
+      "classification": "THREAT",
+      "runResults": {
+        "run-87c7bd071cb8": {
+          "A": "MISSED",
+          "B": "MISSED",
+          "C1": "STOPPED",
+          "C2": "MISSED",
+          "D": "PARTLY_STOPPED"
+        }
+      }
+    },
+    {
+      "key": "S11T",
+      "classification": "NORMAL",
+      "runResults": {
+        "run-628102ce91e6": {
+          "A": "PASSED",
+          "B": "PASSED",
+          "C1": "HALTED",
+          "C2": "PASSED",
+          "D": "PASSED_AFTER_CHECK"
+        }
+      }
+    },
+    {
+      "key": "S12",
+      "classification": "THREAT",
+      "runResults": {
+        "run-d58a8e902d0b": {
+          "A": "MISSED",
+          "B": "MISSED",
+          "C1": "STOPPED",
+          "C2": "MISSED",
+          "D": "STOPPED"
+        }
+      }
+    },
+    {
+      "key": "S13",
+      "classification": "THREAT",
+      "runResults": {
+        "run-63b23f7bb5b2": {
+          "A": "MISSED",
+          "B": "MISSED",
+          "C1": "MISSED",
+          "C2": "MISSED",
+          "D": "STOPPED"
+        }
+      }
+    },
+    {
+      "key": "S13T",
+      "classification": "NORMAL",
+      "runResults": {
+        "run-0781df5c8463": {
+          "A": "PASSED",
+          "B": "PASSED",
+          "C1": "PASSED",
+          "C2": "PASSED",
+          "D": "PASSED"
+        }
+      }
+    },
+    {
+      "key": "S14",
+      "classification": "NORMAL",
+      "runResults": {
+        "run-30693e800edb": {
+          "A": "PASSED",
+          "B": "PASSED",
+          "C1": "HALTED",
+          "C2": "PASSED",
+          "D": "PASSED_AFTER_CHECK"
+        }
+      }
+    },
+    {
+      "key": "S15",
+      "classification": "NORMAL",
+      "runResults": {
+        "run-3c74b4731c1f": {
+          "A": "PASSED",
+          "B": "PASSED",
+          "C1": "PASSED",
+          "C2": "PASSED",
+          "D": "PASSED"
+        }
+      }
+    },
+    {
+      "key": "S16",
+      "classification": "THREAT",
+      "runResults": {
+        "run-d144ca7c4d85": {
+          "A": "MISSED",
+          "B": "MISSED",
+          "C1": "MISSED",
+          "C2": "MISSED",
+          "D": "PARTLY_STOPPED"
+        }
+      }
+    },
+    {
+      "key": "S16T",
+      "classification": "NORMAL",
+      "runResults": {
+        "run-f11859d3089f": {
+          "A": "PASSED",
+          "B": "PASSED",
+          "C1": "PASSED",
+          "C2": "PASSED",
+          "D": "PASSED"
+        }
+      }
+    },
+    {
+      "key": "S17",
+      "classification": "THREAT",
+      "runResults": {
+        "run-3bb57a898289": {
+          "A": "MISSED",
+          "B": "MISSED",
+          "C1": "MISSED",
+          "C2": "MISSED",
+          "D": "MISSED"
+        }
+      }
+    },
+    {
+      "key": "S17T",
+      "classification": "NORMAL",
+      "runResults": {
+        "run-7ca6c022c40a": {
+          "A": "PASSED",
+          "B": "PASSED",
+          "C1": "PASSED",
+          "C2": "PASSED",
+          "D": "PASSED"
+        }
+      }
+    },
+    {
+      "key": "S18",
+      "classification": "THREAT",
+      "runResults": {
+        "run-059481fa8ca6": {
+          "A": "MISSED",
+          "B": "MISSED",
+          "C1": "MISSED",
+          "C2": "MISSED",
+          "D": "PARTLY_STOPPED"
+        }
+      }
+    },
+    {
+      "key": "S19",
+      "classification": "THREAT",
+      "runResults": {
+        "run-8d9e43b2882e": {
+          "A": "MISSED",
+          "B": "MISSED",
+          "C1": "MISSED",
+          "C2": "MISSED",
+          "D": "MISSED"
+        }
+      }
+    },
+    {
+      "key": "S19T",
+      "classification": "NORMAL",
+      "runResults": {
+        "run-58aa7d799333": {
+          "A": "PASSED",
+          "B": "PASSED",
+          "C1": "PASSED",
+          "C2": "PASSED",
+          "D": "PASSED_AFTER_CHECK"
+        }
+      }
+    }
+  ]
+}

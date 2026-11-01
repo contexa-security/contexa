@@ -316,6 +316,50 @@
   margin: var(--ux-space-0);
 }
 
+/* 위임 범위 대비 요청 (DEC-81): the delegated scope beside this request; one above the other when narrow. */
+.scopeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: var(--ux-space-3);
+}
+
+.scopeSide {
+  display: grid;
+  align-content: start;
+  gap: var(--ux-space-2);
+  padding: var(--ux-space-3) var(--ux-space-4);
+  border: var(--ux-hairline) solid var(--ux-line);
+  border-radius: var(--ux-radius-md);
+  background-color: var(--ux-surface-2);
+}
+
+.scopeTitle {
+  margin: var(--ux-space-0);
+  color: var(--ux-text-2);
+  font-size: var(--ux-text-13);
+  font-weight: var(--ux-weight-semibold);
+}
+
+.scopeFacts {
+  display: grid;
+  gap: var(--ux-space-3);
+  margin: var(--ux-space-0);
+}
+
+.scopeFact {
+  display: grid;
+  gap: var(--ux-space-1);
+}
+
+.scopeFact dt {
+  font-size: var(--ux-text-13);
+  font-weight: var(--ux-weight-semibold);
+}
+
+.scopeFact dd {
+  margin: var(--ux-space-0);
+}
+
 .block {
   display: grid;
   gap: var(--ux-space-2);
@@ -347,6 +391,45 @@
 .lineLabel {
   color: var(--ux-text);
   font-weight: var(--ux-weight-medium);
+}
+
+/* The source grade a prompt line states, under its name (the old prompt tab's source column). */
+.lineSource {
+  display: block;
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-12);
+  font-weight: var(--ux-weight-regular);
+}
+
+.lineValue {
+  display: grid;
+  gap: var(--ux-space-1);
+  min-inline-size: 0;
+}
+
+/* A run named inside a card (the normal pair, the other bundle): a link in the code face. */
+.runLink {
+  color: var(--ux-link);
+  font-family: var(--ux-mono);
+  font-size: var(--ux-text-12);
+  overflow-wrap: anywhere;
+}
+
+/* The business context the engine received: each record in words, its value and the engine's adverse mark. */
+.contextRows {
+  display: grid;
+  gap: var(--ux-space-2);
+  margin: var(--ux-space-0);
+  padding: var(--ux-space-0);
+  list-style: none;
+  font-size: var(--ux-text-14);
+}
+
+.contextRows li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ux-space-2);
 }
 
 .raw {

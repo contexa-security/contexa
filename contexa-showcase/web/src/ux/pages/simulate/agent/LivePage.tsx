@@ -6,7 +6,7 @@ import { REFERENCE_SNAPSHOT, useAgentSnapshot } from '../../../../api/agentSnaps
 import { useLiveConfig } from '../../../../api/queries';
 import { formatNumber } from '../../../format';
 import { AGENT_MAIN, agentPath, useAgentCases } from '../../../simulate/agent';
-import { AgentSteps, Instruction } from '../../../simulate/AgentParts';
+import { AgentSteps, CaseFacts, Instruction } from '../../../simulate/AgentParts';
 import { useLiveRows, useRecordRows, type AgentRow } from '../../../simulate/agentRows';
 import { DelegatorPanel } from '../../../simulate/DelegatorPanel';
 import { FlowSteps } from '../../../simulate/FlowFrame';
@@ -75,6 +75,7 @@ function Live({ caseKey }: { readonly caseKey: string }) {
             {t('ux.menu.agent')}
           </Badge>
           <CodeChip value={caseKey} />
+          {data ? <CaseFacts sender={data.sender} recorded={data.recorded} /> : null}
           {runId ? <CodeChip value={runId} copy /> : null}
         </>
       }
@@ -148,6 +149,10 @@ function Live({ caseKey }: { readonly caseKey: string }) {
   );
   const limit = record.data && LIMITS.has(record.data.stopReason) ? record.data.stopReason : null;
   const n = (value: number) => formatNumber(value, i18n.language);
+  const tokens = record.data?.cost.agent.totalTokens;
+  // The decision models' calls of the run, together and by model, as the run's cost records them (옛 6-2).
+  const calls = record.data?.cost.decisions ?? null;
+  const callWords = (count: number) => t('ux.agentLive.more.callsValue', { n: n(count), count });
 
   return (
     <>
@@ -203,6 +208,36 @@ function Live({ caseKey }: { readonly caseKey: string }) {
                 ) : null}
               </dl>
               {limit ? <Note tone="warn">{t(`ux.agentLive.limit.${limit}`)}</Note> : null}
+              {view || record.data ? (
+                <details className={styles.more}>
+                  <summary>{t('ux.agent.more')}</summary>
+                  <dl className={styles.moreFacts}>
+                    {view ? (
+                      <>
+                        <dt>{t('ux.agentLive.more.liveRun')}</dt>
+                        <dd>
+                          <code>{view.liveRunId}</code>
+                        </dd>
+                      </>
+                    ) : null}
+                    {record.data ? (
+                      <>
+                        <dt>{t('ux.agentLive.more.tokens')}</dt>
+                        <dd>{tokens === undefined ? '—' : n(tokens)}</dd>
+                        <dt>{t('ux.agentLive.more.calls')}</dt>
+                        <dd>
+                          {calls === null
+                            ? '—'
+                            : [
+                                callWords(calls.reduce((sum, call) => sum + call.calls, 0)),
+                                ...calls.map((call) => `${call.model} ${callWords(call.calls)}`),
+                              ].join(' · ')}
+                        </dd>
+                      </>
+                    ) : null}
+                  </dl>
+                </details>
+              ) : null}
               {record.data?.finalAnswer ? (
                 <details>
                   <summary>{t('ux.agentLive.work.answer')}</summary>

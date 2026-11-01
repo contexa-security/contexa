@@ -85,10 +85,8 @@ function CaseCard({ caseKey }: { readonly caseKey: string }) {
             </Badge>
           ) : null}
           {pairOfMain ? <Badge tone="line">{t('ux.flow.controlRun')}</Badge> : null}
-          <Badge tone="line">
-            {t(`ux.flow.truth.${truth}`)}
-            {truth === 'undetermined' ? ` · ${t('ux.agentPick.splits')}` : ''}
-          </Badge>
+          <Badge tone="line">{t(`ux.flow.truth.${truth}`)}</Badge>
+          {truth === 'undetermined' ? <Badge tone="line">{t('ux.agentPick.splits')}</Badge> : null}
         </span>
       </div>
       <h3 id={`agent-${caseKey}`} className={flow.branchTitle}>

@@ -37,7 +37,7 @@ export interface MenuGroup {
 }
 
 export const MENU: readonly MenuGroup[] = [
-  { id: 'live', items: [{ id: 'home', path: '/', icon: 'play' }] },
+  { id: 'live', items: [{ id: 'home', path: '/start', icon: 'play' }] },
   {
     id: 'simulate',
     items: [
@@ -82,21 +82,14 @@ export const ALL_ITEMS: readonly MenuItem[] = [...MENU.flatMap((group) => group.
 
 /** The menu an address belongs to: the item whose path is the address or begins it (`/runs/run-1` → 판정 이력). */
 export function menuItemOf(pathname: string): MenuItem | null {
-  if (pathname === '/') {
-    return ALL_ITEMS[0] ?? null;
-  }
-  return (
-    ALL_ITEMS.find(
-      (item) => item.path !== '/' && (pathname === item.path || pathname.startsWith(`${item.path}/`)),
-    ) ?? null
-  );
+  return ALL_ITEMS.find((item) => pathname === item.path || pathname.startsWith(`${item.path}/`)) ?? null;
 }
 
 export function groupOf(item: MenuItem): MenuGroup | null {
   return MENU.find((group) => group.items.includes(item)) ?? null;
 }
 
-/** The person cases of the old flow by role (src/pages/main/mainCases.ts): attacker S13, owner S13T, insider S16. */
+/** The person cases of the old flow by role: attacker S13, owner S13T, insider S16. */
 const S13 = '/simulate/person/S13';
 const S13T = '/simulate/person/S13T';
 const S16 = '/simulate/person/S16';
@@ -107,17 +100,18 @@ const S16 = '/simulate/person/S16';
  */
 export const OLD_ADDRESSES: Readonly<Record<string, string>> = {
   // The old start, its covers and hubs → the start of the demo
-  '/choose': '/',
+  '/choose': '/start',
+  // The old introduction leads to the new one (DEC-78); the other old start screens lead to the start of the demo.
   '/intro': '/',
-  '/intro/concept': '/',
-  '/intro/compare': '/',
-  '/intro/order': '/',
-  '/intro/map': '/',
-  '/explore': '/',
-  '/try': '/',
-  '/deeper': '/',
-  '/more': '/',
-  '/part/:part': '/',
+  '/intro/concept': '/start',
+  '/intro/compare': '/start',
+  '/intro/order': '/start',
+  '/intro/map': '/start',
+  '/explore': '/start',
+  '/try': '/start',
+  '/deeper': '/start',
+  '/more': '/start',
+  '/part/:part': '/start',
   // The people's requests → ATO & insider threat (S13 compromised account, S13T legitimate user, S16 insider)
   '/person': '/simulate/person',
   '/person/next': '/simulate/person',

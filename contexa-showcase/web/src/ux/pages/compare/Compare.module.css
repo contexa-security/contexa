@@ -205,6 +205,12 @@
   background-color: var(--ux-block);
 }
 
+/* Handled normally after a step-up (DEC-82): the allow tone as a ring, apart from a plain pass. */
+.dot[data-eval='afterCheck'] {
+  border: var(--ux-step-border) solid var(--ux-allow);
+  background-color: transparent;
+}
+
 .dotsTotal {
   color: var(--ux-text-2);
   font-size: var(--ux-text-13);
@@ -225,6 +231,43 @@
   display: inline-flex;
   align-items: center;
   gap: var(--ux-space-1);
+}
+
+/* A run's changed prompt lines, folded under "자세히" (옛 7-2, DEC-82). */
+.more {
+  margin-block-start: var(--ux-space-2);
+}
+
+.more summary {
+  color: var(--ux-link);
+  font-size: var(--ux-text-13);
+  cursor: pointer;
+}
+
+.delta {
+  display: grid;
+  gap: var(--ux-space-2);
+  padding-block-start: var(--ux-space-2);
+}
+
+.diffPair {
+  display: grid;
+  gap: var(--ux-space-1);
+}
+
+.diffPair code {
+  padding: var(--ux-space-1) var(--ux-space-2);
+  border-radius: var(--ux-radius-xs);
+  background-color: var(--ux-surface-2);
+  color: var(--ux-text);
+  font-family: var(--ux-mono);
+  font-size: var(--ux-text-12);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.diffPair code[data-side='before'] {
+  color: var(--ux-text-3);
 }
 
 @media (width < 1024px) {

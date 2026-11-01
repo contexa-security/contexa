@@ -1,0 +1,119 @@
+{
+  "employeeKey": "eng-k",
+  "displayName": "Design engineer K",
+  "department": "Design engineering HX",
+  "templateId": "tpl-eng-k-20261031011817-1",
+  "learned": {
+    "requests": 47,
+    "hours": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      7,
+      3,
+      9,
+      6,
+      4,
+      8,
+      8,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "weekdays": [
+      10,
+      9,
+      10,
+      9,
+      9,
+      0,
+      0
+    ],
+    "networks": [
+      "10.40.21.0/24"
+    ],
+    "devices": [
+      "WINDOWS",
+      "Edge/140"
+    ]
+  },
+  "taught": {
+    "reads": 30,
+    "downloads": 10,
+    "exports": 10,
+    "exportItemsMin": 10,
+    "exportItemsMax": 20,
+    "projects": {
+      "HX-310": 50
+    },
+    "from": "2026-09-16T09:29:00Z",
+    "to": "2026-09-29T17:04:00Z"
+  },
+  "requests": [
+    {
+      "no": 1,
+      "companyTime": "2026-09-16T09:29:00Z",
+      "operation": "DOCUMENT_READ",
+      "method": "GET",
+      "path": "/api/documents/HX-310-SPC-00083",
+      "items": null,
+      "clientAddress": "10.40.21.10",
+      "httpStatus": 200,
+      "finalAction": "ALLOW",
+      "unresolved": false,
+      "identityCheckPassed": null,
+      "reissueOutcome": null
+    },
+    {
+      "no": 2,
+      "companyTime": "2026-09-16T12:01:00Z",
+      "operation": "DOCUMENT_DOWNLOAD",
+      "method": "GET",
+      "path": "/api/documents/HX-310-TST-00972/download",
+      "items": null,
+      "clientAddress": "10.40.21.10",
+      "httpStatus": 200,
+      "finalAction": "ALLOW",
+      "unresolved": false,
+      "identityCheckPassed": null,
+      "reissueOutcome": null
+    }
+  ],
+  "sent": 50,
+  "allowed": 50,
+  "hours": {
+    "normalAccessHours": [
+      11,
+      12,
+      15,
+      16
+    ],
+    "observedHours": [
+      10,
+      11,
+      12,
+      14,
+      15,
+      16
+    ],
+    "runId": "run-43bf870226e7",
+    "stepNo": 1,
+    "companyTime": "2026-09-30T14:20:00Z",
+    "personalBaselineStatus": "ESTABLISHED",
+    "workProfileState": null,
+    "roleScopeState": "PROVISIONAL",
+    "observedScopeSummary": null
+  },
+  "capturedAt": "2026-10-31T01:38:00.150564500Z"
+}

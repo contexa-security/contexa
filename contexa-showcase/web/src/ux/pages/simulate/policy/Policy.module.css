@@ -104,6 +104,30 @@
   text-align: end;
 }
 
+/* UC-5 L-agent: the portal's scoring per control, in a stored answer's details. */
+
+.proofTable {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--ux-text-13);
+}
+
+.proofCell {
+  padding: var(--ux-space-2) var(--ux-space-3);
+  border-block-end: var(--ux-hairline) solid var(--ux-line);
+  text-align: start;
+  white-space: nowrap;
+}
+
+.proofHead {
+  color: var(--ux-text-3);
+  font-weight: var(--ux-weight-semibold);
+}
+
+.proofNum {
+  font-variant-numeric: tabular-nums;
+}
+
 .tableScroll {
   overflow-x: auto;
 }
@@ -327,6 +351,42 @@
   margin: var(--ux-space-0);
   font-size: var(--ux-text-16);
   font-weight: var(--ux-weight-semibold);
+}
+
+/* UC-5 (DEC-82): a live answer's time and items under its badge, and the collapsed "details" of each card. */
+
+.liveCell {
+  display: grid;
+  gap: var(--ux-space-1);
+  justify-items: start;
+}
+
+.liveMeta {
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-12);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.more summary {
+  color: var(--ux-link);
+  font-size: var(--ux-text-13);
+  cursor: pointer;
+}
+
+.more[open] summary {
+  margin-block-end: var(--ux-space-3);
+}
+
+.moreBody {
+  display: grid;
+  gap: var(--ux-space-3);
+  min-inline-size: 0;
+}
+
+.peers {
+  display: grid;
+  gap: var(--ux-space-1);
 }
 
 @media (width < 1024px) {

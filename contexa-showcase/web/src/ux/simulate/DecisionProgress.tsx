@@ -1,8 +1,10 @@
 import { useTranslation } from 'react-i18next';
-import type { DecisionAnatomyView } from '../../api/anatomy';
+import type { AnatomyCall, DecisionAnatomyView } from '../../api/anatomy';
 import type { AnalysisStage, DecisionWait, LiveDecision } from '../../api/types';
 import { formatDuration, formatNumber } from '../format';
 import { Bar, Icon } from '../ui';
+import { UX_VERDICTS } from '../verdict';
+import { verdictOf } from './person';
 import styles from './Live.module.css';
 
 type RowState = 'done' | 'now' | 'wait' | 'error';
@@ -29,6 +31,14 @@ interface DecisionProgressProps {
   readonly httpStatus: number | null;
   /** The request the panel follows in a case of several requests; null for a case of one. */
   readonly step: number | null;
+  /** The latest measurement's runs of the same scenario and Contexa's decisions in them (/api/benchmark); null without. */
+  readonly measured?: Measured | null;
+}
+
+/** The latest measurement of the scenario as the portal counts it: its runs and Contexa's decisions by action. */
+export interface Measured {
+  readonly runs: number;
+  readonly actions: Readonly<Record<string, number>>;
 }
 
 const has = (stages: readonly AnalysisStage[], type: string) =>
@@ -50,6 +60,7 @@ export function DecisionProgress({
   departed,
   httpStatus,
   step,
+  measured = null,
 }: DecisionProgressProps) {
   const { t, i18n } = useTranslation();
   const n = (value: number) => formatNumber(value, i18n.language);
@@ -173,6 +184,103 @@ export function DecisionProgress({
           })}
         </p>
       ) : null}
+      <EngineLog stages={stages} calls={anatomy?.interpretation?.calls ?? []} measured={measured} />
     </section>
+  );
+}
+
+/**
+ * The engine's record behind the rows, folded (P-8): each analysis event at the time the engine recorded it, with the
+ * action, risk and confidence a pass closed with; each model call's time and tokens; and the latest measurement's
+ * runs of the same scenario with Contexa's decisions in them. Every value is the record's own; nothing when it has none.
+ */
+function EngineLog({
+  stages,
+  calls,
+  measured,
+}: {
+  readonly stages: readonly AnalysisStage[];
+  readonly calls: readonly AnatomyCall[];
+  readonly measured: Measured | null;
+}) {
+  const { t, i18n } = useTranslation();
+  const n = (value: number) => formatNumber(value, i18n.language);
+  const seconds = (ms: number | null) => (ms === null ? '—' : formatDuration(ms, i18n.language));
+  const secondPass = stages.some((stage) => stage.type.startsWith('LAYER2_'));
+  const decided = Object.entries(measured?.actions ?? {}).filter(([, count]) => count > 0);
+  if (stages.length === 0 && calls.length === 0 && measured === null) {
+    return null;
+  }
+  const eventName = (type: string) =>
+    secondPass && type.startsWith('LAYER1_')
+      ? t(`ux.live.log.first.${type}`, { defaultValue: type })
+      : t(`ux.live.log.event.${type}`, { defaultValue: type });
+  return (
+    <details className={styles.logMore}>
+      <summary>{t('ux.live.log.more')}</summary>
+      {stages.length > 0 ? (
+        <>
+          <p className={styles.logHead}>{t('ux.live.log.events')}</p>
+          <ol className={styles.log}>
+            {stages.map((stage, index) => (
+              <li key={`${stage.type}-${index}`}>
+                <span>
+                  {[
+                    eventName(stage.type),
+                    stage.type.endsWith('_COMPLETE') ? stage.action : null,
+                    stage.type.endsWith('_COMPLETE') && stage.riskScore !== null
+                      ? t('ux.live.stage.scores', {
+                          risk: stage.riskScore.toFixed(2),
+                          confidence: stage.confidence?.toFixed(2) ?? '—',
+                        })
+                      : null,
+                  ]
+                    .filter((part): part is string => part !== null)
+                    .join(' · ')}
+                </span>
+                <span className={styles.logAt}>
+                  {stage.atMs !== null ? t('ux.live.log.at', { seconds: seconds(stage.atMs) }) : '—'}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </>
+      ) : null}
+      {calls.length > 0 ? (
+        <>
+          <p className={styles.logHead}>{t('ux.live.log.calls')}</p>
+          <ul className={styles.log}>
+            {calls.map((call) => (
+              <li key={call.callNo}>
+                <span>
+                  {t('ux.live.log.call', {
+                    n: call.callNo,
+                    seconds: seconds(call.elapsedMs),
+                    input: call.promptTokens === null ? '—' : n(call.promptTokens),
+                    output: call.completionTokens === null ? '—' : n(call.completionTokens),
+                  })}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+      {measured ? (
+        <p className={styles.logMeasured}>
+          {t('ux.live.log.measured', {
+            runs: n(measured.runs),
+            list:
+              decided
+                .map(([action, count]) =>
+                  t('ux.live.log.action', {
+                    verdict: t(UX_VERDICTS[verdictOf(action)].labelKey),
+                    n: n(count),
+                  }),
+                )
+                .join(' · ') || '—',
+          })}
+        </p>
+      ) : null}
+    </details>
   );
 }

@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { useBenchmark, type BenchmarkView, type ControlScore } from '../../../api/benchmark';
+import { useStats } from '../../../api/queries';
 import { usePublicSettings, type PublicSettingsView } from '../../../api/settings';
 import { formatNumber, formatUtc } from '../../format';
 import {
@@ -73,10 +74,11 @@ export default function ValidationPage() {
           {t('ux.validation.nature.text', {
             from: formatUtc(spec.firstRunAt).slice(0, 10),
             to: formatUtc(spec.lastRunAt).slice(0, 10),
+            build: spec.codeCommit,
             bundles: (spec.promptBundles ?? []).join(', ') || '—',
             repeat: sentPerCase(view),
           })}{' '}
-          <Badge tone="line">{t('ux.validation.nature.remeasure')}</Badge>
+          <BuildBadge measured={spec.codeCommit} />
         </Note>
       ) : null}
       <Tabs
@@ -119,6 +121,24 @@ export default function ValidationPage() {
         )}
       </TabPanel>
     </>
+  );
+}
+
+/**
+ * Whether the measurement is the current build's (UC-14): its code commit against the one of the latest counted run
+ * (the engine running now). Nothing is said while the operations record is not read.
+ */
+function BuildBadge({ measured }: { readonly measured: string }) {
+  const { t } = useTranslation();
+  const stats = useStats();
+  const running = stats.data?.spec?.codeCommit ?? null;
+  if (running === null) {
+    return null;
+  }
+  return running === measured ? (
+    <Badge tone="allow">{t('ux.validation.nature.current')}</Badge>
+  ) : (
+    <Badge tone="line">{t('ux.validation.nature.remeasure')}</Badge>
   );
 }
 

@@ -1,5 +1,13 @@
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
-import { useAnatomy, useReceived, type BeforeSendView, type DecisionAnatomyView } from '../../api/anatomy';
+import {
+  useAnatomy,
+  useInputChanges,
+  useReceived,
+  type BeforeSendView,
+  type DecisionAnatomyView,
+  type InputChange,
+} from '../../api/anatomy';
 import { useLabOptions } from '../../api/lab';
 import { useRunScore } from '../../api/queries';
 import type { RunScore } from '../../api/types';
@@ -61,6 +69,8 @@ export function CompareView({
   const { t, i18n } = useTranslation();
   const attacker = useSide('S13', attackerRun);
   const owner = useSide('S13T', ownerRun);
+  // The portal's own comparison of what the engine received in the two runs (before: the attacker's, now: the owner's).
+  const changes = useInputChanges(ownerRun, attackerRun, 1);
   const options = useLabOptions();
   const runs = usePersonRuns();
   const n = (value: number) => formatNumber(value, i18n.language);
@@ -183,6 +193,7 @@ export function CompareView({
             </tbody>
           </table>
         </div>
+        {changes.data ? <InputChanges lines={changes.data} /> : null}
       </section>
       <div className={styles.bottom}>
         {split ? (
@@ -240,6 +251,63 @@ export function CompareView({
         </div>
       ) : null}
     </>
+  );
+}
+
+/**
+ * One engine input line as the portal compares it: a comparison with the baseline (`dim.device`, `Safari/18 on MAC ·
+ * false`) is named by its dimension, with the engine's membership label in words; any other input stays as the engine
+ * received it (`ApprovalMissing`).
+ */
+function inputText(t: TFunction, value: string | null): string {
+  if (value === null) {
+    return '—';
+  }
+  const at = value.lastIndexOf(' · ');
+  const label = at < 0 ? null : value.slice(at + 3);
+  const words = label === 'false' ? t('ux.flag.deviation') : label === 'true' ? t('ux.facts.mark.in') : null;
+  return words === null ? value : `${value.slice(0, at)} · ${words}`;
+}
+
+/**
+ * Where the engine's input differed between the two runs, line by line, as the portal compared it (P-8, the old 4-3
+ * table): folded under the request facts, with the count of lines in its summary.
+ */
+function InputChanges({ lines }: { readonly lines: readonly InputChange[] }) {
+  const { t, i18n } = useTranslation();
+  if (lines.length === 0) {
+    return <p className={styles.inputsNone}>{t('ux.compare.inputs.none')}</p>;
+  }
+  return (
+    <details className={styles.inputs}>
+      <summary>{t('ux.compare.inputs.more', { n: formatNumber(lines.length, i18n.language) })}</summary>
+      <p className={styles.inputsSub}>{t('ux.compare.inputs.sub')}</p>
+      <div className={styles.tableScroll}>
+        <table className={styles.table}>
+          <caption className="ux-sr-only">{t('ux.compare.inputs.col')}</caption>
+          <thead>
+            <tr>
+              <th scope="col">{t('ux.compare.inputs.col')}</th>
+              <th scope="col">{t('ux.pick.S13.title')}</th>
+              <th scope="col">{t('ux.pick.S13T.title')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((line) => (
+              <tr key={line.key}>
+                <th scope="row">
+                  {line.key.startsWith('dim.')
+                    ? t(`ux.compare.dim.${line.key.slice(4)}`, { defaultValue: line.key.slice(4) })
+                    : line.key}
+                </th>
+                <td>{inputText(t, line.before)}</td>
+                <td>{inputText(t, line.now)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
   );
 }
 

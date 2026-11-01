@@ -84,6 +84,7 @@ export function RunDots({
               to={`/runs/${encodeURIComponent(run.runId)}`}
               className={styles.dot}
               data-tone={graded ? EVAL_TONES[graded] : 'none'}
+              data-eval={graded ?? undefined}
               aria-label={t('ux.validation.dot', {
                 run: run.runId,
                 result: graded ? t(`ux.eval.${graded}`) : t('ux.validation.notScored'),
@@ -100,9 +101,10 @@ export function RunDots({
 /** The legend of the run dots: each result once, in the tone its dot takes (the old case map's legend). */
 export function DotLegend() {
   const { t } = useTranslation();
-  const items: readonly (readonly [string, string])[] = [
+  const items: readonly (readonly [string, string, string?])[] = [
     [t('ux.eval.correct'), EVAL_TONES.correct],
     [t('ux.eval.normal'), EVAL_TONES.normal],
+    [t('ux.eval.afterCheck'), EVAL_TONES.afterCheck, 'afterCheck'],
     [t('ux.eval.partial'), EVAL_TONES.partial],
     [t('ux.eval.missed'), EVAL_TONES.missed],
     [t('ux.eval.falsePositive'), EVAL_TONES.falsePositive],
@@ -110,9 +112,9 @@ export function DotLegend() {
   ];
   return (
     <ul className={styles.legend} aria-label={t('ux.validation.dotLegend')}>
-      {items.map(([label, tone]) => (
+      {items.map(([label, tone, graded]) => (
         <li key={label}>
-          <i className={styles.dot} data-tone={tone} aria-hidden="true" />
+          <i className={styles.dot} data-tone={tone} data-eval={graded} aria-hidden="true" />
           {label}
         </li>
       ))}

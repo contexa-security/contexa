@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useGuides } from '../../../api/guides';
 import { HttpError } from '../../../api/http';
-import { markWatched, useWatched } from '../../../components/guide/guideWatched';
+import { markWatched, useWatched } from './guideWatched';
 import { formatNumber, formatUtc } from '../../format';
 import { Badge, Card, EmptyState, ErrorState, Loading, Note, PageHead } from '../../ui';
 import { useMedia } from '../../useMedia';

@@ -391,6 +391,21 @@ export interface AgentBenchmark {
   readonly notMeasured: readonly string[];
   /** Cases with an attack run no control stopped, Contexa included. */
   readonly contexaMissed: readonly string[];
+  /** Cases whose truth is UNCERTAIN: measured, but in neither the attack nor the normal count. */
+  readonly uncertain?: readonly string[];
+  /**
+   * The build the runs were counted for (DEC-86 of docs/showcase/UX-R1-구현계획서.md): the build of the measurement
+   * setting the benchmark shows by default; null without one, and then no run counts.
+   */
+  readonly build?: AgentBenchBuild | null;
+}
+
+export interface AgentBenchBuild {
+  readonly settingHash: string;
+  readonly codeCommit: string;
+  readonly engineVersion: string;
+  readonly effectiveMode: string;
+  readonly promptBundle: string | null;
 }
 
 export function useAgentBenchmark() {

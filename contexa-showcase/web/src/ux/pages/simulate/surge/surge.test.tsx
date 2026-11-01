@@ -6,6 +6,7 @@ import type { LiveRunView } from '../../../../api/types';
 import i18n from '../../../../i18n';
 import caseM41A from '../../../test/fixtures/agent-case-M41A.test.json';
 import ownBurst from '../../../test/fixtures/agent-run-burst.test.json';
+import runN1 from '../../../test/fixtures/agent-run-n1.test.json';
 import anatomiesA6 from '../../../test/fixtures/anatomies-A6.test.json';
 import anatomiesA6T from '../../../test/fixtures/anatomies-A6T.test.json';
 import labOptions from '../../../test/fixtures/lab-options.test.json';
@@ -112,7 +113,7 @@ describe('requests sent at once', () => {
     const send = screen.getByRole('button', { name: '3건 동시 전송' });
     await waitFor(() => expect(send).not.toHaveAttribute('aria-disabled'));
     await userEvent.click(send);
-    const dialog = await screen.findByRole('dialog', { name: '같은 요청 3건을 한꺼번에 보냅니다' });
+    const dialog = await screen.findByRole('dialog', { name: '같은 요청 3건을 동시에 보냅니다' });
     expect(within(dialog).getByText(/에이전트 실행 1회와 실행 점수 5점을 씁니다/)).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole('button', { name: '3건 동시 전송' }));
     await waitFor(() => expect(posts).toHaveLength(1));
@@ -194,6 +195,50 @@ describe('requests sent at once', () => {
     expect(within(calls).getAllByRole('cell')[0]).toHaveTextContent(String(own.modelCalls));
   });
 
+  it('names the sender and titles the measurement of sixty, with the first stop, its storing time and its requests (P-8, 옛 6-6)', async () => {
+    // The stored runs come with their steps; the fixtures keep none, so the run's rows here are a real run's steps.
+    const steps = runN1.steps.slice(0, 2);
+    serve({ '/api/agent-snapshots/M41A-flights-on': { ...m41aOn, run: { ...m41aOn.run, steps } } });
+    open('/simulate/surge');
+    expect(await screen.findByText('요청 주체 · 위임 에이전트')).toBeInTheDocument();
+    const measured = await screen.findByRole('region', { name: '동일 요청 60건 동시 유입(문서 목록)' });
+    const table = within(measured).getByRole('table', { name: '판정 통합 결과' });
+    const row = (name: string) =>
+      within(within(table).getByRole('row', { name: new RegExp(`^${name}`) }))
+        .getAllByRole('cell')
+        .map((cell) => cell.textContent);
+    expect(row('처음 멈춘 뒤 전달된 요청')).toEqual([
+      String(m41aOn.summary.deliveredAfterFirstStop),
+      String(m41aOff.summary.deliveredAfterFirstStop),
+    ]);
+    expect(row('처음 멈춘 요청')).toEqual(['멈추지 않음', '멈추지 않음']);
+    expect(within(measured).getByText(/판정 통합 켬 측정 저장 시각 2026-10-26 15:29 \(세계 표준시\)/)).toBeInTheDocument();
+    const timeline = within(measured).getByRole('table', { name: '판정 통합 켬 측정의 요청별 응답' });
+    expect(within(timeline).getAllByRole('row')).toHaveLength(steps.length + 1);
+    expect(within(timeline).getByRole('columnheader', { name: '자체 판정' })).toBeInTheDocument();
+    expect(within(timeline).getAllByRole('columnheader', { name: '모델 호출' })).toHaveLength(1);
+  });
+
+  it('keeps every count of the other two measurements, merging off as well as on (P-8, 옛 6-6)', async () => {
+    serve();
+    open('/simulate/surge');
+    const sensitive = await screen.findByRole('region', { name: '민감한 고객 기록 40건 동시 읽기', hidden: true });
+    const table = within(sensitive).getByRole('table', { name: '민감한 고객 기록 40건 동시 읽기', hidden: true });
+    const row = (name: string) =>
+      within(within(table).getByRole('row', { name: new RegExp(`^${name}`), hidden: true }))
+        .getAllByRole('cell', { hidden: true })
+        .map((cell) => cell.textContent);
+    expect(row('보낸 요청')).toEqual([String(m41tOn.summary.requests), String(m41tOff.summary.requests)]);
+    expect(row('자체 판정이 있는 요청')).toEqual([
+      String(m41tOn.summary.withVerdict),
+      String(m41tOff.summary.withVerdict),
+    ]);
+    expect(row('처음 멈춘 요청')).toEqual([`요청 ${m41tOn.summary.firstStopStep}`, `요청 ${m41tOff.summary.firstStopStep}`]);
+    expect(
+      within(sensitive).getByText(/판정 통합 켬 측정 저장 시각 2026-10-26 15:29 \(세계 표준시\)/),
+    ).toBeInTheDocument();
+  });
+
   it('says a burst that did not finish and that the run is given back (ST-33)', async () => {
     serve({ '/api/live/runs/current': liveView({ status: 'FAILED' }) });
     open('/simulate/surge');
@@ -211,5 +256,19 @@ describe('the same lookup repeated', () => {
     const work = screen.getByRole('region', { name: /^정상 업무/ });
     await waitFor(() => expect(within(work).getAllByText('허용')).toHaveLength(5));
     expect(within(work).getByText('저장된 실제 실행')).toBeInTheDocument();
+  });
+
+  it('says the place in line of the normal work sent live, and a run that ended without its work (P-8, 옛 M-stack)', async () => {
+    serve({
+      '/api/live/runs/current': liveView({ scenario: 'A6T', status: 'QUEUED', queuePosition: 3, queueWaitSeconds: 40 }),
+    });
+    const first = open('/simulate/surge?tab=repeat');
+    expect(await screen.findByText('대기 순서 3번 약 40초 남았습니다')).toBeInTheDocument();
+    first.unmount();
+    serve({ '/api/live/runs/current': liveView({ scenario: 'A6T', status: 'EXPIRED' }) });
+    open('/simulate/surge?tab=repeat');
+    expect(
+      await screen.findByText('이번 실행은 판정을 끝내지 못했습니다. 다시 실행하면 새 판정을 받습니다.'),
+    ).toBeInTheDocument();
   });
 });
