@@ -77,7 +77,7 @@ describe('the scenario validation', () => {
     expect(
       screen.getByText(`Contexa 미탐 ${control('D').missed}회 · 기존 통제 최저 미탐 ${fewest}회`),
     ).toBeInTheDocument();
-    const table = screen.getByRole('table', { name: '보안 통제별 결과' });
+    const table = screen.getByRole('table', { name: '보안 통제별 미탐 · 오탐' });
     const names: Record<string, string> = {
       A: '웹 방화벽(WAF)',
       B: '인증 · 권한(IAM)',
@@ -112,7 +112,7 @@ describe('the scenario validation', () => {
       within(rates).getAllByText(`${contexa.stoppedAny.hits} / ${contexa.stoppedAny.total}`, { exact: false })
         .length,
     ).toBeGreaterThan(0);
-    expect(screen.getByText(/AI 판단 전에 인증 · 권한이 먼저 거절한/)).toBeInTheDocument();
+    expect(screen.getByText(/AI 판정 전에 인증 · 권한이 먼저 거절한/)).toBeInTheDocument();
     first.unmount();
     serve();
     open('/validation?tab=controls&suite=RULE_BLIND');
@@ -125,7 +125,7 @@ describe('the scenario validation', () => {
       }).length,
     ).toBeGreaterThan(0);
     // The static refusals are counted over every scenario: a named group does not state them.
-    expect(screen.queryByText(/AI 판단 전에 인증 · 권한이 먼저 거절한/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/AI 판정 전에 인증 · 권한이 먼저 거절한/)).not.toBeInTheDocument();
   });
 
   it('opens a scenario beside the list with what handling it right means, and says one the record lacks (ST-62)', async () => {
@@ -187,7 +187,7 @@ describe('the scenario validation', () => {
         `기존 통제 네 곳이 모두 통과시킨 공격 ${agent.total.existingMissed}건 중 Contexa가 ${agent.total.contexaStopped}건(${(agent.total.contexaShare * 100).toFixed(1)}%)을 막았습니다.`,
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole('table', { name: '경로별 결과' }).querySelectorAll('tbody tr')).toHaveLength(
+    expect(screen.getByRole('table', { name: '에이전트 시나리오 결과' }).querySelectorAll('tbody tr')).toHaveLength(
       agent.byPath.length + 1,
     );
     first.unmount();

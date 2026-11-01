@@ -180,7 +180,7 @@ describe('step 2: reviewing the request and predicting', () => {
       '계정',
       '요청 시각',
       '단말',
-      '로그인 인증',
+      '인증 방식',
       '반출 규모',
     ]);
     expect(within(request).getByText('480건')).toBeInTheDocument();
@@ -535,13 +535,13 @@ describe('step 3: the live decision', () => {
       });
     serve({ '/api/live/runs/current': with_('CANCELLED') });
     const first = flow('/simulate/person/S13T/live');
-    expect(await screen.findByText('추가 인증을 취소했습니다. 요청은 보류 중입니다.')).toBeInTheDocument();
+    expect(await screen.findByText('추가 인증을 취소했습니다. 요청은 멈춰 있습니다.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '다시 확인' })).toBeInTheDocument();
     first.unmount();
     serve({ '/api/live/runs/current': with_('EXPIRED') });
     flow('/simulate/person/S13T/live');
     expect(await screen.findByText('확인 시간이 지났습니다.')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: '처음부터 다시 실행' }));
+    await userEvent.click(screen.getByRole('button', { name: '같은 시나리오 다시 실행' }));
     expect(screen.getByTestId('where')).toHaveTextContent('/simulate/person/S13T/review');
   });
 
@@ -629,7 +629,7 @@ describe('step 3: the live decision', () => {
     expect(
       await screen.findByText('업무를 이어 가지 못했습니다. 코드를 3회 잘못 입력했습니다.'),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '처음부터 다시 실행' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '같은 시나리오 다시 실행' })).toBeInTheDocument();
   });
 
   it('asks for the release at once for the compromised account, whose block stays (ST-14)', async () => {

@@ -105,7 +105,7 @@ describe('requests sent at once', () => {
     const posts = serve({}, { '/api/live/runs': { status: 202, body: liveView({}) } });
     open('/simulate/surge');
     expect(await screen.findByText(liveConfig.burst.title.ko)).toBeInTheDocument();
-    const choices = screen.getByRole('radiogroup', { name: '한꺼번에 보낼 요청 수' });
+    const choices = screen.getByRole('radiogroup', { name: '동시에 보낼 요청 수' });
     expect(within(choices).getAllByRole('radio').map((radio) => radio.textContent)).toEqual(['1건', '3건', '5건', '10건']);
     expect(within(choices).getByRole('radio', { name: '10건' })).toHaveAttribute('aria-checked', 'true');
     await userEvent.click(within(choices).getByRole('radio', { name: '3건' }));

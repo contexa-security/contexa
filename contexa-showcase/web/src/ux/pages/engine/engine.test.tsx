@@ -83,7 +83,7 @@ describe('the AI decision engine', () => {
   it('sets the run against a measured run of normal work that was learned, and seals with every check counted', async () => {
     serve();
     open('/engine');
-    const learning = await screen.findByRole('region', { name: '기준선 학습 반영' });
+    const learning = await screen.findByRole('region', { name: '기준선 학습 범위' });
     const other = anatomiesA6T.steps[0]?.figures;
     await waitFor(() =>
       expect(learning).toHaveTextContent(`${other?.baselineBefore} → ${other?.baselineAfter}`),
@@ -99,7 +99,7 @@ describe('the AI decision engine', () => {
   it('says how long each decision holds in the largest whole unit', async () => {
     serve();
     open('/engine');
-    const follow = await screen.findByRole('region', { name: '판정 뒤의 후속 조치' });
+    const follow = await screen.findByRole('region', { name: '판정별 후속 조치' });
     expect(await within(follow).findByText('HTTP 401 · 30분 유지')).toBeInTheDocument();
     expect(within(follow).getByText('HTTP 403 · 해제할 때까지 유지')).toBeInTheDocument();
   });

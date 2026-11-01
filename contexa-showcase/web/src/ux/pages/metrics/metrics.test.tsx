@@ -140,7 +140,7 @@ describe('the operational metrics', () => {
     none.unmount();
     vi.unstubAllGlobals();
     open('agreement', empty);
-    expect(await screen.findByText('공개 녹화 기록이 없습니다.')).toBeInTheDocument();
+    expect(await screen.findByText('공개 녹화 실행이 없습니다.')).toBeInTheDocument();
   });
 
   it('opens every tab from the real answer', async () => {

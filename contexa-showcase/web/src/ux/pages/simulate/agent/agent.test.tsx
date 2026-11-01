@@ -165,7 +165,7 @@ describe('step 1: the agent scenarios', () => {
     expect(within(m14a).getByText('정답 미지정 · 판정이 갈리는 시나리오')).toBeInTheDocument();
     expect(await within(m14a).findByText(/점수에서 제외/)).toBeInTheDocument();
     const m10a = screen.getByRole('article', { name: caseM10A.title.ko });
-    expect(await within(m10a).findByText('위임 기록 없음')).toBeInTheDocument();
+    expect(await within(m10a).findByText('위임 등록 없음')).toBeInTheDocument();
   });
 });
 
@@ -281,7 +281,7 @@ describe('step 2: the delegation and the call', () => {
   it('says when the company has no delegation on record (M10A) and when no answer is set (M14A, ST-30)', async () => {
     serve();
     const first = flow('/simulate/agent/M10A/review');
-    expect(await screen.findByText('회사 기록에 이 에이전트의 위임이 없습니다. 토큰은 유효합니다.')).toBeInTheDocument();
+    expect(await screen.findByText('업무 컨텍스트에 이 에이전트의 위임이 없습니다. 토큰은 유효합니다.')).toBeInTheDocument();
     first.unmount();
     flow('/simulate/agent/M14A/review');
     expect(await screen.findByText(/정답 미지정 시나리오입니다/)).toBeInTheDocument();
@@ -389,7 +389,7 @@ describe('step 4: the result', () => {
       await screen.findByRole('heading', { level: 1, name: '요청 1에서 위임자 확인을 요구했고, 위임자가 승인했습니다' }),
     ).toBeInTheDocument();
     expect(screen.getByText('기존 4개 통제는 모든 요청을 통과시켰습니다.')).toBeInTheDocument();
-    const confirm = screen.getByRole('region', { name: '위임자 확인' });
+    const confirm = screen.getByRole('region', { name: '위임자 응답별 결과' });
     expect(within(confirm).getByText('위임자가 승인했습니다')).toBeInTheDocument();
     expect(await within(confirm).findByText('위임자가 신고했습니다')).toBeInTheDocument();
     expect(within(confirm).getByText(reportT5.runId)).toBeInTheDocument();

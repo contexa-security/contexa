@@ -237,7 +237,7 @@ describe('the application routes', () => {
           home: /같은 계정/,
           person: '위협 시나리오 선택',
           agent: '위협 시나리오 선택',
-          surge: '요청이 한꺼번에 몰릴 때의 대응',
+          surge: '요청 급증 대응',
         }[item.id as string] ?? name;
       expect(await screen.findByRole('heading', { level: 1, name: heading })).toBeInTheDocument();
       const nav = screen.getByRole('navigation', { name: '주 메뉴' });

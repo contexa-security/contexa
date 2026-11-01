@@ -166,8 +166,8 @@ describe('composing one change', () => {
         : { status: 404, body: {} };
     });
     open('/simulate/policy?tab=compose&case=S13&field=place&to=EXTERNAL');
-    const before = await screen.findByRole('table', { name: '전송 전 비교' });
-    const usual = await within(before).findByRole('row', { name: /평소와 다른 점/ });
+    const before = await screen.findByRole('table', { name: '전송 전 입력 비교' });
+    const usual = await within(before).findByRole('row', { name: /기준선 이탈/ });
     expect(usual).toHaveTextContent(`${beforeS13.comparison.departureCount}개`);
     expect(within(before).queryByText('달라짐')).not.toBeInTheDocument();
     expect(
@@ -243,7 +243,7 @@ describe("the composed run's result", () => {
       [`/api/runs/${run}/versus?against=${against}`]: versusLab,
     });
     open('/simulate/policy?tab=compose&case=S13T&field=items&to=40&sent=live-c1');
-    const result = await screen.findByRole('region', { name: /결과 비교/ });
+    const result = await screen.findByRole('region', { name: /실행 결과/ });
     const waf = await within(result).findByRole('row', { name: /웹 방화벽/ });
     expect(within(waf).getByText('정상 처리')).toBeInTheDocument();
     expect(within(waf).getByText('허용')).toBeInTheDocument();

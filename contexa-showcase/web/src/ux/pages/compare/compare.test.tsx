@@ -68,7 +68,7 @@ describe('detection compared', () => {
         `야간(${threshold.nightStart}~${threshold.nightEnd}) 대량 반출 · ${threshold.volumeLimit}건 초과 반출 · ${threshold.dormantWindowDays}일간 접근 없던 프로젝트 접근을 차단`,
       ),
     ).toBeInTheDocument();
-    const table = screen.getByRole('table', { name: '임계값 규칙' });
+    const table = screen.getByRole('table', { name: '임계값 규칙 적용 결과' });
     expect(within(table).getByRole('link', { name: ATTACKER })).toHaveAttribute('href', `/runs/${ATTACKER}`);
     expect(within(table).getAllByText(/공개 녹화/)).toHaveLength(2);
     expect(await screen.findByText('규칙은 두 요청을 구분하지 못합니다')).toBeInTheDocument();
