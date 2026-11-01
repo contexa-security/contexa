@@ -28,6 +28,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -35,7 +36,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * The call limits and the denial alarm of agents (docs/agent A5-7, AG-11e; OWASP ASI02, ASI08; MCP rate limiting).
@@ -55,6 +59,8 @@ public class AgentCallGuard {
 
     static final Duration MINUTE = Duration.ofMinutes(1);
     static final int CAPACITY = 20_000;
+    /** QF-42: how many keys of each count one call looks at for a count whose window has passed. */
+    static final int FORGET_STEP = 4;
 
     private final SecurityZeroTrustProperties.CallLimit limits;
     private final SecurityZeroTrustProperties.DenialAlarm alarm;
@@ -65,6 +71,11 @@ public class AgentCallGuard {
     private final Map<String, Deque<Instant>> calls = new ConcurrentHashMap<>();
     private final Map<String, Deque<Outcome>> outcomes = new ConcurrentHashMap<>();
     private final Map<String, Instant> lastReported = new ConcurrentHashMap<>();
+    /** Where the forgetting of idle counts goes on (QF-42); used by one call at a time. */
+    private final ReentrantLock forgetting = new ReentrantLock();
+    private Iterator<String> callKeys = Collections.emptyIterator();
+    private Iterator<String> outcomeKeys = Collections.emptyIterator();
+    private Iterator<String> reportKeys = Collections.emptyIterator();
     private AgentContainmentService containment;
     private BooleanSupplier enforcing = () -> true;
 
@@ -147,25 +158,28 @@ public class AgentCallGuard {
         String key = subject.storageKey();
         if (outcomes.size() >= CAPACITY) {
             Instant old = now.minus(alarm.getWindow());
-            outcomes.entrySet().removeIf(entry -> {
-                synchronized (entry.getValue()) {
-                    Outcome last = entry.getValue().peekLast();
-                    return last == null || !last.at().isAfter(old);
-                }
-            });
-        }
-        Deque<Outcome> window = outcomes.computeIfAbsent(key, ignored -> new ArrayDeque<>());
-        int requests;
-        int refused;
-        synchronized (window) {
-            window.addLast(new Outcome(now, denied));
-            Instant since = now.minus(alarm.getWindow());
-            while (!window.isEmpty() && !window.peekFirst().at().isAfter(since)) {
-                window.pollFirst();
+            for (String idle : outcomes.keySet()) {
+                forgetIfIdle(outcomes, idle, Outcome::at, old);
             }
-            requests = window.size();
-            refused = (int) window.stream().filter(Outcome::denied).count();
         }
+        forgetIdle(now);
+        int[] counted = new int[2];
+        // Counted within the key's entry, so forgetting an idle key cannot drop this outcome (QF-42).
+        outcomes.compute(key, (ignored, recent) -> {
+            Deque<Outcome> window = recent != null ? recent : new ArrayDeque<>();
+            synchronized (window) {
+                window.addLast(new Outcome(now, denied));
+                Instant since = now.minus(alarm.getWindow());
+                while (!window.isEmpty() && !window.peekFirst().at().isAfter(since)) {
+                    window.pollFirst();
+                }
+                counted[0] = window.size();
+                counted[1] = (int) window.stream().filter(Outcome::denied).count();
+            }
+            return window;
+        });
+        int requests = counted[0];
+        int refused = counted[1];
         if (requests >= alarm.getMinRequests() && (double) refused / requests >= alarm.getRate()
                 && reportDue("alarm:" + key, now, alarm.getWindow())) {
             raiseAlarm(subject, requests, refused);
@@ -174,15 +188,22 @@ public class AgentCallGuard {
 
     private int count(String key, Instant now) {
         trim();
-        Deque<Instant> recent = calls.computeIfAbsent(key, ignored -> new ArrayDeque<>());
+        forgetIdle(now);
         Instant since = now.minus(MINUTE);
-        synchronized (recent) {
-            while (!recent.isEmpty() && !recent.peekFirst().isAfter(since)) {
-                recent.pollFirst();
+        int[] counted = new int[1];
+        // Counted within the key's entry, so forgetting an idle key cannot drop this call (QF-42).
+        calls.compute(key, (ignored, recent) -> {
+            Deque<Instant> window = recent != null ? recent : new ArrayDeque<>();
+            synchronized (window) {
+                while (!window.isEmpty() && !window.peekFirst().isAfter(since)) {
+                    window.pollFirst();
+                }
+                window.addLast(now);
+                counted[0] = window.size();
             }
-            recent.addLast(now);
-            return recent.size();
-        }
+            return window;
+        });
+        return counted[0];
     }
 
     /**
@@ -299,16 +320,70 @@ public class AgentCallGuard {
         }
     }
 
+    int trackedCallKeys() {
+        return calls.size();
+    }
+
+    int trackedOutcomeKeys() {
+        return outcomes.size();
+    }
+
+    int trackedReportKeys() {
+        return lastReported.size();
+    }
+
     /** Forgets the counts of keys that made no request for a while, when there are many. */
     private void trim() {
         if (calls.size() < CAPACITY) {
             return;
         }
         Instant since = clock.instant().minus(MINUTE);
-        calls.entrySet().removeIf(entry -> {
-            synchronized (entry.getValue()) {
-                Instant last = entry.getValue().peekLast();
-                return last == null || !last.isAfter(since);
+        for (String idle : calls.keySet()) {
+            forgetIfIdle(calls, idle, Function.identity(), since);
+        }
+    }
+
+    /**
+     * QF-42: forgets, a few keys on each call and whatever the infrastructure mode, the counts whose newest entry left
+     * its window (a minute for the calls, the alarm window for the outcomes) and the report times past their interval.
+     * Such a count or time answers as no entry does, so no limit, alarm or report reads anything else; a call that
+     * finds another one forgetting goes on without.
+     */
+    private void forgetIdle(Instant now) {
+        if (!forgetting.tryLock()) {
+            return;
+        }
+        try {
+            Instant callsSince = now.minus(MINUTE);
+            Instant outcomesSince = now.minus(alarm.getWindow());
+            callKeys = forgetStep(calls, callKeys, key -> forgetIfIdle(calls, key, Function.identity(), callsSince));
+            outcomeKeys = forgetStep(outcomes, outcomeKeys, key -> forgetIfIdle(outcomes, key, Outcome::at,
+                    outcomesSince));
+            reportKeys = forgetStep(lastReported, reportKeys, key -> lastReported.computeIfPresent(key,
+                    (ignored, last) -> last.plus(key.startsWith("alarm:") ? alarm.getWindow() : MINUTE)
+                            .isAfter(now) ? last : null));
+        } finally {
+            forgetting.unlock();
+        }
+    }
+
+    /** Looks at the next {@link #FORGET_STEP} keys after {@code cursor}, from the first again once all were seen. */
+    private static Iterator<String> forgetStep(Map<String, ?> counts, Iterator<String> cursor,
+                                               Consumer<String> forget) {
+        Iterator<String> keys = cursor.hasNext() ? cursor : counts.keySet().iterator();
+        for (int looked = 0; looked < FORGET_STEP && keys.hasNext(); looked++) {
+            forget.accept(keys.next());
+        }
+        return keys;
+    }
+
+    /** Removes the key's count when its newest entry is not after {@code since}, unless a call counts in between. */
+    private static <T> void forgetIfIdle(Map<String, Deque<T>> counts, String key, Function<T, Instant> at,
+                                         Instant since) {
+        counts.computeIfPresent(key, (ignored, window) -> {
+            synchronized (window) {
+                T last = window.peekLast();
+                return last == null || !at.apply(last).isAfter(since) ? null : window;
             }
         });
     }

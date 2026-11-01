@@ -52,34 +52,36 @@ export default function BenchAgentPage() {
               to: view.scope.to?.slice(0, 10) ?? '-',
             })}
           </p>
-          <table className={styles.table} aria-label={t('bench.agent.paths')}>
-            <thead>
-              <tr>
-                <th scope="col">{t('bench.agent.col.path')}</th>
-                <th scope="col">{t('bench.agent.col.runs')}</th>
-                <th scope="col">{t('bench.agent.col.attacks')}</th>
-                <th scope="col">{t('bench.agent.col.missed')}</th>
-                <th scope="col">{t('bench.agent.col.stopped')}</th>
-                <th scope="col">{t('bench.agent.col.normals')}</th>
-                <th scope="col">{t('bench.agent.col.falseBlocks')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {view.byPath.map((row) => {
-                const subject = subjectOfSender(row.path);
-                return (
-                  <tr key={row.path}>
-                    <th scope="row">{subject ? <SubjectChip subject={subject} /> : row.path}</th>
-                    <Figures row={row} language={language} />
-                  </tr>
-                );
-              })}
-              <tr>
-                <th scope="row">{t('bench.agent.total')}</th>
-                <Figures row={total} language={language} />
-              </tr>
-            </tbody>
-          </table>
+          <div className={styles.tableScroll} role="region" aria-label={t('bench.agent.paths')} tabIndex={0}>
+            <table className={styles.table} aria-label={t('bench.agent.paths')} data-wrap-head>
+              <thead>
+                <tr>
+                  <th scope="col">{t('bench.agent.col.path')}</th>
+                  <th scope="col">{t('bench.agent.col.runs')}</th>
+                  <th scope="col">{t('bench.agent.col.attacks')}</th>
+                  <th scope="col">{t('bench.agent.col.missed')}</th>
+                  <th scope="col">{t('bench.agent.col.stopped')}</th>
+                  <th scope="col">{t('bench.agent.col.normals')}</th>
+                  <th scope="col">{t('bench.agent.col.falseBlocks')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {view.byPath.map((row) => {
+                  const subject = subjectOfSender(row.path);
+                  return (
+                    <tr key={row.path}>
+                      <th scope="row">{subject ? <SubjectChip subject={subject} /> : row.path}</th>
+                      <Figures row={row} language={language} />
+                    </tr>
+                  );
+                })}
+                <tr>
+                  <th scope="row">{t('bench.agent.total')}</th>
+                  <Figures row={total} language={language} />
+                </tr>
+              </tbody>
+            </table>
+          </div>
           <p className={styles.line}>
             {t('bench.agent.falseBlocks', {
               blocked: count(total.falseBlocks, language),
@@ -106,8 +108,12 @@ export default function BenchAgentPage() {
                 .join(' · ')}
             </p>
           ) : null}
-          <p className={styles.line}>{t('bench.agent.missed', { n: count(view.contexaMissed.length, language) })}</p>
-          {view.contexaMissed.length > 0 ? <p className={styles.line}>{view.contexaMissed.join(', ')}</p> : null}
+          <p className={styles.line}>
+            {t('bench.agent.missed', { n: count(view.contexaMissed.length, language) })}
+          </p>
+          {view.contexaMissed.length > 0 ? (
+            <p className={styles.line}>{view.contexaMissed.join(', ')}</p>
+          ) : null}
           <p className={styles.line}>
             {t('bench.agent.notMeasured', { n: count(view.notMeasured.length, language) })}
           </p>

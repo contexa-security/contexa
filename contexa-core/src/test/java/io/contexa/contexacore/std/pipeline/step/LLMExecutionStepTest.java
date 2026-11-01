@@ -56,8 +56,10 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -478,6 +480,309 @@ class LLMExecutionStepTest {
         assertThat(context.getMetadata("securityDecisionOutputRetrySucceeded", Boolean.class)).isFalse();
     }
 
+    /** A v20 answer the checks reject: a CHALLENGE where the facts ask for the low risk boundary action. */
+    private static final String V20_REJECTED = "{\"action\":\"CHALLENGE\",\"reasonCodes\":[{\"code\":\"BASELINE_MATCH\","
+            + "\"fact\":\"F2\"}],\"reason\":\"MFA is not verified.\"}";
+    /** A v20 answer the checks accept. */
+    private static final String V20_ACCEPTED = "{\"action\":\"ALLOW\",\"reasonCodes\":[{\"code\":\"BASELINE_MATCH\","
+            + "\"fact\":\"F2\"}],\"reason\":\"The read is as usual.\"}";
+
+    /**
+     * QF-50 (DD-65 A): a corrective retry goes out with the first call's output limit and a longer prompt (the first
+     * answer and what was wrong follow it), so the model can spend the whole limit thinking and the provider ends at the
+     * limit before any text. That retry is asked again once with twice the limit, as a cut first answer is (N-OUT-2,
+     * W4-5), and the decision is read from that answer. Through the orchestrator, so the thinking-only answer fails as
+     * it does in production.
+     */
+    @Test
+    void aCorrectiveRetryCutBeforeAnyTextIsAskedAgainWithTwiceTheOutputLimit() {
+        ScriptedChatModel model = new ScriptedChatModel(ScriptedChatModel.answer(V20_REJECTED, "end_turn"),
+                ScriptedChatModel.thinkingOnly("max_tokens"), ScriptedChatModel.answer(V20_ACCEPTED, "end_turn"));
+        PipelineExecutionContext context = v20Context("exec-qf50-v20", V20_USER_PROMPT);
+        SecurityDecisionRequest request = v20Request();
+        request.withParameter("platformSecurityDecisionMaxTokens", 2048);
+
+        Object response = new LLMExecutionStep(model.orchestrator()).execute(request, context).block();
+
+        assertThat(model.maxTokens()).as("output limits of the model calls; failure category %s",
+                context.getMetadata("structuredOutputFailureCategory", String.class)).containsExactly(2048, 2048, 4096);
+        List<Integer> messages = model.messageCounts();
+        assertThat(messages.get(1)).as("the corrective prompt").isEqualTo(messages.get(0) + 2);
+        assertThat(messages.get(2)).as("the corrective prompt again").isEqualTo(messages.get(1));
+        assertThat(response).isEqualTo(V20_ACCEPTED);
+        assertThat(context.getMetadata("rawExecutionSucceeded", Boolean.class)).isTrue();
+        assertThat(context.getMetadata("securityDecisionOutputRetrySucceeded", Boolean.class)).isTrue();
+        String reason = context.getMetadata("securityDecisionOutputRetryReason", String.class);
+        assertThat(reason).contains("REQUIRED_LOW_RISK_BOUNDARY_ACTION_MISMATCH");
+        assertThat(context.getMetadata(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, List.class))
+                .as("one retry, as the seal's integrity check reads a model call stage (N-OUT-3)")
+                .isEqualTo(List.of(Map.of("reason", reason, "succeeded", true)));
+    }
+
+    /**
+     * QF-50 (DD-65 A, C): the corrective retry asked again with twice the limit is the last call. Cut before any text
+     * again, it fails as the doubled retry does, without a fourth call, and the failure is named by why the provider
+     * ended, as the orchestrator names it, not as an unavailable model.
+     */
+    @Test
+    void aCorrectiveRetryCutBeforeAnyTextTwiceFailsAsOutputTruncated() {
+        ScriptedChatModel model = new ScriptedChatModel(ScriptedChatModel.answer(V20_REJECTED, "end_turn"),
+                ScriptedChatModel.thinkingOnly("max_tokens"), ScriptedChatModel.thinkingOnly("max_tokens"));
+        PipelineExecutionContext context = v20Context("exec-qf50-v20-twice", V20_USER_PROMPT);
+        SecurityDecisionRequest request = v20Request();
+        request.withParameter("platformSecurityDecisionMaxTokens", 2048);
+
+        Object response = new LLMExecutionStep(model.orchestrator()).execute(request, context).block();
+
+        assertThat(model.maxTokens()).as("output limits of the model calls; failure category %s",
+                context.getMetadata("structuredOutputFailureCategory", String.class)).containsExactly(2048, 2048, 4096);
+        assertThat(response).isEqualTo("");
+        assertThat(context.getMetadata("rawExecutionSucceeded", Boolean.class)).isFalse();
+        assertThat(context.getMetadata("structuredOutputFailureCategory", String.class)).isEqualTo("OUTPUT_TRUNCATED");
+        assertThat(context.getMetadata("securityDecisionParseFailureCategory", String.class))
+                .isEqualTo("OUTPUT_TRUNCATED");
+        assertThat(context.getMetadata("securityDecisionRawExecutionFailureMessage", String.class))
+                .startsWith("LLM response is null or empty");
+        String reason = context.getMetadata("securityDecisionOutputRetryReason", String.class);
+        assertThat(context.getMetadata(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, List.class))
+                .isEqualTo(List.of(Map.of("reason", reason, "succeeded", false)));
+    }
+
+    /**
+     * QF-50 (DD-65 A): the corrective retry asked again is the same corrective prompt with twice the limit, under the
+     * model call limit every call of the decision has.
+     */
+    @Test
+    void aCorrectiveRetryAskedAgainKeepsItsPromptAndTheCallLimit() {
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        llmClient.rawResponse = "{\"reasoning\":\"Authorization allows this request.\"}";
+        llmClient.finishReasons.put(2, "max_tokens");
+        llmClient.rawErrors.put(2, new IllegalStateException("LLM response is null or empty - RequestId: exec-qf50"));
+        llmClient.secondRawResponse = "{\"action\":\"ALLOW\",\"reasoning\":\"Authorization allows this request.\"}";
+        PipelineExecutionContext context = securityDecisionContext("exec-qf50-call-limit",
+                "VerificationRequired: false\nMfaVerified: false\nSensitivity: MEDIUM\nAuthorizationEffect: ALLOW");
+        AIRequest<TestContext> request = securityRequest();
+        request.withParameter("platformSecurityDecisionMaxTokens", 256);
+        request.withParameter("platformSecurityDecisionCallTimeoutMs", 1500L);
+
+        Object response = new LLMExecutionStep(llmClient).execute(request, context).block();
+
+        assertThat(response).isEqualTo(llmClient.secondRawResponse);
+        assertThat(llmClient.executionContexts).extracting(ExecutionContext::getMaxTokens).containsExactly(256, 256, 512);
+        assertThat(llmClient.executionContexts.get(2).getPrompt().getInstructions())
+                .isEqualTo(llmClient.executionContexts.get(1).getPrompt().getInstructions());
+        assertThat(llmClient.executionContexts).allSatisfy(call ->
+                assertThat(call.getMetadata()).containsEntry(ExecutionContext.CALL_TIMEOUT_MS, 1500L));
+    }
+
+    /**
+     * QF-50 (DD-65 A) keeps every other retry: an empty corrective answer the provider did not end at the output limit
+     * is not asked again, and a corrective answer cut with text is read as the retry's answer (here it breaks the
+     * contract, which its structured category names ahead of the output limit).
+     */
+    @Test
+    void aCorrectiveRetryIsAskedAgainOnlyWhenCutBeforeAnyText() {
+        RecordingLlmClient empty = new RecordingLlmClient();
+        empty.rawResponse = "{\"reasoning\":\"Authorization allows this request.\"}";
+        empty.finishReasons.put(2, "end_turn");
+        empty.rawErrors.put(2, new IllegalStateException("LLM response is null or empty - RequestId: exec-qf50-empty"));
+        PipelineExecutionContext emptyContext = securityDecisionContext("exec-qf50-empty",
+                "VerificationRequired: false\nMfaVerified: false\nSensitivity: MEDIUM\nAuthorizationEffect: ALLOW");
+        RecordingLlmClient cutWithText = new RecordingLlmClient();
+        cutWithText.rawResponse = "{\"reasoning\":\"Authorization allows this request.\"}";
+        cutWithText.finishReasons.put(2, "max_tokens");
+        cutWithText.rawResponses.put(2, "{\"action\":\"AL");
+        PipelineExecutionContext cutContext = securityDecisionContext("exec-qf50-cut-with-text",
+                "VerificationRequired: false\nMfaVerified: false\nSensitivity: MEDIUM\nAuthorizationEffect: ALLOW");
+
+        Object emptyResponse = new LLMExecutionStep(empty).execute(securityRequest(), emptyContext).block();
+        Object cutResponse = new LLMExecutionStep(cutWithText).execute(securityRequest(), cutContext).block();
+
+        assertThat(empty.executionContexts).hasSize(2);
+        assertThat(emptyResponse).isEqualTo("");
+        assertThat(emptyContext.getMetadata("structuredOutputFailureCategory", String.class))
+                .isEqualTo("MODEL_UNAVAILABLE");
+        assertThat(cutWithText.executionContexts).hasSize(2);
+        assertThat(cutResponse).isEqualTo("");
+        assertThat(cutContext.getMetadata("structuredOutputFailureCategory", String.class))
+                .isEqualTo("VALIDATION_FAILED");
+    }
+
+    /**
+     * QF-50 (DD-65 C): a raw execution failure is named by the model call it belongs to. A doubled retry the provider
+     * ended at the output limit before any text again is OUTPUT_TRUNCATED, as the orchestrator names it; a provider
+     * outage on the retry of an answer cut at the limit is a model outage (the first call's finish reason does not name
+     * it); a timeout stays a timeout whatever the call's finish reason.
+     */
+    @Test
+    void aRawExecutionFailureIsNamedByTheCallItBelongsTo() {
+        RecordingLlmClient truncated = new RecordingLlmClient();
+        truncated.finishReasons.put(1, "max_tokens");
+        truncated.finishReasons.put(2, "max_tokens");
+        truncated.rawError = new IllegalStateException("LLM response is null or empty - RequestId: exec-qf50-c");
+        PipelineExecutionContext truncatedContext = securityDecisionContext("exec-qf50-c", "AuthorizationEffect: ALLOW");
+        RecordingLlmClient outage = new RecordingLlmClient();
+        outage.rawResponse = "{\"action\":\"AL";
+        outage.firstFinishReason = "length";
+        outage.rawErrors.put(2, new IllegalStateException("connection refused"));
+        PipelineExecutionContext outageContext = securityDecisionContext("exec-qf50-outage", "AuthorizationEffect: ALLOW");
+        RecordingLlmClient timeout = new RecordingLlmClient();
+        timeout.rawResponse = "{\"action\":\"AL";
+        timeout.firstFinishReason = "length";
+        timeout.finishReasons.put(2, "max_tokens");
+        timeout.rawErrors.put(2, new RuntimeException(new TimeoutException("provider timeout")));
+        PipelineExecutionContext timeoutContext = securityDecisionContext("exec-qf50-timeout", "AuthorizationEffect: ALLOW");
+
+        new LLMExecutionStep(truncated).execute(securityRequest(), truncatedContext).block();
+        new LLMExecutionStep(outage).execute(securityRequest(), outageContext).block();
+        new LLMExecutionStep(timeout).execute(securityRequest(), timeoutContext).block();
+
+        assertThat(truncated.executionContexts).hasSize(2);
+        assertThat(truncatedContext.getMetadata("structuredOutputFailureCategory", String.class))
+                .isEqualTo("OUTPUT_TRUNCATED");
+        assertThat(truncatedContext.getMetadata("securityDecisionParseFailureCategory", String.class))
+                .isEqualTo("OUTPUT_TRUNCATED");
+        assertThat(outageContext.getMetadata("providerFinishReason", String.class)).as("the first call's")
+                .isEqualTo("length");
+        assertThat(outageContext.getMetadata("structuredOutputFailureCategory", String.class))
+                .isEqualTo("MODEL_UNAVAILABLE");
+        assertThat(timeoutContext.getMetadata("structuredOutputFailureCategory", String.class)).isEqualTo("TIMEOUT");
+    }
+
+    /**
+     * T6 (design 4.5-D): an answer the provider ended in its thinking at the output limit is asked again with twice the
+     * answer limit plus the same thinking allowance (the allowance is not doubled), as Claude Haiku 5.5 thinks by default.
+     */
+    @Test
+    void anAnswerCutInItsThinkingIsAskedAgainWithTwiceTheAnswerLimitAndTheSameAllowance() {
+        ScriptedChatModel model = ScriptedChatModel.claude("claude-haiku-5-5", ScriptedChatModel.thinkingOnly("max_tokens"),
+                ScriptedChatModel.answer(ALLOW_ANSWER, "end_turn"));
+        PipelineExecutionContext context = securityDecisionContext("exec-t6-allowance", "AuthorizationEffect: ALLOW");
+        AIRequest<TestContext> request = securityRequest();
+        request.withParameter("platformSecurityDecisionMaxTokens", 2048);
+        request.withParameter("platformAnthropicThinking", "PROVIDER_DEFAULT");
+        request.withParameter("platformAnthropicThinkingAllowanceTokens", 512);
+
+        Object response = new LLMExecutionStep(model.orchestrator()).execute(request, context).block();
+
+        assertThat(model.maxTokens()).containsExactly(2560, 4608);
+        assertThat(response).isEqualTo(ALLOW_ANSWER);
+        assertThat(context.getMetadata("securityDecisionOutputRetryReason", String.class)).isEqualTo("OUTPUT_TRUNCATED");
+        assertThat(context.getMetadata("providerMaxTokensSent", Integer.class)).isEqualTo(4608);
+        assertThat(context.getMetadata("providerThinking", String.class)).isEqualTo("ABSENT");
+    }
+
+    /** T6: with a thinking budget the doubled retry is twice the answer limit plus the budget, not twice both. */
+    @Test
+    void anAnswerCutInItsBudgetedThinkingIsAskedAgainWithTheBudgetOnce() {
+        ScriptedChatModel model = ScriptedChatModel.claude("claude-sonnet-4-6", ScriptedChatModel.thinkingOnly("max_tokens"),
+                ScriptedChatModel.answer(ALLOW_ANSWER, "end_turn"));
+        PipelineExecutionContext context = securityDecisionContext("exec-t6-budget", "AuthorizationEffect: ALLOW");
+        AIRequest<TestContext> request = securityRequest();
+        request.withParameter("platformSecurityDecisionMaxTokens", 2048);
+        request.withParameter("platformAnthropicThinking", "BUDGET");
+        request.withParameter("platformAnthropicThinkingBudgetTokens", 2048);
+
+        new LLMExecutionStep(model.orchestrator()).execute(request, context).block();
+
+        assertThat(model.maxTokens()).containsExactly(4096, 6144);
+        assertThat(model.thinking()).containsExactly("ENABLED", "ENABLED");
+    }
+
+    /**
+     * T7 (D-8): a call the model ended at its context window is its own failure category, not a cut answer, and is
+     * not asked again with twice the limit (a larger output limit does not make the window larger).
+     */
+    @Test
+    void anAnswerEndedAtTheContextWindowIsItsOwnCategoryAndNotAskedAgain() {
+        ScriptedChatModel model = ScriptedChatModel.claude("claude-haiku-5-5",
+                ScriptedChatModel.thinkingOnly("model_context_window_exceeded"));
+        PipelineExecutionContext context = securityDecisionContext("exec-t7-window", "AuthorizationEffect: ALLOW");
+        AIRequest<TestContext> request = securityRequest();
+        request.withParameter("platformSecurityDecisionMaxTokens", 2048);
+
+        Object response = new LLMExecutionStep(model.orchestrator()).execute(request, context).block();
+
+        assertThat(response).isEqualTo("");
+        assertThat(model.maxTokens()).containsExactly(2048);
+        assertThat(context.getMetadata("structuredOutputFailureCategory", String.class))
+                .isEqualTo("MODEL_CONTEXT_WINDOW_EXCEEDED");
+        assertThat(context.getMetadata("securityDecisionParseFailureCategory", String.class))
+                .isEqualTo("MODEL_CONTEXT_WINDOW_EXCEEDED");
+        assertThat(context.getMetadata("securityDecisionOutputRetryAttempted", Boolean.class)).isNull();
+    }
+
+    /** T7 (D-8): an answer with text ended at the context window keeps today's corrective retry, at the same limit. */
+    @Test
+    void anAnswerWithTextEndedAtTheContextWindowIsNotAskedWithTwiceTheLimit() {
+        ScriptedChatModel model = ScriptedChatModel.claude("claude-haiku-5-5",
+                ScriptedChatModel.answer("{\"action\":\"AL", "model_context_window_exceeded"),
+                ScriptedChatModel.answer(ALLOW_ANSWER, "end_turn"));
+        PipelineExecutionContext context = securityDecisionContext("exec-t7-window-text", "AuthorizationEffect: ALLOW");
+        AIRequest<TestContext> request = securityRequest();
+        request.withParameter("platformSecurityDecisionMaxTokens", 2048);
+
+        new LLMExecutionStep(model.orchestrator()).execute(request, context).block();
+
+        assertThat(model.maxTokens()).containsExactly(2048, 2048);
+        assertThat(context.getMetadata("securityDecisionOutputRetryReason", String.class)).isNotEqualTo("OUTPUT_TRUNCATED");
+    }
+
+    /**
+     * T9: a security decision takes its Anthropic thinking settings from the strategy's platform parameters only: the
+     * call's own keys sent as request parameters and platform keys in the pipeline's metadata are ignored, and a
+     * request that is no security decision takes none.
+     */
+    @Test
+    void aSecurityDecisionTakesItsAnthropicThinkingFromThePlatformParametersOnly() {
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        llmClient.rawResponse = ALLOW_ANSWER;
+        PipelineExecutionContext context = securityDecisionContext("exec-t9", "AuthorizationEffect: ALLOW");
+        context.addMetadata("platformAnthropicThinkingBudgetTokens", 4096);
+        context.addMetadata("platformAnthropicEffort", "MAX");
+        AIRequest<TestContext> request = securityRequest();
+        request.withParameter("platformAnthropicThinking", "OFF");
+        request.withParameter("platformAnthropicThinkingAllowanceTokens", 256);
+        request.withParameter("anthropicThinking", "ADAPTIVE");
+        request.withParameter("anthropicEffort", "MAX");
+        RecordingLlmClient plainClient = new RecordingLlmClient();
+        PipelineExecutionContext plainContext = new PipelineExecutionContext("exec-t9-plain");
+        plainContext.addStepResult(PipelineConfiguration.PipelineStep.PROMPT_GENERATION,
+                new PromptGenerationResult(new Prompt("plain prompt"), "system", "user", Map.of(), null));
+        AIRequest<TestContext> plainRequest = securityRequest();
+        plainRequest.withParameter("platformAnthropicThinking", "OFF");
+
+        new LLMExecutionStep(llmClient).execute(request, context).block();
+        new LLMExecutionStep(plainClient).execute(plainRequest, plainContext).block();
+
+        assertThat(llmClient.lastExecutionContext.getMetadata())
+                .containsEntry("anthropicThinking", "OFF")
+                .containsEntry("anthropicThinkingAllowanceTokens", 256)
+                .doesNotContainKeys("anthropicThinkingBudgetTokens", "anthropicEffort");
+        assertThat(plainClient.lastExecutionContext.getMetadata()).doesNotContainKey("anthropicThinking");
+    }
+
+    /** T10: what the call sent for thinking reaches the pipeline's record, from where the event and the seal take it. */
+    @Test
+    void theThinkingTheCallSentReachesTheCallRecord() {
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        llmClient.rawResponse = ALLOW_ANSWER;
+        llmClient.callRecords.put("providerThinkingRequested", "OFF");
+        llmClient.callRecords.put("providerThinking", "DISABLED");
+        llmClient.callRecords.put("providerThinkingSource", "LAYER_SETTING");
+        llmClient.callRecords.put("providerThinkingBudgetTokens", 2048);
+        llmClient.callRecords.put("providerEffortRequested", "LOW");
+        llmClient.callRecords.put("providerThinkingAdjustment", List.of("NOT_EXPRESSIBLE_SPRING_AI_1_1"));
+        llmClient.callRecords.put("providerRejectedFields", List.of("thinking"));
+        llmClient.callRecords.put("providerMaxTokensSent", 2560);
+        PipelineExecutionContext context = securityDecisionContext("exec-t10", "AuthorizationEffect: ALLOW");
+
+        new LLMExecutionStep(llmClient).execute(securityRequest(), context).block();
+
+        llmClient.callRecords.forEach((key, value) ->
+                assertThat(context.getMetadata(key, Object.class)).as(key).isEqualTo(value));
+    }
+
     /** W4-6: a security decision runs with the platform's determinism settings, never the request's. */
     @Test
     void aSecurityDecisionRunsWithThePlatformDeterminismSettings() {
@@ -708,6 +1013,8 @@ class LLMExecutionStepTest {
         context.addMetadata("aiGenerationType", SecurityDecisionResponseLite.class);
         return context;
     }
+
+    private static final String ALLOW_ANSWER = "{\"action\":\"ALLOW\",\"reasoning\":\"Authorization allows this request.\"}";
 
     private AIRequest<TestContext> securityRequest() {
         return new AIRequest<>(new TestContext(), new TemplateType("security"), new DiagnosisType("decision"));
@@ -1017,6 +1324,10 @@ class LLMExecutionStepTest {
         private Throwable rawError;
         /** N-OUT-2: the error of the first call only; the calls after it answer as usual. */
         private Throwable firstRawError;
+        /** QF-50: the finish reason, error or answer of one call (the first is 1), ahead of the fields above. */
+        private final Map<Integer, String> finishReasons = new HashMap<>();
+        private final Map<Integer, Throwable> rawErrors = new HashMap<>();
+        private final Map<Integer, String> rawResponses = new HashMap<>();
         private SecurityDecisionResponseLite entityResponse;
         private Throwable entityError;
         private Integer actualPromptTokens;
@@ -1025,6 +1336,8 @@ class LLMExecutionStepTest {
         private Boolean actualTokenUsageAvailable;
         private Boolean promptCacheKeyApplied;
         private Boolean outputSchemaApplied;
+        /** T10: what the provider call records, put on every call. */
+        private final Map<String, Object> callRecords = new LinkedHashMap<>();
 
         @Override
         public Mono<String> execute(ExecutionContext context) {
@@ -1032,8 +1345,12 @@ class LLMExecutionStepTest {
             this.executionContexts.add(context);
             this.rawExecutions++;
             applyUsageMetadata(context);
+            callRecords.forEach(context::addMetadata);
             if (rawExecutions == 1 && firstFinishReason != null) {
                 context.addMetadata("providerFinishReason", firstFinishReason);
+            }
+            if (finishReasons.containsKey(rawExecutions)) {
+                context.addMetadata("providerFinishReason", finishReasons.get(rawExecutions));
             }
             if (determinismNotApplied != null) {
                 context.addMetadata(ExecutionContext.DETERMINISM_NOT_APPLIED, determinismNotApplied);
@@ -1044,8 +1361,14 @@ class LLMExecutionStepTest {
             if (rawExecutions == 1 && firstRawError != null) {
                 return Mono.error(firstRawError);
             }
+            if (rawErrors.containsKey(rawExecutions)) {
+                return Mono.error(rawErrors.get(rawExecutions));
+            }
             if (rawError != null) {
                 return Mono.error(rawError);
+            }
+            if (rawResponses.containsKey(rawExecutions)) {
+                return Mono.just(rawResponses.get(rawExecutions));
             }
             String response = rawExecutions > 1 && secondRawResponse != null ? secondRawResponse : rawResponse;
             return Mono.just(response);

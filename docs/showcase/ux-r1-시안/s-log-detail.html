@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>판정 상세</title>
+<link rel="stylesheet" href="design.css">
+<style>
+  .sumbar { display: grid; grid-template-columns: repeat(5, auto) 1fr; margin-bottom: 24px; }
+  .sb { padding: 14px 20px; border-right: 1px solid var(--line); }
+  .sb:last-child { border-right: 0; }
+  .sb .k { font-size: 13px; color: var(--text-3); margin-bottom: 4px; }
+  .sb .v { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ft td { vertical-align: top; padding-top: 16px; padding-bottom: 16px; height: auto; }
+  .fhead { display: flex; align-items: center; gap: 8px; }
+  .fid { display: inline-flex; align-items: center; height: 22px; padding: 0 7px; border-radius: var(--r-sm); background: var(--surface-3); color: var(--link); font: 600 12px/1 var(--mono); }
+  .fname { font-weight: 600; color: var(--text); }
+  .raw { margin-top: 8px; font: 500 13px/1.55 var(--mono); color: var(--text-3); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: normal; overflow-wrap: anywhere; }
+  .meaning { color: var(--text); font-weight: 500; }
+  .rc { display: inline-block; margin-top: 8px; font: 500 12px/1 var(--mono); color: var(--text-3); background: var(--surface-3); padding: 5px 7px; border-radius: 4px; }
+  .lean { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px; color: var(--text-3); }
+  .lean i { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  .summary { padding: 16px 20px; border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--line); margin-bottom: 20px; }
+  .summary .k { font-size: 13px; color: var(--text-3); margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+  .summary p { margin: 0; font-size: 14px; line-height: 1.65; color: var(--text); }
+  .hyp { padding: 16px 0; border-top: 1px solid var(--line); }
+  .hyp-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .hyp-top b { font-size: 15px; }
+  .meter { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); white-space: nowrap; }
+  .meter span { display: inline-flex; gap: 3px; }
+  .meter span i { width: 14px; height: 6px; border-radius: 4px; background: var(--surface-3); display: block; }
+  .meter span i.on { background: var(--link); }
+  .meter em { font-style: normal; width: 48px; }
+  .hyp-f { margin-top: 10px; display: grid; grid-template-columns: 52px 1fr; row-gap: 6px; align-items: center; font-size: 13px; color: var(--text-3); }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chips .fid { height: 20px; font-size: 12px; }
+  .chips .fid.neg { color: var(--text-2); }
+  .phone .sumbar { grid-template-columns: 1fr 1fr; }
+  .phone .sb { border-bottom: 1px solid var(--line); }
+  .phone .sb:nth-child(2n) { border-right: 0; }
+  .phone .sb:empty { display: none; }
+  .phone .sb .v { white-space: normal; }
+  .phone .ft .raw { -webkit-line-clamp: 3; }
+  .phone .ft td + td { padding-top: 0; }
+</style>
+</head>
+<body data-active="log" data-lang="ko" data-crumbs="모니터링|판정 이력|run-04cdd89264f7">
+<main class="content"><div class="wrap">
+
+  <div class="ph">
+    <div class="ph-main">
+      <div class="ph-kicker"><span class="badge b-line"><i data-icon="user-round-x"></i>계정 탈취 (ATO)</span><span class="code">S13</span><span class="badge b-allow"><i data-icon="check"></i>판정 적중</span></div>
+      <h1 class="ph-title">run-04cdd89264f7 <span class="badge b-stepup" style="height:28px;font-size:13px;vertical-align:middle;margin-left:8px"><i data-icon="key-round"></i>추가 인증</span></h1>
+    </div>
+    <div class="ph-actions"><button class="btn"><i data-icon="download"></i>봉인 원본 JSON</button><button class="btn"><i data-icon="repeat"></i>같은 요청 다시 실행</button></div>
+  </div>
+
+  <section class="card sumbar">
+    <div class="sb"><div class="k">요청</div><div class="v">HX-310 설계 문서 480건 반출</div></div>
+    <div class="sb"><div class="k">주체 · 단말</div><div class="v">엔지니어 계정 · Safari 18 · macOS</div></div>
+    <div class="sb"><div class="k">위험도 · 확신도</div><div class="v">0.43 · 0.78</div></div>
+    <div class="sb"><div class="k">판정 시간 · 적용</div><div class="v">10.1초 · 응답 전</div></div>
+    <div class="sb"><div class="k">판정 시각</div><div class="v">2026-10-27 23:54 UTC</div></div>
+    <div class="sb"></div>
+  </section>
+
+  <div class="tabs"><span class="tab">요약</span><span class="tab">통제별 응답</span><span class="tab on">판정 근거</span><span class="tab">판정 프롬프트</span><span class="tab">모델 응답 원문</span><span class="tab">무결성 검증</span><span class="tab">기준선 학습</span></div>
+
+  <div class="grid g-12" style="align-items:start">
+    <section class="card span-8">
+      <div class="card-head"><div><h2 class="card-title">인용 사실과 판정 근거</h2><p class="card-sub">AI가 판정 응답에서 인용한 프롬프트 사실 5건과, 사실마다 붙인 근거 코드</p></div></div>
+      <table class="table ft stack">
+        <thead><tr><th style="width:50%">인용한 사실 · 프롬프트 원문</th><th>AI가 붙인 근거</th></tr></thead>
+        <tbody>
+          <tr><td><div class="fhead"><span class="fid">F4</span><span class="fname">업무 배정</span></div><div class="raw">assigned to HX-310 (DESIGN); worked on HX-310 on 21 of the last 30 days</div></td><td><span class="meaning">요청자가 이 프로젝트의 배정 인원입니다.</span><br><span class="rc">ASSIGNED_TARGET</span><br><span class="lean"><i style="background:var(--allow)"></i>정상 근거</span></td></tr>
+          <tr><td><div class="fhead"><span class="fid">F1</span><span class="fname">기준선 이탈</span></div><div class="raw">size 480 items, usual up to 15 items per export (median 10, 4 exports)</div></td><td><span class="meaning">반출 규모가 평소 최대(15건)의 32배입니다.</span><br><span class="rc">DEVIATION_SIZE</span><br><span class="lean"><i style="background:var(--block)"></i>위험 근거</span></td></tr>
+          <tr><td><div class="fhead"><span class="fid">F1</span><span class="fname">기준선 이탈</span></div><div class="raw">device Safari/18 on MAC seen 0 of 20 on 0 of 5 days, first time</div></td><td><span class="meaning">처음 확인된 단말입니다.</span><br><span class="rc">DEVIATION_DEVICE</span><br><span class="lean"><i style="background:var(--block)"></i>위험 근거</span></td></tr>
+          <tr><td><div class="fhead"><span class="fid">F3</span><span class="fname">회사 정책</span></div><div class="raw">EXPORT_APPROVAL requires a covering approval (exceptions: assigned target up to 500 items; ticket while on call)</div></td><td><span class="meaning">배정 프로젝트 500건 이하 반출은 승인 예외로, 정책이 이 작업을 허용합니다.</span><br><span class="rc">RECORD_COVERS_WORK</span><br><span class="lean"><i style="background:var(--allow)"></i>정상 근거</span></td></tr>
+          <tr><td><div class="fhead"><span class="fid">F2</span><span class="fname">기준선 일치</span></div><div class="raw">time 14 seen 1 of 20 on 1 of 5 days; day Wed seen 10 of 48 on 2 of 10 days</div></td><td><span class="meaning">요청 시각과 요일은 평소 범위입니다.</span><br><span class="rc">BASELINE_MATCH</span><br><span class="lean"><i style="background:var(--allow)"></i>정상 근거</span></td></tr>
+        </tbody>
+      </table>
+    </section>
+    <aside class="span-4">
+      <section class="card card-pad">
+        <h2 class="card-title" style="font-size:16px">가설 평가</h2>
+        <p class="card-sub" style="margin-bottom:16px">가설마다 지지 · 반박 사실을 대고 가능성을 평가합니다</p>
+        <div class="summary"><div class="k"><i data-icon="sparkles" style="width:14px;height:14px"></i>AI 판정 요약 · 번역</div><p>배정 업무이고 500건 이하 예외 정책에 해당해 정당한 업무로 보이지만, 480건 반출과 처음 확인된 단말이 평소와 크게 달라 본인 여부가 불확실합니다.</p></div>
+        <div class="hyp"><div class="hyp-top"><b>정당한 업무</b><span class="meter"><span><i class="on"></i><i class="on"></i><i class="on"></i></span><em>가장 유력</em></span></div><div class="hyp-f"><span>지지</span><span class="chips"><span class="fid">F4</span><span class="fid">F3</span><span class="fid">F2</span><span class="fid">P1</span></span><span>반박</span><span class="chips"><span class="fid neg">F1</span></span></div></div>
+        <div class="hyp"><div class="hyp-top"><b>계정 탈취</b><span class="meter"><span><i class="on"></i><i class="on"></i><i></i></span><em>가능</em></span></div><div class="hyp-f"><span>지지</span><span class="chips"><span class="fid">F1</span></span><span>반박</span><span class="chips"><span class="fid neg">S1</span><span class="fid neg">F2</span></span></div></div>
+        <div class="hyp"><div class="hyp-top"><b>내부자 권한 남용</b><span class="meter"><span><i class="on"></i><i></i><i></i></span><em>낮음</em></span></div><div class="hyp-f"><span>지지</span><span class="chips"><span class="fid">F1</span></span><span>반박</span><span class="chips"><span class="fid neg">F4</span><span class="fid neg">F3</span></span></div></div>
+        <div class="hyp"><div class="hyp-top"><b>자동화 · 운영 실수</b><span class="meter"><span><i class="on"></i><i></i><i></i></span><em>낮음</em></span></div><div class="hyp-f"><span>지지</span><span class="chips"><span class="fid">F8</span></span><span>반박</span><span class="chips"><span class="fid neg">F1</span><span class="fid neg">F4</span></span></div></div>
+      </section>
+    </aside>
+  </div>
+
+</div></main>
+<script src="shell.js"></script>
+</body>
+</html>

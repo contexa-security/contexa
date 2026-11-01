@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.context;
 
 import java.time.ZoneId;
 import io.contexa.contexacore.autonomous.baseline.BaselineView;
+import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 import io.contexa.contexacore.autonomous.context.collector.DefaultProtectableWorkProfileCollector;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
@@ -30,6 +31,7 @@ import org.junit.jupiter.api.Test;
 import io.contexa.contexacore.autonomous.context.support.VocabularyVersion;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.time.LocalDateTime;
@@ -569,6 +571,52 @@ class DefaultProtectableWorkProfileCollectorTest {
         assertThat(dataStore.getRecentWorkProfileObservations("tenant-acme", "alice::agent::report-agent", 10))
                 .hasSize(1);
         assertThat(dataStore.getRecentWorkProfileObservations("tenant-acme", "alice", 10)).hasSize(1);
+    }
+
+    /**
+     * QF-22: the work profile is kept under the tenant the user's baseline is kept under (tenantId, then tenant_id); an
+     * organization the host names is the organization of the organization baseline, not a tenant.
+     */
+    @Test
+    @DisplayName("the work profile is kept under the tenant of the baseline, not under the organization (QF-22)")
+    void theWorkProfileIsKeptUnderTheTenantOfTheBaseline() {
+        LocalDateTime morning = LocalDateTime.of(2026, 3, 24, 10, 5);
+        SecurityEvent organizationOnly = event("alice", null, morning, "/api/documents/D-1", "GET", "READ", "REPORT",
+                "HIGH", true, true, null);
+        organizationOnly.addMetadata("organizationId", "org-a");
+        SecurityEvent snakeTenant = event("bob", null, morning, "/api/documents/D-2", "GET", "READ", "REPORT",
+                "HIGH", true, true, null);
+        snakeTenant.addMetadata("tenant_id", "tenant-acme");
+        snakeTenant.addMetadata("organizationId", "org-a");
+
+        collector.recordVerified(organizationOnly, 1.0);
+        collector.recordVerified(snakeTenant, 1.0);
+
+        assertThat(dataStore.getRecentWorkProfileObservations(null, "alice", 10)).hasSize(1);
+        assertThat(dataStore.getRecentWorkProfileObservations("org-a", "alice", 10)).isEmpty();
+        assertThat(dataStore.getRecentWorkProfileObservations("tenant-acme", "bob", 10)).hasSize(1);
+        assertThat(LearningSubject.of(organizationOnly).tenantId()).isNull();
+        assertThat(LearningSubject.of(snakeTenant).tenantId()).isEqualTo("tenant-acme");
+    }
+
+    @Test
+    @DisplayName("the usual behaviour is read from as many observations as the store keeps in a scope (BR-C14)")
+    void theHistoryIsReadUpToTheStoresObservationCapacity() {
+        List<Integer> asked = new ArrayList<>();
+        InMemorySecurityContextDataStore counting = new InMemorySecurityContextDataStore() {
+            @Override
+            public List<String> getRecentWorkProfileObservations(String tenantId, String userId, int count) {
+                asked.add(count);
+                return super.getRecentWorkProfileObservations(tenantId, userId, count);
+            }
+        };
+        counting.setObservationCapacity(12_000);
+
+        new DefaultProtectableWorkProfileCollector(counting).collect(event("alice", "tenant-acme",
+                LocalDateTime.of(2026, 3, 24, 10, 5), "/api/documents/D-1", "GET", "READ", "REPORT", "HIGH", true,
+                true, null));
+
+        assertThat(asked).containsExactly(12_000);
     }
 
     @Test

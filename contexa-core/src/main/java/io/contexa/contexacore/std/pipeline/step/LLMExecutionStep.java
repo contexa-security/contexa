@@ -56,6 +56,7 @@ import java.util.Locale;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 public class LLMExecutionStep implements PipelineStep {
@@ -99,6 +100,14 @@ public class LLMExecutionStep implements PipelineStep {
             "cachedPromptTokens",
             ExecutionContext.DETERMINISM_NOT_APPLIED,
             ExecutionContext.PROVIDER_REASONING_EFFORT,
+            ExecutionContext.PROVIDER_THINKING_REQUESTED,
+            ExecutionContext.PROVIDER_EFFORT_REQUESTED,
+            ExecutionContext.PROVIDER_THINKING,
+            ExecutionContext.PROVIDER_THINKING_BUDGET_TOKENS,
+            ExecutionContext.PROVIDER_THINKING_SOURCE,
+            ExecutionContext.PROVIDER_THINKING_ADJUSTMENT,
+            ExecutionContext.PROVIDER_REJECTED_FIELDS,
+            ExecutionContext.PROVIDER_MAX_TOKENS_SENT,
             "providerFinishReason",
             "promptCacheKeyApplied",
             ExecutionContext.OUTPUT_SCHEMA_APPLIED,
@@ -169,8 +178,10 @@ public class LLMExecutionStep implements PipelineStep {
             context.addMetadata("structuredOutputMode", "SECURITY_DECISION_RAW_GUARDED");
             context.addMetadata("structuredOutputPolicy", structuredOutputPolicy.name());
             context.addMetadata("securityDecisionParsingMode", "RAW_GUARDED");
+            // QF-50 (DD-65 C): the model call a failure belongs to, so its finish reason names the failure.
+            AtomicReference<ExecutionContext> lastCall = new AtomicReference<>();
             return preparePrompt(context)
-                    .flatMap(prompt -> executeSecurityDecisionRawGuarded(prompt, request, context)
+                    .flatMap(prompt -> executeSecurityDecisionRawGuarded(prompt, request, context, lastCall)
                             .switchIfEmpty(Mono.error(new IllegalStateException("Security decision LLM raw execution returned empty Mono")))
                             .doOnSuccess(rawResponse -> {
                                 context.addStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, rawResponse);
@@ -191,7 +202,7 @@ public class LLMExecutionStep implements PipelineStep {
                     .onErrorResume(error -> {
                         log.error("[PIPELINE-STEP] Security decision raw execution failed; fail-closed parsing will produce a challenge. Request: {}",
                                 request.getRequestId(), error);
-                        String failureCategory = rawExecutionFailureCategory(context, error);
+                        String failureCategory = rawExecutionFailureCategory(context, lastCall.get(), error);
                         context.addMetadata("rawExecutionSucceeded", false);
                         context.addMetadata("structuredOutputFailureCategory", failureCategory);
                         context.addMetadata("securityDecisionParseFailureCategory", failureCategory);
@@ -268,7 +279,8 @@ public class LLMExecutionStep implements PipelineStep {
                 });
     }
 
-    private String rawExecutionFailureCategory(PipelineExecutionContext context, Throwable error) {
+    private String rawExecutionFailureCategory(PipelineExecutionContext context, ExecutionContext failedCall,
+                                               Throwable error) {
         String explicit = firstNonBlankMetadata(
                 context,
                 "providerCallFailureCategory",
@@ -283,7 +295,19 @@ public class LLMExecutionStep implements PipelineStep {
         }
         // A response that reached the model but broke the decision contract is not a model outage.
         StructuredOutputFailureCategory structuredCategory = structuredOutputFailureCategory(error);
-        return structuredCategory != null ? structuredCategory.name() : "MODEL_UNAVAILABLE";
+        if (structuredCategory != null) {
+            return structuredCategory.name();
+        }
+        // QF-50 (DD-65 C): nor is a call the provider ended at the output limit (a reasoning model can spend the whole
+        // limit reasoning), as the orchestrator names it; an earlier call's finish reason does not name this failure.
+        if (failedCall != null && truncatedAtTheOutputLimit(failedCall)) {
+            return OUTPUT_TRUNCATED;
+        }
+        // D-8: nor a call the model ended at its context window, which a larger output limit does not change.
+        if (failedCall != null && endedAtTheContextWindow(failedCall)) {
+            return UnifiedLLMOrchestrator.MODEL_CONTEXT_WINDOW_EXCEEDED;
+        }
+        return "MODEL_UNAVAILABLE";
     }
 
     private StructuredOutputFailureCategory structuredOutputFailureCategory(Throwable error) {
@@ -367,7 +391,8 @@ public class LLMExecutionStep implements PipelineStep {
     private <T extends DomainContext> Mono<String> executeSecurityDecisionRawGuarded(
             Prompt prompt,
             AIRequest<T> request,
-            PipelineExecutionContext context) {
+            PipelineExecutionContext context,
+            AtomicReference<ExecutionContext> lastCall) {
         ExecutionContext executionContext = buildExecutionContext(
                 prompt,
                 request,
@@ -378,13 +403,13 @@ public class LLMExecutionStep implements PipelineStep {
         // V-5: a v21 decision is checked for what it says, never for its action.
         SecurityDecisionV21OutputInspector.V21Check v21Check = v21Check(request, context);
         if (v21Check != null) {
-            return executeV21Guarded(prompt, request, context, executionContext, v21Check);
+            return executeV21Guarded(prompt, request, context, executionContext, v21Check, lastCall);
         }
         // W4-5 (plan 7): the minimum action rules are checked here only in enforce mode; observe mode records them.
         SecurityDecisionRawOutputContractInspector.MinimumActionCheck ruleCheck = minimumActionCheck(request);
         // W4-8: a v20 decision is checked on the facts its prompt was drawn from.
         SecurityDecisionRawOutputContractInspector.V20Check v20Check = v20Check(request, context);
-        return executeRaw(executionContext, context)
+        return securityDecisionCall(executionContext, context, lastCall)
                 // N-OUT-2: an answer the provider cut at the output limit before any text (a reasoning model can spend
                 // the whole limit reasoning) is a cut answer without text, asked again below; any other failure stays.
                 .onErrorResume(error -> truncatedAtTheOutputLimit(executionContext) && emptyAnswer(error)
@@ -403,7 +428,8 @@ public class LLMExecutionStep implements PipelineStep {
                     }
                     recordInitialSecurityDecisionFailure(context, initialCheck, rawResponse);
                     // W4-5: an answer cut at the output limit is asked again with twice the limit; any other violation is
-                    // retried once with the answer and what was wrong with it, after the same prompt.
+                    // retried once with the answer and what was wrong with it, after the same prompt (QF-50: that retry
+                    // cut before any text is asked again with twice the limit, outputRetryCall).
                     boolean truncated = truncatedAtTheOutputLimit(executionContext);
                     String retryReason = truncated ? OUTPUT_TRUNCATED : initialCheck.retryReason();
                     context.addMetadata("securityDecisionOutputRetryAttempted", true);
@@ -420,7 +446,7 @@ public class LLMExecutionStep implements PipelineStep {
                     }
                     // N-OUT-3: the retry joins the run's retries once, when its answer or its failure is known.
                     AtomicBoolean retryRecorded = new AtomicBoolean();
-                    return executeRaw(retryContext, context)
+                    return outputRetryCall(retryContext, truncated, request, context, lastCall)
                             .map(retryResponse -> {
                                 Inspection retryCheck = rawOutputContractInspector.inspect(
                                         retryResponse,
@@ -468,7 +494,7 @@ public class LLMExecutionStep implements PipelineStep {
      * V-5: a v21 decision. An answer without a usable form, or one that says what the prompt's lines do not state, is
      * asked again once with what was wrong, except an answer whose only fault is reason codes the lines do not support
      * (RL-4: kept as it is, the codes recorded as unresolved); an answer cut at the output limit is asked again with
-     * twice the limit. The
+     * twice the limit, and so is a corrective retry cut before any text (QF-50). The
      * answer after the retry is kept as the model gave it unless it still has no usable form (a technical failure, as
      * for every bundle); what it still says wrongly is recorded. The action is the model's either way.
      */
@@ -477,10 +503,11 @@ public class LLMExecutionStep implements PipelineStep {
             AIRequest<T> request,
             PipelineExecutionContext context,
             ExecutionContext executionContext,
-            SecurityDecisionV21OutputInspector.V21Check v21Check) {
+            SecurityDecisionV21OutputInspector.V21Check v21Check,
+            AtomicReference<ExecutionContext> lastCall) {
         context.addMetadata(SecurityDecisionV21OutputInspector.OUTPUT_CONTRACT,
                 SecurityDecisionV21OutputInspector.OUTPUT_CONTRACT_V4);
-        return executeRaw(executionContext, context)
+        return securityDecisionCall(executionContext, context, lastCall)
                 .onErrorResume(error -> truncatedAtTheOutputLimit(executionContext) && emptyAnswer(error)
                         ? Mono.just("")
                         : Mono.error(error))
@@ -517,7 +544,7 @@ public class LLMExecutionStep implements PipelineStep {
                         retryContext.setMaxTokens(executionContext.getMaxTokens() * 2);
                     }
                     AtomicBoolean retryRecorded = new AtomicBoolean();
-                    return executeRaw(retryContext, context)
+                    return outputRetryCall(retryContext, truncated, request, context, lastCall)
                             .map(retryResponse -> {
                                 SecurityDecisionV21OutputInspector.V21Inspection retry = v21OutputInspector.inspect(
                                         retryResponse, request.getRequestId(), "retry", v21Check);
@@ -644,6 +671,55 @@ public class LLMExecutionStep implements PipelineStep {
                 settings != null ? settings : MinimumActionRules.Settings.DEFAULTS);
     }
 
+    /** QF-50 (DD-65 C): one model call of a security decision, kept as the last call so its failure is named by it. */
+    private Mono<String> securityDecisionCall(
+            ExecutionContext executionContext,
+            PipelineExecutionContext context,
+            AtomicReference<ExecutionContext> lastCall) {
+        return Mono.defer(() -> {
+            lastCall.set(executionContext);
+            return executeRaw(executionContext, context);
+        });
+    }
+
+    /**
+     * QF-50 (DD-65 A): the model call of the one output retry. A corrective retry goes out with the first call's output
+     * limit and a longer prompt (the answer and what was wrong follow it), so a reasoning model can spend the whole limit
+     * reasoning and the provider ends at the limit before any text; that retry is asked again once with the same prompt
+     * and twice the limit (the same when the call had none, as for a cut first answer), as a first answer cut so is
+     * (N-OUT-2), and its answer is the retry's. A retry already asked with twice the limit is not asked again, and any
+     * other failure stays, so a decision makes at most three model calls under the decision's time limits.
+     */
+    private <T extends DomainContext> Mono<String> outputRetryCall(
+            ExecutionContext retryContext,
+            boolean twiceTheLimit,
+            AIRequest<T> request,
+            PipelineExecutionContext context,
+            AtomicReference<ExecutionContext> lastCall) {
+        Mono<String> retry = securityDecisionCall(retryContext, context, lastCall);
+        if (twiceTheLimit) {
+            return retry;
+        }
+        return retry.onErrorResume(error -> {
+            if (!truncatedAtTheOutputLimit(retryContext) || !emptyAnswer(error)) {
+                return Mono.error(error);
+            }
+            ExecutionContext againContext = buildExecutionContext(
+                    retryContext.getPrompt(),
+                    request,
+                    context,
+                    null,
+                    StructuredOutputMode.LEGACY_RAW,
+                    StructuredOutputPolicy.ALLOW_RAW_FALLBACK);
+            if (retryContext.getMaxTokens() != null) {
+                againContext.setMaxTokens(retryContext.getMaxTokens() * 2);
+            }
+            log.info("[PIPELINE-STEP] Corrective retry cut at the output limit before any text; asking it again with"
+                    + " output limit {}. Request: {}", againContext.getMaxTokens(), request.getRequestId());
+            return securityDecisionCall(againContext, context, lastCall);
+        });
+    }
+
     /** N-OUT-2: whether the call failed because the provider sent no text (the orchestrator's empty answer). */
     private static boolean emptyAnswer(Throwable error) {
         Throwable current = error;
@@ -655,6 +731,16 @@ public class LLMExecutionStep implements PipelineStep {
             current = current.getCause() != current ? current.getCause() : null;
         }
         return false;
+    }
+
+    /**
+     * D-8: whether the model ended at its context window (Anthropic {@code model_context_window_exceeded}); such an
+     * answer is not cut at the output limit, so it is never asked again with twice the limit.
+     */
+    private static boolean endedAtTheContextWindow(ExecutionContext executionContext) {
+        Object reason = executionContext.getMetadata().get("providerFinishReason");
+        return reason != null && UnifiedLLMOrchestrator.CONTEXT_WINDOW_EXCEEDED_FINISH_REASON
+                .equals(reason.toString().trim().toLowerCase(Locale.ROOT));
     }
 
     /** Whether the provider ended the answer at the output limit (OpenAI {@code length}, Anthropic {@code max_tokens}). */
@@ -852,6 +938,7 @@ public class LLMExecutionStep implements PipelineStep {
                 executionContext.setSeed(platformSeed.value());
                 recordMetadata(context, executionContext, "platformDeterminismSeed", platformSeed.value());
             }
+            applyPlatformAnthropicThinking(request, executionContext);
         }
         if (maxTokens != null) {
             executionContext.setMaxTokens(maxTokens.value());
@@ -909,6 +996,28 @@ public class LLMExecutionStep implements PipelineStep {
             recordMetadata(context, executionContext, "structuredOutputValidationMaxAttempts", maxRepeatAttempts);
         }
         return executionContext;
+    }
+
+    /**
+     * The layer's Anthropic thinking settings, set by the strategy as platform parameters of the request and read from
+     * there only: neither the pipeline's metadata nor a request key of the call's own name sets them.
+     */
+    private static <T extends DomainContext> void applyPlatformAnthropicThinking(
+            AIRequest<T> request,
+            ExecutionContext executionContext) {
+        if (request == null || request.getParameters() == null) {
+            return;
+        }
+        for (String[] keys : new String[][] {
+                {"platformAnthropicThinking", ExecutionContext.ANTHROPIC_THINKING},
+                {"platformAnthropicEffort", ExecutionContext.ANTHROPIC_EFFORT},
+                {"platformAnthropicThinkingBudgetTokens", ExecutionContext.ANTHROPIC_THINKING_BUDGET_TOKENS},
+                {"platformAnthropicThinkingAllowanceTokens", ExecutionContext.ANTHROPIC_THINKING_ALLOWANCE_TOKENS}}) {
+            Object value = request.getParameters().get(keys[0]);
+            if (value != null && !value.toString().isBlank()) {
+                executionContext.addMetadata(keys[1], value);
+            }
+        }
     }
 
     private <T extends DomainContext> ResolvedValue<Integer> resolveTrustedSecurityMaxTokens(

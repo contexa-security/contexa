@@ -525,6 +525,23 @@ class ProviderAwareChatOptionsFactoryTest {
     }
 
     /**
+     * D-7 (QF-51): the Claude models that refuse any sampling value but the default are the Claude API's list (thinking
+     * and migration documentation, read 2026-10-30): Opus 4.7 and later, Sonnet 5 and 5.5, Haiku 5.5, Fable and Mythos.
+     */
+    @Test
+    void theClaudeModelsThatTakeOnlyTheDefaultSamplingAreTheClaudeApisList() {
+        for (String model : List.of("claude-opus-4-7", "claude-opus-4-8", "claude-opus-5", "claude-opus-5-5",
+                "claude-sonnet-5", "claude-sonnet-5-5", "claude-haiku-5-5", "claude-fable-5", "claude-fable-5-1",
+                "claude-mythos-5", "claude-mythos-5-1", "claude-mythos-preview")) {
+            assertThat(ProviderAwareChatOptionsFactory.anthropicUsesDefaultSamplingOnly(model)).as(model).isTrue();
+        }
+        for (String model : List.of("claude-opus-4-6", "claude-sonnet-4-6", "claude-opus-4-5", "claude-haiku-4-5",
+                "claude-sonnet-4-5-20250929")) {
+            assertThat(ProviderAwareChatOptionsFactory.anthropicUsesDefaultSamplingOnly(model)).as(model).isFalse();
+        }
+    }
+
+    /**
      * A model of another provider (here one whose package names Vertex AI) is never given OpenAI options because the
      * configured chat priority names OpenAI.
      */

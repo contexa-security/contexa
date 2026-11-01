@@ -155,6 +155,14 @@ class UnifiedLLMOrchestratorSecurityDecisionRawGuardTest {
         assertThat(failureCategory(null, new IllegalStateException("connection refused"))).isEqualTo("MODEL_UNAVAILABLE");
     }
 
+    /** D-8: a call the model ended at its context window is named so, not an empty answer or a cut one. */
+    @Test
+    void executeEntityShouldNameACallEndedAtTheContextWindow() {
+        String empty = "LLM response is null or empty - RequestId: security-raw-window";
+        assertThat(failureCategory("model_context_window_exceeded", new IllegalStateException(empty)))
+                .isEqualTo("MODEL_CONTEXT_WINDOW_EXCEEDED");
+    }
+
     private String failureCategory(String finishReason, RuntimeException error) {
         UnifiedLLMOrchestrator orchestrator = new UnifiedLLMOrchestrator(noModelSelection(), noStreaming(),
                 new TieredLLMProperties(), new AdvisorRegistry(), new SecurityPlaneProperties()) {

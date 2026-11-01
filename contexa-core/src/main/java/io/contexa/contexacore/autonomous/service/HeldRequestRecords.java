@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacommon.security.bridge.ArgumentOrigins;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.decision.LearningPromotionPolicy;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
@@ -64,6 +65,13 @@ final class HeldRequestRecords {
                     metadata.put(key, value);
                 }
             });
+        }
+        // BR-C6 (QF-13): the origins of the call's arguments are not plain values; what a learned record keeps of them is
+        // their classification, which is kept here as a map of names, without any value or sentence.
+        Map<String, String> argSources = event.getMetadata() != null
+                ? ArgumentOrigins.classificationOf(event.getMetadata().get(ArgumentOrigins.KEY)) : Map.of();
+        if (!argSources.isEmpty()) {
+            metadata.put(VectorDocumentMetadata.ARG_SOURCES, argSources);
         }
         // The canonical context is not kept, so the item count and network zone the decision used (W3-3) are kept as
         // the plain values the later learning reads in its place.

@@ -18,9 +18,12 @@ package io.contexa.contexacore.autonomous.service;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.domain.TruthValues;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 import io.contexa.contexacore.autonomous.context.collector.ProtectableWorkProfileCollector;
+import io.contexa.contexacore.autonomous.context.support.LearnedBy;
 import io.contexa.contexacore.autonomous.context.support.PastDeniedDecisions;
 import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
+import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
@@ -180,6 +183,8 @@ public class VerificationLearningService {
             return false;
         }
         SecurityEvent event = held.get();
+        // BR-C6: the record of a request learned after the user passed the step-up says so.
+        event.addMetadata(VectorDocumentMetadata.LEARNED_BY, LearnedBy.VERIFIED.name());
         if (securityLearningService != null) {
             securityLearningService.learnAndStore(userId.trim(), stepUpDecision(), event);
         }
@@ -226,7 +231,9 @@ public class VerificationLearningService {
             return;
         }
         try {
-            learningPromotionService.promoteVerified(userId, values.stream().map(String::valueOf).toList());
+            // QF-29: the held requests of the user within the tenant of the request the step-up answered.
+            learningPromotionService.promoteVerified(LearningSubject.tenantOf(event), userId,
+                    values.stream().map(String::valueOf).toList());
         } catch (RuntimeException e) {
             log.error("Failed to promote held requests after a step-up: userId={}", userId, e);
         }

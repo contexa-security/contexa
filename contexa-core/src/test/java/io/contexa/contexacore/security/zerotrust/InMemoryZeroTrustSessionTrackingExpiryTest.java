@@ -20,16 +20,21 @@ class InMemoryZeroTrustSessionTrackingExpiryTest {
             new InMemoryBlockingSignalBroadcaster(), Duration.ofHours(24), clock);
 
     @Test
-    void aTokenIdentifierIsReleasedAfterItsExpiryAndAnHttpSessionWhenItIsDestroyed() {
+    void aTokenIdentifierIsReleasedAfterItsExpiryAndADestroyedHttpSessionAfterItsDeadline() {
         service.doRegisterSession("alice", "jti-1", clock.instant().plus(Duration.ofHours(1)));
-        service.doRegisterSession("alice", "http-session-1", null);
+        service.doRegisterSession("alice", "http-session-1", clock.instant().plus(Duration.ofHours(3)));
 
         clock.advance(Duration.ofHours(2));
         service.removeExpiredEntries();
         assertThat(service.tracksSession("jti-1")).isFalse();
         assertThat(service.tracksSession("http-session-1")).isTrue();
 
+        // Z-16 (2-e): as in the Redis service, the container's end of the session leaves it to its deadline.
         service.forgetSession("http-session-1");
+        assertThat(service.tracksSession("http-session-1")).isTrue();
+
+        clock.advance(Duration.ofHours(2));
+        service.removeExpiredEntries();
         assertThat(service.tracksSession("http-session-1")).isFalse();
     }
 

@@ -21,6 +21,7 @@ import io.contexa.contexacommon.security.subject.SubjectKind;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmation;
 import io.contexa.contexacore.autonomous.baseline.AgentBaselineView;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.support.ArgumentOriginLines;
 import io.contexa.contexacore.autonomous.context.support.SessionExports;
 import io.contexa.contexacore.autonomous.context.decision.RelativeTime;
 import io.contexa.contexacore.autonomous.context.enricher.RecordedDelegationContextProvider;
@@ -46,8 +47,9 @@ import java.util.Set;
 /**
  * The v21 lines about agents and credentials (docs/agent A2): the credential a token states (A2-11), the delegation a
  * request runs under (A2-4), the work done so far in an agent's session (A2-9) and who wrote the records the request
- * rests on (A2-10). Each line states records and comparisons, never what they mean; the render and the prompt inspector
- * draw them with these same functions from the sealed context.
+ * rests on (A2-10) and, from CQ-1, where the values of a call's arguments first appeared. Each line states records and
+ * comparisons, never what they mean; the render and the prompt inspector draw them with these same functions from the
+ * sealed context.
  */
 public final class AgentLineValues {
 
@@ -438,6 +440,25 @@ public final class AgentLineValues {
     @Nullable
     public static String callArguments(@Nullable CanonicalSecurityContext context) {
         return context != null ? text(attributes(context).get(InvocationArguments.KEY)) : null;
+    }
+
+    /**
+     * {@code recipient US133… is not named in the user's request or in the company's records; it first appeared in the
+     * output of read_file, in the text: "…"}: where the values of the call's arguments that neither the user's request
+     * nor the company's records name first appeared, when the host says it was in a tool's output (CQ-1), or null when
+     * it says so of none. At most three values; the sentence is the host's quotation, cut to 300 characters.
+     */
+    @Nullable
+    public static String argumentOrigins(@Nullable CanonicalSecurityContext context) {
+        return ArgumentOriginLines.line(context);
+    }
+
+    /**
+     * The sentences of tool outputs the {@link #argumentOrigins} line quotes, each once (CQ-1): an untrusted text, the
+     * output of a tool written outside this request.
+     */
+    public static List<String> toolOutputExcerpts(@Nullable CanonicalSecurityContext context) {
+        return ArgumentOriginLines.excerpts(context);
     }
 
     /** Whether the delegation names its agent, its objective and a scope, after the records were read (A2-6). */

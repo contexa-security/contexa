@@ -49,6 +49,7 @@ import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
+import io.contexa.contexacore.properties.SecurityColdPathProperties;
 import io.contexa.contexacore.properties.SecurityKafkaProperties;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
@@ -245,11 +246,17 @@ public class CoreAutonomousEventAutoConfiguration {
             Layer1ContextualStrategy contextualStrategy,
             Layer2ExpertStrategy expertStrategy,
             LlmAnalysisEventListener llmAnalysisEventListener,
-            ObjectProvider<PromptShadowRunner> promptShadowRunner) {
+            ObjectProvider<PromptShadowRunner> promptShadowRunner,
+            ObjectProvider<SecurityColdPathProperties> securityColdPathProperties) {
         ColdPathEventProcessor processor = new ColdPathEventProcessor(contextualStrategy, expertStrategy,
                 llmAnalysisEventListener);
         // W6-9: the shadow run after the decision, when one is configured.
         processor.setShadowRunner(promptShadowRunner.getIfAvailable());
+        // QF-42: the bound on escalation protection windows.
+        SecurityColdPathProperties coldPath = securityColdPathProperties.getIfAvailable();
+        if (coldPath != null) {
+            processor.setMaxEscalationWindows(coldPath.getMaxEscalationWindows());
+        }
         return processor;
     }
 

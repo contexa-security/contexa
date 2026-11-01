@@ -41,7 +41,8 @@ public final class SealedPastRecordSummary {
      * The record metadata keys the summary keeps: the audit fields, and every key a past record line reads (the path,
      * path template, method and target keys of PastRecordRelevance, the line fields of PastRecordLines, the time, ids and
      * scores of PastRecordRanking), and the hour and day of week the baseline comparison reads of the record (the
-     * closest past record of the learning evidence, N-SEAL-1).
+     * closest past record of the learning evidence, N-SEAL-1), and the two keys a v21 line reads of how the record was
+     * learned and which arguments came from a tool's output (BR-C6).
      */
     private static final List<String> KEPT_KEYS = List.of(VectorDocumentMetadata.ID, VectorDocumentMetadata.TIMESTAMP,
             VectorDocumentMetadata.EVENT_ID, "documentType", "userId", "tenantId", "organizationId", "resourceId",
@@ -50,7 +51,8 @@ public final class SealedPastRecordSummary {
             VectorDocumentMetadata.TENANT_BOUND, "retrievalPurpose", VectorDocumentMetadata.RETRIEVAL_POLICY_SUMMARY,
             VectorDocumentMetadata.ACCESS_SCOPE, "action", "actionFamily", "requestItems", "ipBand", "networkZone",
             "userAgentBrowser", "userAgentOS", "deviceBrowser", "deviceOs", "authenticationType", "autonomousAction",
-            "hour", "dayOfWeek", VectorDocumentMetadata.SIMILARITY_SCORE, "distance");
+            "hour", "dayOfWeek", VectorDocumentMetadata.SIMILARITY_SCORE, "distance",
+            VectorDocumentMetadata.LEARNED_BY, VectorDocumentMetadata.ARG_SOURCES);
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() {
     };

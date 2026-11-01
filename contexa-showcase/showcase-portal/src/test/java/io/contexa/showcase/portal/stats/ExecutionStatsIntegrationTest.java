@@ -71,7 +71,8 @@ class ExecutionStatsIntegrationTest {
         StatsView view = stats.view();
 
         // Completed: t1, t2, t3, n1 and the grid cell; the forced run is left out, the failed run counted apart.
-        assertThat(view.runs()).isEqualTo(new StatsView.Runs(5, 1, 4, 1, NOW.minusSeconds(3600 * 30),
+        // Today counts the visitors' live runs only (n1): t1 is yesterday's, t2, t3 and the grid cell are not live.
+        assertThat(view.runs()).isEqualTo(new StatsView.Runs(5, 1, 1, 2, NOW.minusSeconds(3600 * 30),
                 NOW.minusSeconds(60)));
         // Resolved decisions 1000, 2000, 3000 and 4000 ms (t3's unresolved and the forced run left out).
         assertThat(view.decisionTime()).isEqualTo(new StatsView.DecisionTime(4, 2500L, 3850L));
@@ -137,8 +138,9 @@ class ExecutionStatsIntegrationTest {
                     time_zone)
                 values (?, ?, 'abc123', '0.1.0', 'ENFORCE', '{}'::jsonb, 'gpt-5-nano', 'text-embedding-3-small', 1024,
                     ?, ?, 'UTC')""", UUID.randomUUID(), SPEC, "b".repeat(64), "c".repeat(64));
-        // t1 (A3, threat): the rule controls in front let it through, C1 and C2 stop it, D allows (1000 ms).
-        run("t1", "A3", "COMPLETED", null, null, NOW.minusSeconds(3600 * 30));
+        // t1 (A3, threat, a visitor's live run of yesterday): the rule controls in front let it through, C1 and C2
+        // stop it, D allows (1000 ms).
+        run("t1", "A3", "COMPLETED", null, "e".repeat(64), NOW.minusSeconds(3600 * 30));
         arms("t1", 1, "DELIVERED", "DELIVERED", "REFUSED", "REFUSED", "DELIVERED", 200);
         decision("t1", 1, "ALLOW", false, "NEXT_REQUEST", 1000L);
         // t2 (A3, threat): D blocks before the response (3000 ms).

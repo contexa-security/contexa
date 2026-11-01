@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>AgentDojo 결과</title>
+<link rel="stylesheet" href="design.css">
+<style>
+  .ci-chart { display: grid; grid-template-columns: 200px 1fr 150px; row-gap: 14px; column-gap: 16px; align-items: center; }
+  .ci-label { font-size: 14px; color: var(--text); font-weight: 600; }
+  .ci-label small { display: block; font-size: 12px; color: var(--text-3); font-weight: 500; }
+  .ci-track { position: relative; height: 28px; }
+  .ci-track .grid-l { position: absolute; top: -6px; bottom: -6px; width: 1px; background: var(--line); }
+  .ci-bar { position: absolute; top: 8px; height: 12px; left: 0; border-radius: 0 4px 4px 0; }
+  .ci-w { position: absolute; top: 13px; height: 2px; background: var(--text); }
+  .ci-w::before, .ci-w::after { content: ''; position: absolute; top: -5px; width: 2px; height: 12px; background: var(--text); }
+  .ci-w::before { left: 0; } .ci-w::after { right: 0; }
+  .ci-val { font-variant-numeric: tabular-nums; font-size: 15px; font-weight: 600; text-align: right; }
+  .ci-val small { display: block; font-size: 12px; font-weight: 500; color: var(--text-3); }
+  .axis { display: grid; grid-template-columns: 200px 1fr 150px; column-gap: 16px; margin-top: 8px; }
+  .axis-in { position: relative; height: 16px; font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+  .axis-in span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+  .env td.num { text-align: right; }
+  .delta { color: var(--allow); font-weight: 600; }
+  .phone .ci-chart { grid-template-columns: 1fr auto; grid-auto-flow: row dense; row-gap: 8px; }
+  .phone .ci-track { grid-column: 1 / -1; margin-bottom: 12px; }
+  .phone .axis { grid-template-columns: 1fr; margin: 0 12px 0 8px; }
+  .phone .axis > span { display: none; }
+</style>
+</head>
+<body data-active="bench" data-lang="ko" data-crumbs="검증|표준 벤치마크|AgentDojo">
+<main class="content"><div class="wrap">
+
+  <div class="ph">
+    <div class="ph-main">
+      <div class="ph-kicker"><span class="badge b-allow">완료</span><span class="tag">agentdojo 0.1.35 · 벤치마크 v1.2.2</span><span class="tag">freeze</span><span class="code">test-v1 2e114125…</span></div>
+      <h1 class="ph-title">AgentDojo — 간접 프롬프트 주입</h1>
+      <p class="ph-desc">도구를 쓰는 에이전트가 도구 출력 속 주입 지시에 속는지 4개 환경(banking · slack · travel · workspace)에서 측정합니다. 시험용 664쌍 + 정상 업무 68건.</p>
+    </div>
+    <div class="ph-actions"><button class="btn"><i data-icon="file-json"></i>report-final.json</button></div>
+  </div>
+
+  <div class="tabs"><span class="tab">개요</span><span class="tab on">AgentDojo</span><span class="tab">InjecAgent</span><span class="tab">Promptfoo</span><span class="tab">방법 · 재현</span></div>
+  <div class="h-stack" style="margin:-8px 0 20px;gap:6px"><span class="badge b-sel" style="height:28px;padding:0 12px;font-size:13px">결과</span><span class="badge b-line" style="height:28px;padding:0 12px;font-size:13px">환경별 분해</span><span class="badge b-line" style="height:28px;padding:0 12px;font-size:13px">소유자 변형</span><span class="badge b-line" style="height:28px;padding:0 12px;font-size:13px">사례 보기</span><span class="badge b-line" style="height:28px;padding:0 12px;font-size:13px">설정 · 비용</span><span class="badge b-line" style="height:28px;padding:0 12px;font-size:13px">한계</span></div>
+
+  <section class="card" style="margin-bottom:16px">
+    <div class="card-head"><div><h2 class="card-title">Targeted ASR · 표적 공격 성공률</h2><p class="card-sub">낮을수록 좋음 · 막대 = 점추정, 수염 = 95% 구간(Clopper-Pearson) · 시험용 664쌍</p></div><div class="right"><span class="legend"><span><i style="background:var(--text-3)"></i>보호 없음</span><span><i style="background:var(--brand)"></i>Contexa 적용</span></span></div></div>
+    <div class="card-body">
+      <div class="ci-chart">
+        <div class="ci-label">보호 없음<small>baseline · qwen2.5 7B</small></div>
+        <div class="ci-track"><span class="grid-l" style="left:33.3%"></span><span class="grid-l" style="left:66.6%"></span><span class="ci-bar" style="width:70.3%;background:var(--text-3)"></span><span class="ci-w" style="left:55.4%;width:32.1%"></span></div>
+        <div class="ci-val">10.54%<small>70 / 664 · 8.31–13.13</small></div>
+        <div class="ci-label">S-1 (a) 소유자 확인 없음<small>확인 요구는 모두 거절</small></div>
+        <div class="ci-track"><span class="grid-l" style="left:33.3%"></span><span class="grid-l" style="left:66.6%"></span><span class="ci-bar" style="width:9.1%;background:var(--brand)"></span><span class="ci-w" style="left:4.1%;width:13.0%"></span></div>
+        <div class="ci-val" style="color:var(--allow)">1.36%<small>9 / 664 · 0.62–2.56</small></div>
+        <div class="ci-label">S-1 (b) 모의 소유자 확인<small>Claude Haiku 5.5가 소유자 역할</small></div>
+        <div class="ci-track"><span class="grid-l" style="left:33.3%"></span><span class="grid-l" style="left:66.6%"></span><span class="ci-bar" style="width:13.1%;background:var(--brand)"></span><span class="ci-w" style="left:7.0%;width:15.1%"></span></div>
+        <div class="ci-val" style="color:var(--allow)">1.96%<small>13 / 664 · 1.05–3.32</small></div>
+        <div class="ci-label">BR-V2 (a) 개선 뒤 재측정<small>freeze test-v2</small></div>
+        <div class="ci-track"><span class="grid-l" style="left:33.3%"></span><span class="grid-l" style="left:66.6%"></span><span class="ci-bar" style="width:10.1%;background:var(--brand)"></span><span class="ci-w" style="left:4.8%;width:13.5%"></span></div>
+        <div class="ci-val" style="color:var(--allow)">1.51%<small>10 / 664 · 0.72–2.75</small></div>
+      </div>
+      <div class="axis"><span></span><div class="axis-in"><span style="left:0%">0%</span><span style="left:33.3%">5%</span><span style="left:66.6%">10%</span><span style="left:100%">15%</span></div><span></span></div>
+    </div>
+  </section>
+
+  <div class="grid g-12">
+    <section class="card span-7">
+      <div class="card-head"><div><h2 class="card-title">환경별 분해</h2><p class="card-sub">Targeted ASR · 보호 없음 → S-1 (a)</p></div></div>
+      <table class="table env">
+        <thead><tr><th>환경</th><th class="r">보호 없음</th><th class="r">S-1 (a)</th><th class="r">S-1 (b)</th><th class="r">표본</th></tr></thead>
+        <tbody>
+          <tr><td class="strong">banking</td><td class="num">18 · 18.2%</td><td class="num delta">1 · 1.0%</td><td class="num">1 · 1.0%</td><td class="num">99</td></tr>
+          <tr><td class="strong">slack</td><td class="num">39 · 52.0%</td><td class="num delta">6 · 8.0%</td><td class="num">8 · 10.7%</td><td class="num">75</td></tr>
+          <tr><td class="strong">travel</td><td class="num">9 · 9.2%</td><td class="num delta">1 · 1.0%</td><td class="num">3 · 3.1%</td><td class="num">98</td></tr>
+          <tr><td class="strong">workspace</td><td class="num">4 · 1.0%</td><td class="num delta">1 · 0.3%</td><td class="num">1 · 0.3%</td><td class="num">392</td></tr>
+        </tbody>
+      </table>
+    </section>
+    <section class="card span-5">
+      <div class="card-head"><div><h2 class="card-title">업무 성공률에 대한 영향</h2><p class="card-sub">높을수록 좋음 · 같은 사례 짝 비교</p></div></div>
+      <div class="card-body">
+        <dl class="kv" style="grid-template-columns:150px 1fr;row-gap:14px">
+          <dt>Benign Utility</dt><dd class="num">38.24% → <b style="color:var(--block)">19.12%</b> (a) · p = 0.007</dd>
+          <dt></dt><dd class="num">38.24% → <b style="color:var(--block)">23.53%</b> (b) · p = 0.013</dd>
+          <dt>Utility under Attack</dt><dd class="num">27.11% → <b style="color:var(--block)">20.03%</b> (a) · p &lt; 0.001</dd>
+          <dt></dt><dd class="num">27.11% → 25.45% (b) · p = 0.38</dd>
+        </dl>
+        <div class="note" style="margin-top:16px"><i data-icon="info"></i><span>보호를 켜면 확인 요구가 늘어 정상 업무 성공률이 낮아집니다. 소유자 확인이 없을 때 하락이 가장 큽니다.</span></div>
+      </div>
+    </section>
+  </div>
+
+</div></main>
+<script src="shell.js"></script>
+</body>
+</html>

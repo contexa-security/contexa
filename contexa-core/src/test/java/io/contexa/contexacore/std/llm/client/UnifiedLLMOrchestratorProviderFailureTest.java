@@ -58,6 +58,22 @@ class UnifiedLLMOrchestratorProviderFailureTest {
         assertThat(retryable(new IOException("connection reset"))).isTrue();
     }
 
+    /**
+     * QF-52: an AnthropicApi built without the Boot retry configuration's error handler (RetryUtils' default) words the
+     * failure "429 - ..." instead of "HTTP 429 - ...", and the rate limit must be sent again all the same.
+     */
+    @Test
+    void theStatusIsReadInSpringAisDefaultWordingAsWell() {
+        assertThat(retryable(new NonTransientAiException("429 - {\"type\":\"rate_limit_error\"}"))).isTrue();
+        assertThat(retryable(new NonTransientAiException("408 - request timeout"))).isTrue();
+        assertThat(retryable(new NonTransientAiException("409 - conflict"))).isTrue();
+        assertThat(retryable(new NonTransientAiException("400 - {\"type\":\"invalid_request_error\"}"))).isFalse();
+        assertThat(retryable(new NonTransientAiException("401 - invalid x-api-key"))).isFalse();
+        // the Boot wording without a body is still read, and a message that only starts with digits is no status
+        assertThat(retryable(new NonTransientAiException("HTTP 429"))).isTrue();
+        assertThat(retryable(new NonTransientAiException("429 requests were refused"))).isFalse();
+    }
+
     private boolean retryable(Throwable failure) {
         Boolean retryable = ReflectionTestUtils.invokeMethod(orchestrator, "isRetryableProviderFailure", failure);
         return Boolean.TRUE.equals(retryable);

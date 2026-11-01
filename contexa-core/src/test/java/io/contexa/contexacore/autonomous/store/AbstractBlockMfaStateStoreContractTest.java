@@ -36,9 +36,14 @@ abstract class AbstractBlockMfaStateStoreContractTest {
     protected abstract BlockMfaStateStore createStoreWithVerifiedTtl(
             ZeroTrustActionRepository actionRepository, Duration verifiedTtl);
 
+    /** The decision repository of the same mode, which the store shares its state with. */
+    protected ZeroTrustActionRepository createActionRepository() {
+        return new InMemoryZeroTrustActionRepository();
+    }
+
     @BeforeEach
     void setUpStore() {
-        actionRepository = new InMemoryZeroTrustActionRepository();
+        actionRepository = createActionRepository();
         store = createStore(actionRepository);
     }
 
@@ -131,5 +136,53 @@ abstract class AbstractBlockMfaStateStoreContractTest {
 
         assertThat(store.isVerified("gina")).isFalse();
         assertThat(store.isVerified("hank")).isTrue();
+    }
+
+    // Z-16 (1-d): the verification goes with the user's other BLOCK MFA state, as the Redis keys do.
+
+    @Test
+    @DisplayName("a logout of a user nothing restricts clears its BLOCK MFA verification")
+    void logoutOfAnUnrestrictedUser_clearsVerification() {
+        store.setVerified("ivy");
+
+        actionRepository.removeLogoutData("ivy");
+
+        assertThat(store.isVerified("ivy")).isFalse();
+    }
+
+    @Test
+    @DisplayName("a logout of a blocked user keeps its BLOCK MFA verification")
+    void logoutOfABlockedUser_keepsVerification() {
+        actionRepository.setBlockedFlag("jack");
+        store.setVerified("jack");
+
+        actionRepository.removeLogoutData("jack");
+
+        assertThat(store.isVerified("jack")).isTrue();
+        actionRepository.removeAllUserData("jack");
+    }
+
+    @Test
+    @DisplayName("removing all of a user's data clears its BLOCK MFA verification")
+    void removeAllUserData_clearsVerification() {
+        store.setVerified("kate");
+        store.setVerified("liam");
+
+        actionRepository.removeAllUserData("kate");
+
+        assertThat(store.isVerified("kate")).isFalse();
+        assertThat(store.isVerified("liam")).isTrue();
+    }
+
+    @Test
+    @DisplayName("removing the data of a user's agents clears their BLOCK MFA verifications only")
+    void removeAllAgentData_clearsTheAgentsVerifications() {
+        store.setVerified("mona");
+        store.setVerified("mona::agent::reports");
+
+        actionRepository.removeAllAgentData("mona");
+
+        assertThat(store.isVerified("mona::agent::reports")).isFalse();
+        assertThat(store.isVerified("mona")).isTrue();
     }
 }

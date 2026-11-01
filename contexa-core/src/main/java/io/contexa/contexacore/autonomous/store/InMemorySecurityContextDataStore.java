@@ -33,24 +33,37 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 
+/**
+ * The in-memory twin of {@link RedisSecurityContextDataStore}. Z-16: each kind of record is an {@link ExpiringKeySpace}
+ * that keeps, extends on a read and forgets its keys as the Redis store does its keys of the same kind; only what needs
+ * several nodes differs (the Lua scripts are single compute calls, an orphan claim of another process is not taken
+ * over). The bounds on keys are for the memory of the JVM, which Redis leaves to its own memory limit.
+ */
 public class InMemorySecurityContextDataStore implements SecurityContextDataStore, ExpiringStateStore {
 
     private static final int MAX_SESSION_ACTIONS = 100;
-    private static final int MAX_HELD_VERIFICATION_REQUESTS = 50;
     private static final int MAX_VERIFICATION_OUTCOMES = 10_000;
-    private static final int MAX_HELD_PROMOTION_REQUESTS = 200;
     private static final int MAX_STOPPED_REQUESTS = 20;
     private static final int MAX_PREVIOUS_SESSION_IDS = 20;
-    private static final int MAX_WORK_PROFILE_OBSERVATIONS = 5_000;
-    private static final int MAX_ROLE_SCOPE_OBSERVATIONS = 5_000;
     private static final int MAX_PERMISSION_CHANGE_OBSERVATIONS = 200;
     private static final int MAX_PROCESSED_EVENTS = 50_000;
     private static final int MAX_SOAR_EXECUTIONS = 10_000;
     private static final int MAX_SESSION_ENTRIES = 10_000;
+    /** QF-42: the default budget of the held learning records is a tenth of the maximum heap, within these bounds. */
+    private static final int DEFAULT_HELD_LEARNING_HEAP_SHARE_DIVISOR = 10;
+    private static final long MIN_DEFAULT_HELD_LEARNING_BYTES = 16L * 1024 * 1024;
+    private static final long MAX_DEFAULT_HELD_LEARNING_BYTES = 1024L * 1024 * 1024;
+    /** How far the release order may outgrow twice the held records before its stale entries are dropped. */
+    private static final int HELD_LEARNING_ORDER_SLACK = 1_024;
 
     private static final Duration DEFAULT_EVENT_PROCESSED_TTL = Duration.ofHours(24);
     private static final Duration DEFAULT_SOAR_TTL = Duration.ofDays(7);
@@ -61,6 +74,22 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private static final Duration STOPPED_REQUEST_TTL = ZeroTrustAction.CHALLENGE.getDefaultTtl();
     /** A verified stopped request is sent again under the ALLOW the step-up writes (N-LRN-3). */
     private static final Duration VERIFIED_STOPPED_REQUEST_TTL = ZeroTrustAction.ALLOW.getDefaultTtl();
+    /**
+     * QF-42, Z-16: how long RedisSecurityContextDataStore keeps each kind of key after its last write, the same
+     * values (the shared contract test holds both stores to them): a session's actions and decisions, a session's
+     * narrative and activity, a session's risk, a user's last request, and what is learned (observations,
+     * authorization states, held requests). This class does not read the Redis store's constants: that class needs
+     * Redis on the class path, which a standalone deployment may not have.
+     */
+    private static final Duration SESSION_RECORDS_TTL = Duration.ofHours(24);
+    private static final Duration SESSION_ACTIVITY_TTL = Duration.ofMinutes(10);
+    private static final Duration SESSION_RISK_TTL = Duration.ofHours(1);
+    private static final Duration USER_ACTIVITY_TTL = Duration.ofMinutes(10);
+    private static final Duration LEARNING_TTL = Duration.ofDays(30);
+    /** Z-16 D-5: the record of a stopped request is stored moments after its decision; a day covers a delayed store. */
+    private static final Duration VERIFICATION_OUTCOME_TTL = Duration.ofDays(1);
+    /** Z-16 D-6: a processing claim is a lease; a claim not released or completed within it can be claimed again. */
+    private static final Duration EVENT_PROCESSING_TTL = Duration.ofMinutes(30);
 
     private final Duration eventProcessedTtl;
     private final Duration soarTtl;
@@ -85,86 +114,134 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         this.soarTtl = Objects.requireNonNull(soarTtl, "soarTtl");
         this.userSessionsTtl = Objects.requireNonNull(userSessionsTtl, "userSessionsTtl");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.sessionActions = sessionScopedSpace(SESSION_RECORDS_TTL);
+        this.sessionDecisions = sessionScopedSpace(SESSION_RECORDS_TTL);
+        this.sessionNarrativeActionFamilies = sessionScopedSpace(SESSION_ACTIVITY_TTL);
+        this.sessionProtectableAccesses = sessionScopedSpace(SESSION_ACTIVITY_TTL);
+        this.sessionRequestIntervals = sessionScopedSpace(SESSION_ACTIVITY_TTL);
+        this.sessionStartedAt = sessionScopedSpace(SESSION_ACTIVITY_TTL);
+        this.sessionLastRequestTimes = sessionScopedSpace(SESSION_ACTIVITY_TTL);
+        this.sessionPreviousPaths = sessionScopedSpace(SESSION_ACTIVITY_TTL);
+        this.sessionFirstClients = sessionScopedSpace(SESSION_ACTIVITY_TTL);
+        this.sessionPreviousIds = sessionScopedSpace(SESSION_ACTIVITY_TTL);
+        this.sessionRisks = sessionScopedSpace(SESSION_RISK_TTL);
+        this.lastRequestTimes = userActivitySpace();
+        this.previousPaths = userActivitySpace();
+        this.workProfileObservations = learningSpace(value -> {
+        });
+        this.roleScopeObservations = learningSpace(value -> {
+        });
+        this.permissionChangeObservations = learningSpace(value -> {
+        });
+        this.authorizationScopeStates = learningSpace(value -> {
+        });
+        this.verificationLearning = learningSpace(this::releaseHeldRecords);
+        this.promotionLearning = learningSpace(this::releaseHeldRecords);
+        this.stoppedRequests = ExpiringKeySpace.<StoppedRequests>builder(clock).build();
+        this.mfaVerifiedAt = ExpiringKeySpace.<Long>builder(clock).ttl(MFA_VERIFIED_TTL).build();
+        this.accountDeletions = ExpiringKeySpace.<Instant>builder(clock).build();
+        this.userSessions = ExpiringKeySpace.<Set<String>>builder(clock).ttl(userSessionsTtl)
+                .bound(MAX_SESSION_ENTRIES).build();
+        this.processingEventOwners = ExpiringKeySpace.<String>builder(clock).ttl(EVENT_PROCESSING_TTL).build();
+        this.processedEvents = ExpiringKeySpace.<String>builder(clock).ttl(eventProcessedTtl)
+                .bound(MAX_PROCESSED_EVENTS).build();
+        this.soarExecutions = ExpiringKeySpace.<Object>builder(clock).ttl(soarTtl).bound(MAX_SOAR_EXECUTIONS).build();
+        this.verificationOutcomes = ExpiringKeySpace.<String>builder(clock).ttl(VERIFICATION_OUTCOME_TTL)
+                .bound(MAX_VERIFICATION_OUTCOMES).build();
+        this.sessionScopedSpaces = List.of(sessionStartedAt, sessionActions, sessionDecisions,
+                sessionNarrativeActionFamilies, sessionProtectableAccesses, sessionRequestIntervals, sessionRisks,
+                sessionLastRequestTimes, sessionPreviousPaths, sessionPreviousIds, sessionFirstClients);
+        this.spaces = List.of(sessionActions, sessionDecisions, sessionNarrativeActionFamilies,
+                sessionProtectableAccesses, sessionRequestIntervals, sessionStartedAt, sessionLastRequestTimes,
+                sessionPreviousPaths, sessionFirstClients, sessionPreviousIds, sessionRisks, lastRequestTimes,
+                previousPaths, workProfileObservations, roleScopeObservations, permissionChangeObservations,
+                authorizationScopeStates, verificationLearning, promotionLearning, stoppedRequests, mfaVerifiedAt,
+                accountDeletions, userSessions, processingEventOwners, processedEvents, soarExecutions,
+                verificationOutcomes);
     }
 
-    private final ConcurrentHashMap<String, List<String>> sessionActions = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, List<String>> sessionNarrativeActionFamilies = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, List<String>> sessionDecisions = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, List<String>> sessionProtectableAccesses = new ConcurrentHashMap<>();
+    private final ExpiringKeySpace<List<String>> sessionActions;
+    private final ExpiringKeySpace<List<String>> sessionNarrativeActionFamilies;
+    private final ExpiringKeySpace<List<String>> sessionDecisions;
+    private final ExpiringKeySpace<List<String>> sessionProtectableAccesses;
     /** Each interval with the time of its request when known (N-SES-1). */
-    private final ConcurrentHashMap<String, List<String>> sessionRequestIntervals = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, List<String>> workProfileObservations = new ConcurrentHashMap<>();
+    private final ExpiringKeySpace<List<String>> sessionRequestIntervals;
+    private final ExpiringKeySpace<List<String>> workProfileObservations;
     /** docs/agent A3-8: the scopes whose learning an operator quarantined. */
     private final Set<String> quarantinedLearning = ConcurrentHashMap.newKeySet();
-    private final ConcurrentHashMap<String, List<String>> roleScopeObservations = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, List<String>> permissionChangeObservations = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Double> sessionRisks = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Long> sessionStartedAt = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Long> sessionLastRequestTimes = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, String> sessionPreviousPaths = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, String> sessionFirstClients = new ConcurrentHashMap<>();
+    private final ExpiringKeySpace<List<String>> roleScopeObservations;
+    private final ExpiringKeySpace<List<String>> permissionChangeObservations;
+    private final ExpiringKeySpace<Double> sessionRisks;
+    private final ExpiringKeySpace<Long> sessionStartedAt;
+    private final ExpiringKeySpace<Long> sessionLastRequestTimes;
+    private final ExpiringKeySpace<String> sessionPreviousPaths;
+    private final ExpiringKeySpace<String> sessionFirstClients;
     /** The facts of each user's requests a restriction stopped, by request id (W5-2). */
-    private final ConcurrentHashMap<String, Map<String, String>> verificationLearning = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Map<String, String>> promotionLearning = new ConcurrentHashMap<>();
+    private final ExpiringKeySpace<Map<String, HeldRecord>> verificationLearning;
+    private final ExpiringKeySpace<Map<String, HeldRecord>> promotionLearning;
     /** The requests a filter stopped under each user's challenge, by method and URI (N-LRN-3). */
-    private final ConcurrentHashMap<String, StoppedRequests> stoppedRequests = new ConcurrentHashMap<>();
+    private final ExpiringKeySpace<StoppedRequests> stoppedRequests;
     /** The ids a session had before its id was replaced, newest first (P2 correction 5). */
-    private final ConcurrentHashMap<String, List<String>> sessionPreviousIds = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, String> authorizationScopeStates = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Long> lastRequestTimes = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, String> previousPaths = new ConcurrentHashMap<>();
+    private final ExpiringKeySpace<List<String>> sessionPreviousIds;
+    private final ExpiringKeySpace<String> authorizationScopeStates;
+    private final ExpiringKeySpace<Long> lastRequestTimes;
+    private final ExpiringKeySpace<String> previousPaths;
     private final ConcurrentHashMap<String, ConcurrentSkipListMap<Long, String>> loginFailureCounters =
             new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Long> mfaVerifiedExpiry = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Long> mfaVerifiedAt = new ConcurrentHashMap<>();
+    /** When each user last completed MFA, on the request clock, while the mark lasts. */
+    private final ExpiringKeySpace<Long> mfaVerifiedAt;
     private volatile Duration loginFailureRetention = LOGIN_FAILURE_MINIMUM_RETENTION;
+    /** BR-C14: how many work profile and role scope observations each scope keeps. */
+    private volatile int observationCapacity = DEFAULT_OBSERVATION_CAPACITY;
+    /**
+     * QF-42: the bytes the records held for verification and promotion learning may take together, counted at two bytes
+     * a character, and what they take now; past the budget the records held the longest ago go first, whoever holds
+     * them.
+     */
+    private volatile long heldLearningBudgetBytes = defaultHeldLearningBudgetBytes(Runtime.getRuntime().maxMemory());
+    private final AtomicLong heldLearningBytes = new AtomicLong();
+    private final AtomicLong heldLearningRecords = new AtomicLong();
+    private final AtomicLong heldLearningSequence = new AtomicLong();
+    /** One entry for every record held, in the order they were held; see {@link HeldEntry}. */
+    private final ConcurrentLinkedQueue<HeldEntry> heldLearningOrder = new ConcurrentLinkedQueue<>();
+    private final AtomicLong heldLearningOrderEntries = new AtomicLong();
+    /** Taken by the releases over the budget and by the pass that drops stale entries from the order. */
+    private final ReentrantLock heldLearningReleaseLock = new ReentrantLock();
     private final AtomicLong authenticationEventSequence = new AtomicLong();
+    /** Guards the moves of an event between its processing claim and its processed mark. */
     private final Object eventProcessingLock = new Object();
-    private final Map<String, String> processingEventOwners = new LinkedHashMap<>();
-    private final Map<String, EventProcessingEntry> processedEvents = Collections.synchronizedMap(
-            new LinkedHashMap<>(16, 0.75f, false) {
-                @Override
-                protected boolean removeEldestEntry(Map.Entry<String, EventProcessingEntry> eldest) {
-                    return size() > MAX_PROCESSED_EVENTS;
-                }
-            });
-    private final Map<String, SoarEntry> soarExecutions = Collections.synchronizedMap(
-            new LinkedHashMap<>(16, 0.75f, false) {
-                @Override
-                protected boolean removeEldestEntry(Map.Entry<String, SoarEntry> eldest) {
-                    return size() > MAX_SOAR_EXECUTIONS;
-                }
-            });
-    private final Map<String, String> verificationOutcomes = Collections.synchronizedMap(
-            new LinkedHashMap<>(16, 0.75f, false) {
-                @Override
-                protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
-                    return size() > MAX_VERIFICATION_OUTCOMES;
-                }
-            });
-    private final ConcurrentHashMap<String, Set<String>> userSessions = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Instant> userSessionsExpiry = new ConcurrentHashMap<>();
-    /** The users whose account was deleted, until the deletion's retention passes (Q-15). */
-    private final ConcurrentHashMap<String, AccountDeletion> accountDeletions = new ConcurrentHashMap<>();
+    /** The owner of each event in processing, for {@link #EVENT_PROCESSING_TTL} (Z-16 D-6). */
+    private final ExpiringKeySpace<String> processingEventOwners;
+    /** The owner of each event processed, or {@code legacy}. */
+    private final ExpiringKeySpace<String> processedEvents;
+    private final ExpiringKeySpace<Object> soarExecutions;
+    private final ExpiringKeySpace<String> verificationOutcomes;
+    private final ExpiringKeySpace<Set<String>> userSessions;
+    /** The users whose account was deleted and when, until the deletion's retention passes (Q-15). */
+    private final ExpiringKeySpace<Instant> accountDeletions;
+    /** The spaces keyed by session id; a session evicted for their bound leaves all of them together. */
+    private final List<ExpiringKeySpace<?>> sessionScopedSpaces;
+    private final List<ExpiringKeySpace<?>> spaces;
 
-    /** A user's stopped requests until they expire, verified once the user passed the step-up (N-LRN-3). */
-    private record StoppedRequests(Set<String> signatures, boolean verified, long expiresAtMs) {
+    /** A user's stopped requests, verified once the user passed the step-up (N-LRN-3). */
+    private record StoppedRequests(Set<String> signatures, boolean verified) {
     }
 
-    private record EventProcessingEntry(String ownerToken, Instant expiresAt) {
-    }
+    /** A record held for learning and its place among all the records held (QF-42). */
+    private record HeldRecord(String value, long sequence) {
 
-    private record AccountDeletion(Instant deletedAt, Instant expiresAt) {
-    }
-
-    private static final class SoarEntry {
-        final Object data;
-        final Instant expiresAt;
-
-        SoarEntry(Object data, Instant expiresAt) {
-            this.data = data;
-            this.expiresAt = expiresAt;
+        private long bytes() {
+            return heldRecordBytes(value);
         }
+    }
+
+    /**
+     * QF-42: a held record's place in the release order: the space and key it is held under, its request id, and the
+     * sequence of the {@link HeldRecord} it was made for. Once that record is no longer held (taken, replaced, removed
+     * with its user, expired, or released for a bound) the entry is stale and releases nothing.
+     */
+    private record HeldEntry(ExpiringKeySpace<Map<String, HeldRecord>> held, String userId, String requestId,
+                             long sequence) {
     }
 
     @Override
@@ -218,27 +295,32 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
 
     @Override
     public List<String> getSessionPreviousIds(String sessionId) {
-        return sessionId == null ? List.of() : sessionPreviousIds.getOrDefault(sessionId, List.of());
+        if (sessionId == null) {
+            return List.of();
+        }
+        List<String> ids = sessionPreviousIds.get(sessionId);
+        return ids == null ? List.of() : ids;
     }
 
     @Override
     public void setSessionFirstClientIfAbsent(String sessionId, String firstClient) {
         if (sessionId != null && firstClient != null) {
+            // Z-16 D-2: as SET NX EX, a client already kept stays with its expiry.
             sessionFirstClients.putIfAbsent(sessionId, firstClient);
         }
     }
 
     @Override
     public String getSessionFirstClient(String sessionId) {
-        return sessionId == null ? null : sessionFirstClients.get(sessionId);
+        return sessionId == null ? null : sessionFirstClients.getAndRefresh(sessionId);
     }
 
-    private static <T> void moveSequence(ConcurrentHashMap<String, List<T>> target, String fromKey, String toKey) {
-        List<T> moved = target.remove(fromKey);
+    private static <T> void moveSequence(ExpiringKeySpace<List<T>> space, String fromKey, String toKey) {
+        List<T> moved = space.remove(fromKey);
         if (moved == null || moved.isEmpty()) {
             return;
         }
-        target.compute(toKey, (key, current) -> {
+        space.compute(toKey, (key, current) -> {
             List<T> merged = Collections.synchronizedList(new ArrayList<>());
             synchronized (moved) {
                 merged.addAll(moved);
@@ -255,11 +337,14 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         });
     }
 
-    /** A single value moves when the new id holds none; a value the new id already holds is the more recent one. */
-    private static <T> void moveValue(ConcurrentHashMap<String, T> target, String fromKey, String toKey) {
-        T moved = target.remove(fromKey);
+    /**
+     * A single value moves when the new id holds none; a value the new id already holds is the more recent one and
+     * keeps its expiry (Z-16 D-4, as SET NX EX).
+     */
+    private static <T> void moveValue(ExpiringKeySpace<T> space, String fromKey, String toKey) {
+        T moved = space.remove(fromKey);
         if (moved != null) {
-            target.putIfAbsent(toKey, moved);
+            space.putIfAbsent(toKey, moved);
         }
     }
 
@@ -318,7 +403,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
 
     @Override
     public Long getSessionStartedAt(String sessionId) {
-        return sessionStartedAt.get(sessionId);
+        return sessionStartedAt.getAndRefresh(sessionId);
     }
 
     @Override
@@ -328,7 +413,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
 
     @Override
     public Long getSessionLastRequestTime(String sessionId) {
-        return sessionLastRequestTimes.get(sessionId);
+        return sessionLastRequestTimes.getAndRefresh(sessionId);
     }
 
     @Override
@@ -338,19 +423,22 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
 
     @Override
     public String getSessionPreviousPath(String sessionId) {
-        return sessionPreviousPaths.get(sessionId);
+        return sessionPreviousPaths.getAndRefresh(sessionId);
     }
 
     @Override
     public void recordSessionLastRequest(String sessionId, long timestamp, String path) {
-        sessionLastRequestTimes.compute(sessionId, (key, recorded) -> {
+        sessionLastRequestTimes.atomically(sessionId, slot -> {
+            Long recorded = slot.value();
             if (recorded != null && recorded > timestamp) {
-                return recorded;
+                // Z-16 D-3: a later request is recorded, so nothing changes, nor how long the records are kept.
+                return null;
             }
+            slot.set(timestamp);
             if (path != null) {
                 sessionPreviousPaths.put(sessionId, path);
             }
-            return timestamp;
+            return null;
         });
     }
 
@@ -365,7 +453,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
                 workProfileObservations,
                 composeWorkProfileKey(tenantId, userId),
                 observation,
-                MAX_WORK_PROFILE_OBSERVATIONS);
+                observationCapacity);
     }
 
     @Override
@@ -379,7 +467,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
                 roleScopeObservations,
                 composeTenantScopedKey(tenantId, scopeKey),
                 observation,
-                MAX_ROLE_SCOPE_OBSERVATIONS);
+                observationCapacity);
     }
 
     @Override
@@ -404,12 +492,11 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     @Override
     public void setAuthorizationScopeState(String tenantId, String userId, String state) {
         authorizationScopeStates.put(composeTenantScopedKey(tenantId, userId), state);
-        evictIfOversized();
     }
 
     @Override
     public String getAuthorizationScopeState(String tenantId, String userId) {
-        return authorizationScopeStates.get(composeTenantScopedKey(tenantId, userId));
+        return authorizationScopeStates.getAndRefresh(composeTenantScopedKey(tenantId, userId));
     }
 
     @Override
@@ -461,17 +548,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
 
     @Override
     public boolean isMfaVerified(String userId) {
-        Long expiresAt = mfaVerifiedExpiry.get(userId);
-        if (expiresAt == null) {
-            return false;
-        }
-        if (clock.millis() >= expiresAt) {
-            if (mfaVerifiedExpiry.remove(userId, expiresAt)) {
-                mfaVerifiedAt.remove(userId);
-            }
-            return false;
-        }
-        return true;
+        return mfaVerifiedAt.containsKey(userId);
     }
 
     @Override
@@ -481,16 +558,11 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
 
     @Override
     public void markMfaVerified(String userId, Instant verifiedAt) {
-        long now = clock.millis();
-        mfaVerifiedExpiry.put(userId, now + MFA_VERIFIED_TTL.toMillis());
-        mfaVerifiedAt.put(userId, verifiedAt != null ? verifiedAt.toEpochMilli() : now);
+        mfaVerifiedAt.put(userId, verifiedAt != null ? verifiedAt.toEpochMilli() : clock.millis());
     }
 
     @Override
     public Instant getLastMfaVerifiedAt(String userId) {
-        if (!isMfaVerified(userId)) {
-            return null;
-        }
         Long verifiedAt = mfaVerifiedAt.get(userId);
         return verifiedAt == null ? null : Instant.ofEpochMilli(verifiedAt);
     }
@@ -500,15 +572,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         if (userId == null || requestId == null || record == null) {
             return;
         }
-        verificationLearning.compute(userId, (key, held) -> {
-            Map<String, String> records = held != null ? held : new LinkedHashMap<>();
-            records.remove(requestId);
-            records.put(requestId, record);
-            while (records.size() > MAX_HELD_VERIFICATION_REQUESTS) {
-                records.remove(records.keySet().iterator().next());
-            }
-            return records;
-        });
+        holdLearningRecord(verificationLearning, userId, requestId, record);
     }
 
     @Override
@@ -517,8 +581,11 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
             return null;
         }
         String[] taken = new String[1];
+        // As HDEL, taking a record leaves how long the user's other records are kept.
         verificationLearning.computeIfPresent(userId, (key, held) -> {
-            taken[0] = held.remove(requestId);
+            HeldRecord removed = held.remove(requestId);
+            releaseHeldRecord(removed);
+            taken[0] = removed != null ? removed.value() : null;
             return held.isEmpty() ? null : held;
         });
         return taken[0];
@@ -529,18 +596,18 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         if (userId == null || requestSignature == null) {
             return;
         }
-        long now = clock.millis();
-        stoppedRequests.compute(userId, (key, held) -> {
-            // A stop after a verification belongs to a new challenge, so the stopped requests are kept anew.
-            if (held == null || held.verified() || now >= held.expiresAtMs()) {
-                return new StoppedRequests(Set.of(requestSignature), false, now + STOPPED_REQUEST_TTL.toMillis());
+        stoppedRequests.atomically(userId, slot -> {
+            StoppedRequests held = slot.value();
+            if (held == null || held.verified()) {
+                // A stop after a verification belongs to a new challenge, so the stopped requests are kept anew.
+                slot.set(new StoppedRequests(Set.of(requestSignature), false), STOPPED_REQUEST_TTL);
+            } else if (!held.signatures().contains(requestSignature)
+                    && held.signatures().size() < MAX_STOPPED_REQUESTS) {
+                Set<String> signatures = new LinkedHashSet<>(held.signatures());
+                signatures.add(requestSignature);
+                slot.keep(new StoppedRequests(signatures, false));
             }
-            if (held.signatures().contains(requestSignature) || held.signatures().size() >= MAX_STOPPED_REQUESTS) {
-                return held;
-            }
-            Set<String> signatures = new LinkedHashSet<>(held.signatures());
-            signatures.add(requestSignature);
-            return new StoppedRequests(signatures, false, held.expiresAtMs());
+            return null;
         });
     }
 
@@ -549,20 +616,21 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         if (userId == null) {
             return;
         }
-        long now = clock.millis();
-        stoppedRequests.computeIfPresent(userId, (key, held) -> {
-            if (now >= held.expiresAtMs()) {
+        stoppedRequests.atomically(userId, slot -> {
+            StoppedRequests held = slot.value();
+            if (held == null || held.verified()) {
                 return null;
-            }
-            if (held.verified()) {
-                return held;
             }
             Set<String> signatures = new LinkedHashSet<>(held.signatures());
             if (learnedRequestSignature != null) {
                 signatures.remove(learnedRequestSignature);
             }
-            return signatures.isEmpty() ? null
-                    : new StoppedRequests(signatures, true, now + VERIFIED_STOPPED_REQUEST_TTL.toMillis());
+            if (signatures.isEmpty()) {
+                slot.delete();
+            } else {
+                slot.set(new StoppedRequests(signatures, true), VERIFIED_STOPPED_REQUEST_TTL);
+            }
+            return null;
         });
     }
 
@@ -571,19 +639,14 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         if (userId == null || requestSignature == null) {
             return false;
         }
-        long now = clock.millis();
-        boolean[] taken = new boolean[1];
-        stoppedRequests.computeIfPresent(userId, (key, held) -> {
-            if (now >= held.expiresAtMs()) {
-                return null;
+        return Boolean.TRUE.equals(stoppedRequests.atomically(userId, slot -> {
+            StoppedRequests held = slot.value();
+            if (held == null || !held.verified() || !held.signatures().contains(requestSignature)) {
+                return false;
             }
-            if (!held.verified() || !held.signatures().contains(requestSignature)) {
-                return held;
-            }
-            taken[0] = true;
-            return null;
-        });
-        return taken[0];
+            slot.delete();
+            return true;
+        }));
     }
 
     @Override
@@ -604,20 +667,12 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         if (userId == null || deletedAt == null || retention == null) {
             return;
         }
-        accountDeletions.put(userId, new AccountDeletion(deletedAt, clock.instant().plus(retention)));
+        accountDeletions.put(userId, deletedAt, retention);
     }
 
     @Override
     public Instant accountDeletedAt(String userId) {
-        AccountDeletion deletion = userId != null ? accountDeletions.get(userId) : null;
-        if (deletion == null) {
-            return null;
-        }
-        if (!clock.instant().isBefore(deletion.expiresAt())) {
-            accountDeletions.remove(userId, deletion);
-            return null;
-        }
-        return deletion.deletedAt();
+        return userId == null ? null : accountDeletions.get(userId);
     }
 
     @Override
@@ -625,15 +680,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         if (userId == null || requestId == null || record == null) {
             return;
         }
-        promotionLearning.compute(userId, (key, held) -> {
-            Map<String, String> records = held != null ? held : new LinkedHashMap<>();
-            records.remove(requestId);
-            records.put(requestId, record);
-            while (records.size() > MAX_HELD_PROMOTION_REQUESTS) {
-                records.remove(records.keySet().iterator().next());
-            }
-            return records;
-        });
+        holdLearningRecord(promotionLearning, userId, requestId, record);
     }
 
     @Override
@@ -643,7 +690,9 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         }
         AtomicReference<Map<String, String>> copy = new AtomicReference<>(Map.of());
         promotionLearning.computeIfPresent(userId, (key, held) -> {
-            copy.set(new LinkedHashMap<>(held));
+            Map<String, String> records = new LinkedHashMap<>();
+            held.forEach((requestId, record) -> records.put(requestId, record.value()));
+            copy.set(records);
             return held;
         });
         return copy.get();
@@ -655,7 +704,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
             return;
         }
         promotionLearning.computeIfPresent(userId, (key, held) -> {
-            requestIds.forEach(held::remove);
+            requestIds.forEach(requestId -> releaseHeldRecord(held.remove(requestId)));
             return held.isEmpty() ? null : held;
         });
     }
@@ -688,9 +737,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
             return 0;
         }
         String suffix = LearningSubject.AGENT_KEY + agentId;
-        List<String> keys = workProfileObservations.keySet().stream().filter(key -> key.endsWith(suffix)).toList();
-        keys.forEach(workProfileObservations::remove);
-        return keys.size();
+        return workProfileObservations.removeIf(key -> key.endsWith(suffix));
     }
 
     @Override
@@ -698,29 +745,31 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         if (userId == null) {
             return;
         }
-        verificationLearning.remove(userId);
-        promotionLearning.remove(userId);
+        releaseHeldRecords(verificationLearning.remove(userId));
+        releaseHeldRecords(promotionLearning.remove(userId));
         stoppedRequests.remove(userId);
         String tenantScopedSuffix = "::" + userId;
-        for (Map<String, ?> perUser : List.of(
+        Predicate<String> usersKeys = key -> key.equals(userId) || key.endsWith(tenantScopedSuffix);
+        for (ExpiringKeySpace<?> perUser : List.of(
                 workProfileObservations, permissionChangeObservations, authorizationScopeStates)) {
-            perUser.keySet().removeIf(key -> key.equals(userId) || key.endsWith(tenantScopedSuffix));
+            perUser.removeIf(usersKeys);
         }
+        // QF-29: the user's held requests are kept within each tenant.
+        promotionLearning.removeIf(key -> key.endsWith(tenantScopedSuffix), this::releaseHeldRecords);
         // docs/agent A3-1: what the agents acting for the user learned, under their learning keys in every tenant.
         String agentKeys = userId + LearningSubject.AGENT_KEY;
-        promotionLearning.keySet().removeIf(key -> key.startsWith(agentKeys));
+        Predicate<String> agentsKeys = key -> key.startsWith(agentKeys) || key.contains("::" + agentKeys);
+        promotionLearning.removeIf(agentsKeys, this::releaseHeldRecords);
         // docs/agent F-6 (CF-27): and the authorization state the agents' requests are compared with.
-        for (Map<String, ?> perAgent : List.of(
+        for (ExpiringKeySpace<?> perAgent : List.of(
                 workProfileObservations, permissionChangeObservations, authorizationScopeStates)) {
-            perAgent.keySet().removeIf(key -> key.startsWith(agentKeys) || key.contains("::" + agentKeys));
+            perAgent.removeIf(agentsKeys);
         }
         lastRequestTimes.remove(userId);
         previousPaths.remove(userId);
-        mfaVerifiedExpiry.remove(userId);
         mfaVerifiedAt.remove(userId);
         loginFailureCounters.remove("user:" + userId.trim());
         userSessions.remove(userId);
-        userSessionsExpiry.remove(userId);
     }
 
     @Override
@@ -731,18 +780,13 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     @Override
     public EventProcessingLease claimEventProcessingLease(String eventId) {
         synchronized (eventProcessingLock) {
-            EventProcessingEntry processed = processedEvents.get(eventId);
-            if (processed != null) {
-                if (clock.instant().isBefore(processed.expiresAt())) {
-                    return new EventProcessingLease(EventProcessingClaim.PROCESSED, null);
-                }
-                processedEvents.remove(eventId);
-            }
-            if (processingEventOwners.containsKey(eventId)) {
-                return new EventProcessingLease(EventProcessingClaim.IN_FLIGHT, null);
+            if (processedEvents.containsKey(eventId)) {
+                return new EventProcessingLease(EventProcessingClaim.PROCESSED, null);
             }
             String ownerToken = UUID.randomUUID().toString();
-            processingEventOwners.put(eventId, ownerToken);
+            if (!processingEventOwners.putIfAbsent(eventId, ownerToken)) {
+                return new EventProcessingLease(EventProcessingClaim.IN_FLIGHT, null);
+            }
             return new EventProcessingLease(EventProcessingClaim.ACQUIRED, ownerToken);
         }
     }
@@ -753,18 +797,8 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
             return false;
         }
         synchronized (eventProcessingLock) {
-            if (ownerToken.equals(processingEventOwners.get(eventId))) {
-                return true;
-            }
-            EventProcessingEntry processed = processedEvents.get(eventId);
-            if (processed == null) {
-                return false;
-            }
-            if (!clock.instant().isBefore(processed.expiresAt())) {
-                processedEvents.remove(eventId);
-                return false;
-            }
-            return ownerToken.equals(processed.ownerToken());
+            return ownerToken.equals(processingEventOwners.get(eventId))
+                    || ownerToken.equals(processedEvents.get(eventId));
         }
     }
 
@@ -772,9 +806,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     public void markEventProcessed(String eventId) {
         synchronized (eventProcessingLock) {
             String ownerToken = processingEventOwners.remove(eventId);
-            processedEvents.put(
-                    eventId,
-                    new EventProcessingEntry(ownerToken != null ? ownerToken : "legacy", clock.instant().plus(eventProcessedTtl)));
+            processedEvents.put(eventId, ownerToken != null ? ownerToken : "legacy");
         }
     }
 
@@ -785,9 +817,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
                 return false;
             }
             processingEventOwners.remove(eventId);
-            processedEvents.put(
-                    eventId,
-                    new EventProcessingEntry(ownerToken, clock.instant().plus(eventProcessedTtl)));
+            processedEvents.put(eventId, ownerToken);
             return true;
         }
     }
@@ -802,24 +832,25 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     @Override
     public boolean releaseEventProcessing(String eventId, String ownerToken) {
         synchronized (eventProcessingLock) {
-            if (ownerToken == null || !ownerToken.equals(processingEventOwners.get(eventId))) {
-                return false;
-            }
-            processingEventOwners.remove(eventId);
-            return true;
+            return ownerToken != null && processingEventOwners.remove(eventId, ownerToken);
         }
     }
 
     @Override
     public void storeSoarExecution(String eventId, Object data) {
-        soarExecutions.put(eventId, new SoarEntry(data, clock.instant().plus(soarTtl)));
+        if (eventId == null || data == null) {
+            return;
+        }
+        soarExecutions.put(eventId, data);
     }
 
     @Override
     public void trackUserSession(String userId, String sessionId) {
-        userSessions.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet()).add(sessionId);
-        userSessionsExpiry.put(userId, clock.instant().plus(userSessionsTtl));
-        evictIfOversized();
+        userSessions.compute(userId, (key, sessions) -> {
+            Set<String> tracked = sessions != null ? sessions : ConcurrentHashMap.newKeySet();
+            tracked.add(sessionId);
+            return tracked;
+        });
     }
 
     @Override
@@ -827,38 +858,15 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         if (userId == null) {
             return Set.of();
         }
-        Instant expiry = userSessionsExpiry.get(userId);
-        if (expiry != null && clock.instant().isAfter(expiry)) {
-            userSessions.remove(userId);
-            userSessionsExpiry.remove(userId);
-            return Set.of();
-        }
         Set<String> sessions = userSessions.get(userId);
         return sessions == null ? Set.of() : Set.copyOf(sessions);
     }
 
     Object peekSoarExecution(String eventId) {
-        SoarEntry entry = soarExecutions.get(eventId);
-        if (entry == null) {
-            return null;
-        }
-        if (clock.instant().isAfter(entry.expiresAt)) {
-            soarExecutions.remove(eventId);
-            return null;
-        }
-        return entry.data;
+        return soarExecutions.get(eventId);
     }
 
     Set<String> peekUserSessions(String userId) {
-        Instant expiresAt = userSessionsExpiry.get(userId);
-        if (expiresAt == null) {
-            return Collections.emptySet();
-        }
-        if (clock.instant().isAfter(expiresAt)) {
-            userSessionsExpiry.remove(userId);
-            userSessions.remove(userId);
-            return Collections.emptySet();
-        }
         Set<String> sessions = userSessions.get(userId);
         return sessions == null ? Collections.emptySet() : Collections.unmodifiableSet(sessions);
     }
@@ -874,52 +882,198 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     }
 
     /**
-     * Releases MFA verifications, tracked user sessions, login failure records, stopped requests (N-LRN-3) and account
-     * deletions (Q-15) that no read can return any more, following the same expiry rules as the reads.
+     * BR-C14: how many work profile and role scope observations each scope keeps, at least one;
+     * {@link #DEFAULT_OBSERVATION_CAPACITY} unless set.
+     */
+    public void setObservationCapacity(int capacity) {
+        this.observationCapacity = Math.max(1, capacity);
+    }
+
+    @Override
+    public int observationCapacity() {
+        return observationCapacity;
+    }
+
+    /**
+     * QF-42: the bytes the records held for verification and promotion learning may take together, counted at two
+     * bytes a character; not positive, {@link #defaultHeldLearningBudgetBytes(long) the budget derived from the maximum
+     * heap}. Past it the records held the longest ago are released, whoever holds them: their later verification or
+     * promotion is not learned, and no decision changes.
+     */
+    public void setHeldLearningBudgetBytes(long budgetBytes) {
+        heldLearningBudgetBytes = budgetBytes > 0
+                ? budgetBytes : defaultHeldLearningBudgetBytes(Runtime.getRuntime().maxMemory());
+        releaseHeldLearningOverBudget();
+    }
+
+    /** The bytes the held learning records may take together (QF-42). */
+    public long heldLearningBudgetBytes() {
+        return heldLearningBudgetBytes;
+    }
+
+    /**
+     * QF-42: the default budget of the held learning records for a maximum heap of {@code maxHeapBytes}: a tenth of it,
+     * between 16 MiB and 1 GiB. A 512 MiB heap gives 51.2 MiB, 2 GiB 204.8 MiB, 8 GiB 819.2 MiB, 10 GiB or more and a
+     * JVM without a heap limit 1 GiB. The records are counted at two bytes a character, so records of Latin-1
+     * characters, which the JVM keeps at one byte a character, take half the budget in character data.
+     */
+    static long defaultHeldLearningBudgetBytes(long maxHeapBytes) {
+        return Math.max(MIN_DEFAULT_HELD_LEARNING_BYTES,
+                Math.min(MAX_DEFAULT_HELD_LEARNING_BYTES, maxHeapBytes / DEFAULT_HELD_LEARNING_HEAP_SHARE_DIVISOR));
+    }
+
+    /** The bytes the held learning records take now, as counted against the budget (QF-42). */
+    long heldLearningBytes() {
+        return heldLearningBytes.get();
+    }
+
+    /** The entries of the release order of the held learning records, stale ones included (QF-42). */
+    long heldLearningOrderEntries() {
+        return heldLearningOrderEntries.get();
+    }
+
+    /**
+     * Releases every record no read can return any more, as the Redis store's keys expire (Z-16: the reads already
+     * ignore them), keeps every bounded space within its bound for the writes that left it to the sweep, and releases
+     * the login failures past the longest queried window.
      */
     @Override
     public void removeExpiredEntries() {
-        long nowMs = clock.millis();
-        mfaVerifiedExpiry.forEach((userId, expiresAt) -> {
-            if (nowMs >= expiresAt && mfaVerifiedExpiry.remove(userId, expiresAt)) {
-                mfaVerifiedAt.remove(userId);
-            }
-        });
-        Instant now = clock.instant();
-        userSessionsExpiry.forEach((userId, expiresAt) -> {
-            if (now.isAfter(expiresAt) && userSessionsExpiry.remove(userId, expiresAt)) {
-                userSessions.remove(userId);
-            }
-        });
-        removeExpiredLoginFailures(nowMs);
-        stoppedRequests.forEach((userId, held) -> {
-            if (nowMs >= held.expiresAtMs()) {
-                stoppedRequests.remove(userId, held);
-            }
-        });
-        accountDeletions.forEach((userId, deletion) -> {
-            if (!now.isBefore(deletion.expiresAt())) {
-                accountDeletions.remove(userId, deletion);
-            }
-        });
+        spaces.forEach(ExpiringKeySpace::removeExpired);
+        removeExpiredLoginFailures(clock.millis());
+        releaseHeldLearningOverBudget();
     }
 
-    private void appendToStringSequence(
-            ConcurrentHashMap<String, List<String>> target,
+    /**
+     * Holds a record under the user and request id in place of the one held under them, keeping all held records
+     * within the budget (QF-42); as the Redis store, a user holds any number of records (Z-16 D-7). A record larger
+     * than the whole budget is not held, and the one it would replace goes, so it releases no other record.
+     */
+    private void holdLearningRecord(ExpiringKeySpace<Map<String, HeldRecord>> target, String userId, String requestId,
+                                    String record) {
+        boolean withinBudget = heldRecordBytes(record) <= heldLearningBudgetBytes;
+        BiFunction<String, Map<String, HeldRecord>, Map<String, HeldRecord>> hold = (key, held) -> {
+            Map<String, HeldRecord> records = held != null ? held : new LinkedHashMap<>();
+            releaseHeldRecord(records.remove(requestId));
+            if (withinBudget) {
+                HeldRecord kept = new HeldRecord(record, heldLearningSequence.incrementAndGet());
+                records.put(requestId, kept);
+                heldLearningBytes.addAndGet(kept.bytes());
+                heldLearningRecords.incrementAndGet();
+                heldLearningOrder.add(new HeldEntry(target, userId, requestId, kept.sequence()));
+                heldLearningOrderEntries.incrementAndGet();
+            }
+            return records.isEmpty() ? null : records;
+        };
+        if (withinBudget) {
+            // HSET then EXPIRE.
+            target.compute(userId, hold);
+        } else {
+            // Only the record it would replace goes, as an HDEL, which leaves the key's expiry.
+            target.computeIfPresent(userId, hold);
+        }
+        releaseHeldLearningOverBudget();
+    }
+
+    /** The bytes a held record is counted at: two a character, its size as UTF-16 (QF-42). */
+    private static long heldRecordBytes(String record) {
+        return 2L * record.length();
+    }
+
+    /** Takes a record that left its map out of the held bytes; called once for each record, where it is removed. */
+    private void releaseHeldRecord(HeldRecord record) {
+        if (record != null) {
+            heldLearningBytes.addAndGet(-record.bytes());
+            heldLearningRecords.decrementAndGet();
+        }
+    }
+
+    /** Takes all the records of a user's map that left its store out of the held bytes. */
+    private void releaseHeldRecords(Map<String, HeldRecord> records) {
+        if (records != null) {
+            records.values().forEach(this::releaseHeldRecord);
+        }
+    }
+
+    /**
+     * QF-42: releases the records held the longest ago, whoever holds them, until the held records take no more than
+     * the budget. Each record held has one entry in the order and an entry is taken once, so all the releases together
+     * take at most as many entries as records were held: a constant a write on average, no pass over the users. A
+     * released record's later verification or promotion is not learned; no decision changes.
+     */
+    private void releaseHeldLearningOverBudget() {
+        if (heldLearningBytes.get() > heldLearningBudgetBytes) {
+            heldLearningReleaseLock.lock();
+            try {
+                while (heldLearningBytes.get() > heldLearningBudgetBytes) {
+                    HeldEntry oldest = heldLearningOrder.poll();
+                    if (oldest == null) {
+                        break;
+                    }
+                    heldLearningOrderEntries.decrementAndGet();
+                    oldest.held().computeIfPresent(oldest.userId(), (key, records) -> {
+                        if (holds(records, oldest)) {
+                            releaseHeldRecord(records.remove(oldest.requestId()));
+                        }
+                        return records.isEmpty() ? null : records;
+                    });
+                }
+            } finally {
+                heldLearningReleaseLock.unlock();
+            }
+        }
+        dropStaleHeldLearningEntries();
+    }
+
+    /**
+     * Drops the entries of records no longer held once the order has more than twice as many entries as there are
+     * records held (and {@link #HELD_LEARNING_ORDER_SLACK} more). Each held record has one entry, so at least half the
+     * entries a pass looks at go: the passes take a constant a write on average and keep the order within twice the
+     * held records.
+     */
+    private void dropStaleHeldLearningEntries() {
+        if (heldLearningOrderEntries.get() <= 2 * heldLearningRecords.get() + HELD_LEARNING_ORDER_SLACK
+                || !heldLearningReleaseLock.tryLock()) {
+            return;
+        }
+        try {
+            Iterator<HeldEntry> entries = heldLearningOrder.iterator();
+            while (entries.hasNext()) {
+                HeldEntry entry = entries.next();
+                boolean[] held = new boolean[1];
+                entry.held().computeIfPresent(entry.userId(), (key, records) -> {
+                    held[0] = holds(records, entry);
+                    return records;
+                });
+                if (!held[0]) {
+                    entries.remove();
+                    heldLearningOrderEntries.decrementAndGet();
+                }
+            }
+        } finally {
+            heldLearningReleaseLock.unlock();
+        }
+    }
+
+    private static boolean holds(Map<String, HeldRecord> records, HeldEntry entry) {
+        HeldRecord record = records.get(entry.requestId());
+        return record != null && record.sequence() == entry.sequence();
+    }
+
+    /** RPUSH then EXPIRE, keeping the newest {@code maxSize}; a sequence that expired starts anew (Z-16 D-1). */
+    private static void appendToStringSequence(
+            ExpiringKeySpace<List<String>> target,
             String sequenceKey,
             String value,
             int maxSize) {
         target.compute(sequenceKey, (key, sequence) -> {
-            if (sequence == null) {
-                sequence = Collections.synchronizedList(new ArrayList<>());
+            List<String> values = sequence != null ? sequence : Collections.synchronizedList(new ArrayList<>());
+            values.add(value);
+            while (values.size() > maxSize) {
+                values.remove(0);
             }
-            sequence.add(value);
-            while (sequence.size() > maxSize) {
-                sequence.remove(0);
-            }
-            return sequence;
+            return values;
         });
-        evictIfOversized();
     }
 
     private void removeExpiredLoginFailures(long nowMs) {
@@ -977,78 +1131,34 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         }
     }
 
-    private void evictIfOversized() {
-        if (sessionStartedAt.size() > MAX_SESSION_ENTRIES) {
-            sessionStartedAt.keys().asIterator().forEachRemaining(key -> {
-                if (sessionStartedAt.size() <= MAX_SESSION_ENTRIES) {
-                    return;
-                }
-                pruneSessionScopedEntries(key);
-            });
-        }
-        if (lastRequestTimes.size() > MAX_SESSION_ENTRIES) {
-            lastRequestTimes.keys().asIterator().forEachRemaining(key -> {
-                if (lastRequestTimes.size() <= MAX_SESSION_ENTRIES) {
-                    return;
-                }
-                lastRequestTimes.remove(key);
-                previousPaths.remove(key);
-            });
-        }
-        if (userSessions.size() > MAX_SESSION_ENTRIES) {
-            userSessions.keys().asIterator().forEachRemaining(key -> {
-                if (userSessions.size() <= MAX_SESSION_ENTRIES) {
-                    return;
-                }
-                userSessions.remove(key);
-            });
-        }
-        if (workProfileObservations.size() > MAX_SESSION_ENTRIES) {
-            workProfileObservations.keys().asIterator().forEachRemaining(key -> {
-                if (workProfileObservations.size() <= MAX_SESSION_ENTRIES) {
-                    return;
-                }
-                workProfileObservations.remove(key);
-            });
-        }
-        if (roleScopeObservations.size() > MAX_SESSION_ENTRIES) {
-            roleScopeObservations.keys().asIterator().forEachRemaining(key -> {
-                if (roleScopeObservations.size() <= MAX_SESSION_ENTRIES) {
-                    return;
-                }
-                roleScopeObservations.remove(key);
-            });
-        }
-        if (permissionChangeObservations.size() > MAX_SESSION_ENTRIES) {
-            permissionChangeObservations.keys().asIterator().forEachRemaining(key -> {
-                if (permissionChangeObservations.size() <= MAX_SESSION_ENTRIES) {
-                    return;
-                }
-                permissionChangeObservations.remove(key);
-            });
-        }
-        if (authorizationScopeStates.size() > MAX_SESSION_ENTRIES) {
-            authorizationScopeStates.keys().asIterator().forEachRemaining(key -> {
-                if (authorizationScopeStates.size() <= MAX_SESSION_ENTRIES) {
-                    return;
-                }
-                authorizationScopeStates.remove(key);
-            });
-        }
+    /**
+     * QF-42, QF-49: a space keyed by session id keeps at most {@link #MAX_SESSION_ENTRIES} sessions, those whose
+     * records expire first going first, and a session goes from all of them together.
+     */
+    private <V> ExpiringKeySpace<V> sessionScopedSpace(Duration ttl) {
+        return ExpiringKeySpace.<V>builder(clock).ttl(ttl).bound(MAX_SESSION_ENTRIES)
+                .evictWith(this::evictSession).build();
     }
 
-    private void pruneSessionScopedEntries(String sessionId) {
-        sessionActions.remove(sessionId);
-        sessionDecisions.remove(sessionId);
-        sessionNarrativeActionFamilies.remove(sessionId);
-        sessionProtectableAccesses.remove(sessionId);
-        sessionRequestIntervals.remove(sessionId);
-        sessionRisks.remove(sessionId);
-        sessionStartedAt.remove(sessionId);
-        sessionLastRequestTimes.remove(sessionId);
-        sessionPreviousPaths.remove(sessionId);
-        sessionPreviousIds.remove(sessionId);
-        sessionFirstClients.remove(sessionId);
+    /** A user's last request and path, each within the bound, go together. */
+    private <V> ExpiringKeySpace<V> userActivitySpace() {
+        return ExpiringKeySpace.<V>builder(clock).ttl(USER_ACTIVITY_TTL).bound(MAX_SESSION_ENTRIES)
+                .evictWith(this::evictUserActivity).build();
+    }
+
+    /** What is learned, each space within the bound on its own. */
+    private <V> ExpiringKeySpace<V> learningSpace(Consumer<V> onRemoved) {
+        return ExpiringKeySpace.<V>builder(clock).ttl(LEARNING_TTL).bound(MAX_SESSION_ENTRIES)
+                .onRemoved(onRemoved).build();
+    }
+
+    private void evictSession(String sessionId) {
+        sessionScopedSpaces.forEach(space -> space.evict(sessionId));
+    }
+
+    private void evictUserActivity(String userId) {
+        lastRequestTimes.evict(userId);
+        previousPaths.evict(userId);
     }
 
     private String composeWorkProfileKey(String tenantId, String userId) {
@@ -1062,9 +1172,34 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         return tenantId + "::" + key;
     }
 
+    /** How many keys each per-session and per-user space holds, by field name. */
+    Map<String, Integer> keyCounts() {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        counts.put("sessionActions", sessionActions.size());
+        counts.put("sessionDecisions", sessionDecisions.size());
+        counts.put("sessionNarrativeActionFamilies", sessionNarrativeActionFamilies.size());
+        counts.put("sessionProtectableAccesses", sessionProtectableAccesses.size());
+        counts.put("sessionRequestIntervals", sessionRequestIntervals.size());
+        counts.put("sessionStartedAt", sessionStartedAt.size());
+        counts.put("sessionLastRequestTimes", sessionLastRequestTimes.size());
+        counts.put("sessionPreviousPaths", sessionPreviousPaths.size());
+        counts.put("sessionFirstClients", sessionFirstClients.size());
+        counts.put("sessionPreviousIds", sessionPreviousIds.size());
+        counts.put("sessionRisks", sessionRisks.size());
+        counts.put("workProfileObservations", workProfileObservations.size());
+        counts.put("roleScopeObservations", roleScopeObservations.size());
+        counts.put("permissionChangeObservations", permissionChangeObservations.size());
+        counts.put("authorizationScopeStates", authorizationScopeStates.size());
+        counts.put("lastRequestTimes", lastRequestTimes.size());
+        counts.put("previousPaths", previousPaths.size());
+        counts.put("verificationLearning", verificationLearning.size());
+        counts.put("promotionLearning", promotionLearning.size());
+        counts.put("userSessions", userSessions.size());
+        return counts;
+    }
+
     boolean holdsUserRecordsFor(String userId) {
-        return mfaVerifiedExpiry.containsKey(userId) || userSessionsExpiry.containsKey(userId)
-                || userSessions.containsKey(userId) || loginFailureCounters.containsKey("user:" + userId)
-                || stoppedRequests.containsKey(userId);
+        return mfaVerifiedAt.holds(userId) || userSessions.holds(userId)
+                || loginFailureCounters.containsKey("user:" + userId) || stoppedRequests.holds(userId);
     }
 }

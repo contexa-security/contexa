@@ -21,6 +21,8 @@ import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.AdminOverride;
+import io.contexa.contexacore.autonomous.context.support.LearnedBy;
+import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.saas.DecisionFeedbackForwardingService;
@@ -167,6 +169,10 @@ public class AdminOverrideService {
                     || event.getMetadata().get(VerificationLearningService.VERIFIED_BY) == null)) {
                 event.addMetadata(VerificationLearningService.VERIFIED_BY,
                         VerificationLearningService.Verification.ADMIN_RELEASE.name());
+            }
+            // BR-C6: the record of what an administrator released says so, whatever verified the request before.
+            if (event != null) {
+                event.addMetadata(VectorDocumentMetadata.LEARNED_BY, LearnedBy.ADMIN_RELEASE.name());
             }
             // The baseline learning takes the user's update lock itself (W5-8). The lock is not re-entrant, so the
             // approval does not hold it around the learning.

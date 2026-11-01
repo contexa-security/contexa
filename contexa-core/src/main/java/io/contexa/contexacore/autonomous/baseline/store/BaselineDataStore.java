@@ -35,6 +35,16 @@ public interface BaselineDataStore {
 
     void saveUserBaseline(String userId, BaselineVector baseline);
 
+    /**
+     * Saves the personal baseline and tells whether it was stored, so that a learning is not reported as done when its
+     * save failed (QF-12). This default saves through {@link #saveUserBaseline} and cannot tell a failed save; a store
+     * that can tell overrides it.
+     */
+    default boolean saveUserBaselineChecked(String userId, BaselineVector baseline) {
+        saveUserBaseline(userId, baseline);
+        return true;
+    }
+
     BaselineVector getOrganizationBaseline(String organizationId);
 
     void saveOrganizationBaseline(String organizationId, BaselineVector baseline);

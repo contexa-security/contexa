@@ -15,43 +15,71 @@
  */
 package io.contexa.contexacore.security.async;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
+import io.contexa.contexacore.autonomous.store.ExpiringKeySpace;
+import io.contexa.contexacore.autonomous.store.ExpiringStateStore;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
+/**
+ * In-memory copies of authentications for asynchronous work. Z-16 (F7): as in the Redis provider, each record is a copy
+ * of its own (a Redis key holds its own serialized value), and a refresh keeps the user's record and the session's two
+ * records another day while it rewrites only the user's. The records are {@link ExpiringKeySpace}s (N-1) of 10,000
+ * keys each, the record written the longest ago going first past them, as Redis {@code volatile-ttl} evicts. The sweep
+ * releases the records past their day.
+ */
 @Slf4j
-public class InMemoryAsyncSecurityContextProvider extends AbstractAsyncSecurityContextProvider {
+public class InMemoryAsyncSecurityContextProvider extends AbstractAsyncSecurityContextProvider
+        implements ExpiringStateStore {
 
-    private final Cache<String, AsyncAuthenticationData> userStore;
-    private final Cache<String, AsyncAuthenticationData> compositeStore;
-    private final Cache<String, String> sessionToUserStore;
+    private static final int MAX_RECORDS = 10_000;
+
+    private final ExpiringKeySpace<AsyncAuthenticationData> userStore;
+    private final ExpiringKeySpace<AsyncAuthenticationData> compositeStore;
+    private final ExpiringKeySpace<String> sessionToUserStore;
 
     public InMemoryAsyncSecurityContextProvider() {
-        this.userStore = Caffeine.newBuilder()
-                .maximumSize(10000)
-                .expireAfterWrite(DEFAULT_TTL)
+        this(Clock.systemUTC());
+    }
+
+    /** Measures the records' time with {@code clock}. */
+    InMemoryAsyncSecurityContextProvider(Clock clock) {
+        this.userStore = ExpiringKeySpace.<AsyncAuthenticationData>builder(clock)
+                .ttl(DEFAULT_TTL)
+                .bound(MAX_RECORDS)
                 .build();
-        this.compositeStore = Caffeine.newBuilder()
-                .maximumSize(10000)
-                .expireAfterWrite(DEFAULT_TTL)
+        this.compositeStore = ExpiringKeySpace.<AsyncAuthenticationData>builder(clock)
+                .ttl(DEFAULT_TTL)
+                .bound(MAX_RECORDS)
                 .build();
-        this.sessionToUserStore = Caffeine.newBuilder()
-                .maximumSize(10000)
-                .expireAfterWrite(DEFAULT_TTL)
+        this.sessionToUserStore = ExpiringKeySpace.<String>builder(clock)
+                .ttl(DEFAULT_TTL)
+                .bound(MAX_RECORDS)
                 .build();
     }
 
     @Override
     protected void doSave(String userId, String sessionId, AsyncAuthenticationData data) {
-        userStore.put(userId, data);
+        userStore.put(userId, copyOf(data));
 
         if (sessionId != null) {
-            compositeStore.put(userId + ":" + sessionId, data);
+            compositeStore.put(userId + ":" + sessionId, copyOf(data));
             sessionToUserStore.put(sessionId, userId);
         }
+    }
+
+    private static AsyncAuthenticationData copyOf(AsyncAuthenticationData data) {
+        return AsyncAuthenticationData.builder()
+                .userId(data.getUserId())
+                .sessionId(data.getSessionId())
+                .principalType(data.getPrincipalType())
+                .authorities(data.getAuthorities() != null ? List.copyOf(data.getAuthorities()) : null)
+                .createdAt(data.getCreatedAt())
+                .expiresAt(data.getExpiresAt())
+                .build();
     }
 
     @Override
@@ -60,7 +88,7 @@ public class InMemoryAsyncSecurityContextProvider extends AbstractAsyncSecurityC
             return Optional.empty();
         }
 
-        AsyncAuthenticationData data = userStore.getIfPresent(userId);
+        AsyncAuthenticationData data = userStore.get(userId);
         if (data != null && data.isValid()) {
             return Optional.of(data);
         }
@@ -73,9 +101,9 @@ public class InMemoryAsyncSecurityContextProvider extends AbstractAsyncSecurityC
             return Optional.empty();
         }
 
-        String userId = sessionToUserStore.getIfPresent(sessionId);
+        String userId = sessionToUserStore.get(sessionId);
         if (userId != null) {
-            AsyncAuthenticationData data = compositeStore.getIfPresent(userId + ":" + sessionId);
+            AsyncAuthenticationData data = compositeStore.get(userId + ":" + sessionId);
             if (data != null && data.isValid()) {
                 return Optional.of(data);
             }
@@ -87,14 +115,21 @@ public class InMemoryAsyncSecurityContextProvider extends AbstractAsyncSecurityC
     @Override
     public void removeAuthentication(String userId, String sessionId) {
         if (userId != null) {
-            userStore.invalidate(userId);
+            userStore.remove(userId);
         }
         if (userId != null && sessionId != null) {
-            compositeStore.invalidate(userId + ":" + sessionId);
+            compositeStore.remove(userId + ":" + sessionId);
         }
         if (sessionId != null) {
-            sessionToUserStore.invalidate(sessionId);
+            sessionToUserStore.remove(sessionId);
         }
+    }
+
+    @Override
+    public void removeExpiredEntries() {
+        userStore.removeExpired();
+        compositeStore.removeExpired();
+        sessionToUserStore.removeExpired();
     }
 
     @Override
@@ -103,10 +138,16 @@ public class InMemoryAsyncSecurityContextProvider extends AbstractAsyncSecurityC
             return;
         }
 
-        AsyncAuthenticationData data = userStore.getIfPresent(userId);
+        AsyncAuthenticationData data = userStore.get(userId);
         if (data != null) {
             data.setExpiresAt(Instant.now().plus(DEFAULT_TTL));
             userStore.put(userId, data);
+
+            if (sessionId != null) {
+                // Kept as they are another day, as the Redis provider extends their keys.
+                compositeStore.getAndRefresh(userId + ":" + sessionId);
+                sessionToUserStore.getAndRefresh(sessionId);
+            }
         }
     }
 }

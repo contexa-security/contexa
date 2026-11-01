@@ -159,12 +159,9 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 return ZeroTrustAction.fromString(actionValue.toString());
             }
 
-            String lastAction = readLastVerifiedAction(userId);
-            if (lastAction != null) {
-                return ZeroTrustAction.fromString(lastAction);
-            }
-
-            return ZeroTrustAction.PENDING_ANALYSIS;
+            // Z-16 (1-a): outside a request a decision past its TTL lapses as it does in one
+            // (ZeroTrustActionPrecedence: an ALLOW or CHALLENGE lapses with its TTL); only an unresolved ESCALATE stays.
+            return unresolvedEscalationOrPending(userId);
         } catch (Exception e) {
             log.error("[ZeroTrustActionRedisRepository] Failed to get current action: userId={}", userId, e);
             return ZeroTrustAction.PENDING_ANALYSIS;
@@ -648,7 +645,9 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             return;
         }
         // BLOCK, ESCALATE and CHALLENGE restrict the user rather than the session that logs out, so
-        // an active one keeps every key. Each action is passed plain and serialized; ARGV[1] is BLOCK.
+        // an active one keeps every key. Each action is passed plain and serialized; ARGV[1] is BLOCK and
+        // ARGV[3] ESCALATE. Z-16 (1-b): an ESCALATE whose analysis expired unresolved still reads as ESCALATE
+        // through its last verified key, so it is kept too, as in the in-memory repository.
         RedisSerializer<Object> hashValueSerializer = (RedisSerializer<Object>) redisTemplate.getHashValueSerializer();
         List<String> retainedActions = new ArrayList<>();
         for (ZeroTrustAction retained : List.of(ZeroTrustAction.BLOCK, ZeroTrustAction.ESCALATE, ZeroTrustAction.CHALLENGE)) {
@@ -657,8 +656,12 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
         DefaultRedisScript<Long> script = new DefaultRedisScript<>("""
                 local action = redis.call('HGET', KEYS[1], 'action')
+                local lastVerified = redis.call('GET', KEYS[2])
                 if redis.call('GET', KEYS[4]) == 'true'
-                    or redis.call('GET', KEYS[2]) == ARGV[1] then
+                    or lastVerified == ARGV[1] then
+                    return 0
+                end
+                if not action and lastVerified == ARGV[3] then
                     return 0
                 end
                 for _, retained in ipairs(ARGV) do

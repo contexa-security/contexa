@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.context.decision;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.baseline.AgentBaselineView;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -98,6 +99,29 @@ class LearningPromotionPolicyTest {
         assertThat(LearningPromotionPolicy.heldDifferences(context("NORMAL", differences), DEFAULTS)).isEmpty();
         assertThat(LearningPromotionPolicy.heldDifferences(agent,
                 new LearningPromotionPolicy.Settings(true, "SENSITIVE", 2, 2, true, false))).isEmpty();
+    }
+
+    /**
+     * QF-19: a held target is named by the target the request names, as a digest of the bound values, and a held size or
+     * rate by the power-of-two band of its count; every other value is named as before.
+     */
+    @Test
+    void theHeldValuesNameATargetByItsDigestAndASizeOrRateByItsBand() {
+        CanonicalSecurityContext agent = context("NORMAL", unexplained(DeviationDimension.TARGET, "projectKey"),
+                unexplained(DeviationDimension.SIZE, "4,831 items"),
+                unexplained(DeviationDimension.RATE, "40 requests in the last 60 min"),
+                unexplained(DeviationDimension.NETWORK, "10.60.1.0/24"));
+        agent.getAttributes().put("executionSubjectKind", "AUTONOMOUS_AGENT");
+        agent.getResource().setPathFamily("/api/projects/{projectKey}/exports");
+        agent.getResource().setRequestPath("/api/projects/HX-310/exports");
+
+        assertThat(LearningPromotionPolicy.heldValues(agent, DEFAULTS)).containsExactly(
+                "TARGET=projectKey#" + AgentBaselineView.digest("projectKey=HX-310"), "SIZE=4096-8191", "RATE=32-63",
+                "NETWORK=10.60.1.0/24");
+        assertThat(LearningPromotionPolicy.heldValues(context("SENSITIVE",
+                unexplained(DeviationDimension.DEVICE, "Safari/18 on MAC"),
+                unexplained(DeviationDimension.TIME, "03")), DEFAULTS))
+                .containsExactly("DEVICE=Safari/18 on MAC", "TIME=03");
     }
 
     /**

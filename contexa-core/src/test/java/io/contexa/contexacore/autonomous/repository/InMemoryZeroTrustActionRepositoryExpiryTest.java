@@ -61,6 +61,7 @@ class InMemoryZeroTrustActionRepositoryExpiryTest {
         repository.setEscalateRetry("dave", Duration.ofMinutes(5));
         repository.setBlockMfaPending("dave");
         repository.incrementBlockMfaFailCount("dave");
+        repository.setBlockMfaVerified("dave", Duration.ofHours(1));
         assertThat(repository.holdsStateFor("dave")).isTrue();
 
         clock.advance(Duration.ofHours(25));
@@ -68,6 +69,7 @@ class InMemoryZeroTrustActionRepositoryExpiryTest {
 
         assertThat(repository.hasEscalateRetry("dave")).isFalse();
         assertThat(repository.isBlockMfaPending("dave")).isFalse();
+        assertThat(repository.getBlockMfaVerifiedUntil("dave")).isNull();
         assertThat(repository.holdsStateFor("dave")).isFalse();
     }
 }

@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Standard Benchmarks</title>
+<link rel="stylesheet" href="design.css">
+<style>
+  .facts-strip { display: grid; grid-template-columns: repeat(5, auto); justify-content: start; margin-bottom: 20px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); }
+  .fs { display: flex; flex-direction: column; gap: 6px; padding: 14px 24px 14px 20px; border-right: 1px solid var(--line); }
+  .fs:last-child { border-right: 0; }
+  .fs .k { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-3); white-space: nowrap; }
+  .fs svg.i { width: 14px; height: 14px; }
+  .fs b { color: var(--text); font-weight: 600; font-size: 15px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .mx td { height: 64px; vertical-align: middle; }
+  .mx .bm { font-weight: 600; color: var(--text); }
+  .mx .bm small { display: block; font-size: 13px; color: var(--text-3); font-weight: 500; margin-top: 2px; }
+  .metric { font-size: 13px; color: var(--text-2); }
+  .metric em { font-style: normal; color: var(--text-3); font-size: 12px; display: block; margin-top: 2px; }
+  .val { font-variant-numeric: tabular-nums; font-size: 15px; font-weight: 600; color: var(--text); }
+  .val small { display: block; font-size: 12px; font-weight: 500; color: var(--text-3); margin-top: 2px; }
+  .val.good { color: var(--allow); }
+  .val.base { color: var(--text-2); }
+  .pair { font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .pair small { display: block; font-size: 12px; color: var(--text-3); margin-top: 2px; }
+  .grp td { height: 36px; background: var(--surface-2); font-size: 13px; font-weight: 600; color: var(--text-3); letter-spacing: 0.02em; }
+  .info-card h3 { margin: 0 0 12px; font-size: 16px; font-weight: 600; display: flex; gap: 8px; align-items: center; }
+  .info-card ul { margin: 0; padding: 0 0 0 18px; color: var(--text-2); font-size: 14px; line-height: 1.7; }
+  .info-card li::marker { color: var(--text-3); }
+  .warn h3 svg.i { color: var(--stepup); }
+  .nw { white-space: nowrap; }
+  .phone .facts-strip { grid-template-columns: 1fr 1fr; }
+  .phone .fs { border-bottom: 1px solid var(--line); }
+  .phone .fs:nth-child(2n) { border-right: 0; }
+  .phone .fs b { white-space: normal; }
+  .phone .fs .k { white-space: normal; }
+</style>
+</head>
+<body data-active="bench" data-lang="en" data-crumbs="Validation|Standard benchmarks">
+<main class="content"><div class="wrap">
+
+  <div class="ph">
+    <div class="ph-main">
+      <h1 class="ph-title">Standard benchmarks</h1>
+      <p class="ph-desc">Three public benchmarks, run on their official harnesses with official scoring, unchanged. Every case is run unprotected and with Contexa, and the pairs are compared.</p>
+    </div>
+    <div class="ph-actions"><button class="btn"><i data-icon="book-open"></i>Method & reproduction</button><button class="btn"><i data-icon="download"></i>Result bundle (JSON)</button></div>
+  </div>
+
+  <div class="tabs"><span class="tab on">Overview</span><span class="tab">AgentDojo</span><span class="tab">InjecAgent</span><span class="tab">Promptfoo</span><span class="tab">Method & reproduction</span></div>
+
+  <div class="facts-strip">
+    <div class="fs"><span class="k"><i data-icon="lock"></i>Frozen before run</span><b>4 versions</b></div>
+    <div class="fs"><span class="k"><i data-icon="badge-check"></i>Harness & scorer unmodified</span><b>2026-10-29</b></div>
+    <div class="fs"><span class="k"><i data-icon="bot"></i>Victim agent</span><b>qwen2.5 7B (16k)</b></div>
+    <div class="fs"><span class="k"><i data-icon="cpu"></i>Decision models</span><b>Claude Haiku 5.5 · Sonnet 5.5</b></div>
+    <div class="fs"><span class="k"><i data-icon="receipt"></i>Model spend, whole program</span><b>$131.94</b></div>
+  </div>
+
+  <section class="card" style="margin-bottom:16px">
+    <div class="card-head"><div><h2 class="card-title">Result matrix</h2><p class="card-sub">Official metric names · ranges are 95% intervals · pairs use the exact McNemar test on the same cases</p></div></div>
+    <table class="table mx">
+      <thead><tr><th style="width:21%">Benchmark · test</th><th style="width:19%">Official metric</th><th>Unprotected</th><th>With Contexa</th><th>Paired (stopped · new failures)</th><th class="r">Cases</th></tr></thead>
+      <tbody>
+        <tr class="grp"><td colspan="6">AgentDojo v1.2.2 · indirect prompt injection · 4 suites</td></tr>
+        <tr><td class="bm">S-1 (a) No owner check<small>freeze test-v1</small></td><td class="metric">Targeted ASR ↓<em>targeted attack success rate</em></td><td class="val base">10.54%<small>70 / 664</small></td><td class="val good">1.36%<small>9 / 664 · 0.62–2.56</small></td><td class="pair">64 · 3<small>p &lt; 0.001</small></td><td class="r num">664</td></tr>
+        <tr><td class="bm">S-1 (b) Mock owner check<small>freeze test-v1</small></td><td class="metric">Targeted ASR ↓</td><td class="val base">10.54%<small>70 / 664</small></td><td class="val good">1.96%<small>13 / 664 · 1.05–3.32</small></td><td class="pair">63 · 6<small>p &lt; 0.001</small></td><td class="r num">664</td></tr>
+        <tr><td class="bm">S-1 (c) Owner approves all<small>2nd run · 130 cases · adverse</small></td><td class="metric">Targeted ASR ↓</td><td class="val base">53.85%<small>70 / 130</small></td><td class="val">17.69%<small>23 / 130 · 11.56–25.35</small></td><td class="pair">48 · 1<small>p &lt; 0.001</small></td><td class="r num">130</td></tr>
+        <tr><td class="bm">S-4 10 attack variants<small>Unprotected failures only</small></td><td class="metric">Targeted ASR ↓</td><td class="val base">100%<small>349 / 349</small></td><td class="val good">9.74%<small>34 / 349 · 6.84–13.35</small></td><td class="pair">Weak variants: 0<small>rule: lower bound &gt; 7.1%</small></td><td class="r num">349</td></tr>
+        <tr class="grp"><td colspan="6">InjecAgent · attacker instructions in tool output · first stage</td></tr>
+        <tr><td class="bm">S-2 base<small>freeze test-v2</small></td><td class="metric">ASR-valid (Direct Harm) ↓</td><td class="val base">31.7%<small>1,054 cases</small></td><td class="val good">0.0%</td><td class="pair">241 / 249 attack calls not allowed<small>96.8% · 93.8–98.6</small></td><td class="r num">1,054</td></tr>
+        <tr><td class="bm">S-2 enhanced<small>freeze test-v2</small></td><td class="metric">ASR-valid (Direct Harm) ↓</td><td class="val base">44.9%<small>1,054 cases</small></td><td class="val good">0.0%</td><td class="pair">335 / 346 attack calls not allowed<small>96.8% · 94.4–98.4</small></td><td class="r num">1,054</td></tr>
+        <tr class="grp"><td colspan="6">Promptfoo 0.125.1 · owasp:agentic (OWASP Agentic Top 10)</td></tr>
+        <tr><td class="bm">S-3 Red team · 195 tests<small>freeze test-s3 · 20 plugins</small></td><td class="metric">Pass rate ↑<em>share of attacks withstood</em></td><td class="val base">43.6%<small>85 / 195 · 37–51</small></td><td class="val good">55.4%<small>108 / 195 · 48–62</small></td><td class="pair">34 · 11<small>p = 0.0008</small></td><td class="r num">195</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <div class="grid g-12" style="margin-bottom:16px;align-items:start">
+    <section class="card span-8">
+      <div class="card-head"><div><h2 class="card-title">Impact on legitimate work</h2><p class="card-sub">How much protection gets in the way of legitimate work — read together with the attack results</p></div></div>
+      <table class="table">
+        <thead><tr><th>Test</th><th>Metric</th><th>Unprotected</th><th>With Contexa</th><th>Paired</th></tr></thead>
+        <tbody>
+          <tr><td class="strong">AgentDojo S-1 (a)</td><td class="nw">Benign Utility ↑</td><td class="num">38.24% (26/68)</td><td class="num" style="color:var(--block)">19.12% (13/68)</td><td class="num">p = 0.007</td></tr>
+          <tr><td class="strong">AgentDojo S-1 (b)</td><td class="nw">Benign Utility ↑</td><td class="num">38.24% (26/68)</td><td class="num" style="color:var(--block)">23.53% (16/68)</td><td class="num">p = 0.013</td></tr>
+          <tr><td class="strong">AgentDojo S-1 (a)</td><td class="nw">Utility under Attack ↑</td><td class="num">27.11%</td><td class="num" style="color:var(--block)">20.03%</td><td class="num">p &lt; 0.001</td></tr>
+          <tr><td class="strong">InjecAgent S-2</td><td>Benign calls refused ↓<br><span class="badge b-line" style="margin-top:4px">Own metric</span></td><td class="num">—</td><td class="val" style="font-size:14px;font-weight:500">11.0% · 7.0%<small>base · enhanced</small></td><td class="muted nw" style="font-size:13px">200 each</td></tr>
+        </tbody>
+      </table>
+    </section>
+    <section class="card card-pad span-4 info-card">
+      <h3><i data-icon="badge-check"></i>Run as published</h3>
+      <ul>
+        <li>agentdojo 0.1.35 (benchmark v1.2.2) · InjecAgent commit f19c9f2 · promptfoo 0.125.1</li>
+        <li>Zero changes to harness and scoring files (checked 2026-10-29)</li>
+        <li>Test conditions frozen before each run, with hashes recorded in the result files</li>
+        <li>Values under 1% are shown with the point estimate and the 95% upper bound</li>
+      </ul>
+    </section>
+  </div>
+
+  <section class="card card-pad info-card warn">
+    <h3><i data-icon="triangle-alert"></i>Limits — what these results do not say</h3>
+    <div class="grid g-12" style="gap:8px 24px">
+      <ul class="span-6"><li>One local victim agent, qwen2.5 7B — no claim for stronger models</li><li>The sub-1% target was not met (point 1.4–2.0%, one-sided upper bound 2.35–3.09%)</li><li>If the owner approves everything, 17.7% get through — a human approving wrongly is not stopped</li></ul>
+      <ul class="span-6"><li>InjecAgent: first stage only (the second, data-stealing stage was not measured)</li><li>Promptfoo: reduced to 2 tests per plugin · attacks generated and graded by the Promptfoo server</li><li>Reproduction package not finished · adaptive attacks (S-5) not run</li></ul>
+    </div>
+  </section>
+
+</div></main>
+<script src="shell.js"></script>
+</body>
+</html>

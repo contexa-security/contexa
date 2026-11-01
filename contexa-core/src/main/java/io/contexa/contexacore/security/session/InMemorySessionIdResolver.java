@@ -35,6 +35,6 @@ public class InMemorySessionIdResolver extends AbstractSessionIdResolver {
 
     @Override
     protected String[] getSessionAttributeNames() {
-        return new String[]{"CONTEXA_SESSION_ID"};
+        return SESSION_ATTRIBUTE_NAMES.clone();
     }
 }

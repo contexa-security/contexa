@@ -152,14 +152,9 @@ describe('benchmark text sent to the AI', () => {
     expect(required(container.querySelector('[data-zone="source"]'), 'the source line')).toHaveTextContent(
       fill('bench.r7.prompt.source', { date: '2026-10-16' }),
     );
-    expect(screen.getByRole('link', { name: word('frame.back') })).toHaveAttribute(
-      'href',
-      '/benchmark/judgment',
-    );
-    expect(screen.getByRole('link', { name: word('bench.r7.next.limits') })).toHaveAttribute(
-      'href',
-      '/benchmark/limits',
-    );
+    // The prompt view left the walk (B-5 took its place, benchPlace.ts): a view outside the walk goes back to the summary.
+    expect(screen.getByRole('link', { name: word('frame.back') })).toHaveAttribute('href', '/benchmark');
+    expect(screen.queryByRole('link', { name: word('bench.r7.next.limits') })).toBeNull();
   });
 
   it('opens how the record was made in its own window, with the values made alongside and the download', async () => {

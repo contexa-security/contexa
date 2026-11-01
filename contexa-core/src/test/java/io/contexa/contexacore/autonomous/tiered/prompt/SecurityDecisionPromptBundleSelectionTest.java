@@ -22,6 +22,7 @@ import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceResolutionContext;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleManifest;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelection;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelectionSource;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
@@ -79,6 +80,33 @@ class SecurityDecisionPromptBundleSelectionTest {
                     .as("manifest of " + bundle.descriptor().promptVersion())
                     .isPresent();
         }
+    }
+
+    /**
+     * CQ-1 and BR-C6: the bundle the build runs is v21.19 (the past record lines state their source), frozen from v21.18
+     * (the argument origins), which was frozen from v21.17; both stay as records the build cannot run. The change summary
+     * names both works. The v19 and v20 bundles are the ones they were.
+     */
+    @Test
+    void theV21BundleIsV2119AndKeepsEveryEarlierBundleAsARecord() {
+        SecurityDecisionPromptBundles.Bundle v21 = SecurityDecisionPromptBundles.V21;
+
+        assertThat(v21.version()).isEqualTo("2026.10.30-v21.19");
+        assertThat(v21.descriptor().changeSummary()).contains("v21.18 (CQ-1)").contains("v21.19 (BR-C6)");
+        PromptBundleManifest manifest = PromptBundleCatalog.shared().find(PROMPT_KEY, v21.version()).orElseThrow();
+        assertThat(manifest.parentVersion()).isEqualTo("2026.10.29-v21.18");
+        assertThat(manifest.rollbackTargets()).containsExactly("2026.10.29-v21.18", "2026.10.27-v21.17");
+        assertThat(manifest.problemIds()).containsExactly("BR-C6");
+        assertThat(manifest.frozenOn()).isEqualTo("2026-10-30");
+        PromptBundleManifest argumentOrigins = PromptBundleCatalog.shared().find(PROMPT_KEY, "2026.10.29-v21.18")
+                .orElseThrow();
+        assertThat(argumentOrigins.parentVersion()).isEqualTo("2026.10.27-v21.17");
+        assertThat(argumentOrigins.bundleHash()).isEqualTo(
+                "c87857bbbf3a1c6e8b4b299e21262d3953ec747ad7ce6cb1f71ae6c788cddcca");
+        PromptBundleManifest first = PromptBundleCatalog.shared().find(PROMPT_KEY, "2026.10.27-v21.17").orElseThrow();
+        assertThat(first.bundleHash()).isEqualTo("63747ea83d2eadbf8ad09c0e15dc221d2d1555da1926c4d9b2e241f9c26c8942");
+        assertThat(SecurityDecisionPromptBundles.find("2026.10.29-v21.18")).isEmpty();
+        assertThat(SecurityDecisionPromptBundles.find("2026.10.27-v21.17")).isEmpty();
     }
 
     @Test

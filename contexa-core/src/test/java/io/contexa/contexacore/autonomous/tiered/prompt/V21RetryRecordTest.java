@@ -28,6 +28,7 @@ import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionV21OutputInspector;
 import io.contexa.contexacore.std.pipeline.step.LLMExecutionStep;
+import io.contexa.contexacore.std.pipeline.step.ScriptedChatModel;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.prompt.Prompt;
 import reactor.core.publisher.Flux;
@@ -160,6 +161,44 @@ class V21RetryRecordTest {
         assertThat(secondClient.calls).isEqualTo(2);
         assertThat(secondContext.getMetadata("securityDecisionOutputRetryFailureReason", String.class))
                 .contains("SECOND_PASS_ESCALATE");
+    }
+
+    /**
+     * QF-50 (DD-65 A): a v21 corrective retry goes out with the first call's output limit and a longer prompt, so the
+     * model can spend the whole limit thinking and the provider ends at the limit before any text. That retry is asked
+     * again once with twice the limit, and the decision is read from that answer as the retry's (one retry, as the
+     * seal's integrity check reads it). Through the orchestrator, so the thinking-only answer fails as in production.
+     */
+    @Test
+    void aCorrectiveRetryCutBeforeAnyTextIsAskedAgainWithTwiceTheOutputLimit() {
+        SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V21.version());
+        JsonNode a3 = golden.cases().stream().filter(item -> "A3".equals(item.path("caseKey").asText())).findFirst()
+                .orElseThrow();
+        SecurityDecisionGoldenRender.RenderedCase rendered = golden.render(a3,
+                PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, properties);
+        ScriptedChatModel model = new ScriptedChatModel(ScriptedChatModel.answer(WRONG_CITATION, "end_turn"),
+                ScriptedChatModel.thinkingOnly("max_tokens"), ScriptedChatModel.answer(CITED_ESCALATE, "end_turn"));
+        PipelineExecutionContext context = contextOf(rendered, "exec-v21-qf50");
+        SecurityDecisionRequest request = requestOf(rendered);
+        request.withParameter("platformSecurityDecisionMaxTokens", 2048);
+
+        Object response = new LLMExecutionStep(model.orchestrator()).execute(request, context).block();
+
+        assertThat(model.maxTokens()).as("output limits of the model calls; failure category %s",
+                context.getMetadata("structuredOutputFailureCategory", String.class)).containsExactly(2048, 2048, 4096);
+        List<Integer> messages = model.messageCounts();
+        assertThat(messages.get(1)).as("the corrective prompt").isEqualTo(messages.get(0) + 2);
+        assertThat(messages.get(2)).as("the corrective prompt again").isEqualTo(messages.get(1));
+        assertThat(response).isEqualTo(CITED_ESCALATE);
+        assertThat(context.getMetadata("rawExecutionSucceeded", Boolean.class)).isTrue();
+        assertThat(context.getMetadata("securityDecisionOutputRetrySucceeded", Boolean.class)).isTrue();
+        String reason = context.getMetadata("securityDecisionOutputRetryReason", String.class);
+        assertThat(reason).contains("REASON_CODE_MISMATCH").contains("F99");
+        assertThat(context.getMetadata(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, List.class))
+                .isEqualTo(List.of(Map.of("reason", reason, "succeeded", true)));
+        assertThat(context.getMetadata(SecurityDecisionV21OutputInspector.HYPOTHESES, List.class)).hasSize(4);
     }
 
     private static PipelineExecutionContext contextOf(SecurityDecisionGoldenRender.RenderedCase rendered, String id) {

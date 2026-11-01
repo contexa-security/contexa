@@ -230,7 +230,9 @@
     border-block-end: none;
   }
 
-  .table thead th:first-child {
+  /* The empty corner cell is a td: hidden, so the two run names stand over their two value columns (it was matched as a
+     th and stayed, pushing the second name to a line of its own; 가이드영상-제작기획안 VP-13). */
+  .table thead td:first-child {
     display: none;
   }
 }

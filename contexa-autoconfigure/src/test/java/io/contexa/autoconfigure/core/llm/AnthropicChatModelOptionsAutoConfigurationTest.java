@@ -110,6 +110,34 @@ class AnthropicChatModelOptionsAutoConfigurationTest {
     }
 
     /**
+     * Design 4.5-A: from Anthropic API version 2026-10-21 every model refuses every temperature, top-p and top-k value,
+     * default values included (Claude API migration guide), so no Claude model's defaults keep one.
+     */
+    @Test
+    void anApiVersionThatRefusesEverySamplingValueTakesSamplingOutOfEveryClaudeModel() {
+        AnthropicChatModelOptionsAutoConfiguration.CapabilitiesBridge bridge =
+                AnthropicChatModelOptionsAutoConfiguration.anthropicModelCapabilitiesEnvironmentBridge();
+        try {
+            bridge.setEnvironment(new MockEnvironment().withProperty("spring.ai.anthropic.version", "2026-10-21"));
+            bridge.postProcessBeanFactory(new DefaultListableBeanFactory());
+            AnthropicChatModel model = model(AnthropicChatOptions.builder().model("claude-haiku-4-5").temperature(0.8d)
+                    .topP(0.9d).build());
+
+            processor(new MockEnvironment()).postProcessAfterInitialization(model, "anthropicChatModel");
+
+            AnthropicChatOptions defaults = (AnthropicChatOptions) model.getDefaultOptions();
+            assertThat(defaults.getTemperature()).isNull();
+            assertThat(defaults.getTopP()).isNull();
+        }
+        finally {
+            bridge.setEnvironment(new MockEnvironment());
+            bridge.postProcessBeanFactory(new DefaultListableBeanFactory());
+        }
+        assertThat(ProviderAwareChatOptionsFactory.anthropicUsesDefaultSamplingOnly("claude-haiku-4-5"))
+                .as("the default version 2023-06-01 keeps the older models' sampling").isFalse();
+    }
+
+    /**
      * The post-processor bean methods take nothing: a parameter resolved by type makes Spring create FactoryBeans and
      * what they need while post-processors are registered, and those beans (the chat model on control D) then miss
      * the post-processors.

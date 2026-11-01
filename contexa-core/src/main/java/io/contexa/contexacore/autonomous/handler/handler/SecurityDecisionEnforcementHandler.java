@@ -254,8 +254,11 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
 
         if (enforcement == Enforcement.APPLIED
                 && ZeroTrustAction.fromString(result.getAction()) == ZeroTrustAction.ALLOW) {
-            Runnable learning = heldForPromotion ? () -> holdForPromotion(event)
-                    : () -> learnFromResult(userId, event, result);
+            // QF-55: the learning runs on another thread while this request goes on through the next handlers, so it
+            // is handed a copy of the event taken here; what either side writes never reaches the other's map.
+            SecurityEvent learned = event.detachedCopy();
+            Runnable learning = heldForPromotion ? () -> holdForPromotion(learned)
+                    : () -> learnFromResult(userId, learned, result);
             CompletableFuture.runAsync(learning, baselineLearningExecutor)
                     .exceptionally(ex -> {
                         log.error("[SecurityDecisionEnforcementHandler] Baseline learning failed (non-critical): userId={}", userId, ex);

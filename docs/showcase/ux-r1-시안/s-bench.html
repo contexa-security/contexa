@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>표준 벤치마크</title>
+<link rel="stylesheet" href="design.css">
+<style>
+  .facts-strip { display: grid; grid-template-columns: repeat(5, auto); justify-content: start; margin-bottom: 20px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); }
+  .fs { display: flex; flex-direction: column; gap: 6px; padding: 14px 24px 14px 20px; border-right: 1px solid var(--line); }
+  .fs:last-child { border-right: 0; }
+  .fs .k { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-3); white-space: nowrap; }
+  .fs svg.i { width: 14px; height: 14px; }
+  .fs b { color: var(--text); font-weight: 600; font-size: 15px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .mx td { height: 64px; vertical-align: middle; }
+  .mx .bm { font-weight: 600; color: var(--text); }
+  .mx .bm small { display: block; font-size: 13px; color: var(--text-3); font-weight: 500; margin-top: 2px; }
+  .metric { font-size: 13px; color: var(--text-2); }
+  .metric em { font-style: normal; color: var(--text-3); font-size: 12px; display: block; margin-top: 2px; }
+  .val { font-variant-numeric: tabular-nums; font-size: 15px; font-weight: 600; color: var(--text); }
+  .val small { display: block; font-size: 12px; font-weight: 500; color: var(--text-3); margin-top: 2px; }
+  .val.good { color: var(--allow); }
+  .val.base { color: var(--text-2); }
+  .pair { font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .pair small { display: block; font-size: 12px; color: var(--text-3); margin-top: 2px; }
+  .grp td { height: 36px; background: var(--surface-2); font-size: 13px; font-weight: 600; color: var(--text-3); letter-spacing: 0.02em; }
+  .info-card h3 { margin: 0 0 12px; font-size: 16px; font-weight: 600; display: flex; gap: 8px; align-items: center; }
+  .info-card ul { margin: 0; padding: 0 0 0 18px; color: var(--text-2); font-size: 14px; line-height: 1.7; }
+  .info-card li::marker { color: var(--text-3); }
+  .warn h3 svg.i { color: var(--stepup); }
+  .nw { white-space: nowrap; }
+  .phone .facts-strip { grid-template-columns: 1fr 1fr; }
+  .phone .fs { border-bottom: 1px solid var(--line); }
+  .phone .fs:nth-child(2n) { border-right: 0; }
+  .phone .fs b { white-space: normal; }
+  .phone .fs .k { white-space: normal; }
+</style>
+</head>
+<body data-active="bench" data-lang="ko" data-crumbs="검증|표준 벤치마크">
+<main class="content"><div class="wrap">
+
+  <div class="ph">
+    <div class="ph-main">
+      <h1 class="ph-title">표준 벤치마크</h1>
+      <p class="ph-desc">공개 벤치마크 3종을 공식 하니스와 공식 채점 그대로 실행했습니다. 같은 사례를 Contexa 보호 없음과 적용으로 짝지어 비교합니다.</p>
+    </div>
+    <div class="ph-actions"><button class="btn"><i data-icon="book-open"></i>방법 · 재현</button><button class="btn"><i data-icon="download"></i>결과 묶음 (JSON)</button></div>
+  </div>
+
+  <div class="tabs"><span class="tab on">개요</span><span class="tab">AgentDojo</span><span class="tab">InjecAgent</span><span class="tab">Promptfoo</span><span class="tab">방법 · 재현</span></div>
+
+  <div class="facts-strip">
+    <div class="fs"><span class="k"><i data-icon="lock"></i>실행 전 동결</span><b>4판</b></div>
+    <div class="fs"><span class="k"><i data-icon="badge-check"></i>하니스 · 채점 무수정 검증</span><b>2026-10-29</b></div>
+    <div class="fs"><span class="k"><i data-icon="bot"></i>피해 에이전트</span><b>qwen2.5 7B (16k)</b></div>
+    <div class="fs"><span class="k"><i data-icon="cpu"></i>판정 모델</span><b>Claude Haiku 5.5 · Sonnet 5.5</b></div>
+    <div class="fs"><span class="k"><i data-icon="receipt"></i>프로그램 전체 모델 비용</span><b>$131.94</b></div>
+  </div>
+
+  <section class="card" style="margin-bottom:16px">
+    <div class="card-head"><div><h2 class="card-title">결과 행렬</h2><p class="card-sub">공식 지표 이름 그대로 · 괄호는 95% 구간 · 짝 비교는 같은 사례의 McNemar 정확 검정</p></div></div>
+    <table class="table mx">
+      <thead><tr><th style="width:21%">벤치마크 · 시험</th><th style="width:19%">공식 지표</th><th>보호 없음</th><th>Contexa 적용</th><th>짝 비교 (막힘 · 새 실패)</th><th class="r">표본</th></tr></thead>
+      <tbody>
+        <tr class="grp"><td colspan="6">AgentDojo v1.2.2 · 간접 프롬프트 주입 · 4개 환경</td></tr>
+        <tr><td class="bm">S-1 (a) 소유자 확인 없음<small>freeze test-v1</small></td><td class="metric">Targeted ASR ↓<em>표적 공격 성공률</em></td><td class="val base">10.54%<small>70 / 664</small></td><td class="val good">1.36%<small>9 / 664 · 0.62–2.56</small></td><td class="pair">64 · 3<small>p &lt; 0.001</small></td><td class="r num">664</td></tr>
+        <tr><td class="bm">S-1 (b) 모의 소유자 확인<small>freeze test-v1</small></td><td class="metric">Targeted ASR ↓</td><td class="val base">10.54%<small>70 / 664</small></td><td class="val good">1.96%<small>13 / 664 · 1.05–3.32</small></td><td class="pair">63 · 6<small>p &lt; 0.001</small></td><td class="r num">664</td></tr>
+        <tr><td class="bm">S-1 (c) 소유자가 모두 승인<small>2차 130사례 · 불리한 조건</small></td><td class="metric">Targeted ASR ↓</td><td class="val base">53.85%<small>70 / 130</small></td><td class="val">17.69%<small>23 / 130 · 11.56–25.35</small></td><td class="pair">48 · 1<small>p &lt; 0.001</small></td><td class="r num">130</td></tr>
+        <tr><td class="bm">S-4 공격 변형 10종<small>보호 없음이 속은 사례만</small></td><td class="metric">Targeted ASR ↓</td><td class="val base">100%<small>349 / 349</small></td><td class="val good">9.74%<small>34 / 349 · 6.84–13.35</small></td><td class="pair">약점 변형 0<small>규칙: 하한 &gt; 7.1%</small></td><td class="r num">349</td></tr>
+        <tr class="grp"><td colspan="6">InjecAgent · 도구 출력 속 공격 지시 · 첫 단계</td></tr>
+        <tr><td class="bm">S-2 base<small>freeze test-v2</small></td><td class="metric">ASR-valid (Direct Harm) ↓</td><td class="val base">31.7%<small>1,054 사례</small></td><td class="val good">0.0%</td><td class="pair">공격 호출 241/249 허용 안 함<small>96.8% · 93.8–98.6</small></td><td class="r num">1,054</td></tr>
+        <tr><td class="bm">S-2 enhanced<small>freeze test-v2</small></td><td class="metric">ASR-valid (Direct Harm) ↓</td><td class="val base">44.9%<small>1,054 사례</small></td><td class="val good">0.0%</td><td class="pair">공격 호출 335/346 허용 안 함<small>96.8% · 94.4–98.4</small></td><td class="r num">1,054</td></tr>
+        <tr class="grp"><td colspan="6">Promptfoo 0.125.1 · owasp:agentic (OWASP Agentic Top 10)</td></tr>
+        <tr><td class="bm">S-3 레드팀 195건<small>freeze test-s3 · 플러그인 20개</small></td><td class="metric">Pass rate ↑<em>공격을 견딘 비율</em></td><td class="val base">43.6%<small>85 / 195 · 37–51</small></td><td class="val good">55.4%<small>108 / 195 · 48–62</small></td><td class="pair">34 · 11<small>p = 0.0008</small></td><td class="r num">195</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <div class="grid g-12" style="margin-bottom:16px;align-items:start">
+    <section class="card span-8">
+      <div class="card-head"><div><h2 class="card-title">정상 업무에 대한 영향</h2><p class="card-sub">보호가 정상 업무를 막는 정도 — 공격 결과와 함께 봅니다</p></div></div>
+      <table class="table">
+        <thead><tr><th>시험</th><th>지표</th><th>보호 없음</th><th>Contexa 적용</th><th>짝 비교</th></tr></thead>
+        <tbody>
+          <tr><td class="strong">AgentDojo S-1 (a)</td><td class="nw">Benign Utility ↑</td><td class="num">38.24% (26/68)</td><td class="num" style="color:var(--block)">19.12% (13/68)</td><td class="num">p = 0.007</td></tr>
+          <tr><td class="strong">AgentDojo S-1 (b)</td><td class="nw">Benign Utility ↑</td><td class="num">38.24% (26/68)</td><td class="num" style="color:var(--block)">23.53% (16/68)</td><td class="num">p = 0.013</td></tr>
+          <tr><td class="strong">AgentDojo S-1 (a)</td><td class="nw">Utility under Attack ↑</td><td class="num">27.11%</td><td class="num" style="color:var(--block)">20.03%</td><td class="num">p &lt; 0.001</td></tr>
+          <tr><td class="strong">InjecAgent S-2</td><td class="nw">정상 호출 차단율 ↓ <span class="badge b-line" style="margin-left:4px">자체 지표</span></td><td class="num">—</td><td class="val" style="font-size:14px;font-weight:500">11.0% · 7.0%<small>base · enhanced</small></td><td class="muted nw" style="font-size:13px">각 200건</td></tr>
+        </tbody>
+      </table>
+    </section>
+    <section class="card card-pad span-4 info-card">
+      <h3><i data-icon="badge-check"></i>공식 그대로 실행한 것</h3>
+      <ul>
+        <li>agentdojo 0.1.35 (벤치마크 v1.2.2) · InjecAgent 커밋 f19c9f2 · promptfoo 0.125.1</li>
+        <li>하니스 · 채점 파일 변경 0건 (2026-10-29 검증)</li>
+        <li>시험 조건을 실행 전에 동결하고 결과 파일에 해시 기록</li>
+        <li>1% 미만 값은 점추정과 95% 상한을 따로 표기</li>
+      </ul>
+    </section>
+  </div>
+
+  <section class="card card-pad info-card warn">
+    <h3><i data-icon="triangle-alert"></i>한계 — 이 결과가 말하지 않는 것</h3>
+    <div class="grid g-12" style="gap:8px 24px">
+      <ul class="span-6"><li>피해 에이전트는 로컬 qwen2.5 7B 하나 — 더 강한 모델로 일반화하지 않음</li><li>목표 1% 미만은 달성하지 못함(점추정 1.4~2.0%, 단측 상한 2.35~3.09%)</li><li>소유자가 모두 승인하면 17.7%가 뚫림 — 사람의 잘못된 승인은 막지 못함</li></ul>
+      <ul class="span-6"><li>InjecAgent는 첫 단계만 실행(데이터 탈취 2단계 미측정)</li><li>Promptfoo는 플러그인당 2건 축소 · 공격 생성과 채점은 Promptfoo 서버</li><li>재현 패키지 미완 · 적응형 공격(S-5) 미실시</li></ul>
+    </div>
+  </section>
+
+</div></main>
+<script src="shell.js"></script>
+</body>
+</html>

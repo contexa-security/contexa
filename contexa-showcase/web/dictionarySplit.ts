@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import type { Plugin } from 'vite';
-import { FIRST_SCREEN_ADDRESSES } from './src/firstScreens';
+import { FIRST_SCREEN_ADDRESSES, FIRST_SCREEN_PATTERNS } from './src/firstScreens';
 
 /**
  * FC-4: each language's dictionary in two parts. The first part holds the words the main flow can show (the
@@ -64,17 +64,44 @@ function reached(starts: readonly string[]): Set<string> {
   return seen;
 }
 
-/** The main flow's entry points: the application's entry and the screen of every main-flow address and "/more". */
+/**
+ * The first part's entry points (UX-R1, DEC-14): the application's entry and every first screen the shared rule
+ * names (the start of the demo and the threat simulation's steps).
+ */
 function mainFlowStarts(web: string): string[] {
-  const route = JSON.parse(readFileSync(join(web, 'src/journey/route.json'), 'utf8')) as readonly {
-    readonly path: string;
-  }[];
-  const addresses = new Set([...route.map((screen) => screen.path), '/more']);
-  const screens = Object.entries(FIRST_SCREEN_ADDRESSES)
-    .filter(([address]) => addresses.has(address))
-    .map(([, module]) => resolveImport(join(web, 'src', 'x'), `./${module}`))
+  const modules = [
+    ...Object.values(FIRST_SCREEN_ADDRESSES),
+    ...FIRST_SCREEN_PATTERNS.map(([, module]) => module),
+  ];
+  const screens = [...new Set(modules)]
+    .map((module) => resolveImport(join(web, 'src', 'x'), `./${module}`))
     .filter((file): file is string => file !== null);
   return [join(web, 'src/main.tsx'), ...screens];
+}
+
+/**
+ * The strings a source names: whole strings, and the fixed heads of the template literals it builds a key from. The
+ * inside of a template literal is read again, so a key named within one (`` ` · ${t('ux.live.queuedWait')}` ``) counts.
+ */
+export function namedIn(source: string): { readonly whole: Set<string>; readonly heads: Set<string> } {
+  const whole = new Set<string>();
+  const heads = new Set<string>();
+  const read = (text: string) => {
+    for (const match of text.matchAll(STRING)) {
+      const template = match[3];
+      if (template !== undefined && template.includes('${')) {
+        const head = template.slice(0, template.indexOf('${'));
+        if (head.length > 0) {
+          heads.add(head);
+        }
+        read(template.slice(template.indexOf('${')));
+        continue;
+      }
+      whole.add(template ?? match[1] ?? match[2] ?? '');
+    }
+  };
+  read(source);
+  return { whole, heads };
 }
 
 /**
@@ -86,17 +113,9 @@ export function firstKeys(web: string, keys: readonly string[]): Set<string> {
   const whole = new Set<string>();
   const heads = new Set<string>();
   for (const file of reached(mainFlowStarts(web))) {
-    for (const match of readFileSync(file, 'utf8').matchAll(STRING)) {
-      const template = match[3];
-      if (template !== undefined && template.includes('${')) {
-        const head = template.slice(0, template.indexOf('${'));
-        if (head.length > 0) {
-          heads.add(head);
-        }
-        continue;
-      }
-      whole.add(template ?? match[1] ?? match[2] ?? '');
-    }
+    const named = namedIn(readFileSync(file, 'utf8'));
+    named.whole.forEach((value) => whole.add(value));
+    named.heads.forEach((value) => heads.add(value));
   }
   const branches = [...whole].filter((value) => BRANCH.test(value)).map((value) => `${value}.`);
   const fixed = [...heads];

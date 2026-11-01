@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.std.components.prompt;
 
+import java.util.LinkedHashMap;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
@@ -108,6 +109,29 @@ class PromptRuntimeTelemetrySupportTest {
                 "promptEvidenceCompletenessReasons", List.of("not-integrated: ClientSignals")));
 
         assertThat(telemetry).containsEntry("promptEvidenceCompletenessReasons", List.of("not-integrated: ClientSignals"));
+    }
+
+    /**
+     * T10 (design 4.6): what a call sent for Anthropic thinking travels with the decision's telemetry and is kept with
+     * the model output of each stage and the seal; a new run clears it.
+     */
+    @Test
+    void theTelemetryCarriesTheThinkingTheCallSent() {
+        Map<String, Object> sent = new LinkedHashMap<>();
+        sent.put("providerThinkingRequested", "OFF");
+        sent.put("providerThinking", "DISABLED");
+        sent.put("providerThinkingBudgetTokens", 2048);
+        sent.put("providerThinkingSource", "LAYER_SETTING");
+        sent.put("providerEffortRequested", "LOW");
+        sent.put("providerThinkingAdjustment", List.of("NOT_EXPRESSIBLE_SPRING_AI_1_1"));
+        sent.put("providerRejectedFields", List.of("thinking"));
+        sent.put("providerMaxTokensSent", 2560);
+
+        Map<String, Object> telemetry = PromptRuntimeTelemetrySupport.extractRuntimeTelemetry(sent);
+
+        assertThat(telemetry).containsAllEntriesOf(sent);
+        assertThat(PromptRuntimeTelemetrySupport.modelOutputRecordKeys()).containsAll(sent.keySet());
+        assertThat(PromptRuntimeTelemetrySupport.clearableRuntimeTelemetryKeys()).containsAll(sent.keySet());
     }
 
     /**

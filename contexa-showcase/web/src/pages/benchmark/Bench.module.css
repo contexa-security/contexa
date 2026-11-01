@@ -205,6 +205,12 @@
   font-weight: var(--weight-semibold);
 }
 
+/* The agent table's English column names ("Every existing control let through") wrap, so the table fits a desktop
+   column instead of scrolling (가이드영상-제작기획안 VP-13); the Korean names already fit on one line. */
+.table[data-wrap-head]:lang(en) thead th {
+  white-space: normal;
+}
+
 /* Original words in a table: the demo's monospace at the regular weight in every language (L-03), never the
    browser's own monospace, bold in English and thin in Korean. */
 .table code {

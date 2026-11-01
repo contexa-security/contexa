@@ -114,6 +114,26 @@ class SealedEvidencePackageAssemblerSealsWhatIsReadTest {
                 .containsEntry("providerFinishReason", "stop");
     }
 
+    /** T10 (design 4.6): the seal's model output keeps what the call sent for Anthropic thinking. */
+    @Test
+    void theDecisionSectionKeepsTheThinkingTheCallSent() throws Exception {
+        Map<String, Object> eventMetadata = new HashMap<>();
+        eventMetadata.put("providerThinkingRequested", "BUDGET");
+        eventMetadata.put("providerThinking", "ABSENT");
+        eventMetadata.put("providerThinkingSource", "MODEL_DEFAULT");
+        eventMetadata.put("providerThinkingAdjustment", List.of("BUDGET_NOT_ACCEPTED_BY_MODEL"));
+        eventMetadata.put("providerRejectedFields", List.of("thinking"));
+        eventMetadata.put("providerMaxTokensSent", 2560);
+
+        SealedEvidencePackage sealed = seal("req-t10", "user prompt", Map.of(), List.of(), eventMetadata);
+
+        Map<String, Object> decision = JSON.readValue(sealed.getDecisionJson(), MAP);
+        assertThat(decision.get("modelOutput")).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> modelOutput = (Map<String, Object>) decision.get("modelOutput");
+        assertThat(modelOutput).containsAllEntriesOf(eventMetadata);
+    }
+
     /**
      * N-OUT-3: the model output keeps every output retry of the decision in its order across the layers, next to the
      * single retry fields that hold the last layer's; the model call stages stay as the event recorded them.

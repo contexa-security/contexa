@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.event.publisher;
 
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.AgentConfirmationFacts;
+import io.contexa.contexacommon.security.bridge.ArgumentOrigins;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.CredentialFacts;
 import io.contexa.contexacore.autonomous.event.support.InvocationArguments;
@@ -77,6 +78,9 @@ public class ZeroTrustEventPublisher {
 
     /** A2-8: the payload key of a protected method call's argument summary ({@link InvocationArguments}). */
     public static final String INVOCATION_ARGUMENTS = InvocationArguments.KEY;
+
+    /** CQ-1: the payload key of the argument origins a host gives a protected method ({@link ArgumentOrigins}). */
+    public static final String ARGUMENT_ORIGINS = ArgumentOrigins.KEY;
 
     private final ApplicationEventPublisher eventPublisher;
     private final TieredStrategyProperties properties;
@@ -252,6 +256,9 @@ public class ZeroTrustEventPublisher {
             if (invocationArguments != null) {
                 payload.put(INVOCATION_ARGUMENTS, invocationArguments);
             }
+            // CQ-1: where the argument values came from, as the host states it; its own key, only when the host gave
+            // some, written as the settings let the decision prompt state them.
+            putArgumentOrigins(methodInvocation.getArguments(), payload);
             payload.put("protectableSync", protectable.sync());
             payload.put("protectableVerificationRequired", protectable.verificationRequired());
             payload.put("protectableMethod", methodInvocation.getMethod().getDeclaringClass().getName()
@@ -424,6 +431,25 @@ public class ZeroTrustEventPublisher {
                 payload,
                 requestInfo != null ? requestInfo.getObservedAt() : null
         );
+    }
+
+    /**
+     * CQ-1: the argument origins a protected method's call carries, as plain maps under {@link #ARGUMENT_ORIGINS}. The
+     * excerpt setting and its length are applied here, so the sealed context holds exactly what the prompt may state.
+     * A call without origins (none given, or none with a value) adds no key.
+     */
+    private void putArgumentOrigins(Object[] arguments, Map<String, Object> payload) {
+        ArgumentOrigins origins = ArgumentOrigins.in(arguments);
+        if (origins == null) {
+            return;
+        }
+        TieredStrategyProperties.ArgumentOrigin settings = properties != null ? properties.getArgumentOrigin() : null;
+        boolean quote = settings == null || settings.isQuoteExcerpt();
+        int maxExcerpt = settings != null ? settings.getMaxExcerptChars() : ArgumentOrigins.MAX_EXCERPT_CHARS;
+        List<Map<String, Object>> stated = origins.toPayload(quote, maxExcerpt);
+        if (!stated.isEmpty()) {
+            payload.put(ARGUMENT_ORIGINS, stated);
+        }
     }
 
     private String currentResourceUrlTemplate() {

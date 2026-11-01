@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.properties;
 
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
@@ -191,6 +192,12 @@ public class SecurityPlaneProperties {
          * Empty reads them in the system time zone.
          */
         private String timeZone;
+
+        /**
+         * BR-C14: how many work profile and role scope observations each scope keeps, the oldest leaving first; the
+         * usual behaviour is read from up to this many, so a larger number reads more on each decision.
+         */
+        private int observationCapacity = SecurityContextDataStore.DEFAULT_OBSERVATION_CAPACITY;
     }
 }
 

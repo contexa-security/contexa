@@ -16,7 +16,9 @@
 package io.contexa.autoconfigure.core.llm;
 
 import io.contexa.autoconfigure.properties.AnthropicModelCapabilitiesProperties;
+import io.contexa.contexacore.std.llm.client.AnthropicThinkingRules;
 import io.contexa.contexacore.std.llm.client.ProviderAwareChatOptionsFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
@@ -48,14 +50,27 @@ public class AnthropicChatModelOptionsAutoConfiguration {
         return new AnthropicChatModelPostProcessor();
     }
 
+    /** Design 4.5-A: the start refuses the Anthropic thinking settings a layer model or Spring AI 1.1 contradicts. */
+    @Bean
+    public static AnthropicThinkingSettingsVerifier anthropicThinkingSettingsVerifier() {
+        return new AnthropicThinkingSettingsVerifier();
+    }
+
     static AnthropicModelCapabilitiesProperties capabilities(Environment environment) {
         return Binder.get(environment)
                 .bind(AnthropicModelCapabilitiesProperties.PREFIX, Bindable.of(AnthropicModelCapabilitiesProperties.class))
                 .orElseGet(AnthropicModelCapabilitiesProperties::new);
     }
 
-    /** Hands the configured Claude models that take only the default sampling to the options factory. */
+    /**
+     * Hands the configured Claude models that take only the default sampling and the thinking capability table to the
+     * options factory, and takes every sampling value out when the Anthropic API version refuses them all.
+     */
+    @Slf4j
     public static final class CapabilitiesBridge implements BeanFactoryPostProcessor, EnvironmentAware {
+
+        /** The first Anthropic API version that refuses every sampling value (Claude API migration guide). */
+        static final String SAMPLING_FREE_API_VERSION = "2026-10-21";
 
         private Environment environment;
 
@@ -67,8 +82,20 @@ public class AnthropicChatModelOptionsAutoConfiguration {
         @Override
         public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException {
             if (environment != null) {
+                AnthropicModelCapabilitiesProperties capabilities = capabilities(environment);
                 ProviderAwareChatOptionsFactory.configureAnthropicModelCapabilities(
-                        capabilities(environment).getDefaultSamplingOnlyPatterns());
+                        capabilities.getDefaultSamplingOnlyPatterns());
+                AnthropicThinkingRules.configureCapabilities(capabilities.getThinking());
+                String version = environment.getProperty("spring.ai.anthropic.version", "").trim();
+                boolean samplingFree = version.matches("\\d{4}-\\d{2}-\\d{2}")
+                        && version.compareTo(SAMPLING_FREE_API_VERSION) >= 0;
+                ProviderAwareChatOptionsFactory.configureAnthropicSamplingNeverSent(samplingFree);
+                if (samplingFree) {
+                    log.warn("[AnthropicThinking] spring.ai.anthropic.version {} refuses every temperature, top_p and"
+                            + " top_k value on every model (Claude API migration guide 2026-10-21); Anthropic requests"
+                            + " carry none, and the platform's determinism temperature is recorded as not applied.",
+                            version);
+                }
             }
         }
     }

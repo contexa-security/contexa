@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>보안 현황</title>
+<link rel="stylesheet" href="design.css">
+<style>
+  .dist { display: flex; height: 12px; border-radius: 6px; overflow: hidden; gap: 2px; margin: 4px 0 20px; }
+  .dist i { display: block; height: 100%; }
+  .dist-rows { display: grid; grid-template-columns: 1fr auto auto; row-gap: 12px; column-gap: 16px; font-size: 14px; align-items: center; }
+  .dist-rows .lab { display: flex; align-items: center; gap: 10px; color: var(--text-2); }
+  .dist-rows .lab i { width: 10px; height: 10px; border-radius: 4px; display: inline-block; }
+  .dist-rows .v { font-variant-numeric: tabular-nums; color: var(--text); font-weight: 600; text-align: right; }
+  .dist-rows .p { font-variant-numeric: tabular-nums; color: var(--text-3); text-align: right; width: 56px; }
+  .bm { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+  .bm:first-child { padding-top: 4px; } .bm:last-child { border-bottom: 0; padding-bottom: 0; }
+  .bm-name { font-weight: 600; font-size: 15px; display: flex; gap: 8px; align-items: center; }
+  .bm-metric { font-size: 13px; color: var(--text-3); }
+  .bm-val { grid-row: 1 / 3; grid-column: 2; display: flex; align-items: center; gap: 10px; font-variant-numeric: tabular-nums; }
+  .bm-val .from { color: var(--text-3); font-size: 15px; text-decoration: line-through; text-decoration-color: var(--text-3); }
+  .bm-val .to { color: var(--allow); font-size: 24px; font-weight: 700; }
+  .bm-ci { grid-column: 1 / 3; font-size: 13px; color: var(--text-3); }
+  .sim { display: grid; grid-template-columns: 40px 1fr 16px; gap: 14px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .sim:last-child { border-bottom: 0; padding-bottom: 0; } .sim:first-child { padding-top: 0; }
+  .sim-ic { width: 40px; height: 40px; border-radius: 8px; display: grid; place-items: center; background: var(--surface-3); color: var(--text-2); }
+  .sim-t { font-weight: 600; font-size: 15px; } .sim-d { font-size: 13px; color: var(--text-3); margin-top: 2px; }
+  .sim svg.go { color: var(--text-3); width: 16px; height: 16px; }
+  .phone .bm { grid-template-columns: 1fr; }
+  .phone .bm-val { grid-row: auto; grid-column: auto; margin-top: 6px; }
+</style>
+</head>
+<body data-active="overview" data-lang="ko" data-crumbs="모니터링|보안 현황">
+<main class="content"><div class="wrap">
+
+  <div class="ph">
+    <div class="ph-main">
+      <h1 class="ph-title">보안 현황</h1>
+      <p class="ph-desc">로그인 이후의 요청을 행위 기준선과 업무 컨텍스트로 판정하는 AI 보안 — 실시간 판정 현황과 표준 벤치마크 결과</p>
+    </div>
+    <div class="ph-actions"><button class="btn"><i data-icon="clipboard-check"></i>표준 벤치마크</button><button class="btn btn-primary"><i data-icon="play"></i>위협 시뮬레이션 시작</button></div>
+  </div>
+
+  <div class="grid g-12" style="margin-bottom:16px">
+    <div class="card kpi span-3"><span class="kpi-icon"><i data-icon="gavel"></i></span><span class="kpi-label">누적 판정</span><span class="kpi-value num">13,733<small>건</small></span><span class="kpi-foot"><i data-icon="calendar" style="width:14px;height:14px"></i>2026-10-05 ~ 10-31 · 실제 모델 판정</span></div>
+    <div class="card kpi span-3"><span class="kpi-icon"><i data-icon="timer"></i></span><span class="kpi-label">판정 시간 (중앙값)</span><span class="kpi-value num">6.0<small>초</small></span><span class="kpi-foot">p95 16.3초 · 판정 13,733건</span></div>
+    <div class="card kpi span-3"><span class="kpi-icon"><i data-icon="users"></i></span><span class="kpi-label">오늘 방문자 실행</span><span class="kpi-value num">8<small>회</small></span><span class="kpi-foot">누적 방문자 실행 2,046회 · UTC 기준</span></div>
+    <div class="card kpi span-3"><span class="kpi-icon" style="background:var(--allow-bg);color:var(--allow)"><i data-icon="shield-check"></i></span><span class="kpi-label">AgentDojo 표적 공격 성공률</span><span class="kpi-value num">1.36<small>%</small></span><span class="kpi-foot">보호 없음 10.54% · 95% 구간 0.62~2.56%</span></div>
+  </div>
+
+  <div class="grid g-12" style="margin-bottom:16px">
+    <section class="card span-5">
+      <div class="card-head"><div><h2 class="card-title">판정 분포</h2><p class="card-sub">Contexa가 내린 판정 13,733건</p></div></div>
+      <div class="card-body">
+        <div class="dist"><i style="width:72.3%;background:var(--allow)"></i><i style="width:15.6%;background:var(--stepup)"></i><i style="width:8.3%;background:var(--hold)"></i><i style="width:3.8%;background:var(--block)"></i></div>
+        <div class="dist-rows">
+          <span class="lab"><i style="background:var(--allow)"></i>허용</span><span class="v">9,932</span><span class="p">72.3%</span>
+          <span class="lab"><i style="background:var(--stepup)"></i>추가 인증</span><span class="v">2,148</span><span class="p">15.6%</span>
+          <span class="lab"><i style="background:var(--hold)"></i>검토 보류</span><span class="v">1,136</span><span class="p">8.3%</span>
+          <span class="lab"><i style="background:var(--block)"></i>차단</span><span class="v">517</span><span class="p">3.8%</span>
+        </div>
+        <div class="note" style="margin-top:20px"><i data-icon="info"></i><span>판정 수에 넣지 않은 요청 — 기술적 실패 572건 · 직전 판정 재사용 6,844건</span></div>
+      </div>
+    </section>
+    <section class="card span-7">
+      <div class="card-head"><div><h2 class="card-title">표준 벤치마크</h2><p class="card-sub">공식 하니스 · 공식 채점 그대로, Contexa 보호 없음 대 적용</p></div><div class="right"><a class="btn btn-ghost">전체 결과<i data-icon="arrow-right"></i></a></div></div>
+      <div class="card-body">
+        <div class="bm"><div class="bm-name">AgentDojo <span class="badge b-allow">완료</span></div><div class="bm-metric">Targeted ASR · 표적 공격 성공률(낮을수록 좋음) · 664건</div><div class="bm-val"><span class="from num">10.54%</span><i data-icon="arrow-right" style="width:16px;height:16px;color:var(--text-3)"></i><span class="to num">1.36%</span></div></div>
+        <div class="bm"><div class="bm-name">InjecAgent <span class="badge b-allow">완료</span></div><div class="bm-metric">ASR-valid (Direct Harm) · 공격 성공률(낮을수록 좋음) · base 1,054건</div><div class="bm-val"><span class="from num">31.7%</span><i data-icon="arrow-right" style="width:16px;height:16px;color:var(--text-3)"></i><span class="to num">0.0%</span></div></div>
+        <div class="bm"><div class="bm-name">Promptfoo <span class="code">owasp:agentic</span> <span class="badge b-allow">완료</span></div><div class="bm-metric">Pass rate · 공격을 견딘 비율(높을수록 좋음) · 195건</div><div class="bm-val"><span class="from num">43.6%</span><i data-icon="arrow-right" style="width:16px;height:16px;color:var(--text-3)"></i><span class="to num">55.4%</span></div></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="grid g-12">
+    <section class="card span-8">
+      <div class="card-head"><div><h2 class="card-title">최근 판정</h2><p class="card-sub">방문자가 실행한 시뮬레이션 · 2026-10-31 UTC</p></div><div class="right"><a class="btn btn-ghost">판정 이력<i data-icon="arrow-right"></i></a></div></div>
+      <table class="table">
+        <thead><tr><th>시각</th><th>시나리오</th><th>판정</th><th class="r">판정 시간</th><th>실행 ID</th></tr></thead>
+        <tbody>
+          <tr><td class="num">07:37</td><td class="strong">정책 시뮬레이터 · 조건 변경</td><td><span class="badge b-block"><i data-icon="ban"></i>차단</span></td><td class="r num">6.1초</td><td><span class="code">run-e89248cb1969</span></td></tr>
+          <tr><td class="num">07:31</td><td class="strong">내부자 위협 · 영업 기밀 반출</td><td style="white-space:nowrap"><span class="badge b-block"><i data-icon="ban"></i>차단</span> <span class="muted" style="font-size:13px">2번째 요청</span></td><td class="r num">18.4초</td><td><span class="code">run-d399d3a50c57</span></td></tr>
+          <tr><td class="num">07:30</td><td class="strong">계정 탈취 · 대량 반출</td><td><span class="badge b-allow"><i data-icon="check"></i>허용</span></td><td class="r num">7.7초</td><td><span class="code">run-78c1493c1e61</span></td></tr>
+          <tr><td class="num">07:24</td><td class="strong">정상 사용자 · 같은 요청</td><td><span class="badge b-allow"><i data-icon="check"></i>허용</span></td><td class="r num">6.6초</td><td><span class="code">run-15e214d87b86</span></td></tr>
+          <tr><td class="num">07:22</td><td class="strong">계정 탈취 · 대량 반출</td><td><span class="badge b-stepup"><i data-icon="key-round"></i>추가 인증</span></td><td class="r num">7.2초</td><td><span class="code">run-fbbd5ecfa56c</span></td></tr>
+        </tbody>
+      </table>
+    </section>
+    <section class="card span-4">
+      <div class="card-head"><div><h2 class="card-title">위협 시뮬레이션</h2><p class="card-sub">실제 AI 판정으로 직접 실행합니다</p></div></div>
+      <div class="card-body">
+        <div class="sim"><span class="sim-ic"><i data-icon="user-round-x"></i></span><div><div class="sim-t">계정 탈취 (ATO)</div><div class="sim-d">탈취 계정의 대량 반출 · 정상 사용자 대조</div></div><i data-icon="chevron-right" class="go"></i></div>
+        <div class="sim"><span class="sim-ic"><i data-icon="user-round-cog"></i></span><div><div class="sim-t">내부자 위협</div><div class="sim-d">권한 안의 업무 외 목적 반출</div></div><i data-icon="chevron-right" class="go"></i></div>
+        <div class="sim"><span class="sim-ic"><i data-icon="bot"></i></span><div><div class="sim-t">AI 에이전트 위임 남용</div><div class="sim-d">위임 범위 · 기간을 벗어난 에이전트 요청</div></div><i data-icon="chevron-right" class="go"></i></div>
+        <div class="sim"><span class="sim-ic"><i data-icon="layers"></i></span><div><div class="sim-t">요청 급증 대응</div><div class="sim-d">같은 요청 60건 동시 유입 시 판정 통합</div></div><i data-icon="chevron-right" class="go"></i></div>
+      </div>
+    </section>
+  </div>
+
+</div></main>
+<script src="shell.js"></script>
+</body>
+</html>

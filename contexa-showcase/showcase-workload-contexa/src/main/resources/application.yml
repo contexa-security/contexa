@@ -86,8 +86,10 @@ contexa:
     tiered:
       # The decision prompt bundle D runs (docs/showcase/판정층-수정계획.md 8절 1): without it a plain start runs the
       # core default bundle.
+      # 2026-10-30: v21.17 is no bundle the current core runs (CQ-1 and BR-C6 changed the decision path, CF-45 and CF-46);
+      # a build of this core with v21.17 would fall back to the v19 default. v21.19 is the bundle of the core now.
       prompt-bundle:
-        active: 2026.10.27-v21.17
+        active: 2026.10.30-v21.19
       # The model of each analysis layer (docs/showcase/판정층-수정계획.md E-7): Layer1 decides, Layer2 decides what
       # Layer1 could not. A model id with no runtime binding runs on a copy of the primary chat model; one that cannot
       # be made stops the start.

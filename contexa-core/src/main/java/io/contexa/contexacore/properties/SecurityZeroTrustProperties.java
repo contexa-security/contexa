@@ -95,6 +95,9 @@ public class SecurityZeroTrustProperties {
     private SessionSettings session = new SessionSettings();
 
     @NestedConfigurationProperty
+    private SessionTrackingSettings sessionTracking = new SessionTrackingSettings();
+
+    @NestedConfigurationProperty
     private ChallengeSettings challenge = new ChallengeSettings();
 
     @NestedConfigurationProperty
@@ -106,6 +109,10 @@ public class SecurityZeroTrustProperties {
     /** The minimum-action rules of the security decision (plan 7, dictionary 6, W4-4). */
     @NestedConfigurationProperty
     private MinimumActionSettings minimumAction = new MinimumActionSettings();
+
+    /** QF-42: the bounds of the stores of the standalone mode, which keep decisions and learning in memory. */
+    @NestedConfigurationProperty
+    private StandaloneSettings standalone = new StandaloneSettings();
 
     @Data
     public static class ThreatSettings {
@@ -124,11 +131,47 @@ public class SecurityZeroTrustProperties {
         private boolean trackingEnabled = true;
     }
 
+    /** The session ids kept per user so a forced logout reaches every live session of the user. */
+    @Data
+    public static class SessionTrackingSettings {
+
+        public static final int DEFAULT_MAX_UNTIMED_SESSIONS_PER_USER = 64;
+
+        /**
+         * QF-57: an id is tracked until it is certainly dead: an OAuth2 token's until the token expires, an HTTP
+         * session's until its idle limit has passed since its last request. This is the most ids per user kept among
+         * those nothing on the request bounds the life of (an identity the host asserts without an HTTP session or a
+         * token, a session that never times out); past it the least recently seen are no longer tracked, so a forced
+         * logout does not reach them until their next request registers them again. 0 or less keeps them all.
+         */
+        private int maxUntimedSessionsPerUser = DEFAULT_MAX_UNTIMED_SESSIONS_PER_USER;
+    }
+
     @Data
     public static class ChallengeSettings {
         private Duration lockWaitTime = Duration.ZERO;
         private Duration lockLeaseTime = Duration.ofSeconds(30);
         private int busyRetryAfterSeconds = 3;
+    }
+
+    @Data
+    public static class StandaloneSettings {
+        /**
+         * QF-42: the most users the in-memory decision store keeps; past it the users whose decision was written the
+         * longest ago go first, never one whose state restricts (BLOCK, a CHALLENGE or ESCALATE in force, a pending
+         * BLOCK MFA, a decision audit marker) nor one decided within the decision's TTL. 0 or less derives it from the
+         * maximum heap: a twentieth of it at 2 KiB a user, between 1,000 and 1,000,000 (52,428 users for a 2 GiB heap).
+         */
+        private int maxDecisionUsers = 0;
+
+        /**
+         * QF-42: the bytes the requests held for verification and promotion learning may take together in the
+         * in-memory context store, counted at two bytes a character of their records; past it the requests held the
+         * longest ago are released, whoever holds them, so their later verification or promotion is not learned (no
+         * decision changes). 0 or less derives it from the maximum heap: a tenth of it, between 16 MiB and 1 GiB
+         * (204.8 MiB for a 2 GiB heap). The Redis store is not bounded by it.
+         */
+        private long maxHeldLearningBytes = 0;
     }
 
     @Data
@@ -144,6 +187,12 @@ public class SecurityZeroTrustProperties {
 
     @Data
     public static class BaselineSettings {
+        /**
+         * BR-C11 (DD-52): how long a stored baseline, personal or organization, is kept after its last learning; each
+         * learning keeps it for this long again. A baseline not learned for this long is removed whole.
+         */
+        private Duration retention = Duration.ofDays(30);
+
         @NestedConfigurationProperty
         private LearningSettings learning = new LearningSettings();
 
@@ -184,6 +233,11 @@ public class SecurityZeroTrustProperties {
             private int minDays = 5;
             private int convergenceWindow = 10;
             private double maxNewValueRatio = 0.2;
+            /**
+             * QF-21: how many different members an organization baseline's learned requests must come from, on at least
+             * {@code minDays} company dates, before it is established.
+             */
+            private int minOrganizationMembers = 3;
         }
 
         /**

@@ -36,9 +36,9 @@ describe('prompt trust words of the core source', () => {
         /entry\(PromptBlock\.\w+,\s*"([^"]+)"/g,
       ),
     ].map((match) => (match[1] ?? '').replace('{i}', ''));
-    // 76 entries of the v20 dictionary, the v21 dictionary's TargetScope (v21.4, finding 7 of the v21 plan) and its
-    // eight lines of an agent's request (docs/agent A2, A4, F-5).
-    expect(entries).toHaveLength(85);
+    // 76 entries of the v20 dictionary, the v21 dictionary's TargetScope (v21.4, finding 7 of the v21 plan), its
+    // eight lines of an agent's request (docs/agent A2, A4, F-5) and ArgumentOrigin (v21.18, CQ-1).
+    expect(entries).toHaveLength(86);
     expect([...FACT_LABELS].sort()).toEqual([...entries].sort());
     expectWords(
       [...FACT_LABELS, 'other'].flatMap((label) => [`fact.label.${label}`, `fact.meaning.${label}`]),
@@ -59,8 +59,9 @@ describe('prompt trust words of the core source', () => {
         /code\(Group\.\w+,\s*"(\w+)"/g,
       ),
     ].map((match) => match[1] ?? '');
-    // 50 codes: the 49 of the v4 contract as first written and RECORD_COVERS_WORK (the record covers the work).
-    expect(v4).toHaveLength(50);
+    // 51 codes: the 49 of the v4 contract as first written, RECORD_COVERS_WORK (the record covers the work) and
+    // VALUE_FROM_UNTRUSTED_OUTPUT (v21.18, CQ-1: a call value first seen in a tool's output).
+    expect(v4).toHaveLength(51);
     expectWords(v4.map((code) => `reasonCodeV4.${code}`));
     // SC-7, SC-8: how a v21 decision judges, and the explanations it weighed.
     expectWords(['H1', 'H2', 'H3', 'H4', 'H5'].map((id) => `hypothesis.${id}`));

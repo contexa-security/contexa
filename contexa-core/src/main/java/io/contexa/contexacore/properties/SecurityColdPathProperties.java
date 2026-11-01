@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.properties;
 
+import io.contexa.contexacore.autonomous.processor.ColdPathEventProcessor;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
@@ -25,6 +26,12 @@ public class SecurityColdPathProperties {
 
     @NestedConfigurationProperty
     private ConfidenceSettings confidence = new ConfidenceSettings();
+
+    /**
+     * QF-42: the most escalation protection windows the cold path keeps (one for each scope and scenario); past it the
+     * windows idle the longest go first, on top of the day an idle window is kept.
+     */
+    private int maxEscalationWindows = ColdPathEventProcessor.DEFAULT_MAX_ESCALATION_WINDOWS;
 
     @Data
     public static class ConfidenceSettings {

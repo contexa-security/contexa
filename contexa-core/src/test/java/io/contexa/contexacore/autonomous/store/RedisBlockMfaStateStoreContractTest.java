@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.store;
 
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.testsupport.RedisTestTemplates;
 import java.net.InetSocketAddress;
@@ -73,6 +74,12 @@ class RedisBlockMfaStateStoreContractTest extends AbstractBlockMfaStateStoreCont
             connection.serverCommands().flushDb();
             return null;
         });
+    }
+
+    @Override
+    protected ZeroTrustActionRepository createActionRepository() {
+        return new ZeroTrustActionRedisRepository(
+                RedisTestTemplates.newProductionAlignedRedisTemplate(connectionFactory), stringRedisTemplate);
     }
 
     @Override

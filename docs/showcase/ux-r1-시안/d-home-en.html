@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Start the Demo</title>
+<link rel="stylesheet" href="design.css">
+<style>
+  .hero { display: grid; grid-template-columns: minmax(0, 1fr) 560px; gap: 40px; align-items: center; padding: 12px 0 40px; border-bottom: 1px solid var(--line); margin-bottom: 32px; }
+  .live-tag { display: inline-flex; align-items: center; gap: 8px; height: 28px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--r-pill); font-size: 13px; font-weight: 600; color: var(--text-2); }
+  .live-tag .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--allow); box-shadow: 0 0 0 4px var(--allow-bg); }
+  .hero-title { margin: 20px 0 16px; font-size: 32px; font-weight: 700; line-height: 1.3; letter-spacing: -0.01em; }
+  .hero-desc { margin: 0 0 28px; font-size: 15px; line-height: 1.7; color: var(--text-2); max-width: 560px; }
+  .hero-cta { display: flex; gap: 12px; flex-wrap: wrap; }
+  .hero-meta { display: flex; gap: 20px; margin: 20px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--text-3); flex-wrap: wrap; }
+  .hero-meta li { display: inline-flex; align-items: center; gap: 6px; }
+  .hero-meta svg.i { width: 14px; height: 14px; color: var(--allow); }
+  .replay-head { display: flex; align-items: center; gap: 8px; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+  .replay-head b { font-size: 15px; }
+  .replay-head .muted { font-size: 13px; margin-left: auto; }
+  .req { padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+  .req-l1 { display: flex; align-items: center; gap: 8px; } .req-l2 { margin-top: 6px; font-size: 13px; color: var(--text-2); }
+  .req .path { font: 500 13px/1 var(--mono); color: var(--text); }
+  .req .sep { color: var(--text-3); }
+  .req .m { font-size: 13px; color: var(--text-2); }
+  .lanes { padding: 8px 20px; }
+  .lane { display: grid; grid-template-columns: 10px minmax(0, 1fr) 96px 72px 64px; gap: 12px; align-items: center; height: 40px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .lane:last-child { border-bottom: 0; }
+  .lane .sw { width: 10px; height: 10px; border-radius: 3px; }
+  .lane .nm { color: var(--text-2); white-space: nowrap; }
+  .lane.cx .nm { color: var(--text); font-weight: 600; }
+  .lane .out { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); white-space: nowrap; }
+  .lane .ms { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-3); font-size: 13px; white-space: nowrap; }
+  .tally { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); }
+  .tally > div { padding: 14px 20px; } .tally > div + div { border-left: 1px solid var(--line); }
+  .tally .k { font-size: 13px; color: var(--text-3); }
+  .tally .v { font-size: 24px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .tally .v small { font-size: 13px; font-weight: 500; color: var(--text-3); margin-left: 4px; }
+  .sec-head { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 16px; }
+  .sec-head h2 { margin: 0; font-size: 18px; font-weight: 600; }
+  .sec-head p { margin: 4px 0 0; font-size: 14px; color: var(--text-3); }
+  .sec-head .right { margin-left: auto; }
+  .scen { display: flex; flex-direction: column; padding: 20px; gap: 12px; position: relative; }
+  .scen.rec { border-color: var(--brand-line); }
+  .scen-top { display: flex; align-items: center; gap: 8px; }
+  .scen-ic { flex: none; width: 40px; height: 40px; border-radius: 8px; display: grid; place-items: center; background: var(--surface-3); color: var(--text-2); }
+  .scen-ic svg.i { width: 20px; height: 20px; }
+  .scen-top .badge:first-of-type { margin-left: auto; }
+  .scen h3 { margin: 4px 0 0; font-size: 16px; font-weight: 600; }
+  .scen .sit { margin: 0; font-size: 14px; line-height: 1.6; color: var(--text-2); min-height: 45px; }
+  .scen .chk { padding-top: 12px; border-top: 1px solid var(--line); font-size: 14px; line-height: 1.55; color: var(--text); }
+  .scen .chk span { display: block; font-size: 13px; color: var(--text-3); margin-bottom: 4px; }
+  .scen-foot { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 4px; font-size: 13px; color: var(--text-3); }
+  .scen-foot .btn { margin-left: auto; }
+  .how { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 32px 0; }
+  .how-step { display: grid; grid-template-columns: 28px 1fr; gap: 12px; padding: 18px 20px; position: relative; }
+  .how-step + .how-step { border-left: 1px solid var(--line); }
+  .how-n { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 600; background: var(--surface-3); color: var(--text); }
+  .how-step b { display: block; font-size: 15px; font-weight: 600; } .how-step div span { display: block; margin-top: 2px; font-size: 13px; color: var(--text-3); line-height: 1.5; }
+  .trust { display: grid; grid-template-columns: 1.3fr repeat(3, minmax(0, 1fr)) auto; align-items: center; }
+  .trust > div { padding: 18px 20px; } .trust > div + div { border-left: 1px solid var(--line); }
+  .trust .t-head b { display: block; font-size: 15px; } .trust .t-head span { font-size: 13px; color: var(--text-3); }
+  .trust .t-k { font-size: 13px; color: var(--text-3); }
+  .trust .t-v { margin-top: 4px; display: flex; align-items: baseline; gap: 8px; font-variant-numeric: tabular-nums; }
+  .trust .t-v s { color: var(--text-3); font-size: 14px; } .trust .t-v b { font-size: 18px; color: var(--allow); }
+  .phone .hero { grid-template-columns: 1fr; gap: 24px; padding-bottom: 28px; }
+  .phone .hero-title { font-size: 24px; }
+  .phone .hero-cta .btn { flex: 1 1 auto; }
+  .phone .lane { grid-template-columns: 10px minmax(0, 1fr) 84px 56px; } .phone .lane .ms { display: none; }
+  .phone .how { grid-template-columns: 1fr 1fr; } .phone .how-step:nth-child(3) { border-left: 0; } .phone .how-step:nth-child(n + 3) { border-top: 1px solid var(--line); }
+  .phone .trust { grid-template-columns: 1fr; } .phone .trust > div + div { border-left: 0; border-top: 1px solid var(--line); }
+  .phone .replay-head { flex-wrap: wrap; } .phone .replay-head b { white-space: nowrap; } .phone .replay-head .muted { margin-left: 0; width: 100%; }
+</style>
+</head>
+<body data-active="home" data-lang="en" data-crumbs="Live demo|Start the demo">
+<main class="content"><div class="wrap">
+
+  <section class="hero">
+    <div>
+      <span class="live-tag"><span class="dot"></span>LIVE · real AI decisions</span>
+      <h1 class="hero-title">Same account, same request —<br>one of them is compromised.</h1>
+      <p class="hero-desc">Contexa decides every post-login request against the behavioral baseline and the business context. Send a real request to five security controls at once and see which control stops what.</p>
+      <div class="hero-cta"><button class="btn btn-primary btn-lg"><i data-icon="play"></i>Run the account takeover scenario</button><button class="btn btn-lg"><i data-icon="layout-grid"></i>Choose a scenario</button></div>
+      <ul class="hero-meta"><li><i data-icon="check"></i>No sign-up</li><li><i data-icon="check"></i>Real AI decision · p50 6.0 s</li><li><i data-icon="check"></i>10 runs per visitor per day</li></ul>
+    </div>
+    <section class="card">
+      <div class="replay-head"><i data-icon="radio-tower" style="width:16px;height:16px;color:var(--text-3)"></i><b>Published recorded run</b><span class="code">run-04cdd89264f7</span><span class="muted">2026-10-27 23:54 UTC</span></div>
+      <div class="req"><div class="req-l1"><span class="badge b-line">POST</span><span class="path">/api/projects/HX-310/exports</span></div><div class="req-l2">Export of 480 design documents · Engineer K account · first-seen device · Wed 14:20</div></div>
+      <div class="lanes">
+        <div class="lane"><span class="sw" style="background:var(--c-waf)"></span><span class="nm">Web application firewall</span><span class="badge b-allow"><i data-icon="check"></i>Allow</span><span class="out">480</span><span class="ms">0.027 s</span></div>
+        <div class="lane"><span class="sw" style="background:var(--c-iam)"></span><span class="nm">Identity & access (IAM)</span><span class="badge b-allow"><i data-icon="check"></i>Allow</span><span class="out">480</span><span class="ms">0.021 s</span></div>
+        <div class="lane"><span class="sw" style="background:var(--c-rule)"></span><span class="nm">Threshold rules</span><span class="badge b-allow"><i data-icon="check"></i>Allow</span><span class="out">480</span><span class="ms">0.025 s</span></div>
+        <div class="lane"><span class="sw" style="background:var(--c-approval)"></span><span class="nm">Approval policy rules</span><span class="badge b-allow"><i data-icon="check"></i>Allow</span><span class="out">480</span><span class="ms">0.041 s</span></div>
+        <div class="lane cx"><span class="sw" style="background:var(--c-contexa)"></span><span class="nm">Contexa</span><span class="badge b-stepup"><i data-icon="key-round"></i>Step-up</span><span class="out">0</span><span class="ms">10.2 s</span></div>
+      </div>
+      <div class="tally"><div><div class="k">Four existing controls · missed</div><div class="v num">480<small>items exported × 4</small></div></div><div><div class="k">Contexa · decided before the response</div><div class="v num">0<small>items exported</small></div></div></div>
+    </section>
+  </section>
+
+  <div class="sec-head"><div><h2>Threat scenarios</h2><p>Each scenario runs in four steps: review the request, live decision, result</p></div><a class="btn btn-ghost right">All scenarios<i data-icon="arrow-right"></i></a></div>
+  <div class="grid g-12">
+    <article class="card scen rec span-3">
+      <div class="scen-top"><span class="scen-ic"><i data-icon="user-round-x"></i></span><span class="badge b-line"><i data-icon="star"></i>Start here</span><span class="badge b-line">Threat · control</span></div>
+      <h3>Account takeover (ATO)</h3>
+      <p class="sit">A compromised account exports 480 design documents from a first-seen device.</p>
+      <div class="chk"><span>What it checks</span>Does the decision change when the legitimate user sends the same request?</div>
+      <div class="scen-foot"><span>1 request · 1 control run</span><button class="btn btn-sm btn-primary">Run<i data-icon="arrow-right"></i></button></div>
+    </article>
+    <article class="card scen span-3">
+      <div class="scen-top"><span class="scen-ic"><i data-icon="user-round-cog"></i></span><span class="badge b-line">Threat</span></div>
+      <h3>Insider threat</h3>
+      <p class="sit">Collects sales-confidential documents unrelated to the job inside an assigned project.</p>
+      <div class="chk"><span>What it checks</span>Does it find the non-business purpose among in-permission requests?</div>
+      <div class="scen-foot"><span>3 requests</span><button class="btn btn-sm">Run<i data-icon="arrow-right"></i></button></div>
+    </article>
+    <article class="card scen span-3">
+      <div class="scen-top"><span class="scen-ic"><i data-icon="bot"></i></span><span class="badge b-line">5 scenarios</span></div>
+      <h3>AI agent delegation abuse</h3>
+      <p class="sit">After the delegation expires, a report agent keeps a scheduled run going with the same token.</p>
+      <div class="chk"><span>What it checks</span>Does it stop out-of-delegation requests while the token and permissions are valid?</div>
+      <div class="scen-foot"><span>Spring AI business agent</span><button class="btn btn-sm">Run<i data-icon="arrow-right"></i></button></div>
+    </article>
+    <article class="card scen span-3">
+      <div class="scen-top"><span class="scen-ic"><i data-icon="layers"></i></span><span class="badge b-line">Operations</span></div>
+      <h3>Request surge handling</h3>
+      <p class="sit">Merges the decision when identical list requests arrive at once.</p>
+      <div class="chk"><span>What it checks</span>Are delivered results unchanged, and how many model calls are saved?</div>
+      <div class="scen-foot"><span>Up to 60 at once</span><button class="btn btn-sm">Run<i data-icon="arrow-right"></i></button></div>
+    </article>
+  </div>
+
+  <section class="card how">
+    <div class="how-step"><span class="how-n">1</span><div><b>Choose a threat scenario</b><span>The ground truth is never sent to any control</span></div></div>
+    <div class="how-step"><span class="how-n">2</span><div><b>Review and predict</b><span>Read the request facts, record your expected decision</span></div></div>
+    <div class="how-step"><span class="how-n">3</span><div><b>Live decision</b><span>Five controls decide the same request at once</span></div></div>
+    <div class="how-step"><span class="how-n">4</span><div><b>Result and evidence</b><span>Exported items compared, with the facts the AI cited</span></div></div>
+  </section>
+
+  <section class="card trust">
+    <div class="t-head"><b>Standard benchmarks</b><span>Official harnesses and scoring, unchanged</span></div>
+    <div><div class="t-k">AgentDojo · Targeted ASR</div><div class="t-v"><s>10.54%</s><b>1.36%</b></div></div>
+    <div><div class="t-k">InjecAgent · ASR-valid</div><div class="t-v"><s>31.7%</s><b>0.0%</b></div></div>
+    <div><div class="t-k">Promptfoo · Pass rate</div><div class="t-v"><s>43.6%</s><b>55.4%</b></div></div>
+    <div><a class="btn btn-ghost">All results<i data-icon="arrow-right"></i></a></div>
+  </section>
+
+</div></main>
+<script src="shell.js"></script>
+</body>
+</html>

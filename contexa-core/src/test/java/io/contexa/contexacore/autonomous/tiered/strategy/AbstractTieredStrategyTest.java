@@ -15,6 +15,9 @@
  */
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
+import org.springframework.boot.context.properties.bind.Bindable;
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 import java.time.Instant;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
@@ -575,6 +578,52 @@ class AbstractTieredStrategyTest {
         assertThat(request.getParameter("openAiVerbosity", String.class)).isEqualTo("low");
         assertThat(request.getParameter("maxTokens", Integer.class)).isNull();
         assertThat(request.getParameter("platformSecurityDecisionMaxTokens", Integer.class)).isEqualTo(256);
+    }
+
+    /**
+     * T9: the layer's Anthropic thinking settings travel as platform parameters (always the mode and the allowance, the
+     * budget and effort when set); the event's metadata cannot set them, and the call's own keys never travel.
+     */
+    @Test
+    void theLayerAnthropicThinkingSettingsTravelAsPlatformParametersOnly() {
+        Binder binder = new Binder(new MapConfigurationPropertySource(Map.of(
+                "contexa.security.tiered.layer1.anthropic-thinking", "BUDGET",
+                "contexa.security.tiered.layer1.anthropic-thinking-budget-tokens", "2048",
+                "contexa.security.tiered.layer1.anthropic-thinking-allowance-tokens", "256")));
+        binder.bind("contexa.security.tiered", Bindable.ofInstance(tieredStrategyProperties));
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-anthropic-thinking")
+                .metadata(new LinkedHashMap<>(Map.of(
+                        "platformAnthropicThinking", "OFF",
+                        "platformAnthropicThinkingAllowanceTokens", 99999,
+                        "platformAnthropicEffort", "MAX",
+                        "anthropicThinking", "ADAPTIVE")))
+                .build();
+        SecurityEvent plainEvent = SecurityEvent.builder()
+                .eventId("event-anthropic-thinking-default")
+                .metadata(new LinkedHashMap<>())
+                .build();
+
+        SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(
+                event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                List.of());
+        tieredStrategyProperties.setLayer1(new TieredStrategyProperties.Layer1());
+        SecurityDecisionRequest defaults = strategy.buildSecurityDecisionRequestForTest(
+                plainEvent,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                List.of());
+
+        assertThat(request.getParameter("platformAnthropicThinking", String.class)).isEqualTo("BUDGET");
+        assertThat(request.getParameter("platformAnthropicThinkingBudgetTokens", Integer.class)).isEqualTo(2048);
+        assertThat(request.getParameter("platformAnthropicThinkingAllowanceTokens", Integer.class)).isEqualTo(256);
+        assertThat(request.getParameter("platformAnthropicEffort", String.class)).isNull();
+        assertThat(request.getParameter("anthropicThinking", String.class)).isNull();
+        assertThat(defaults.getParameter("platformAnthropicThinking", String.class)).isEqualTo("PROVIDER_DEFAULT");
+        assertThat(defaults.getParameter("platformAnthropicThinkingAllowanceTokens", Integer.class)).isZero();
+        assertThat(defaults.getParameter("platformAnthropicThinkingBudgetTokens", Integer.class)).isNull();
     }
 
     /** P3-EXTRA-9: the Layer1 model call limit travels as a platform parameter to the provider call. */
@@ -1993,6 +2042,28 @@ class AbstractTieredStrategyTest {
         Map<String, Object> searchScope = (Map<String, Object>) event.getMetadata().get("ragSearchScope");
         assertThat(searchScope).containsEntry("tenantId", "t-1").containsEntry("organizationId", "org-1")
                 .containsEntry("agentId", "report-agent");
+    }
+
+    /**
+     * QF-15a: a decision record is written with the organisation named by organizationId or orgId (SecurityDecisionPostProcessor),
+     * so the next request must name its organisation from every key the record can be written with, or a host that sends orgId
+     * alone never finds the records it wrote.
+     */
+    @Test
+    void aRequestNamesItsOrganisationFromEveryKeyARecordIsWrittenWith() {
+        for (String key : List.of("organizationId", "organization_id", "orgId")) {
+            SecurityEvent event = exportEvent("event-org-" + key, true);
+            event.addMetadata(key, "org-1");
+            when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V20);
+            RecordingPastRecordQuery query = new RecordingPastRecordQuery(List.of(), List.of());
+            when(unifiedVectorService.pastRecordQuery()).thenReturn(query);
+            authorizeEveryDocument();
+
+            strategy.callSearchRelatedContextBase(event, 5, 0.5d);
+
+            assertThat(query.scope).as("the scope read for a request that names its organisation by " + key).isNotNull();
+            assertThat(query.scope.organizationId()).as("organisation read from " + key).isEqualTo("org-1");
+        }
     }
 
     private static final class RecordingPastRecordQuery implements PastRecordQuery {

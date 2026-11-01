@@ -1,0 +1,140 @@
+.tabs {
+  display: flex;
+  gap: var(--ux-space-7);
+  margin-block-end: var(--ux-space-6);
+  border-block-end: var(--ux-hairline) solid var(--ux-line);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tab {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--ux-space-2);
+  block-size: var(--ux-tab);
+  margin: var(--ux-space-0) var(--ux-space-0) var(--ux-hairline-neg);
+  padding: var(--ux-space-0);
+  border: 0;
+  border-block-end: var(--ux-ring) solid transparent;
+  background-color: transparent;
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-15);
+  font-weight: var(--ux-weight-medium);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  color: var(--ux-text);
+}
+
+.tab[aria-selected='true'] {
+  border-block-end-color: var(--ux-brand);
+  color: var(--ux-text);
+  font-weight: var(--ux-weight-semibold);
+}
+
+.count {
+  padding: var(--ux-space-0) var(--ux-space-2);
+  border-radius: var(--ux-radius-pill);
+  background-color: var(--ux-surface-3);
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-12);
+  font-weight: var(--ux-weight-medium);
+  line-height: var(--ux-leading-body);
+}
+
+.panel:focus-visible {
+  outline-offset: var(--ux-ring-offset);
+}
+
+/* Stepper */
+.stepper {
+  margin-block-end: var(--ux-space-6);
+}
+
+.steps {
+  display: flex;
+  align-items: center;
+  margin: var(--ux-space-0);
+  padding: var(--ux-space-0);
+  list-style: none;
+}
+
+.step {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--ux-space-3);
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-14);
+  white-space: nowrap;
+}
+
+.step + .step::before {
+  content: '';
+  inline-size: var(--ux-step-line);
+  block-size: var(--ux-step-border);
+  margin-inline-end: var(--ux-space-1);
+  background-color: var(--ux-line-strong);
+}
+
+.step[data-state='done'] + .step::before {
+  background-color: var(--ux-text-3);
+}
+
+.step + .step {
+  margin-inline-start: var(--ux-space-3);
+}
+
+.stepMark {
+  display: grid;
+  place-items: center;
+  inline-size: var(--ux-step);
+  block-size: var(--ux-step);
+  border: var(--ux-step-border) solid var(--ux-line-strong);
+  border-radius: var(--ux-radius-round);
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-13);
+  font-weight: var(--ux-weight-semibold);
+  line-height: var(--ux-leading-none);
+}
+
+.step[data-state='done'] .stepMark {
+  border-color: var(--ux-surface-3);
+  background-color: var(--ux-surface-3);
+  color: var(--ux-text-2);
+}
+
+.step[data-state='now'] {
+  color: var(--ux-text);
+  font-weight: var(--ux-weight-semibold);
+}
+
+.step[data-state='now'] .stepMark {
+  border-color: var(--ux-brand);
+  background-color: var(--ux-brand);
+  color: var(--ux-brand-ink);
+}
+
+@media (width < 640px) {
+  .steps {
+    inline-size: 100%;
+  }
+
+  .step:not([data-state='now']) .stepLabel {
+    display: none;
+  }
+
+  .step + .step {
+    flex: 1 1 auto;
+    margin-inline-start: var(--ux-space-2);
+  }
+
+  .step + .step::before {
+    flex: 1 1 auto;
+    inline-size: auto;
+    min-inline-size: var(--ux-space-4);
+  }
+}

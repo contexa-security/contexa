@@ -30,7 +30,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
-import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -38,15 +37,28 @@ import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.SessionCallback;
 
 @Slf4j
-@RequiredArgsConstructor
 public class RedisBaselineDataStore implements BaselineDataStore {
 
     private final RedisTemplate<String, Object> redisTemplate;
+    /** How long a stored baseline is kept after its last save (BR-C11, DD-52). */
+    private final Duration baselineTtl;
 
     private static final String BASELINE_KEY_PREFIX = "security:autonomous:baseline:";
     private static final String USER_BASELINE_INDEX_KEY = BASELINE_KEY_PREFIX + "user:index";
     private static final String ORG_BASELINE_INDEX_KEY = BASELINE_KEY_PREFIX + "org:index";
-    private static final Duration BASELINE_TTL = Duration.ofDays(30);
+    /** The retention of contexa.security.zerotrust.baseline.retention when it is not set (DD-52). */
+    public static final Duration DEFAULT_BASELINE_TTL = Duration.ofDays(30);
+
+    public RedisBaselineDataStore(RedisTemplate<String, Object> redisTemplate) {
+        this(redisTemplate, DEFAULT_BASELINE_TTL);
+    }
+
+    /** A store keeping each baseline for the given retention after its last save; the default without one. */
+    public RedisBaselineDataStore(RedisTemplate<String, Object> redisTemplate, Duration baselineTtl) {
+        this.redisTemplate = redisTemplate;
+        this.baselineTtl = baselineTtl != null && !baselineTtl.isNegative() && !baselineTtl.isZero()
+                ? baselineTtl : DEFAULT_BASELINE_TTL;
+    }
 
     @Override
     public BaselineVector getUserBaseline(String userId) {
@@ -61,12 +73,20 @@ public class RedisBaselineDataStore implements BaselineDataStore {
 
     @Override
     public void saveUserBaseline(String userId, BaselineVector baseline) {
+        saveUserBaselineChecked(userId, baseline);
+    }
+
+    /** Saves the baseline and tells whether it was stored; a failed save is logged and reported, not swallowed (QF-12). */
+    @Override
+    public boolean saveUserBaselineChecked(String userId, BaselineVector baseline) {
         try {
             String key = BASELINE_KEY_PREFIX + userId;
             replaceHash(key, buildBaselineHash(userId, baseline));
             redisTemplate.opsForSet().add(USER_BASELINE_INDEX_KEY, userId);
+            return true;
         } catch (Exception e) {
             log.error("[BaselineDataStore] Baseline save failed: userId={}", userId, e);
+            return false;
         }
     }
 
@@ -127,7 +147,7 @@ public class RedisBaselineDataStore implements BaselineDataStore {
                 transaction.multi();
                 transaction.delete(key);
                 transaction.opsForHash().putAll(key, data);
-                transaction.expire(key, BASELINE_TTL);
+                transaction.expire(key, baselineTtl);
                 return transaction.exec();
             }
         });
@@ -212,11 +232,41 @@ public class RedisBaselineDataStore implements BaselineDataStore {
         redisTemplate.opsForSet().remove(USER_BASELINE_INDEX_KEY, key);
     }
 
+    /**
+     * The users whose baseline is still stored. The index set has no time to live of its own, so a user whose baseline
+     * expired is left out of the count and removed from the index here, as an organization is when they are listed
+     * (QF-23).
+     */
     @Override
     public long countUserBaselines() {
         try {
-            Long count = redisTemplate.opsForSet().size(USER_BASELINE_INDEX_KEY);
-            return count != null ? count : 0L;
+            Set<Object> userIds = redisTemplate.opsForSet().members(USER_BASELINE_INDEX_KEY);
+            if (userIds == null || userIds.isEmpty()) {
+                return 0L;
+            }
+            List<String> ids = userIds.stream().filter(Objects::nonNull).map(String::valueOf).toList();
+            List<Object> stored = redisTemplate.executePipelined(new SessionCallback<Object>() {
+                @Override
+                @SuppressWarnings("unchecked")
+                public <K, V> Object execute(RedisOperations<K, V> operations) {
+                    RedisOperations<String, Object> pipeline = (RedisOperations<String, Object>) operations;
+                    ids.forEach(id -> pipeline.hasKey(BASELINE_KEY_PREFIX + id));
+                    return null;
+                }
+            });
+            long live = 0L;
+            List<Object> expired = new ArrayList<>();
+            for (int index = 0; index < ids.size(); index++) {
+                if (index < stored.size() && Boolean.TRUE.equals(stored.get(index))) {
+                    live++;
+                } else {
+                    expired.add(ids.get(index));
+                }
+            }
+            if (!expired.isEmpty()) {
+                redisTemplate.opsForSet().remove(USER_BASELINE_INDEX_KEY, expired.toArray());
+            }
+            return live;
         } catch (Exception e) {
             log.error("[BaselineDataStore] User baseline count failed", e);
             return 0L;
@@ -256,6 +306,10 @@ public class RedisBaselineDataStore implements BaselineDataStore {
         if (baseline.getVerifiedElements() != null && !baseline.getVerifiedElements().isEmpty()) {
             data.put("verifiedElements", new ArrayList<>(baseline.getVerifiedElements()));
         }
+        // QF-21: the members an organization baseline's learnings come from, as digests.
+        if (baseline.getLearnedMembers() != null && !baseline.getLearnedMembers().isEmpty()) {
+            data.put("learnedMembers", new ArrayList<>(baseline.getLearnedMembers()));
+        }
         return data;
     }
 
@@ -291,6 +345,7 @@ public class RedisBaselineDataStore implements BaselineDataStore {
                 .elementFrequencies(toFrequencyMap(data.get("elementFrequencies")))
                 .elementLastSeen(toFrequencyMap(data.get("elementLastSeen")))
                 .verifiedElements(toStringSet(data.get("verifiedElements")))
+                .learnedMembers(toStringSet(data.get("learnedMembers")))
                 .vocabularyVersion(data.get("vocabularyVersion") != null ? data.get("vocabularyVersion").toString() : null)
                 .learnedDates(toStringArray(data.get("learnedDates")))
                 .recentNovelty(data.get("recentNovelty") != null ? data.get("recentNovelty").toString() : null)

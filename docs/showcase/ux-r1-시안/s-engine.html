@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>AI 판정 엔진</title>
+<link rel="stylesheet" href="design.css">
+<style>
+  .pipe { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0; }
+  .stage { position: relative; padding: 18px 16px 18px; border-right: 1px solid var(--line); min-height: 236px; display: flex; flex-direction: column; }
+  .stage:last-child { border-right: 0; }
+  .stage-n { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .stage-n b { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; font-size: 12px; font-weight: 600; background: var(--surface-3); color: var(--text-2); }
+  .stage-n svg.i { width: 16px; height: 16px; color: var(--text-3); margin-left: auto; }
+  .stage.ai .stage-n b { background: var(--link); color: var(--bg); }
+  .stage-name { font-size: 15px; font-weight: 600; line-height: 1.35; min-height: 40px; }
+  .stage-val { margin-top: 12px; font-size: 14px; color: var(--text-2); line-height: 1.55; flex: 1; }
+  .stage-val b { color: var(--text); font-weight: 600; }
+  .stage-key { margin-top: 12px; font: 500 12px/1.4 var(--mono); color: var(--text-3); overflow-wrap: normal; word-break: keep-all; }
+  .flow-head { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--text-3); }
+  .lr { display: grid; grid-template-columns: 1fr auto 1fr auto; gap: 12px; align-items: center; font-variant-numeric: tabular-nums; }
+  .lr-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .lr-row:last-child { border-bottom: 0; }
+  .lr-n { font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 10px; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body data-active="engine" data-lang="ko" data-crumbs="분석|AI 판정 엔진">
+<main class="content"><div class="wrap">
+
+  <div class="ph">
+    <div class="ph-main"><h1 class="ph-title">AI 판정 엔진</h1><p class="ph-desc">요청 하나가 판정되기까지 거치는 일곱 단계와 각 단계의 실제 값입니다. 모든 단계는 기록되고, 판정 근거는 무결성 봉인으로 보존됩니다.</p></div>
+    <div class="ph-actions"><span class="tag" style="align-self:center">기준 실행</span><span class="code" style="align-self:center">run-04cdd89264f7</span><button class="btn"><i data-icon="refresh-cw"></i>내 최근 실행으로 보기</button></div>
+  </div>
+
+  <div class="tabs"><span class="tab on">판정 흐름</span><span class="tab">행위 기준선</span><span class="tab">판정 근거 사실</span><span class="tab">판정 프롬프트</span><span class="tab">무결성 봉인 · 검증</span></div>
+
+  <section class="card" style="margin-bottom:16px">
+    <div class="flow-head"><i data-icon="workflow" style="width:16px;height:16px"></i><span>계정 탈취 · 대량 반출 요청(S13) · 2026-10-27 23:54 UTC · 판정 추가 인증 · 총 10.1초</span></div>
+    <div class="pipe">
+      <div class="stage"><div class="stage-n"><b>1</b><i data-icon="graduation-cap"></i></div><div class="stage-name">행위 기준선 학습</div><div class="stage-val">학습 요청 <b>48건</b> 중 최근 7일 <b>20건</b>과 비교</div><div class="stage-key">B1 BaselineStatus</div></div>
+      <div class="stage"><div class="stage-n"><b>2</b><i data-icon="briefcase"></i></div><div class="stage-name">업무 컨텍스트 수집</div><div class="stage-val">이 요청에 대한 <b>승인 없음</b> · 최근 30일 중 <b>21일</b> 접근</div><div class="stage-key">F3 Policy</div></div>
+      <div class="stage"><div class="stage-n"><b>3</b><i data-icon="git-compare-arrows"></i></div><div class="stage-name">기준선 대조</div><div class="stage-val">기준선과 다른 항목 <b>2개</b>(단말 · 반출 건수) · 자료 민감도 <b>높음</b></div><div class="stage-key">F1 Deviations</div></div>
+      <div class="stage"><div class="stage-n"><b>4</b><i data-icon="file-text"></i></div><div class="stage-name">판정 프롬프트 구성</div><div class="stage-val">시스템 규칙 94줄 + 상황 63줄 = <b>157줄</b></div><div class="stage-key">bundle 2026.10.27-v21.17</div></div>
+      <div class="stage ai"><div class="stage-n"><b>5</b><i data-icon="sparkles"></i></div><div class="stage-name">AI 추론</div><div class="stage-val"><b>gpt-6-luna</b> · 호출 1회 · 입력 6,787 토큰 · <b>10.1초</b></div><div class="stage-key">proposedAction CHALLENGE</div></div>
+      <div class="stage"><div class="stage-n"><b>6</b><i data-icon="shield-check"></i></div><div class="stage-name">응답 검증 · 판정 적용</div><div class="stage-val">근거 코드 5개 · <b>응답 전 적용</b> · HTTP 401</div><div class="stage-key">finalAction CHALLENGE</div></div>
+      <div class="stage"><div class="stage-n"><b>7</b><i data-icon="lock"></i></div><div class="stage-name">무결성 봉인 · 학습 반영</div><div class="stage-val">SHA-256 봉인 · 이 요청은 기준선에 <b>더하지 않음</b></div><div class="stage-key">sha256 4a1527…a9d0</div></div>
+    </div>
+  </section>
+
+  <div class="grid g-12">
+    <section class="card span-6">
+      <div class="card-head"><div><h2 class="card-title">기준선 학습 반영</h2><p class="card-sub">허용된 요청만 행위 기준선에 쌓입니다</p></div></div>
+      <div class="card-body" style="padding-top:8px">
+        <div class="lr-row"><div><div class="strong" style="font-weight:600">이 실행 · 계정 탈취 요청 (추가 인증)</div><div class="muted" style="font-size:13px">run-04cdd89264f7</div></div><div class="lr-n">48 <i data-icon="arrow-right" style="color:var(--text-3)"></i> 48 <span class="badge b-none">학습 안 함</span></div></div>
+        <div class="lr-row"><div><div class="strong" style="font-weight:600">비교 · 관리자 A의 정상 업무 5건 (허용)</div><div class="muted" style="font-size:13px">run-47366ff6ce8e · 운영자 측정</div></div><div class="lr-n">24 <i data-icon="arrow-right" style="color:var(--text-3)"></i> 29 <span class="badge b-allow">+5 학습</span></div></div>
+      </div>
+    </section>
+    <section class="card span-6">
+      <div class="card-head"><div><h2 class="card-title">무결성 봉인</h2><p class="card-sub">판정에 쓴 입력 · 프롬프트 · 응답을 봉인해 누구나 다시 검증합니다</p></div><div class="right"><button class="btn" style="height:32px"><i data-icon="download"></i>원본 JSON</button></div></div>
+      <div class="card-body">
+        <dl class="kv"><dt>봉인 값</dt><dd><span class="code">sha256 4a1527…a9d0</span></dd><dt>봉인 시각</dt><dd class="num">2026-10-27 23:54:18 UTC</dd><dt>검사 결과</dt><dd>불완전 · 불일치 0건 · 확인 불가 9건</dd><dt>봉인 대상</dt><dd>모든 판정 · 이 데모 설정</dd><dt>보관</dt><dd>90일 · 이 데모 설정</dd></dl>
+      </div>
+    </section>
+  </div>
+
+</div></main>
+<script src="shell.js"></script>
+</body>
+</html>

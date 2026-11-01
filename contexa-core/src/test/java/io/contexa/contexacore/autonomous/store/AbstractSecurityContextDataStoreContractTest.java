@@ -37,6 +37,18 @@ abstract class AbstractSecurityContextDataStoreContractTest {
 
     protected abstract SecurityContextDataStore createStoreWithLoginFailureRetention(Duration retention);
 
+    /** BR-C14: a store keeping the given number of observations in each scope. */
+    protected abstract SecurityContextDataStore createStoreWithObservationCapacity(int capacity);
+
+    /**
+     * Z-16: lets {@code elapsed} pass for the records of {@link #store}, as the store's clock sees it: every key's
+     * expiry comes that much nearer, and a key whose expiry passes is gone.
+     */
+    protected abstract void passTime(Duration elapsed);
+
+    /** Z-16 D-8: whether {@link #store} still holds a risk score for the session (no read of it is offered). */
+    protected abstract boolean holdsSessionRisk(String sessionId);
+
     @BeforeEach
     void setUpStore() {
         store = createStore();
@@ -313,6 +325,38 @@ abstract class AbstractSecurityContextDataStoreContractTest {
     }
 
     @Test
+    @DisplayName("BR-C14: each scope keeps as many observations as the capacity says, the oldest leaving first")
+    void observations_keepTheConfiguredCapacity() {
+        SecurityContextDataStore small = createStoreWithObservationCapacity(3);
+        for (int index = 1; index <= 5; index++) {
+            small.addWorkProfileObservation("tenant-a", "ivan", "observation-" + index);
+            small.addRoleScopeObservation("tenant-a", "engineering", "scope-" + index);
+        }
+
+        assertThat(small.observationCapacity()).isEqualTo(3);
+        assertThat(small.getRecentWorkProfileObservations("tenant-a", "ivan", 10))
+                .containsExactly("observation-3", "observation-4", "observation-5");
+        assertThat(small.getRecentRoleScopeObservations("tenant-a", "engineering", 10))
+                .containsExactly("scope-3", "scope-4", "scope-5");
+        // Without the setting a scope keeps the 5,000 it always kept.
+        assertThat(store.observationCapacity()).isEqualTo(5_000);
+    }
+
+    @Test
+    @DisplayName("QF-29: a user's held requests in every tenant, and its agents', go with the user")
+    void promotionLearning_inEveryTenantGoesWithTheUser() {
+        store.holdPromotionLearning("tenant-a::gail", "request-1", "{}");
+        store.holdPromotionLearning("tenant-b::gail::agent::agt-1", "request-2", "{}");
+        store.holdPromotionLearning("tenant-a::hank", "request-3", "{}");
+
+        store.deleteUserData("gail");
+
+        assertThat(store.promotionLearning("tenant-a::gail")).isEmpty();
+        assertThat(store.promotionLearning("tenant-b::gail::agent::agt-1")).isEmpty();
+        assertThat(store.promotionLearning("tenant-a::hank")).containsOnlyKeys("request-3");
+    }
+
+    @Test
     @DisplayName("a session's records follow it to the id the container gives it; the old id keeps none (W1-11)")
     void moveSessionRecords_carriesTheSessionToItsNewId() {
         store.addSessionAction("session-old", "03:15 | MFA_LOGIN (multi-factor sign-in) | 10.0.0.1");
@@ -475,5 +519,198 @@ abstract class AbstractSecurityContextDataStoreContractTest {
         assertThat(store.getRecentWorkProfileObservations("tenant-a", "dave::agent::agt-1", 10)).isEmpty();
         assertThat(store.getRecentWorkProfileObservations("tenant-a", "carol::agent::agt-10", 10)).hasSize(1);
         assertThat(store.getRecentWorkProfileObservations("tenant-a", "carol", 10)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("Z-16 D-1: a value read past its TTL is gone at once, before any sweep")
+    void z16_aValueReadPastItsTtlIsGone() {
+        store.setSessionStartedAt("session-idle", 1_000L);
+        store.recordSessionLastRequest("session-idle", 1_000L, "/api/a");
+        store.setSessionFirstClientIfAbsent("session-idle", "UA|WINDOWS|Chrome/140|10.40.12.0/24|CORPORATE");
+        store.addSessionProtectableAccess("session-idle", "/api/a", 1_000L);
+        store.setLastRequestTime("user-idle", 1_000L);
+        store.setPreviousPath("user-idle", "/api/a");
+        store.setAuthorizationScopeState("tenant-a", "user-idle", "{\"scope\":\"read\"}");
+
+        passTime(Duration.ofMinutes(10).plusSeconds(1));
+
+        assertThat(store.getSessionStartedAt("session-idle")).isNull();
+        assertThat(store.getSessionLastRequestTime("session-idle")).isNull();
+        assertThat(store.getSessionPreviousPath("session-idle")).isNull();
+        assertThat(store.getSessionFirstClient("session-idle")).isNull();
+        assertThat(store.getRecentSessionProtectableAccesses("session-idle", 10)).isEmpty();
+        assertThat(store.getLastRequestTime("user-idle")).isNull();
+        assertThat(store.getPreviousPath("user-idle")).isNull();
+        assertThat(store.peekAuthorizationScopeState("tenant-a", "user-idle")).isEqualTo("{\"scope\":\"read\"}");
+
+        passTime(Duration.ofDays(30));
+
+        assertThat(store.peekAuthorizationScopeState("tenant-a", "user-idle")).isNull();
+        assertThat(store.getAuthorizationScopeState("tenant-a", "user-idle")).isNull();
+    }
+
+    @Test
+    @DisplayName("Z-16 D-1: a read that refreshes a value keeps it only while it lives")
+    void z16_aRefreshingReadKeepsAValueOnlyWhileItLives() {
+        store.setSessionStartedAt("session-read", 1_000L);
+
+        passTime(Duration.ofMinutes(9));
+        assertThat(store.getSessionStartedAt("session-read")).isEqualTo(1_000L);
+        passTime(Duration.ofMinutes(9));
+        assertThat(store.getSessionStartedAt("session-read")).isEqualTo(1_000L);
+        passTime(Duration.ofMinutes(10).plusSeconds(1));
+
+        assertThat(store.getSessionStartedAt("session-read")).isNull();
+        assertThat(store.getSessionStartedAt("session-read")).isNull();
+    }
+
+    @Test
+    @DisplayName("Z-16 D-1: a write past the TTL starts anew; what expired is neither read nor taken")
+    void z16_aWritePastTheTtlStartsAnew() {
+        store.addSessionDecision("session-gone", "decision-old");
+        store.addSessionNarrativeActionFamily("session-gone", "READ", 1_000L);
+        store.trackUserSession("user-gone", "session-old");
+        store.holdPromotionLearning("user-gone", "request-old", "{}");
+        store.holdVerificationLearning("user-gone", "request-old", "{}");
+        store.addWorkProfileObservation("tenant-a", "user-gone", "observation-old");
+
+        passTime(Duration.ofDays(30).plusSeconds(1));
+
+        assertThat(store.takeVerificationLearning("user-gone", "request-old")).isNull();
+        store.addSessionDecision("session-gone", "decision-new");
+        store.addSessionNarrativeActionFamily("session-gone", "EXPORT", 2_000L);
+        store.trackUserSession("user-gone", "session-new");
+        store.holdPromotionLearning("user-gone", "request-new", "{}");
+        store.addWorkProfileObservation("tenant-a", "user-gone", "observation-new");
+
+        assertThat(store.getRecentSessionDecisions("session-gone", 10)).containsExactly("decision-new");
+        assertThat(store.getRecentSessionNarrativeActionFamilies("session-gone", 10)).containsExactly("EXPORT");
+        assertThat(store.getUserSessions("user-gone")).containsExactly("session-new");
+        assertThat(store.promotionLearning("user-gone")).containsOnlyKeys("request-new");
+        assertThat(store.getRecentWorkProfileObservations("tenant-a", "user-gone", 10))
+                .containsExactly("observation-new");
+    }
+
+    @Test
+    @DisplayName("Z-16 D-2: keeping a session's first client again changes nothing, not even its TTL")
+    void z16_keepingTheFirstClientAgainDoesNotExtendIt() {
+        store.setSessionFirstClientIfAbsent("session-first-ttl", "UA|WINDOWS|Chrome/140|10.40.12.0/24|CORPORATE");
+        passTime(Duration.ofMinutes(6));
+        store.setSessionFirstClientIfAbsent("session-first-ttl", "UA|MAC|Safari/17|203.0.113.0/24|");
+        passTime(Duration.ofMinutes(5));
+
+        assertThat(store.getSessionFirstClient("session-first-ttl")).isNull();
+    }
+
+    @Test
+    @DisplayName("Z-16 D-3: an earlier request recorded late changes nothing, not even the last request's TTL")
+    void z16_anEarlierRequestRecordedLateDoesNotExtendTheLastRequest() {
+        store.recordSessionLastRequest("session-late", 2_000L, "/api/b");
+        passTime(Duration.ofMinutes(6));
+        store.recordSessionLastRequest("session-late", 1_000L, "/api/a");
+        passTime(Duration.ofMinutes(5));
+
+        assertThat(store.getSessionLastRequestTime("session-late")).isNull();
+        assertThat(store.getSessionPreviousPath("session-late")).isNull();
+    }
+
+    @Test
+    @DisplayName("Z-16 D-4: a value the new id holds keeps its TTL when the session moves; one moved to it starts anew")
+    void z16_aValueTheNewIdHoldsKeepsItsTtlWhenTheSessionMoves() {
+        store.setSessionStartedAt("session-to", 5_000L);
+        store.setSessionStartedAt("session-from", 1_000L);
+        store.setSessionLastRequestTime("session-from", 2_000L);
+        passTime(Duration.ofMinutes(6));
+        store.moveSessionRecords("session-from", "session-to");
+        passTime(Duration.ofMinutes(5));
+
+        assertThat(store.getSessionStartedAt("session-to")).isNull();
+        assertThat(store.getSessionStartedAt("session-from")).isNull();
+        assertThat(store.getSessionLastRequestTime("session-to")).isEqualTo(2_000L);
+    }
+
+    @Test
+    @DisplayName("Z-16 D-5: the outcome of a verification is kept for a day")
+    void z16_aVerificationOutcomeIsKeptForADay() {
+        store.recordVerificationOutcome("event-outcome", "verified by step-up");
+
+        passTime(Duration.ofHours(23));
+        assertThat(store.verificationOutcome("event-outcome")).isEqualTo("verified by step-up");
+        passTime(Duration.ofHours(1).plusSeconds(1));
+
+        assertThat(store.verificationOutcome("event-outcome")).isNull();
+    }
+
+    @Test
+    @DisplayName("Z-16 D-6: a processing claim is a thirty-minute lease; past it the event can be claimed again")
+    void z16_aProcessingClaimLapsesAfterThirtyMinutes() {
+        SecurityContextDataStore.EventProcessingLease first = store.claimEventProcessingLease("event-lease");
+        assertThat(first.claim()).isEqualTo(SecurityContextDataStore.EventProcessingClaim.ACQUIRED);
+
+        passTime(Duration.ofMinutes(29));
+        assertThat(store.claimEventProcessing("event-lease"))
+                .isEqualTo(SecurityContextDataStore.EventProcessingClaim.IN_FLIGHT);
+        passTime(Duration.ofMinutes(1).plusSeconds(1));
+
+        SecurityContextDataStore.EventProcessingLease second = store.claimEventProcessingLease("event-lease");
+        assertThat(second.claim()).isEqualTo(SecurityContextDataStore.EventProcessingClaim.ACQUIRED);
+        assertThat(store.isEventProcessingOwner("event-lease", first.ownerToken())).isFalse();
+        assertThat(store.markEventProcessed("event-lease", first.ownerToken())).isFalse();
+        assertThat(store.releaseEventProcessing("event-lease", first.ownerToken())).isFalse();
+        assertThat(store.isEventProcessingOwner("event-lease", second.ownerToken())).isTrue();
+        assertThat(store.markEventProcessed("event-lease", second.ownerToken())).isTrue();
+        assertThat(store.claimEventProcessing("event-lease"))
+                .isEqualTo(SecurityContextDataStore.EventProcessingClaim.PROCESSED);
+
+        passTime(Duration.ofHours(24).plusSeconds(1));
+        assertThat(store.claimEventProcessing("event-lease"))
+                .isEqualTo(SecurityContextDataStore.EventProcessingClaim.ACQUIRED);
+    }
+
+    @Test
+    @DisplayName("Z-16 D-7: a user's held records are not capped by count")
+    void z16_aUsersHeldRecordsAreNotCappedByCount() {
+        for (int request = 0; request < 60; request++) {
+            store.holdVerificationLearning("user-many", "request-" + request, "{}");
+        }
+        for (int request = 0; request < 250; request++) {
+            store.holdPromotionLearning("user-many", "promotion-" + request, "{}");
+        }
+
+        assertThat(store.takeVerificationLearning("user-many", "request-0")).isEqualTo("{}");
+        assertThat(store.takeVerificationLearning("user-many", "request-59")).isEqualTo("{}");
+        assertThat(store.promotionLearning("user-many")).hasSize(250).containsKeys("promotion-0", "promotion-249");
+    }
+
+    /**
+     * Z-16 D-8: a logout or a forced logout removes nothing of the context store in either store. The records of a
+     * session that ended are read by that session only, and what the user's aggregates count (the session's decisions
+     * and its place among the user's sessions) is not reduced by signing out: each record goes with its own TTL.
+     */
+    @Test
+    @DisplayName("Z-16 D-8: a session's records and the user's session list stay until their own TTL")
+    void z16_aSessionsRecordsAndTheUsersSessionListStayUntilTheirTtl() {
+        store.trackUserSession("user-logout", "session-logout");
+        store.addSessionDecision("session-logout", "decision-1");
+        store.addSessionAction("session-logout", "03:15 | MFA_LOGIN (multi-factor sign-in) | 10.0.0.1");
+        store.setSessionRisk("session-logout", 0.4);
+
+        passTime(Duration.ofMinutes(59));
+        assertThat(holdsSessionRisk("session-logout")).isTrue();
+        passTime(Duration.ofMinutes(1).plusSeconds(1));
+        assertThat(holdsSessionRisk("session-logout")).as("a session's risk is kept an hour").isFalse();
+
+        passTime(Duration.ofHours(22));
+        assertThat(store.getUserSessions("user-logout")).containsExactly("session-logout");
+        assertThat(store.getRecentSessionDecisions("session-logout", 10)).containsExactly("decision-1");
+        assertThat(store.getRecentSessionActions("session-logout", 10))
+                .containsExactly("03:15 | MFA_LOGIN (multi-factor sign-in) | 10.0.0.1");
+        passTime(Duration.ofHours(1));
+        assertThat(store.getRecentSessionDecisions("session-logout", 10)).as("a session's records a day").isEmpty();
+        assertThat(store.getRecentSessionActions("session-logout", 10)).isEmpty();
+        assertThat(store.getUserSessions("user-logout")).containsExactly("session-logout");
+
+        passTime(Duration.ofDays(6));
+        assertThat(store.getUserSessions("user-logout")).as("the user's session list seven days").isEmpty();
     }
 }

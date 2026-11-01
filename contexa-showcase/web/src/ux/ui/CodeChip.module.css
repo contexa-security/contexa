@@ -1,0 +1,41 @@
+/* Fixed-width 13/500, 24 high, padding 8 (기획안 5.2). */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ux-space-1);
+  block-size: var(--ux-code);
+  padding: var(--ux-space-0) var(--ux-space-2);
+  border: 0;
+  border-radius: var(--ux-radius-sm);
+  background-color: var(--ux-surface-3);
+  color: var(--ux-text-2);
+  font-family: var(--ux-mono);
+  font-size: var(--ux-text-13);
+  font-weight: var(--ux-weight-medium);
+  line-height: var(--ux-leading-none);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.chip code {
+  font-family: inherit;
+}
+
+button.chip {
+  cursor: copy;
+}
+
+button.chip:hover {
+  color: var(--ux-text);
+}
+
+.wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ux-space-2);
+}
+
+.copied {
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-12);
+}

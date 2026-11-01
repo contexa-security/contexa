@@ -75,6 +75,22 @@ public final class VectorDocumentMetadata {
     public static final String LEARNING_STATE_HELD = "HELD";
     /** docs/agent A3-8: a record an operator quarantined with its agent's or delegation's learning; never read. */
     public static final String LEARNING_STATE_QUARANTINED = "QUARANTINED";
+    /**
+     * BR-C6 (QF-14): how an allowed record came to be learned, a {@code LearnedBy} name written by the store path of the
+     * record; a record stored before the key existed has none.
+     */
+    public static final String LEARNED_BY = "learnedBy";
+    /**
+     * BR-C6 (QF-13): the origin class of the call arguments of a record, argument name to source kind
+     * ({@code recipient=TOOL_OUTPUT}); the classification only, never a value, a sentence or a tool.
+     */
+    public static final String ARG_SOURCES = "argSources";
+    /**
+     * BR-S2: the embedding model a stored document's vector was made with, as {@code provider/model}
+     * ({@code ollama/mxbai-embed-large}); written by the vector service when it knows the model, left out of the text
+     * an embedding model embeds. A document stored before the key existed has none.
+     */
+    public static final String EMBEDDING_MODEL = "embeddingModel";
     public static final String CURRENT_ACTIVITY = "currentActivity";
     public static final String ACTIVITY_SEQUENCE = "activitySequence";
     public static final String THREAT_TYPE = "threatType";
@@ -97,6 +113,26 @@ public final class VectorDocumentMetadata {
 
     private VectorDocumentMetadata() {
         throw new UnsupportedOperationException("This is a utility class and cannot be instantiated");
+    }
+
+    /** The keys a host can name an organisation with, in the order they are read (QF-15a). */
+    private static final String[] ORGANIZATION_KEYS = {ORGANIZATION_ID, "organization_id", "orgId"};
+
+    /**
+     * The organisation a record or a request names, from every key a host can send it with. A record is written and the
+     * next request reads its records with this one reading, so a host that sends {@code orgId} alone finds what it wrote.
+     */
+    public static String organizationIdOf(Map<String, ?> metadata) {
+        if (metadata == null) {
+            return null;
+        }
+        for (String key : ORGANIZATION_KEYS) {
+            Object value = metadata.get(key);
+            if (value != null && !value.toString().isBlank()) {
+                return value.toString().trim();
+            }
+        }
+        return null;
     }
 
     public static boolean hasRequiredFields(Map<String, Object> metadata) {

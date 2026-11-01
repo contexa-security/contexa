@@ -1,0 +1,385 @@
+/* The standard benchmarks (기획안 8절 s-bench · s-bench-agentdojo). */
+
+.stack {
+  display: grid;
+  gap: var(--ux-space-4);
+  min-inline-size: 0;
+}
+
+.split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ux-space-4);
+  align-items: start;
+}
+
+.scroll {
+  overflow-x: auto;
+}
+
+.table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--ux-text-14);
+}
+
+.table th,
+.table td {
+  padding: var(--ux-space-3) var(--ux-space-4);
+  border-block-end: var(--ux-hairline) solid var(--ux-line);
+  text-align: start;
+  vertical-align: top;
+}
+
+.table thead th {
+  background-color: var(--ux-surface-2);
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-13);
+  font-weight: var(--ux-weight-semibold);
+  white-space: nowrap;
+}
+
+.table tbody th {
+  min-inline-size: 11rem;
+  font-weight: var(--ux-weight-regular);
+}
+
+.table [data-numeric] {
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.table .groupRow th {
+  padding-block: var(--ux-space-2);
+  background-color: var(--ux-surface-2);
+}
+
+.table .groupRow th > a {
+  margin-inline-end: var(--ux-space-2);
+}
+
+.testName {
+  display: block;
+  color: var(--ux-text);
+  font-weight: var(--ux-weight-semibold);
+}
+
+.share {
+  display: grid;
+  gap: var(--ux-space-1);
+  justify-items: start;
+}
+
+.shareValue {
+  color: var(--ux-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.shareStrong {
+  color: var(--ux-text);
+  font-size: var(--ux-text-15);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--ux-weight-bold);
+}
+
+.shareSub {
+  display: block;
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-12);
+  font-variant-numeric: tabular-nums;
+}
+
+.shareUpper {
+  color: var(--ux-text-2);
+  font-size: var(--ux-text-12);
+  font-weight: var(--ux-weight-semibold);
+}
+
+.direction {
+  display: block;
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-12);
+}
+
+.muted {
+  color: var(--ux-text-3);
+}
+
+.code {
+  font-family: var(--ux-mono);
+  font-size: var(--ux-text-13);
+  overflow-wrap: anywhere;
+}
+
+.hash {
+  display: block;
+  color: var(--ux-text-3);
+  font-family: var(--ux-mono);
+  font-size: var(--ux-text-12);
+  overflow-wrap: anywhere;
+}
+
+.tableNote {
+  margin: var(--ux-space-0);
+  padding: var(--ux-space-3) var(--ux-space-4);
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-13);
+  line-height: var(--ux-leading-body);
+}
+
+.para {
+  margin: var(--ux-space-0);
+  color: var(--ux-text-2);
+  font-size: var(--ux-text-14);
+  line-height: var(--ux-leading-body);
+}
+
+.facts,
+.limits,
+.order {
+  display: grid;
+  gap: var(--ux-space-3);
+  margin: var(--ux-space-0);
+  padding: var(--ux-space-0);
+  color: var(--ux-text-2);
+  font-size: var(--ux-text-14);
+  line-height: var(--ux-leading-body);
+}
+
+.limits {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--ux-space-8);
+}
+
+.limits li,
+.facts li,
+.order li {
+  display: grid;
+  gap: var(--ux-space-1);
+  list-style: none;
+}
+
+.facts[data-wide] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--ux-space-8);
+}
+
+.source {
+  color: var(--ux-text-3);
+  font-family: var(--ux-mono);
+  font-size: var(--ux-text-12);
+  overflow-wrap: anywhere;
+}
+
+.chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--ux-space-2);
+}
+
+/* The interval chart: name · track (bar to the point, whisker over the 95% interval) · values. */
+.charts {
+  display: grid;
+  gap: var(--ux-space-6);
+}
+
+.chartGroup {
+  display: grid;
+  gap: var(--ux-space-3);
+  min-inline-size: 0;
+}
+
+.groupTitle {
+  margin: var(--ux-space-0);
+  color: var(--ux-text-2);
+  font-size: var(--ux-text-14);
+  font-weight: var(--ux-weight-semibold);
+}
+
+.chart {
+  display: grid;
+  gap: var(--ux-space-2);
+  margin: var(--ux-space-0);
+}
+
+.chartRows {
+  display: grid;
+  gap: var(--ux-space-3);
+  margin: var(--ux-space-0);
+  padding: var(--ux-space-0);
+  list-style: none;
+}
+
+.chartRow,
+.chartAxis {
+  display: grid;
+  grid-template-columns: minmax(0, 15rem) minmax(0, 1fr) minmax(0, 15rem);
+  gap: var(--ux-space-4);
+  align-items: center;
+}
+
+.chartName {
+  display: grid;
+  gap: var(--ux-space-0);
+  min-inline-size: 0;
+}
+
+.chartLabel {
+  color: var(--ux-text);
+  font-size: var(--ux-text-14);
+  font-weight: var(--ux-weight-medium);
+}
+
+.chartTrack {
+  position: relative;
+  block-size: var(--ux-bar-thick);
+  border-radius: var(--ux-radius-xs);
+  background-color: var(--ux-surface-2);
+}
+
+.chartBar {
+  position: absolute;
+  inset-block: var(--ux-space-0);
+  inset-inline-start: var(--ux-space-0);
+  border-radius: var(--ux-radius-xs);
+  background-color: var(--ux-none);
+}
+
+.chartRow[data-contexa] .chartBar {
+  background-color: var(--ux-control-contexa);
+}
+
+.chartWhisker {
+  position: absolute;
+  inset-block: var(--ux-space-0);
+  border-inline: var(--ux-hairline) solid var(--ux-text-2);
+  background: linear-gradient(var(--ux-text-2), var(--ux-text-2)) center / 100% var(--ux-hairline) no-repeat;
+}
+
+.chartValue {
+  display: grid;
+  gap: var(--ux-space-0);
+  font-size: var(--ux-text-14);
+  font-variant-numeric: tabular-nums;
+}
+
+.chartTicks {
+  position: relative;
+  block-size: var(--ux-space-4);
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-12);
+}
+
+.chartTicks > span {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+/* The cases the protected agent still failed. */
+.cases {
+  display: grid;
+  gap: var(--ux-space-3);
+  margin: var(--ux-space-0);
+  padding: var(--ux-space-0);
+  list-style: none;
+}
+
+.case {
+  display: grid;
+  gap: var(--ux-space-2);
+  padding: var(--ux-space-3) var(--ux-space-4);
+  border: var(--ux-hairline) solid var(--ux-line);
+  border-radius: var(--ux-radius-md);
+}
+
+.caseHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ux-space-2);
+}
+
+.caseLine {
+  display: grid;
+  grid-template-columns: minmax(0, 7rem) minmax(0, 1fr);
+  gap: var(--ux-space-3);
+  color: var(--ux-text-2);
+  font-size: var(--ux-text-14);
+  line-height: var(--ux-leading-body);
+}
+
+.caseKey {
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-13);
+}
+
+/* Two model names, one per line. */
+.models {
+  display: grid;
+  gap: var(--ux-space-0);
+}
+
+/* A piece of a figure line that never breaks inside. */
+.piece {
+  white-space: nowrap;
+}
+
+@media (width < 1024px) {
+  .split,
+  .limits,
+  .facts[data-wide] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (width < 640px) {
+  /* A table stacks into one block per row, each value under its column's name: no column hides behind a scroll. */
+  .table[data-stack] thead {
+    display: none;
+  }
+
+  .table[data-stack] tr {
+    display: grid;
+    gap: var(--ux-space-2);
+    padding: var(--ux-space-3) var(--ux-space-4);
+    border-block-end: var(--ux-hairline) solid var(--ux-line);
+  }
+
+  .table[data-stack] th,
+  .table[data-stack] td {
+    padding: var(--ux-space-0);
+    border-block-end: 0;
+  }
+
+  .table[data-stack] tbody th {
+    min-inline-size: 0;
+  }
+
+  .table[data-stack] [data-numeric] {
+    text-align: start;
+  }
+
+  .table[data-stack] td[data-k]::before {
+    content: attr(data-k);
+    display: block;
+    margin-block-end: var(--ux-space-1);
+    color: var(--ux-text-3);
+    font-size: var(--ux-text-12);
+    font-weight: var(--ux-weight-medium);
+  }
+
+  .chartRow {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ux-space-1);
+  }
+
+  .chartAxis {
+    display: none;
+  }
+
+  .caseLine {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ux-space-0);
+  }
+}

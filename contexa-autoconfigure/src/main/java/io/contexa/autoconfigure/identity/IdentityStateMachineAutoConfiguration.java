@@ -24,6 +24,7 @@ import io.contexa.contexaidentity.security.statemachine.action.*;
 import io.contexa.contexaidentity.security.statemachine.config.MfaStateMachineConfiguration;
 import io.contexa.contexaidentity.security.statemachine.config.StateMachineProperties;
 import io.contexa.contexaidentity.security.statemachine.config.kyro.MfaKryoStateMachineSerialisationService;
+import io.contexa.contexaidentity.security.statemachine.core.persist.ExpiringRedisRepositoryStateMachinePersist;
 import io.contexa.contexaidentity.security.statemachine.core.persist.InMemoryStateMachinePersist;
 import io.contexa.contexaidentity.security.statemachine.core.service.MfaStateMachineService;
 import io.contexa.contexaidentity.security.statemachine.core.service.MfaStateMachineServiceImpl;
@@ -57,6 +58,7 @@ import org.springframework.statemachine.data.redis.RedisStateMachineRepository;
 import org.springframework.statemachine.persist.DefaultStateMachinePersister;
 import org.springframework.statemachine.persist.StateMachinePersister;
 
+import java.time.Duration;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -154,10 +156,17 @@ public class IdentityStateMachineAutoConfiguration {
         return new MfaStateMachineIntegrator(mfaStateMachineService, mfaSessionRepository, authContextProperties);
     }
 
+    /** Z-16 (F6): a context lapses the persistence TTL after its last write, as in the Redis persist. */
     @Bean
     @ConditionalOnMissingBean
-    public InMemoryStateMachinePersist inMemoryStateMachinePersist() {
-        return new InMemoryStateMachinePersist();
+    public InMemoryStateMachinePersist inMemoryStateMachinePersist(StateMachineProperties properties) {
+        return new InMemoryStateMachinePersist(persistenceTtl(properties));
+    }
+
+    /** {@code contexa.identity.statemachine.persistence.ttl-minutes}, 30 minutes without it. */
+    static Duration persistenceTtl(StateMachineProperties properties) {
+        Integer minutes = properties.getPersistence() != null ? properties.getPersistence().getTtlMinutes() : null;
+        return Duration.ofMinutes(minutes != null && minutes > 0 ? minutes : 30);
     }
 
 
@@ -182,13 +191,14 @@ public class IdentityStateMachineAutoConfiguration {
                     stateMachineFactory, stateMachinePersister, redissonClient, properties);
         }
 
+        /** Z-16 (F6): a context lapses the persistence TTL after its last write, as in the in-memory persist. */
         @Bean
         @ConditionalOnMissingBean
-        @SuppressWarnings({"rawtypes"})
         public RedisRepositoryStateMachinePersist<MfaState, MfaEvent> stateMachinePersist(
-                RedisStateMachineRepository redisStateMachineRepository) {
-            return new RedisRepositoryStateMachinePersist(redisStateMachineRepository,
-                    new MfaKryoStateMachineSerialisationService());
+                RedisStateMachineRepository redisStateMachineRepository,
+                StateMachineProperties properties) {
+            return new ExpiringRedisRepositoryStateMachinePersist(redisStateMachineRepository,
+                    new MfaKryoStateMachineSerialisationService(), persistenceTtl(properties));
         }
 
         @Bean

@@ -23,29 +23,102 @@ import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
+/**
+ * Redis-backed Zero Trust service. QF-57: the user's tracked session ids are kept in two keys of their own, the ids with
+ * a deadline ({@link ZeroTrustRedisKeys#userSessionDeadlines}, scored by it and expiring with the last one) and those
+ * without ({@link ZeroTrustRedisKeys#userUntimedSessions}, scored by their last registration, at most the per-user
+ * limit). The user's session list ({@link ZeroTrustRedisKeys#userSessions}) is also the context store's list of the
+ * user's sessions, whose recent requests the analysis counts; tracking does not write it, and a forced logout still
+ * invalidates every id it holds. Z-16 (D-8, 2-d): neither a logout nor a forced logout removes that list or a session's
+ * records in the context store; they lapse with their TTLs, as in the in-memory service.
+ */
 @Slf4j
 public class RedisZeroTrustSecurityService extends AbstractZeroTrustSecurityService {
 
+    /**
+     * Registers an id with a deadline (KEYS[1] the deadlines, KEYS[2] the ids without one; ARGV[1] the id, ARGV[2] its
+     * deadline and ARGV[3] now, in epoch milliseconds): drops the user's ids already past their deadlines, keeps the
+     * later of the recorded and the given deadline, takes the id off the ids without a deadline, and lets the key
+     * expire with the last deadline it holds. The numbers are read as the digits they hold, whatever the serializer.
+     */
+    private static final DefaultRedisScript<Long> REGISTER_TIMED_SCRIPT = new DefaultRedisScript<>(
+            "local deadline = string.match(ARGV[2], '%-?%d+') "
+                    + "local now = string.match(ARGV[3], '%-?%d+') "
+                    + "redis.call('zremrangebyscore', KEYS[1], '-inf', '(' .. now) "
+                    + "redis.call('zrem', KEYS[2], ARGV[1]) "
+                    + "if tonumber(deadline) < tonumber(now) then return 0 end "
+                    + "local recorded = redis.call('zscore', KEYS[1], ARGV[1]) "
+                    + "if (not recorded) or tonumber(recorded) < tonumber(deadline) then "
+                    + "redis.call('zadd', KEYS[1], deadline, ARGV[1]) end "
+                    + "local last = redis.call('zrange', KEYS[1], -1, -1, 'WITHSCORES') "
+                    + "redis.call('pexpireat', KEYS[1], string.match(last[2], '%-?%d+')) "
+                    + "return 1",
+            Long.class);
+
+    /**
+     * Registers an id without a deadline as the user's most recent one (KEYS[1] the ids without a deadline, KEYS[2]
+     * the deadlines; ARGV[1] the id, ARGV[2] now in epoch milliseconds, ARGV[3] the per-user limit, 0 or less: none):
+     * drops the user's ids past their deadlines, keeps a deadline the id has (Z-16, 2-f: a deadline never shortens),
+     * and returns the least recently registered ids past the limit, which it no longer tracks without a deadline.
+     */
+    @SuppressWarnings("rawtypes")
+    private static final DefaultRedisScript<List> REGISTER_UNTIMED_SCRIPT = new DefaultRedisScript<>(
+            "local now = string.match(ARGV[2], '%-?%d+') "
+                    + "local limit = tonumber(string.match(ARGV[3], '%-?%d+')) "
+                    + "redis.call('zremrangebyscore', KEYS[2], '-inf', '(' .. now) "
+                    + "redis.call('zadd', KEYS[1], now, ARGV[1]) "
+                    + "local released = {} "
+                    + "if limit > 0 then "
+                    + "local excess = redis.call('zcard', KEYS[1]) - limit "
+                    + "if excess > 0 then "
+                    + "released = redis.call('zrange', KEYS[1], 0, excess - 1) "
+                    + "redis.call('zremrangebyrank', KEYS[1], 0, excess - 1) end end "
+                    + "return released",
+            List.class);
+
     private final RedisTemplate<String, Object> redisTemplate;
+    private final Clock clock;
 
     public RedisZeroTrustSecurityService(
             RedisTemplate<String, Object> redisTemplate,
             ThreatScoreUtil threatScoreUtil,
             SecurityZeroTrustProperties securityZeroTrustProperties,
             ZeroTrustActionRepository actionRedisRepository) {
+        this(redisTemplate, threatScoreUtil, securityZeroTrustProperties, actionRedisRepository, Clock.systemUTC());
+    }
+
+    public RedisZeroTrustSecurityService(
+            RedisTemplate<String, Object> redisTemplate,
+            ThreatScoreUtil threatScoreUtil,
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            ZeroTrustActionRepository actionRedisRepository,
+            Clock clock) {
         super(threatScoreUtil, securityZeroTrustProperties, actionRedisRepository);
         this.redisTemplate = redisTemplate;
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     @Autowired(required = false)
     public void setBlockingSignalBroadcaster(BlockingSignalBroadcaster broadcaster) {
         this.blockingSignalBroadcaster = broadcaster;
+    }
+
+    @Override
+    protected Instant now() {
+        return clock.instant();
     }
 
     @Override
@@ -86,29 +159,49 @@ public class RedisZeroTrustSecurityService extends AbstractZeroTrustSecurityServ
     }
 
     @Override
-    protected void doRegisterSession(String userId, String sessionId) {
+    protected void doRegisterSession(String userId, String sessionId, Instant deadline) {
         try {
-            String key = ZeroTrustRedisKeys.userSessions(userId);
-            redisTemplate.opsForSet().add(key, sessionId);
+            String deadlinesKey = ZeroTrustRedisKeys.userSessionDeadlines(userId);
+            String untimedKey = ZeroTrustRedisKeys.userUntimedSessions(userId);
+            String now = Long.toString(now().toEpochMilli());
+            if (deadline != null) {
+                redisTemplate.execute(REGISTER_TIMED_SCRIPT, List.of(deadlinesKey, untimedKey),
+                        sessionId, Long.toString(deadline.toEpochMilli()), now);
+                return;
+            }
+            List<?> released = redisTemplate.execute(REGISTER_UNTIMED_SCRIPT, List.of(untimedKey, deadlinesKey),
+                    sessionId, now, Integer.toString(maxUntimedSessionsPerUser()));
+            if (released != null) {
+                for (Object releasedId : released) {
+                    if (releasedId != null) {
+                        releaseRegistration(releasedId.toString());
+                    }
+                }
+            }
         } catch (Exception e) {
             log.error("[ZeroTrust] Failed to register session: userId={}, sessionId={}", userId, sessionId, e);
         }
     }
 
+    /**
+     * Stops tracking the session that logs out. Z-16 (D-8, 2-d): the context store's records of the session and its
+     * list of the user's sessions stay until their TTLs, as in the in-memory service; only the session reads its own
+     * records, and the user's recent requests stay counted.
+     */
     @Override
     protected void doCleanupSessionData(String userId, String sessionId) {
         redisTemplate.delete(ZeroTrustRedisKeys.threatScore(userId));
 
         if (sessionId != null) {
-            redisTemplate.delete(ZeroTrustRedisKeys.sessionActions(sessionId));
-            redisTemplate.delete(ZeroTrustRedisKeys.sessionMetadata(sessionId));
-            redisTemplate.delete(ZeroTrustRedisKeys.sessionRisk(sessionId));
-
-            String userSessionsKey = ZeroTrustRedisKeys.userSessions(userId);
-            redisTemplate.opsForSet().remove(userSessionsKey, sessionId);
+            redisTemplate.opsForZSet().remove(ZeroTrustRedisKeys.userSessionDeadlines(userId), sessionId);
+            redisTemplate.opsForZSet().remove(ZeroTrustRedisKeys.userUntimedSessions(userId), sessionId);
         }
     }
 
+    /**
+     * Invalidates every id of the user's session list and every tracked id not past its deadline, then stops tracking
+     * them. The session list stays until its TTL (Z-16, D-8).
+     */
     @Override
     public void invalidateAllUserSessions(String userId, String reason) {
         if (userId == null) {
@@ -117,18 +210,33 @@ public class RedisZeroTrustSecurityService extends AbstractZeroTrustSecurityServ
 
         try {
             String sessionsKey = ZeroTrustRedisKeys.userSessions(userId);
-            Set<Object> sessions = redisTemplate.opsForSet().members(sessionsKey);
+            String deadlinesKey = ZeroTrustRedisKeys.userSessionDeadlines(userId);
+            String untimedKey = ZeroTrustRedisKeys.userUntimedSessions(userId);
+            Set<String> sessions = new LinkedHashSet<>();
+            addAll(sessions, redisTemplate.opsForSet().members(sessionsKey));
+            addAll(sessions, redisTemplate.opsForZSet().rangeByScore(deadlinesKey,
+                    now().toEpochMilli(), Double.POSITIVE_INFINITY));
+            addAll(sessions, redisTemplate.opsForZSet().range(untimedKey, 0, -1));
 
-            if (sessions != null) {
-                for (Object sessionObj : sessions) {
-                    invalidateSession(sessionObj.toString(), userId, reason);
-                }
+            for (String sessionId : sessions) {
+                invalidateSession(sessionId, userId, reason);
             }
 
-            redisTemplate.delete(sessionsKey);
+            redisTemplate.delete(List.of(deadlinesKey, untimedKey));
 
         } catch (Exception e) {
             log.error("[ZeroTrust] Failed to invalidate all sessions for user: {}", userId, e);
+        }
+    }
+
+    private static void addAll(Set<String> target, Collection<Object> members) {
+        if (members == null) {
+            return;
+        }
+        for (Object member : members) {
+            if (member != null) {
+                target.add(member.toString());
+            }
         }
     }
 }

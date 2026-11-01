@@ -24,6 +24,7 @@ import io.contexa.contexacommon.domain.EventTimeZone;
 import io.contexa.contexacore.autonomous.context.support.PastDeniedDecisions;
 import io.contexa.contexacore.autonomous.context.support.PastRecordCounts;
 import io.contexa.contexacommon.domain.TruthValues;
+import io.contexa.contexacore.autonomous.context.support.PastRecordPostProcessor;
 import io.contexa.contexacore.autonomous.context.support.PastRecordRanking;
 import java.time.Instant;
 import com.github.benmanes.caffeine.cache.Cache;
@@ -64,6 +65,8 @@ import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
+import io.contexa.contexacore.std.llm.client.AnthropicEffort;
+import io.contexa.contexacore.std.llm.client.AnthropicThinkingMode;
 import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
 import io.contexa.contexacore.std.llm.client.ChatModelProviders;
@@ -1076,7 +1079,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             Map<String, Object> eventMetadata = event.getMetadata() != null ? event.getMetadata() : Map.of();
             PastRecordScope scope = new PastRecordScope(userId, retrievalPurpose, request.actionFamily().name(),
                     sessionIdsOf(event), subject != null ? subject.tenantId() : null,
-                    firstNonBlank(eventMetadata.get("organizationId"), eventMetadata.get("organization_id")),
+                    VectorDocumentMetadata.organizationIdOf(eventMetadata),
                     subject != null ? subject.agentId() : null);
             List<PastRecordGroup> groups = query.groups(scope);
             List<String> sameTargetPaths = groups.stream()
@@ -1372,6 +1375,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         metadata.put("ragProjectionState", projectedCount > 0
                 ? "PROJECTED"
                 : (permissionFiltered ? "PERMISSION_FILTERED_DECLARED" : "ZERO_RESULTS_DECLARED"));
+        // BR-C8 (QF-16): what the retrieval knows, that authorized records exist; the render of the prompt writes over it
+        // whether they reached the prompt the model gets.
         metadata.put("ragProjectedToFinalPrompt", projectedCount > 0);
         metadata.put("ragStatusProjectedToFinalPrompt", true);
         metadata.put("relatedDocumentCount", projectedCount);
@@ -1498,7 +1503,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 .filterExpression(filterExpression)
                 .build();
         List<Document> documents = unifiedVectorService.searchSimilar(searchRequest);
-        return documents == null ? List.of() : PastRecordRanking.top(documents, limit);
+        // BR-S4: the cut is the past record post-processing step (the same ranking and limit).
+        return documents == null ? List.of()
+                : PastRecordPostProcessor.top(limit).process(PastRecordPostProcessor.queryOf(query), documents);
     }
 
     private List<Document> searchSupportingBehaviorDocuments(
@@ -1936,6 +1943,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         request.withParameter("responseType", SecurityDecisionResponse.class);
         request.withParameter("promptBudgetProfile", promptBudgetProfile.profileKey());
         applyOpenAiRuntimeOptions(request, event);
+        applyAnthropicRuntimeOptions(request);
         // W4-7 (inventory 6 bundle 1): the prompt estimate is calibrated for the model the analysis runs on.
         ChatModel analysisModel = analysisChatModel();
         String analysisModelName = analysisModel != null && analysisModel.getDefaultOptions() != null
@@ -2331,6 +2339,46 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         long callTimeoutMs = resolveConfiguredCallTimeoutMs();
         if (callTimeoutMs > 0) {
             request.withParameter("platformSecurityDecisionCallTimeoutMs", callTimeoutMs);
+        }
+    }
+
+    /**
+     * Design 4.1: the layer's Anthropic thinking settings as platform parameters of the request (the mode and the
+     * allowance always, the budget and the effort when set); the event's metadata never sets them.
+     */
+    protected void applyAnthropicRuntimeOptions(SecurityDecisionRequest request) {
+        if (request == null || tieredStrategyProperties == null) {
+            return;
+        }
+        String layerName = getLayerName();
+        boolean layer2 = layerName != null && layerName.toLowerCase(Locale.ROOT).contains("layer2");
+        AnthropicThinkingMode mode;
+        AnthropicEffort effort;
+        Integer budgetTokens;
+        int allowanceTokens;
+        if (layer2 && tieredStrategyProperties.getLayer2() != null) {
+            TieredStrategyProperties.Layer2 layer = tieredStrategyProperties.getLayer2();
+            mode = layer.getAnthropicThinking();
+            effort = layer.getAnthropicEffort();
+            budgetTokens = layer.getAnthropicThinkingBudgetTokens();
+            allowanceTokens = layer.getAnthropicThinkingAllowanceTokens();
+        } else if (!layer2 && tieredStrategyProperties.getLayer1() != null) {
+            TieredStrategyProperties.Layer1 layer = tieredStrategyProperties.getLayer1();
+            mode = layer.getAnthropicThinking();
+            effort = layer.getAnthropicEffort();
+            budgetTokens = layer.getAnthropicThinkingBudgetTokens();
+            allowanceTokens = layer.getAnthropicThinkingAllowanceTokens();
+        } else {
+            return;
+        }
+        request.withParameter("platformAnthropicThinking",
+                (mode != null ? mode : AnthropicThinkingMode.PROVIDER_DEFAULT).name());
+        request.withParameter("platformAnthropicThinkingAllowanceTokens", Math.max(0, allowanceTokens));
+        if (budgetTokens != null) {
+            request.withParameter("platformAnthropicThinkingBudgetTokens", budgetTokens);
+        }
+        if (effort != null) {
+            request.withParameter("platformAnthropicEffort", effort.name());
         }
     }
 

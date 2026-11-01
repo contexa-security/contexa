@@ -15,16 +15,23 @@
  */
 package io.contexa.contexacore.security.async;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Builder;
 import lombok.Data;
+import lombok.extern.jackson.Jacksonized;
 
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.Instant;
 import java.util.List;
 
+/**
+ * Z-16 (F7): read back through its builder, so the Redis provider reads what it wrote (without a creator Jackson could
+ * not, and every Redis read came back empty where the in-memory provider answered).
+ */
 @Data
 @Builder
+@Jacksonized
 public class AsyncAuthenticationData implements Serializable {
 
     @Serial
@@ -37,10 +44,12 @@ public class AsyncAuthenticationData implements Serializable {
     private Instant createdAt;
     private Instant expiresAt;
 
+    @JsonIgnore
     public boolean isExpired() {
         return expiresAt != null && Instant.now().isAfter(expiresAt);
     }
 
+    @JsonIgnore
     public boolean isValid() {
         return userId != null && !userId.isEmpty() && !isExpired();
     }

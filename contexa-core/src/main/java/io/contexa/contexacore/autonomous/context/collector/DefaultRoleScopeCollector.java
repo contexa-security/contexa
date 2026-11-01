@@ -58,7 +58,6 @@ import io.contexa.contexacore.autonomous.context.policy.ContextEvidenceGuidance;
 
 public class DefaultRoleScopeCollector implements RoleScopeCollector {
 
-    private static final int HISTORY_SCAN_LIMIT = 5_000;
     private static final int PERMISSION_CHANGE_SCAN_LIMIT = 200;
     private static final int TOP_FAMILY_LIMIT = 6;
     private static final int TOP_PATTERN_LIMIT = 4;
@@ -95,6 +94,11 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
         return recorder;
     }
 
+    /** BR-C14: the role scope history is read from as many observations as the store keeps in a scope. */
+    private int historyScanLimit() {
+        return dataStore.observationCapacity();
+    }
+
     @Override
     public StoredRoleScopeHistory inspectStoredHistory(String tenantId, String userId) {
         if (!StringUtils.hasText(userId)) {
@@ -102,18 +106,18 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
         }
         String raw = dataStore.peekAuthorizationScopeState(tenantId, userId);
         if (raw == null) {
-            return new StoredRoleScopeHistory("NO_STORED_SCOPE_RETURNED", null, null, List.of(), HISTORY_SCAN_LIMIT);
+            return new StoredRoleScopeHistory("NO_STORED_SCOPE_RETURNED", null, null, List.of(), historyScanLimit());
         }
         AuthorizationScopeState state = deserializeAuthorizationState(raw);
         if (state == null) {
-            return new StoredRoleScopeHistory("UNRECOGNIZED_STORED_FORMAT", raw, null, List.of(), HISTORY_SCAN_LIMIT);
+            return new StoredRoleScopeHistory("UNRECOGNIZED_STORED_FORMAT", raw, null, List.of(), historyScanLimit());
         }
         String scopeKey = state.scopeKey();
-        List<String> history = dataStore.getRecentRoleScopeObservations(tenantId, scopeKey, HISTORY_SCAN_LIMIT);
+        List<String> history = dataStore.getRecentRoleScopeObservations(tenantId, scopeKey, historyScanLimit());
         if (history == null) {
-            return new StoredRoleScopeHistory("HISTORY_UNAVAILABLE", raw, scopeKey, List.of(), HISTORY_SCAN_LIMIT);
+            return new StoredRoleScopeHistory("HISTORY_UNAVAILABLE", raw, scopeKey, List.of(), historyScanLimit());
         }
-        return new StoredRoleScopeHistory("API_RETURN_OBSERVED", raw, scopeKey, history, HISTORY_SCAN_LIMIT);
+        return new StoredRoleScopeHistory("API_RETURN_OBSERVED", raw, scopeKey, history, historyScanLimit());
     }
 
     /**
@@ -749,7 +753,7 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
     }
 
     private List<RoleScopeObservation> loadHistory(String tenantId, String scopeKey, long currentTimestampMs) {
-        List<String> rawObservations = dataStore.getRecentRoleScopeObservations(tenantId, scopeKey, HISTORY_SCAN_LIMIT);
+        List<String> rawObservations = dataStore.getRecentRoleScopeObservations(tenantId, scopeKey, historyScanLimit());
         if (rawObservations.isEmpty()) {
             return List.of();
         }

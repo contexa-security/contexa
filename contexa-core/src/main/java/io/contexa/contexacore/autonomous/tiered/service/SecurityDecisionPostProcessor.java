@@ -16,12 +16,14 @@
 package io.contexa.contexacore.autonomous.tiered.service;
 
 import io.contexa.contexacore.autonomous.agent.AgentLearningControl;
+import io.contexa.contexacommon.security.bridge.ArgumentOrigins;
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 import io.contexa.contexacore.autonomous.context.decision.LearningPromotionPolicy;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.support.ActionFamily;
 import io.contexa.contexacore.autonomous.context.support.ActionFamilyResolver;
+import io.contexa.contexacore.autonomous.context.support.LearnedBy;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
@@ -38,7 +40,9 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 
@@ -49,6 +53,9 @@ public class SecurityDecisionPostProcessor {
     private final SecurityContextDataStore dataStore;
     /** docs/agent A3-8: the learning state a quarantined record had (PgVectorPastRecordQuery). */
     private static final String STATE_BEFORE_QUARANTINE = "learningStateBeforeQuarantine";
+    /** The document types of the decisions that did not allow, which a verification can lift (QF-8b). */
+    private static final Set<String> NOT_ALLOWED_TYPES = Set.of(VectorDocumentType.SUSPICIOUS.getValue(),
+            VectorDocumentType.THREAT.getValue(), VectorDocumentType.AMBIGUOUS.getValue());
     private final UnifiedVectorService unifiedVectorService;
 
     private LearningPromotionPolicy.Settings learningPromotionSettings = LearningPromotionPolicy.Settings.DEFAULTS;
@@ -58,6 +65,10 @@ public class SecurityDecisionPostProcessor {
             UnifiedVectorService unifiedVectorService) {
         this.dataStore = dataStore;
         this.unifiedVectorService = unifiedVectorService;
+        // QF-8b: a record the store retry stored late is a row the verification could not write on when it ended.
+        if (unifiedVectorService != null) {
+            unifiedVectorService.addRetriedStoreListener(this::writeOutcomesOnRetriedStores);
+        }
     }
 
     /** The learning promotion that marks an allowed request's past record held (W5-1); the core default without it. */
@@ -85,7 +96,24 @@ public class SecurityDecisionPostProcessor {
         if (unifiedVectorService == null) {
             return;
         }
+        store(event, decision, unifiedVectorService::storeDocument, true);
+    }
 
+    /**
+     * QF-25 (b): the document {@link #storeInVectorDatabase} stores, left to the vector store retry without a store
+     * attempt, because the learning executor had no room for its store. Nothing here waits for the embedding or the
+     * store. The verification outcome of a decision that did not allow is written when the retry has stored the record
+     * ({@link #writeOutcomesOnRetriedStores}), as for a record whose first store failed.
+     */
+    public void deferInVectorDatabase(SecurityEvent event, SecurityDecision decision) {
+        if (unifiedVectorService == null) {
+            return;
+        }
+        store(event, decision, unifiedVectorService::storeLater, false);
+    }
+
+    private void store(SecurityEvent event, SecurityDecision decision, Consumer<Document> writer,
+                       boolean writeOutcome) {
         try {
             ZeroTrustAction action = decision.resolveAutonomousAction();
             if (action == null) {
@@ -95,13 +123,13 @@ public class SecurityDecisionPostProcessor {
             }
 
             switch (action) {
-                case ALLOW -> storeBehaviorDocument(event, decision);
-                case BLOCK -> storeThreatDocument(event, decision);
-                case CHALLENGE -> storeSuspiciousDocument(event, decision);
-                case ESCALATE, PENDING_ANALYSIS -> storeAmbiguousDocument(event, decision);
+                case ALLOW -> storeBehaviorDocument(event, decision, writer);
+                case BLOCK -> storeThreatDocument(event, decision, writer);
+                case CHALLENGE -> storeSuspiciousDocument(event, decision, writer);
+                case ESCALATE, PENDING_ANALYSIS -> storeAmbiguousDocument(event, decision, writer);
             }
-            if (action != ZeroTrustAction.ALLOW) {
-                writeVerificationOutcome(event);
+            if (writeOutcome && action != ZeroTrustAction.ALLOW) {
+                writeVerificationOutcome(event.getEventId());
             }
 
         } catch (Exception e) {
@@ -141,21 +169,45 @@ public class SecurityDecisionPostProcessor {
      * the record, and the kept outcome is read here after the record is stored, so the outcome reaches the record
      * whichever ends first.
      */
-    private void writeVerificationOutcome(SecurityEvent event) {
-        if (dataStore == null || event.getEventId() == null) {
+    private void writeVerificationOutcome(String eventId) {
+        if (dataStore == null || eventId == null) {
             return;
         }
-        String outcome = dataStore.verificationOutcome(event.getEventId());
+        String outcome = dataStore.verificationOutcome(eventId);
         PastRecordQuery query = outcome != null ? unifiedVectorService.pastRecordQuery() : null;
         if (query == null) {
             return;
         }
-        for (String documentId : PastDeniedDecisions.documentIds(event.getEventId())) {
+        for (String documentId : PastDeniedDecisions.documentIds(eventId)) {
             query.recordOutcome(documentId, outcome);
         }
     }
 
-    private void storeBehaviorDocument(SecurityEvent event, SecurityDecision decision) {
+    /**
+     * QF-8b: the records of decisions that did not allow (suspicious, threat, ambiguous) the vector store retry stored
+     * after their first store failed. Such a row did not exist when the verification ended or when the first store
+     * would have written the outcome, so the outcome the verification kept by the event is written on it now, as
+     * {@link #writeVerificationOutcome(String)} writes it for a record stored at once. A behavior record, a record of
+     * another kind and a record without an event are left alone. A failure here is logged: the record is stored.
+     */
+    private void writeOutcomesOnRetriedStores(List<Document> documents) {
+        for (Document document : documents) {
+            Map<String, Object> metadata = document != null ? document.getMetadata() : null;
+            Object type = metadata != null ? metadata.get("documentType") : null;
+            Object eventId = metadata != null ? metadata.get("eventId") : null;
+            if (type == null || eventId == null || !NOT_ALLOWED_TYPES.contains(type.toString())) {
+                continue;
+            }
+            try {
+                writeVerificationOutcome(eventId.toString());
+            } catch (RuntimeException e) {
+                log.error("[SecurityDecisionPostProcessor] Failed to write the verification outcome on a record stored "
+                        + "by a retry: eventId={}", eventId, e);
+            }
+        }
+    }
+
+    private void storeBehaviorDocument(SecurityEvent event, SecurityDecision decision, Consumer<Document> writer) {
         try {
             String content = buildBehaviorContent(event, decision);
             Map<String, Object> metadata = buildEnrichedMetadata(event, decision, VectorDocumentType.BEHAVIOR.getValue());
@@ -167,7 +219,7 @@ public class SecurityDecisionPostProcessor {
             }
 
             Document document = new Document(content, metadata);
-            unifiedVectorService.storeDocument(document);
+            writer.accept(document);
         } catch (Exception e) {
             log.error("[SecurityDecisionPostProcessor] Failed to store behavior document: eventId={}",
                     event.getEventId(), e);
@@ -251,7 +303,7 @@ public class SecurityDecisionPostProcessor {
         return sb.toString();
     }
 
-    private void storeThreatDocument(SecurityEvent event, SecurityDecision decision) {
+    private void storeThreatDocument(SecurityEvent event, SecurityDecision decision, Consumer<Document> writer) {
         try {
             String content = buildThreatContent(event, decision);
             Map<String, Object> metadata = buildEnrichedMetadata(event, decision, VectorDocumentType.THREAT.getValue());
@@ -261,7 +313,7 @@ public class SecurityDecisionPostProcessor {
             }
 
             Document threatDoc = new Document(content, metadata);
-            unifiedVectorService.storeDocument(threatDoc);
+            writer.accept(threatDoc);
         } catch (Exception e) {
             log.error("[SecurityDecisionPostProcessor] Failed to store threat document: eventId={}",
                     event.getEventId(), e);
@@ -287,13 +339,13 @@ public class SecurityDecisionPostProcessor {
         return sb.toString();
     }
 
-    private void storeSuspiciousDocument(SecurityEvent event, SecurityDecision decision) {
+    private void storeSuspiciousDocument(SecurityEvent event, SecurityDecision decision, Consumer<Document> writer) {
         try {
             String content = buildSuspiciousContent(event, decision);
             Map<String, Object> metadata = buildEnrichedMetadata(event, decision, VectorDocumentType.SUSPICIOUS.getValue());
 
             Document doc = new Document(content, metadata);
-            unifiedVectorService.storeDocument(doc);
+            writer.accept(doc);
         } catch (Exception e) {
             log.error("[SecurityDecisionPostProcessor] Failed to store suspicious document: eventId={}",
                     event.getEventId(), e);
@@ -311,13 +363,13 @@ public class SecurityDecisionPostProcessor {
         return sb.toString();
     }
 
-    private void storeAmbiguousDocument(SecurityEvent event, SecurityDecision decision) {
+    private void storeAmbiguousDocument(SecurityEvent event, SecurityDecision decision, Consumer<Document> writer) {
         try {
             String content = buildAmbiguousContent(event, decision);
             Map<String, Object> metadata = buildEnrichedMetadata(event, decision, VectorDocumentType.AMBIGUOUS.getValue());
 
             Document doc = new Document(content, metadata);
-            unifiedVectorService.storeDocument(doc);
+            writer.accept(doc);
         } catch (Exception e) {
             log.error("[SecurityDecisionPostProcessor] Failed to store ambiguous document: eventId={}",
                     event.getEventId(), e);
@@ -568,6 +620,20 @@ public class SecurityDecisionPostProcessor {
             copyIfPresent(eventMeta, metadata, "resourceId");
             copyIfPresent(eventMeta, metadata, "verifiedBy");
             copyIfPresent(eventMeta, metadata, "verificationWeight");
+            // BR-C6 (QF-14): how the record was learned, when its store path stated a source this engine knows.
+            LearnedBy learnedBy = LearnedBy.of(eventMeta.get(VectorDocumentMetadata.LEARNED_BY));
+            if (learnedBy != null) {
+                metadata.put(VectorDocumentMetadata.LEARNED_BY, learnedBy.name());
+            }
+            // BR-C6 (QF-13): the origin class of the call's arguments, by argument name; never a value or a sentence.
+            // A request learned later (held, then verified or promoted) carries the classification it kept, not the origins.
+            Map<String, String> argSources = ArgumentOrigins.classificationOf(eventMeta.get(ArgumentOrigins.KEY));
+            if (argSources.isEmpty()) {
+                argSources = ArgumentOrigins.classificationFrom(eventMeta.get(VectorDocumentMetadata.ARG_SOURCES));
+            }
+            if (!argSources.isEmpty()) {
+                metadata.put(VectorDocumentMetadata.ARG_SOURCES, argSources);
+            }
             copyIfPresent(eventMeta, metadata, "resourceType");
             copyIfPresent(eventMeta, metadata, "resourceCategory");
             copyIfPresent(eventMeta, metadata, "resourceSensitivity");
@@ -682,17 +748,7 @@ public class SecurityDecisionPostProcessor {
         if (event == null) {
             return null;
         }
-        Map<String, Object> eventMeta = event.getMetadata();
-        if (eventMeta != null) {
-            String metadataOrganizationId = firstNonBlankText(
-                    textValue(eventMeta.get(VectorDocumentMetadata.ORGANIZATION_ID)),
-                    textValue(eventMeta.get("organizationId")),
-                    textValue(eventMeta.get("orgId")));
-            if (metadataOrganizationId != null) {
-                return metadataOrganizationId;
-            }
-        }
-        return null;
+        return VectorDocumentMetadata.organizationIdOf(event.getMetadata());
     }
 
     private static String textValue(Object value) {
@@ -701,18 +757,6 @@ public class SecurityDecisionPostProcessor {
         }
         String text = value.toString().trim();
         return text.isEmpty() ? null : text;
-    }
-
-    private static String firstNonBlankText(String... values) {
-        if (values == null) {
-            return null;
-        }
-        for (String value : values) {
-            if (value != null && !value.isBlank()) {
-                return value;
-            }
-        }
-        return null;
     }
 
     private static Double resolveEffectiveRiskScore(SecurityDecision decision) {

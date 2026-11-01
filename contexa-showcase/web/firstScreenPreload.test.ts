@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   FIRST_SCREEN_ADDRESSES,
+  FIRST_SCREEN_PATTERNS,
   firstRecordsOf,
   firstScreenOf,
   type FirstScreenModule,
@@ -9,10 +10,8 @@ import { pickScript, type FirstScreenFiles } from './firstScreenPreload';
 
 const MODULES = [
   ...new Set<FirstScreenModule>([
-    'pages/try/TimingPage',
-    'pages/try/FollowPage',
     ...Object.values(FIRST_SCREEN_ADDRESSES),
-    'pages/try/ExperiencePage',
+    ...FIRST_SCREEN_PATTERNS.map(([, module]) => module),
   ]),
 ];
 
@@ -42,17 +41,13 @@ describe('first screen preload (C-13)', () => {
   it('picks the same screen and records as the application for every address', () => {
     const addresses: [string, string][] = [
       ...Object.keys(FIRST_SCREEN_ADDRESSES).map((address): [string, string] => [address, '']),
-      ['/try/timing/try', ''],
-      ['/try/follow', ''],
-      ['/try/follow/end', ''],
-      ['/try/attacker/scene', ''],
-      ['/try/attacker/compare', '?mode=async'],
-      ['/try/owner/scene', '?mode=async&lng=en'],
-      ['/try/owner/result', ''],
-      ['/try/attacker', ''],
-      ['/', ''],
-      ['/benchmark', ''],
-      ['/adopt', ''],
+      ['/simulate/person/S13/review', ''],
+      ['/simulate/person/S16/review', '?lng=en'],
+      ['/simulate/person/S13T/live', ''],
+      ['/simulate/person/S13/result', '?tab=compare'],
+      ['/simulate/person/S99/review', ''],
+      ['/runs', ''],
+      ['/attack/console', ''],
     ];
     for (const [address, search] of addresses) {
       const module = firstScreenOf(address);
@@ -60,7 +55,7 @@ describe('first screen preload (C-13)', () => {
       expect(
         links.filter((link) => link.as === 'fetch').map((link) => link.href),
         address + search,
-      ).toEqual(firstRecordsOf(address, search));
+      ).toEqual(firstRecordsOf(address));
       expect(
         links.filter((link) => link.as !== 'fetch').map((link) => link.href),
         address + search,
@@ -69,11 +64,11 @@ describe('first screen preload (C-13)', () => {
   });
 
   it('preloads records as fetches, chunks as modules and style files as styles, with crossorigin like the bundle', () => {
-    expect(preloaded('/try/owner/compare', '?mode=async')).toEqual([
+    expect(preloaded('/simulate/person/S13T/review')).toEqual([
       { rel: 'preload', as: 'fetch', crossOrigin: '', href: '/api/lab/options' },
-      { rel: 'preload', as: 'fetch', crossOrigin: '', href: '/api/live/before/A3TA?step=1' },
-      { rel: 'modulepreload', crossOrigin: '', href: '/pages/try/ExperiencePage.js' },
-      { rel: 'preload', as: 'style', crossOrigin: '', href: '/pages/try/ExperiencePage.css' },
+      { rel: 'preload', as: 'fetch', crossOrigin: '', href: '/api/live/before/S13T?step=1' },
+      { rel: 'modulepreload', crossOrigin: '', href: '/ux/pages/simulate/person/ReviewPage.js' },
+      { rel: 'preload', as: 'style', crossOrigin: '', href: '/ux/pages/simulate/person/ReviewPage.css' },
     ]);
   });
 });

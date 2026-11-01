@@ -138,37 +138,39 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
             new PromptGovernanceDescriptor(
                     "cortex.security-decision",
                     STANDARD_TEMPLATE_KEY,
-                    "2026.10.27-v21.17",
+                    "2026.10.30-v21.19",
                     "CORTEX_PROMPT_CONTRACT_V4",
                     PromptReleaseStatus.DRAFT,
                     "contexa-cortex-core",
                     "V21-2026-10-19",
                     "NOT-EVALUATED",
                     "2026.10.24-v20.26",
-                    "Zero Trust runtime decision prompt v21: the model judges each request from its "
+                    "Zero Trust decision prompt v21: the model judges each request from its "
                             + "context. System text: the mission (sign-in, permissions and fixed rules cannot tell a "
-                            + "stolen account or an insider from legitimate work), how to read the evidence, "
-                            + "competing explanations (legitimate work, account takeover, insider misuse, automation "
-                            + "or error), differences the model checks against company records, the four responses, "
-                            + "the honesty rules; no decision rule, threshold, floor or later enforcement. User "
+                            + "stolen account or an insider from legitimate work), reading the evidence, "
+                            + "competing explanations, the four responses, honesty; "
+                            + "no decision rule, threshold, floor or later enforcement. User "
                             + "prompt: the v20 dictionary blocks, facts titled RECORDS AND COMPARISONS without the "
                             + "core's conclusions. Output contract v4: action, hypotheses, reasonCodes, reason, "
                             + "riskScore, confidence, mitre; the response check asks again only for a broken format, "
-                            + "a wrong citation or a second analysis ESCALATE. v21.1-v21.5: a value not recorded is "
-                            + "unknown; the owner's records weigh between legitimate work and insider misuse; an "
+                            + "a wrong citation or a second analysis ESCALATE. v21.1-v21.5: unrecorded is "
+                            + "unknown; the owner's records weigh legitimate work against insider misuse; an "
                             + "approval or ticket is a person's earlier judgment; host checks, target scope and past "
                             + "record counts are host or computed facts. v21.6-v21.8: ESCALATE hands the request to "
-                            + "the second analysis, which decides from the same facts. v21.9-v21.14 (agent requests): "
-                            + "the agent named apart from the account; the delegation by its fields; its objective "
-                            + "text, call arguments, past record targets and case memory as untrusted texts; the "
-                            + "access token; the agent's session and baseline lines; who wrote each record and whose "
-                            + "records they are; the coverage after the delegation records; a confirmed request. "
-                            + "v21.15 (RL-2, RL-4, RL-6): the delegation and company policy can cover the work as "
+                            + "the second analysis, with the same facts. v21.9-v21.14 (agent requests): "
+                            + "the agent apart from the account; the delegation by its fields; its objective, call "
+                            + "arguments, past record targets and case memory as untrusted texts; the token; the "
+                            + "agent's session and baseline; record authors and holders; the coverage after the "
+                            + "delegation records; a confirmed request. "
+                            + "v21.15 (RL-2, RL-4, RL-6): delegation and company policy can cover the work as "
                             + "records; the delegation line states its quantity limits; a code for a request "
-                            + "exceeding the delegation's objective; reason codes the lines do not support cause no "
-                            + "second answer. v21.16 (RL-10): an agent on its own states the standing delegation its "
-                            + "sponsor recorded for it, as the delegation line, for the sponsor. v21.17 (M10A): the "
-                            + "system text says whose hand-over a delegation's proof shows.",
+                            + "exceeding the delegation's objective; unsupported reason codes cause no second answer. "
+                            + "v21.16 (RL-10): an agent on its own states its sponsor's standing delegation. "
+                            + "v21.17 (M10A): the system text says whose hand-over a delegation's "
+                            + "proof is. v21.18 (CQ-1): a host may tell where call argument values came from; one "
+                            + "first seen in a tool's output is a fact line, its sentence also an untrusted "
+                            + "text; reason code VALUE_FROM_UNTRUSTED_OUTPUT. v21.19 (BR-C6): a past record line "
+                            + "states how the record was learned and which arguments came from a tool's output.",
                     List.of(
                             "STRICT_JSON_SCHEMA",
                             "LOW_TEMPERATURE_SECURITY_DECISION",

@@ -5,7 +5,6 @@ import {
   FIRST_SCREEN_ADDRESSES,
   FIRST_SCREEN_PATTERNS,
   FIRST_SCREEN_PREFIXES,
-  TRY_CASES,
   type FirstScreenModule,
 } from './src/firstScreens';
 
@@ -80,7 +79,7 @@ export function firstScreenFiles(bundle: Bundle): FirstScreenFiles {
  * The script index.html runs before the application: it picks the first screen by the same rule as
  * src/firstScreens.ts (beginnings, then whole addresses, then patterns) and preloads that screen's chunks and style
  * files with crossorigin like the bundle's own preload links, so the module and style links the import adds later
- * reuse them instead of reading them again. A try step's records are preloaded the same way as fetches (crossorigin:
+ * reuse them instead of reading them again. The request review's records are preloaded the same way as fetches (crossorigin:
  * the same-origin credentials the application's own reads use, so its read takes the preloaded answer).
  */
 export function pickScript({ files, modules }: FirstScreenFiles): string {
@@ -94,13 +93,11 @@ export function pickScript({ files, modules }: FirstScreenFiles): string {
     r: FIRST_SCREEN_PATTERNS.map(([source, module]) => [source, at(module)]),
   };
   const needs = order.map((module) => [modules[module].scripts, modules[module].styles]);
-  const records = { ...FIRST_RECORDS, cases: TRY_CASES };
   return [
     '(function(){',
     `var F=${JSON.stringify(files)},M=${JSON.stringify(needs)},S=${JSON.stringify(rules)},a=location.pathname,i=-1,j;`,
-    `var R=${JSON.stringify(records)},m=new RegExp(R.pattern).exec(a);`,
-    'if(m){var q=R.always.slice();if(R.compared.indexOf(m[2])>=0)q.push(R.comparison.replace("{case}",',
-    'encodeURIComponent(R.cases[m[1]][new URLSearchParams(location.search).get("mode")==="async"?"async":"sync"])));',
+    `var R=${JSON.stringify(FIRST_RECORDS)},m=new RegExp(R.pattern).exec(a);`,
+    'if(m){var q=R.always.concat([R.comparison.replace("{case}",encodeURIComponent(m[1]))]);',
     'q.forEach(function(h){var k=document.createElement("link");k.rel="preload";k.as="fetch";k.crossOrigin="";',
     'k.href=h;document.head.appendChild(k)})}',
     'for(j=0;i<0&&j<S.p.length;j++)if(a.indexOf(S.p[j][0])===0)i=S.p[j][1];',

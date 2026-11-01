@@ -35,10 +35,12 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -62,7 +64,10 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
     private static final int ESCALATE_SAMPLE_WINDOW = 100;
     private static final Duration ESCALATION_WINDOW_IDLE_TTL = Duration.ofHours(24);
     private static final double ESCALATE_RATE_THRESHOLD = 0.5;
+    /** QF-42: the most escalation protection windows kept unless configured otherwise. */
+    public static final int DEFAULT_MAX_ESCALATION_WINDOWS = 10_000;
     private final ConcurrentMap<String, EscalationProtectionWindow> escalationProtectionWindows = new ConcurrentHashMap<>();
+    private volatile int maxEscalationWindows = DEFAULT_MAX_ESCALATION_WINDOWS;
 
     @Override
     public ProcessingResult processEvent(SecurityEvent event, double riskScore) {
@@ -442,6 +447,26 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
         this.shadowRunner = shadowRunner;
         this.shadowAnalysis = shadowRunner == null ? null : new ColdPathEventProcessor(contextualStrategy,
                 expertStrategy, new CompositeLlmAnalysisEventListener(List.of()));
+        if (shadowAnalysis != null) {
+            shadowAnalysis.setMaxEscalationWindows(maxEscalationWindows);
+        }
+    }
+
+    /**
+     * QF-42: the most escalation protection windows kept, at least one; past it the sweep releases the windows idle the
+     * longest first, on top of the day an idle window is kept. A released window starts its count anew, as one idle for
+     * a day does. The shadow run's windows keep the same bound.
+     */
+    public void setMaxEscalationWindows(int maxEscalationWindows) {
+        this.maxEscalationWindows = Math.max(1, maxEscalationWindows);
+        ColdPathEventProcessor shadow = shadowAnalysis;
+        if (shadow != null) {
+            shadow.setMaxEscalationWindows(this.maxEscalationWindows);
+        }
+    }
+
+    public int getMaxEscalationWindows() {
+        return maxEscalationWindows;
     }
 
     void removeInactiveEscalationWindows(long nowMs) {
@@ -450,10 +475,46 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
             escalationProtectionWindows.computeIfPresent(key, (ignored, window) ->
                     window.isFull() || window.lastRecordedAtMs() < idleBefore ? null : window);
         }
+        releaseLongestIdleEscalationWindows();
+    }
+
+    /**
+     * QF-42: keeps at most {@link #maxEscalationWindows} windows, releasing the ones idle the longest first. One pass
+     * chooses them; a window recorded since it was chosen stays.
+     */
+    private void releaseLongestIdleEscalationWindows() {
+        int excess = escalationProtectionWindows.size() - maxEscalationWindows;
+        if (excess <= 0) {
+            return;
+        }
+        // The window idle the shortest of the chosen on top, so that one idle longer takes its place.
+        PriorityQueue<IdleWindow> longestIdle = new PriorityQueue<>(
+                Comparator.comparingLong(IdleWindow::lastRecordedAtMs).reversed());
+        escalationProtectionWindows.forEach((key, window) -> {
+            long lastRecordedAtMs = window.lastRecordedAtMs();
+            if (longestIdle.size() < excess) {
+                longestIdle.add(new IdleWindow(key, lastRecordedAtMs));
+            } else if (lastRecordedAtMs < longestIdle.peek().lastRecordedAtMs()) {
+                longestIdle.poll();
+                longestIdle.add(new IdleWindow(key, lastRecordedAtMs));
+            }
+        });
+        for (IdleWindow idle : longestIdle) {
+            escalationProtectionWindows.computeIfPresent(idle.key(), (ignored, window) ->
+                    window.lastRecordedAtMs() == idle.lastRecordedAtMs() ? null : window);
+        }
+    }
+
+    /** A window chosen for release, with the time of its last record then. */
+    private record IdleWindow(String key, long lastRecordedAtMs) {
     }
 
     int escalationWindowCount() {
         return escalationProtectionWindows.size();
+    }
+
+    Set<String> escalationWindowKeys() {
+        return Set.copyOf(escalationProtectionWindows.keySet());
     }
 
     /** Drops the escalation protection windows scoped to a user whose account is deleted. */

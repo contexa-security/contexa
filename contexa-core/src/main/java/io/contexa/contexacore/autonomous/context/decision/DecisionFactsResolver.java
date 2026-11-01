@@ -30,6 +30,7 @@ import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.RoleSc
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.TicketRecord;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.TravelRecord;
 import io.contexa.contexacore.autonomous.context.policy.CanonicalContextFieldPolicy;
+import io.contexa.contexacore.autonomous.context.support.ArgumentOriginLines;
 import io.contexa.contexacore.autonomous.context.support.NetworkBlocks;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
@@ -81,6 +82,8 @@ public final class DecisionFactsResolver {
     public static final String MOVEMENT = "Movement";
     public static final String SESSION_DEVICE_CHANGE = "SessionDeviceChange";
     public static final String SESSION_NETWORK_CHANGE = "SessionNetworkChange";
+    /** CQ-1: the fact that an argument value of the request first appeared in a tool's output (a v21 fact only). */
+    public static final String ARGUMENT_ORIGIN = "ArgumentOrigin";
 
     private static final long HOUR_MS = 60L * 60L * 1_000L;
     private static final String EXPORT = "EXPORT";
@@ -137,7 +140,21 @@ public final class DecisionFactsResolver {
         peerCohort(facts, context, asRecords);
         movement(facts, context);
         sessionClientChanges(facts, context);
+        argumentOrigin(facts, context, asRecords);
         return new DecisionFacts(facts.known, deviations, records.policy(), facts.unknown, facts.unavailable);
+    }
+
+    /**
+     * CQ-1: where an argument value of the request first appeared, when the host says it was in a tool's output. A fact
+     * the host states and the model reads (the code {@code VALUE_FROM_UNTRUSTED_OUTPUT} cites it); what it means for the
+     * verdict is the model's. Only the records notation of a v21 prompt states it, and only when there is such a value:
+     * a request without one has no such fact and no unknown fact, so its facts are the ones it had.
+     */
+    private static void argumentOrigin(Facts facts, CanonicalSecurityContext context, boolean asRecords) {
+        String line = asRecords ? ArgumentOriginLines.line(context) : null;
+        if (line != null) {
+            facts.add(ARGUMENT_ORIGIN, line, List.of("VALUE_FROM_UNTRUSTED_OUTPUT"), List.of(), DecisionFact.HOST);
+        }
     }
 
     // ---- comparison with the usual behaviour

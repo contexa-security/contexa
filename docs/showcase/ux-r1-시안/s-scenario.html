@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>시나리오 검증</title>
+<link rel="stylesheet" href="design.css">
+<style>
+  .nature { display: grid; grid-template-columns: 40px 1fr auto; gap: 16px; align-items: center; padding: 18px 20px; margin-bottom: 16px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); }
+  .nature .ic { width: 40px; height: 40px; border-radius: 8px; display: grid; place-items: center; background: var(--surface-3); color: var(--text-2); }
+  .nature b { display: block; font-size: 15px; } .nature > div > span { font-size: 14px; color: var(--text-3); }
+  .stack-bar { display: flex; height: 22px; border-radius: 6px; overflow: hidden; gap: 2px; }
+  .stack-bar i { display: grid; place-items: center; font-style: normal; font-size: 12px; font-weight: 600; color: #0A0F1C; }
+  .res td { height: 60px; }
+  .res .cell { width: 34%; }
+  .res .k { font-variant-numeric: tabular-nums; font-size: 14px; color: var(--text-2); white-space: nowrap; }
+
+</style>
+</head>
+<body data-active="scenario" data-lang="ko" data-crumbs="검증|시나리오 검증">
+<main class="content"><div class="wrap">
+
+  <div class="ph">
+    <div class="ph-main"><h1 class="ph-title">시나리오 검증</h1><p class="ph-desc">데모의 설계 시나리오 41개를 5개 보안 통제에 실제로 보낸 반복 측정 결과입니다.</p></div>
+    <div class="ph-actions"><button class="btn"><i data-icon="list"></i>측정 실행 44회</button></div>
+  </div>
+
+  <div class="tabs"><span class="tab on">요약</span><span class="tab">통제별</span><span class="tab">시나리오별<span class="count">41</span></span><span class="tab">판정 품질</span><span class="tab">에이전트</span><span class="tab">한계 · 방법</span></div>
+
+  <div class="nature"><span class="ic"><i data-icon="flask-conical"></i></span><div><b>자체 측정 — 외부 표준 결과가 아닙니다</b><span>Contexa 팀이 설계 · 조정한 시나리오(표본 내)이며, 측정은 2026-10-20 · 프롬프트 번들 v21.8 · 시나리오당 1~2회입니다. 외부 기준 결과는 표준 벤치마크에 있습니다.</span></div><span class="badge b-line">현재 빌드로 재측정 예정</span></div>
+
+  <div class="grid g-12" style="margin-bottom:16px">
+    <div class="card kpi span-4"><span class="kpi-icon"><i data-icon="swords"></i></span><span class="kpi-label">위협 시나리오 실행</span><span class="kpi-value num">23<small>회</small></span><span class="kpi-foot">Contexa 미탐 2회 · 기존 통제 최저 미탐 8회</span></div>
+    <div class="card kpi span-4"><span class="kpi-icon"><i data-icon="briefcase"></i></span><span class="kpi-label">정상 업무 실행</span><span class="kpi-value num">19<small>회</small></span><span class="kpi-foot">Contexa 오탐 0회 · 추가 인증 뒤 처리 3회</span></div>
+    <div class="card kpi span-4"><span class="kpi-icon"><i data-icon="circle-help"></i></span><span class="kpi-label">정답 미지정 시나리오</span><span class="kpi-value num">2<small>회</small></span><span class="kpi-foot">판정이 갈리는 시나리오 — 점수에서 제외</span></div>
+  </div>
+
+  <section class="card">
+    <div class="card-head"><div><h2 class="card-title">보안 통제별 결과</h2><p class="card-sub">같은 실행을 5개 통제에 동시에 보낸 결과 · 막대 안 숫자는 실행 수</p></div><div class="right"><span class="legend"><span><i style="background:var(--hold)"></i>처음부터 차단</span><span><i style="background:var(--stepup)"></i>일부 반출 뒤 차단</span><span><i style="background:var(--block)"></i>미탐 · 오탐</span><span><i style="background:var(--link)"></i>정상 처리</span><span><i style="background:var(--allow)"></i>추가 인증 뒤 처리</span></span></div></div>
+    <table class="table res">
+      <thead><tr><th style="width:18%">보안 통제</th><th class="cell">위협 23회</th><th class="cell">정상 업무 19회</th><th class="r">미탐 · 오탐</th></tr></thead>
+      <tbody>
+        <tr><td class="strong">웹 방화벽 (WAF)</td><td><div class="stack-bar"><i style="width:4.3%;background:var(--hold)">1</i><i style="width:95.7%;background:var(--block)">22</i></div></td><td><div class="stack-bar"><i style="width:100%;background:var(--link)">19</i></div></td><td class="r k">미탐 22 · 오탐 0</td></tr>
+        <tr><td class="strong">인증 · 권한 (IAM)</td><td><div class="stack-bar"><i style="width:4.3%;background:var(--hold)">1</i><i style="width:95.7%;background:var(--block)">22</i></div></td><td><div class="stack-bar"><i style="width:100%;background:var(--link)">19</i></div></td><td class="r k">미탐 22 · 오탐 0</td></tr>
+        <tr><td class="strong">임계값 규칙</td><td><div class="stack-bar"><i style="width:52.2%;background:var(--hold)">12</i><i style="width:4.3%;background:var(--stepup)">1</i><i style="width:43.5%;background:var(--block)">10</i></div></td><td><div class="stack-bar"><i style="width:57.9%;background:var(--link)">11</i><i style="width:42.1%;background:var(--block)">8</i></div></td><td class="r k">미탐 10 · 오탐 8</td></tr>
+        <tr><td class="strong">승인 정책 규칙</td><td><div class="stack-bar"><i style="width:60.9%;background:var(--hold)">14</i><i style="width:4.3%;background:var(--stepup)">1</i><i style="width:34.8%;background:var(--block)">8</i></div></td><td><div class="stack-bar"><i style="width:100%;background:var(--link)">19</i></div></td><td class="r k">미탐 8 · 오탐 0</td></tr>
+        <tr class="hl"><td class="strong">Contexa</td><td><div class="stack-bar"><i style="width:30.4%;background:var(--hold)">7</i><i style="width:60.9%;background:var(--stepup)">14</i><i style="width:8.7%;background:var(--block)">2</i></div></td><td><div class="stack-bar"><i style="width:84.2%;background:var(--link)">16</i><i style="width:15.8%;background:var(--allow)">3</i></div></td><td class="r k">미탐 2 · 오탐 0</td></tr>
+      </tbody>
+    </table>
+    <div class="note" style="margin:0 24px 24px"><i data-icon="info"></i><span>Contexa는 위협 14회에서 일부 자료가 반출된 뒤 차단했습니다(응답 뒤 다음 요청부터 적용). 승인 정책 규칙은 이 데모의 시나리오 조건을 보고 작성한 규칙이라, 미리 알지 못하는 상황은 그 조건에 없습니다.</span></div>
+  </section>
+
+</div></main>
+<script src="shell.js"></script>
+</body>
+</html>

@@ -182,6 +182,15 @@ public final class PromptRuntimeTelemetrySupport {
             "platformDeterminismTemperature",
             "platformDeterminismSeed",
             "determinismNotApplied",
+            // Design 4.6: what the call sent for Anthropic thinking, recorded with every decision.
+            "providerThinkingRequested",
+            "providerEffortRequested",
+            "providerThinking",
+            "providerThinkingBudgetTokens",
+            "providerThinkingSource",
+            "providerThinkingAdjustment",
+            "providerRejectedFields",
+            "providerMaxTokensSent",
             "actualPromptTokens",
             "actualCompletionTokens",
             "actualTotalTokens",
@@ -296,7 +305,16 @@ public final class PromptRuntimeTelemetrySupport {
             "providerResponseModel",
             "platformDeterminismTemperature",
             "platformDeterminismSeed",
-            "determinismNotApplied"
+            "determinismNotApplied",
+            // Design 4.6: what the call sent for Anthropic thinking, recorded with every decision.
+            "providerThinkingRequested",
+            "providerEffortRequested",
+            "providerThinking",
+            "providerThinkingBudgetTokens",
+            "providerThinkingSource",
+            "providerThinkingAdjustment",
+            "providerRejectedFields",
+            "providerMaxTokensSent"
     );
 
     /**

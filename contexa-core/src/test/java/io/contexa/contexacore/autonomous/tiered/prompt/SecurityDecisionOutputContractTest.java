@@ -67,7 +67,16 @@ class SecurityDecisionOutputContractTest {
             codes.add(written.group(1));
         }
         assertThat(codes).contains("APPROVAL_COVERS", "TENANT_CONFLICT", "DATA_CONFLICT", "DEVIATION_MOVEMENT");
-        assertThat(codes).allSatisfy(code -> assertThat(contract).as(code).contains(code));
+        // CQ-1: a fact only the records notation of a v21 prompt states has its code in the output contract v4, and the
+        // v3 contract of the v19 and v20 prompts, which never state that fact, stays as it was.
+        Set<String> statedByV21Only = Set.of("VALUE_FROM_UNTRUSTED_OUTPUT");
+        assertThat(codes).containsAll(statedByV21Only);
+        assertThat(statedByV21Only).allSatisfy(code -> {
+            assertThat(contract).as(code).doesNotContain(code);
+            assertThat(SecurityDecisionOutputContractV4.codes()).as(code).contains(code);
+        });
+        assertThat(codes).filteredOn(code -> !statedByV21Only.contains(code))
+                .allSatisfy(code -> assertThat(contract).as(code).contains(code));
     }
 
     /** N-FRIC-1 (Q-87): a repeat in the session is a fact; alone it asks for no stronger action. */

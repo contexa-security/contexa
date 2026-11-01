@@ -48,8 +48,6 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
 
     private static final int MAX_SESSION_ACTIONS = 100;
     private static final int MAX_PREVIOUS_SESSION_IDS = 20;
-    private static final int MAX_WORK_PROFILE_OBSERVATIONS = 5_000;
-    private static final int MAX_ROLE_SCOPE_OBSERVATIONS = 5_000;
     private static final int MAX_PERMISSION_CHANGE_OBSERVATIONS = 200;
     private static final Duration SESSION_ACTIONS_TTL = Duration.ofHours(24);
     private static final Duration SESSION_RISK_TTL = Duration.ofHours(1);
@@ -149,6 +147,8 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     private static final Duration MFA_VERIFIED_TTL = Duration.ofHours(1);
     private final AtomicLong authenticationEventSequence = new AtomicLong();
     private volatile Duration loginFailureRetention = LOGIN_FAILURE_MINIMUM_RETENTION;
+    /** BR-C14: how many work profile and role scope observations each scope keeps. */
+    private volatile int observationCapacity = DEFAULT_OBSERVATION_CAPACITY;
 
     @Override
     public void addSessionAction(String sessionId, String action) {
@@ -475,7 +475,7 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
                     ZeroTrustRedisKeys.userWorkProfileObservations(composeWorkProfileScopeKey(tenantId, userId)),
                     observation,
                     WORK_PROFILE_TTL,
-                    MAX_WORK_PROFILE_OBSERVATIONS);
+                    observationCapacity);
         } catch (Exception e) {
             log.error("[SecurityContextDataStore] Failed to add work profile observation: tenantId={}, userId={}", tenantId, userId, e);
         }
@@ -500,7 +500,7 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
                     ZeroTrustRedisKeys.roleScopeObservations(composeTenantScopedKey(tenantId, scopeKey)),
                     observation,
                     ROLE_SCOPE_TTL,
-                    MAX_ROLE_SCOPE_OBSERVATIONS);
+                    observationCapacity);
         } catch (Exception e) {
             log.error("[SecurityContextDataStore] Failed to add role scope observation: tenantId={}, scopeKey={}", tenantId, scopeKey, e);
         }
@@ -1078,6 +1078,9 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
                 ZeroTrustRedisKeys.authenticationMfaVerified(userId),
                 ZeroTrustRedisKeys.authenticationLoginFailuresByUser(userId.trim()),
                 ZeroTrustRedisKeys.userSessions(userId),
+                // QF-57: the session ids Zero Trust tracks for the user, which used to share the list above.
+                ZeroTrustRedisKeys.userSessionDeadlines(userId),
+                ZeroTrustRedisKeys.userUntimedSessions(userId),
                 ZeroTrustRedisKeys.userWorkProfileObservations(userId),
                 ZeroTrustRedisKeys.userPermissionChangeObservations(userId),
                 ZeroTrustRedisKeys.userAuthorizationScopeState(userId)));
@@ -1085,11 +1088,14 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
         keys.addAll(scanKeys(ZeroTrustRedisKeys.userWorkProfileObservations(anyTenantScope)));
         keys.addAll(scanKeys(ZeroTrustRedisKeys.userPermissionChangeObservations(anyTenantScope)));
         keys.addAll(scanKeys(ZeroTrustRedisKeys.userAuthorizationScopeState(anyTenantScope)));
+        // QF-29: the user's held requests are kept within each tenant.
+        keys.addAll(scanKeys(ZeroTrustRedisKeys.promotionLearning(anyTenantScope)));
         // docs/agent A3-1: what the agents acting for the user learned, under their learning keys in every tenant.
         String agentKeys = ZeroTrustRedisKeys.globLiteral(userId) + LearningSubject.AGENT_KEY + "*";
         keys.addAll(scanKeys(ZeroTrustRedisKeys.userWorkProfileObservations(agentKeys)));
         keys.addAll(scanKeys(ZeroTrustRedisKeys.userWorkProfileObservations("*::" + agentKeys)));
         keys.addAll(scanKeys(ZeroTrustRedisKeys.promotionLearning(agentKeys)));
+        keys.addAll(scanKeys(ZeroTrustRedisKeys.promotionLearning("*::" + agentKeys)));
         // docs/agent F-6 (CF-27): and the authorization state the agents' requests are compared with.
         keys.addAll(scanKeys(ZeroTrustRedisKeys.userPermissionChangeObservations(agentKeys)));
         keys.addAll(scanKeys(ZeroTrustRedisKeys.userPermissionChangeObservations("*::" + agentKeys)));
@@ -1142,8 +1148,22 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
 
         Long size = redisTemplate.opsForList().size(key);
         if (size != null && size > maxSize) {
-            redisTemplate.opsForList().leftPop(key);
+            // The newest maxSize stay, also when a smaller capacity was set over a longer list (BR-C14).
+            redisTemplate.opsForList().trim(key, -maxSize, -1);
         }
+    }
+
+    /**
+     * BR-C14: how many work profile and role scope observations each scope keeps, at least one;
+     * {@link #DEFAULT_OBSERVATION_CAPACITY} unless set.
+     */
+    public void setObservationCapacity(int capacity) {
+        this.observationCapacity = Math.max(1, capacity);
+    }
+
+    @Override
+    public int observationCapacity() {
+        return observationCapacity;
     }
 
     /**

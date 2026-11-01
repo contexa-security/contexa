@@ -279,6 +279,25 @@ class SecurityDecisionFactChecksTest {
                 .containsExactly(Outcome.MATCH);
     }
 
+    /**
+     * CQ-1: the argument origin code belongs to the output contract v4 of the v21 bundle; the v20 contract (v3) is the
+     * one it was, so a v20 answer that names the code is a code the contract does not have.
+     */
+    @Test
+    void theArgumentOriginCodeIsNoCodeOfTheV20OutputContract() {
+        DrawnPrompt drawn = DrawnPrompt.of(prompt(0, 3, "CRITICAL", "[F1] AuthorizationEffect: ALLOW\n", null));
+
+        List<ReasonFinding> findings = SecurityDecisionFactChecks.reasonFindings(
+                context(0, 3, "CRITICAL", facts(List.of())), MinimumActionRules.Settings.DEFAULTS, drawn,
+                List.of(citation("VALUE_FROM_UNTRUSTED_OUTPUT", "F1")));
+
+        assertThat(SecurityDecisionOutputContract.codes()).doesNotContain("VALUE_FROM_UNTRUSTED_OUTPUT");
+        assertThat(findings).singleElement().satisfies(finding -> {
+            assertThat(finding.outcome()).isEqualTo(Outcome.MISMATCH);
+            assertThat(finding.reason()).isEqualTo("not a reason code of the output contract");
+        });
+    }
+
     private static String prompt(int failed, int recent, String resourceClass, String facts, String unknown) {
         return SESSION.formatted(failed, recent) + "\n" + REQUEST.formatted(resourceClass)
                 + "\n=== DECISION FACTS (computed) ===\n" + facts

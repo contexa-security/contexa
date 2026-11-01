@@ -1,0 +1,145 @@
+/* The security glossary (기획안 4절 바닥 · 9절, DEC-69): the list on the left, the chosen term on the right. */
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, var(--ux-panel));
+  gap: var(--ux-space-4);
+  align-items: start;
+}
+
+/* The definition stays in view while the long list scrolls under it. */
+.side {
+  position: sticky;
+  inset-block-start: calc(var(--ux-top-height) + var(--ux-space-4));
+  min-inline-size: 0;
+}
+
+.listSide {
+  display: grid;
+  gap: var(--ux-space-5);
+  min-inline-size: 0;
+}
+
+.searchRow {
+  display: grid;
+  grid-template-columns: minmax(0, 24rem) auto;
+  align-items: end;
+  gap: var(--ux-space-4);
+}
+
+.count {
+  margin: var(--ux-space-0);
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-13);
+}
+
+.group {
+  display: grid;
+  gap: var(--ux-space-2);
+  min-inline-size: 0;
+}
+
+.groupName {
+  margin: var(--ux-space-0);
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-13);
+  font-weight: var(--ux-weight-semibold);
+  letter-spacing: var(--ux-tracking-group);
+}
+
+.terms {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  gap: var(--ux-space-2);
+  margin: var(--ux-space-0);
+  padding: var(--ux-space-0);
+  list-style: none;
+}
+
+.term {
+  display: grid;
+  gap: var(--ux-space-1);
+  block-size: 100%;
+  padding: var(--ux-space-3) var(--ux-space-4);
+  border: var(--ux-hairline) solid var(--ux-line);
+  border-radius: var(--ux-radius-md);
+  background-color: var(--ux-surface);
+  color: var(--ux-text);
+  text-decoration: none;
+}
+
+.term:hover {
+  border-color: var(--ux-line-strong);
+}
+
+.term[aria-current] {
+  border-color: var(--ux-link);
+  background-color: var(--ux-link-soft);
+}
+
+.termName {
+  font-size: var(--ux-text-14);
+  font-weight: var(--ux-weight-semibold);
+}
+
+/* --ux-text-2: on the chosen card's soft blue the lighter grey falls under 4.5:1 in the light theme. */
+.termEn {
+  color: var(--ux-text-2);
+  font-size: var(--ux-text-12);
+}
+
+.pick {
+  padding: var(--ux-space-5);
+  border: var(--ux-hairline) dashed var(--ux-line);
+  border-radius: var(--ux-radius-lg);
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-14);
+  line-height: var(--ux-leading-body);
+}
+
+.body {
+  display: grid;
+  gap: var(--ux-space-4);
+}
+
+.definition {
+  margin: var(--ux-space-0);
+  color: var(--ux-text);
+  font-size: var(--ux-text-15);
+  line-height: var(--ux-leading-body);
+}
+
+.facts {
+  display: grid;
+  gap: var(--ux-space-3);
+  margin: var(--ux-space-0);
+}
+
+.facts > div {
+  display: grid;
+  gap: var(--ux-space-1);
+}
+
+.facts dt {
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-13);
+}
+
+.facts dd {
+  margin: var(--ux-space-0);
+  color: var(--ux-text-2);
+  font-size: var(--ux-text-14);
+}
+
+@media (width < 1024px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (width < 640px) {
+  .searchRow {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+}

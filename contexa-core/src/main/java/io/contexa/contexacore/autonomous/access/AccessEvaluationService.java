@@ -202,6 +202,12 @@ public class AccessEvaluationService {
         put(payload, "userAgent", userAgent);
         put(payload, "contextBindingHash", SessionFingerprintUtil.generateContextBindingHash(sessionId, clientIp,
                 userAgent));
+        // QF-18: the caller states when the person passed the step-up, as the login claim challengeVerifiedAt does for
+        // an in-process request, so that the decision reads the verification instead of "ChallengeVerified: none".
+        String challengeVerifiedAt = AccessEvaluationRequest.text(context, "challenge_verified_at");
+        if (challengeVerifiedAt != null) {
+            put(payload, "challengeVerifiedAt", instant(challengeVerifiedAt, "context.challenge_verified_at").toString());
+        }
         Map<String, Object> httpRequest = context.get("request") instanceof Map<?, ?> map ? stringKeys(map) : Map.of();
         String method = AccessEvaluationRequest.text(httpRequest, "method");
         String path = AccessEvaluationRequest.text(httpRequest, "path");
@@ -220,13 +226,17 @@ public class AccessEvaluationService {
         if (value == null) {
             return clock.instant();
         }
+        return instant(value, "context.time");
+    }
+
+    private static Instant instant(String value, String name) {
         try {
             return OffsetDateTime.parse(value).toInstant();
         } catch (DateTimeParseException e) {
             try {
                 return Instant.parse(value);
             } catch (DateTimeParseException ignored) {
-                throw new IllegalArgumentException("context.time is not an RFC 3339 date-time: " + value);
+                throw new IllegalArgumentException(name + " is not an RFC 3339 date-time: " + value);
             }
         }
     }

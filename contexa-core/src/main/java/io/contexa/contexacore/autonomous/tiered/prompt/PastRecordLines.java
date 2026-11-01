@@ -15,8 +15,12 @@
  */
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
+import io.contexa.contexacommon.security.bridge.ArgumentOrigins;
 import io.contexa.contexacore.autonomous.context.decision.RelativeTime;
 import io.contexa.contexacore.autonomous.context.prompt.PromptListItem;
+import io.contexa.contexacore.autonomous.context.prompt.PromptSlotRenderer;
+import io.contexa.contexacore.autonomous.context.support.ArgumentOriginLines;
+import io.contexa.contexacore.autonomous.context.support.LearnedBy;
 import io.contexa.contexacore.autonomous.context.support.PastRecordRanking;
 import io.contexa.contexacore.autonomous.context.support.PastRecordRelevance;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
@@ -32,12 +36,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.BiFunction;
 
 /**
  * The past records of the v20 PAST RECORDS block (W3-3, dictionary 7): one line of twelve fields per record,
  * {@code date day time / action / path template / target / items / class / network / device / login / decision /
- * same target / authorized as}. A value the record does not hold is said to be not recorded. Records of the same facts
+ * same target / authorized as}. A v21 line also says, before the authorization, how the record was learned and which
+ * arguments of its call came from a tool's output (BR-C6). A value the record does not hold is said to be not recorded. Records of the same facts
  * (every field but the time) are one line with their count and the latest time. A similarity is not a field: it
  * decides nothing (W3-18); a tie in the line order goes to the stored ID of the line's latest record. The audit
  * metadata and the document text stay in the sealed record, which keeps every document field.
@@ -144,8 +151,60 @@ final class PastRecordLines {
         facts.add(login != null ? login + " login" : "login not recorded");
         facts.add(decision(firstText(text(metadata.get("autonomousAction")), text(metadata.get("action")))));
         facts.add(PastRecordLineValues.SAME_TARGET + sameTarget);
+        // BR-C6: a v21 line (the one that writes its target apart) also says how the record was learned and which
+        // arguments of the call came from a tool's output; the v19 and v20 lines are the twelve fields.
+        if (targetMarker != null) {
+            facts.add(learned(metadata));
+            String arguments = argumentsFromToolOutput(metadata);
+            if (arguments != null) {
+                facts.add(arguments);
+            }
+        }
         facts.add(authorizedAs(metadata));
         return facts;
+    }
+
+    /**
+     * {@code learned: by the model alone}: how the record came to be learned, in the fixed words of the source the record
+     * names (BR-C6, QF-14). A record that names none, or one this engine does not know, is {@code source not recorded}:
+     * the line never holds a stored text and a source is never guessed.
+     */
+    private static String learned(Map<String, Object> metadata) {
+        LearnedBy source = LearnedBy.of(metadata.get(VectorDocumentMetadata.LEARNED_BY));
+        String words = source == null ? PastRecordLineValues.LEARNED_NOT_RECORDED : switch (source) {
+            case MODEL_ALLOW -> PastRecordLineValues.LEARNED_MODEL_ALLOW;
+            case VERIFIED -> PastRecordLineValues.LEARNED_VERIFIED;
+            case PROMOTED -> PastRecordLineValues.LEARNED_PROMOTED;
+            case ADMIN_RELEASE -> PastRecordLineValues.LEARNED_ADMIN_RELEASE;
+        };
+        return PastRecordLineValues.LEARNED + words;
+    }
+
+    /**
+     * {@code args from tool output: iban, recipient}: the arguments of the call the record was stored for whose values
+     * first appeared in a tool's output (BR-C6, QF-13), by name, sorted, at most three; null when the record has none. The
+     * record keeps the classification of the arguments only; a name is drawn as a plain token or quoted.
+     */
+    private static String argumentsFromToolOutput(Map<String, Object> metadata) {
+        if (!(metadata.get(VectorDocumentMetadata.ARG_SOURCES) instanceof Map<?, ?> classification)) {
+            return null;
+        }
+        Set<String> names = new TreeSet<>();
+        classification.forEach((name, kind) -> {
+            if (name != null && StringUtils.hasText(name.toString())
+                    && ArgumentOrigins.Source.of(kind) == ArgumentOrigins.Source.TOOL_OUTPUT) {
+                names.add(name.toString().strip());
+            }
+        });
+        if (names.isEmpty()) {
+            return null;
+        }
+        // A name never holds the separator of the line's fields, so the fields of a line count as they are written.
+        List<String> named = names.stream().limit(ArgumentOrigins.MAX_LINE_VALUES)
+                .map(name -> PromptSlotRenderer.encodeValue(ArgumentOriginLines.token(ArgumentOrigins.clip(
+                        name.replace(PastRecordLineValues.SEPARATOR, "/"), ArgumentOrigins.MAX_NAME_CHARS))))
+                .toList();
+        return PastRecordLineValues.ARGS_FROM_TOOL_OUTPUT + String.join(", ", named);
     }
 
     private static String network(Map<String, Object> metadata) {

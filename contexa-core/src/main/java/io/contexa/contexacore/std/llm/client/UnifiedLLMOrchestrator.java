@@ -41,6 +41,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -75,8 +76,11 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
      */
     private static final String NON_TRANSIENT_AI_EXCEPTION = "org.springframework.ai.retry.NonTransientAiException";
     private static final String TRANSIENT_AI_EXCEPTION = "org.springframework.ai.retry.TransientAiException";
-    /** Spring AI's message of a provider's HTTP error: "HTTP 400 - {body}". */
-    private static final Pattern HTTP_STATUS = Pattern.compile("^HTTP (\\d{3})\\b");
+    /**
+     * Spring AI's message of a provider's HTTP error: "HTTP 400 - {body}" from the Boot retry configuration's error
+     * handler, "400 - {body}" from RetryUtils' default one, which an AnthropicApi built without it uses (QF-52).
+     */
+    private static final Pattern HTTP_STATUS = Pattern.compile("^(?:HTTP (\\d{3})\\b|(\\d{3}) - )");
     /** The 4xx statuses that may pass when the same request is sent again: a timeout, a conflict, a rate limit. */
     private static final Set<Integer> RETRYABLE_CLIENT_STATUSES = Set.of(408, 409, 429);
     private static final int PROVIDER_OVERLOADED_STATUS = 529;
@@ -84,6 +88,17 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
     private static final int PROVIDER_RATE_LIMITED_STATUS = 429;
     /** The failure message of an answer without text; LLMExecutionStep reads it to tell a cut answer (N-OUT-2). */
     public static final String EMPTY_RESPONSE_MESSAGE = "LLM response is null or empty";
+    /** Anthropic's finish reason of a generation that reached the model's context window (Claude 4.5 and later). */
+    public static final String CONTEXT_WINDOW_EXCEEDED_FINISH_REASON = "model_context_window_exceeded";
+    /** D-8: the failure category of a call ended at the context window; a cut answer is OUTPUT_TRUNCATED. */
+    public static final String MODEL_CONTEXT_WINDOW_EXCEEDED = "MODEL_CONTEXT_WINDOW_EXCEEDED";
+    /**
+     * The status of a provider's HTTP error in Spring AI's messages: "HTTP 400 - {body}" from its retry
+     * auto-configuration, "400 - {body}" from its default error handler.
+     */
+    private static final Pattern PROVIDER_STATUS = Pattern.compile("^(?:HTTP )?(\\d{3}) - ");
+    /** Set on a call once its request was sent again without the fields the provider refused (design 4.5-C). */
+    private static final String REFUSAL_RESENT = "providerRefusalResent";
 
     private final ModelSelectionStrategy modelSelectionStrategy;
     private final StreamingHandler streamingHandler;
@@ -264,6 +279,9 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         if ("length".equals(reason) || "max_tokens".equals(reason)) {
             return "OUTPUT_TRUNCATED";
         }
+        if (CONTEXT_WINDOW_EXCEEDED_FINISH_REASON.equals(reason)) {
+            return MODEL_CONTEXT_WINDOW_EXCEEDED;
+        }
         if ("refusal".equals(reason) || "content_filter".equals(reason)) {
             return "PROVIDER_REFUSAL";
         }
@@ -291,7 +309,10 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
     private static Integer httpStatus(String message) {
         Matcher matcher = HTTP_STATUS.matcher(message != null ? message.trim() : "");
-        return matcher.find() ? Integer.valueOf(matcher.group(1)) : null;
+        if (!matcher.find()) {
+            return null;
+        }
+        return Integer.valueOf(matcher.group(1) != null ? matcher.group(1) : matcher.group(2));
     }
 
     /** Whether the throwable is of the named class or one of its subclasses. */
@@ -405,9 +426,8 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         try {
             chatResponse = executeProviderCallWithinTimeout(context, selectedModel, () -> promptSpec.call().chatResponse());
         } catch (RuntimeException ex) {
-            long providerCallMs = System.currentTimeMillis() - providerCallStart;
-            recordProviderFailure(context, selectedModel, providerCallMs, ex);
-            throw ex;
+            chatResponse = resendWithoutRefusedFields(context, selectedModel, chatClient, providerCallStart, ex,
+                    spec -> spec.call().chatResponse());
         }
         long providerCallMs = System.currentTimeMillis() - providerCallStart;
         recordProviderTiming(context, "providerCallMs", providerCallMs);
@@ -452,9 +472,8 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         try {
             responseEntity = executeProviderCallWithinTimeout(context, selectedModel, () -> promptSpec.call().responseEntity(targetType));
         } catch (RuntimeException ex) {
-            long providerCallMs = System.currentTimeMillis() - providerCallStart;
-            recordProviderFailure(context, selectedModel, providerCallMs, ex);
-            throw ex;
+            responseEntity = resendWithoutRefusedFields(context, selectedModel, chatClient, providerCallStart, ex,
+                    spec -> spec.call().responseEntity(targetType));
         }
         long providerCallMs = System.currentTimeMillis() - providerCallStart;
         recordProviderTiming(context, "providerCallMs", providerCallMs);
@@ -477,6 +496,71 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         return responseEntity;
     }
 
+    /**
+     * Design 4.5-C: a request the provider refused (an HTTP 4xx other than a timeout, a conflict or a rate limit) for a
+     * thinking or sampling field it carried is sent once more without that field, within what is left of the call's
+     * time limit, and the field is left out of the model's later requests. A refusal of anything else, a second refusal
+     * on the same call or no time left fails as before; a resend that fails keeps nothing.
+     */
+    private <T> T resendWithoutRefusedFields(
+            ExecutionContext context,
+            ChatModel selectedModel,
+            ChatClient chatClient,
+            long providerCallStart,
+            RuntimeException failure,
+            Function<ChatClient.ChatClientRequestSpec, T> call) {
+        Set<String> groups = context != null && refusedRequest(failure)
+                && !Boolean.TRUE.equals(context.getMetadata().get(REFUSAL_RESENT))
+                ? AnthropicThinkingOptions.refusedFieldGroups(context, providerMessages(failure))
+                : Set.of();
+        long timeoutMs = providerCallTimeoutMs(context);
+        long remainingMs = timeoutMs > 0L ? timeoutMs - (System.currentTimeMillis() - providerCallStart) : 0L;
+        if (groups.isEmpty() || (timeoutMs > 0L && remainingMs <= 0L)) {
+            recordProviderFailure(context, selectedModel, System.currentTimeMillis() - providerCallStart, failure);
+            throw failure;
+        }
+        context.addMetadata(REFUSAL_RESENT, true);
+        log.warn("[UnifiedLLMOrchestrator] The provider refused the {} field(s) of the request; sending it once more"
+                + " without them - RequestId: {}", groups, context.getRequestId());
+        AnthropicThinkingOptions.Resend resend = AnthropicThinkingOptions.beginResend(context, selectedModel, groups);
+        try {
+            ChatClient.ChatClientRequestSpec promptSpec = preparePromptSpec(chatClient, context, selectedModel);
+            T result = callProviderWithin(selectedModel, () -> call.apply(promptSpec), remainingMs);
+            AnthropicThinkingOptions.confirmResend(resend, SensitiveValueSanitizer.sanitizeText(failure.getMessage()));
+            return result;
+        } catch (RuntimeException resendFailure) {
+            AnthropicThinkingOptions.abandonResend(selectedModel, resend);
+            recordProviderFailure(context, selectedModel, System.currentTimeMillis() - providerCallStart, resendFailure);
+            throw resendFailure;
+        }
+    }
+
+    /** Whether the provider refused the request itself: a non-transient HTTP 4xx other than 408, 409 or 429. */
+    private static boolean refusedRequest(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (isA(current, NON_TRANSIENT_AI_EXCEPTION)) {
+                Matcher matcher = PROVIDER_STATUS.matcher(current.getMessage() != null ? current.getMessage().trim() : "");
+                Integer status = matcher.find() ? Integer.valueOf(matcher.group(1)) : null;
+                return status == null || (status >= 400 && status < 500 && !RETRYABLE_CLIENT_STATUSES.contains(status));
+            }
+            current = current.getCause() != current ? current.getCause() : null;
+        }
+        return false;
+    }
+
+    private static String providerMessages(Throwable error) {
+        StringBuilder messages = new StringBuilder();
+        Throwable current = error;
+        while (current != null) {
+            if (current.getMessage() != null) {
+                messages.append(current.getMessage()).append('\n');
+            }
+            current = current.getCause() != current ? current.getCause() : null;
+        }
+        return messages.toString();
+    }
+
     private <T> T executeProviderCallWithinTimeout(
             ExecutionContext context,
             ChatModel selectedModel,
@@ -485,6 +569,11 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         if (context != null && timeoutMs > 0L) {
             context.addMetadata("providerCallTimeoutMs", timeoutMs);
         }
+        return callProviderWithin(selectedModel, providerCall, timeoutMs);
+    }
+
+    /** The provider call, on its own executor and bounded by the time limit when there is one. */
+    private <T> T callProviderWithin(ChatModel selectedModel, Callable<T> providerCall, long timeoutMs) {
         if (timeoutMs <= 0L) {
             return callProviderDirectly(providerCall);
         }

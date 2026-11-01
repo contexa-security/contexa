@@ -54,6 +54,11 @@ public final class UntrustedTextSources {
      * threat knowledge, written outside this request (v21, B3-3).
      */
     public static final String VALIDATED_CASE_MEMORY = "validated case memory (stored text)";
+    /**
+     * The sentence of a tool's output in which the host found an argument value of the request for the first time,
+     * quoted by the host (v21, CQ-1): the output was written outside this request, and may carry any instruction.
+     */
+    public static final String TOOL_OUTPUT_EXCERPT = "tool output excerpt (host-quoted)";
 
     private UntrustedTextSources() {
     }

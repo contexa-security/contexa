@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaidentity.security.statemachine.core.persist;
 
+import io.contexa.contexacore.autonomous.store.ExpiringKeySpace;
+import io.contexa.contexacore.autonomous.store.ExpiringStateStore;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.extern.slf4j.Slf4j;
@@ -22,41 +24,61 @@ import org.springframework.statemachine.StateMachineContext;
 import org.springframework.statemachine.StateMachinePersist;
 import org.springframework.stereotype.Component;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.time.Clock;
+import java.time.Duration;
+import java.util.Objects;
 
+/**
+ * In-memory MFA state machine contexts. Z-16 (F6): as ExpiringRedisRepositoryStateMachinePersist, a context lapses the
+ * persistence TTL ({@code contexa.identity.statemachine.persistence.ttl-minutes}) after its last write, so an abandoned
+ * flow does not stay; a read does not keep it, and the sweep releases it. The contexts are an {@link ExpiringKeySpace}
+ * (N-1).
+ */
 @Slf4j
 @Component
-public class InMemoryStateMachinePersist implements StateMachinePersist<MfaState, MfaEvent, String> {
-
-    private final Map<String, StateMachineContext<MfaState, MfaEvent>> storage = new ConcurrentHashMap<>();
+public class InMemoryStateMachinePersist
+        implements StateMachinePersist<MfaState, MfaEvent, String>, ExpiringStateStore {
 
     private static final String KEY_PREFIX = "mfa:statemachine:";
+    private static final Duration DEFAULT_TTL = Duration.ofMinutes(30);
+
+    private final ExpiringKeySpace<StateMachineContext<MfaState, MfaEvent>> storage;
+
+    public InMemoryStateMachinePersist() {
+        this(DEFAULT_TTL);
+    }
+
+    public InMemoryStateMachinePersist(Duration ttl) {
+        this.storage = ExpiringKeySpace.<StateMachineContext<MfaState, MfaEvent>>builder(Clock.systemUTC())
+                .ttl(Objects.requireNonNull(ttl, "ttl"))
+                .build();
+    }
 
     @Override
     public void write(StateMachineContext<MfaState, MfaEvent> context, String contextObj) throws Exception {
-        String key = KEY_PREFIX + contextObj;
-        
-        storage.put(key, context);
-
-            }
+        if (context == null) {
+            // Nothing to keep: the context reads as absent, as it did.
+            storage.remove(KEY_PREFIX + contextObj);
+            return;
+        }
+        storage.put(KEY_PREFIX + contextObj, context);
+    }
 
     @Override
     public StateMachineContext<MfaState, MfaEvent> read(String contextObj) throws Exception {
-        String key = KEY_PREFIX + contextObj;
-        
-        StateMachineContext<MfaState, MfaEvent> context = storage.get(key);
-
-        if (context != null) {
-                    } else {
-                    }
-
-        return context;
+        return storage.get(KEY_PREFIX + contextObj);
     }
 
     public void delete(String contextObj) {
-        String key = KEY_PREFIX + contextObj;
-        
-        storage.remove(key);
+        storage.remove(KEY_PREFIX + contextObj);
+    }
+
+    @Override
+    public void removeExpiredEntries() {
+        storage.removeExpired();
+    }
+
+    boolean holdsContextFor(String contextObj) {
+        return storage.holds(KEY_PREFIX + contextObj);
     }
 }

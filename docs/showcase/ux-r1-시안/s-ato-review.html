@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>계정 탈취 — 요청 검토</title>
+<link rel="stylesheet" href="design.css">
+<style>
+  .ctl-row td:first-child { display: flex; align-items: center; gap: 10px; height: 48px; }
+  .swatch { width: 10px; height: 10px; border-radius: 4px; flex: none; }
+  .aside-card { position: sticky; top: 24px; }
+  .cta-meta { display: flex; justify-content: space-between; margin-top: 12px; font-size: 13px; color: var(--text-3); }
+  .truth { display: flex; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--line); font-size: 13px; color: var(--text-3); background: var(--surface-2); border-radius: 0 0 var(--r-lg) var(--r-lg); }
+  .truth svg.i { width: 16px; height: 16px; margin-top: 1px; }
+</style>
+</head>
+<body data-active="ato" data-lang="ko" data-crumbs="위협 시뮬레이션|계정 탈취 · 내부자 위협|S13">
+<main class="content"><div class="wrap">
+
+  <div class="ph">
+    <div class="ph-main">
+      <div class="ph-kicker"><span class="badge b-line"><i data-icon="user-round-x"></i>계정 탈취 (ATO)</span><span class="tag">시나리오</span><span class="code">S13</span></div>
+      <h1 class="ph-title">설계 자료 480건 대량 반출 요청</h1>
+      <p class="ph-desc">탈취한 계정으로, 처음 확인되는 단말에서 HX-310 설계 자료 반출을 요청합니다. 같은 요청이 5개 보안 통제에 동시에 전달됩니다.</p>
+    </div>
+    <div class="ph-actions"><button class="btn"><i data-icon="shuffle"></i>시나리오 변경</button></div>
+  </div>
+
+  <div class="stepper">
+    <div class="step done"><span class="step-n"><i data-icon="check" class="i" style="width:14px;height:14px"></i></span><span class="step-label">위협 유형</span></div><div class="step-line"></div>
+    <div class="step now"><span class="step-n">2</span><span class="step-label">요청 검토 · 판정 예측</span></div><div class="step-line"></div>
+    <div class="step"><span class="step-n">3</span><span class="step-label">실시간 판정</span></div><div class="step-line"></div>
+    <div class="step"><span class="step-n">4</span><span class="step-label">결과 · 판정 근거</span></div>
+  </div>
+
+  <div class="layout-2">
+      <section class="card area-a">
+        <div class="req-line">
+          <span class="method">POST</span><span class="path">/api/projects/HX-310/exports</span>
+          <span class="muted req-to" style="margin-left:auto;font-size:13px;display:flex;align-items:center;gap:8px"><i data-icon="split" style="width:16px;height:16px"></i>5개 보안 통제에 동시 전송</span>
+        </div>
+        <div class="facts">
+          <div class="fact"><div class="fact-k"><i data-icon="user-round"></i>계정</div><div class="fact-v">엔지니어 K</div><div class="fact-s"><span class="badge b-block">탈취된 계정</span></div></div>
+          <div class="fact"><div class="fact-k"><i data-icon="clock-3"></i>요청 시각</div><div class="fact-v">수요일 14:20</div><div class="fact-s">회사 표준시 · 근무 시간대</div></div>
+          <div class="fact"><div class="fact-k"><i data-icon="laptop"></i>단말 · 네트워크</div><div class="fact-v">Safari 18 · macOS</div><div class="fact-s">사무실 네트워크 10.40.21.0/24 <span class="badge b-stepup">처음 확인된 단말</span></div></div>
+          <div class="fact"><div class="fact-k"><i data-icon="key-round"></i>로그인 인증</div><div class="fact-v">비밀번호 + 일회용 코드</div><div class="fact-s"><span class="badge b-allow"><i data-icon="check"></i>인증 통과</span></div></div>
+          <div class="fact"><div class="fact-k"><i data-icon="download"></i>요청 작업</div><div class="fact-v">HX-310 설계 자료 480건 반출</div><div class="fact-s">대량 반출 · 민감 자료</div></div>
+          <div class="fact"><div class="fact-k"><i data-icon="briefcase"></i>업무 컨텍스트</div><div class="fact-v">HX-310 담당 · 반출 한도 500건</div><div class="fact-s"><span class="badge b-none">승인 기록 없음</span><span class="badge b-none">작업 티켓 없음</span></div></div>
+        </div>
+        <div class="truth"><i data-icon="info"></i><span>"탈취된 계정"은 시나리오의 정답이며 어떤 통제에도 전달되지 않습니다. 각 통제는 위 요청과 업무 컨텍스트만으로 판정합니다.</span></div>
+      </section>
+
+      <section class="card area-b">
+        <div class="card-head"><div><h2 class="card-title">검사하는 보안 통제</h2><p class="card-sub">같은 요청을 다섯 통제가 각자의 기준으로 동시에 검사합니다</p></div></div>
+        <table class="table stack">
+          <thead><tr><th style="width:30%">보안 통제</th><th>검사 기준</th><th style="width:28%">이 요청에서 보는 값</th></tr></thead>
+          <tbody>
+            <tr class="ctl-row"><td class="strong"><span class="swatch" style="background:var(--c-waf)"></span>웹 방화벽 (WAF)</td><td data-k="검사 기준">요청에 담긴 공격 문자열 · OWASP CRS</td><td data-k="이 요청에서 보는 값">공격 문자열 없음</td></tr>
+            <tr class="ctl-row"><td class="strong"><span class="swatch" style="background:var(--c-iam)"></span>인증 · 권한 (IAM)</td><td data-k="검사 기준">계정 인증 · 역할 기반 권한</td><td data-k="이 요청에서 보는 값">인증 통과 · 담당 권한 있음</td></tr>
+            <tr class="ctl-row"><td class="strong"><span class="swatch" style="background:var(--c-rule)"></span>임계값 규칙</td><td data-k="검사 기준">야간(22:00~06:00) 대량 반출 · 500건 초과</td><td data-k="이 요청에서 보는 값">14:20 · 480건</td></tr>
+            <tr class="ctl-row"><td class="strong"><span class="swatch" style="background:var(--c-approval)"></span>승인 정책 규칙</td><td data-k="검사 기준">사례 조건으로 작성한 승인 · 티켓 규칙</td><td data-k="이 요청에서 보는 값">담당 프로젝트 · 한도 이내</td></tr>
+            <tr class="ctl-row hl"><td class="strong"><span class="swatch" style="background:var(--c-contexa)"></span>Contexa</td><td data-k="검사 기준">행위 기준선과 업무 컨텍스트를 종합한 AI 판정</td><td data-k="이 요청에서 보는 값">기준선 대비 단말 · 반출량</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+    <aside class="area-side">
+      <section class="card card-pad aside-card">
+        <h2 class="card-title">예상 판정</h2>
+        <p class="card-sub" style="margin-bottom:16px">실행 전에 예상을 기록하면 결과 화면에서 실제 판정과 대조합니다.</p>
+        <div class="opts">
+          <div class="opt"><span class="opt-icon" style="background:var(--allow-bg);color:var(--allow)"><i data-icon="circle-check"></i></span><div><div class="opt-title">허용</div><div class="opt-desc">480건이 반출됩니다</div></div><span class="radio"></span></div>
+          <div class="opt sel"><span class="opt-icon" style="background:var(--block-bg);color:var(--block)"><i data-icon="shield-x"></i></span><div><div class="opt-title">차단 · 추가 인증</div><div class="opt-desc">반출되지 않습니다</div></div><span class="radio"></span></div>
+        </div>
+        <div class="cta-block"><button class="btn btn-primary btn-lg" style="width:100%;margin-top:20px"><i data-icon="play"></i>요청 실행</button>
+        <div class="cta-meta"><span>실제 AI 판정 · 중앙값 6.0초</span><span>방문자당 하루 10회</span></div></div>
+      </section>
+    </aside>
+  </div>
+
+</div>
+<div class="sticky-cta mobile-only"><button class="btn btn-primary"><i data-icon="play"></i>요청 실행</button></div>
+</main>
+<script src="shell.js"></script>
+</body>
+</html>

@@ -30,6 +30,7 @@ import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -40,6 +41,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -56,8 +58,15 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
     protected BlockingSignalBroadcaster blockingSignalBroadcaster;
 
     private final Cache<String, CachedZeroTrustDecision> decisionCache;
-    private final Set<String> registeredSessions = ConcurrentHashMap.newKeySet();
-    private static final Duration TOKEN_CLOCK_SKEW = Duration.ofSeconds(60);
+    /**
+     * The identifiers registered since the last sweep, each with the deadline it was registered with
+     * ({@link #UNTIMED} for none). A request writes only when its identifier is not here or the recorded deadline no
+     * longer covers what the request shows; the sweep clears it, so every live identifier registers once more.
+     */
+    private final Map<String, Instant> registeredSessions = new ConcurrentHashMap<>();
+    private static final Instant UNTIMED = Instant.MAX;
+    /** Added to every deadline: clocks of the nodes and of the token issuer differ, and containers expire lazily. */
+    private static final Duration CLOCK_SKEW = Duration.ofSeconds(60);
 
     protected AbstractZeroTrustSecurityService(
             ThreatScoreUtil threatScoreUtil,
@@ -80,8 +89,8 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
         try {
             // The context is loading here: its own authentication names the binding (reading the context would
             // load it again).
-            String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request,
-                    context.getAuthentication());
+            Authentication authentication = context.getAuthentication();
+            String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request, authentication);
 
             ZeroTrustAction action;
             double threatScore;
@@ -109,10 +118,10 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
             }
             adjustAuthoritiesByAction(context, action, userId, trustScore, threatScore);
 
-            if (sessionId != null && registeredSessions.add(sessionId)) {
-                Instant tokenExpiry = AISecurityContextSupport.accessTokenExpiry(context.getAuthentication());
-                doRegisterSession(userId, sessionId,
-                        tokenExpiry != null ? tokenExpiry.plus(TOKEN_CLOCK_SKEW) : null);
+            if (sessionId != null) {
+                // QF-57: the authentication the request came with, not the one the action may have replaced it with
+                // (a Zero Trust token no longer carries the access token, so its expiry would be lost).
+                trackSession(userId, sessionId, authentication, request);
             }
 
             if (request != null) {
@@ -132,11 +141,92 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
     }
 
     /**
-     * Registers a session or token identifier for the user. {@code trackUntil} is when the identifier is certainly
-     * dead (a JWT past its expiry), or null for an HTTP session, which is forgotten when the container destroys it.
+     * QF-57: keeps the identifier among the user's tracked sessions, which a forced logout invalidates, until it is
+     * certainly dead. A request writes only when the identifier is new since the last sweep or the deadline recorded
+     * for it no longer covers what the request shows.
      */
-    protected void doRegisterSession(String userId, String sessionId, Instant trackUntil) {
-        doRegisterSession(userId, sessionId);
+    private void trackSession(String userId, String sessionId, Authentication authentication,
+                              HttpServletRequest request) {
+        TrackingDeadline wanted = trackingDeadline(sessionId, authentication, request, now());
+        Instant recorded = registeredSessions.get(sessionId);
+        if (recorded != null && wanted.coveredBy(recorded)) {
+            return;
+        }
+        registeredSessions.put(sessionId, wanted.deadline() != null ? wanted.deadline() : UNTIMED);
+        doRegisterSession(userId, sessionId, wanted.deadline());
+    }
+
+    /**
+     * When the identifier is certainly dead, from what the request shows. The id of the request's HTTP session dies
+     * once the container's idle limit has passed since its last request, this one; tracking runs half an idle limit
+     * longer, so a request renews it at most once per half idle limit and it never ends before the container's own
+     * deadline. A token's identifier dies with the token. An identifier nothing bounds (no HTTP session of that id or
+     * one that never times out, and no token expiry) has no deadline.
+     */
+    private static TrackingDeadline trackingDeadline(String sessionId, Authentication authentication,
+                                                     HttpServletRequest request, Instant now) {
+        Integer idleSeconds = idleLimitSeconds(sessionId, request);
+        if (idleSeconds != null) {
+            if (idleSeconds <= 0) {
+                return TrackingDeadline.NONE;
+            }
+            Instant containerDeadline = now.plusSeconds(idleSeconds).plus(CLOCK_SKEW);
+            return new TrackingDeadline(containerDeadline.plusSeconds(idleSeconds / 2), containerDeadline);
+        }
+        Instant tokenExpiry = AISecurityContextSupport.accessTokenExpiry(authentication);
+        if (tokenExpiry != null) {
+            Instant deadline = (tokenExpiry.isAfter(now) ? tokenExpiry : now).plus(CLOCK_SKEW);
+            return new TrackingDeadline(deadline, deadline);
+        }
+        return TrackingDeadline.NONE;
+    }
+
+    /** The idle limit of the request's HTTP session when the identifier is that session's id, or null. */
+    private static Integer idleLimitSeconds(String sessionId, HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        try {
+            HttpSession session = request.getSession(false);
+            return session != null && sessionId.equals(session.getId()) ? session.getMaxInactiveInterval() : null;
+        } catch (IllegalStateException invalidated) {
+            return null;
+        }
+    }
+
+    /** The time deadlines are measured against. */
+    protected Instant now() {
+        return Instant.now();
+    }
+
+    /**
+     * QF-57: the most identifiers without a deadline tracked for one user; 0 or less tracks them all
+     * ({@code contexa.security.zerotrust.session-tracking.max-untimed-sessions-per-user}).
+     */
+    protected int maxUntimedSessionsPerUser() {
+        SecurityZeroTrustProperties.SessionTrackingSettings settings = securityZeroTrustProperties != null
+                ? securityZeroTrustProperties.getSessionTracking() : null;
+        return settings != null ? settings.getMaxUntimedSessionsPerUser()
+                : SecurityZeroTrustProperties.SessionTrackingSettings.DEFAULT_MAX_UNTIMED_SESSIONS_PER_USER;
+    }
+
+    /** Lets an identifier the subclass stopped tracking register again on its next request. */
+    protected final void releaseRegistration(String sessionId) {
+        registeredSessions.remove(sessionId);
+    }
+
+    /**
+     * Registers a session or token identifier for the user. {@code trackUntil} is when the identifier is certainly
+     * dead (a token past its expiry, an HTTP session past its idle limit), after which it is no longer tracked; a
+     * later registration with a later deadline extends it. Null means nothing bounds its life: such identifiers are
+     * tracked until they are forgotten, up to {@link #maxUntimedSessionsPerUser()} per user, the least recently
+     * registered released first.
+     */
+    protected abstract void doRegisterSession(String userId, String sessionId, Instant trackUntil);
+
+    /** Registers an identifier nothing bounds the life of. */
+    protected void doRegisterSession(String userId, String sessionId) {
+        doRegisterSession(userId, sessionId, null);
     }
 
     /** Forgets a session the servlet container destroyed or replaced; it can no longer authenticate a request. */
@@ -152,8 +242,8 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
     }
 
     /**
-     * The registration set only prevents registering the same identifier twice; clearing it makes live identifiers
-     * register once more with the same result. Subclasses release their own expired entries.
+     * The registration record only saves writes; clearing it makes live identifiers register once more with the
+     * deadline their next request shows. Subclasses release their own entries past their deadlines.
      */
     @Override
     public void removeExpiredEntries() {
@@ -193,8 +283,6 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
             decisionCache.invalidate(userId);
         }
     }
-
-    protected abstract void doRegisterSession(String userId, String sessionId);
 
     protected abstract void doCleanupSessionData(String userId, String sessionId);
 
@@ -261,4 +349,20 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
     }
 
     private record CachedZeroTrustDecision(ZeroTrustAction action, double threatScore, String contextBindingHash) {}
+
+    /**
+     * The deadline to register ({@code null}: none) and the time a recorded deadline must reach to still hold for
+     * this request.
+     */
+    private record TrackingDeadline(Instant deadline, Instant mustReach) {
+
+        static final TrackingDeadline NONE = new TrackingDeadline(null, null);
+
+        boolean coveredBy(Instant recorded) {
+            if (deadline == null) {
+                return UNTIMED.equals(recorded);
+            }
+            return !UNTIMED.equals(recorded) && !recorded.isBefore(mustReach);
+        }
+    }
 }

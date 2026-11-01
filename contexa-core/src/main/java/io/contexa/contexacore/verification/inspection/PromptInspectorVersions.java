@@ -85,7 +85,13 @@ public final class PromptInspectorVersions {
             new Version(24, "the scope the host's records hold the target in compared on its v21 line with the sealed "
                     + "resource (finding 7 of the v21 plan)"),
             new Version(25, "a v21 reason code of an earlier allowed record on the same target matched on the past "
-                    + "records' counted fact as on a record line (finding 12 of the v21 plan)"));
+                    + "records' counted fact as on a record line (finding 12 of the v21 plan)"),
+            new Version(26, "a v21 argument origin line and the tool output sentences quoted as untrusted texts compared "
+                    + "with the origins the sealed context holds, and the reason code of a value from a tool's output "
+                    + "checked against them (CQ-1)"),
+            new Version(27, "a v21 past record line with the learned field and, for a record with arguments from a tool's "
+                    + "output, the arguments field, compared with the sealed records that keep how they were learned "
+                    + "(BR-C6)"));
 
     private PromptInspectorVersions() {
     }

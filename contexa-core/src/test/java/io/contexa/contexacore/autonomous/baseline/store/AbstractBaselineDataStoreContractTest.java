@@ -28,7 +28,7 @@ import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-
+
 abstract class AbstractBaselineDataStoreContractTest {
 
     protected BaselineDataStore store;
@@ -269,6 +269,23 @@ abstract class AbstractBaselineDataStoreContractTest {
 
         assertThat(loaded.getElementLastSeen()).containsEntry("ipBand:10.0.1.0/24", 1_760_000_000_000L);
         assertThat(loaded.getVerifiedElements()).containsExactly("ipBand:10.0.1.0/24");
+    }
+
+    @Test
+    @DisplayName("QF-21: an organization baseline keeps the members and dates its learnings come from")
+    void org_keepsItsMembersAndDates() {
+        store.saveOrganizationBaseline("org-m", BaselineVector.builder()
+                .userId("org:org-m")
+                .updateCount(3L)
+                .avgTrustScore(0.9)
+                .learnedDates(new String[]{"2026-10-01", "2026-10-02"})
+                .learnedMembers(new HashSet<>(Set.of("a1b2c3d4e5f60718", "0f1e2d3c4b5a6978")))
+                .build());
+
+        BaselineVector loaded = store.getOrganizationBaseline("org-m");
+
+        assertThat(loaded.getLearnedMembers()).containsExactlyInAnyOrder("a1b2c3d4e5f60718", "0f1e2d3c4b5a6978");
+        assertThat(loaded.getLearnedDates()).containsExactly("2026-10-01", "2026-10-02");
     }
 
     @Test

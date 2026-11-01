@@ -17,7 +17,7 @@ package io.contexa.contexacore.autonomous.store;
 
 /**
  * In-memory store whose entries expire. Reads already ignore expired entries; {@link #removeExpiredEntries()} also
- * releases their memory, and {@link InMemoryStateSweeper} calls it periodically in standalone mode.
+ * releases their memory, and {@link InMemoryStateSweeper} calls it periodically in either infrastructure mode.
  */
 public interface ExpiringStateStore {
 

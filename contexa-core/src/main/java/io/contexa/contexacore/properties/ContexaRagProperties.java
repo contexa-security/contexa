@@ -47,6 +47,14 @@ public class ContexaRagProperties {
     @Data
     public static class Behavior {
         private int lookbackDays = 30;
+
+        /**
+         * Creates the {@code behaviorAnalysisRagAdvisor} bean, which retrieves the behaviour documents of EVERY user (its
+         * filter names the document type and the time, not the user). Off by default: nothing in Contexa uses it, and a
+         * host that injects an advisor by type must not get it by accident (BR-S7). A host that wants to retrieve
+         * behaviour documents defines its own advisor with a user filter.
+         */
+        private boolean sharedAdvisorEnabled = false;
     }
 
     @Data

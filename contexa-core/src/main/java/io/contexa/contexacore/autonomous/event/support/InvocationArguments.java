@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.event.support;
 
+import io.contexa.contexacommon.security.bridge.ArgumentOrigins;
 import org.springframework.lang.Nullable;
 
 import java.lang.reflect.Method;
@@ -35,7 +36,9 @@ import java.util.UUID;
  * do, such as the project of an export, its size or its recipient. The caller wrote them, so the decision takes them as
  * untrusted text, never as facts. Plain values, records, collections and maps are written out shallowly; an argument
  * whose name says it holds a secret and every {@code char[]} are hidden; any other object is named by its type only,
- * never by its {@code toString}, which may print its whole state. The summary is kept short.
+ * never by its {@code toString}, which may print its whole state. The summary is kept short. The
+ * {@link ArgumentOrigins} parameter a host may pass (CQ-1) is no argument of the caller's: it is left out, and carried
+ * under its own payload key.
  */
 public final class InvocationArguments {
 
@@ -62,10 +65,20 @@ public final class InvocationArguments {
         Parameter[] parameters = method.getParameters();
         List<String> parts = new ArrayList<>();
         for (int i = 0; i < arguments.length; i++) {
+            // CQ-1: the origins a host gives are their own payload key, never a part of this summary.
+            if (isArgumentOrigins(i < parameters.length ? parameters[i] : null, arguments[i])) {
+                continue;
+            }
             String name = i < parameters.length ? parameters[i].getName() : "arg" + i;
             parts.add(name + "=" + (secretName(name) ? HIDDEN : value(arguments[i], 0)));
         }
-        return cut(String.join("; ", parts), MAX_LENGTH);
+        return parts.isEmpty() ? null : cut(String.join("; ", parts), MAX_LENGTH);
+    }
+
+    /** Whether the parameter is the one the host passes the argument origins in (by its type, or by the value it holds). */
+    private static boolean isArgumentOrigins(@Nullable Parameter parameter, @Nullable Object argument) {
+        return argument instanceof ArgumentOrigins
+                || (parameter != null && ArgumentOrigins.class.isAssignableFrom(parameter.getType()));
     }
 
     private static String value(@Nullable Object value, int depth) {

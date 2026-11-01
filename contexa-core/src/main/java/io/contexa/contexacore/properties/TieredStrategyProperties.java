@@ -16,6 +16,8 @@
 package io.contexa.contexacore.properties;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.std.llm.client.AnthropicEffort;
+import io.contexa.contexacore.std.llm.client.AnthropicThinkingMode;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -34,6 +36,26 @@ public class TieredStrategyProperties {
     private PromptRuntime promptRuntime = new PromptRuntime();
     private Determinism determinism = new Determinism();
     private PromptBundle promptBundle = new PromptBundle();
+    private ArgumentOrigin argumentOrigin = new ArgumentOrigin();
+
+    /**
+     * CQ-1 (argument origin): what the event carries of the argument origins a host gives a protected method
+     * ({@code ArgumentOrigins}), so what the decision prompt may state of them (contexa.security.tiered.argument-origin.*).
+     * The settings are applied when the event is built, so the sealed context holds exactly what the prompt states.
+     */
+    @Data
+    public static class ArgumentOrigin {
+
+        /**
+         * Whether the sentence of the tool output a value first appeared in is carried and quoted. Off, the decision
+         * states only where the value first appeared (the tool), not the sentence: the sentence is the tool's output
+         * and may hold sensitive text.
+         */
+        private boolean quoteExcerpt = true;
+
+        /** The longest quoted sentence in characters, 0 to 300; 0 quotes none. */
+        private int maxExcerptChars = 300;
+    }
 
     /**
      * Which prompt bundle the security decision runs (W3-16, version management function 4): by default the bundle this
@@ -160,10 +182,39 @@ public class TieredStrategyProperties {
         private Prompt prompt = new Prompt();
         private int vectorSearchLimit = 12;
         private String defaultBudgetProfile = "CORTEX_L1_INTERACTIVE_STRICT";
-        /** W4-6 (G-5): a reasoning model's reasoning tokens count against this limit. */
-        private int maxOutputTokens = 2048;
+        /**
+         * W4-6 (G-5): a reasoning model's reasoning tokens count against this limit. QF-3: 2,048 cut a third of the
+         * answers of claude-haiku-5-5 (a cut answer has no reason, risk or confidence), so the default is 4,096.
+         */
+        private int maxOutputTokens = 4096;
         private String openAiReasoningEffort = "low";
         private String openAiVerbosity = "low";
+        /**
+         * The thinking this layer asks of an Anthropic model: PROVIDER_DEFAULT sends no thinking field (the Spring AI
+         * default options or the model's own default apply; the request is as it was before the setting existed); OFF
+         * sends the model's way of turning thinking off; BUDGET sends thinking with anthropic-thinking-budget-tokens;
+         * ADAPTIVE needs Spring AI 2.0.x. What each model takes follows the Claude API thinking documentation
+         * (https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting) as the capability table
+         * contexa.llm.model-capabilities.anthropic.thinking states it; the start refuses a value the layer model
+         * refuses. Turning thinking off changes the decisions a model makes.
+         */
+        private AnthropicThinkingMode anthropicThinking = AnthropicThinkingMode.PROVIDER_DEFAULT;
+        /**
+         * The Anthropic output_config.effort of this layer; empty sends none (the model's default). Spring AI 1.1
+         * cannot send an effort, so the start refuses any value until Contexa runs on Spring AI 2.0.x.
+         */
+        private AnthropicEffort anthropicEffort;
+        /**
+         * The thinking budget (budget_tokens) of anthropic-thinking BUDGET: at least 1,024; max_tokens is then
+         * max-output-tokens plus this budget. The budget is a target the model may exceed, not a cap.
+         */
+        private Integer anthropicThinkingBudgetTokens;
+        /**
+         * The tokens max_tokens adds to max-output-tokens when the model thinks without a budget (its default thinking
+         * on, or adaptive thinking). 0 adds none: the thinking then shares max-output-tokens with the answer, and the
+         * longer the input, the more answers are cut. A cut answer's retry adds the same allowance, not twice it.
+         */
+        private int anthropicThinkingAllowanceTokens = 0;
 
         @Data
         public static class Prompt {
@@ -244,6 +295,32 @@ public class TieredStrategyProperties {
         private int maxOutputTokens = 2560;
         private String openAiReasoningEffort = "low";
         private String openAiVerbosity = "low";
+        /**
+         * The thinking this layer asks of an Anthropic model: PROVIDER_DEFAULT sends no thinking field (the Spring AI
+         * default options or the model's own default apply; the request is as it was before the setting existed); OFF
+         * sends the model's way of turning thinking off; BUDGET sends thinking with anthropic-thinking-budget-tokens;
+         * ADAPTIVE needs Spring AI 2.0.x. What each model takes follows the Claude API thinking documentation
+         * (https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting) as the capability table
+         * contexa.llm.model-capabilities.anthropic.thinking states it; the start refuses a value the layer model
+         * refuses. Turning thinking off changes the decisions a model makes.
+         */
+        private AnthropicThinkingMode anthropicThinking = AnthropicThinkingMode.PROVIDER_DEFAULT;
+        /**
+         * The Anthropic output_config.effort of this layer; empty sends none (the model's default). Spring AI 1.1
+         * cannot send an effort, so the start refuses any value until Contexa runs on Spring AI 2.0.x.
+         */
+        private AnthropicEffort anthropicEffort;
+        /**
+         * The thinking budget (budget_tokens) of anthropic-thinking BUDGET: at least 1,024; max_tokens is then
+         * max-output-tokens plus this budget. The budget is a target the model may exceed, not a cap.
+         */
+        private Integer anthropicThinkingBudgetTokens;
+        /**
+         * The tokens max_tokens adds to max-output-tokens when the model thinks without a budget (its default thinking
+         * on, or adaptive thinking). 0 adds none: the thinking then shares max-output-tokens with the answer, and the
+         * longer the input, the more answers are cut. A cut answer's retry adds the same allowance, not twice it.
+         */
+        private int anthropicThinkingAllowanceTokens = 0;
 
         @Data
         public static class Cache {

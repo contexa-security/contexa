@@ -146,7 +146,8 @@ class CoreBacklogRedisRegressionTest {
 
         service.cleanupOnLogout(user, b);
 
-        assertThat(objects.opsForSet().members(ZeroTrustRedisKeys.userSessions(user))).containsExactly(a);
+        // QF-57: Zero Trust tracks the ids registered without a deadline under a key of its own.
+        assertThat(objects.opsForZSet().range(ZeroTrustRedisKeys.userUntimedSessions(user), 0, -1)).containsExactly(a);
         assertThat(actions.getCurrentAction(user)).isEqualTo(ZeroTrustAction.BLOCK);
         assertThat(actions.getBlockMfaFailCount(user)).isEqualTo(1);
         assertThat(secondSignals.isBlocked(user)).isTrue();

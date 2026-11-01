@@ -124,9 +124,18 @@ public final class PastRecordNotationCheck implements PromptInspectionCheck {
                 continue;
             }
             String[] fields = value.split(PastRecordLineValues.SEPARATOR, -1);
-            if (fields.length != PastRecordLineValues.FIELDS) {
-                tally.mismatch(finding(tally, line).expected(PastRecordLineValues.FIELDS + " fields").actual(fields.length + " fields")
-                        .reason("a past record line has the twelve fields of dictionary 7").build());
+            // BR-C6: a v21 line also has the learned field, and the arguments field when its record has one.
+            boolean fieldsKept = v21
+                    ? fields.length == PastRecordLineValues.FIELDS_V21 || fields.length == PastRecordLineValues.FIELDS_V21_WITH_ARGS
+                    : fields.length == PastRecordLineValues.FIELDS;
+            if (!fieldsKept) {
+                tally.mismatch(finding(tally, line)
+                        .expected(v21 ? PastRecordLineValues.FIELDS_V21 + " or " + PastRecordLineValues.FIELDS_V21_WITH_ARGS
+                                + " fields" : PastRecordLineValues.FIELDS + " fields")
+                        .actual(fields.length + " fields")
+                        .reason(v21 ? "a v21 past record line has the twelve fields of dictionary 7, the learned field"
+                                + " and, for a record with arguments from a tool's output, the arguments field"
+                                : "a past record line has the twelve fields of dictionary 7").build());
                 continue;
             }
             drawn.add(new Drawn(line, fields, (PastRecordLineValues.SAME_TARGET + PastRecordRelevance.YES).equals(fields[PastRecordLineValues.SAME_TARGET_FIELD]),

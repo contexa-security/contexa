@@ -200,6 +200,12 @@
   font-weight: var(--weight-bold);
 }
 
+/* English chips run longer than Korean ones ("Asked the delegator"): they wrap inside their column, so Contexa's column
+   stays in view on a desktop instead of past the region's edge (가이드영상-제작기획안 VP-13). */
+.table:lang(en) td > span {
+  white-space: normal;
+}
+
 .requestCell {
   display: flex;
   min-inline-size: 12rem;

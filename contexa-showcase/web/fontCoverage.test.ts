@@ -15,7 +15,9 @@ function texts(): string {
   const content = readdirSync('src/content')
     .filter((file) => file.endsWith('.ts') && !file.includes('.test.'))
     .map((file) => readFileSync(join('src/content', file), 'utf-8'));
-  return [...dictionaries, ...content].join('');
+  // The standard benchmarks' result bundle is shown as it is (its limits, test names and descriptions).
+  const bundle = readFileSync('public/data/benchmarks/bundle-v1.json', 'utf-8');
+  return [...dictionaries, ...content, bundle].join('');
 }
 
 describe('demo font coverage', () => {

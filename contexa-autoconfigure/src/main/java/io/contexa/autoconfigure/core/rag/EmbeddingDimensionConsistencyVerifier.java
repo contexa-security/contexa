@@ -98,6 +98,17 @@ public class EmbeddingDimensionConsistencyVerifier implements SmartInitializingS
                 expected.provider(), expected.modelId(), configuredDimension, expected.source());
     }
 
+    /**
+     * BR-S2: the embedding model the store's vectors are made with, as {@code provider/model}, resolved as the start-up
+     * check resolves it; null when the provider or the model is not known.
+     */
+    public String activeEmbeddingModel() {
+        EmbeddingDimensionResolver.ResolvedDimension active = resolveActiveDimension();
+        return StringUtils.hasText(active.provider()) && StringUtils.hasText(active.modelId())
+                ? active.provider() + "/" + active.modelId()
+                : null;
+    }
+
     private EmbeddingDimensionResolver.ResolvedDimension resolveActiveDimension() {
         Optional<LlmRuntimeBinding> selectedBinding = selectEmbeddingBinding();
         if (selectedBinding.isPresent()) {

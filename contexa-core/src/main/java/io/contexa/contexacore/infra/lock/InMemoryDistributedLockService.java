@@ -15,22 +15,37 @@
  */
 package io.contexa.contexacore.infra.lock;
 
+import io.contexa.contexacore.autonomous.store.ExpiringKeySpace;
+import io.contexa.contexacore.autonomous.store.ExpiringStateStore;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * In-memory implementation of DistributedLockService for standalone mode.
- * Uses ConcurrentHashMap with synchronized blocks instead of Redis Lua scripts.
- * Sufficient for single-JVM deployments.
+ * Each lock is a key of an {@link ExpiringKeySpace} (Z-16, N-1) that lasts the lock's timeout, changed at once as the
+ * Redis scripts change the lock's key. Z-16 (F4): the sweep releases the locks past their timeout, as Redis expires
+ * their keys. Sufficient for single-JVM deployments.
  */
 @Slf4j
-public class InMemoryDistributedLockService implements DistributedLockService {
+public class InMemoryDistributedLockService implements DistributedLockService, ExpiringStateStore {
 
-    private final ConcurrentHashMap<String, LockEntry> locks = new ConcurrentHashMap<>();
+    private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(30);
+
+    private final Clock clock;
+    private final ExpiringKeySpace<LockEntry> locks;
+
+    public InMemoryDistributedLockService() {
+        this(Clock.systemUTC());
+    }
+
+    /** Measures the locks' timeouts with {@code clock}. */
+    InMemoryDistributedLockService(Clock clock) {
+        this.clock = clock;
+        this.locks = ExpiringKeySpace.<LockEntry>builder(clock).build();
+    }
 
     @Override
     public boolean tryLock(String resourceKey, String owner, Duration timeout) {
@@ -38,22 +53,21 @@ public class InMemoryDistributedLockService implements DistributedLockService {
             throw new IllegalArgumentException("resourceKey and owner must not be null or blank");
         }
 
-        synchronized (locks) {
-            LockEntry existing = locks.get(resourceKey);
+        return locks.atomically(resourceKey, slot -> {
+            LockEntry existing = slot.value();
 
-            if (existing == null || existing.isExpired()) {
-                locks.put(resourceKey, new LockEntry(owner, 1, computeExpiry(timeout)));
+            if (existing == null) {
+                slot.set(new LockEntry(owner, 1), timeoutOf(timeout));
                 return true;
             }
 
-            if (existing.owner.equals(owner)) {
-                existing.count++;
-                existing.expiresAt = computeExpiry(timeout);
+            if (existing.owner().equals(owner)) {
+                slot.set(new LockEntry(owner, existing.count() + 1), timeoutOf(timeout));
                 return true;
             }
 
             return false;
-        }
+        });
     }
 
     @Override
@@ -62,20 +76,19 @@ public class InMemoryDistributedLockService implements DistributedLockService {
             throw new IllegalArgumentException("resourceKey and owner must not be null or blank");
         }
 
-        synchronized (locks) {
-            LockEntry entry = locks.get(resourceKey);
-            if (entry == null) {
+        return locks.atomically(resourceKey, slot -> {
+            LockEntry entry = slot.value();
+            // Z-16 (F4): a lock past its timeout is lost to its owner, as its Redis key is gone.
+            if (entry == null || !entry.owner().equals(owner)) {
                 return false;
             }
-            if (!entry.owner.equals(owner)) {
-                return false;
-            }
-            entry.count--;
-            if (entry.count <= 0) {
-                locks.remove(resourceKey);
+            if (entry.count() <= 1) {
+                slot.delete();
+            } else {
+                slot.keep(new LockEntry(owner, entry.count() - 1));
             }
             return true;
-        }
+        });
     }
 
     @Override
@@ -122,12 +135,14 @@ public class InMemoryDistributedLockService implements DistributedLockService {
         if (resourceKey == null) {
             return null;
         }
-        LockEntry entry = locks.get(resourceKey);
-        if (entry == null || entry.isExpired()) {
-            return null;
-        }
-        long ttl = Duration.between(Instant.now(), entry.expiresAt).getSeconds();
-        return new LockInfo(entry.owner, entry.count, Math.max(0, ttl));
+        return locks.atomically(resourceKey, slot -> {
+            LockEntry entry = slot.value();
+            if (entry == null) {
+                return null;
+            }
+            long ttl = Math.floorDiv(slot.expiresAtMs() - clock.millis(), 1000L);
+            return new LockInfo(entry.owner(), entry.count(), Math.max(0, ttl));
+        });
     }
 
     @Override
@@ -140,7 +155,7 @@ public class InMemoryDistributedLockService implements DistributedLockService {
 
     @Override
     public void clearAllLocks() {
-        locks.clear();
+        locks.removeIf(resourceKey -> true);
     }
 
     @Override
@@ -148,27 +163,24 @@ public class InMemoryDistributedLockService implements DistributedLockService {
         if (resourceKey == null) {
             return false;
         }
-        LockEntry entry = locks.get(resourceKey);
-        return entry != null && !entry.isExpired();
+        return locks.containsKey(resourceKey);
     }
 
-    private Instant computeExpiry(Duration timeout) {
-        return timeout != null ? Instant.now().plus(timeout) : Instant.now().plusSeconds(30);
+    @Override
+    public void removeExpiredEntries() {
+        locks.removeExpired();
     }
 
-    private static class LockEntry {
-        final String owner;
-        int count;
-        Instant expiresAt;
+    /** Whether the lock still takes memory, past its timeout or not. */
+    boolean holdsLockFor(String resourceKey) {
+        return locks.holds(resourceKey);
+    }
 
-        LockEntry(String owner, int count, Instant expiresAt) {
-            this.owner = owner;
-            this.count = count;
-            this.expiresAt = expiresAt;
-        }
+    private static Duration timeoutOf(Duration timeout) {
+        return timeout != null ? timeout : DEFAULT_TIMEOUT;
+    }
 
-        boolean isExpired() {
-            return Instant.now().isAfter(expiresAt);
-        }
+    /** The owner of a lock and how many times it holds it. */
+    private record LockEntry(String owner, int count) {
     }
 }

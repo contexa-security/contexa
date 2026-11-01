@@ -161,6 +161,11 @@ public final class SecurityDecisionOutputContractV4 {
             code(Group.DATA_AND_SCOPE, "TEMPORARY_ELEVATION",
                     "a temporary elevation is active",
                     List.of("DECISION_FACTS.TemporaryElevation")),
+            // v21.18 (CQ-1): the host states where a value of the call first appeared; what that means is the model's.
+            code(Group.DATA_AND_SCOPE, "VALUE_FROM_UNTRUSTED_OUTPUT",
+                    "a value of this request's call arguments first appeared in the output of a tool, and neither the"
+                            + " user's request nor the company's records name it",
+                    List.of("DECISION_FACTS.ArgumentOrigin")),
             // v21.9 (A2-9): what the agent did so far in its session is part of its delegated run and its session.
             code(Group.DELEGATION, "DELEGATION_SCOPE_DRIFT",
                     "the comparison of this request with the delegation says drift: it leaves the allowed operations,"

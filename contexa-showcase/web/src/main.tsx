@@ -1,8 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+// The old tokens stay while old parts may still be reused (DEC-10); the page-wide rules are the new screens' own.
 import './styles/tokens.css';
-import './styles/base.css';
+import './ux/styles/tokens.css';
+import './ux/styles/base.css';
 import { dictionaryComplete, i18nReady } from './i18n';
 import App from './App';
 import { preloadFirstScreen } from './screens';

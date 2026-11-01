@@ -1,0 +1,226 @@
+/*
+ * Design tokens of the UX-R1 screens (docs/showcase/데모-화면-전면개선-기획안.md 5~6절). Only the new screens under
+ * src/ux use them; the old screens keep src/styles/tokens.css until their files are removed. Every size, spacing, colour,
+ * radius, shadow and motion value of a new screen comes from here; stylelint rejects literal values elsewhere.
+ *
+ * Type: exactly nine sizes (32 28 24 18 16 15 14 13 12) and four weights. Spacing: a 4 px grid. Colour: dark by default,
+ * light under html[data-theme='light']; gold only for the logo, the main action, the current place and Contexa itself,
+ * blue for links, selection and the AI's own steps.
+ */
+:root {
+  --ux-font:
+    'Pretendard Demo', 'Pretendard Variable', pretendard, -apple-system, blinkmacsystemfont, 'Segoe UI',
+    roboto, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+  --ux-mono:
+    'JetBrains Mono', 'Pretendard Demo', 'Pretendard Variable', pretendard, 'Malgun Gothic', ui-monospace,
+    sfmono-regular, menlo, consolas, monospace;
+
+  /* The nine sizes, by role (기획안 6.1) */
+  --ux-text-12: 0.75rem;
+  --ux-text-13: 0.8125rem;
+  --ux-text-14: 0.875rem;
+  --ux-text-15: 0.9375rem;
+  --ux-text-16: 1rem;
+  --ux-text-18: 1.125rem;
+  --ux-text-24: 1.5rem;
+  --ux-text-28: 1.75rem;
+  --ux-text-32: 2rem;
+  --ux-weight-regular: 400;
+  --ux-weight-medium: 500;
+  --ux-weight-semibold: 600;
+  --ux-weight-bold: 700;
+  --ux-leading-none: 1;
+  --ux-leading-tight: 1.3;
+  --ux-leading-body: 1.6;
+  --ux-tracking-tight: -0.01em;
+  --ux-tracking-group: 0.04em;
+  --ux-tracking-normal: normal;
+
+  /* Spacing: the 4 px grid */
+  --ux-space-0: 0;
+  --ux-space-1: 0.25rem;
+  --ux-space-2: 0.5rem;
+  --ux-space-3: 0.75rem;
+  --ux-space-4: 1rem;
+  --ux-space-5: 1.25rem;
+  --ux-space-6: 1.5rem;
+  --ux-space-7: 1.75rem;
+  --ux-space-8: 2rem;
+  --ux-space-10: 2.5rem;
+  --ux-space-12: 3rem;
+  --ux-space-16: 4rem;
+  --ux-space-24: 6rem;
+  --ux-card-head-y: 1.125rem;
+  --ux-kicker-gap: 0.375rem;
+  --ux-hairline: 1px;
+  --ux-hairline-neg: -1px;
+  --ux-stripe: 3px;
+  --ux-stripe-brand: inset var(--ux-stripe) 0 0 var(--ux-brand);
+  --ux-stripe-link: inset var(--ux-stripe) 0 0 var(--ux-link);
+  --ux-ring-select: 0 0 0 3px var(--ux-link-soft);
+  --ux-hairline-end: var(--ux-hairline) 0 0 var(--ux-line);
+
+  /* Element sizes (기획안 5.2) */
+  --ux-side-width: 15.5rem;
+  --ux-rail-width: 4.5rem;
+  --ux-top-height: 3.5rem;
+  --ux-content-max: 82.5rem;
+  --ux-focus-max: 70rem;
+  --ux-measure: 47.5rem;
+  --ux-control-sm: 2rem;
+  --ux-control: 2.25rem;
+  --ux-control-lg: 2.75rem;
+  --ux-button-pad-sm: 0.625rem;
+  --ux-button-pad: 0.875rem;
+  --ux-button-pad-lg: 1.125rem;
+  --ux-field: 2.5rem;
+  --ux-filter: 2.125rem;
+  --ux-tab: 2.75rem;
+  --ux-badge: 1.375rem;
+  --ux-code: 1.5rem;
+  --ux-row: 3rem;
+  --ux-row-head: 2.5rem;
+  --ux-icon-12: 0.75rem;
+  --ux-icon-14: 0.875rem;
+  --ux-icon-16: 1rem;
+  --ux-icon-18: 1.125rem;
+  --ux-icon-20: 1.25rem;
+  --ux-icon-24: 1.5rem;
+  --ux-chip: 2.5rem;
+  --ux-chip-lg: 3rem;
+  --ux-step: 1.75rem;
+  --ux-dot: 0.5rem;
+  --ux-swatch: 0.625rem;
+  --ux-bar: 0.375rem;
+  --ux-bar-thick: 0.75rem;
+  --ux-step-line: 3.5rem;
+  --ux-search: 16.25rem;
+  --ux-pill: 1.875rem;
+  --ux-mark: 1.75rem;
+  --ux-thumb: 1.125rem;
+  --ux-thumb-offset: calc((var(--ux-bar) - var(--ux-thumb)) / 2);
+  --ux-switch-pad: 2px;
+  --ux-radio-on: 6px;
+  --ux-gutter-phone-neg: -1rem;
+  --ux-switch-width: 2.25rem;
+  --ux-switch-height: 1.25rem;
+  --ux-kv-label: 8.25rem;
+  --ux-panel: 21.25rem;
+  --ux-panel-max: 25rem;
+  --ux-modal-sm: 35rem;
+  --ux-modal: 45rem;
+  --ux-ring: 2px;
+  --ux-ring-offset: 2px;
+  --ux-step-border: 1.5px;
+
+  /* Shape */
+  --ux-radius-0: 0;
+  --ux-radius-xs: 4px;
+  --ux-radius-sm: 6px;
+  --ux-radius-md: 8px;
+  --ux-radius-lg: 12px;
+  --ux-radius-pill: 999px;
+  --ux-radius-round: 50%;
+
+  /* Motion */
+  --ux-duration-fast: 150ms;
+  --ux-duration: 200ms;
+  --ux-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Layers */
+  --ux-layer-raised: 1;
+  --ux-layer-top: 20;
+  --ux-layer-drawer: 100;
+  --ux-layer-modal: 200;
+
+  /* Dark (default) */
+  --ux-bg: #0a0f1c;
+  --ux-bg-side: #0c1322;
+  --ux-surface: #101828;
+  --ux-surface-2: #151f33;
+  --ux-surface-3: #1a263e;
+  --ux-line: #1e2a42;
+  --ux-line-strong: #2a3a5a;
+  --ux-text: #e9edf5;
+  --ux-text-2: #b3bdd0;
+  --ux-text-3: #8592ab;
+  --ux-brand: #e6b84f;
+  --ux-brand-text: #e6b84f;
+  --ux-brand-ink: #1a1300;
+  --ux-brand-soft: rgb(230 184 79 / 12%);
+  --ux-brand-line: rgb(230 184 79 / 42%);
+  --ux-link: #7fa6ff;
+  --ux-link-soft: rgb(127 166 255 / 10%);
+  --ux-focus: #8db0ff;
+  --ux-allow: #2bc48a;
+  --ux-allow-bg: rgb(43 196 138 / 14%);
+  --ux-stepup: #f2a93b;
+  --ux-stepup-bg: rgb(242 169 59 / 15%);
+  --ux-block: #f25f6b;
+  --ux-block-bg: rgb(242 95 107 / 15%);
+  --ux-hold: #a98bff;
+  --ux-hold-bg: rgb(169 139 255 / 16%);
+  --ux-none: #94a0b8;
+  --ux-none-bg: rgb(148 160 184 / 16%);
+  --ux-control-waf: #4f5d78;
+  --ux-control-iam: #5e6e8c;
+  --ux-control-rule: #7181a0;
+  --ux-control-approval: #8a98b5;
+  --ux-control-contexa: #e6b84f;
+  --ux-code-bg: #070b15;
+  --ux-code-text: #c9d4ea;
+  --ux-code-keyword: #e6b84f;
+  --ux-code-annotation: #8db0ff;
+  --ux-code-string: #7bd4a8;
+  --ux-code-comment: #6b7893;
+  --ux-backdrop: rgb(4 8 16 / 60%);
+  --ux-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+  --ux-bar-surface: rgb(10 15 28 / 92%);
+}
+
+html[data-theme='light'] {
+  --ux-bg: #f5f7fb;
+  --ux-bg-side: #fff;
+  --ux-surface: #fff;
+  --ux-surface-2: #f7f9fc;
+  --ux-surface-3: #eef2f8;
+  --ux-line: #e3e8f0;
+  --ux-line-strong: #cbd3e1;
+  --ux-text: #0e1626;
+  --ux-text-2: #3e4a60;
+  --ux-text-3: #5f6b80;
+  --ux-brand: #b88415;
+
+  /* Gold words on light: #b88415 is 2.98:1 on its soft fill, this is 4.6:1 or more on every light surface. */
+  --ux-brand-text: #8a6200;
+  --ux-brand-ink: #1a1300;
+  --ux-brand-soft: rgb(184 132 21 / 10%);
+  --ux-brand-line: rgb(184 132 21 / 40%);
+  --ux-link: #2f5bd8;
+  --ux-link-soft: rgb(47 91 216 / 8%);
+  --ux-focus: #2f5bd8;
+  --ux-allow: #087347;
+  --ux-allow-bg: rgb(8 115 71 / 10%);
+  --ux-stepup: #945600;
+  --ux-stepup-bg: rgb(148 86 0 / 10%);
+  --ux-block: #c9303e;
+  --ux-block-bg: rgb(201 48 62 / 9%);
+  --ux-hold: #6b4fd8;
+  --ux-hold-bg: rgb(107 79 216 / 10%);
+  --ux-none: #5f6b80;
+  --ux-none-bg: rgb(95 107 128 / 10%);
+  --ux-control-waf: #a7b1c4;
+  --ux-control-iam: #8e9ab2;
+  --ux-control-rule: #76839e;
+  --ux-control-approval: #5e6b86;
+  --ux-control-contexa: #b88415;
+  --ux-shadow: 0 8px 24px rgb(15 23 42 / 10%);
+  --ux-bar-surface: rgb(245 247 251 / 92%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ux-duration-fast: 0ms;
+    --ux-duration: 0ms;
+  }
+}

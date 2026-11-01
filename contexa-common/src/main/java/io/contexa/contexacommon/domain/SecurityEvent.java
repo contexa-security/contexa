@@ -26,6 +26,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Data
@@ -126,6 +127,35 @@ public class SecurityEvent {
 
     public void addMetadata(String key, String value) {
         addMetadata(key, (Object) value);
+    }
+
+    /**
+     * A copy of the event with a metadata map of its own, for work handed to another thread (QF-55): what that work
+     * writes on the copy never reaches this event, and what is written on this event afterwards never reaches the copy.
+     * The entries keep their order and a synchronized map is read under its lock; the values themselves are shared.
+     */
+    public SecurityEvent detachedCopy() {
+        Map<String, Object> current = metadata;
+        Map<String, Object> copied = null;
+        if (current != null) {
+            synchronized (current) {
+                copied = new LinkedHashMap<>(current);
+            }
+        }
+        return SecurityEvent.builder()
+                .eventId(eventId)
+                .source(source)
+                .timestamp(timestamp)
+                .severity(severity)
+                .description(description)
+                .sourceIp(sourceIp)
+                .userId(userId)
+                .userName(userName)
+                .sessionId(sessionId)
+                .userAgent(userAgent)
+                .metadata(copied)
+                .blocked(blocked)
+                .build();
     }
 
     public boolean isHighRiskByAction(ZeroTrustAction action) {

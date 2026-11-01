@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>운영 지표</title>
+<link rel="stylesheet" href="design.css">
+<style>
+  .dist { display: flex; height: 12px; border-radius: 6px; overflow: hidden; gap: 2px; margin: 4px 0 20px; }
+  .dist i { display: block; height: 100%; }
+  .rows3 { display: grid; grid-template-columns: 1fr auto auto; row-gap: 12px; column-gap: 16px; font-size: 14px; align-items: center; }
+  .rows3 .lab { display: flex; align-items: center; gap: 10px; color: var(--text-2); }
+  .rows3 .lab i { width: 10px; height: 10px; border-radius: 4px; display: inline-block; }
+  .rows3 .v { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
+  .rows3 .p { font-variant-numeric: tabular-nums; color: var(--text-3); text-align: right; width: 56px; }
+  .lat { position: relative; height: 56px; margin-top: 8px; }
+  .lat .track { position: absolute; top: 24px; left: 0; right: 0; height: 8px; border-radius: 4px; background: var(--surface-3); }
+  .lat .range { position: absolute; top: 24px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--link), var(--hold)); }
+  .lat .mk { position: absolute; top: 0; transform: translateX(-50%); text-align: center; font-size: 13px; color: var(--text-2); white-space: nowrap; }
+  .lat .mk::after { content: ''; display: block; width: 2px; height: 22px; margin: 4px auto 0; background: var(--text); }
+  .lat-axis { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body data-active="metrics" data-lang="ko" data-crumbs="모니터링|운영 지표">
+<main class="content"><div class="wrap">
+
+  <div class="ph">
+    <div class="ph-main"><h1 class="ph-title">운영 지표</h1><p class="ph-desc">이 데모에서 실제 모델로 내린 판정의 운영 기록입니다. 효과(미탐 · 오탐)는 검증 메뉴의 측정 결과에서 봅니다.</p></div>
+    <div class="ph-actions"><span class="pill"><i data-icon="calendar" style="width:14px;height:14px"></i>2026-10-05 ~ 10-31</span></div>
+  </div>
+
+  <div class="tabs"><span class="tab on">개요</span><span class="tab">판정</span><span class="tab">판정 시간</span><span class="tab">실행</span><span class="tab">반복 일치</span></div>
+
+  <div class="grid g-12" style="margin-bottom:16px">
+    <div class="card kpi span-3"><span class="kpi-icon"><i data-icon="gavel"></i></span><span class="kpi-label">판정</span><span class="kpi-value num">13,733<small>건</small></span><span class="kpi-foot">실행 6,872회의 단계별 판정</span></div>
+    <div class="card kpi span-3"><span class="kpi-icon"><i data-icon="timer"></i></span><span class="kpi-label">판정 시간 중앙값</span><span class="kpi-value num">6.0<small>초</small></span><span class="kpi-foot">p95 16.3초</span></div>
+    <div class="card kpi span-3"><span class="kpi-icon"><i data-icon="circle-play"></i></span><span class="kpi-label">완료 실행</span><span class="kpi-value num">6,872<small>회</small></span><span class="kpi-foot">기술적 실패로 중단 87회 · 1.3%</span></div>
+    <div class="card kpi span-3"><span class="kpi-icon"><i data-icon="users"></i></span><span class="kpi-label">방문자 실행</span><span class="kpi-value num">2,046<small>회</small></span><span class="kpi-foot">나머지 4,826회는 운영자 측정 · 점검</span></div>
+  </div>
+
+  <div class="grid g-12">
+    <section class="card span-6">
+      <div class="card-head"><div><h2 class="card-title">판정 분포</h2><p class="card-sub">Contexa의 최종 판정 13,733건</p></div></div>
+      <div class="card-body">
+        <div class="dist"><i style="width:72.3%;background:var(--allow)"></i><i style="width:15.6%;background:var(--stepup)"></i><i style="width:8.3%;background:var(--hold)"></i><i style="width:3.8%;background:var(--block)"></i></div>
+        <div class="rows3">
+          <span class="lab"><i style="background:var(--allow)"></i>허용</span><span class="v">9,932</span><span class="p">72.3%</span>
+          <span class="lab"><i style="background:var(--stepup)"></i>추가 인증</span><span class="v">2,148</span><span class="p">15.6%</span>
+          <span class="lab"><i style="background:var(--hold)"></i>검토 보류</span><span class="v">1,136</span><span class="p">8.3%</span>
+          <span class="lab"><i style="background:var(--block)"></i>차단</span><span class="v">517</span><span class="p">3.8%</span>
+        </div>
+      </div>
+    </section>
+    <section class="card span-6">
+      <div class="card-head"><div><h2 class="card-title">판정 시간</h2><p class="card-sub">요청 수신부터 판정 기록까지 · 판정 13,733건</p></div></div>
+      <div class="card-body">
+        <div class="lat"><span class="track"></span><span class="range" style="left:29.8%;width:51.8%"></span><span class="mk" style="left:29.8%">p50 6.0초</span><span class="mk" style="left:81.6%">p95 16.3초</span></div>
+        <div class="lat-axis"><span>0초</span><span>5초</span><span>10초</span><span>15초</span><span>20초</span></div>
+        <div class="note" style="margin-top:20px"><i data-icon="info"></i><span>판정은 응답 전 적용(동기)과 다음 요청부터 적용(비동기) 두 방식이 있으며, 비동기 판정은 사용자 응답을 지연시키지 않습니다.</span></div>
+      </div>
+    </section>
+    <section class="card span-6">
+      <div class="card-head"><div><h2 class="card-title">판정 수에 넣지 않은 요청</h2><p class="card-sub">판정으로 세지 않고 따로 기록</p></div></div>
+      <table class="table">
+        <tbody>
+          <tr><td class="strong">직전 판정 재사용</td><td>이전 판정이 유효해 다시 분석하지 않은 요청</td><td class="r num">6,844</td></tr>
+          <tr><td class="strong">기술적 실패</td><td>응답 계약 실패 · 기술적 대체 · 분석 미완료</td><td class="r num">572</td></tr>
+          <tr><td class="strong">응답 전 보류</td><td>검토 보류 판정으로 응답 전에 보류(HTTP 423)</td><td class="r num">613</td></tr>
+        </tbody>
+      </table>
+    </section>
+    <section class="card span-6">
+      <div class="card-head"><div><h2 class="card-title">운영 설정</h2><p class="card-sub">가장 최근 실행 기준</p></div></div>
+      <div class="card-body"><dl class="kv"><dt>엔진 모드</dt><dd><span class="badge b-line">ENFORCE · 판정 적용</span></dd><dt>실행 사양</dt><dd class="num">204종 (코드 · 모델 · 모드 조합)</dd><dt>반복 판정 일치</dt><dd class="num">3 / 3 (공개 녹화 기록)</dd><dt>시간대</dt><dd>UTC</dd></dl></div>
+    </section>
+  </div>
+
+</div></main>
+<script src="shell.js"></script>
+</body>
+</html>

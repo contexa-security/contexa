@@ -60,6 +60,8 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.Ordered;
 import org.springframework.data.redis.core.RedisTemplate;
 
+import java.time.Clock;
+
 @AutoConfiguration
 @AutoConfigureAfter(name = {
         "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
@@ -179,15 +181,20 @@ public class IamSecurityCoreAutoConfiguration {
         return new InMemorySessionIdResolver(securitySessionProperties);
     }
 
+    /**
+     * Z-16 (2-a, 2-c): as the Redis service, invalidations last {@code contexa.security.zerotrust.cache.ttl-hours}
+     * and a forced logout also reaches the ids of the context store's list of the user's sessions.
+     */
     @Bean
     @ConditionalOnMissingBean(ZeroTrustSecurityService.class)
     public InMemoryZeroTrustSecurityService inMemoryZeroTrustSecurityService(
             ThreatScoreUtil threatScoreUtil,
             SecurityZeroTrustProperties securityZeroTrustProperties,
             ZeroTrustActionRepository actionRepository,
-            @Nullable BlockingSignalBroadcaster blockingSignalBroadcaster) {
-        return new InMemoryZeroTrustSecurityService(
-                threatScoreUtil, securityZeroTrustProperties, actionRepository, blockingSignalBroadcaster);
+            @Nullable BlockingSignalBroadcaster blockingSignalBroadcaster,
+            @Nullable SecurityContextDataStore securityContextDataStore) {
+        return new InMemoryZeroTrustSecurityService(threatScoreUtil, securityZeroTrustProperties, actionRepository,
+                blockingSignalBroadcaster, securityContextDataStore, Clock.systemUTC());
     }
 }
 

@@ -22,8 +22,11 @@ import io.contexa.contexacore.autonomous.context.support.VocabularyVersion;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 /**
@@ -47,7 +50,12 @@ public class PgVectorVocabularyReindexer {
         this.table = identifier(schema) + "." + identifier(table);
     }
 
-    /** Rewrites the documents of another vocabulary batch by batch; the number rewritten. */
+    /**
+     * Rewrites the documents of another vocabulary batch by batch; the number rewritten. QF-26 (R11): only the keys the
+     * migration moved or removed are written, merged into the row as it is when the update runs, so a JSONB merge that
+     * reached the row after the batch was read (a quarantine, a release, a verification outcome) stays. A row that
+     * meanwhile came to today's vocabulary is left as it is.
+     */
     public int reindex(int batchSize) {
         if (jdbcTemplate == null || batchSize <= 0) {
             return 0;
@@ -56,7 +64,9 @@ public class PgVectorVocabularyReindexer {
                 + " where coalesce(metadata::jsonb ->> 'vocabularyVersion', '') <> ?"
                 + " and metadata::jsonb ->> 'documentType' in (select jsonb_array_elements_text(cast(? as jsonb)))"
                 + " order by id::text limit ?";
-        String update = "update " + table + " set metadata = cast(? as json) where id::text = ?";
+        String update = "update " + table + " set metadata = ((metadata::jsonb"
+                + " - array(select jsonb_array_elements_text(cast(? as jsonb)))) || cast(? as jsonb))::json"
+                + " where id::text = ? and coalesce(metadata::jsonb ->> 'vocabularyVersion', '') <> ?";
         int rewritten = 0;
         while (true) {
             List<Map.Entry<String, String>> batch = jdbcTemplate.query(select,
@@ -66,11 +76,34 @@ public class PgVectorVocabularyReindexer {
                 return rewritten;
             }
             for (Map.Entry<String, String> document : batch) {
-                Map<String, Object> migrated = VocabularyMigration.pastRecordMetadata(read(document.getValue()));
-                jdbcTemplate.update(update, json(migrated), document.getKey());
-                rewritten++;
+                Map<String, Object> stored = read(document.getValue());
+                Map<String, Object> migrated = VocabularyMigration.pastRecordMetadata(stored);
+                rewritten += jdbcTemplate.update(update, json(removedKeys(stored, migrated)),
+                        json(changedEntries(stored, migrated)), document.getKey(), VocabularyVersion.CURRENT);
             }
         }
+    }
+
+    /** The keys of the stored metadata the migration removed. */
+    private static List<String> removedKeys(Map<String, Object> stored, Map<String, Object> migrated) {
+        List<String> removed = new ArrayList<>();
+        for (String key : stored.keySet()) {
+            if (!migrated.containsKey(key)) {
+                removed.add(key);
+            }
+        }
+        return removed;
+    }
+
+    /** The entries the migration added or changed; the version stamp is always among them. */
+    private static Map<String, Object> changedEntries(Map<String, Object> stored, Map<String, Object> migrated) {
+        Map<String, Object> changed = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : migrated.entrySet()) {
+            if (!stored.containsKey(entry.getKey()) || !Objects.equals(stored.get(entry.getKey()), entry.getValue())) {
+                changed.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return changed;
     }
 
     private Map<String, Object> read(String metadata) {

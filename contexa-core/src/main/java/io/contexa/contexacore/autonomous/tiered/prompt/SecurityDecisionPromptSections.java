@@ -35,6 +35,7 @@ import io.contexa.contexacore.autonomous.context.policy.ContextEvidenceGuidance;
 import io.contexa.contexacore.autonomous.context.prompt.PromptBlock;
 import io.contexa.contexacore.autonomous.context.prompt.PromptBudgetTrim;
 import io.contexa.contexacore.autonomous.context.prompt.PromptDictionaryEntry;
+import io.contexa.contexacore.autonomous.context.prompt.PromptDictionaryLine;
 import io.contexa.contexacore.autonomous.context.prompt.PromptEntryValues;
 import io.contexa.contexacore.autonomous.context.prompt.PromptSlot;
 import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
@@ -53,7 +54,7 @@ import io.contexa.contexacore.autonomous.baseline.BaselineView;
 import io.contexa.contexacore.autonomous.context.support.ActionFamily;
 import io.contexa.contexacore.autonomous.context.support.ActionFamilyResolver;
 import io.contexa.contexacore.autonomous.context.support.PastRecordRelevance;
-import io.contexa.contexacore.autonomous.context.support.PastRecordRanking;
+import io.contexa.contexacore.autonomous.context.support.PastRecordPostProcessor;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
@@ -104,6 +105,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiPredicate;
 import java.util.Locale;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
@@ -223,6 +225,12 @@ public class SecurityDecisionPromptSections {
     static final String EVENT_BUNDLE_SOURCE = "promptBundleSelection.source";
     private static final String SECOND_PASS_LAYOUT = "v20-second-pass";
     private static final String PROMPT_CACHE_KEY_PREFIX = "contexa-";
+    /** The event metadata that says whether past records reached the user prompt the model gets (BR-C8, QF-16). */
+    static final String RAG_PROJECTED_TO_FINAL_PROMPT = "ragProjectedToFinalPrompt";
+    /** A past record line of a dictionary prompt: a PAST RECORDS line, or a SECOND PASS line of a new record. */
+    private static final Pattern DICTIONARY_PAST_RECORD_LABEL = Pattern.compile("(New)?PastRecord\\d+");
+    /** A retrieved document line of the v19 RAG EVIDENCE CONTEXT section. */
+    private static final Pattern V19_RAG_DOCUMENT_LABEL = Pattern.compile("RagDocument\\d+");
 
     public SecurityDecisionPromptSections(
             SecurityEventEnricher eventEnricher,
@@ -476,6 +484,9 @@ public class SecurityDecisionPromptSections {
         long runtimeGovernanceApplyMicros = elapsedMicros(runtimeGovernanceApplyStartedNanos);
         long renderTimeMs = elapsedMillis(renderStartedNanos);
         long renderTotalMicros = elapsedMicros(renderStartedNanos);
+        // BR-C8 (QF-16): whether past records reached the prompt is read from the prompt the model gets, after the list
+        // cap, the budget, the runtime rules and a second pass's first prompt; the retrieval only knew they were allowed.
+        markPastRecordProjection(event, drawsPastRecords(userText, dictionary));
         long auditStartedNanos = System.nanoTime();
         // W4-8 (plan 9): the v19 label contract is read on a v19 render only.
         SecurityPromptContractAudit promptContractAudit = dictionary
@@ -906,8 +917,10 @@ public class SecurityDecisionPromptSections {
         if (relatedDocuments.isEmpty()) {
             return List.of();
         }
-        return PastRecordLines.items(PastRecordRanking.ranked(relatedDocuments), requestSubject(context.getEvent()),
-                requestWallClock(context), targetMarker);
+        // BR-S4: the records reach the lines through the past record post-processing step (the same ranking).
+        return PastRecordLines.items(
+                PastRecordPostProcessor.ranked().process(PastRecordPostProcessor.PAST_RECORDS, relatedDocuments),
+                requestSubject(context.getEvent()), requestWallClock(context), targetMarker);
     }
 
     /**
@@ -925,6 +938,37 @@ public class SecurityDecisionPromptSections {
         List<PromptListItem> items = entry.listOrder().sort(pastRecordItems(context));
         return items.subList(0, PromptDictionaryRenderer.shownItems(entry, items.size())).stream()
                 .map(PromptListItem::id).filter(StringUtils::hasText).toList();
+    }
+
+    /**
+     * BR-C8 (QF-16): whether the user prompt draws a past record: a PAST RECORDS or new SECOND PASS record line of a
+     * dictionary prompt, or a retrieved document line of a v19 prompt.
+     */
+    static boolean drawsPastRecords(String userText, boolean dictionary) {
+        if (!StringUtils.hasText(userText)) {
+            return false;
+        }
+        Pattern label = dictionary ? DICTIONARY_PAST_RECORD_LABEL : V19_RAG_DOCUMENT_LABEL;
+        for (String line : userText.split("\n")) {
+            PromptDictionaryLine drawn = PromptDictionaryLine.parse(line);
+            if (drawn != null && label.matcher(drawn.label()).matches()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Writes on the event whether its past records reached the prompt the model gets (BR-C8, QF-16). */
+    private static void markPastRecordProjection(SecurityEvent event, boolean projected) {
+        if (event == null) {
+            return;
+        }
+        Map<String, Object> metadata = event.getMetadata();
+        if (metadata == null) {
+            metadata = new LinkedHashMap<>();
+            event.setMetadata(metadata);
+        }
+        metadata.put(RAG_PROJECTED_TO_FINAL_PROMPT, projected);
     }
 
     /** The user's recent decisions that did not allow as PastDeniedDecision lines (W5-4), the latest first. */

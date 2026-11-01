@@ -18,6 +18,9 @@ package io.contexa.contexacore.security.session;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.mock.web.MockHttpServletRequest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -64,5 +67,18 @@ abstract class AbstractSessionIdResolverContractTest {
         assertThat(resolver.isValid(sid))
                 .as("active session id must be accepted in both modes")
                 .isTrue();
+    }
+
+    /** Z-16 (4.3, F8): both modes read the session id from the same request attributes. */
+    @ParameterizedTest
+    @ValueSource(strings = {"org.springframework.session.SessionRepository.CURRENT_SESSION_ID", "CONTEXA_SESSION_ID",
+            "sessionId"})
+    @DisplayName("a session id in any of the session attributes resolves in both modes")
+    void resolve_sessionAttribute_returnsTheId(String attribute) {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setAttribute(attribute, "8f14e45f-ceea-467a-9575-6c0d1c2b3a4e");
+
+        assertThat(resolver.resolve(request)).isEqualTo("8f14e45f-ceea-467a-9575-6c0d1c2b3a4e");
+        assertThat(resolver.getSource(request)).isEqualTo(SessionIdResolver.SessionSource.ATTRIBUTE);
     }
 }

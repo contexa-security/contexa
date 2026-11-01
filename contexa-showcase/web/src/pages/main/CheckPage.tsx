@@ -125,7 +125,12 @@ export default function CheckPage() {
   const { labCase, employee } = found;
   const trip = labCase.facts.find((fact) => fact.kind === 'TRAVEL') ?? null;
   const city = trip?.city ? t(`main.city.${trip.city}`, { defaultValue: trip.city }) : '-';
-  const clock = companyClock(t, before.data?.comparison?.companyTime) ?? '…';
+  // The last comparable run's company time; before any run of the current template (a fresh database, or templates
+  // learned again) the case's own time slot clock, which every run of the case is sent at.
+  const slotClock =
+    options.data?.timeSlots.find((slot) => slot.slot === labCase.conditions.timeSlot)?.representativeTime ??
+    null;
+  const clock = companyClock(t, before.data?.comparison?.companyTime) ?? slotClock ?? '…';
   const contexa = line?.business['D'];
   const title = !finished
     ? t('main.4-4.title')

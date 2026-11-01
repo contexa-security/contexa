@@ -442,7 +442,9 @@ describe('3-2 keeps the button of the whole prompt with the prompt (구현계획
     await screen.findByText(i18n.t('main.3-2.legend'));
     const fold = container.querySelector('details[data-fold="prompt-lines"]') as HTMLDetailsElement;
     expect(within(fold).getByRole('button', { name: i18n.t('main.3-2.whole') })).toBeInTheDocument();
-    expect(container.querySelector('[data-zone="actions"]')?.textContent).not.toContain(i18n.t('main.3-2.whole'));
+    expect(container.querySelector('[data-zone="actions"]')?.textContent).not.toContain(
+      i18n.t('main.3-2.whole'),
+    );
   });
 });
 
@@ -462,5 +464,28 @@ describe('4-4, the real user checked on the way (L-36)', () => {
     expect(await screen.findByText(i18n.t('main.4-4.record', { n: 2 }))).toBeInTheDocument();
     expect(screen.getByText(i18n.t('main.4-4.read', { project: 'HX-310' }))).toBeInTheDocument();
     expect(screen.getByText(i18n.t('main.4-4.readAnother', { project: 'HX-310' }))).toBeInTheDocument();
+  });
+
+  // 가이드영상-제작기획안 VP-13 follow-up (2026-10-31): with no run of the current template yet (a fresh database, or
+  // right after the templates were learned again) the comparison is null and the intro said "… company time".
+  it('states the case time slot clock in the intro when no run can be compared yet', async () => {
+    const bodies: Record<string, unknown> = {
+      ...BODIES,
+      '/api/lab/options': {
+        ...(BODIES['/api/lab/options'] as object),
+        timeSlots: [{ slot: 'DAWN', representativeTime: '03:17' }],
+      },
+      '/api/live/before/S14?step=1': { comparison: null },
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const body = bodies[url];
+        return new Response(body === undefined ? null : JSON.stringify(body), { status: body ? 200 : 404 });
+      }),
+    );
+    open(<CheckPage />, '/normal/check');
+    expect(await screen.findByText(/03:17에 일합니다/)).toBeInTheDocument();
+    expect(screen.queryByText(/…에 일합니다/)).not.toBeInTheDocument();
   });
 });

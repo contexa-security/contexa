@@ -1,0 +1,110 @@
+/* Shared parts of the threat simulations (기획안 7.0). */
+
+/* The five controls' rows */
+.lanes {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--ux-text-14);
+}
+
+.lane th,
+.lane td {
+  block-size: var(--ux-field);
+  padding: var(--ux-space-2);
+  border-block-end: var(--ux-hairline) solid var(--ux-line);
+  font-weight: var(--ux-weight-regular);
+  text-align: start;
+}
+
+.lane th:first-child {
+  padding-inline-start: var(--ux-space-5);
+}
+
+.lane td:last-child {
+  padding-inline-end: var(--ux-space-5);
+}
+
+.lane:last-child th,
+.lane:last-child td {
+  border-block-end: 0;
+}
+
+.laneName {
+  display: flex;
+  align-items: center;
+  gap: var(--ux-space-3);
+  color: var(--ux-text-2);
+}
+
+.lane[data-contexa] .laneName {
+  color: var(--ux-text);
+  font-weight: var(--ux-weight-semibold);
+}
+
+.laneSub {
+  display: block;
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-12);
+  font-weight: var(--ux-weight-regular);
+}
+
+.swatch {
+  flex: none;
+  inline-size: var(--ux-swatch);
+  block-size: var(--ux-swatch);
+  border-radius: var(--ux-radius-xs);
+}
+
+.swatch[data-tone='waf'] {
+  background-color: var(--ux-control-waf);
+}
+
+.swatch[data-tone='iam'] {
+  background-color: var(--ux-control-iam);
+}
+
+.swatch[data-tone='rule'] {
+  background-color: var(--ux-control-rule);
+}
+
+.swatch[data-tone='approval'] {
+  background-color: var(--ux-control-approval);
+}
+
+.swatch[data-tone='brand'] {
+  background-color: var(--ux-control-contexa);
+}
+
+.laneVerdict {
+  white-space: nowrap;
+}
+
+.laneWait {
+  color: var(--ux-text-3);
+}
+
+.laneItems {
+  color: var(--ux-text);
+}
+
+.laneTime {
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-13);
+}
+
+.lane .laneItems,
+.lane .laneTime {
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  white-space: nowrap;
+}
+
+@media (width < 640px) {
+  .lane th:first-child {
+    padding-inline-start: var(--ux-space-4);
+  }
+
+  .lane td:last-child {
+    padding-inline-end: var(--ux-space-4);
+  }
+}

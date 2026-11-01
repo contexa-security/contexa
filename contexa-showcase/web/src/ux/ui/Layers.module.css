@@ -1,0 +1,189 @@
+/* Layers carry the only shadows of the design (기획안 6.3). */
+.modal,
+.drawer {
+  padding: var(--ux-space-0);
+  border: var(--ux-hairline) solid var(--ux-line-strong);
+  background-color: var(--ux-surface);
+  color: var(--ux-text);
+  box-shadow: var(--ux-shadow);
+}
+
+.modal::backdrop,
+.drawer::backdrop {
+  background-color: var(--ux-backdrop);
+}
+
+.modal {
+  inline-size: min(var(--ux-modal), calc(100vw - var(--ux-space-8)));
+  max-block-size: calc(100dvh - var(--ux-space-16));
+  border-radius: var(--ux-radius-lg);
+}
+
+.modal[data-size='sm'] {
+  inline-size: min(var(--ux-modal-sm), calc(100vw - var(--ux-space-8)));
+}
+
+.modal[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--ux-space-3);
+  min-block-size: var(--ux-top-height);
+  padding: var(--ux-space-0) var(--ux-space-4) var(--ux-space-0) var(--ux-space-6);
+  border-block-end: var(--ux-hairline) solid var(--ux-line);
+}
+
+.title {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  margin: var(--ux-space-0);
+  color: var(--ux-text);
+  font-size: var(--ux-text-18);
+  font-weight: var(--ux-weight-semibold);
+  line-height: var(--ux-leading-tight);
+}
+
+.close {
+  display: grid;
+  flex: none;
+  place-items: center;
+  inline-size: var(--ux-control);
+  block-size: var(--ux-control);
+  border: 0;
+  border-radius: var(--ux-radius-md);
+  background-color: transparent;
+  color: var(--ux-text-2);
+  cursor: pointer;
+}
+
+.close:hover {
+  background-color: var(--ux-surface-2);
+  color: var(--ux-text);
+}
+
+.body {
+  overflow: auto;
+  padding: var(--ux-space-5) var(--ux-space-6);
+  font-size: var(--ux-text-15);
+  line-height: var(--ux-leading-body);
+}
+
+.foot {
+  display: flex;
+  flex: none;
+  justify-content: flex-end;
+  gap: var(--ux-space-2);
+  padding: var(--ux-space-4) var(--ux-space-6);
+  border-block-start: var(--ux-hairline) solid var(--ux-line);
+}
+
+/* Drawer: full height from its side */
+.drawer {
+  inline-size: min(var(--ux-panel), calc(100vw - var(--ux-space-12)));
+  max-inline-size: none;
+  block-size: 100dvh;
+  max-block-size: none;
+  margin: var(--ux-space-0);
+  border-block: 0;
+  border-radius: var(--ux-radius-0);
+}
+
+.drawer[data-side='start'] {
+  inset-inline: 0 auto;
+  border-inline-start: 0;
+}
+
+.drawer[data-side='end'] {
+  inset-inline: auto 0;
+  border-inline-end: 0;
+}
+
+.drawerInner {
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+}
+
+.drawerBody {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: var(--ux-space-4);
+}
+
+/* Detail panel */
+.panel {
+  display: flex;
+  flex-direction: column;
+  inline-size: 100%;
+  min-inline-size: var(--ux-panel);
+  max-inline-size: var(--ux-panel-max);
+  border: var(--ux-hairline) solid var(--ux-line);
+  border-radius: var(--ux-radius-lg);
+  background-color: var(--ux-surface);
+  box-shadow: var(--ux-shadow);
+}
+
+.panelHead {
+  display: flex;
+  align-items: center;
+  gap: var(--ux-space-3);
+  min-block-size: var(--ux-top-height);
+  padding: var(--ux-space-0) var(--ux-space-3) var(--ux-space-0) var(--ux-space-5);
+  border-block-end: var(--ux-hairline) solid var(--ux-line);
+}
+
+.panelTitle {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  margin: var(--ux-space-0);
+  color: var(--ux-text);
+  line-height: var(--ux-leading-tight);
+  overflow: hidden;
+  font-size: var(--ux-text-16);
+  font-weight: var(--ux-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panelBody {
+  display: grid;
+  gap: var(--ux-space-5);
+  padding: var(--ux-space-5);
+}
+
+.panelFoot {
+  display: flex;
+  gap: var(--ux-space-2);
+  padding: var(--ux-space-4) var(--ux-space-5);
+  border-block-start: var(--ux-hairline) solid var(--ux-line);
+}
+
+.panelFoot > * {
+  flex: 1 1 0;
+}
+
+.group {
+  display: grid;
+  gap: var(--ux-space-3);
+}
+
+.groupTitle {
+  margin: var(--ux-space-0);
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-13);
+  font-weight: var(--ux-weight-semibold);
+  letter-spacing: var(--ux-tracking-group);
+}
+
+@media (width < 640px) {
+  .panel {
+    min-inline-size: 0;
+    max-inline-size: none;
+    box-shadow: none;
+  }
+}

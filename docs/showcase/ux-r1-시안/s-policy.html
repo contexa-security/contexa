@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>정책 시뮬레이터</title>
+<link rel="stylesheet" href="design.css">
+<style>
+  .form { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 20px 24px; border-bottom: 1px solid var(--line); }
+  .field label { display: block; font-size: 13px; font-weight: 500; color: var(--text-3); margin-bottom: 6px; }
+  .input { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--r-md); background: var(--surface-2); font-size: 14px; color: var(--text); }
+  .input svg.i { margin-left: auto; width: 16px; height: 16px; color: var(--text-3); }
+  .range { padding: 20px 24px 24px; border-bottom: 1px solid var(--line); }
+  .range-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .range-top .lab { font-size: 14px; font-weight: 600; } .range-top .lab small { display: block; font-size: 13px; font-weight: 400; color: var(--text-3); margin-top: 2px; }
+  .val { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--r-md); background: var(--surface-2); font: 600 15px/1 var(--font); font-variant-numeric: tabular-nums; }
+  .val small { font-size: 13px; font-weight: 500; color: var(--text-3); }
+  .slider { position: relative; height: 6px; border-radius: 4px; background: var(--surface-3); margin: 0 9px; }
+  .slider .fill { position: absolute; left: 0; width: 50%; height: 100%; border-radius: 4px; background: var(--link); }
+  .slider .thumb { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 3px solid var(--link); transform: translate(-50%, -50%); }
+  .ticks { position: relative; height: 16px; margin: 10px 9px 0; font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+  .ticks span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+  .res td { height: 56px; }
+  .res .rate { display: flex; align-items: center; gap: 12px; }
+  .res .bar { width: 140px; }
+  .res .who small { display: block; font-size: 13px; font-weight: 400; color: var(--text-3); margin-top: 2px; }
+  .sweep th, .sweep td { text-align: right; }
+  .sweep th:first-child, .sweep td:first-child { text-align: left; }
+  .sweep td.cur, .sweep th.cur { background: var(--link-soft); }
+  .sweep th.cur { color: var(--link); }
+  .sweep .ref td { color: var(--text-3); }
+  .insight { display: grid; grid-template-columns: 36px 1fr; gap: 14px; padding: 18px 24px; border-top: 1px solid var(--line); background: var(--surface-2); border-radius: 0 0 var(--r-lg) var(--r-lg); }
+  .insight .ic { width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center; background: var(--surface-3); color: var(--text-2); }
+  .insight b { display: block; font-size: 15px; margin-bottom: 2px; } .insight p { margin: 0; font-size: 14px; color: var(--text-2); }
+  .phone .form { grid-template-columns: 1fr; padding: 16px; }
+  .phone .range { padding: 16px; }
+</style>
+</head>
+<body data-active="policy" data-lang="ko" data-crumbs="위협 시뮬레이션|정책 시뮬레이터">
+<main class="content"><div class="wrap">
+
+  <div class="ph">
+    <div class="ph-main"><h1 class="ph-title">정책 시뮬레이터</h1><p class="ph-desc">규칙 기반 통제의 임계값을 바꿔 이 데모의 실제 실행 기록을 다시 판정합니다. 판정은 서버의 규칙 엔진이 수행하며, 실제 요청은 보내지 않습니다.</p></div>
+    <div class="ph-actions"><button class="btn"><i data-icon="rotate-ccw"></i>기본값으로</button></div>
+  </div>
+
+  <div class="tabs"><span class="tab on">임계값 조정</span><span class="tab">조건 구성 · 실행</span><span class="tab">에이전트 정책</span></div>
+
+  <section class="card" style="margin-bottom:16px">
+    <div class="form">
+      <div class="field"><label>보안 통제</label><div class="input">임계값 규칙 (C1)<i data-icon="chevron-down"></i></div></div>
+      <div class="field"><label>조정 항목</label><div class="input">1회 반출 건수 상한<i data-icon="chevron-down"></i></div></div>
+    </div>
+    <div class="range">
+      <div class="range-top"><span class="lab">1회 반출 건수 상한<small>상한을 넘는 반출을 차단합니다 · 기본값 500건</small></span><span class="val">500<small>건</small></span></div>
+      <div class="slider"><span class="fill"></span><span class="thumb"></span></div>
+      <div class="ticks"><span style="left:0;transform:none">0</span><span style="left:25%">250</span><span style="left:50%">500</span><span style="left:75%">750</span><span style="left:100%;transform:translateX(-100%)">1,000</span></div>
+    </div>
+    <table class="table res">
+      <thead><tr><th>통제</th><th>탐지한 공격</th><th>차단된 정상 업무</th><th>비고</th></tr></thead>
+      <tbody>
+        <tr><td class="strong who">임계값 규칙<small>상한 500건 · 기본값</small></td><td><span class="rate"><span class="bar"><i style="width:52.6%;background:var(--c-rule)"></i></span><span class="num">10 / 19</span></span></td><td><span class="rate"><span class="bar"><i style="width:37.5%;background:var(--c-rule)"></i></span><span class="num">6 / 16</span></span></td><td class="muted" style="font-size:13px">기본값과 같음</td></tr>
+        <tr><td class="strong who">승인 정책 규칙<small>반출 건수 상한과 무관</small></td><td><span class="rate"><span class="bar"><i style="width:57.9%;background:var(--c-approval)"></i></span><span class="num">11 / 19</span></span></td><td><span class="rate"><span class="bar"><i style="width:0%"></i></span><span class="num">0 / 16</span></span></td><td class="muted" style="font-size:13px">변화 없음</td></tr>
+        <tr class="hl"><td class="strong who">Contexa<small>실제 AI 판정 기록</small></td><td><span class="rate"><span class="bar"><i style="width:84.2%;background:var(--c-contexa)"></i></span><span class="num">16 / 19</span></span></td><td><span class="rate"><span class="bar"><i style="width:0%"></i></span><span class="num">0 / 16</span></span></td><td class="muted" style="font-size:13px">정상 업무 4건은 차단 대신 추가 인증</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card" style="margin-bottom:16px">
+    <div class="card-head"><div><h2 class="card-title">상한값별 결과</h2><p class="card-sub">같은 실행 35건을 상한값만 바꿔 서버 규칙 엔진으로 다시 판정한 결과</p></div></div>
+    <table class="table sweep">
+      <thead><tr><th>1회 반출 건수 상한</th><th>0</th><th>50</th><th>100</th><th>200</th><th>300</th><th>400</th><th class="cur">500</th><th>1,000</th></tr></thead>
+      <tbody>
+        <tr><td class="strong">탐지한 공격 / 19</td><td class="num">12</td><td class="num">12</td><td class="num">12</td><td class="num">12</td><td class="num">11</td><td class="num">11</td><td class="num cur strong">10</td><td class="num">10</td></tr>
+        <tr><td class="strong">차단된 정상 업무 / 16</td><td class="num">10</td><td class="num">8</td><td class="num">8</td><td class="num">8</td><td class="num">7</td><td class="num">7</td><td class="num cur strong">6</td><td class="num">6</td></tr>
+        <tr class="ref"><td>Contexa (상한과 무관)</td><td colspan="8" class="num" style="text-align:right">탐지 16 / 19 · 정상 업무 차단 0 / 16</td></tr>
+      </tbody>
+    </table>
+    <div class="insight"><span class="ic"><i data-icon="trending-down"></i></span><div><b>상한을 낮추면 공격 탐지보다 정상 업무 차단이 더 많이 늘어납니다</b><p>상한을 500건에서 0건으로 낮추면 탐지한 공격은 10건에서 12건으로 2건 늘고, 차단된 정상 업무는 6건에서 10건으로 4건 늘어납니다. 건수 기준만으로는 공격과 정상 업무를 가르기 어렵습니다.</p></div></div>
+  </section>
+
+  <div class="note"><i data-icon="database"></i><span>대상: 시나리오별 가장 최근 실제 실행 35건(공격 19 · 정상 업무 16) · 기록 기간 2026-10-19 ~ 10-31 UTC · 표준 벤치마크와 대상 실행이 달라 분모가 다릅니다.</span></div>
+
+</div></main>
+<script src="shell.js"></script>
+</body>
+</html>

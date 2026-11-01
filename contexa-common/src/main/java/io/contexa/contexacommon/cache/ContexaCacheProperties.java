@@ -64,7 +64,8 @@ public class ContexaCacheProperties {
     @Data
     public static class RedisConfig {
         
-        private int defaultTtlSeconds = 300;
+        /** Z-16 (F2): as long as an entry lasts in the local cache by default, so both modes see a change as soon. */
+        private int defaultTtlSeconds = 60;
 
         
         private String keyPrefix = "contexa:cache:";
@@ -96,7 +97,8 @@ public class ContexaCacheProperties {
         private TtlConfig groups = new TtlConfig(14400, 14400);
 
         
-        private TtlConfig policies = new TtlConfig(30, 300);
+        /** Z-16 (F2): one TTL in either mode, the shorter, so an authorization policy changes as soon in both. */
+        private TtlConfig policies = new TtlConfig(30, 30);
 
         
         private TtlConfig soar = new TtlConfig(900, 900);

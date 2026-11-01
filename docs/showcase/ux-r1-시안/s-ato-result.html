@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>계정 탈취 — 결과</title>
+<link rel="stylesheet" href="design.css">
+<style>
+  .verdict { display: grid; grid-template-columns: 64px 1fr auto; gap: 20px; align-items: center; padding: 24px; }
+  .v-icon { width: 64px; height: 64px; border-radius: 12px; display: grid; place-items: center; background: var(--stepup-bg); color: var(--stepup); }
+  .v-icon svg.i { width: 30px; height: 30px; }
+  .v-title { font-size: 24px; font-weight: 700; line-height: 1.3; }
+  .v-desc { color: var(--text-2); margin-top: 4px; }
+  .v-pred { text-align: right; }
+  .v-pred .k { font-size: 13px; color: var(--text-3); margin-bottom: 6px; }
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); }
+  .tile { padding: 18px 24px; } .tile + .tile { border-left: 1px solid var(--line); }
+  .tile .k { font-size: 13px; color: var(--text-3); } .tile .v { font-size: 24px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .tile .v small { font-size: 14px; color: var(--text-3); font-weight: 600; margin-left: 4px; }
+  .gauge { margin-top: 10px; height: 6px; border-radius: 4px; background: linear-gradient(90deg, var(--allow), var(--stepup), var(--block)); position: relative; }
+  .gauge i { position: absolute; top: -4px; width: 3px; height: 14px; border-radius: 4px; background: var(--text); }
+  .gauge.c { background: linear-gradient(90deg, var(--surface-3), var(--link)); }
+  .cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .cmpbox { padding: 16px; border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--line); }
+  .cmpbox .k { font-size: 13px; color: var(--text-3); }
+  .cmpbox .v { font-size: 15px; font-weight: 600; margin-top: 4px; }
+  .scale { display: grid; grid-template-columns: 88px 1fr 64px; align-items: center; gap: 12px; font-size: 14px; margin-top: 12px; }
+  .scale .bar { height: 10px; }
+  .quote { margin: 0; padding: 14px 16px; border-left: 3px solid var(--link); background: var(--surface-2); border-radius: 0 var(--r-md) var(--r-md) 0; font-size: 14px; color: var(--text); font-style: normal; }
+  .quote .src { display: block; margin-top: 8px; font-size: 12px; color: var(--text-3); }
+  .chk { display: grid; grid-template-columns: 1fr auto; row-gap: 10px; font-size: 14px; }
+  .chk > span:nth-child(odd) { color: var(--text-2); } .chk > span:nth-child(even) { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
+  .phone .cmp { grid-template-columns: 1fr; }
+  .phone .verdict { grid-template-columns: 48px 1fr; gap: 14px; padding: 20px 16px; }
+  .phone .v-icon { width: 48px; height: 48px; border-radius: 12px; }
+  .phone .v-icon svg.i { width: 24px; height: 24px; }
+  .phone .v-title { font-size: 18px; }
+  .phone .v-pred { grid-column: 1 / -1; text-align: left; }
+  .phone .tiles { grid-template-columns: 1fr 1fr; }
+  .phone .tile { padding: 14px 16px; }
+  .phone .tile + .tile { border-left: 0; }
+  .phone .tile:nth-child(even) { border-left: 1px solid var(--line); }
+  .phone .tile:nth-child(n + 3) { border-top: 1px solid var(--line); }
+  .phone .scale { grid-template-columns: 76px 1fr 56px; }
+</style>
+</head>
+<body data-active="ato" data-lang="ko" data-crumbs="위협 시뮬레이션|계정 탈취 · 내부자 위협|S13">
+<main class="content"><div class="wrap">
+
+  <div class="ph">
+    <div class="ph-main">
+      <div class="ph-kicker"><span class="badge b-line"><i data-icon="user-round-x"></i>계정 탈취 (ATO)</span><span class="tag">실행</span><span class="code">run-04cdd89264f7</span><span class="tag">2026-10-27 23:54 UTC</span></div>
+      <h1 class="ph-title">결과 · 판정 근거</h1>
+    </div>
+    <div class="ph-actions"><button class="btn"><i data-icon="list-checks"></i>판정 이력에서 보기</button><button class="btn btn-primary"><i data-icon="user-round-check"></i>정상 사용자로 같은 요청 실행</button></div>
+  </div>
+
+  <div class="stepper">
+    <div class="step done"><span class="step-n"><i data-icon="check" style="width:14px;height:14px"></i></span><span class="step-label">위협 유형</span></div><div class="step-line"></div>
+    <div class="step done"><span class="step-n"><i data-icon="check" style="width:14px;height:14px"></i></span><span class="step-label">요청 검토 · 판정 예측</span></div><div class="step-line"></div>
+    <div class="step done"><span class="step-n"><i data-icon="check" style="width:14px;height:14px"></i></span><span class="step-label">실시간 판정</span></div><div class="step-line"></div>
+    <div class="step now"><span class="step-n">4</span><span class="step-label">결과 · 판정 근거</span></div>
+  </div>
+
+  <section class="card" style="margin-bottom:16px">
+    <div class="verdict">
+      <span class="v-icon"><i data-icon="key-round"></i></span>
+      <div><div class="v-title">추가 인증을 요구해 반출 480건을 막았습니다</div><div class="v-desc">기존 보안 통제 4개는 같은 요청을 모두 허용했습니다. 추가 인증을 통과해야만 요청이 이어집니다.</div></div>
+      <div class="v-pred"><div class="k">예상 판정</div><span class="badge b-allow" style="height:26px;font-size:13px"><i data-icon="check"></i>적중 · 차단 · 추가 인증</span></div>
+    </div>
+    <div class="tiles">
+      <div class="tile"><div class="k">막은 반출</div><div class="v">480<small>건</small></div></div>
+      <div class="tile"><div class="k">판정 시간</div><div class="v">10.1<small>초</small></div></div>
+      <div class="tile"><div class="k">위험도</div><div class="v">0.43</div><div class="gauge"><i style="left:43%"></i></div></div>
+      <div class="tile"><div class="k">확신도</div><div class="v">0.78</div><div class="gauge c"><i style="left:78%"></i></div></div>
+    </div>
+  </section>
+
+  <div class="grid g-12" style="align-items:start">
+    <section class="card span-8">
+      <div class="card-head"><div><h2 class="card-title">판정 근거</h2><p class="card-sub">AI가 이 요청을 행위 기준선 · 업무 컨텍스트와 대조한 결과</p></div></div>
+      <div class="card-body v-stack">
+        <div class="cmp">
+          <div class="cmpbox"><div class="k">단말 · 행위 기준선</div><div class="v">Safari 18 · macOS</div><div class="k" style="margin-top:6px">평소 Edge 140 · Windows — 기준선에 없는 단말</div><div class="scale"><span class="k">최근 7일 사용</span><span class="bar"><i style="width:0%"></i></span><span class="num" style="text-align:right">0 / 20건</span></div></div>
+          <div class="cmpbox"><div class="k">반출 건수 · 행위 기준선</div><div class="v">480건 (평소 최대의 약 32배)</div>
+            <div class="scale"><span class="k">평소 최대</span><span class="bar"><i style="width:3.1%;background:var(--link)"></i></span><span class="num" style="text-align:right">15건</span></div>
+            <div class="scale" style="margin-top:6px"><span class="k">이번 요청</span><span class="bar"><i style="width:100%;background:var(--block)"></i></span><span class="num" style="text-align:right">480건</span></div>
+          </div>
+        </div>
+        <div>
+          <p class="section-title">업무 컨텍스트</p>
+          <div class="h-stack"><span class="badge b-line">HX-310 담당</span><span class="badge b-none">이 요청에 대한 승인 없음</span><span class="badge b-none">작업 티켓 없음</span><span class="badge b-line">당번 근무 중</span><span class="badge b-line">최근 30일 중 21일 접근</span></div>
+        </div>
+        <div>
+          <p class="section-title">AI 판정 이유 · 모델 원문</p>
+          <blockquote class="quote">“Assigned work and the policy's up-to-500-item exception support legitimacy, but the 480-item export and first-seen device differ sharply from prior activity, leaving identity uncertain.”<span class="src">gpt-6-luna · 판정 프롬프트 번들 2026.10.27-v21.17 · 번역 아님</span></blockquote>
+        </div>
+      </div>
+    </section>
+    <aside class="span-4 v-stack">
+      <section class="card card-pad">
+        <h2 class="card-title" style="font-size:16px">판정 기록 검증</h2>
+        <p class="card-sub" style="margin-bottom:14px">봉인된 기록을 검사기가 다시 계산해 대조</p>
+        <div class="chk"><span>검사 결과</span><span><span class="badge b-none">불완전</span></span><span>불일치</span><span>0건</span><span>일치</span><span>19건 · 봉인 · 번들 추적</span><span>확인 불가</span><span>9건 · 10개 검사 중</span></div>
+        <div class="h-stack" style="margin-top:16px"><span class="code">SHA-256 4a1527…a9d0</span><button class="btn btn-sm"><i data-icon="download"></i>JSON</button></div>
+      </section>
+      <section class="card card-pad">
+        <h2 class="card-title" style="font-size:16px">기준선 학습</h2>
+        <p class="card-sub" style="margin-bottom:14px">막은 요청은 행위 기준선에 더하지 않습니다</p>
+        <div class="h-stack" style="font-size:24px;font-weight:700;gap:12px"><span class="num">48</span><i data-icon="arrow-right" style="color:var(--text-3)"></i><span class="num">48</span><span class="badge b-none" style="margin-left:4px">학습 안 함</span></div>
+      </section>
+    </aside>
+  </div>
+
+</div></main>
+<script src="shell.js"></script>
+</body>
+</html>

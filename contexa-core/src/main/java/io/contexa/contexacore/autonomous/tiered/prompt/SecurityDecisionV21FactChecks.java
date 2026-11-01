@@ -24,6 +24,7 @@ import io.contexa.contexacore.autonomous.context.decision.DecisionFactsResolver;
 import io.contexa.contexacore.autonomous.context.decision.PolicyReason;
 import io.contexa.contexacore.autonomous.context.decision.RecordCheck;
 import io.contexa.contexacore.autonomous.context.prompt.PromptBlock;
+import io.contexa.contexacore.autonomous.context.support.ArgumentOriginLines;
 import io.contexa.contexacore.autonomous.store.SessionDecisionRecord;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionFactChecks.DrawnPrompt;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionFactChecks.Outcome;
@@ -203,6 +204,9 @@ public final class SecurityDecisionV21FactChecks {
                 return scope != null && Boolean.TRUE.equals(scope.getTemporaryElevation());
             case "DELEGATION_SCOPE_DRIFT":
                 return context.getDelegation() != null && Boolean.TRUE.equals(context.getDelegation().getObjectiveDrift());
+            case "VALUE_FROM_UNTRUSTED_OUTPUT":
+                // CQ-1: the host stated that a value of the call first appeared in a tool's output (the line cited).
+                return !ArgumentOriginLines.toolOutputValues(context).isEmpty();
             case "PRIOR_CHALLENGE_IN_SESSION":
                 return priorNonAllow(context);
             case "CHALLENGE_VERIFIED_IN_SESSION":

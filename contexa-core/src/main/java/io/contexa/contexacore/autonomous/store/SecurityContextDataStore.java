@@ -25,6 +25,17 @@ import java.util.UUID;
 
 public interface SecurityContextDataStore {
 
+    /** How many observations a work profile or role scope keeps when the host does not say (BR-C14). */
+    int DEFAULT_OBSERVATION_CAPACITY = 5_000;
+
+    /**
+     * BR-C14: how many work profile or role scope observations each scope keeps, the oldest leaving first; the
+     * collectors read the usual behaviour from up to this many.
+     */
+    default int observationCapacity() {
+        return DEFAULT_OBSERVATION_CAPACITY;
+    }
+
     enum EventProcessingClaim {
         ACQUIRED,
         IN_FLIGHT,

@@ -41,6 +41,24 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:user:sessions:%s", NAMESPACE, userId);
     }
 
+    /**
+     * QF-57: the user's tracked session ids that die at a known time, each scored by that time (epoch milliseconds);
+     * the key expires with the last of them.
+     */
+    public static String userSessionDeadlines(String userId) {
+        validateUserId(userId);
+        return String.format("%s:user:session-deadlines:%s", NAMESPACE, userId);
+    }
+
+    /**
+     * QF-57: the user's tracked session ids nothing bounds the life of, each scored by its last registration (epoch
+     * milliseconds); at most the per-user limit are kept.
+     */
+    public static String userUntimedSessions(String userId) {
+        validateUserId(userId);
+        return String.format("%s:user:session-untimed:%s", NAMESPACE, userId);
+    }
+
     public static String userDevices(String userId) {
         validateUserId(userId);
         return String.format("%s:user:devices:%s", NAMESPACE, userId);

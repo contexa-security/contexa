@@ -15,10 +15,12 @@
  */
 package io.contexa.contexacore.autonomous.store;
 
+import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.testsupport.RedisTestTemplates;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.time.Duration;
+import java.util.List;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,7 +30,8 @@ import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactor
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
-
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+
 @EnabledIf("io.contexa.contexacore.autonomous.store.RedisSecurityContextDataStoreContractTest#isLocalRedisAvailable")
 class RedisSecurityContextDataStoreContractTest extends AbstractSecurityContextDataStoreContractTest {
 
@@ -88,8 +91,33 @@ class RedisSecurityContextDataStoreContractTest extends AbstractSecurityContextD
     }
 
     @Override
+    protected SecurityContextDataStore createStoreWithObservationCapacity(int capacity) {
+        RedisSecurityContextDataStore store = new RedisSecurityContextDataStore(redisTemplate);
+        store.setObservationCapacity(capacity);
+        return store;
+    }
+
+    @Override
     protected SecurityContextDataStore createStoreWithEventProcessedTtl(Duration ttl) {
         return new RedisSecurityContextDataStore(redisTemplate);
+    }
+
+    /** Brings every key's expiry {@code elapsed} nearer, removing the keys whose expiry it passes. */
+    @Override
+    protected void passTime(Duration elapsed) {
+        String script = "local passed = " + elapsed.toMillis() + " "
+                + "for _, key in ipairs(redis.call('keys', '*')) do "
+                + "local left = redis.call('pttl', key) "
+                + "if left > 0 then "
+                + "if left <= passed then redis.call('del', key) else redis.call('pexpire', key, left - passed) end "
+                + "end end "
+                + "return 0";
+        redisTemplate.execute(new DefaultRedisScript<>(script, Long.class), List.of());
+    }
+
+    @Override
+    protected boolean holdsSessionRisk(String sessionId) {
+        return Boolean.TRUE.equals(redisTemplate.hasKey(ZeroTrustRedisKeys.sessionRisk(sessionId)));
     }
 
     @Override

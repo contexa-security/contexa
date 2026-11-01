@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Security Overview</title>
+<link rel="stylesheet" href="design.css">
+<style>
+  .dist { display: flex; height: 12px; border-radius: 6px; overflow: hidden; gap: 2px; margin: 4px 0 20px; }
+  .dist i { display: block; height: 100%; }
+  .dist-rows { display: grid; grid-template-columns: 1fr auto auto; row-gap: 12px; column-gap: 16px; font-size: 14px; align-items: center; }
+  .dist-rows .lab { display: flex; align-items: center; gap: 10px; color: var(--text-2); }
+  .dist-rows .lab i { width: 10px; height: 10px; border-radius: 4px; display: inline-block; }
+  .dist-rows .v { font-variant-numeric: tabular-nums; color: var(--text); font-weight: 600; text-align: right; }
+  .dist-rows .p { font-variant-numeric: tabular-nums; color: var(--text-3); text-align: right; width: 56px; }
+  .bm { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+  .bm:first-child { padding-top: 4px; } .bm:last-child { border-bottom: 0; padding-bottom: 0; }
+  .bm-name { font-weight: 600; font-size: 15px; display: flex; gap: 8px; align-items: center; }
+  .bm-metric { font-size: 13px; color: var(--text-3); }
+  .bm-val { grid-row: 1 / 3; grid-column: 2; display: flex; align-items: center; gap: 10px; font-variant-numeric: tabular-nums; }
+  .bm-val .from { color: var(--text-3); font-size: 15px; text-decoration: line-through; text-decoration-color: var(--text-3); }
+  .bm-val .to { color: var(--allow); font-size: 24px; font-weight: 700; }
+  .bm-ci { grid-column: 1 / 3; font-size: 13px; color: var(--text-3); }
+  .sim { display: grid; grid-template-columns: 40px 1fr 16px; gap: 14px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .sim:last-child { border-bottom: 0; padding-bottom: 0; } .sim:first-child { padding-top: 0; }
+  .sim-ic { width: 40px; height: 40px; border-radius: 8px; display: grid; place-items: center; background: var(--surface-3); color: var(--text-2); }
+  .sim-t { font-weight: 600; font-size: 15px; } .sim-d { font-size: 13px; color: var(--text-3); margin-top: 2px; }
+  .sim svg.go { color: var(--text-3); width: 16px; height: 16px; }
+  .phone .bm { grid-template-columns: 1fr; }
+  .phone .bm-val { grid-row: auto; grid-column: auto; margin-top: 6px; }
+</style>
+</head>
+<body data-active="overview" data-lang="en" data-crumbs="Monitor|Security overview">
+<main class="content"><div class="wrap">
+
+  <div class="ph">
+    <div class="ph-main">
+      <h1 class="ph-title">Security overview</h1>
+      <p class="ph-desc">AI security that decides post-login requests against behavioral baselines and business context — live decision activity and standard benchmark results.</p>
+    </div>
+    <div class="ph-actions"><button class="btn"><i data-icon="clipboard-check"></i>Standard benchmarks</button><button class="btn btn-primary"><i data-icon="play"></i>Start a threat simulation</button></div>
+  </div>
+
+  <div class="grid g-12" style="margin-bottom:16px">
+    <div class="card kpi span-3"><span class="kpi-icon"><i data-icon="gavel"></i></span><span class="kpi-label">Total decisions</span><span class="kpi-value num">13,733</span><span class="kpi-foot"><i data-icon="calendar" style="width:14px;height:14px"></i>Oct 5–31, 2026 · live models</span></div>
+    <div class="card kpi span-3"><span class="kpi-icon"><i data-icon="timer"></i></span><span class="kpi-label">Decision latency (p50)</span><span class="kpi-value num">6.0<small>s</small></span><span class="kpi-foot">p95 16.3 s · 13,733 decisions</span></div>
+    <div class="card kpi span-3"><span class="kpi-icon"><i data-icon="users"></i></span><span class="kpi-label">Visitor runs today</span><span class="kpi-value num">8</span><span class="kpi-foot">2,046 visitor runs in total · UTC</span></div>
+    <div class="card kpi span-3"><span class="kpi-icon" style="background:var(--allow-bg);color:var(--allow)"><i data-icon="shield-check"></i></span><span class="kpi-label">AgentDojo targeted ASR</span><span class="kpi-value num">1.36<small>%</small></span><span class="kpi-foot">Unprotected 10.54% · CI 0.62–2.56%</span></div>
+  </div>
+
+  <div class="grid g-12" style="margin-bottom:16px">
+    <section class="card span-5">
+      <div class="card-head"><div><h2 class="card-title">Decision mix</h2><p class="card-sub">13,733 decisions issued by Contexa</p></div></div>
+      <div class="card-body">
+        <div class="dist"><i style="width:72.3%;background:var(--allow)"></i><i style="width:15.6%;background:var(--stepup)"></i><i style="width:8.3%;background:var(--hold)"></i><i style="width:3.8%;background:var(--block)"></i></div>
+        <div class="dist-rows">
+          <span class="lab"><i style="background:var(--allow)"></i>Allow</span><span class="v">9,932</span><span class="p">72.3%</span>
+          <span class="lab"><i style="background:var(--stepup)"></i>Step-up authentication</span><span class="v">2,148</span><span class="p">15.6%</span>
+          <span class="lab"><i style="background:var(--hold)"></i>Hold for review</span><span class="v">1,136</span><span class="p">8.3%</span>
+          <span class="lab"><i style="background:var(--block)"></i>Block</span><span class="v">517</span><span class="p">3.8%</span>
+        </div>
+        <div class="note" style="margin-top:20px"><i data-icon="info"></i><span>Not counted as decisions — 572 technical failures · 6,844 reused prior decisions</span></div>
+      </div>
+    </section>
+    <section class="card span-7">
+      <div class="card-head"><div><h2 class="card-title">Standard benchmarks</h2><p class="card-sub">Official harnesses and official scoring, unchanged · unprotected vs. Contexa</p></div><div class="right"><a class="btn btn-ghost">All results<i data-icon="arrow-right"></i></a></div></div>
+      <div class="card-body">
+        <div class="bm"><div class="bm-name">AgentDojo <span class="badge b-allow">Complete</span></div><div class="bm-metric">Targeted ASR · lower is better · 664 cases</div><div class="bm-val"><span class="from num">10.54%</span><i data-icon="arrow-right" style="width:16px;height:16px;color:var(--text-3)"></i><span class="to num">1.36%</span></div></div>
+        <div class="bm"><div class="bm-name">InjecAgent <span class="badge b-allow">Complete</span></div><div class="bm-metric">ASR-valid (Direct Harm) · lower is better · base, 1,054 cases</div><div class="bm-val"><span class="from num">31.7%</span><i data-icon="arrow-right" style="width:16px;height:16px;color:var(--text-3)"></i><span class="to num">0.0%</span></div></div>
+        <div class="bm"><div class="bm-name">Promptfoo <span class="code">owasp:agentic</span> <span class="badge b-allow">Complete</span></div><div class="bm-metric">Pass rate · higher is better · 195 cases</div><div class="bm-val"><span class="from num">43.6%</span><i data-icon="arrow-right" style="width:16px;height:16px;color:var(--text-3)"></i><span class="to num">55.4%</span></div></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="grid g-12">
+    <section class="card span-8">
+      <div class="card-head"><div><h2 class="card-title">Recent decisions</h2><p class="card-sub">Visitor-run simulations · Oct 31, 2026 UTC</p></div><div class="right"><a class="btn btn-ghost">Decision log<i data-icon="arrow-right"></i></a></div></div>
+      <table class="table">
+        <thead><tr><th>Time</th><th>Scenario</th><th>Decision</th><th class="r">Latency</th><th>Run ID</th></tr></thead>
+        <tbody>
+          <tr><td class="num">07:37</td><td class="strong">Policy simulator · custom conditions</td><td><span class="badge b-block"><i data-icon="ban"></i>Block</span></td><td class="r num">6.1 s</td><td><span class="code">run-e89248cb1969</span></td></tr>
+          <tr><td class="num">07:31</td><td class="strong">Insider threat · trade-secret exfiltration</td><td><span class="badge b-block"><i data-icon="ban"></i>Block</span><span class="muted" style="font-size:13px;display:block;margin-top:4px">at request 2</span></td><td class="r num">18.4 s</td><td><span class="code">run-d399d3a50c57</span></td></tr>
+          <tr><td class="num">07:30</td><td class="strong">Account takeover · bulk export</td><td><span class="badge b-allow"><i data-icon="check"></i>Allow</span></td><td class="r num">7.7 s</td><td><span class="code">run-78c1493c1e61</span></td></tr>
+          <tr><td class="num">07:24</td><td class="strong">Legitimate user · same request</td><td><span class="badge b-allow"><i data-icon="check"></i>Allow</span></td><td class="r num">6.6 s</td><td><span class="code">run-15e214d87b86</span></td></tr>
+          <tr><td class="num">07:22</td><td class="strong">Account takeover · bulk export</td><td><span class="badge b-stepup"><i data-icon="key-round"></i>Step-up</span></td><td class="r num">7.2 s</td><td><span class="code">run-fbbd5ecfa56c</span></td></tr>
+        </tbody>
+      </table>
+    </section>
+    <section class="card span-4">
+      <div class="card-head"><div><h2 class="card-title">Threat simulations</h2><p class="card-sub">Run them yourself against the live AI decision engine</p></div></div>
+      <div class="card-body">
+        <div class="sim"><span class="sim-ic"><i data-icon="user-round-x"></i></span><div><div class="sim-t">Account takeover (ATO)</div><div class="sim-d">Bulk export from a hijacked account</div></div><i data-icon="chevron-right" class="go"></i></div>
+        <div class="sim"><span class="sim-ic"><i data-icon="user-round-cog"></i></span><div><div class="sim-t">Insider threat</div><div class="sim-d">Exfiltration within granted permissions</div></div><i data-icon="chevron-right" class="go"></i></div>
+        <div class="sim"><span class="sim-ic"><i data-icon="bot"></i></span><div><div class="sim-t">AI agent delegation abuse</div><div class="sim-d">Out-of-scope or expired delegations</div></div><i data-icon="chevron-right" class="go"></i></div>
+        <div class="sim"><span class="sim-ic"><i data-icon="layers"></i></span><div><div class="sim-t">Request surge handling</div><div class="sim-d">60 identical concurrent requests</div></div><i data-icon="chevron-right" class="go"></i></div>
+      </div>
+    </section>
+  </div>
+
+</div></main>
+<script src="shell.js"></script>
+</body>
+</html>

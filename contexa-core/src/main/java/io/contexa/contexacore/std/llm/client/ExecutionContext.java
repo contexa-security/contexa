@@ -46,6 +46,32 @@ public class ExecutionContext {
     /** W4-6: the reasoning effort the provider options carried on the call. */
     public static final String PROVIDER_REASONING_EFFORT = "providerReasoningEffort";
 
+    /** The layer's Anthropic thinking setting ({@link AnthropicThinkingMode}), set by the platform and never a request. */
+    public static final String ANTHROPIC_THINKING = "anthropicThinking";
+    /** The layer's Anthropic effort setting ({@link AnthropicEffort}); Spring AI 1.1 cannot send it. */
+    public static final String ANTHROPIC_EFFORT = "anthropicEffort";
+    /** The layer's thinking budget, used with the BUDGET setting. */
+    public static final String ANTHROPIC_THINKING_BUDGET_TOKENS = "anthropicThinkingBudgetTokens";
+    /** The tokens the output limit adds for thinking without a budget. */
+    public static final String ANTHROPIC_THINKING_ALLOWANCE_TOKENS = "anthropicThinkingAllowanceTokens";
+
+    /** Design 4.6: the layer's thinking setting the call ran with. */
+    public static final String PROVIDER_THINKING_REQUESTED = "providerThinkingRequested";
+    /** Design 4.6: the layer's effort setting the call ran with. */
+    public static final String PROVIDER_EFFORT_REQUESTED = "providerEffortRequested";
+    /** Design 4.6: the thinking the request carried: ABSENT, DISABLED or ENABLED. */
+    public static final String PROVIDER_THINKING = "providerThinking";
+    /** Design 4.6: the thinking budget the request carried. */
+    public static final String PROVIDER_THINKING_BUDGET_TOKENS = "providerThinkingBudgetTokens";
+    /** Design 4.6: where the thinking came from: LAYER_SETTING, SPRING_AI_DEFAULT_OPTIONS or MODEL_DEFAULT. */
+    public static final String PROVIDER_THINKING_SOURCE = "providerThinkingSource";
+    /** Design 4.6: why the request carried other than the setting asked, in the order the reasons applied. */
+    public static final String PROVIDER_THINKING_ADJUSTMENT = "providerThinkingAdjustment";
+    /** Design 4.5-C: the fields the provider refused for the model, left out of the request. */
+    public static final String PROVIDER_REJECTED_FIELDS = "providerRejectedFields";
+    /** Design 4.6: the output limit (max_tokens) the request carried. */
+    public static final String PROVIDER_MAX_TOKENS_SENT = "providerMaxTokensSent";
+
     private Prompt prompt;
     private String requestId;
     private String userId;

@@ -28,6 +28,8 @@ import org.springframework.security.authentication.AuthenticationTrustResolver;
 import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.oauth2.core.OAuth2Token;
+import org.springframework.security.oauth2.server.resource.authentication.AbstractOAuth2TokenAuthenticationToken;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 import java.time.Instant;
@@ -43,6 +45,9 @@ public class AISecurityContextSupport {
 
     private static final boolean JWT_AUTHENTICATION_PRESENT = ClassUtils.isPresent(
             "org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken",
+            AISecurityContextSupport.class.getClassLoader());
+    private static final boolean OAUTH2_TOKEN_AUTHENTICATION_PRESENT = ClassUtils.isPresent(
+            "org.springframework.security.oauth2.server.resource.authentication.AbstractOAuth2TokenAuthenticationToken",
             AISecurityContextSupport.class.getClassLoader());
 
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
@@ -118,13 +123,15 @@ public class AISecurityContextSupport {
     }
 
     /**
-     * Expiry of the access token behind a JWT authentication, or null for any other authentication. The identifier of
-     * a JWT authentication (its jti) is dead once the token has expired.
+     * Expiry of the access token behind an OAuth2 token authentication (a JWT or an opaque bearer token), or null for
+     * any other authentication. The identifier tracked for such a request is dead once the token has expired
+     * (QF-57).
      */
     @Nullable
     public static Instant accessTokenExpiry(@Nullable Authentication auth) {
-        if (JWT_AUTHENTICATION_PRESENT && auth instanceof JwtAuthenticationToken jwtAuth) {
-            return jwtAuth.getToken().getExpiresAt();
+        if (OAUTH2_TOKEN_AUTHENTICATION_PRESENT && auth instanceof AbstractOAuth2TokenAuthenticationToken<?> tokenAuth) {
+            OAuth2Token token = tokenAuth.getToken();
+            return token != null ? token.getExpiresAt() : null;
         }
         return null;
     }

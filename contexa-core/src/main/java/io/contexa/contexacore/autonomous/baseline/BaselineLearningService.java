@@ -39,6 +39,7 @@ import org.springframework.util.StringUtils;
 import java.time.Instant;
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -59,10 +60,29 @@ public class BaselineLearningService {
     private static final Duration LOCK_HOLD = Duration.ofSeconds(10);
     private static final Duration LOCK_WAIT = Duration.ofSeconds(5);
     private static final int LOCAL_LOCK_STRIPES = 64;
+    /** The wait before a failed baseline save is tried once more (QF-12), well inside the lock hold. */
+    private static final long SAVE_RETRY_WAIT_MS = 200L;
+    /** The pause before an update lock that was not taken in time is tried once more (QF-12 b). */
+    private static final Duration LOCK_RETRY_PAUSE = Duration.ofMillis(500);
 
     /** The locks of this JVM when no lock service is set, striped so that their number stays fixed. */
     private final ReentrantLock[] localLocks = localLocks();
     private volatile DistributedLockService lockService;
+    /** Learnings that were worked out but could not be stored (QF-12); a rising number is a store that is failing. */
+    private final AtomicLong lostLearnings = new AtomicLong();
+
+    /** How many learnings could not be stored since this service started (QF-12). */
+    public long lostLearnings() {
+        return lostLearnings.get();
+    }
+
+    /** The pause before the update lock is tried once more when it was not taken in time (QF-12 b). */
+    private volatile Duration lockRetryPause = LOCK_RETRY_PAUSE;
+
+    /** Lets a test shorten the pause before the second try of the update lock. */
+    void lockRetryPause(Duration pause) {
+        this.lockRetryPause = pause != null ? pause : LOCK_RETRY_PAUSE;
+    }
 
     /** The most recent learned company dates a baseline keeps, enough for any minimum of days (W5-10 D4). */
     private static final int RECENT_LEARNED_DATES = 31;
@@ -169,12 +189,32 @@ public class BaselineLearningService {
         if (updated == null) {
             return null;
         }
-        baselineDataStore.saveUserBaseline(key, updated);
+        if (!saveWithOneRetry(key, updated)) {
+            lostLearnings.incrementAndGet();
+            log.error("[BaselineLearningService] Personal baseline could not be stored, the learning is lost: userId={}",
+                    userId);
+            return null;
+        }
         if (earlierKey) {
             // The earlier key goes, so that the baseline is not counted twice nor left behind by an account purge.
             baselineDataStore.deleteUserBaselineKey(userId);
         }
         return new LearnedBaseline(current, updated);
+    }
+
+    /** Stores the baseline; a save that fails is tried once more after a short wait, so that a passing fault loses nothing. */
+    private boolean saveWithOneRetry(String key, BaselineVector updated) {
+        if (baselineDataStore.saveUserBaselineChecked(key, updated)) {
+            return true;
+        }
+        try {
+            Thread.sleep(SAVE_RETRY_WAIT_MS);
+        }
+        catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+        return baselineDataStore.saveUserBaselineChecked(key, updated);
     }
 
     private BaselineDataStore.BaselineRead readPersonal(String key) {
@@ -188,8 +228,8 @@ public class BaselineLearningService {
      */
     private String personalKey(String userId, SecurityEvent event) {
         LearningSubject subject = LearningSubject.of(event, userId);
-        return BaselineDataStore.userKey(extractMetadataText(event, "tenantId", "tenant_id"),
-                subject != null ? subject.key() : userId);
+        // QF-22: the tenant the work profile and the held requests are kept under too.
+        return BaselineDataStore.userKey(LearningSubject.tenantOf(event), subject != null ? subject.key() : userId);
     }
 
     private static boolean agentRequest(String userId, SecurityEvent event) {
@@ -197,7 +237,11 @@ public class BaselineLearningService {
         return subject != null && subject.agent();
     }
 
-    /** Runs the update under the key's lock; null, with nothing done, when the lock is not taken in time (W5-8). */
+    /**
+     * Runs the update under the key's lock; null, with nothing done, when the lock is not taken in time (W5-8). A lock
+     * that is not taken is tried once more after a short pause, and a learning that still finds it held is counted as
+     * lost (QF-12 b).
+     */
     private <T> T underLock(String key, Supplier<T> update) {
         DistributedLockService locks = lockService;
         if (locks == null) {
@@ -210,14 +254,28 @@ public class BaselineLearningService {
             }
         }
         String owner = UUID.randomUUID().toString();
-        if (!locks.tryLockWithWait(key, owner, LOCK_HOLD, LOCK_WAIT)) {
-            log.error("[BaselineLearningService] Baseline update lock not taken, nothing learned: key={}", key);
+        if (!locks.tryLockWithWait(key, owner, LOCK_HOLD, LOCK_WAIT)
+                && !(pauseBeforeLockRetry() && locks.tryLockWithWait(key, owner, LOCK_HOLD, LOCK_WAIT))) {
+            lostLearnings.incrementAndGet();
+            log.error("[BaselineLearningService] Baseline update lock not taken after a second try, nothing learned: "
+                    + "key={}", key);
             return null;
         }
         try {
             return update.get();
         } finally {
             locks.unlock(key, owner);
+        }
+    }
+
+    /** Waits before the second try of a lock; false, with the interrupt kept, when the thread was interrupted. */
+    private boolean pauseBeforeLockRetry() {
+        try {
+            Thread.sleep(lockRetryPause.toMillis());
+            return true;
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            return false;
         }
     }
 
@@ -1240,15 +1298,18 @@ public class BaselineLearningService {
         if (orgId == null) {
             return;
         }
+        // QF-21: the company date of the learning, kept with the organization's members.
+        String date = currentEvent != null && currentEvent.getTimestamp() != null
+                ? currentEvent.getLocalTimestamp().toLocalDate().toString() : null;
         // The organization's read, merge and write run under its own lock, after the user's is released (W5-8).
         underLock(ORGANIZATION_LOCK_PREFIX + orgId, () -> {
-            mergeIntoOrganizationBaseline(userId, orgId, previousBaseline, userBaseline);
+            mergeIntoOrganizationBaseline(userId, orgId, date, previousBaseline, userBaseline);
             return Boolean.TRUE;
         });
     }
 
-    private void mergeIntoOrganizationBaseline(String userId, String orgId, BaselineVector previousBaseline,
-                                               BaselineVector userBaseline) {
+    private void mergeIntoOrganizationBaseline(String userId, String orgId, String date,
+                                               BaselineVector previousBaseline, BaselineVector userBaseline) {
         try {
             double alpha = zeroTrustProperties.getBaseline().getLearning().getAlpha();
             BaselineDataStore.BaselineRead read = baselineDataStore.readOrganizationBaseline(orgId);
@@ -1283,6 +1344,8 @@ public class BaselineLearningService {
                         .frequentResourceFamilies(userBaseline.getFrequentResourceFamilies())
                         .elementFrequencies(learnedIncrements(previousBaseline, userBaseline))
                         .vocabularyVersion(VocabularyVersion.CURRENT)
+                        .learnedDates(learnedDates(null, date))
+                        .learnedMembers(learnedMembers(null, userId))
                         .build();
                 baselineDataStore.saveOrganizationBaseline(orgId, newOrg);
                 return;
@@ -1312,6 +1375,9 @@ public class BaselineLearningService {
                     FREQ_PREFIX_RESOURCE, orgFrequencies, VocabularyMigration::resourceClass);
             String[] orgPaths = canonicalized(orgBaseline.getFrequentPaths(), FREQ_PREFIX_PATH, orgFrequencies,
                     VocabularyMigration::pathFamily);
+            // QF-21 (b): a value a list gives up takes its count along, as a member's does.
+            Map<String, Long> frequencies = mergeFrequencies(orgFrequencies,
+                    learnedIncrements(previousBaseline, userBaseline));
             BaselineVector updated = BaselineVector.builder()
                     .userId("org:" + orgId)
                     .avgTrustScore(newAvgTrust)
@@ -1319,29 +1385,36 @@ public class BaselineLearningService {
                     .updateCount(orgBaseline.getUpdateCount() + 1)
                     .lastUpdated(Instant.now())
                     .vocabularyVersion(VocabularyVersion.CURRENT)
-                    .normalIpRanges(mergeStringArrays(orgIpRanges, userBaseline.getNormalIpRanges()))
+                    .learnedDates(learnedDates(orgBaseline.getLearnedDates(), date))
+                    .learnedMembers(learnedMembers(orgBaseline.getLearnedMembers(), userId))
+                    .normalIpRanges(mergeStringArrays(orgIpRanges, userBaseline.getNormalIpRanges(), FREQ_PREFIX_IP,
+                            frequencies))
                     .normalAccessHours(mergeIntegerArrays(
                             orgBaseline.getNormalAccessHours(), userBaseline.getNormalAccessHours()))
                     .normalAccessDays(mergeIntegerArrays(
                             orgBaseline.getNormalAccessDays(), userBaseline.getNormalAccessDays()))
-                    .frequentPaths(mergeStringArrays(orgPaths, userBaseline.getFrequentPaths()))
+                    .frequentPaths(mergeStringArrays(orgPaths, userBaseline.getFrequentPaths(), FREQ_PREFIX_PATH,
+                            frequencies))
                     .normalUserAgents(mergeStringArrays(
-                            orgBaseline.getNormalUserAgents(), userBaseline.getNormalUserAgents()))
+                            orgBaseline.getNormalUserAgents(), userBaseline.getNormalUserAgents(), FREQ_PREFIX_UA,
+                            frequencies))
                     .normalOperatingSystems(mergeStringArrays(orgOperatingSystems,
-                            userBaseline.getNormalOperatingSystems()))
+                            userBaseline.getNormalOperatingSystems(), FREQ_PREFIX_OS, frequencies))
                     .normalBrowsers(mergeStringArrays(
-                            orgBaseline.getNormalBrowsers(), userBaseline.getNormalBrowsers()))
+                            orgBaseline.getNormalBrowsers(), userBaseline.getNormalBrowsers(), FREQ_PREFIX_BROWSER,
+                            frequencies))
                     .normalDevices(mergeStringArrays(
-                            orgBaseline.getNormalDevices(), userBaseline.getNormalDevices()))
-                    .normalIpBands(mergeStringArrays(orgIpBands, userBaseline.getNormalIpBands()))
+                            orgBaseline.getNormalDevices(), userBaseline.getNormalDevices(), FREQ_PREFIX_DEVICE,
+                            frequencies))
+                    .normalIpBands(mergeStringArrays(orgIpBands, userBaseline.getNormalIpBands(), FREQ_PREFIX_IP_BAND,
+                            frequencies))
                     .normalAuthenticationTypes(mergeStringArrays(orgAuthenticationTypes,
-                            userBaseline.getNormalAuthenticationTypes()))
+                            userBaseline.getNormalAuthenticationTypes(), FREQ_PREFIX_AUTH, frequencies))
                     .frequentActionFamilies(mergeStringArrays(orgActionFamilies,
-                            userBaseline.getFrequentActionFamilies()))
+                            userBaseline.getFrequentActionFamilies(), FREQ_PREFIX_ACTION, frequencies))
                     .frequentResourceFamilies(mergeStringArrays(orgResourceFamilies,
-                            userBaseline.getFrequentResourceFamilies()))
-                    .elementFrequencies(mergeFrequencies(orgFrequencies,
-                            learnedIncrements(previousBaseline, userBaseline)))
+                            userBaseline.getFrequentResourceFamilies(), FREQ_PREFIX_RESOURCE, frequencies))
+                    .elementFrequencies(frequencies)
                     .build();
             baselineDataStore.saveOrganizationBaseline(orgId, updated);
 
@@ -1366,7 +1439,12 @@ public class BaselineLearningService {
         return getOrganizationBaseline(organizationId);
     }
 
-    private String[] mergeStringArrays(String[] existing, String[] incoming) {
+    /**
+     * The organization's list with the member's values, the earliest given up past the list size; a value given up
+     * leaves the frequencies too, so that the organization does not keep counts of values it no longer lists (QF-21 b).
+     */
+    private String[] mergeStringArrays(String[] existing, String[] incoming, String frequencyPrefix,
+                                       Map<String, Long> frequencies) {
         if (incoming == null || incoming.length == 0) {
             return existing;
         }
@@ -1380,8 +1458,10 @@ public class BaselineLearningService {
             }
         }
         if (merged.size() > ORG_BASELINE_MAX_ARRAY_SIZE) {
+            int givenUp = merged.size() - ORG_BASELINE_MAX_ARRAY_SIZE;
+            merged.stream().limit(givenUp).forEach(value -> frequencies.remove(frequencyPrefix + value));
             return merged.stream()
-                    .skip(merged.size() - ORG_BASELINE_MAX_ARRAY_SIZE)
+                    .skip(givenUp)
                     .toArray(String[]::new);
         }
         return merged.toArray(new String[0]);
@@ -1417,14 +1497,17 @@ public class BaselineLearningService {
         return merged;
     }
 
-    /** What a learning added to the member's frequencies: each count less the previous one, where it grew. */
+    /**
+     * What a learning added to the member's frequencies: each count less the previous one, where it grew. The previous
+     * counts are read into today's vocabulary first, as the learning read them, so that a count moved to a new key is
+     * not taken for an addition (QF-21 c).
+     */
     private static Map<String, Long> learnedIncrements(BaselineVector previous, BaselineVector learned) {
         Map<String, Long> increments = new HashMap<>();
         if (learned == null || learned.getElementFrequencies() == null) {
             return increments;
         }
-        Map<String, Long> before = previous != null && previous.getElementFrequencies() != null
-                ? previous.getElementFrequencies() : Map.of();
+        Map<String, Long> before = frequenciesInTodaysVocabulary(previous);
         learned.getElementFrequencies().forEach((key, count) -> {
             Long previousCount = before.get(key);
             long added = (count != null ? count : 0L) - (previousCount != null ? previousCount : 0L);
@@ -1433,6 +1516,40 @@ public class BaselineLearningService {
             }
         });
         return increments;
+    }
+
+    /** The frequencies of a stored baseline with its values in today's vocabulary, as a learning reads them (W5-7). */
+    private static Map<String, Long> frequenciesInTodaysVocabulary(BaselineVector baseline) {
+        if (baseline == null || baseline.getElementFrequencies() == null) {
+            return Map.of();
+        }
+        Map<String, Long> frequencies = new HashMap<>(baseline.getElementFrequencies());
+        String vocabulary = baseline.getVocabularyVersion();
+        canonicalized(baseline.getNormalIpRanges(), FREQ_PREFIX_IP, frequencies, VocabularyMigration::network);
+        canonicalized(baseline.getNormalIpBands(), FREQ_PREFIX_IP_BAND, frequencies, VocabularyMigration::network);
+        canonicalized(baseline.getNormalOperatingSystems(), FREQ_PREFIX_OS, frequencies,
+                VocabularyMigration::operatingSystem);
+        canonicalized(baseline.getNormalAuthenticationTypes(), FREQ_PREFIX_AUTH, frequencies,
+                stored -> VocabularyMigration.authenticationType(stored, vocabulary));
+        canonicalized(baseline.getFrequentActionFamilies(), FREQ_PREFIX_ACTION, frequencies,
+                VocabularyMigration::actionFamily);
+        canonicalized(baseline.getFrequentResourceFamilies(), FREQ_PREFIX_RESOURCE, frequencies,
+                VocabularyMigration::resourceClass);
+        canonicalized(baseline.getFrequentPaths(), FREQ_PREFIX_PATH, frequencies, VocabularyMigration::pathFamily);
+        return frequencies;
+    }
+
+    /**
+     * The members of an organization baseline with this one, each as the digest of its key (QF-21 a), kept up to the
+     * list size or the members the establishment asks for, whichever is more.
+     */
+    private Set<String> learnedMembers(Set<String> stored, String userId) {
+        Set<String> members = new LinkedHashSet<>(stored != null ? stored : Set.of());
+        String member = AgentBaselineView.digest(userId);
+        if (member != null && members.size() < Math.max(ORG_BASELINE_MAX_ARRAY_SIZE, minimumOrganizationMembers())) {
+            members.add(member);
+        }
+        return members;
     }
 
     /** A personal baseline is established when it misses none of the conditions (W5-10 D4). */
@@ -1504,16 +1621,33 @@ public class BaselineLearningService {
         return value != null && (stored == null || !Arrays.asList(stored).contains(value));
     }
 
+    /**
+     * An organization baseline is established when enough learned requests of enough members came on enough company
+     * dates (QF-21 a): one member's habit is not the organization's. An organization baseline stored before its members
+     * and dates were kept is read by the earlier rule, the learned requests alone, so that a decision drawn again reads
+     * it as it was decided; its next learning starts to keep them.
+     */
     private boolean isOrganizationBaselineEstablished(BaselineVector baseline) {
-        if (baseline == null) {
+        if (baseline == null || value(baseline.getUpdateCount()) < minimumSampleCount()) {
             return false;
         }
-        return value(baseline.getUpdateCount()) >= minimumSampleCount();
+        Set<String> members = baseline.getLearnedMembers();
+        if (members == null || members.isEmpty()) {
+            return true;
+        }
+        long dates = baseline.getLearnedDates() == null ? 0L
+                : Arrays.stream(baseline.getLearnedDates()).filter(StringUtils::hasText).distinct().count();
+        int minDays = Math.max(1, zeroTrustProperties.getBaseline().getStatistical().getMinDays());
+        return members.size() >= minimumOrganizationMembers() && dates >= minDays;
     }
 
     private int minimumSampleCount() {
         int configured = zeroTrustProperties.getBaseline().getStatistical().getMinSamples();
         return Math.max(1, configured);
+    }
+
+    private int minimumOrganizationMembers() {
+        return Math.max(1, zeroTrustProperties.getBaseline().getStatistical().getMinOrganizationMembers());
     }
 
     private long value(Long input) {

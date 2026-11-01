@@ -27,7 +27,8 @@ import java.util.function.LongSupplier;
  * the response start before the decision in force). A signal stays after a cut, so every response of the user in
  * flight is cut; the release paths remove it, and an hour after its receipt it is dropped. A BLOCK in force is also
  * read through the probe, at most once per interval for a user and not before an interval of the response has passed,
- * so a signal this JVM did not receive still cuts.
+ * so a signal this JVM did not receive still cuts. The time of a user's last probe is kept only while it can hold back
+ * the user's next probe (QF-42).
  */
 @Slf4j
 final class BlockSignals {
@@ -45,11 +46,13 @@ final class BlockSignals {
     private final long probeIntervalNanos;
     private final long retentionNanos = RETENTION.toNanos();
     private final LongSupplier clock;
+    private volatile long probesForgottenAt;
 
     BlockSignals(BlockedStateProbe probe, Duration probeInterval, LongSupplier clock) {
         this.probe = probe;
         this.probeIntervalNanos = (probeInterval != null ? probeInterval : DEFAULT_PROBE_INTERVAL).toNanos();
         this.clock = clock != null ? clock : System::nanoTime;
+        this.probesForgottenAt = now() - probeIntervalNanos;
     }
 
     long now() {
@@ -99,6 +102,7 @@ final class BlockSignals {
             return false;
         }
         probedAt.put(userId, now);
+        forgetOldProbes(now);
         boolean blocked;
         try {
             blocked = probe.isBlocked(userId);
@@ -125,8 +129,25 @@ final class BlockSignals {
         return now - signal.receivedNanos() >= retentionNanos;
     }
 
+    int probedUsers() {
+        return probedAt.size();
+    }
+
+    /**
+     * QF-42: forgets, once many users were probed, the probe times older than the interval. Such a time no longer holds
+     * back a probe (the next one waits for the interval from the later of it and the response start), so forgetting it
+     * changes no answer. At most once per interval, so many users probed at once cost one pass.
+     */
+    private void forgetOldProbes(long now) {
+        if (probedAt.size() <= SWEEP_ABOVE || now - probesForgottenAt < probeIntervalNanos) {
+            return;
+        }
+        probesForgottenAt = now;
+        probedAt.entrySet().removeIf(entry -> now - entry.getValue() >= probeIntervalNanos);
+    }
+
     private void sweep(long now) {
         signals.entrySet().removeIf(entry -> expired(entry.getValue(), now));
-        probedAt.entrySet().removeIf(entry -> now - entry.getValue() >= retentionNanos);
+        probedAt.entrySet().removeIf(entry -> now - entry.getValue() >= probeIntervalNanos);
     }
 }

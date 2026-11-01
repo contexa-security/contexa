@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>실시간 판정</title>
+<link rel="stylesheet" href="design.css">
+<style>
+  .live-pill { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 14px; border-radius: var(--r-pill); border: 1px solid var(--line-strong); background: var(--surface); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .live-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--link); box-shadow: 0 0 0 4px var(--link-soft); }
+  .row5 { display: grid; grid-template-columns: 10px minmax(0, 1fr) 110px 150px 80px; gap: 14px; align-items: center; height: 56px; padding: 0 24px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .row5.head { height: 40px; background: var(--surface-2); font-size: 13px; font-weight: 600; color: var(--text-3); }
+  .row5 .sw { width: 10px; height: 10px; border-radius: 3px; }
+  .row5 .nm { font-weight: 600; color: var(--text); white-space: nowrap; }
+  .row5 .nm small { display: block; font-size: 13px; font-weight: 400; color: var(--text-3); margin-top: 2px; }
+  .row5 .out { display: flex; align-items: center; gap: 10px; font-variant-numeric: tabular-nums; }
+  .row5 .out .bar { flex: 1; height: 6px; } .row5 .out .bar i { background: var(--c-rule); }
+  .row5 .ms { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-3); }
+  .row5.cx { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--brand); border-bottom: 0; border-radius: 0 0 var(--r-lg) var(--r-lg); }
+  .working { display: inline-flex; align-items: center; gap: 8px; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--link-soft); color: var(--link); font-size: 12px; font-weight: 600; }
+  .working svg.i { width: 12px; height: 12px; }
+  .sum { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+  .sum > section { padding: 16px 20px; }
+  .sum .k { font-size: 13px; color: var(--text-3); }
+  .sum .v { margin-top: 4px; font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .sum .v small { font-size: 14px; font-weight: 500; color: var(--text-3); margin-left: 4px; }
+  .sum .d { margin-top: 4px; font-size: 13px; color: var(--text-2); }
+  .flow { padding: 20px 24px 8px; }
+  .flow h2 { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
+  .flow .sub { margin: 0 0 18px; font-size: 13px; color: var(--text-3); }
+  .fl { display: grid; grid-template-columns: 24px 1fr auto; gap: 12px; padding-bottom: 18px; position: relative; }
+  .fl::before { content: ''; position: absolute; left: 11px; top: 26px; bottom: 2px; width: 2px; background: var(--line); }
+  .fl:last-child::before { display: none; }
+  .fl .n { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-3); color: var(--text-2); z-index: 1; }
+  .fl .n svg.i { width: 14px; height: 14px; }
+  .fl.done .n { background: var(--surface-3); color: var(--allow); }
+  .fl.now .n { background: var(--link); color: var(--bg); box-shadow: 0 0 0 4px var(--link-soft); }
+  .fl.wait .n { background: transparent; border: 1.5px dashed var(--line-strong); }
+  .fl b { display: block; font-size: 14px; font-weight: 600; } .fl.wait b { color: var(--text-3); }
+  .fl p { margin: 4px 0 0; font-size: 13px; line-height: 1.55; color: var(--text-2); }
+  .fl .t { font-size: 13px; color: var(--text-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .fl .prog { margin-top: 8px; height: 6px; } .fl .prog i { width: 60%; background: var(--link); }
+  .footnote { margin-top: 16px; }
+  .phone .row5 { grid-template-columns: 10px minmax(0, 1fr) 96px 60px; padding: 0 16px; } .phone .row5 > :nth-child(4) { display: none; }
+  .phone .sum { grid-template-columns: 1fr; }
+</style>
+</head>
+<body data-active="ato" data-lang="ko" data-focus="1" data-crumbs="위협 시뮬레이션|계정 탈취 · 내부자 위협|S13">
+<main class="content"><div class="wrap">
+
+  <div class="stepper">
+    <div class="step done"><span class="step-n"><i data-icon="check"></i></span><span class="step-label">위협 유형</span></div><span class="step-line"></span>
+    <div class="step done"><span class="step-n"><i data-icon="check"></i></span><span class="step-label">요청 검토 · 판정 예측</span></div><span class="step-line"></span>
+    <div class="step now"><span class="step-n">3</span><span class="step-label">실시간 판정</span></div><span class="step-line"></span>
+    <div class="step"><span class="step-n">4</span><span class="step-label">결과 · 판정 근거</span></div>
+  </div>
+
+  <div class="ph" style="margin-bottom:20px">
+    <div class="ph-main">
+      <div class="ph-kicker"><span class="badge b-line"><i data-icon="user-round-x"></i>계정 탈취(ATO)</span><span class="code">S13</span><span class="code">run-04cdd89264f7</span><span class="tag">예상 판정: 차단 · 추가 인증</span></div>
+      <h1 class="ph-title">5개 보안 통제의 실시간 판정</h1>
+    </div>
+    <div class="ph-actions"><span class="live-pill"><span class="dot"></span>Contexa 판정 중 · 6.2초 경과</span></div>
+  </div>
+
+  <div class="grid g-12" style="align-items:start">
+    <div class="span-7">
+      <section class="card">
+        <div class="row5 head"><span></span><span>보안 통제</span><span>판정</span><span>반출</span><span style="text-align:right">응답 시간</span></div>
+        <div class="row5"><span class="sw" style="background:var(--c-waf)"></span><span class="nm">웹 방화벽<small>공격 문자열 없음</small></span><span><span class="badge b-allow"><i data-icon="check"></i>허용</span></span><span class="out"><span class="bar"><i style="width:100%"></i></span>480건</span><span class="ms">0.027초</span></div>
+        <div class="row5"><span class="sw" style="background:var(--c-iam)"></span><span class="nm">인증 · 권한<small>인증 통과 · 담당 권한</small></span><span><span class="badge b-allow"><i data-icon="check"></i>허용</span></span><span class="out"><span class="bar"><i style="width:100%"></i></span>480건</span><span class="ms">0.021초</span></div>
+        <div class="row5"><span class="sw" style="background:var(--c-rule)"></span><span class="nm">임계값 규칙<small>근무 시간 · 500건 이하</small></span><span><span class="badge b-allow"><i data-icon="check"></i>허용</span></span><span class="out"><span class="bar"><i style="width:100%"></i></span>480건</span><span class="ms">0.025초</span></div>
+        <div class="row5"><span class="sw" style="background:var(--c-approval)"></span><span class="nm">승인 정책 규칙<small>배정 프로젝트 예외</small></span><span><span class="badge b-allow"><i data-icon="check"></i>허용</span></span><span class="out"><span class="bar"><i style="width:100%"></i></span>480건</span><span class="ms">0.041초</span></div>
+        <div class="row5 cx"><span class="sw" style="background:var(--c-contexa)"></span><span class="nm">Contexa<small>응답 전 판정 · 반출 대기</small></span><span><span class="working"><i data-icon="loader"></i>판정 중</span></span><span class="out"><span class="bar"><i style="width:0%"></i></span>0건</span><span class="ms">6.2초…</span></div>
+      </section>
+      <div class="sum">
+        <section class="card"><div class="k">기존 보안 통제 4개</div><div class="v num">0.041<small>초 안에 모두 허용</small></div><div class="d">반출 480건 × 4 — 시나리오 정답 기준 미탐</div></section>
+        <section class="card"><div class="k">Contexa</div><div class="v num">0<small>건 반출 · 판정 전 보류</small></div><div class="d">응답 전 판정(동기) — 판정이 나올 때까지 응답을 보내지 않습니다</div></section>
+      </div>
+    </div>
+    <aside class="span-5">
+      <section class="card flow">
+        <h2>Contexa 판정 진행</h2>
+        <p class="sub">이 요청에서 Contexa가 지금 확인하는 것</p>
+        <div class="fl done"><span class="n"><i data-icon="check"></i></span><div><b>업무 컨텍스트 수집</b><p>HX-310 담당 · 승인 기록 없음 · 작업 티켓 없음 · 당번 근무 중</p></div><span class="t">0.04초</span></div>
+        <div class="fl done"><span class="n"><i data-icon="check"></i></span><div><b>행위 기준선 대조</b><p>학습 요청 48건 기준선 · 9개 항목 중 2개 이탈 — 단말(처음 확인), 반출 규모(480건, 평소 최대 15건)</p></div><span class="t"></span></div>
+        <div class="fl done"><span class="n"><i data-icon="check"></i></span><div><b>판정 프롬프트 구성</b><p>시스템 규칙 94줄 + 요청 상황 63줄 · 번들 2026.10.27-v21.17</p></div><span class="t"></span></div>
+        <div class="fl now"><span class="n"><i data-icon="sparkles"></i></span><div><b>AI 추론</b><p>gpt-6-luna · 입력 6,787 토큰 · 가설 비교 중</p><div class="bar prog"><i></i></div></div><span class="t">6.2초…</span></div>
+        <div class="fl wait"><span class="n"></span><div><b>판정 적용 · 무결성 봉인</b><p>응답 전 적용 · 판정 근거 봉인</p></div><span class="t">—</span></div>
+      </section>
+      <div class="note footnote"><i data-icon="info"></i><span>진행 중 화면의 예시(실행 시작 후 6.2초 시점)입니다. 단계 내용과 시각은 run-04cdd89264f7 기록이며, 이 실행의 판정은 10.2초에 끝났습니다.</span></div>
+    </aside>
+  </div>
+
+</div></main>
+<script src="shell.js"></script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>판정 이력</title>
+<link rel="stylesheet" href="design.css">
+<style>
+  .filters { display: flex; gap: 8px; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .sel { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--r-md); font-size: 14px; color: var(--text-2); background: var(--surface); }
+  .sel b { color: var(--text); font-weight: 600; }
+  .sel svg.i { width: 14px; height: 14px; color: var(--text-3); }
+  .seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--r-md); overflow: hidden; }
+  .seg span { height: 32px; display: grid; place-items: center; padding: 0 12px; font-size: 13px; color: var(--text-2); }
+  .seg span.on { background: var(--surface-3); color: var(--text); font-weight: 600; }
+  .find { margin-left: auto; display: flex; align-items: center; gap: 8px; height: 34px; flex: 1 1 120px; max-width: 220px; min-width: 120px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--r-md); color: var(--text-3); font-size: 13px; }
+  .pager { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--line); font-size: 13px; color: var(--text-3); }
+  .pager .btns { margin-left: auto; display: flex; gap: 6px; }
+  .pager .pb { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: var(--r-md); color: var(--text-2); }
+  .pager .pb.on { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); font-weight: 600; }
+  .panel { position: sticky; top: 24px; }
+  .panel-head { display: flex; align-items: center; gap: 10px; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+  .panel-head h2 { margin: 0; font-size: 16px; font-weight: 600; }
+  .panel-sec { padding: 16px 20px; border-bottom: 1px solid var(--line); }
+  .panel-sec:last-child { border-bottom: 0; }
+  .ctl-mini { display: grid; grid-template-columns: 1fr auto; row-gap: 8px; font-size: 14px; }
+  .ctl-mini span:nth-child(odd) { color: var(--text-2); display: flex; align-items: center; gap: 8px; }
+  .swatch { width: 9px; height: 9px; border-radius: 4px; display: inline-block; }
+  td .sub { display: block; font-size: 13px; color: var(--text-3); font-weight: 400; margin-top: 1px; }
+  .table td { height: 56px; }
+  .phone .find { width: 100%; margin-left: 0; }
+  .phone .panel { position: static; }
+  .phone .logt tr { display: grid; grid-template-columns: 1fr auto auto; grid-template-areas: 'time time dec' 'scen scen scen' 'res ctl lat'; gap: 6px 12px; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  .phone .logt thead { display: none; }
+  .phone .logt td { display: block; height: auto; padding: 0; border: 0; white-space: normal; position: static; box-shadow: none; background: none; }
+  .phone .logt td:nth-child(1) { grid-area: time; font-size: 13px; color: var(--text-3); }
+  .phone .logt td:nth-child(2) { grid-area: scen; }
+  .phone .logt td:nth-child(3) { grid-area: dec; }
+  .phone .logt td:nth-child(4) { grid-area: res; }
+  .phone .logt td:nth-child(5) { grid-area: ctl; font-size: 13px; color: var(--text-3); }
+  .phone .logt td:nth-child(5)::before { content: '기존 통제 차단 '; }
+  .phone .logt td:nth-child(6) { grid-area: lat; font-size: 13px; color: var(--text-3); }
+  .phone .logt tbody { display: block; }
+  .phone .logt { display: block; }
+</style>
+</head>
+<body data-active="log" data-lang="ko" data-crumbs="모니터링|판정 이력">
+<main class="content"><div class="wrap">
+
+  <div class="ph">
+    <div class="ph-main"><h1 class="ph-title">판정 이력</h1><p class="ph-desc">시뮬레이션 실행마다 5개 보안 통제의 응답과 Contexa의 판정, 시나리오 정답 대비 결과를 기록합니다.</p></div>
+    <div class="ph-actions"><button class="btn"><i data-icon="download"></i>CSV 내보내기</button></div>
+  </div>
+
+  <div class="layout-2" style="grid-template-columns:minmax(0,1fr) 340px">
+    <section class="card area-a">
+      <div class="filters">
+        <span class="sel"><i data-icon="calendar"></i>기간 <b>최근 7일</b><i data-icon="chevron-down"></i></span>
+        <span class="seg"><span class="on">전체</span><span>위협</span><span>정상 업무</span></span>
+        <span class="sel">판정 <b>전체</b><i data-icon="chevron-down"></i></span>
+        <span class="sel">결과 <b>전체</b><i data-icon="chevron-down"></i></span>
+        <span class="find"><i data-icon="search" style="width:14px;height:14px"></i>실행 ID · 시나리오</span>
+      </div>
+      <table class="table logt stack">
+        <thead><tr><th style="width:104px">시각 (UTC)</th><th>시나리오</th><th style="width:116px">Contexa 판정</th><th style="width:132px">결과</th><th class="r" style="width:92px">기존 통제 차단</th><th class="r" style="width:84px">판정 시간</th></tr></thead>
+        <tbody>
+          <tr><td class="num">10-31 07:31</td><td class="strong">내부자 위협 · 영업 기밀 반출<span class="sub">S16 · run-d399d3a50c57</span></td><td><span class="badge b-block"><i data-icon="ban"></i>차단</span></td><td><span class="badge b-stepup">일부 반출 뒤 차단</span></td><td class="r num">0 / 4</td><td class="r num">18.4초</td></tr>
+          <tr><td class="num">10-31 07:30</td><td class="strong">계정 탈취 · 대량 반출<span class="sub">S13 · run-78c1493c1e61</span></td><td><span class="badge b-allow"><i data-icon="check"></i>허용</span></td><td><span class="badge b-block">미탐</span></td><td class="r num">0 / 4</td><td class="r num">7.7초</td></tr>
+          <tr><td class="num">10-31 07:24</td><td class="strong">정상 사용자 · 같은 요청<span class="sub">S13T · run-15e214d87b86</span></td><td><span class="badge b-allow"><i data-icon="check"></i>허용</span></td><td><span class="badge b-allow">정상 처리</span></td><td class="r num">0 / 4</td><td class="r num">6.6초</td></tr>
+          <tr><td class="num">10-31 07:22</td><td class="strong">계정 탈취 · 대량 반출<span class="sub">S13 · run-fbbd5ecfa56c</span></td><td><span class="badge b-stepup"><i data-icon="key-round"></i>추가 인증</span></td><td><span class="badge b-allow">적중</span></td><td class="r num">0 / 4</td><td class="r num">7.2초</td></tr>
+          <tr><td class="num">10-31 06:52</td><td class="strong">계정 탈취 · 대량 반출<span class="sub">S13 · run-e816a44fd534</span></td><td><span class="badge b-allow"><i data-icon="check"></i>허용</span></td><td><span class="badge b-block">미탐</span></td><td class="r num">0 / 4</td><td class="r num">6.5초</td></tr>
+          <tr class="is-sel"><td class="num">10-27 23:54</td><td class="strong">계정 탈취 · 대량 반출<span class="sub">S13 · run-04cdd89264f7</span></td><td><span class="badge b-stepup"><i data-icon="key-round"></i>추가 인증</span></td><td><span class="badge b-allow">적중</span></td><td class="r num">0 / 4</td><td class="r num">10.1초</td></tr>
+          <tr><td class="num">10-27 23:54</td><td class="strong">정상 사용자 · 같은 요청<span class="sub">S13T · run-9c74d0f95216</span></td><td><span class="badge b-allow"><i data-icon="check"></i>허용</span></td><td><span class="badge b-allow">정상 처리</span></td><td class="r num">0 / 4</td><td class="r num">7.4초</td></tr>
+        </tbody>
+      </table>
+      <div class="pager"><span>전체 2,046건 중 1–7</span><div class="btns"><span class="pb"><i data-icon="chevron-left" style="width:14px;height:14px"></i></span><span class="pb on">1</span><span class="pb">2</span><span class="pb">3</span><span class="pb"><i data-icon="chevron-right" style="width:14px;height:14px"></i></span></div></div>
+    </section>
+
+    <aside class="area-side">
+      <section class="card panel">
+        <div class="panel-head"><h2>run-04cdd89264f7</h2><span class="badge b-allow" style="margin-left:auto">적중</span></div>
+        <div class="panel-sec">
+          <p class="section-title">요청</p>
+          <dl class="kv" style="grid-template-columns:96px 1fr"><dt>시나리오</dt><dd>계정 탈취 · 대량 반출 (S13)</dd><dt>계정</dt><dd>엔지니어 K</dd><dt>요청</dt><dd>HX-310 설계 자료 480건 반출</dd><dt>시각</dt><dd class="num">2026-10-27 23:54 UTC</dd></dl>
+        </div>
+        <div class="panel-sec">
+          <p class="section-title">Contexa 판정</p>
+          <div class="h-stack" style="margin-bottom:10px"><span class="badge b-stepup"><i data-icon="key-round"></i>추가 인증</span><span class="muted" style="font-size:13px">위험도 0.43 · 확신도 0.78 · 10.1초</span></div>
+          <p style="margin:0;font-size:14px;color:var(--text-2)">기준선 이탈 2건(단말 · 반출 건수), 승인 기록 없음</p>
+        </div>
+        <div class="panel-sec">
+          <p class="section-title">5개 보안 통제</p>
+          <div class="ctl-mini">
+            <span><i class="swatch" style="background:var(--c-waf)"></i>웹 방화벽</span><span class="badge b-block">480건 반출</span>
+            <span><i class="swatch" style="background:var(--c-iam)"></i>인증 · 권한</span><span class="badge b-block">480건 반출</span>
+            <span><i class="swatch" style="background:var(--c-rule)"></i>임계값 규칙</span><span class="badge b-block">480건 반출</span>
+            <span><i class="swatch" style="background:var(--c-approval)"></i>승인 정책 규칙</span><span class="badge b-block">480건 반출</span>
+            <span><i class="swatch" style="background:var(--c-contexa)"></i>Contexa</span><span class="badge b-allow">반출 0건</span>
+          </div>
+        </div>
+        <div class="panel-sec" style="display:flex;gap:8px"><button class="btn" style="flex:1"><i data-icon="copy"></i>ID 복사</button><button class="btn btn-primary" style="flex:1.4"><i data-icon="panel-right-open"></i>상세 보기</button></div>
+      </section>
+    </aside>
+  </div>
+
+</div></main>
+<script src="shell.js"></script>
+</body>
+</html>

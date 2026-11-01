@@ -1,0 +1,114 @@
+.scroll {
+  max-inline-size: 100%;
+  overflow-x: auto;
+}
+
+.table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--ux-text-14);
+}
+
+.table th {
+  block-size: var(--ux-row-head);
+  padding: var(--ux-space-0) var(--ux-space-4);
+  border-block-end: var(--ux-hairline) solid var(--ux-line);
+  background-color: var(--ux-surface-2);
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-13);
+  font-weight: var(--ux-weight-semibold);
+  text-align: start;
+  white-space: nowrap;
+}
+
+.table td {
+  block-size: var(--ux-row);
+  padding: var(--ux-space-2) var(--ux-space-4);
+  border-block-end: var(--ux-hairline) solid var(--ux-line);
+  color: var(--ux-text-2);
+  line-height: var(--ux-leading-tight);
+}
+
+.table tr:last-child td {
+  border-block-end: 0;
+}
+
+.table [data-numeric] {
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  white-space: nowrap;
+}
+
+.table td[data-strong] {
+  color: var(--ux-text);
+  font-weight: var(--ux-weight-semibold);
+  white-space: nowrap;
+}
+
+.table tr[aria-current='true'] td {
+  background-color: var(--ux-link-soft);
+}
+
+.table tr[aria-current='true'] td:first-child {
+  box-shadow: var(--ux-stripe-link);
+}
+
+.table tr[data-highlight] td:first-child {
+  box-shadow: var(--ux-stripe-brand);
+}
+
+/* Phone: list tables stack into row cards; figure tables scroll inside the card with the first column held. */
+@media (width < 640px) {
+  .table[data-stack] thead {
+    display: none;
+  }
+
+  .table[data-stack] tr {
+    display: grid;
+    padding: var(--ux-space-3) var(--ux-space-4);
+    border-block-end: var(--ux-hairline) solid var(--ux-line);
+  }
+
+  .table[data-stack] tbody tr:last-child {
+    border-block-end: 0;
+  }
+
+  .table[data-stack] td {
+    block-size: auto;
+    padding: var(--ux-space-0);
+    border: 0;
+    text-align: start;
+    white-space: normal;
+  }
+
+  .table[data-stack] td::before {
+    content: attr(data-k);
+    display: block;
+    margin-block-start: var(--ux-space-2);
+    color: var(--ux-text-3);
+    font-size: var(--ux-text-12);
+    font-weight: var(--ux-weight-medium);
+  }
+
+  .table[data-stack] td:first-child::before {
+    display: none;
+  }
+
+  .table:not([data-stack]) th,
+  .table:not([data-stack]) td {
+    white-space: nowrap;
+  }
+
+  .table:not([data-stack]) th:first-child,
+  .table:not([data-stack]) td:first-child {
+    position: sticky;
+    inset-inline-start: 0;
+    z-index: var(--ux-layer-raised);
+    background-color: var(--ux-surface);
+    box-shadow: var(--ux-hairline-end);
+  }
+
+  .table:not([data-stack]) th:first-child {
+    background-color: var(--ux-surface-2);
+  }
+}

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>계정 탈취 — 실시간 판정</title>
+<link rel="stylesheet" href="design.css">
+<style>
+  .split { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--line); }
+  .split > div { padding: 20px 24px; }
+  .split > div + div { border-left: 1px solid var(--line); }
+  .big { font-size: 32px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .big small { font-size: 15px; color: var(--text-3); font-weight: 600; margin-left: 6px; }
+  .egress { display: flex; align-items: center; gap: 10px; }
+  .egress .bar { width: 140px; }
+  .ctl-name { display: flex; align-items: center; gap: 10px; }
+  .swatch { width: 10px; height: 10px; border-radius: 4px; flex: none; }
+  .tl { list-style: none; margin: 0; padding: 0; }
+  .tl li { display: grid; grid-template-columns: 64px 20px 1fr; gap: 10px; padding-bottom: 16px; position: relative; }
+  .tl li:last-child { padding-bottom: 0; }
+  .tl .t { font: 500 13px/20px var(--mono); color: var(--text-3); text-align: right; }
+  .tl .m { width: 10px; height: 10px; border-radius: 50%; margin: 5px auto 0; background: var(--line-strong); position: relative; z-index: 1; }
+  .tl li:not(:last-child)::after { content: ''; position: absolute; left: 83px; top: 16px; bottom: 0; width: 1.5px; background: var(--line); }
+  .tl .m.ai { background: var(--link); } .tl .m.end { background: var(--stepup); }
+  .tl .x { font-size: 14px; color: var(--text); font-weight: 600; } .tl .y { font-size: 13px; color: var(--text-3); margin-top: 2px; }
+  .dev { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .dev td { padding: 10px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .dev tr:last-child td { border-bottom: 0; }
+  .dev td:first-child { color: var(--text-3); width: 88px; }
+  .dev .now { color: var(--text); font-weight: 600; } .dev .usual { color: var(--text-3); font-size: 13px; margin-top: 2px; }
+  .dev td:last-child { text-align: right; width: 72px; }
+  .phone .split { grid-template-columns: 1fr; }
+  .phone .split > * + * { border-left: 0 !important; border-top: 1px solid var(--line); }
+</style>
+</head>
+<body data-active="ato" data-lang="ko" data-crumbs="위협 시뮬레이션|계정 탈취 · 내부자 위협|S13">
+<main class="content"><div class="wrap">
+
+  <div class="ph">
+    <div class="ph-main">
+      <div class="ph-kicker"><span class="badge b-line"><i data-icon="user-round-x"></i>계정 탈취 (ATO)</span><span class="tag">시나리오</span><span class="code">S13</span><span class="tag">실행</span><span class="code">run-04cdd89264f7</span></div>
+      <h1 class="ph-title">5개 보안 통제의 실시간 응답</h1>
+      <p class="ph-desc">같은 반출 요청에 각 통제가 실제로 돌려준 응답과 반출 건수입니다. Contexa는 응답 전에 판정해 반출을 막았습니다.</p>
+    </div>
+    <div class="ph-actions"><span class="pill"><span class="dot"></span>판정 완료 · 10.1초</span></div>
+  </div>
+
+  <div class="stepper">
+    <div class="step done"><span class="step-n"><i data-icon="check" style="width:14px;height:14px"></i></span><span class="step-label">위협 유형</span></div><div class="step-line"></div>
+    <div class="step done"><span class="step-n"><i data-icon="check" style="width:14px;height:14px"></i></span><span class="step-label">요청 검토 · 판정 예측</span></div><div class="step-line"></div>
+    <div class="step now"><span class="step-n">3</span><span class="step-label">실시간 판정</span></div><div class="step-line"></div>
+    <div class="step"><span class="step-n">4</span><span class="step-label">결과 · 판정 근거</span></div>
+  </div>
+
+  <div class="layout-2">
+    <section class="card area-a">
+      <div class="split">
+        <div><div class="kpi-label">기존 보안 통제 4개의 반출</div><div class="big" style="color:var(--block)">480<small>건 × 4개 통제</small></div></div>
+        <div><div class="kpi-label">Contexa 적용 시 반출</div><div class="big" style="color:var(--allow)">0<small>건 · 추가 인증 요구</small></div></div>
+      </div>
+      <table class="table stack">
+        <thead><tr><th>보안 통제</th><th>판정</th><th>반출 건수</th><th class="r">응답</th></tr></thead>
+        <tbody>
+          <tr><td class="strong"><span class="ctl-name"><span class="swatch" style="background:var(--c-waf)"></span>웹 방화벽 (WAF)</span></td><td data-k="판정"><span class="badge b-none">허용</span> <span class="badge b-block">미탐</span></td><td data-k="반출 건수"><span class="egress"><span class="bar"><i style="width:100%;background:var(--block)"></i></span><span class="num">480건</span></span></td><td class="r num" data-k="응답">200 · 0.03초</td></tr>
+          <tr><td class="strong"><span class="ctl-name"><span class="swatch" style="background:var(--c-iam)"></span>인증 · 권한 (IAM)</span></td><td data-k="판정"><span class="badge b-none">허용</span> <span class="badge b-block">미탐</span></td><td data-k="반출 건수"><span class="egress"><span class="bar"><i style="width:100%;background:var(--block)"></i></span><span class="num">480건</span></span></td><td class="r num" data-k="응답">200 · 0.02초</td></tr>
+          <tr><td class="strong"><span class="ctl-name"><span class="swatch" style="background:var(--c-rule)"></span>임계값 규칙</span></td><td data-k="판정"><span class="badge b-none">허용</span> <span class="badge b-block">미탐</span></td><td data-k="반출 건수"><span class="egress"><span class="bar"><i style="width:100%;background:var(--block)"></i></span><span class="num">480건</span></span></td><td class="r num" data-k="응답">200 · 0.03초</td></tr>
+          <tr><td class="strong"><span class="ctl-name"><span class="swatch" style="background:var(--c-approval)"></span>승인 정책 규칙</span></td><td data-k="판정"><span class="badge b-none">허용</span> <span class="badge b-block">미탐</span></td><td data-k="반출 건수"><span class="egress"><span class="bar"><i style="width:100%;background:var(--block)"></i></span><span class="num">480건</span></span></td><td class="r num" data-k="응답">200 · 0.04초</td></tr>
+          <tr class="hl"><td class="strong"><span class="ctl-name"><span class="swatch" style="background:var(--c-contexa)"></span>Contexa</span></td><td data-k="판정"><span class="badge b-stepup"><i data-icon="key-round"></i>추가 인증</span> <span class="badge b-allow">적중</span></td><td data-k="반출 건수"><span class="egress"><span class="bar"><i style="width:0%"></i></span><span class="num">0건</span></span></td><td class="r num" data-k="응답">401 · 10.2초</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+      <section class="card area-b">
+        <div class="card-head"><div><h2 class="card-title">기준선과 다른 항목</h2><p class="card-sub">기준선 10개 항목 중 9개 비교 · 2개 이탈</p></div></div>
+        <div class="card-body" style="padding-top:8px">
+          <table class="dev">
+            <tr><td>단말</td><td><div class="now">Safari 18 · macOS</div><div class="usual">평소 Edge 140 · Windows</div></td><td><span class="badge b-block">이탈</span></td></tr>
+            <tr><td>반출 건수</td><td><div class="now">480건</div><div class="usual">평소 최대 15건</div></td><td><span class="badge b-block">이탈</span></td></tr>
+            <tr><td>승인 기록</td><td><div class="now">이 요청에 대한 승인 없음</div><div class="usual">작업 티켓 없음</div></td><td><span class="badge b-none">기록 없음</span></td></tr>
+            <tr><td>자료 민감도</td><td><div class="now">높음</div><div class="usual">HX-310 설계 자료</div></td><td><span class="badge b-stepup">높음</span></td></tr>
+          </table>
+        </div>
+      </section>
+    <aside class="area-side v-stack">
+      <section class="card">
+        <div class="card-head"><div><h2 class="card-title">Contexa 판정 과정</h2><p class="card-sub">gpt-6-luna · 판정 프롬프트 157줄</p></div></div>
+        <div class="card-body">
+          <ol class="tl">
+            <li><span class="t">+0.00초</span><span class="m"></span><div><div class="x">컨텍스트 수집</div><div class="y">행위 기준선(학습 48건 중 최근 7일 20건) · 업무 컨텍스트 · 과거 판정</div></div></li>
+            <li><span class="t">+0.00초</span><span class="m ai"></span><div><div class="x">AI 판정 시작</div><div class="y">모델 호출 1회 · 입력 6,787 · 출력 704 토큰</div></div></li>
+            <li><span class="t">+10.09초</span><span class="m end"></span><div><div class="x">추가 인증 요구 (CHALLENGE)</div><div class="y">위험도 0.43 · 확신도 0.78</div></div></li>
+            <li><span class="t">+10.09초</span><span class="m end"></span><div><div class="x">응답 전 적용</div><div class="y">HTTP 401 · 반출 0건</div></div></li>
+          </ol>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <div class="h-stack" style="justify-content:flex-end;margin-top:24px" >
+    <button class="btn"><i data-icon="file-json"></i>원본 기록</button>
+    <button class="btn btn-primary"><i data-icon="arrow-right"></i>결과 · 판정 근거</button>
+  </div>
+
+</div></main>
+<script src="shell.js"></script>
+</body>
+</html>

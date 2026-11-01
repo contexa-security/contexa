@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.std.rag.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.context.support.VocabularyVersion;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +29,7 @@ import org.springframework.ai.embedding.EmbeddingRequest;
 import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.ai.vectorstore.pgvector.PgVectorStore;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 import java.util.ArrayList;
@@ -104,6 +107,76 @@ class PgVectorVocabularyReindexerIntegrationTest {
         assertThat(contents).containsEntry(UNSTAMPED_ID, "record one");
         assertThat(jdbc.queryForObject("select metadata::jsonb ->> 'ipBand' from public." + TABLE
                 + " where id::text = ?", String.class, UNSTAMPED_ID)).isEqualTo("10.40.12.0/24");
+    }
+
+    /**
+     * QF-26 (R11): a JSONB merge written on a row while the reindex holds its read of the batch (a quarantine, a release,
+     * a verification outcome) stays: the reindex writes only the keys it moves, and a key it removes is removed.
+     */
+    @Test
+    void aMergeWrittenWhileTheReindexReadsTheBatchIsKept() {
+        String partialId = "00000000-0000-0000-0000-000000000004";
+        Map<String, Object> firstMethodOnly = new HashMap<>(Map.of(
+                "documentType", "behavior", "userId", "alice", "authenticationType", "PASSWORD"));
+        store.add(List.of(new Document(partialId, "record four", firstMethodOnly)));
+        InterleavingJdbcTemplate interleaving = new InterleavingJdbcTemplate(jdbc, () -> {
+            jdbc.update("update public." + TABLE + " set metadata = (metadata::jsonb || jsonb_build_object("
+                    + "'verificationOutcome', 'VERIFIED'))::json where id::text = ?", UNSTAMPED_ID);
+            jdbc.update("update public." + TABLE + " set metadata = (metadata::jsonb || jsonb_build_object("
+                    + "'learningState', 'QUARANTINED'))::json where id::text = ?", partialId);
+        });
+        PgVectorStore reindexStore = PgVectorStore.builder(interleaving, new FixedEmbeddingModel())
+                .dimensions(3)
+                .distanceType(PgVectorStore.PgDistanceType.COSINE_DISTANCE)
+                .indexType(PgVectorStore.PgIndexType.NONE)
+                .vectorTableName(TABLE)
+                .build();
+
+        assertThat(new PgVectorVocabularyReindexer(reindexStore, "public", TABLE).reindex(10)).isEqualTo(3);
+
+        Map<String, Object> unstamped = metadata(UNSTAMPED_ID);
+        assertThat(unstamped).containsEntry("verificationOutcome", "VERIFIED")
+                .containsEntry("actionFamily", "WRITE")
+                .containsEntry("ipBand", "10.40.12.0/24")
+                .containsEntry("vocabularyVersion", VocabularyVersion.CURRENT);
+        Map<String, Object> partial = metadata(partialId);
+        assertThat(partial).containsEntry("learningState", "QUARANTINED")
+                .containsEntry("vocabularyMigrated", "partial")
+                .containsEntry("vocabularyVersion", VocabularyVersion.CURRENT)
+                .doesNotContainKey("authenticationType");
+    }
+
+    private Map<String, Object> metadata(String id) {
+        String json = jdbc.queryForObject("select metadata::text from public." + TABLE + " where id::text = ?",
+                String.class, id);
+        try {
+            return new ObjectMapper().readValue(json, new TypeReference<Map<String, Object>>() {
+            });
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** A JDBC template that runs a concurrent writer once, right after the reindex has read its first batch. */
+    private static final class InterleavingJdbcTemplate extends JdbcTemplate {
+
+        private final Runnable concurrentWriter;
+        private boolean ran;
+
+        InterleavingJdbcTemplate(JdbcTemplate source, Runnable concurrentWriter) {
+            super(source.getDataSource());
+            this.concurrentWriter = concurrentWriter;
+        }
+
+        @Override
+        public <T> List<T> query(String sql, RowMapper<T> rowMapper, Object... args) {
+            List<T> rows = super.query(sql, rowMapper, args);
+            if (!ran && sql.contains("vocabularyVersion")) {
+                ran = true;
+                concurrentWriter.run();
+            }
+            return rows;
+        }
     }
 
     private static final class FixedEmbeddingModel implements EmbeddingModel {

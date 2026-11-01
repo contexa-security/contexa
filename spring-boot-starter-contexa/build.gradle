@@ -7,7 +7,8 @@ dependencies {
     api 'org.springframework:spring-jcl:6.1.12'
 
     // BOMs (transitive to consumer projects for version management)
-    api platform("org.springframework.ai:spring-ai-bom:1.1.2")
+    // the version the core modules are built and tested against (root build.gradle); a consumer of the starter gets the same one (BR-S3)
+    api platform("org.springframework.ai:spring-ai-bom:1.1.8")
     api platform("io.github.resilience4j:resilience4j-bom:2.1.0")
     api platform("org.springframework.statemachine:spring-statemachine-bom:4.0.0")
 

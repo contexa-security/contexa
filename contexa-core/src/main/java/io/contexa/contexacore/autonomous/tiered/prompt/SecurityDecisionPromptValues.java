@@ -21,6 +21,7 @@ import io.contexa.contexacore.autonomous.baseline.BaselineViewCalculator;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.decision.DecisionFact;
 import io.contexa.contexacore.autonomous.context.decision.DecisionFacts;
+import io.contexa.contexacore.autonomous.context.decision.DecisionFactsResolver;
 import io.contexa.contexacore.autonomous.context.decision.Deviation;
 import io.contexa.contexacore.autonomous.context.decision.DeviationDimension;
 import io.contexa.contexacore.autonomous.context.decision.RelativeTime;
@@ -254,7 +255,9 @@ final class SecurityDecisionPromptValues {
         // Without the computation the repeat and the differences are named unknown by withoutSource (N-INS-2).
         if (facts != null) {
             for (DecisionFact fact : facts.facts()) {
-                if (values.has(FACTS, fact.name())) {
+                // CQ-1: the argument origin line is drawn below from the agent line functions, as the inspector reads it;
+                // its text is the host's quotation of a tool's output, which is no time on the event clock.
+                if (values.has(FACTS, fact.name()) && !DecisionFactsResolver.ARGUMENT_ORIGIN.equals(fact.name())) {
                     values.value(FACTS, fact.name(), fact.value());
                     // A record's time or a compared hour is on the event clock (W3-13).
                     if (fact.value() != null && ON_THE_CLOCK.matcher(fact.value()).find()) {
@@ -303,6 +306,11 @@ final class SecurityDecisionPromptValues {
         if (values.has(FACTS, "RecordProvenance")) {
             values.value(FACTS, "RecordProvenance", AgentLineValues.recordProvenance(canonical, at));
         }
+        // CQ-1: where an argument value of the request first appeared, when the host says it was in a tool's output; a
+        // v21 entry only, and no line without such a value.
+        if (values.has(FACTS, DecisionFactsResolver.ARGUMENT_ORIGIN)) {
+            values.value(FACTS, DecisionFactsResolver.ARGUMENT_ORIGIN, AgentLineValues.argumentOrigins(canonical));
+        }
         values.value(FACTS, "ThreatMatch",
                 collapse(sections.buildThreatLearningSectionWithoutOutsideText(context.getBehaviorAnalysis())));
     }
@@ -329,6 +337,10 @@ final class SecurityDecisionPromptValues {
         if (v21) {
             // A2-8: what the caller passed to the protected method, as the publisher summarised it.
             addUntrusted(items, UntrustedTextSources.CALL_ARGUMENTS, AgentLineValues.callArguments(canonical), limit);
+            // CQ-1: the sentences of the tool outputs the argument origin line quotes, already cut to their own longest.
+            for (String excerpt : AgentLineValues.toolOutputExcerpts(canonical)) {
+                addUntrusted(items, UntrustedTextSources.TOOL_OUTPUT_EXCERPT, excerpt, Integer.MAX_VALUE);
+            }
         }
         for (String text : sections.outsideThreatKnowledgeTexts(context.getBehaviorAnalysis())) {
             addUntrusted(items, UntrustedTextSources.THREAT_KNOWLEDGE, text, limit);

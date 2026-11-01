@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>도입 · 연동 가이드</title>
+<link rel="stylesheet" href="design.css">
+<style>
+  .steps { display: grid; gap: 16px; }
+  .stp { display: grid; grid-template-columns: 40px 1fr; gap: 16px; padding: 20px 24px; }
+  .stp + .stp { border-top: 1px solid var(--line); }
+  .stp-n { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-weight: 600; font-size: 14px; background: var(--surface-3); color: var(--text); border: 1px solid var(--brand-line); }
+  .stp h3 { margin: 4px 0 4px; font-size: 16px; font-weight: 600; }
+  .stp p { margin: 0 0 12px; font-size: 14px; color: var(--text-2); }
+  pre.code-block { margin: 0; padding: 14px 16px; border-radius: var(--r-md); background: #070B15; border: 1px solid var(--line); font: 500 13px/1.65 var(--mono); color: #C9D4EA; overflow: auto; position: relative; }
+  pre .kw { color: #E6B84F; } pre .an { color: #8DB0FF; } pre .st { color: #7BD4A8; } pre .cm { color: #6B7893; }
+  .copy { position: absolute; top: 10px; right: 10px; height: 26px; padding: 0 8px; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line-strong); border-radius: 6px; color: var(--text-3); background: var(--surface); font-family: var(--font); }
+  .links a { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line); color: var(--text); font-weight: 600; font-size: 14px; text-decoration: none; }
+  .links a:last-child { border-bottom: 0; }
+  .links a svg.i:last-child { margin-left: auto; color: var(--text-3); width: 16px; height: 16px; }
+  .stp > div { min-width: 0; }
+  .phone .stp { grid-template-columns: 32px 1fr; gap: 12px; padding: 16px; }
+</style>
+</head>
+<body data-active="deploy" data-lang="ko" data-crumbs="도입|도입 · 연동 가이드">
+<main class="content"><div class="wrap">
+
+  <div class="ph">
+    <div class="ph-main"><h1 class="ph-title">도입 · 연동 가이드</h1><p class="ph-desc">Spring Boot 애플리케이션에 의존성을 추가하고 보호할 엔드포인트를 지정합니다. 처음에는 판정만 기록하는 관찰 모드로 시작해 운영 지표를 확인한 뒤 적용 모드로 전환합니다.</p></div>
+    <div class="ph-actions"><button class="btn"><i data-icon="github"></i>GitHub</button><button class="btn btn-primary"><i data-icon="rocket"></i>빠른 시작</button></div>
+  </div>
+
+  <div class="tabs"><span class="tab on">연동 절차</span><span class="tab">관찰 모드</span><span class="tab">보관 · 감사</span><span class="tab">기존 시스템 연동</span></div>
+
+  <div class="grid g-12" style="align-items:start">
+    <section class="card span-8 steps" style="gap:0">
+      <div class="stp"><span class="stp-n">1</span><div><h3>의존성 추가</h3><p>Spring Boot 스타터 하나로 판정 엔진과 필터가 구성됩니다.</p><pre class="code-block"><span class="copy"><i data-icon="copy" style="width:12px;height:12px"></i>복사</span>dependencies {
+    implementation <span class="st">"ai.ctxa:spring-boot-starter-contexa:0.1.0"</span>
+}</pre></div></div>
+      <div class="stp"><span class="stp-n">2</span><div><h3>보호할 엔드포인트 지정</h3><p>판정이 필요한 엔드포인트에 <code>@Protectable</code>을 붙입니다. <code>sync = true</code>는 응답 전에 판정을 적용합니다.</p><pre class="code-block"><span class="copy"><i data-icon="copy" style="width:12px;height:12px"></i>복사</span><span class="an">@SpringBootApplication</span>
+<span class="an">@EnableAISecurity</span>
+<span class="kw">public class</span> MyApplication { }
+
+<span class="an">@Protectable</span>(sync = <span class="kw">true</span>)
+<span class="an">@PostMapping</span>(<span class="st">"/api/projects/{id}/exports"</span>)
+<span class="kw">public</span> ExportJob export(<span class="an">@PathVariable</span> String id) {
+    <span class="kw">return</span> exports.start(id);
+}</pre></div></div>
+      <div class="stp"><span class="stp-n">3</span><div><h3>관찰 모드로 시작</h3><p>판정을 적용하지 않고 기록만 합니다. 운영 지표에서 판정 분포와 시간을 확인한 뒤 <code>ENFORCE</code>로 바꿉니다.</p><pre class="code-block"><span class="copy"><i data-icon="copy" style="width:12px;height:12px"></i>복사</span><span class="kw">contexa</span>:
+  <span class="kw">security</span>:
+    <span class="kw">zerotrust</span>:
+      <span class="kw">mode</span>: <span class="st">SHADOW</span>   <span class="cm"># record only — set ENFORCE to apply decisions</span></pre></div></div>
+    </section>
+    <aside class="span-4 v-stack">
+      <section class="card card-pad">
+        <h2 class="card-title" style="font-size:16px">관찰 모드 기록 항목</h2>
+        <p class="card-sub" style="margin-bottom:14px">관찰 모드는 아래 판정을 적용하지 않고 기록만 합니다 · 수치는 이 데모의 실제 판정 13,733건</p>
+        <dl class="kv r" style="grid-template-columns:1fr auto"><dt>차단</dt><dd class="num">517건</dd><dt>추가 인증</dt><dd class="num">2,148건</dd><dt>검토 보류</dt><dd class="num">1,136건</dd><dt>판정 시간 중앙값</dt><dd class="num">6.0초</dd></dl>
+      </section>
+      <section class="card card-pad">
+        <h2 class="card-title" style="font-size:16px">보관 · 감사 기본값</h2>
+        <p class="card-sub" style="margin-bottom:14px">스타터 0.1.0 기본 설정 · 모두 변경 가능</p>
+        <dl class="kv r" style="grid-template-columns:1fr auto"><dt>판정 증거 봉인</dt><dd>요청의 1% 표본</dd><dt>변경 직후 봉인</dt><dd>1,000건 전수</dd><dt>봉인 보관</dt><dd>90일</dd><dt>검사 이상 없는 봉인</dt><dd>30일</dd><dt>행위 기준선</dt><dd>마지막 학습 후 30일</dd><dt>행동 기록</dt><dd>90일</dd></dl>
+      </section>
+      <section class="card card-pad links">
+        <a><i data-icon="book-open"></i>빠른 시작 문서<i data-icon="external-link"></i></a>
+        <a><i data-icon="github"></i>소스 저장소<i data-icon="external-link"></i></a>
+        <a><i data-icon="workflow"></i>기존 시스템 연동 예제<i data-icon="external-link"></i></a>
+      </section>
+    </aside>
+  </div>
+
+</div></main>
+<script src="shell.js"></script>
+</body>
+</html>

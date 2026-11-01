@@ -31,7 +31,9 @@ import io.contexa.contexacore.autonomous.event.support.EventTimeZoneRegistrar;
 import io.contexa.contexacore.autonomous.service.AuthorizationDenialRecorder;
 import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
 import io.contexa.contexacore.autonomous.service.LearningPromotionService;
+import io.contexa.contexacore.autonomous.service.LearningStoreRejectionPolicy;
 import io.contexa.contexacore.autonomous.service.VerificationLearningService;
+import io.contexa.autoconfigure.core.infra.StandaloneLearningStateWarning;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.autonomous.SecurityEventProcessor;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
@@ -497,6 +499,10 @@ public class CoreAutonomousAutoConfiguration {
         return template;
     }
 
+    /**
+     * The executor of the learning writes. With no room, a decision document store the enforcement hands over under the
+     * request's lock is left to the vector store retry (QF-25 b, R12); every other task runs on the caller as before.
+     */
     @Bean(destroyMethod = "shutdown")
     @ConditionalOnMissingBean(name = "securityLearningPostProcessExecutor")
     public ExecutorService securityLearningPostProcessExecutor() {
@@ -507,7 +513,7 @@ public class CoreAutonomousAutoConfiguration {
                 TimeUnit.SECONDS,
                 new LinkedBlockingQueue<>(1000),
                 namedThreadFactory("Security-Learning-"),
-                new ThreadPoolExecutor.CallerRunsPolicy());
+                new LearningStoreRejectionPolicy());
     }
 
     @Bean
@@ -830,9 +836,14 @@ public class CoreAutonomousAutoConfiguration {
             SecurityContextDataStore securityContextDataStore,
             ObjectProvider<SecurityLearningService> securityLearningService,
             ObjectProvider<ProtectableWorkProfileCollector> protectableWorkProfileCollector,
-            SecurityZeroTrustProperties securityZeroTrustProperties) {
-        return new LearningPromotionService(securityContextDataStore, securityLearningService.getIfAvailable(),
-                protectableWorkProfileCollector.getIfAvailable(), securityZeroTrustProperties);
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            ObjectProvider<DistributedLockService> lockServiceProvider) {
+        LearningPromotionService service = new LearningPromotionService(securityContextDataStore,
+                securityLearningService.getIfAvailable(), protectableWorkProfileCollector.getIfAvailable(),
+                securityZeroTrustProperties);
+        // QF-28: a user's held requests are promoted under the configured lock service, one promotion at a time.
+        service.setLockService(lockServiceProvider.getIfAvailable());
+        return service;
     }
 
     /**
@@ -905,11 +916,13 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnBean(RedisTemplate.class)
     static class DistributedRepositoryConfiguration {
 
+        /** BR-C11 (DD-52): each baseline is kept for the configured retention after its last learning. */
         @Bean
         @ConditionalOnMissingBean(BaselineDataStore.class)
         public RedisBaselineDataStore baselineDataStore(
-                @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
-            return new RedisBaselineDataStore(redisTemplate);
+                @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate,
+                SecurityZeroTrustProperties securityZeroTrustProperties) {
+            return new RedisBaselineDataStore(redisTemplate, securityZeroTrustProperties.getBaseline().getRetention());
         }
 
         @Bean
@@ -945,6 +958,8 @@ public class CoreAutonomousAutoConfiguration {
             if (properties != null) {
                 store.setLoginFailureRetention(Duration.ofMinutes(
                         Math.max(1, properties.getContext().getLoginFailureWindowMinutes())));
+                // BR-C14: how many observations each work profile and role scope keeps.
+                store.setObservationCapacity(properties.getContext().getObservationCapacity());
             }
             return store;
         }
@@ -960,15 +975,22 @@ public class CoreAutonomousAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(ZeroTrustActionRepository.class)
       @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
-      public InMemoryZeroTrustActionRepository inMemoryZeroTrustActionRepository() {
-          return new InMemoryZeroTrustActionRepository();
+      public InMemoryZeroTrustActionRepository inMemoryZeroTrustActionRepository(
+              ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustProperties) {
+          // QF-42: the bound on users the store keeps; without a setting the one derived from the maximum heap.
+          SecurityZeroTrustProperties properties = securityZeroTrustProperties.getIfAvailable();
+          return new InMemoryZeroTrustActionRepository(properties != null && properties.getStandalone() != null
+                  ? properties.getStandalone().getMaxDecisionUsers() : 0);
       }
 
+      /** BR-C11 (DD-52): the in-memory store keeps each baseline for the same configured retention. */
       @Bean
       @ConditionalOnMissingBean(BaselineDataStore.class)
       @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
-      public InMemoryBaselineDataStore baselineDataStore() {
-          return new InMemoryBaselineDataStore();
+      public InMemoryBaselineDataStore baselineDataStore(SecurityZeroTrustProperties securityZeroTrustProperties) {
+          Duration retention = securityZeroTrustProperties.getBaseline().getRetention();
+          return new InMemoryBaselineDataStore(retention != null && !retention.isNegative() && !retention.isZero()
+                  ? retention : RedisBaselineDataStore.DEFAULT_BASELINE_TTL);
       }
 
     @Bean(destroyMethod = "close")
@@ -997,14 +1019,35 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnMissingBean(SecurityContextDataStore.class)
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
     public InMemorySecurityContextDataStore inMemorySecurityContextDataStore(
-            ObjectProvider<SecurityPlaneProperties> securityPlaneProperties) {
+            ObjectProvider<SecurityPlaneProperties> securityPlaneProperties,
+            ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustProperties) {
         InMemorySecurityContextDataStore store = new InMemorySecurityContextDataStore();
         SecurityPlaneProperties properties = securityPlaneProperties.getIfAvailable();
         if (properties != null) {
             store.setLoginFailureRetention(Duration.ofMinutes(
                     Math.max(1, properties.getContext().getLoginFailureWindowMinutes())));
+            // BR-C14: how many observations each work profile and role scope keeps.
+            store.setObservationCapacity(properties.getContext().getObservationCapacity());
+        }
+        // QF-42: the byte budget of the held learning records; without a setting the one derived from the maximum heap.
+        SecurityZeroTrustProperties zeroTrustProperties = securityZeroTrustProperties.getIfAvailable();
+        if (zeroTrustProperties != null && zeroTrustProperties.getStandalone() != null) {
+            store.setHeldLearningBudgetBytes(zeroTrustProperties.getStandalone().getMaxHeldLearningBytes());
         }
         return store;
+    }
+
+    /**
+     * QF-32: the default infrastructure mode keeps what is learned in memory; one warning at startup says so when the
+     * in-memory baseline, observation and hold stores are the ones in use.
+     */
+    @Bean
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
+    public StandaloneLearningStateWarning standaloneLearningStateWarning(
+            ObjectProvider<BaselineDataStore> baselineDataStore,
+            ObjectProvider<SecurityContextDataStore> securityContextDataStore) {
+        return new StandaloneLearningStateWarning(baselineDataStore::getIfAvailable,
+                securityContextDataStore::getIfAvailable);
     }
 
     /** Discards the late writes of a deleted account's requests for the analysis budget and a margin (Q-15). */

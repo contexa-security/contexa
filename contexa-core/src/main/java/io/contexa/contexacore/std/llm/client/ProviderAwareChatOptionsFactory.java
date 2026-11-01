@@ -26,6 +26,7 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -36,7 +37,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.model.ModelOptionsUtils;
 import org.springframework.ai.model.tool.StructuredOutputChatOptions;
 import org.springframework.util.ClassUtils;
-
+
 @Slf4j
 public final class ProviderAwareChatOptionsFactory {
 
@@ -57,12 +58,14 @@ public final class ProviderAwareChatOptionsFactory {
     private static final String ANTHROPIC_DEFAULT_SAMPLING_ONLY_PATTERNS_ENV =
             "CONTEXA_LLM_MODEL_CAPABILITIES_ANTHROPIC_DEFAULT_SAMPLING_ONLY_PATTERNS";
     /**
-     * The Claude models that refuse any sampling value but the default with a 400 error (the Claude API migration
-     * guides, read on 2026-10-14): Claude Opus 4.7 and later, Claude Sonnet 5.5 and Claude Haiku 5.5.
+     * The Claude models that refuse any sampling value but the default with a 400 error, whether thinking is on or off
+     * (the Claude API thinking and migration documentation, read on 2026-10-30; D-7, QF-51): Claude Opus 4.7 and later,
+     * Claude Sonnet 5 and 5.5, Claude Haiku 5.5, Claude Fable 5 and 5.1, Claude Mythos 5, 5.1 and Preview.
      */
     public static final String ANTHROPIC_DEFAULT_SAMPLING_ONLY_PATTERNS =
-            "claude-opus-4-[7-9](?:[.-].*)?,claude-opus-[5-9](?:[.-].*)?,claude-sonnet-5-5(?:[.-].*)?,"
-                    + "claude-haiku-5(?:[.-].*)?";
+            "claude-opus-4-[7-9](?:[.-].*)?,claude-opus-[5-9](?:[.-].*)?,claude-sonnet-5(?:[.-].*)?,"
+                    + "claude-haiku-5(?:[.-].*)?,claude-fable-5(?:[.-].*)?,claude-mythos-5(?:[.-].*)?,"
+                    + "claude-mythos-preview(?:[.-].*)?";
     private static final String PROMPT_CACHE_KEY = "promptCacheKey";
     private static final String PROMPT_CACHE_KEY_APPLIED = "promptCacheKeyApplied";
     private static final String OPENAI_MAX_COMPLETION_TOKEN_PATTERNS_PROPERTY =
@@ -83,6 +86,8 @@ public final class ProviderAwareChatOptionsFactory {
     private static final AtomicReference<String> CONFIGURED_OLLAMA_DISABLE_THINKING_PATTERNS = new AtomicReference<>();
     private static final AtomicReference<String> CONFIGURED_ANTHROPIC_DEFAULT_SAMPLING_ONLY_PATTERNS =
             new AtomicReference<>();
+    /** Set when the Anthropic API version refuses every sampling value on every model (2026-10-21 and later). */
+    private static final AtomicBoolean ANTHROPIC_SAMPLING_NEVER_SENT = new AtomicBoolean();
 
     private ProviderAwareChatOptionsFactory() {
     }
@@ -106,6 +111,14 @@ public final class ProviderAwareChatOptionsFactory {
     /** The Claude models that take only the default sampling; without a configured list, the documented ones. */
     public static void configureAnthropicModelCapabilities(String defaultSamplingOnlyPatterns) {
         setIfText(CONFIGURED_ANTHROPIC_DEFAULT_SAMPLING_ONLY_PATTERNS, defaultSamplingOnlyPatterns);
+    }
+
+    /**
+     * Whether no Anthropic request carries a sampling value: from Anthropic API version 2026-10-21 every model refuses
+     * temperature, top-p and top-k, default values included (Claude API migration guide 2026-10-21).
+     */
+    public static void configureAnthropicSamplingNeverSent(boolean neverSent) {
+        ANTHROPIC_SAMPLING_NEVER_SENT.set(neverSent);
     }
 
     public static ChatOptions normalizeExplicitOptions(ChatOptions options, ExecutionContext context, ChatModel selectedModel) {
@@ -233,6 +246,9 @@ public final class ProviderAwareChatOptionsFactory {
             if (anthropicUsesDefaultSamplingOnly(readString(options, "getModel")) && hasSamplingValues(options)) {
                 withoutSamplingValues(options);
             }
+            // Design 4.5-C: what the provider refused for the model is left out of its defaults as well, since Spring AI
+            // 1.1 merges the defaults back into a request that leaves a field out.
+            AnthropicThinkingOptions.removeRefusedInPlace(options);
             return;
         }
         if (!isOpenAiOptions(options)) {
@@ -278,7 +294,8 @@ public final class ProviderAwareChatOptionsFactory {
         }
     }
 
-    private static ChatOptions mutableDefaultOptions(ChatModel selectedModel) {
+    /** The model's own default options (Spring AI keeps them in a field it hands out only as copies). */
+    static ChatOptions mutableDefaultOptions(ChatModel selectedModel) {
         if (selectedModel == null) {
             return null;
         }
@@ -367,6 +384,11 @@ public final class ProviderAwareChatOptionsFactory {
     }
 
     public static boolean requiresProviderSpecificOptions(ExecutionContext context, ChatModel selectedModel) {
+        if (context != null && context.getMetadata().containsKey(ExecutionContext.ANTHROPIC_THINKING)
+                && isAnthropicModel(selectedModel, context)) {
+            // A layer's Anthropic thinking settings travel on the Anthropic options, whatever else the call sets.
+            return true;
+        }
         String modelName = resolveModelName(context, selectedModel, null);
         if (isOpenAiModel(selectedModel, context) && requiresMaxCompletionTokens(modelName)) {
             return true;
@@ -403,6 +425,9 @@ public final class ProviderAwareChatOptionsFactory {
 
     /** Whether a Claude model refuses any sampling value but the default (temperature, top-p, top-k). */
     public static boolean anthropicUsesDefaultSamplingOnly(String modelName) {
+        if (ANTHROPIC_SAMPLING_NEVER_SENT.get()) {
+            return true;
+        }
         return matchesConfiguredModelPattern(
                 modelName,
                 ANTHROPIC_DEFAULT_SAMPLING_ONLY_PATTERNS_PROPERTY,
@@ -426,7 +451,8 @@ public final class ProviderAwareChatOptionsFactory {
     /**
      * Anthropic options on a copy of the model's own defaults: Spring AI turns any other options into new Anthropic
      * options whose prompt cache is off, and those override the cache the defaults configure. A Claude model that
-     * refuses any sampling value but the default gets none.
+     * refuses any sampling value but the default gets none. The layer's thinking settings are applied as far as the
+     * model takes them and Spring AI 1.1 can send them, and the output limit adds the thinking budget or allowance.
      */
     private static ChatOptions buildAnthropicOptions(ExecutionContext context, ChatModel selectedModel, String modelName) {
         ChatOptions requested = buildGenericChatOptions(context);
@@ -439,8 +465,15 @@ public final class ProviderAwareChatOptionsFactory {
         else {
             options = requested;
         }
-        return anthropicUsesDefaultSamplingOnly(modelName) && hasSamplingValues(options)
+        ChatOptions sampled = anthropicUsesDefaultSamplingOnly(modelName) && hasSamplingValues(options)
                 ? withoutSamplingValues(options == requested ? options.copy() : options) : options;
+        try {
+            return AnthropicThinkingOptions.apply(sampled, context, selectedModel, modelName);
+        } catch (RuntimeException ex) {
+            // The call never fails on the thinking settings: it goes out as it did before they existed.
+            log.error("Anthropic thinking settings could not be applied; the request goes out without them", ex);
+            return sampled;
+        }
     }
 
     /**

@@ -33,7 +33,8 @@ public record StatsView(Instant computedAt, Runs runs, DecisionTime decisionTime
     /**
      * @param completed real runs that finished
      * @param failed    real runs that stopped on a technical failure
-     * @param today     completed runs started since midnight UTC
+     * @param today     completed live runs started by visitors since midnight UTC (the header's count); the operator's
+     *                  check and measurement runs are left out (docs/showcase/가이드영상-제작기획안.md F-4)
      * @param live      completed runs started by visitors (live runs)
      */
     public record Runs(long completed, long failed, long today, long live, Instant firstAt, Instant lastAt) {

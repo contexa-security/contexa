@@ -35,6 +35,13 @@ public abstract class AbstractSessionIdResolver implements SessionIdResolver {
     protected static final Pattern UUID_PATTERN =
             Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
 
+    /**
+     * Z-16 (F8): the request attributes either mode reads the session id from: Spring Session's current session id,
+     * Contexa's and the plain one, in that order.
+     */
+    static final String[] SESSION_ATTRIBUTE_NAMES = {
+            "org.springframework.session.SessionRepository.CURRENT_SESSION_ID", "CONTEXA_SESSION_ID", "sessionId"};
+
     protected final SecuritySessionProperties sessionProperties;
 
     protected AbstractSessionIdResolver(SecuritySessionProperties sessionProperties) {

@@ -1,0 +1,68 @@
+import pathlib, re
+s = pathlib.Path('s-bench.html').read_text(encoding='utf-8')
+s = s.replace('<html lang="ko">', '<html lang="en">').replace('<title>표준 벤치마크</title>', '<title>Standard Benchmarks</title>')
+s = s.replace('data-lang="ko" data-crumbs="검증|표준 벤치마크"', 'data-lang="en" data-crumbs="Validation|Standard benchmarks"')
+T = {
+ '1% 미만 값은 점추정과 95% 상한을 따로 표기': 'Values under 1% are shown with the point estimate and the 95% upper bound',
+ '1,054 사례': '1,054 cases',
+ '2차 130사례 · 불리한 조건': '2nd run · 130 cases · adverse',
+ '4판': '4 versions',
+ 'AgentDojo v1.2.2 · 간접 프롬프트 주입 · 4개 환경': 'AgentDojo v1.2.2 · indirect prompt injection · 4 suites',
+ 'Contexa 적용': 'With Contexa',
+ 'InjecAgent · 도구 출력 속 공격 지시 · 첫 단계': 'InjecAgent · attacker instructions in tool output · first stage',
+ 'InjecAgent는 첫 단계만 실행(데이터 탈취 2단계 미측정)': 'InjecAgent: first stage only (the second, data-stealing stage was not measured)',
+ 'Promptfoo는 플러그인당 2건 축소 · 공격 생성과 채점은 Promptfoo 서버': 'Promptfoo: reduced to 2 tests per plugin · attacks generated and graded by the Promptfoo server',
+ 'S-1 (a) 소유자 확인 없음': 'S-1 (a) No owner check',
+ 'S-1 (b) 모의 소유자 확인': 'S-1 (b) Mock owner check',
+ 'S-1 (c) 소유자가 모두 승인': 'S-1 (c) Owner approves all',
+ 'S-3 레드팀 195건': 'S-3 Red team · 195 tests',
+ 'S-4 공격 변형 10종': 'S-4 10 attack variants',
+ 'agentdojo 0.1.35 (벤치마크 v1.2.2) · InjecAgent 커밋 f19c9f2 · promptfoo 0.125.1': 'agentdojo 0.1.35 (benchmark v1.2.2) · InjecAgent commit f19c9f2 · promptfoo 0.125.1',
+ 'freeze test-s3 · 플러그인 20개': 'freeze test-s3 · 20 plugins',
+ '각 200건': '200 each',
+ '개요': 'Overview',
+ '결과 묶음 (JSON)': 'Result bundle (JSON)',
+ '결과 행렬': 'Result matrix',
+ '공개 벤치마크 3종을 공식 하니스와 공식 채점 그대로 실행했습니다. 같은 사례를 Contexa 보호 없음과 적용으로 짝지어 비교합니다.': 'Three public benchmarks, run on their official harnesses with official scoring, unchanged. Every case is run unprotected and with Contexa, and the pairs are compared.',
+ '공격 호출 241/249 허용 안 함': '241 / 249 attack calls not allowed',
+ '공격 호출 335/346 허용 안 함': '335 / 346 attack calls not allowed',
+ '공격을 견딘 비율': 'share of attacks withstood',
+ '공식 그대로 실행한 것': 'Run as published',
+ '공식 지표 이름 그대로 · 괄호는 95% 구간 · 짝 비교는 같은 사례의 McNemar 정확 검정': 'Official metric names · ranges are 95% intervals · pairs use the exact McNemar test on the same cases',
+ '공식 지표': 'Official metric',
+ '규칙: 하한 &gt; 7.1%': 'rule: lower bound &gt; 7.1%',
+ '목표 1% 미만은 달성하지 못함(점추정 1.4~2.0%, 단측 상한 2.35~3.09%)': 'The sub-1% target was not met (point 1.4–2.0%, one-sided upper bound 2.35–3.09%)',
+ '방법 · 재현': 'Method & reproduction',
+ '벤치마크 · 시험': 'Benchmark · test',
+ '보호 없음': 'Unprotected',
+ '보호 없음이 속은 사례만': 'Unprotected failures only',
+ '보호가 정상 업무를 막는 정도 — 공격 결과와 함께 봅니다': 'How much protection gets in the way of legitimate work — read together with the attack results',
+ '소유자가 모두 승인하면 17.7%가 뚫림 — 사람의 잘못된 승인은 막지 못함': 'If the owner approves everything, 17.7% get through — a human approving wrongly is not stopped',
+ '시험 조건을 실행 전에 동결하고 결과 파일에 해시 기록': 'Test conditions frozen before each run, with hashes recorded in the result files',
+ '시험': 'Test',
+ '실행 전 동결': 'Frozen before run',
+ '약점 변형 0': 'Weak variants: 0',
+ '자체 지표': 'Own metric',
+ '재현 패키지 미완 · 적응형 공격(S-5) 미실시': 'Reproduction package not finished · adaptive attacks (S-5) not run',
+ '정상 업무에 대한 영향': 'Impact on legitimate work',
+ '정상 호출 차단율 ↓ ': 'Benign calls refused ↓ ',
+ '지표': 'Metric',
+ '짝 비교 (막힘 · 새 실패)': 'Paired (stopped · new failures)',
+ '짝 비교': 'Paired',
+ '판정 모델': 'Decision models',
+ '표본': 'Cases',
+ '표적 공격 성공률': 'targeted attack success rate',
+ '표준 벤치마크': 'Standard benchmarks',
+ '프로그램 전체 모델 비용': 'Model spend, whole program',
+ '피해 에이전트': 'Victim agent',
+ '피해 에이전트는 로컬 qwen2.5 7B 하나 — 더 강한 모델로 일반화하지 않음': 'One local victim agent, qwen2.5 7B — no claim for stronger models',
+ '하니스 · 채점 무수정 검증': 'Harness & scorer unmodified',
+ '하니스 · 채점 파일 변경 0건 (2026-10-29 검증)': 'Zero changes to harness and scoring files (checked 2026-10-29)',
+ '한계 — 이 결과가 말하지 않는 것': 'Limits — what these results do not say',
+}
+s = s.replace('<td class="nw">정상 호출 차단율 ↓ <span class="badge b-line" style="margin-left:4px">자체 지표</span></td>', '<td>Benign calls refused ↓<br><span class="badge b-line" style="margin-top:4px">Own metric</span></td>')
+for k, v in T.items():
+    n = s.count('>' + k + '<')
+    s = s.replace('>' + k + '<', '>' + v + '<')
+print('korean left:', sorted(set(re.findall(r'>[^<>]*[가-힣][^<>]*<', s)))[:20])
+pathlib.Path('s-bench-en.html').write_text(s, encoding='utf-8')

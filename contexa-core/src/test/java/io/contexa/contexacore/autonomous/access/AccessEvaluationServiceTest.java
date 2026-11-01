@@ -145,6 +145,32 @@ class AccessEvaluationServiceTest {
         verify(decisions, never()).analyze(any(ZeroTrustSpringEvent.class));
     }
 
+    /**
+     * QF-18: a caller whose person passed the step-up a CHALLENGE asked for states when, as the in-process request does
+     * with the login claim challengeVerifiedAt, or the next decision reads "ChallengeVerified: none" and challenges the
+     * person again for the same session.
+     */
+    @Test
+    void aCallerStatesWhenThePersonPassedTheStepUpAndNothingIsClaimedWithoutIt() {
+        AccessEvaluationService.Described verified = service.describe(new AccessEvaluationRequest(
+                new AccessEvaluationRequest.Subject("user", "bob", null),
+                new AccessEvaluationRequest.Action("can_read", null),
+                new AccessEvaluationRequest.Resource("document", "d1", null),
+                Map.of("session_id", "s-1", "challenge_verified_at", "2026-10-24T13:55:00+09:00")), "pep", null);
+        assertThat(verified.payload()).containsEntry("challengeVerifiedAt", "2026-10-24T04:55:00Z");
+
+        AccessEvaluationService.Described unverified = service.describe(evaluation("user", "bob", Map.of()), "pep", null);
+        assertThat(unverified.payload()).doesNotContainKey("challengeVerifiedAt");
+
+        assertThatThrownBy(() -> service.describe(new AccessEvaluationRequest(
+                new AccessEvaluationRequest.Subject("user", "bob", null),
+                new AccessEvaluationRequest.Action("can_read", null),
+                new AccessEvaluationRequest.Resource("document", "d1", null),
+                Map.of("challenge_verified_at", "yesterday")), "pep", null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("challenge_verified_at");
+    }
+
     @Test
     void aBatchGoesInOrderAnInvalidItemAnswersClosedAndTheSemanticStopsIt() {
         answer(ZeroTrustAction.ALLOW, null);

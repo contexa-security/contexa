@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>위협 시나리오 선택</title>
+<link rel="stylesheet" href="design.css">
+<style>
+  .seg-tabs { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); margin-bottom: 24px; }
+  .seg-tabs a { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: 6px; font-size: 14px; font-weight: 500; color: var(--text-2); text-decoration: none; }
+  .seg-tabs a.on { background: var(--surface-3); color: var(--text); font-weight: 600; }
+  .seg-tabs a .count { font-size: 12px; color: var(--text-3); }
+  .seg-tabs svg.i { width: 16px; height: 16px; }
+  .shared { padding: 20px 24px; }
+  .shared-head { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .shared-head b { font-size: 16px; }
+  .shared-head .muted { font-size: 13px; margin-left: auto; }
+  .sfacts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) 1.6fr; gap: 0; border: 1px solid var(--line); border-radius: var(--r-md); }
+  .sfact { padding: 12px 14px; } .sfact + .sfact { border-left: 1px solid var(--line); }
+  .sfact .k { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-3); }
+  .sfact .k svg.i { width: 14px; height: 14px; }
+  .sfact .v { margin-top: 4px; font-size: 15px; font-weight: 600; white-space: nowrap; }
+  .sfact .v.mono { font: 500 13px/1.4 var(--mono); }
+  .sfact .sub { margin-top: 2px; font-size: 13px; color: var(--text-2); }
+  .fork { position: relative; height: 28px; margin: 0 24px; }
+  .fork::before { content: ''; position: absolute; left: 25%; right: 25%; top: 14px; border-top: 1px solid var(--line-strong); }
+  .fork::after { content: ''; position: absolute; left: 50%; top: 0; height: 14px; border-left: 1px solid var(--line-strong); }
+  .fork i { position: absolute; top: 14px; height: 14px; border-left: 1px solid var(--line-strong); }
+  .subj { display: flex; flex-direction: column; gap: 12px; padding: 20px; cursor: pointer; }
+  .subj:hover { border-color: var(--line-strong); }
+  .subj.rec { border-color: var(--brand-line); }
+  .subj-top { display: flex; align-items: center; gap: 8px; }
+  .subj-ic { width: 44px; height: 44px; border-radius: 8px; display: grid; place-items: center; background: var(--surface-3); color: var(--text-2); }
+  .subj-ic svg.i { width: 22px; height: 22px; }
+  .subj-top .badge:first-of-type { margin-left: auto; }
+  .subj h3 { margin: 0; font-size: 18px; font-weight: 600; }
+  .subj .line { margin: 0; font-size: 14px; line-height: 1.6; color: var(--text-2); }
+  .diff { display: grid; grid-template-columns: 56px 1fr; gap: 6px 12px; padding: 12px 14px; border-radius: var(--r-md); background: var(--surface-2); font-size: 14px; }
+  .diff .k { color: var(--text-3); font-size: 13px; }
+  .diff .v { color: var(--text); font-weight: 500; }
+  .diff .v .badge { margin-left: 6px; vertical-align: 1px; }
+  .subj-foot { display: flex; align-items: center; gap: 8px; margin-top: auto; font-size: 13px; color: var(--text-3); }
+  .subj-foot .btn { margin-left: auto; }
+  .pair-note { display: flex; align-items: center; gap: 10px; margin-top: 16px; font-size: 14px; color: var(--text-2); }
+  .pair-note svg.i { width: 16px; height: 16px; color: var(--text-3); }
+  .next-group { display: grid; grid-template-columns: 40px 1fr; gap: 12px; padding: 18px 20px; margin-top: 16px; }
+  .next-group .ic { width: 40px; height: 40px; border-radius: 8px; display: grid; place-items: center; background: var(--surface-3); color: var(--text-2); }
+  .next-group b { display: block; font-size: 15px; } .next-group p { margin: 4px 0 10px; font-size: 14px; color: var(--text-2); line-height: 1.55; }
+  .insider .steps3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .insider .steps3 span { padding: 8px 10px; border-radius: 6px; background: var(--surface-2); font-size: 13px; color: var(--text-2); text-align: center; }
+  .insider .steps3 span b { display: block; font-size: 14px; color: var(--text); }
+  .progress { display: flex; align-items: center; gap: 12px; margin-top: 24px; padding: 14px 20px; }
+  .progress .bar { flex: 0 0 160px; }
+  .progress b { font-size: 14px; } .progress span { font-size: 13px; color: var(--text-3); }
+  .phone .sfacts { grid-template-columns: 1fr 1fr; } .phone .sfact:nth-child(odd) { border-left: 0; } .phone .sfact:nth-child(n + 3) { border-top: 1px solid var(--line); } .phone .sfact:last-child { grid-column: 1 / -1; }
+  .phone .fork { display: none; }
+  .phone .seg-tabs { display: flex; overflow-x: auto; } .phone .seg-tabs a { flex: none; }
+  .phone .shared { padding: 16px; } .phone .shared-head { flex-wrap: wrap; } .phone .shared-head b { flex: 1 1 200px; } .phone .shared-head .muted { margin-left: 0; width: 100%; }
+</style>
+</head>
+<body data-active="ato" data-lang="ko" data-focus="1" data-crumbs="위협 시뮬레이션|계정 탈취 · 내부자 위협|위협 유형">
+<main class="content"><div class="wrap">
+
+  <div class="stepper">
+    <div class="step now"><span class="step-n">1</span><span class="step-label">위협 유형</span></div><span class="step-line"></span>
+    <div class="step"><span class="step-n">2</span><span class="step-label">요청 검토 · 판정 예측</span></div><span class="step-line"></span>
+    <div class="step"><span class="step-n">3</span><span class="step-label">실시간 판정</span></div><span class="step-line"></span>
+    <div class="step"><span class="step-n">4</span><span class="step-label">결과 · 판정 근거</span></div>
+  </div>
+
+  <div class="ph" style="margin-bottom:20px">
+    <div class="ph-main"><h1 class="ph-title">위협 시나리오 선택</h1><p class="ph-desc">고른 시나리오의 요청을 5개 보안 통제에 동시에 보냅니다. 시나리오의 정답(위협 · 정상 업무)은 어느 통제에도 전달되지 않습니다.</p></div>
+  </div>
+
+  <nav class="seg-tabs"><a class="on"><i data-icon="user-round"></i>사람 계정 위협<span class="count">3</span></a><a><i data-icon="bot"></i>AI 에이전트 위임<span class="count">5</span></a><a><i data-icon="layers"></i>요청 급증<span class="count">1</span></a></nav>
+
+  <div class="grid g-12" style="align-items:start">
+    <div class="span-8">
+      <section class="card shared">
+        <div class="shared-head"><i data-icon="copy-check" style="width:18px;height:18px;color:var(--text-3)"></i><b>공통 요청 — 같은 계정 · 같은 시각 · 같은 요청</b><span class="muted">아래 두 시나리오가 그대로 보냄</span></div>
+        <div class="sfacts">
+          <div class="sfact"><div class="k"><i data-icon="user"></i>계정</div><div class="v">엔지니어 K</div></div>
+          <div class="sfact"><div class="k"><i data-icon="clock"></i>요청 시각</div><div class="v">수 14:20</div></div>
+          <div class="sfact"><div class="k"><i data-icon="network"></i>네트워크</div><div class="v">사무실 대역</div></div>
+          <div class="sfact"><div class="k"><i data-icon="key-round"></i>로그인</div><div class="v">비밀번호 + OTP</div></div>
+          <div class="sfact"><div class="k"><i data-icon="download"></i>요청</div><div class="v mono">POST …/HX-310/exports</div><div class="sub">설계 자료 480건 반출</div></div>
+        </div>
+      </section>
+      <div class="fork"><i style="left:25%"></i><i style="left:75%"></i></div>
+      <div class="grid g-12">
+        <article class="card subj rec span-6">
+          <div class="subj-top"><span class="subj-ic"><i data-icon="user-round-x"></i></span><span class="badge b-line"><i data-icon="star"></i>권장 시작</span><span class="badge b-line">정답: 위협</span></div>
+          <h3>탈취된 계정</h3>
+          <p class="line">비밀번호와 일회용 코드를 손에 넣은 공격자가 같은 요청을 보냅니다.</p>
+          <div class="diff"><span class="k">단말</span><span class="v">Safari 18 · macOS<span class="badge b-none">처음 확인</span></span><span class="k">시나리오</span><span class="v">S13</span></div>
+          <div class="subj-foot"><span>요청 1건</span><button class="btn btn-primary">선택<i data-icon="arrow-right"></i></button></div>
+        </article>
+        <article class="card subj span-6">
+          <div class="subj-top"><span class="subj-ic"><i data-icon="user-round-check"></i></span><span class="badge b-line">대조군</span><span class="badge b-line">정답: 정상 업무</span></div>
+          <h3>정상 사용자(계정 주인)</h3>
+          <p class="line">계정 주인이 평소 쓰던 PC로 같은 담당 프로젝트 업무를 합니다.</p>
+          <div class="diff"><span class="k">단말</span><span class="v">Edge 140 · Windows<span class="badge b-none">평소 단말</span></span><span class="k">시나리오</span><span class="v">S13T</span></div>
+          <div class="subj-foot"><span>요청 1건</span><button class="btn">선택<i data-icon="arrow-right"></i></button></div>
+        </article>
+      </div>
+      <p class="pair-note"><i data-icon="git-compare-arrows"></i>두 시나리오를 모두 실행하면 결과 화면에서 "같은 요청, 다른 판정" 비교가 열립니다.</p>
+    </div>
+    <div class="span-4">
+      <article class="card subj insider">
+        <div class="subj-top"><span class="subj-ic"><i data-icon="user-round-cog"></i></span><span class="badge b-line">정답: 위협</span></div>
+        <h3>내부자 권한 남용</h3>
+        <p class="line">본인 계정 · 평소 단말로, 담당 프로젝트 안의 문서를 1분 간격으로 3건 요청합니다. 그중 일부는 담당 업무와 맞지 않는 영업 기밀 문서입니다.</p>
+        <div class="steps3"><span><b>14:20</b>문서 1건</span><span><b>14:21</b>문서 1건</span><span><b>14:22</b>문서 1건</span></div>
+        <div class="diff"><span class="k">확인</span><span class="v">권한 안의 요청 가운데 업무 밖 목적을 찾아내는가</span><span class="k">시나리오</span><span class="v">S16</span></div>
+        <div class="subj-foot"><span>요청 3건</span><button class="btn">선택<i data-icon="arrow-right"></i></button></div>
+      </article>
+      <section class="card next-group"><span class="ic"><i data-icon="bot"></i></span><div><b>AI 에이전트 위임 · 5종</b><p>토큰 · 권한 · 위임이 모두 유효한데 요청이 맡긴 일과 다른 경우를 실행합니다.</p><a class="btn btn-sm">에이전트 시나리오 보기<i data-icon="arrow-right"></i></a></div></section>
+    </div>
+  </div>
+
+  <section class="card progress"><i data-icon="list-checks" style="width:18px;height:18px;color:var(--text-3)"></i><b>이 묶음에서 실행한 시나리오 0 / 3</b><span class="bar"><i style="width:0%"></i></span><span>실행한 시나리오는 판정 이력에서 다시 볼 수 있습니다</span></section>
+
+</div></main>
+<script src="shell.js"></script>
+</body>
+</html>

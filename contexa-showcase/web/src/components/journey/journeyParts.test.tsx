@@ -126,7 +126,7 @@ describe('thread devices', () => {
   it('counts the top numbers with their units and names the steps of a track in both languages', async () => {
     placeAt('/agent/request', []);
     const { unmount } = at('/agent/request', <AppHeader />);
-    expect(screen.getByText(/오늘 실제 실행/)).toHaveTextContent('오늘 실제 실행 316회 · 누적 판단 7,658건');
+    expect(screen.getByText(/오늘 방문자 실행/)).toHaveTextContent('오늘 방문자 실행 316회 · 누적 판단 7,658건');
     expect(
       screen.getByRole('list', { name: '에이전트 체험의 여섯 단계' }).querySelector('[aria-current="step"]'),
     ).toHaveTextContent('예측');

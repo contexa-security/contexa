@@ -1,0 +1,22 @@
+/* The privacy policy (기획안 4절 바닥, DEC-70). */
+
+.stack {
+  display: grid;
+  gap: var(--ux-space-4);
+  max-inline-size: var(--ux-content-max);
+  min-inline-size: 0;
+}
+
+.line {
+  margin: var(--ux-space-0);
+  color: var(--ux-text-2);
+  font-size: var(--ux-text-14);
+  line-height: var(--ux-leading-body);
+}
+
+.code {
+  color: var(--ux-text);
+  font-family: var(--ux-mono);
+  font-size: var(--ux-text-13);
+  overflow-wrap: anywhere;
+}

@@ -88,6 +88,38 @@ class BaselineLearningServiceTest {
         // The mocked store answers the read results from its stubbed baselines, as the store's default does (W5-8).
         when(baselineDataStore.readUserBaseline(anyString())).thenCallRealMethod();
         when(baselineDataStore.readOrganizationBaseline(anyString())).thenCallRealMethod();
+        // ... and tells a stored save as its default does (QF-12): the default saves through saveUserBaseline.
+        when(baselineDataStore.saveUserBaselineChecked(anyString(), any())).thenCallRealMethod();
+    }
+
+    /**
+     * QF-12: a save the store reports as failed is tried once more, a learning that still could not be stored is
+     * counted and is not reported as learned (the store used to swallow the failure, and the learning was reported as
+     * done while the baseline stayed as it was).
+     */
+    @Test
+    @DisplayName("A failed save is retried once and a lost learning is counted and not reported as learned")
+    void aFailedSaveIsRetriedOnceAndALostLearningIsCountedNotReportedAsLearned() {
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.ALLOW)
+                .riskScore(0.1)
+                .confidence(1.0)
+                .build();
+        SecurityEvent event = SecurityEvent.builder()
+                .sourceIp("192.168.1.100")
+                .userAgent(CHROME_UA)
+                .timestamp(LocalDateTime.now().atZone(ZoneId.systemDefault()).toInstant())
+                .build();
+        when(baselineDataStore.getUserBaseline("user-q12")).thenReturn(null);
+
+        when(baselineDataStore.saveUserBaselineChecked(eq("user-q12"), any())).thenReturn(false, true);
+        assertThat(service.learnIfNormal("user-q12", decision, event)).isTrue();
+        verify(baselineDataStore, times(2)).saveUserBaselineChecked(eq("user-q12"), any());
+        assertThat(service.lostLearnings()).isZero();
+
+        when(baselineDataStore.saveUserBaselineChecked(eq("user-q12"), any())).thenReturn(false);
+        assertThat(service.learnIfNormal("user-q12", decision, event)).isFalse();
+        assertThat(service.lostLearnings()).isEqualTo(1);
     }
 
     @Test
@@ -413,6 +445,108 @@ class BaselineLearningServiceTest {
         assertThat(updated.getNormalAuthenticationTypes()).doesNotContain("PASSWORD");
         assertThat(updated.getElementFrequencies()).doesNotContainKey("auth:PASSWORD").containsEntry("hour:9", 5L);
         assertThat(store.getOrganizationBaseline("org-new").getVocabularyVersion()).isEqualTo(VocabularyVersion.CURRENT);
+    }
+
+    @Test
+    @DisplayName("QF-21 (a): one member's learnings on five days do not establish the organization baseline")
+    void oneMembersLearningsDoNotEstablishTheOrganizationBaseline() {
+        InMemoryBaselineDataStore store = new InMemoryBaselineDataStore(Duration.ofDays(30));
+        BaselineLearningService learning = new BaselineLearningService(store, zeroTrustProperties);
+        for (int index = 0; index < 25; index++) {
+            SecurityEvent event = learnedAt(LocalDateTime.of(2026, 10, 1 + index / 5, 10, index % 5));
+            event.addMetadata("organizationId", "org-solo");
+            learning.learnIfNormal("solo", allowDecision(), event);
+        }
+
+        assertThat(store.getOrganizationBaseline("org-solo").getUpdateCount()).isEqualTo(25L);
+        assertThat(learning.describeBaselineMaturity("solo", "org-solo").organizationBaselineEstablished()).isFalse();
+    }
+
+    @Test
+    @DisplayName("QF-21 (a): the learnings of enough members on enough dates establish the organization baseline")
+    void theLearningsOfEnoughMembersOnEnoughDatesEstablishTheOrganizationBaseline() {
+        InMemoryBaselineDataStore store = new InMemoryBaselineDataStore(Duration.ofDays(30));
+        BaselineLearningService learning = new BaselineLearningService(store, zeroTrustProperties);
+        for (int index = 0; index < 30; index++) {
+            SecurityEvent event = learnedAt(LocalDateTime.of(2026, 10, 1 + index / 6, 10, index % 6));
+            event.addMetadata("organizationId", "org-team");
+            learning.learnIfNormal("member-" + index % 3, allowDecision(), event);
+        }
+        // An organization baseline stored before its members and dates were kept is read by the earlier rule, so a
+        // decision drawn again reads it as it was decided.
+        store.saveOrganizationBaseline("org-old", BaselineVector.builder()
+                .userId("org:org-old")
+                .updateCount(40L)
+                .avgTrustScore(0.9)
+                .avgRequestCount(40L)
+                .build());
+
+        assertThat(learning.describeBaselineMaturity("member-0", "org-team").organizationBaselineEstablished())
+                .isTrue();
+        assertThat(learning.describeBaselineMaturity("member-0", "org-old").organizationBaselineEstablished())
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("QF-21 (b): a value cut from an organization list leaves no count behind")
+    void aValueCutFromAnOrganizationListLeavesNoCountBehind() {
+        InMemoryBaselineDataStore store = new InMemoryBaselineDataStore(Duration.ofDays(30));
+        BaselineLearningService learning = new BaselineLearningService(store, zeroTrustProperties);
+        for (int member = 0; member < 60; member++) {
+            SecurityEvent event = SecurityEvent.builder()
+                    .sourceIp("10.1." + member + ".5")
+                    .userAgent(CHROME_UA)
+                    .timestamp(LocalDateTime.of(2026, 10, 1, 10, member % 60).atZone(ZoneId.systemDefault()).toInstant())
+                    .build();
+            event.addMetadata("organizationId", "org-wide");
+            learning.learnIfNormal("member-" + member, allowDecision(), event);
+        }
+
+        BaselineVector organization = store.getOrganizationBaseline("org-wide");
+        assertThat(organization.getNormalIpRanges()).hasSize(50);
+        List<String> listed = List.of(organization.getNormalIpRanges());
+        assertThat(organization.getElementFrequencies().keySet().stream()
+                .filter(key -> key.startsWith("ip:")).map(key -> key.substring("ip:".length())))
+                .as("every network the organization counts is one it lists")
+                .hasSize(50)
+                .allMatch(listed::contains);
+        List<String> bands = List.of(organization.getNormalIpBands());
+        assertThat(organization.getElementFrequencies().keySet().stream()
+                .filter(key -> key.startsWith("ipBand:")).map(key -> key.substring("ipBand:".length())))
+                .hasSize(50)
+                .allMatch(bands::contains);
+    }
+
+    @Test
+    @DisplayName("QF-21 (c): a member's baseline in an earlier vocabulary adds only what the learning added")
+    void aMembersBaselineInAnEarlierVocabularyAddsOnlyWhatTheLearningAdded() {
+        InMemoryBaselineDataStore store = new InMemoryBaselineDataStore(Duration.ofDays(30));
+        // Learned before W2-4: the network as a three-octet prefix, the baseline not stamped with a vocabulary.
+        store.saveUserBaseline("member-old", BaselineVector.builder()
+                .userId("member-old")
+                .updateCount(30L)
+                .avgTrustScore(0.9)
+                .avgRequestCount(30L)
+                .normalIpRanges(new String[]{"10.40.12"})
+                .normalIpBands(new String[]{"10.40.12"})
+                .elementFrequencies(new HashMap<>(Map.of("ip:10.40.12", 30L, "ipBand:10.40.12", 30L)))
+                .build());
+        BaselineLearningService learning = new BaselineLearningService(store, zeroTrustProperties);
+        SecurityEvent event = SecurityEvent.builder()
+                .sourceIp("10.40.12.5")
+                .userAgent(CHROME_UA)
+                .timestamp(LocalDateTime.of(2026, 10, 1, 10, 0).atZone(ZoneId.systemDefault()).toInstant())
+                .build();
+        event.addMetadata("organizationId", "org-v");
+
+        learning.learnIfNormal("member-old", allowDecision(), event);
+
+        assertThat(store.getUserBaseline("member-old").getElementFrequencies())
+                .containsEntry("ip:10.40.12.0/24", 31L);
+        assertThat(store.getOrganizationBaseline("org-v").getElementFrequencies())
+                .as("the organization counts the one request learned, not the member's earlier count again")
+                .containsEntry("ip:10.40.12.0/24", 1L)
+                .containsEntry("ipBand:10.40.12.0/24", 1L);
     }
 
     @Test
@@ -747,6 +881,57 @@ class BaselineLearningServiceTest {
         assertThat(service.learnIfNormal("user-l", allowDecision(), orgEvent("org-l", 0))).isFalse();
 
         verify(baselineDataStore, never()).saveUserBaseline(anyString(), any());
+    }
+
+    /** QF-12 b: a lock that was not taken in time is tried once more; a learning it still loses is counted. */
+    @Test
+    @DisplayName("A lock not taken twice learns nothing and the lost learning is counted (QF-12 b)")
+    void aLockNotTakenTwiceCountsALostLearning() {
+        DistributedLockService locks = mock(DistributedLockService.class);
+        when(locks.tryLockWithWait(anyString(), anyString(), any(), any())).thenReturn(false);
+        service.setLockService(locks);
+        service.lockRetryPause(Duration.ZERO);
+
+        assertThat(service.learnIfNormal("user-l3", allowDecision(), orgEvent("org-l3", 0))).isFalse();
+
+        verify(locks, times(2)).tryLockWithWait(eq("baseline:update:user-l3"), anyString(), any(), any());
+        verify(locks, never()).unlock(anyString(), anyString());
+        verify(baselineDataStore, never()).readUserBaseline(anyString());
+        verify(baselineDataStore, never()).saveUserBaseline(anyString(), any());
+        assertThat(service.lostLearnings()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("A lock taken on the second try learns, and nothing is counted as lost (QF-12 b)")
+    void aLockTakenOnTheSecondTryLearns() {
+        DistributedLockService locks = mock(DistributedLockService.class);
+        when(locks.tryLockWithWait(anyString(), anyString(), any(), any())).thenReturn(false, true);
+        service.setLockService(locks);
+        service.lockRetryPause(Duration.ZERO);
+        when(baselineDataStore.getUserBaseline("user-l4")).thenReturn(null);
+
+        assertThat(service.learnIfNormal("user-l4", allowDecision(), orgEvent("org-l4", 0))).isTrue();
+
+        verify(locks, times(2)).tryLockWithWait(eq("baseline:update:user-l4"), anyString(), any(), any());
+        verify(locks).unlock(eq("baseline:update:user-l4"), anyString());
+        verify(baselineDataStore).saveUserBaseline(eq("user-l4"), any());
+        assertThat(service.lostLearnings()).isZero();
+    }
+
+    @Test
+    @DisplayName("A lock taken on the first try is tried once, learns as before, and nothing is counted as lost (QF-12 b)")
+    void aLockTakenOnTheFirstTryIsTriedOnce() {
+        DistributedLockService locks = mock(DistributedLockService.class);
+        when(locks.tryLockWithWait(anyString(), anyString(), any(), any())).thenReturn(true);
+        service.setLockService(locks);
+        when(baselineDataStore.getUserBaseline("user-l5")).thenReturn(null);
+
+        assertThat(service.learnIfNormal("user-l5", allowDecision(), orgEvent("org-l5", 0))).isTrue();
+
+        verify(locks, times(1)).tryLockWithWait(eq("baseline:update:user-l5"), anyString(), any(), any());
+        verify(locks, times(1)).unlock(eq("baseline:update:user-l5"), anyString());
+        verify(baselineDataStore).saveUserBaseline(eq("user-l5"), any());
+        assertThat(service.lostLearnings()).isZero();
     }
 
     private static void learnConcurrently(BaselineLearningService learning, String first, String second,

@@ -51,8 +51,9 @@ class PromptInspectorTest {
     void theVersionIsTheOneOfTheCurrentChecks() {
         // 23: a v21 package is read with the v21 dictionary, the records notation and the output contract v4 (V-6);
         // 24: the target scope line (finding 7); 25: the counted fact of the past records as a same-target citation
-        // (finding 12).
-        assertThat(PromptInspector.INSPECTOR_VERSION).isEqualTo("prompt-inspector/25");
+        // (finding 12); 26: the argument origin line and the tool output sentence (CQ-1); 27: the learned and the
+        // arguments fields of a past record line (BR-C6).
+        assertThat(PromptInspector.INSPECTOR_VERSION).isEqualTo("prompt-inspector/27");
     }
 
     /**

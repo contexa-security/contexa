@@ -1,0 +1,264 @@
+/* Step 3: the live decision (기획안 7.0 d-live). */
+
+.expected {
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-12);
+  font-weight: var(--ux-weight-semibold);
+}
+
+.livePill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ux-space-2);
+  block-size: var(--ux-pill);
+  padding: var(--ux-space-0) var(--ux-space-3);
+  border: var(--ux-hairline) solid var(--ux-link);
+  border-radius: var(--ux-radius-pill);
+  background-color: var(--ux-link-soft);
+  color: var(--ux-text);
+  font-size: var(--ux-text-13);
+  font-weight: var(--ux-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.liveDot {
+  inline-size: var(--ux-dot);
+  block-size: var(--ux-dot);
+  border-radius: var(--ux-radius-round);
+  background-color: var(--ux-link);
+  animation: blink 1.2s ease-in-out infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .liveDot {
+    animation: none;
+  }
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: var(--ux-space-4);
+  align-items: start;
+}
+
+.main,
+.side {
+  display: grid;
+  gap: var(--ux-space-4);
+  min-inline-size: 0;
+}
+
+.lanesCard {
+  border: var(--ux-hairline) solid var(--ux-line);
+  border-radius: var(--ux-radius-lg);
+  background-color: var(--ux-surface);
+}
+
+.stepHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ux-space-1) var(--ux-space-3);
+  margin: var(--ux-space-0);
+  padding: var(--ux-space-3) var(--ux-space-5);
+  border-block-end: var(--ux-hairline) solid var(--ux-line);
+  color: var(--ux-text-2);
+  font-size: var(--ux-text-13);
+}
+
+.stepHead b {
+  color: var(--ux-text);
+  font-weight: var(--ux-weight-semibold);
+}
+
+/* The two summaries */
+.summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ux-space-4);
+}
+
+.summaryCard {
+  padding: var(--ux-space-4) var(--ux-space-5);
+  border: var(--ux-hairline) solid var(--ux-line);
+  border-radius: var(--ux-radius-lg);
+  background-color: var(--ux-surface);
+}
+
+.summaryCard[data-contexa] {
+  box-shadow: var(--ux-stripe-brand);
+}
+
+.summaryLabel {
+  margin: var(--ux-space-0);
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-13);
+  font-weight: var(--ux-weight-medium);
+}
+
+.summaryValue {
+  margin: var(--ux-space-1) var(--ux-space-0) var(--ux-space-0);
+  font-size: var(--ux-text-18);
+  font-weight: var(--ux-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.summaryDetail {
+  margin: var(--ux-space-1) var(--ux-space-0) var(--ux-space-0);
+  color: var(--ux-text-2);
+  font-size: var(--ux-text-13);
+  line-height: var(--ux-leading-body);
+}
+
+/* What Contexa checks */
+.progress {
+  padding: var(--ux-space-5);
+  border: var(--ux-hairline) solid var(--ux-line);
+  border-radius: var(--ux-radius-lg);
+  background-color: var(--ux-surface);
+}
+
+.progressTitle {
+  margin: var(--ux-space-0);
+  font-size: var(--ux-text-16);
+  font-weight: var(--ux-weight-semibold);
+}
+
+.progressSub {
+  margin: var(--ux-space-1) var(--ux-space-0) var(--ux-space-4);
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-13);
+}
+
+.stages {
+  display: grid;
+  gap: var(--ux-space-1);
+  margin: var(--ux-space-0);
+  padding: var(--ux-space-0);
+  list-style: none;
+}
+
+.stage {
+  display: grid;
+  grid-template-columns: var(--ux-step) minmax(0, 1fr) auto;
+  gap: var(--ux-space-3);
+  align-items: start;
+  padding: var(--ux-space-2) var(--ux-space-0);
+}
+
+.stageMark {
+  display: grid;
+  place-items: center;
+  inline-size: var(--ux-step);
+  block-size: var(--ux-step);
+  border: var(--ux-step-border) solid var(--ux-line-strong);
+  border-radius: var(--ux-radius-round);
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-13);
+  font-weight: var(--ux-weight-semibold);
+}
+
+.stage[data-state='done'] .stageMark {
+  border-color: var(--ux-surface-3);
+  background-color: var(--ux-surface-3);
+  color: var(--ux-text-2);
+}
+
+.stage[data-state='now'] .stageMark {
+  border-color: var(--ux-link);
+  color: var(--ux-link);
+}
+
+.stage[data-state='error'] .stageMark {
+  border-color: var(--ux-block);
+  color: var(--ux-block);
+}
+
+.stageBody {
+  display: grid;
+  gap: var(--ux-space-1);
+  min-inline-size: 0;
+  padding-block-start: var(--ux-space-1);
+}
+
+.stageBody b {
+  font-size: var(--ux-text-14);
+  font-weight: var(--ux-weight-semibold);
+}
+
+.stage[data-state='wait'] .stageBody b {
+  color: var(--ux-text-3);
+}
+
+.stageDetail {
+  margin: var(--ux-space-0);
+  color: var(--ux-text-2);
+  font-size: var(--ux-text-13);
+  line-height: var(--ux-leading-body);
+  overflow-wrap: anywhere;
+}
+
+.stageAt {
+  padding-block-start: var(--ux-space-1);
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-13);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.progressNote,
+.sourceNote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ux-space-2);
+  margin: var(--ux-space-3) var(--ux-space-0) var(--ux-space-0);
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-12);
+}
+
+/* The way on */
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ux-space-3);
+  margin-block-start: var(--ux-space-6);
+}
+
+.footerNote {
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-13);
+}
+
+.footerLink {
+  margin-inline-start: auto;
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-13);
+}
+
+@media (width < 1024px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (width < 640px) {
+  .summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .footer > :first-child {
+    inline-size: 100%;
+  }
+
+  .footerLink {
+    margin-inline-start: 0;
+  }
+}

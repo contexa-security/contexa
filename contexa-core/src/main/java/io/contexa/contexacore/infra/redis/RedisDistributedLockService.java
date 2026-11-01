@@ -30,6 +30,11 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Redis-backed lock service. Z-16 (F4): it answers as InMemoryDistributedLockService does. A lock lasts the timeout it
+ * is taken with, to the millisecond, and thirty seconds without one; distinct resource keys are distinct locks; a lock
+ * past its timeout is lost to its owner; a failing operation is wrapped alike; blank arguments are refused alike.
+ */
 @Slf4j
 @RequiredArgsConstructor
 public class RedisDistributedLockService implements DistributedLockService {
@@ -37,25 +42,30 @@ public class RedisDistributedLockService implements DistributedLockService {
     private final RedisTemplate<String, Object> redisTemplate;
 
     private static final String LOCK_PREFIX = "distributed:lock:";
-    private static final int MAX_KEY_LENGTH = 128; 
+    private static final int MAX_KEY_LENGTH = 128;
+    private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(30);
 
+    /**
+     * KEYS[1] the lock; ARGV[1] the owner, ARGV[2] the timeout in milliseconds, read as the digits it holds whatever
+     * the serializer.
+     */
     private static final String ACQUIRE_SCRIPT =
             "local lockKey = KEYS[1] " +
                     "local owner = ARGV[1] " +
-                    "local ttl = tonumber(ARGV[2]) or 30 " +  
-                    "if not lockKey or not owner then " +
+                    "local ttl = tonumber(string.match(ARGV[2], '%-?%d+')) " +
+                    "if not lockKey or not owner or not ttl then " +
                     "  return 0 " +
                     "end " +
                     "if redis.call('exists', lockKey) == 0 then " +
                     "  redis.call('hset', lockKey, 'owner', owner) " +
                     "  redis.call('hset', lockKey, 'count', '1') " +
-                    "  redis.call('expire', lockKey, ttl) " +
+                    "  redis.call('pexpire', lockKey, ttl) " +
                     "  return 1 " +
                     "else " +
                     "  local currentOwner = redis.call('hget', lockKey, 'owner') " +
                     "  if currentOwner and currentOwner == owner then " +
                     "    redis.call('hincrby', lockKey, 'count', 1) " +
-                    "    redis.call('expire', lockKey, ttl) " +
+                    "    redis.call('pexpire', lockKey, ttl) " +
                     "    return 1 " +
                     "  else " +
                     "    return 0 " +
@@ -94,9 +104,14 @@ public class RedisDistributedLockService implements DistributedLockService {
                     "local ttl = redis.call('ttl', lockKey) " +
                     "return (owner or 'unknown') .. '|' .. (count or '0') .. '|' .. (ttl or '-1')";
 
+    /**
+     * The Redis key part of a resource key. A key that sanitizing changes or that is too long ends with a hash of the
+     * resource key, so distinct resource keys never share a lock (Z-16, F4: {@code a@b.com} and {@code a#b.com} once
+     * did).
+     */
     private String sanitizeKey(String key) {
-        if (key == null || key.isEmpty()) {
-            throw new IllegalArgumentException("Key cannot be null or empty");
+        if (key == null || key.isBlank()) {
+            throw new IllegalArgumentException("resourceKey and owner must not be null or blank");
         }
 
         String sanitized = key.replaceAll("[^a-zA-Z0-9:_\\-.]", "_");
@@ -105,13 +120,19 @@ public class RedisDistributedLockService implements DistributedLockService {
 
         sanitized = sanitized.replaceAll("^_+|_+$", "");
 
-        if (sanitized.length() > MAX_KEY_LENGTH) {
-            String prefix = sanitized.substring(0, 40);
+        if (!sanitized.equals(key) || sanitized.length() > MAX_KEY_LENGTH) {
+            String prefix = sanitized.substring(0, Math.min(40, sanitized.length()));
             String hash = generateHash(key);
             sanitized = prefix + "_" + hash;
         }
 
         return sanitized;
+    }
+
+    private static void requireKeyAndOwner(String resourceKey, String owner) {
+        if (resourceKey == null || resourceKey.isBlank() || owner == null || owner.isBlank()) {
+            throw new IllegalArgumentException("resourceKey and owner must not be null or blank");
+        }
     }
 
     private String generateHash(String input) {
@@ -133,26 +154,19 @@ public class RedisDistributedLockService implements DistributedLockService {
     }
 
     public boolean tryLock(String resourceKey, String owner, Duration timeout) {
-        
+        requireKeyAndOwner(resourceKey, owner);
         String sanitizedKey = sanitizeKey(resourceKey);
         String lockKey = LOCK_PREFIX + sanitizedKey;
 
         try {
-            
-            long timeoutSeconds = timeout.getSeconds();
-            if (timeoutSeconds <= 0) {
-                timeoutSeconds = 30; 
-            }
-
-            if (owner == null || owner.trim().isEmpty()) {
-                throw new IllegalArgumentException("Owner cannot be null or empty");
-            }
+            // As the in-memory service: the timeout as given, to the millisecond; thirty seconds without one.
+            long timeoutMs = (timeout != null ? timeout : DEFAULT_TIMEOUT).toMillis();
 
             Long result = redisTemplate.execute(
                     new DefaultRedisScript<>(ACQUIRE_SCRIPT, Long.class),
                     Collections.singletonList(lockKey),
-                    owner.trim(),  
-                    Long.toString(timeoutSeconds)  
+                    owner,
+                    Long.toString(timeoutMs)
             );
 
             boolean acquired = result != null && result == 1L;
@@ -171,6 +185,7 @@ public class RedisDistributedLockService implements DistributedLockService {
     }
 
     public boolean unlock(String resourceKey, String owner) {
+        requireKeyAndOwner(resourceKey, owner);
         String sanitizedKey = sanitizeKey(resourceKey);
         String lockKey = LOCK_PREFIX + sanitizedKey;
 
@@ -181,14 +196,14 @@ public class RedisDistributedLockService implements DistributedLockService {
                     owner
             );
 
-            if (result > 0) {
+            if (result != null && result > 0) {
                                 return true;
-            } else if (result == -1) {
+            } else if (result != null && result == -1) {
                 log.error("Lock release failed for resource: {} (key: {}) - Lock doesn't exist (expired or already deleted)",
                         resourceKey, sanitizedKey);
                 logLockStatus(lockKey, resourceKey, sanitizedKey);
                 return false;
-            } else if (result == -2) {
+            } else if (result != null && result == -2) {
                 log.error("Lock release failed for resource: {} (key: {}) - Owner mismatch (expected: {})",
                         resourceKey, sanitizedKey, owner);
                 logLockStatus(lockKey, resourceKey, sanitizedKey);
@@ -216,11 +231,10 @@ public class RedisDistributedLockService implements DistributedLockService {
 
         try {
             return operation.execute();
+        } catch (LockAcquisitionException e) {
+            throw e;
         } catch (Exception e) {
-            if (e instanceof RuntimeException) {
-                throw (RuntimeException) e;
-            }
-            throw new RuntimeException("Operation failed", e);
+            throw new RuntimeException("Operation failed while holding lock: " + resourceKey, e);
         } finally {
             unlock(resourceKey, owner);
         }
@@ -267,6 +281,9 @@ public class RedisDistributedLockService implements DistributedLockService {
     }
 
     public LockInfo getLockInfo(String resourceKey) {
+        if (resourceKey == null || resourceKey.isBlank()) {
+            return null;
+        }
         String sanitizedKey = sanitizeKey(resourceKey);
         String lockKey = LOCK_PREFIX + sanitizedKey;
 
@@ -295,6 +312,9 @@ public class RedisDistributedLockService implements DistributedLockService {
     }
 
     public boolean forceUnlock(String resourceKey) {
+        if (resourceKey == null || resourceKey.isBlank()) {
+            return false;
+        }
         String sanitizedKey = sanitizeKey(resourceKey);
         String lockKey = LOCK_PREFIX + sanitizedKey;
 
@@ -322,6 +342,9 @@ public class RedisDistributedLockService implements DistributedLockService {
     }
 
     public boolean isLocked(String resourceKey) {
+        if (resourceKey == null || resourceKey.isBlank()) {
+            return false;
+        }
         String sanitizedKey = sanitizeKey(resourceKey);
         String lockKey = LOCK_PREFIX + sanitizedKey;
 

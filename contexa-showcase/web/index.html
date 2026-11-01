@@ -7,7 +7,9 @@
       name="description"
       content="Contexa Demo — AI runtime security for everything after authentication."
     />
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="dark light" />
+    <!-- The theme the visitor chose (src/ux/theme.ts, same key), applied before the first paint; dark otherwise. -->
+    <script>try{if(localStorage.getItem('showcase.theme')==='light')document.documentElement.setAttribute('data-theme','light')}catch(e){}</script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Contexa Demo</title>
   </head>

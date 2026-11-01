@@ -21,7 +21,7 @@ import io.contexa.contexacore.autonomous.context.prompt.PromptDictionaryEntry;
 import io.contexa.contexacore.autonomous.context.prompt.PromptDictionaryRenderer;
 import io.contexa.contexacore.autonomous.context.prompt.PromptListItem;
 import io.contexa.contexacore.autonomous.context.support.PastDeniedDecisions;
-import io.contexa.contexacore.autonomous.context.support.PastRecordRanking;
+import io.contexa.contexacore.autonomous.context.support.PastRecordPostProcessor;
 import java.util.regex.Pattern;
 import org.springframework.ai.document.Document;
 
@@ -56,6 +56,28 @@ public final class PastRecordLineValues {
     public static final Pattern REPEAT_COUNT = Pattern.compile(REPEAT + "(\\d+)$");
     /** The dictionary 7 form of a past record line (R1b-3: the one written form of the render, dictionary and inspector). */
     public static final String RECORD_FORMAT = ".+(" + SEPARATOR + ".+){" + (FIELDS - 1) + "}";
+    /** BR-C6 (QF-14): the field of a v21 line that says how the record was learned, before its authorization. */
+    public static final String LEARNED = "learned: ";
+    public static final String LEARNED_MODEL_ALLOW = "by the model alone";
+    public static final String LEARNED_VERIFIED = "after verification";
+    public static final String LEARNED_PROMOTED = "after promotion";
+    public static final String LEARNED_ADMIN_RELEASE = "by administrator release";
+    /** A record stored before the source was written (never filled by a guess). */
+    public static final String LEARNED_NOT_RECORDED = "source not recorded";
+    /** BR-C6 (QF-13): the field of a v21 line that names the arguments of the call that came from a tool's output. */
+    public static final String ARGS_FROM_TOOL_OUTPUT = "args from tool output: ";
+    /** The fields of a v21 line: the twelve and the learned field, the arguments field besides when a record has one. */
+    public static final int FIELDS_V21 = FIELDS + 1;
+    public static final int FIELDS_V21_WITH_ARGS = FIELDS + 2;
+    /**
+     * The form of a v21 past record line (BR-C6): the dictionary 7 form with the learned field, and the arguments field
+     * when a record has one, between the same-target field and the authorization field. Only the words of the fixed list
+     * stand in the learned field.
+     */
+    public static final String RECORD_FORMAT_V21 = ".+(" + SEPARATOR + ".+){" + (SAME_TARGET_FIELD - 1) + "}" + SEPARATOR
+            + SAME_TARGET + ".+" + SEPARATOR + LEARNED + "(" + LEARNED_MODEL_ALLOW + "|" + LEARNED_VERIFIED + "|"
+            + LEARNED_PROMOTED + "|" + LEARNED_ADMIN_RELEASE + "|" + LEARNED_NOT_RECORDED + ")(" + SEPARATOR
+            + ARGS_FROM_TOOL_OUTPUT + ".+)?" + SEPARATOR + "authorized as .+";
     /** The state line's words and form (W3-4, N-MISS-1 D8). */
     public static final String NONE_FOUND = "none found";
     public static final String NOT_RETRIEVED = "not retrieved";
@@ -112,7 +134,7 @@ public final class PastRecordLineValues {
     /** The values of a v20 line (no marker) or a v21 line, whose target field the marker writes (A3-5). */
     public static List<String> of(List<Document> documents, Function<Document, String> sameTargetOf,
                                   LocalDateTime requestTime, String targetMarker) {
-        List<PromptListItem> items = PastRecordLines.items(PastRecordRanking.ranked(documents),
+        List<PromptListItem> items = PastRecordLines.items(ranked(documents),
                 (document, record) -> sameTargetOf.apply(document), requestTime, targetMarker);
         PromptDictionaryEntry entry = SecurityDecisionPromptDictionary.ENTRIES.stream()
                 .filter(candidate -> candidate.block() == PromptBlock.PAST_RECORDS && "PastRecord{i}".equals(candidate.name()))
@@ -136,10 +158,15 @@ public final class PastRecordLineValues {
     public static List<String> targets(List<Document> documents, Function<Document, String> sameTargetOf,
                                        LocalDateTime requestTime, PastDeniedDecisions denied) {
         List<PromptListItem> records = documents == null || documents.isEmpty() ? List.of()
-                : PastRecordLines.items(PastRecordRanking.ranked(documents),
+                : PastRecordLines.items(ranked(documents),
                 (document, record) -> sameTargetOf.apply(document), requestTime, PastRecordLines.TARGET_APART);
         return SecurityDecisionPromptValues.pastRecordTargets(records,
                 PastDeniedLines.items(denied, requestTime, true));
+    }
+
+    /** BR-S4: the records in the order the render draws them, through the same post-processing step. */
+    private static List<Document> ranked(List<Document> documents) {
+        return PastRecordPostProcessor.ranked().process(PastRecordPostProcessor.PAST_RECORDS, documents);
     }
 
     /** The PastRecordsState value the render draws from the retrieval state it kept with the prompt. */

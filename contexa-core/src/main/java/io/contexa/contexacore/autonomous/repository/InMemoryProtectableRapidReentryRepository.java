@@ -15,34 +15,31 @@
  */
 package io.contexa.contexacore.autonomous.repository;
 
+import io.contexa.contexacore.autonomous.store.ExpiringKeySpace;
+import io.contexa.contexacore.autonomous.store.ExpiringStateStore;
+
 import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
-public class InMemoryProtectableRapidReentryRepository implements ProtectableRapidReentryRepository, AutoCloseable {
+/**
+ * In-memory rapid re-entry windows. Z-16 (N-1): each window is a key of an {@link ExpiringKeySpace} that lasts the
+ * window, taken only while none is in force as the Redis store sets its key (SET NX PX); an ended window reads as
+ * absent, and the sweep ({@code InMemoryStateSweeper}) releases the ended ones.
+ */
+public class InMemoryProtectableRapidReentryRepository
+        implements ProtectableRapidReentryRepository, ExpiringStateStore, AutoCloseable {
 
     private static final String KEY_PART_SEPARATOR = Character.toString(0);
 
-    private final ConcurrentHashMap<String, Instant> reentryWindows = new ConcurrentHashMap<>();
-    private final Clock clock;
-    private final ScheduledExecutorService cleanupExecutor;
+    private final ExpiringKeySpace<Boolean> reentryWindows;
 
     public InMemoryProtectableRapidReentryRepository() {
-        this(Clock.systemUTC(), Executors.newSingleThreadScheduledExecutor(task -> {
-            Thread thread = new Thread(task, "contexa-protectable-reentry-cleanup");
-            thread.setDaemon(true);
-            return thread;
-        }));
+        this(Clock.systemUTC());
     }
 
-    InMemoryProtectableRapidReentryRepository(Clock clock, ScheduledExecutorService cleanupExecutor) {
-        this.clock = clock;
-        this.cleanupExecutor = cleanupExecutor;
-        cleanupExecutor.scheduleWithFixedDelay(this::removeExpiredEntries, 1, 1, TimeUnit.SECONDS);
+    /** Measures the windows with {@code clock}. */
+    InMemoryProtectableRapidReentryRepository(Clock clock) {
+        this.reentryWindows = ExpiringKeySpace.<Boolean>builder(clock).build();
     }
 
     @Override
@@ -51,45 +48,23 @@ public class InMemoryProtectableRapidReentryRepository implements ProtectableRap
             return true;
         }
 
-        Instant now = clock.instant();
-        Instant expiresAt = now.plus(window);
-        String key = buildKey(userId, contextBindingHash, resourceKey);
-
-        while (true) {
-            Instant existing = reentryWindows.get(key);
-            if (existing != null) {
-                if (existing.isAfter(now)) {
-                    return false;
-                }
-                if (!reentryWindows.remove(key, existing)) {
-                    continue;
-                }
-            }
-
-            Instant previous = reentryWindows.putIfAbsent(key, expiresAt);
-            if (previous == null) {
-                return true;
-            }
-            if (previous.isAfter(now)) {
-                return false;
-            }
-            reentryWindows.remove(key, previous);
-        }
-    }
-
-    void removeExpiredEntries() {
-        Instant now = clock.instant();
-        reentryWindows.forEach((key, expiresAt) -> {
-            if (!expiresAt.isAfter(now)) {
-                reentryWindows.remove(key, expiresAt);
-            }
-        });
+        return reentryWindows.putIfAbsent(buildKey(userId, contextBindingHash, resourceKey), Boolean.TRUE, window);
     }
 
     @Override
+    public void removeExpiredEntries() {
+        reentryWindows.removeExpired();
+    }
+
+    /** Releases every window. */
+    @Override
     public void close() {
-        cleanupExecutor.shutdownNow();
-        reentryWindows.clear();
+        reentryWindows.removeIf(key -> true);
+    }
+
+    /** How many windows take memory, ended ones the sweep has not released yet included. */
+    int heldWindows() {
+        return reentryWindows.size();
     }
 
     private String buildKey(String userId, String contextBindingHash, String resourceKey) {

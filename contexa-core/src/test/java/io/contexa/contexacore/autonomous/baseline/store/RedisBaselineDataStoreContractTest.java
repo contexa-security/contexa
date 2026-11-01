@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.autonomous.baseline.store;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import io.contexa.contexacommon.security.baseline.BaselineVector;
 import io.contexa.contexacore.testsupport.RedisTestTemplates;
 import java.net.InetSocketAddress;
 import java.net.Socket;
@@ -22,8 +24,9 @@ import java.time.Duration;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
-import org.junit.jupiter.api.Disabled;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.core.RedisCallback;
@@ -79,18 +82,26 @@ class RedisBaselineDataStoreContractTest extends AbstractBaselineDataStoreContra
         return new RedisBaselineDataStore(redisTemplate);
     }
 
+    /** BR-C11 (DD-52): the retention is a setting, so the expiry is tested with a short one as the memory store is. */
     @Override
     protected BaselineDataStore createStoreWithTtl(Duration ttl) {
-        return new RedisBaselineDataStore(redisTemplate);
+        return new RedisBaselineDataStore(redisTemplate, ttl);
     }
 
-    @Override
-    @Disabled("Redis implementation enforces fixed 30d TTL; short-TTL injection is a memory-side concern")
-    void user_expiresAfterTtl() {
-    }
+    /**
+     * QF-23: a user whose baseline hash expired is not counted; its index entry is removed when the users are counted,
+     * as an organization's is when the organizations are listed.
+     */
+    @Test
+    @DisplayName("countUserBaselines leaves out and forgets a user whose baseline expired")
+    void count_leavesOutAndForgetsExpiredBaselines() {
+        store.saveUserBaseline("u-live", BaselineVector.builder().userId("u-live").updateCount(5L).build());
+        store.saveUserBaseline("u-gone", BaselineVector.builder().userId("u-gone").updateCount(5L).build());
+        // The hash's time to live ran out; the index set has no time to live of its own.
+        redisTemplate.delete("security:autonomous:baseline:u-gone");
 
-    @Override
-    @Disabled("Redis implementation enforces fixed 30d TTL; short-TTL injection is a memory-side concern")
-    void org_expiresAfterTtl() {
+        assertThat(store.countUserBaselines()).isEqualTo(1L);
+        assertThat(redisTemplate.opsForSet().members("security:autonomous:baseline:user:index"))
+                .containsExactly("u-live");
     }
 }

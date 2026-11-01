@@ -64,7 +64,6 @@ import io.contexa.contexacore.autonomous.context.policy.PromptRelevantRequestPat
 
 public class DefaultProtectableWorkProfileCollector implements ProtectableWorkProfileCollector {
 
-    private static final int HISTORY_SCAN_LIMIT = 5_000;
     private static final int TOP_RESOURCE_LIMIT = 6;
     private static final int TOP_ACTION_LIMIT = 6;
     private static final int TOP_SENSITIVITY_LIMIT = 4;
@@ -165,7 +164,9 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
     }
 
     private List<WorkProfileObservation> loadHistory(String tenantId, String userId, long currentTimestampMs) {
-        List<String> rawObservations = dataStore.getRecentWorkProfileObservations(tenantId, userId, HISTORY_SCAN_LIMIT);
+        // BR-C14: the usual behaviour is read from as many observations as the store keeps in a scope.
+        List<String> rawObservations = dataStore.getRecentWorkProfileObservations(tenantId, userId,
+                dataStore.observationCapacity());
         if (rawObservations.isEmpty()) {
             return List.of();
         }
@@ -915,13 +916,9 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
         return System.currentTimeMillis();
     }
 
+    /** QF-22: the tenant the user's baseline is kept under, so the work profile and the baseline share one key. */
     private String resolveTenantId(SecurityEvent event) {
-        Map<String, Object> metadata = event.getMetadata();
-        return firstText(
-                metadata != null ? metadata.get("tenantId") : null,
-                metadata != null ? metadata.get("tenant_id") : null,
-                metadata != null ? metadata.get("organizationId") : null,
-                metadata != null ? metadata.get("orgId") : null);
+        return LearningSubject.tenantOf(event);
     }
 
     private String resolveObservationId(SecurityEvent event, long timestampMs, String requestPath, String actionFamily, String decisionState) {

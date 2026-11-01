@@ -18,6 +18,8 @@ package io.contexa.autoconfigure.core.rag;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.autoconfigure.properties.ContexaLlmSelectionProperties;
 import io.contexa.contexacommon.metrics.VectorStoreMetrics;
+import io.contexa.contexacore.autonomous.baseline.BaselineLearningLossMetrics;
+import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
@@ -31,13 +33,19 @@ import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
 import io.contexa.contexacore.std.operations.DistributedStrategyExecutor;
 import io.contexa.contexacore.std.rag.properties.PgVectorStoreProperties;
+import io.contexa.contexacore.std.rag.properties.VectorStoreRetryProperties;
 import io.contexa.contexacore.std.rag.service.BehaviorDocumentRetentionScheduler;
+import io.contexa.contexacore.std.rag.service.FailedDocumentSink;
+import io.contexa.contexacore.std.rag.service.InMemoryFailedDocumentSink;
+import io.contexa.contexacore.std.rag.service.PendingStoreUserPurgeContributor;
 import io.contexa.contexacore.std.rag.service.PgVectorMetadataIndex;
 import io.contexa.contexacore.std.rag.service.PgVectorSearchSettings;
 import io.contexa.contexacore.std.rag.service.PgVectorPastRecordQuery;
 import io.contexa.contexacore.std.rag.service.PgVectorVocabularyReindexer;
+import io.contexa.contexacore.std.rag.service.StoreFailureMetrics;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.rag.Query;
@@ -55,11 +63,12 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 
 import javax.sql.DataSource;
@@ -85,6 +94,7 @@ import java.util.concurrent.atomic.AtomicInteger;
         ContexaProperties.class,
         ContexaLlmSelectionProperties.class,
         PgVectorStoreProperties.class,
+        VectorStoreRetryProperties.class,
         ContexaRagProperties.class,
         SecurityPlaneProperties.class,
         TieredStrategyProperties.class
@@ -191,6 +201,16 @@ public class CoreRAGAutoConfiguration {
                 new ThreadPoolExecutor.AbortPolicy());
     }
 
+    /**
+     * Where the documents whose vector store failed wait for their retry (BR-C4, QF-8): a bounded queue in memory.
+     * An adopter whose records must outlive a restart provides its own {@link FailedDocumentSink} bean.
+     */
+    @Bean
+    @ConditionalOnMissingBean(FailedDocumentSink.class)
+    public FailedDocumentSink failedDocumentSink(VectorStoreRetryProperties retryProperties) {
+        return new InMemoryFailedDocumentSink(retryProperties.getQueueSize());
+    }
+
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBean(VectorStore.class)
@@ -199,12 +219,69 @@ public class CoreRAGAutoConfiguration {
             VectorStoreCacheLayer cacheLayer,
             VectorStore vectorStore,
             @Qualifier("vectorOperationExecutor") ExecutorService vectorOperationExecutor,
-            Environment environment) {
+            Environment environment,
+            VectorStoreRetryProperties retryProperties,
+            FailedDocumentSink failedDocumentSink,
+            ObjectProvider<EmbeddingDimensionConsistencyVerifier> embeddingDimensionVerifier) {
         // W3-18: the past records of a v20 prompt are read by an exact lookup of the pgvector table.
-        return new UnifiedVectorService(properties, cacheLayer, vectorStore, vectorOperationExecutor,
+        UnifiedVectorService service = new UnifiedVectorService(properties, cacheLayer, vectorStore,
+                vectorOperationExecutor,
                 new PgVectorPastRecordQuery(vectorStore,
                         environment.getProperty("spring.ai.vectorstore.pgvector.schema-name", "public"),
-                        environment.getProperty("spring.ai.vectorstore.pgvector.table-name", "vector_store")));
+                        environment.getProperty("spring.ai.vectorstore.pgvector.table-name", "vector_store")),
+                retryProperties, failedDocumentSink);
+        // BR-S2: a stored document names the embedding model as the start-up dimension check resolves it (read at the
+        // first store, not at start, so that the check's beans are not created early).
+        service.setEmbeddingModelSource(() -> {
+            EmbeddingDimensionConsistencyVerifier verifier = embeddingDimensionVerifier.getIfAvailable();
+            return verifier != null ? verifier.activeEmbeddingModel() : null;
+        });
+        return service;
+    }
+
+    /**
+     * Removes the documents of a deleted account that still wait for a vector store retry when the account is purged
+     * (BR-C4), so that a retry does not bring its records back.
+     */
+    @Bean
+    @ConditionalOnMissingBean(PendingStoreUserPurgeContributor.class)
+    @ConditionalOnBean(VectorStore.class)
+    public PendingStoreUserPurgeContributor pendingStoreUserPurgeContributor(UnifiedVectorService unifiedVectorService) {
+        return new PendingStoreUserPurgeContributor(unifiedVectorService);
+    }
+
+    /**
+     * Publishes the stores that failed, were retried or were deferred (BR-C4, QF-25 b) and the learnings that could not
+     * be stored (BR-S5, QF-12) to Micrometer, in the registry where Spring AI's vector store observation
+     * ({@code db.vector.client.operation}) records the store's add, delete and query operations; only where Micrometer
+     * is present. Spring AI's pgvector auto-configuration hands the application's observation registry to the store
+     * itself; Contexa keeps {@code spring.ai.vectorstore.observations.log-query-response} at its default (false), so
+     * the retrieved records are not written into traces.
+     */
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnClass(MeterRegistry.class)
+    static class VectorStoreFailureMetricsConfiguration {
+
+        /**
+         * Binds once every singleton exists, so that the registry does not start the vector service early; without a
+         * registry or a vector service nothing is bound.
+         */
+        @Bean
+        @ConditionalOnMissingBean(name = "unifiedVectorServiceStoreFailureMetrics")
+        public SmartInitializingSingleton unifiedVectorServiceStoreFailureMetrics(
+                ObjectProvider<MeterRegistry> registry, ObjectProvider<UnifiedVectorService> vectorService) {
+            return () -> vectorService.ifAvailable(
+                    service -> registry.ifAvailable(meters -> new StoreFailureMetrics(service).bindTo(meters)));
+        }
+
+        /** BR-S5 (QF-12): the baseline learnings that could not be stored; nothing is bound without either bean. */
+        @Bean
+        @ConditionalOnMissingBean(name = "baselineLearningLossMetrics")
+        public SmartInitializingSingleton baselineLearningLossMetrics(
+                ObjectProvider<MeterRegistry> registry, ObjectProvider<BaselineLearningService> baselineLearningService) {
+            return () -> baselineLearningService.ifAvailable(
+                    service -> registry.ifAvailable(meters -> new BaselineLearningLossMetrics(service).bindTo(meters)));
+        }
     }
 
     @Bean
@@ -244,8 +321,13 @@ public class CoreRAGAutoConfiguration {
                 securityPlaneProperties.getAgent().getName());
     }
 
+    /**
+     * Retrieves the behaviour documents of every user: its filter has no user (BR-S7). It is created only when
+     * {@code contexa.rag.behavior.shared-advisor-enabled=true} and is never the primary advisor, so that a host injecting a
+     * {@link RetrievalAugmentationAdvisor} by type does not read other users' documents by accident.
+     */
     @Bean
-    @Primary
+    @ConditionalOnProperty(prefix = "contexa.rag.behavior", name = "shared-advisor-enabled", havingValue = "true")
     @ConditionalOnBean(value = VectorStore.class, name = "behaviorQueryTransformer")
     @ConditionalOnMissingBean(name = "behaviorAnalysisRagAdvisor")
     public RetrievalAugmentationAdvisor behaviorAnalysisRagAdvisor(

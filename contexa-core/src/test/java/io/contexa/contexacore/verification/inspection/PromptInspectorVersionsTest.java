@@ -82,8 +82,24 @@ class PromptInspectorVersionsTest {
     /** Finding 12 of the v21 plan: a v21 reason code citing the past records' counted fact is checked from 25. */
     @Test
     void theCountedFactCitationIsCheckedFromVersionTwentyFive() {
-        assertThat(PromptInspectorVersions.current().number()).isEqualTo(25);
-        assertThat(PromptInspectorVersions.current().reason()).contains("(finding 12 of the v21 plan)");
+        PromptInspectorVersions.Version twentyFive = PromptInspectorVersions.ALL.get(24);
+        assertThat(twentyFive.number()).isEqualTo(25);
+        assertThat(twentyFive.reason()).contains("(finding 12 of the v21 plan)");
+    }
+
+    /** CQ-1: the argument origin line and the tool output sentence of a v21 package are compared from version 26. */
+    @Test
+    void theArgumentOriginsAreComparedFromVersionTwentySix() {
+        PromptInspectorVersions.Version twentySix = PromptInspectorVersions.ALL.get(25);
+        assertThat(twentySix.number()).isEqualTo(26);
+        assertThat(twentySix.reason()).contains("argument origin line").contains("(CQ-1)");
+    }
+
+    /** BR-C6: the learned field and the arguments field of a v21 past record line are compared from version 27. */
+    @Test
+    void theLearnedFieldOfAPastRecordLineIsComparedFromVersionTwentySeven() {
+        assertThat(PromptInspectorVersions.current().number()).isEqualTo(27);
+        assertThat(PromptInspectorVersions.current().reason()).contains("learned field").contains("(BR-C6)");
     }
 
     /** N-OUT-3 lands in version 22 with N-INJ-4 (one build after P8), not in a version of its own. */

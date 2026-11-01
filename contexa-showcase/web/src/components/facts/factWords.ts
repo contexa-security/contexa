@@ -117,6 +117,8 @@ export const FACT_LABELS = [
   'BaselineSubject',
   'UsualSequence',
   'UsualClients',
+  // v21.18 (CQ-1): where a value of the protected call's arguments first appeared (a tool's output).
+  'ArgumentOrigin',
 ] as const;
 export type FactLabel = (typeof FACT_LABELS)[number];
 

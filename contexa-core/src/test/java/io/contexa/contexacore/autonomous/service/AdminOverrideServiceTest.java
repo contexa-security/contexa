@@ -43,6 +43,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -134,6 +135,28 @@ class AdminOverrideServiceTest {
         // then - W5-8: the baseline learning takes the user's update lock itself; the approval adds none around it
         verify(lockService, never()).executeWithLock(anyString(), any(Duration.class), any());
         verify(securityLearningService).learnAndStore(eq("user1"), any(), any());
+    }
+
+    @Test
+    @DisplayName("BR-C6: what an administrator released is learned by the release, whatever verified it before")
+    void approve_allowAction_statesThatTheRecordIsLearnedByTheAdministratorsRelease() {
+        // given
+        SecurityEvent plain = SecurityEvent.builder().userId("user1").build();
+        SecurityEvent verifiedBefore = SecurityEvent.builder().userId("user1").build();
+        verifiedBefore.addMetadata("verifiedBy", "STEP_UP");
+        verifiedBefore.addMetadata("learnedBy", "VERIFIED");
+
+        // when
+        adminOverrideService.approve("req-1", "user1", "admin1", "BLOCK", 0.9, 0.85, "ALLOW", "Safe user", plain);
+        adminOverrideService.approve("req-2", "user1", "admin1", "BLOCK", 0.9, 0.85, "ALLOW", "Safe user",
+                verifiedBefore);
+
+        // then
+        ArgumentCaptor<SecurityEvent> learned = ArgumentCaptor.forClass(SecurityEvent.class);
+        verify(securityLearningService, times(2)).learnAndStore(eq("user1"), any(), learned.capture());
+        assertThat(learned.getAllValues()).allSatisfy(event -> assertThat(event.getMetadata())
+                .containsEntry("learnedBy", "ADMIN_RELEASE").containsEntry("verifiedBy",
+                        event == verifiedBefore ? "STEP_UP" : "ADMIN_RELEASE"));
     }
 
     @Test

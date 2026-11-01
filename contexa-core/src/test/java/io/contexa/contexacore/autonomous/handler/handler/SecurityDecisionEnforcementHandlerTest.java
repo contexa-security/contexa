@@ -50,11 +50,19 @@ import org.mockito.quality.Strictness;
 
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -62,6 +70,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
@@ -724,6 +733,108 @@ class SecurityDecisionEnforcementHandlerTest {
         verify(actionRepository).writeFinalAction(eq("user-recorded"), eq(ZeroTrustAction.ALLOW), anyMap());
         verify(promotion, never()).hold(any());
         assertThat(fence.discardedWrites()).containsEntry(DeletedAccountWriteFence.ENFORCEMENT, 1L);
+    }
+
+    /** A handler whose learning executor keeps the tasks handed to it until the test runs them (QF-55). */
+    private SecurityDecisionEnforcementHandler handlerKeeping(List<Runnable> learning,
+                                                              LearningPromotionService promotion) {
+        SecurityDecisionEnforcementHandler keeping = new SecurityDecisionEnforcementHandler(actionRepository,
+                securityLearningService, blockedUserRecorder, blockingSignalBroadcaster, null, learning::add,
+                () -> aiSecurityDecisionObservationWriter, new InMemorySecurityContextDataStore(), null);
+        keeping.setLearningPromotionService(promotion);
+        return keeping;
+    }
+
+    @Test
+    @DisplayName("QF-55: the baseline learning and the promotion hold work on a copy of the event taken at the "
+            + "hand-over")
+    void theLearningAfterTheEnforcementWorksOnACopyOfTheEvent() {
+        List<Runnable> learning = new ArrayList<>();
+        LearningPromotionService promotion = mock(LearningPromotionService.class);
+        SecurityDecisionEnforcementHandler keeping = handlerKeeping(learning, promotion);
+        SecurityEvent held = sessionEvent("request-qf55-held");
+        SecurityEvent learned = sessionEvent("request-qf55-learned");
+        when(promotion.holds(held)).thenReturn(true);
+        List<SecurityEvent> handedOver = new ArrayList<>();
+        doAnswer(invocation -> {
+            SecurityEvent event = invocation.getArgument(0);
+            handedOver.add(event);
+            event.addMetadata("writtenByTheLearning", true);
+            return null;
+        }).when(promotion).hold(any());
+        doAnswer(invocation -> {
+            SecurityEvent event = invocation.getArgument(2);
+            handedOver.add(event);
+            event.addMetadata("writtenByTheLearning", true);
+            return null;
+        }).when(securityLearningService).learnBaselineOnly(anyString(), any(), any());
+
+        keeping.handle(contextWith(held, allowed()));
+        keeping.handle(contextWith(learned, allowed()));
+        // The next handlers go on with the request's event while the learning executor works.
+        held.addMetadata("SealedEvidenceCaptureHandler_executionTime", 1L);
+        learned.addMetadata("SealedEvidenceCaptureHandler_executionTime", 1L);
+        learning.forEach(Runnable::run);
+
+        assertThat(handedOver).hasSize(2);
+        assertThat(handedOver.get(0)).isNotSameAs(held);
+        assertThat(handedOver.get(1)).isNotSameAs(learned);
+        assertThat(handedOver).extracting(event -> event.getMetadata().get("requestId"))
+                .containsExactly("request-qf55-held", "request-qf55-learned");
+        assertThat(handedOver).allSatisfy(event -> assertThat(event.getMetadata())
+                .containsKey(AgentDecisionRecord.ENFORCEMENT_OUTCOME)
+                .doesNotContainKey("SealedEvidenceCaptureHandler_executionTime"));
+        assertThat(held.getMetadata()).doesNotContainKey("writtenByTheLearning");
+        assertThat(learned.getMetadata()).doesNotContainKey("writtenByTheLearning");
+    }
+
+    @Test
+    @DisplayName("QF-55: the promotion hold reads the event through while the next handlers write on the request's "
+            + "event")
+    void thePromotionHoldReadsTheEventThroughWhileTheNextHandlersWrite() throws Exception {
+        List<Runnable> learning = new ArrayList<>();
+        LearningPromotionService promotion = mock(LearningPromotionService.class);
+        SecurityDecisionEnforcementHandler keeping = handlerKeeping(learning, promotion);
+        SecurityEvent held = sessionEvent("request-qf55-hold-race");
+        // The decision path leaves the event's metadata in an insertion-ordered map with no lock.
+        held.setMetadata(new LinkedHashMap<>(held.getMetadata()));
+        held.addMetadata("requestPath", "/api/orders");
+        when(promotion.holds(held)).thenReturn(true);
+        CountDownLatch halfWay = new CountDownLatch(1);
+        CountDownLatch written = new CountDownLatch(1);
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        doAnswer(invocation -> {
+            SecurityEvent kept = invocation.getArgument(0);
+            // As HeldRequestRecords.encode does, the hold reads the event's metadata through.
+            Iterator<Map.Entry<String, Object>> reading = kept.getMetadata().entrySet().iterator();
+            reading.next();
+            halfWay.countDown();
+            written.await(10, TimeUnit.SECONDS);
+            try {
+                while (reading.hasNext()) {
+                    reading.next();
+                }
+            } catch (RuntimeException e) {
+                failure.set(e);
+            }
+            return null;
+        }).when(promotion).hold(any());
+
+        keeping.handle(contextWith(held, allowed()));
+        ExecutorService learningThread = Executors.newSingleThreadExecutor();
+        try {
+            Future<?> hold = learningThread.submit(learning.get(0));
+            assertThat(halfWay.await(10, TimeUnit.SECONDS)).isTrue();
+            // The request thread goes on: the next handler writes its timing on the request's event.
+            held.addMetadata("SealedEvidenceCaptureHandler_executionTime", 1L);
+            written.countDown();
+            hold.get(10, TimeUnit.SECONDS);
+        } finally {
+            learningThread.shutdownNow();
+        }
+
+        assertThat(failure.get()).isNull();
+        verify(promotion).hold(any());
     }
 
     private SecurityDecisionEnforcementHandler recordingHandler(ContextObservationRecorder recorder,

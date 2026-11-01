@@ -15,10 +15,10 @@
  */
 package io.contexa.contexacore.autonomous.baseline.store;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacommon.security.baseline.BaselineVector;
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
+import io.contexa.contexacore.autonomous.store.ExpiringKeySpace;
+import io.contexa.contexacore.autonomous.store.ExpiringStateStore;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -26,13 +26,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class InMemoryBaselineDataStore implements BaselineDataStore {
+/**
+ * In-memory baselines. Z-16 (F1): as in the Redis store, a baseline lasts the retention from its last save; past
+ * 100,000 baselines of a kind the one saved the longest ago goes first, as Redis {@code volatile-ttl} evicts. The sweep
+ * releases the baselines past the retention.
+ */
+public class InMemoryBaselineDataStore implements BaselineDataStore, ExpiringStateStore {
 
     private static final Duration DEFAULT_BASELINE_TTL = Duration.ofDays(30);
-    private static final long DEFAULT_MAX_BASELINES = 100_000L;
+    private static final int DEFAULT_MAX_BASELINES = 100_000;
 
-    private final Cache<String, BaselineVector> userBaselines;
-    private final Cache<String, BaselineVector> orgBaselines;
+    private final ExpiringKeySpace<BaselineVector> userBaselines;
+    private final ExpiringKeySpace<BaselineVector> orgBaselines;
 
     public InMemoryBaselineDataStore() {
         this(DEFAULT_BASELINE_TTL, Clock.systemUTC());
@@ -45,13 +50,13 @@ public class InMemoryBaselineDataStore implements BaselineDataStore {
     public InMemoryBaselineDataStore(Duration baselineTtl, Clock clock) {
         Objects.requireNonNull(clock, "clock");
         Duration ttl = Objects.requireNonNull(baselineTtl, "baselineTtl");
-        this.userBaselines = buildCache(ttl);
-        this.orgBaselines = buildCache(ttl);
+        this.userBaselines = buildSpace(ttl, clock);
+        this.orgBaselines = buildSpace(ttl, clock);
     }
 
     @Override
     public BaselineVector getUserBaseline(String userId) {
-        return userBaselines.getIfPresent(userId);
+        return userBaselines.get(userId);
     }
 
     @Override
@@ -61,7 +66,7 @@ public class InMemoryBaselineDataStore implements BaselineDataStore {
 
     @Override
     public BaselineVector getOrganizationBaseline(String organizationId) {
-        return orgBaselines.getIfPresent(organizationId);
+        return orgBaselines.get(organizationId);
     }
 
     @Override
@@ -71,27 +76,27 @@ public class InMemoryBaselineDataStore implements BaselineDataStore {
 
     @Override
     public Iterable<BaselineVector> listOrganizationBaselines() {
-        orgBaselines.cleanUp();
+        orgBaselines.removeExpired();
         List<BaselineVector> live = new ArrayList<>();
-        live.addAll(orgBaselines.asMap().values());
+        orgBaselines.forEach((organizationId, baseline) -> live.add(baseline));
         return live;
     }
 
     @Override
     public long countUserBaselines() {
-        userBaselines.cleanUp();
-        return userBaselines.estimatedSize();
+        userBaselines.removeExpired();
+        return userBaselines.size();
     }
 
     @Override
     public void deleteUserBaseline(String userId) {
         if (userId != null) {
-            userBaselines.invalidate(userId);
+            userBaselines.remove(userId);
             // The user's baselines under every tenant (W5-10 D9).
-            userBaselines.asMap().keySet().removeIf(key -> key.endsWith(TENANT_SEPARATOR + userId));
+            userBaselines.removeIf(key -> key.endsWith(TENANT_SEPARATOR + userId));
             // docs/agent A3-1: the baselines of the agents acting for the user, in every tenant.
             String agentKeys = userId + LearningSubject.AGENT_KEY;
-            userBaselines.asMap().keySet().removeIf(key -> key.startsWith(agentKeys)
+            userBaselines.removeIf(key -> key.startsWith(agentKeys)
                     || key.contains(TENANT_SEPARATOR + agentKeys));
         }
     }
@@ -99,7 +104,7 @@ public class InMemoryBaselineDataStore implements BaselineDataStore {
     @Override
     public void deleteUserBaselineKey(String key) {
         if (key != null) {
-            userBaselines.invalidate(key);
+            userBaselines.remove(key);
         }
     }
 
@@ -109,15 +114,19 @@ public class InMemoryBaselineDataStore implements BaselineDataStore {
             return 0;
         }
         String suffix = LearningSubject.AGENT_KEY + agentId;
-        List<String> keys = userBaselines.asMap().keySet().stream().filter(key -> key.endsWith(suffix)).toList();
-        keys.forEach(userBaselines::invalidate);
-        return keys.size();
+        return userBaselines.removeIf(key -> key.endsWith(suffix));
     }
 
-    private Cache<String, BaselineVector> buildCache(Duration ttl) {
-        return Caffeine.newBuilder()
-                .expireAfterWrite(ttl)
-                .maximumSize(DEFAULT_MAX_BASELINES)
+    @Override
+    public void removeExpiredEntries() {
+        userBaselines.removeExpired();
+        orgBaselines.removeExpired();
+    }
+
+    private static ExpiringKeySpace<BaselineVector> buildSpace(Duration ttl, Clock clock) {
+        return ExpiringKeySpace.<BaselineVector>builder(clock)
+                .ttl(ttl)
+                .bound(DEFAULT_MAX_BASELINES)
                 .build();
     }
 }

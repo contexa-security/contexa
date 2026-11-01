@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.baseline;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.security.subject.SubjectKind;
+import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.decision.LearningPromotionPolicy;
 import io.contexa.contexacore.autonomous.context.enricher.RecordedDelegationContextProvider;
@@ -67,8 +68,26 @@ public record LearningSubject(@Nullable String tenantId, String userId, @Nullabl
         boolean agent = SubjectKind.DELEGATED_AGENT.name().equals(kind) || SubjectKind.AUTONOMOUS_AGENT.name().equals(kind);
         String agentId = agent ? text(metadata.get(AGENT_ID)) : null;
         String delegationId = agentId != null ? delegationId(metadata) : null;
-        return new LearningSubject(firstText(metadata.get("tenantId"), metadata.get("tenant_id")), user, agentId,
-                delegationId, kind);
+        return new LearningSubject(tenantOf(event), user, agentId, delegationId, kind);
+    }
+
+    /**
+     * The tenant every learning of the request is kept under, its baseline, work profile and held requests alike
+     * (QF-22): {@code tenantId}, then {@code tenant_id}, as the canonical actor and the sealed evidence read it; null
+     * without one. An organization the host names is the organization of the organization baseline, not a tenant.
+     */
+    @Nullable
+    public static String tenantOf(@Nullable SecurityEvent event) {
+        Map<String, Object> metadata = event != null && event.getMetadata() != null ? event.getMetadata() : Map.of();
+        return firstText(metadata.get("tenantId"), metadata.get("tenant_id"));
+    }
+
+    /**
+     * The key the subject's learning is kept under within its tenant ({@code tenant::key}), the key alone without a
+     * tenant, as the personal baseline's key is written (W5-10 D9, QF-29).
+     */
+    public String tenantKey() {
+        return BaselineDataStore.userKey(tenantId, key());
     }
 
     /** The learning key of an agent for a user, as {@link #key()} writes it for the agent's requests. */

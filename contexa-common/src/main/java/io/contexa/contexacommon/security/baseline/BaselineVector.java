@@ -85,6 +85,14 @@ public class BaselineVector implements Serializable {
     /** docs/agent A3-4: the values (frequency keys) learned through a verification, which never expire. */
     @Builder.Default
     private Set<String> verifiedElements = new HashSet<>();
+
+    /**
+     * QF-21: the members whose learnings an organization baseline holds, each as a digest of the member's key, so that
+     * the organization knows how many people its usual behaviour comes from; empty for a personal baseline and for an
+     * organization baseline stored before.
+     */
+    @Builder.Default
+    private Set<String> learnedMembers = new HashSet<>();
     
 
     

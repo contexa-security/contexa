@@ -13,6 +13,12 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+/* English titles run about twice as long: three in a row left each title three or four short lines, so in English the
+   three cards stand one under another, as on a phone (가이드영상-제작기획안 VP-13). */
+.cards[data-count='3']:lang(en) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .cards[data-count='1'] {
   grid-template-columns: minmax(0, 1fr);
 }

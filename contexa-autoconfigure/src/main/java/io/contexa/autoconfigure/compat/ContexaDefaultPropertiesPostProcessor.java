@@ -49,6 +49,10 @@ public class ContexaDefaultPropertiesPostProcessor implements EnvironmentPostPro
         Map<String, Object> defaults = new LinkedHashMap<>();
         defaults.put("contexa.vectorstore.pgvector.dimensions", dimensionValue);
         defaults.put("spring.ai.vectorstore.pgvector.dimensions", dimensionValue);
+        // BR-S8: true, against Spring AI's own default false, so that a first start creates the vector extension, the
+        // table, its HNSW index and the metadata index of the personal search (CoreRAGAutoConfiguration creates the
+        // latter only when this is true). A database whose schema is managed by migrations sets it to false and creates
+        // the table and both indexes itself. The default stays true: changing it would change what a first start does.
         defaults.put("spring.ai.vectorstore.pgvector.initialize-schema", "true");
         defaults.put("spring.ai.vectorstore.pgvector.schema-name", "public");
         defaults.put("spring.ai.vectorstore.pgvector.table-name", "vector_store");

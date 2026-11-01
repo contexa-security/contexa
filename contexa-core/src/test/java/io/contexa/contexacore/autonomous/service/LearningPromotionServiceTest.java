@@ -26,6 +26,7 @@ import io.contexa.contexacore.autonomous.context.decision.LearningPromotionPolic
 import io.contexa.contexacore.autonomous.context.decision.PolicySatisfaction;
 import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
+import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +36,13 @@ import org.mockito.ArgumentCaptor;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -44,10 +52,12 @@ import java.util.Map;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * W5-1 (plan L1): an allowed request whose first-seen time, day, network or device on a sensitive resource no record
@@ -197,6 +207,183 @@ class LearningPromotionServiceTest {
 
         verify(learning, times(2)).learnPromoted(eq("alice"), any(), any());
         assertThat(store.promotionLearning("alice::agent::report-agent")).isEmpty();
+    }
+
+    /**
+     * QF-19: an agent's held target is the target it names, not the name of the template variable. Two different new
+     * projects held on two days are two values and neither is promoted; the same project held on two days is.
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void anAgentsHeldTargetIsTheTargetItNamesNotTheVariableName() throws Exception {
+        service.hold(agent(target(event("t-1", "2026-09-29T06:00:00Z", "NORMAL", unexplained(DeviationDimension.TARGET,
+                "projectKey")), "HX-310")));
+        service.hold(agent(target(event("t-2", "2026-09-30T06:00:00Z", "NORMAL", unexplained(DeviationDimension.TARGET,
+                "projectKey")), "ZZ-999")));
+
+        verify(learning, never()).learnPromoted(anyString(), any(), any());
+        assertThat(store.promotionLearning("alice::agent::report-agent")).containsOnlyKeys("t-1", "t-2");
+        // The kept value names the target by its digest, never by the requester's text (N-INJ-1).
+        Map<String, Object> record = new ObjectMapper().readValue(
+                store.promotionLearning("alice::agent::report-agent").get("t-1"), Map.class);
+        assertThat((List<String>) record.get("values")).singleElement()
+                .satisfies(value -> assertThat(value).startsWith("TARGET=projectKey#").doesNotContain("HX-310"));
+
+        service.hold(agent(target(event("t-3", "2026-10-01T06:00:00Z", "NORMAL", unexplained(DeviationDimension.TARGET,
+                "projectKey")), "HX-310")));
+
+        ArgumentCaptor<SecurityEvent> learned = ArgumentCaptor.forClass(SecurityEvent.class);
+        verify(learning, times(2)).learnPromoted(eq("alice"), any(), learned.capture());
+        assertThat(learned.getAllValues()).extracting(SecurityEvent::getEventId)
+                .containsExactlyInAnyOrder("event-t-1", "event-t-3");
+        assertThat(store.promotionLearning("alice::agent::report-agent")).containsOnlyKeys("t-2");
+    }
+
+    /**
+     * QF-19: an agent's held size and rate are the order of magnitude of the count, not the sentence with the count: a
+     * close count on another day is the same value, a count many times larger is another.
+     */
+    @Test
+    void anAgentsHeldSizeAndRateAreTheirOrderOfMagnitude() {
+        service.hold(agent(event("s-1", "2026-09-29T06:00:00Z", "NORMAL",
+                unexplained(DeviationDimension.SIZE, "1,200 items"))));
+        service.hold(agent(event("s-2", "2026-09-30T06:00:00Z", "NORMAL",
+                unexplained(DeviationDimension.SIZE, "48,000 items"))));
+        verify(learning, never()).learnPromoted(anyString(), any(), any());
+
+        service.hold(agent(event("s-3", "2026-09-30T07:00:00Z", "NORMAL",
+                unexplained(DeviationDimension.SIZE, "1,250 items"))));
+        service.hold(agent(event("r-1", "2026-09-29T06:00:00Z", "NORMAL",
+                unexplained(DeviationDimension.RATE, "40 requests in the last 60 min"))));
+        service.hold(agent(event("r-2", "2026-09-30T06:00:00Z", "NORMAL",
+                unexplained(DeviationDimension.RATE, "45 requests in the last 60 min of this session"))));
+
+        ArgumentCaptor<SecurityEvent> learned = ArgumentCaptor.forClass(SecurityEvent.class);
+        verify(learning, times(4)).learnPromoted(eq("alice"), any(), learned.capture());
+        assertThat(learned.getAllValues()).extracting(SecurityEvent::getEventId)
+                .containsExactlyInAnyOrder("event-s-1", "event-s-3", "event-r-1", "event-r-2");
+        assertThat(store.promotionLearning("alice::agent::report-agent")).containsOnlyKeys("s-2");
+    }
+
+    /**
+     * QF-29: the held requests of a user are kept apart by tenant, as the user's baseline is: the same user id in two
+     * tenants is two users, and a value each held on one day is promoted in neither.
+     */
+    @Test
+    void theHeldRequestsOfOneUserIdInTwoTenantsAreKeptApart() {
+        service.hold(tenant(event("a-1", "2026-09-29T06:00:00Z", "CRITICAL", device(DEVICE)), "tenant-a"));
+        service.hold(tenant(event("b-1", "2026-09-30T06:00:00Z", "CRITICAL", device(DEVICE)), "tenant-b"));
+
+        verify(learning, never()).learnPromoted(anyString(), any(), any());
+        assertThat(store.promotionLearning("tenant-a::alice")).containsOnlyKeys("a-1");
+        assertThat(store.promotionLearning("tenant-b::alice")).containsOnlyKeys("b-1");
+        assertThat(store.promotionLearning("alice")).isEmpty();
+    }
+
+    /**
+     * QF-28: two requests of the same user held at once do not both read the held requests and learn them twice; the
+     * reading, learning and removing of one promotion runs before the other's.
+     */
+    @Test
+    void twoHoldsAtOnceLearnEachHeldRequestOnce() throws Exception {
+        CountDownLatch secondRead = new CountDownLatch(1);
+        AtomicInteger reads = new AtomicInteger();
+        InMemorySecurityContextDataStore racing = new InMemorySecurityContextDataStore() {
+            @Override
+            public Map<String, String> promotionLearning(String userId) {
+                Map<String, String> held = super.promotionLearning(userId);
+                if (reads.incrementAndGet() == 3) {
+                    secondRead.countDown();
+                }
+                return held;
+            }
+        };
+        List<String> learnedIds = new CopyOnWriteArrayList<>();
+        doAnswer(call -> {
+            // The first promotion waits while learning until the other hold has read the held requests (or a second).
+            if (learnedIds.isEmpty()) {
+                secondRead.await(1, TimeUnit.SECONDS);
+            }
+            learnedIds.add(call.<SecurityEvent>getArgument(2).getEventId());
+            return null;
+        }).when(learning).learnPromoted(anyString(), any(), any());
+        LearningPromotionService racingService = new LearningPromotionService(racing, learning, workProfile,
+                properties);
+        racingService.hold(event("r-1", "2026-09-29T06:00:00Z", "CRITICAL", device(DEVICE)));
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> first = executor.submit(() -> racingService.hold(
+                    event("r-2", "2026-09-30T06:00:00Z", "CRITICAL", device(DEVICE))));
+            Future<?> second = executor.submit(() -> racingService.hold(
+                    event("r-3", "2026-09-30T07:00:00Z", "CRITICAL", device(DEVICE))));
+            first.get(10, TimeUnit.SECONDS);
+            second.get(10, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(learnedIds).as("each held request is learned at most once").doesNotHaveDuplicates();
+        assertThat(learnedIds).isNotEmpty();
+    }
+
+    /** QF-29: a verification in one tenant vouches for the held requests of the user in that tenant only. */
+    @Test
+    void aVerificationVouchesForTheHeldRequestsOfItsTenantOnly() {
+        service.hold(tenant(event("a-1", "2026-09-29T06:00:00Z", "CRITICAL", device(DEVICE)), "tenant-a"));
+        service.hold(tenant(event("b-1", "2026-09-29T06:00:00Z", "CRITICAL", device(DEVICE)), "tenant-b"));
+
+        service.promoteVerified("tenant-a", "alice", List.of("DEVICE=" + DEVICE));
+
+        ArgumentCaptor<SecurityEvent> learned = ArgumentCaptor.forClass(SecurityEvent.class);
+        verify(learning).learnPromoted(eq("alice"), any(), learned.capture());
+        assertThat(learned.getValue().getEventId()).isEqualTo("event-a-1");
+        assertThat(store.promotionLearning("tenant-a::alice")).isEmpty();
+        assertThat(store.promotionLearning("tenant-b::alice")).containsOnlyKeys("b-1");
+    }
+
+    /**
+     * QF-28: with a lock service the promotion runs under the user's promotion lock; a lock not taken in time leaves the
+     * requests held for the next promotion, and nothing is learned meanwhile.
+     */
+    @Test
+    void aPromotionWhoseLockIsNotTakenLeavesTheRequestsHeld() {
+        DistributedLockService locks = mock(DistributedLockService.class);
+        when(locks.tryLockWithWait(anyString(), anyString(), any(), any())).thenReturn(false);
+        service.setLockService(locks);
+
+        service.hold(event("r-1", "2026-09-29T06:00:00Z", "CRITICAL", device(DEVICE)));
+        service.hold(event("r-2", "2026-09-30T06:00:00Z", "CRITICAL", device(DEVICE)));
+
+        verify(learning, never()).learnPromoted(anyString(), any(), any());
+        assertThat(store.promotionLearning("alice")).containsOnlyKeys("r-1", "r-2");
+
+        when(locks.tryLockWithWait(anyString(), anyString(), any(), any())).thenReturn(true);
+        service.hold(event("r-3", "2026-09-30T07:00:00Z", "CRITICAL", device(DEVICE)));
+
+        verify(learning, times(3)).learnPromoted(eq("alice"), any(), any());
+        assertThat(store.promotionLearning("alice")).isEmpty();
+        verify(locks, times(3)).tryLockWithWait(eq("learning:promotion:alice"), anyString(), any(), any());
+        verify(locks).unlock(eq("learning:promotion:alice"), anyString());
+    }
+
+    private static Deviation unexplained(DeviationDimension dimension, String current) {
+        return new Deviation(dimension, current, true, true, 0, 25, null, Deviation.Explanation.UNEXPLAINED, null);
+    }
+
+    /** The event's request on a project of the URL template {@code /api/projects/{projectKey}/exports}. */
+    private static SecurityEvent target(SecurityEvent event, String project) {
+        CanonicalSecurityContext.Resource resource = ((CanonicalSecurityContext) event.getMetadata()
+                .get(LearningPromotionPolicy.DECIDED_CONTEXT)).getResource();
+        resource.setPathFamily("/api/projects/{projectKey}/exports");
+        resource.setRequestPath("/api/projects/" + project + "/exports");
+        event.addMetadata("requestPath", "/api/projects/" + project + "/exports");
+        return event;
+    }
+
+    private static SecurityEvent tenant(SecurityEvent event, String tenantId) {
+        event.addMetadata("tenantId", tenantId);
+        return event;
     }
 
     private static SecurityEvent agent(SecurityEvent event) {

@@ -21,6 +21,7 @@ import io.contexa.contexacommon.domain.EventTimeZone;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
+import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
 import io.contexa.contexacore.autonomous.context.collector.ProtectableWorkProfileCollector;
 import io.contexa.contexacore.autonomous.context.decision.DeviationDimension;
 import io.contexa.contexacore.autonomous.context.decision.LearningPromotionPolicy;
@@ -28,12 +29,14 @@ import io.contexa.contexacore.autonomous.context.support.VocabularyMigration;
 import io.contexa.contexacore.autonomous.context.support.VocabularyVersion;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
+import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
 import org.springframework.util.StringUtils;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -43,6 +46,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Holds back and later promotes the allowed requests whose first-seen values may not become usual at once (W5-1, plan
@@ -62,11 +67,23 @@ public class LearningPromotionService {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final TypeReference<Map<String, Object>> RECORD = new TypeReference<>() {
     };
+    /**
+     * The promotion lock of a user's held requests (QF-28); apart from the baseline update lock, which the learning of
+     * a promoted request takes inside it.
+     */
+    private static final String PROMOTION_LOCK_PREFIX = "learning:promotion:";
+    /** Long enough for the learnings of several promoted requests, each of which may wait for the baseline lock. */
+    private static final Duration LOCK_HOLD = Duration.ofSeconds(60);
+    private static final Duration LOCK_WAIT = Duration.ofSeconds(5);
+    private static final int LOCAL_LOCK_STRIPES = 64;
 
     private final SecurityContextDataStore dataStore;
     private final SecurityLearningService securityLearningService;
     private final ProtectableWorkProfileCollector workProfileCollector;
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
+    /** The locks of this JVM when no lock service is set, striped so that their number stays fixed. */
+    private final ReentrantLock[] localLocks = localLocks();
+    private volatile DistributedLockService lockService;
 
     public LearningPromotionService(SecurityContextDataStore dataStore,
                                     @Nullable SecurityLearningService securityLearningService,
@@ -90,6 +107,11 @@ public class LearningPromotionService {
         return true;
     }
 
+    /** The lock service the promotions run under, user by user (QF-28); this JVM's own locks without one. */
+    public void setLockService(@Nullable DistributedLockService lockService) {
+        this.lockService = lockService;
+    }
+
     /** Keeps a held request, then learns the user's held requests whose every value is now promotable. */
     public void hold(SecurityEvent event) {
         List<String> values = heldValues(event);
@@ -97,9 +119,10 @@ public class LearningPromotionService {
         if (values.isEmpty() || requestId == null || dataStore == null || !StringUtils.hasText(event.getUserId())) {
             return;
         }
-        // docs/agent A3-7: an agent's held requests are kept and promoted apart from the person's.
+        // docs/agent A3-7: an agent's held requests are kept and promoted apart from the person's; QF-29: and the held
+        // requests of a user are kept within the request's tenant, as the user's baseline is.
         LearningSubject subject = LearningSubject.of(event);
-        String userId = subject != null ? subject.key() : event.getUserId().trim();
+        String userId = subject != null ? subject.tenantKey() : event.getUserId().trim();
         try {
             Map<String, Object> record = new LinkedHashMap<>();
             record.put("event", HeldRequestRecords.encode(event));
@@ -107,7 +130,7 @@ public class LearningPromotionService {
             record.put("day", dayOf(event).toString());
             record.put("vocabularyVersion", VocabularyVersion.CURRENT);
             dataStore.holdPromotionLearning(userId, requestId, JSON.writeValueAsString(record));
-            promote(userId, Set.of());
+            promoteUnderLock(userId, Set.of());
         } catch (Exception e) {
             log.error("Failed to hold an allowed request for promotion: userId={}", userId, e);
         }
@@ -115,14 +138,53 @@ public class LearningPromotionService {
 
     /** Learns the user's held requests whose values a verification on a request with them vouches for. */
     public void promoteVerified(String userId, Collection<String> values) {
+        promoteVerified(null, userId, values);
+    }
+
+    /**
+     * Learns the held requests of the user within the tenant whose values a verification on a request with them vouches
+     * for (QF-29); the user alone without a tenant.
+     */
+    public void promoteVerified(@Nullable String tenantId, String userId, Collection<String> values) {
         if (!StringUtils.hasText(userId) || values == null || values.isEmpty() || dataStore == null
                 || !settings().verifiedPromotes()) {
             return;
         }
         try {
-            promote(userId.trim(), Set.copyOf(values));
+            promoteUnderLock(BaselineDataStore.userKey(tenantId, userId.trim()), Set.copyOf(values));
         } catch (Exception e) {
             log.error("Failed to promote held requests after a verification: userId={}", userId, e);
+        }
+    }
+
+    /**
+     * Promotes the user's held requests under the user's promotion lock (QF-28), so that two requests held at once do
+     * not both read the held requests and learn them twice. A lock not taken in time leaves the requests held: the next
+     * hold or verification of the user promotes them.
+     */
+    private void promoteUnderLock(String userId, Set<String> vouched) throws Exception {
+        String key = PROMOTION_LOCK_PREFIX + userId;
+        DistributedLockService locks = lockService;
+        if (locks == null) {
+            ReentrantLock local = localLocks[Math.floorMod(key.hashCode(), LOCAL_LOCK_STRIPES)];
+            local.lock();
+            try {
+                promote(userId, vouched);
+            } finally {
+                local.unlock();
+            }
+            return;
+        }
+        String owner = UUID.randomUUID().toString();
+        if (!locks.tryLockWithWait(key, owner, LOCK_HOLD, LOCK_WAIT)) {
+            log.warn("Promotion lock not taken in time, the held requests wait for the next promotion: userId={}",
+                    userId);
+            return;
+        }
+        try {
+            promote(userId, vouched);
+        } finally {
+            locks.unlock(key, owner);
         }
     }
 
@@ -180,10 +242,15 @@ public class LearningPromotionService {
     }
 
     private List<String> heldValues(SecurityEvent event) {
-        return LearningPromotionPolicy.heldDifferences(event, settings()).stream()
-                .map(LearningPromotionPolicy::valueOf)
-                .distinct()
-                .toList();
+        return LearningPromotionPolicy.heldValues(event, settings());
+    }
+
+    private static ReentrantLock[] localLocks() {
+        ReentrantLock[] locks = new ReentrantLock[LOCAL_LOCK_STRIPES];
+        for (int index = 0; index < locks.length; index++) {
+            locks[index] = new ReentrantLock();
+        }
+        return locks;
     }
 
     private LearningPromotionPolicy.Settings settings() {

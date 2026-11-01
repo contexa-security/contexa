@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>같은 요청 비교</title>
+<link rel="stylesheet" href="design.css">
+<style>
+  .runc { padding: 20px 24px; }
+  .runc-h { display: flex; align-items: center; gap: 10px; }
+  .runc-h .ic { width: 40px; height: 40px; border-radius: 8px; display: grid; place-items: center; background: var(--surface-3); color: var(--text-2); }
+  .runc-h b { font-size: 16px; } .runc-h .code { margin-left: auto; }
+  .runc-v { display: flex; align-items: center; gap: 12px; margin: 18px 0 14px; }
+  .runc-v .badge { height: 28px; padding: 0 12px; font-size: 14px; }
+  .runc-v .badge svg.i { width: 14px; height: 14px; }
+  .runc-v .big { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .runc-v .big small { font-size: 14px; font-weight: 500; color: var(--text-3); margin-left: 4px; }
+  .runc dl { display: grid; grid-template-columns: 120px 1fr; gap: 8px 12px; margin: 0; padding-top: 14px; border-top: 1px solid var(--line); font-size: 14px; }
+  .runc dt { color: var(--text-3); } .runc dd { margin: 0; color: var(--text); }
+  .dt td { height: 48px; }
+  .dt tr.diff td { background: var(--link-soft); }
+  .dt tr.diff td:first-child { box-shadow: inset 3px 0 0 var(--link); }
+  .dt .same { color: var(--text-3); font-size: 13px; }
+  .bottom2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+  .ins { display: grid; grid-template-columns: 36px 1fr; gap: 14px; padding: 20px 24px; }
+  .ins .ic { width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center; background: var(--surface-3); color: var(--text-2); }
+  .ins b { display: block; font-size: 15px; margin-bottom: 4px; } .ins p { margin: 0; font-size: 14px; line-height: 1.6; color: var(--text-2); }
+  .learn { padding: 20px 24px; }
+  .learn b { display: block; font-size: 15px; } .learn .sub { font-size: 13px; color: var(--text-3); }
+  .lrow { display: grid; grid-template-columns: 1fr auto auto auto auto; gap: 10px; align-items: center; height: 44px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .lrow:last-child { border-bottom: 0; } .lrow .n { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .lrow svg.i { width: 16px; height: 16px; color: var(--text-3); }
+  .phone .bottom2 { grid-template-columns: 1fr; }
+  .phone .runc { padding: 16px; } .phone .runc-h { flex-wrap: wrap; } .phone .runc-h .code { margin-left: 50px; }
+</style>
+</head>
+<body data-active="ato" data-lang="ko" data-focus="1" data-crumbs="위협 시뮬레이션|계정 탈취 · 내부자 위협|S13 · S13T 비교">
+<main class="content"><div class="wrap">
+
+  <div class="stepper">
+    <div class="step done"><span class="step-n"><i data-icon="check"></i></span><span class="step-label">위협 유형</span></div><span class="step-line"></span>
+    <div class="step done"><span class="step-n"><i data-icon="check"></i></span><span class="step-label">요청 검토 · 판정 예측</span></div><span class="step-line"></span>
+    <div class="step done"><span class="step-n"><i data-icon="check"></i></span><span class="step-label">실시간 판정</span></div><span class="step-line"></span>
+    <div class="step now"><span class="step-n">4</span><span class="step-label">결과 · 판정 근거</span></div>
+  </div>
+
+  <div class="tabs"><span class="tab">S13 결과 · 판정 근거</span><span class="tab">S13T 결과 · 판정 근거</span><span class="tab on">같은 요청 비교</span></div>
+
+  <div class="ph" style="margin-bottom:20px">
+    <div class="ph-main"><h1 class="ph-title">같은 요청, 다른 판정</h1><p class="ph-desc">계정 · 시각 · 네트워크 · 로그인 · 요청이 모두 같은 두 실행에서, 기존 보안 통제 4개는 둘 다 허용했고 Contexa의 판정만 갈렸습니다.</p></div>
+  </div>
+
+  <div class="grid g-12" style="margin-bottom:16px">
+    <section class="card runc span-6">
+      <div class="runc-h"><span class="ic"><i data-icon="user-round-x"></i></span><div><b>탈취된 계정</b><div class="muted" style="font-size:13px">S13 · 정답: 위협</div></div><span class="code">run-04cdd89264f7</span></div>
+      <div class="runc-v"><span class="badge b-stepup"><i data-icon="key-round"></i>추가 인증</span><span class="big num">0<small>건 반출</small></span><span class="badge b-allow" style="margin-left:auto">적중</span></div>
+      <dl><dt>위험도 · 확신도</dt><dd class="num">0.43 · 0.78</dd><dt>기존 통제 4개</dt><dd>모두 허용 · 480건 반출 <span class="badge b-block">미탐</span></dd></dl>
+    </section>
+    <section class="card runc span-6">
+      <div class="runc-h"><span class="ic"><i data-icon="user-round-check"></i></span><div><b>정상 사용자(계정 주인)</b><div class="muted" style="font-size:13px">S13T · 정답: 정상 업무</div></div><span class="code">run-9c74d0f95216</span></div>
+      <div class="runc-v"><span class="badge b-allow"><i data-icon="check"></i>허용</span><span class="big num">480<small>건 처리</small></span><span class="badge b-allow" style="margin-left:auto">정상 처리</span></div>
+      <dl><dt>위험도</dt><dd class="num">0.20</dd><dt>기존 통제 4개</dt><dd>모두 허용 · 480건 처리 <span class="badge b-allow">정상 처리</span></dd></dl>
+    </section>
+  </div>
+
+  <section class="card">
+    <div class="card-head"><div><h2 class="card-title">두 실행의 요청 사실</h2><p class="card-sub">Contexa가 받은 입력을 항목별로 맞대어 본 결과 — 다른 것은 단말 하나</p></div></div>
+    <table class="table dt">
+      <thead><tr><th style="width:18%">항목</th><th>탈취된 계정</th><th>정상 사용자</th><th style="width:12%">비교</th></tr></thead>
+      <tbody>
+        <tr><td class="strong">계정</td><td>엔지니어 K</td><td>엔지니어 K</td><td class="same">같음</td></tr>
+        <tr><td class="strong">요청 시각</td><td>수요일 14:20</td><td>수요일 14:20</td><td class="same">같음</td></tr>
+        <tr><td class="strong">네트워크</td><td>사무실 10.40.21.0/24</td><td>사무실 10.40.21.0/24</td><td class="same">같음</td></tr>
+        <tr><td class="strong">로그인 인증</td><td>비밀번호 + OTP · 2분 전</td><td>비밀번호 + OTP · 2분 전</td><td class="same">같음</td></tr>
+        <tr><td class="strong">요청</td><td>HX-310 설계 자료 480건 반출</td><td>HX-310 설계 자료 480건 반출</td><td class="same">같음</td></tr>
+        <tr class="diff"><td class="strong">단말</td><td>Safari 18 · macOS <span class="badge b-flag"><i data-icon="triangle-alert"></i>처음 확인</span></td><td>Edge 140 · Windows <span class="badge b-none">평소 단말</span></td><td><span class="badge b-line">다름</span></td></tr>
+        <tr><td class="strong">기준선 이탈</td><td>9개 중 2개 — 단말 · 반출 규모</td><td>9개 중 1개 — 반출 규모</td><td><span class="badge b-line">다름</span></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <div class="bottom2">
+    <section class="card ins"><span class="ic"><i data-icon="lightbulb"></i></span><div><b>규칙 기반 통제는 두 요청을 구분하지 못했습니다</b><p>기존 보안 통제 4개는 계정 · 시각 · 건수 · 권한이 같은 두 요청을 똑같이 허용해, 탈취된 계정의 반출 480건을 놓쳤습니다. Contexa는 행위 기준선의 단말 이탈을 근거로 탈취된 계정에만 추가 인증을 요구했습니다.</p></div></section>
+    <section class="card learn"><b>기준선 학습</b><span class="sub">허용된 정상 업무만 행위 기준선에 더합니다</span>
+      <div class="lrow" style="margin-top:8px"><span>탈취된 계정 · 추가 인증</span><span class="n">48</span><i data-icon="arrow-right"></i><span class="n">48</span><span class="badge b-none">학습 안 함</span></div>
+      <div class="lrow"><span>정상 사용자 · 허용</span><span class="n">48</span><i data-icon="arrow-right"></i><span class="n">49</span><span class="badge b-allow">+1 학습</span></div>
+    </section>
+  </div>
+
+  <div class="note" style="margin-top:16px"><i data-icon="list-checks"></i><span>이 묶음에서 실행한 시나리오 2 / 3 — 다음: 내부자 권한 남용(S16), 권한 안의 요청 3건 가운데 업무 밖 목적을 찾아내는지 확인합니다.</span><a class="btn btn-sm btn-primary" style="margin-left:auto"><i data-icon="play"></i>S16 실행</a></div>
+
+</div></main>
+<script src="shell.js"></script>
+</body>
+</html>

@@ -1,0 +1,185 @@
+/* Operational metrics (기획안 7.4 s-metrics, DEC-63). */
+
+.stack {
+  display: grid;
+  gap: var(--ux-space-4);
+  min-inline-size: 0;
+}
+
+.split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ux-space-4);
+  align-items: start;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--ux-space-4);
+}
+
+.period {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ux-space-1) var(--ux-space-4);
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-13);
+}
+
+.line {
+  margin: var(--ux-space-0);
+  color: var(--ux-text-2);
+  font-size: var(--ux-text-14);
+  line-height: var(--ux-leading-body);
+}
+
+.note {
+  margin: var(--ux-space-0);
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-13);
+}
+
+.padded {
+  padding: var(--ux-space-4) var(--ux-space-5);
+}
+
+/* Named figures: the name and the figure on one line, the definition under them across the card. */
+.defined {
+  display: grid;
+  gap: var(--ux-space-4);
+  margin: var(--ux-space-0);
+}
+
+.definedRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--ux-space-1) var(--ux-space-4);
+}
+
+.definedRow dt {
+  color: var(--ux-text);
+  font-size: var(--ux-text-14);
+  font-weight: var(--ux-weight-medium);
+}
+
+.definedValue {
+  margin: var(--ux-space-0);
+  color: var(--ux-text);
+  font-size: var(--ux-text-14);
+  font-weight: var(--ux-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.definedDef {
+  grid-column: 1 / -1;
+  margin: var(--ux-space-0);
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-13);
+  line-height: var(--ux-leading-body);
+}
+
+.mode {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ux-space-2);
+}
+
+.figure {
+  color: var(--ux-text);
+  font-size: var(--ux-text-14);
+  font-weight: var(--ux-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.shareCell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ux-space-3);
+  min-inline-size: 0;
+}
+
+/* A link inside a sentence is underlined, never told apart by its colour alone (axe link-in-text-block). */
+.textLink {
+  color: var(--ux-link);
+  font-size: var(--ux-text-13);
+  text-decoration: underline;
+  text-underline-offset: var(--ux-space-1);
+}
+
+.textLink:hover {
+  text-decoration-thickness: var(--ux-hairline);
+}
+
+/* The latency strip: the median above the axis, the 95th percentile below it, so close values never overlap. */
+.latency {
+  display: grid;
+  gap: var(--ux-space-2);
+}
+
+.markRow {
+  position: relative;
+  block-size: var(--ux-space-6);
+}
+
+.mark {
+  position: absolute;
+  inset-block-start: var(--ux-space-0);
+  transform: translateX(-50%);
+  color: var(--ux-text-2);
+  font-size: var(--ux-text-13);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.mark[data-edge='start'] {
+  transform: none;
+}
+
+.mark[data-edge='end'] {
+  transform: translateX(-100%);
+}
+
+.track {
+  position: relative;
+  block-size: var(--ux-bar-thick);
+  border-radius: var(--ux-radius-pill);
+  background: var(--ux-bar-surface);
+}
+
+.range {
+  position: absolute;
+  inset-block: var(--ux-space-0);
+  border-radius: var(--ux-radius-pill);
+  background: var(--ux-link);
+}
+
+.axis {
+  display: flex;
+  justify-content: space-between;
+  color: var(--ux-text-3);
+  font-size: var(--ux-text-12);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (width < 1280px) {
+  .kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (width < 1024px) {
+  .split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (width < 640px) {
+  .kpis {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

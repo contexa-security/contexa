@@ -25,8 +25,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
- * Periodically removes expired entries from the in-memory stores of a standalone deployment, so long-running
- * processes do not keep every user, session and request they have ever seen.
+ * Periodically removes expired entries from the in-memory stores, so long-running processes do not keep every user,
+ * session and request they have ever seen. It runs in either infrastructure mode: a distributed deployment keeps state
+ * in the JVM too (the cold path windows, the Zero Trust service's registration record).
  */
 @Slf4j
 public class InMemoryStateSweeper implements AutoCloseable {

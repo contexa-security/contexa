@@ -486,9 +486,11 @@
   font-size: var(--text-md);
 }
 
+/* The time column holds "+10.09 s" and "+10.09초" whole: a narrower one left the unit alone on a second line
+   (가이드영상-제작기획안 VP-13). */
 .logLine {
   display: grid;
-  grid-template-columns: 4.5rem minmax(0, 1fr);
+  grid-template-columns: 5.5rem minmax(0, 1fr);
   gap: var(--space-3);
   margin: 0;
   font-size: var(--text-sm);
@@ -499,6 +501,7 @@
 .logAt {
   color: var(--color-log-time);
   font-family: var(--font-mono);
+  white-space: nowrap;
 }
 
 .logLine[data-tone='ai'] {
@@ -609,6 +612,14 @@
   }
 }
 
+/* An English fact name ("Sensitivity") is longer than the Korean one: its column is wider, so the word stays whole
+   (가이드영상-제작기획안 VP-13). A phone gives the name its own line below. */
+@media (width > 48rem) {
+  .fact:lang(en) {
+    grid-template-columns: 7.5rem minmax(0, 1fr) auto;
+  }
+}
+
 @media (width <= 48rem) {
   .lane {
     grid-template-columns: minmax(0, 1fr) auto;
@@ -617,6 +628,21 @@
   .track {
     grid-column: 1 / -1;
     grid-row: 2;
+  }
+
+  /* An English result chip ("Attack through (missed)") would leave the name a column a few letters wide: the name
+     takes the whole line, the result goes under it and the bar last (가이드영상-제작기획안 VP-13). */
+  .lane:lang(en) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lane:lang(en) .laneEnd {
+    align-items: flex-start;
+    text-align: start;
+  }
+
+  .lane:lang(en) .track {
+    grid-row: 3;
   }
 
   .recoverySteps {

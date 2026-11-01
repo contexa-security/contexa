@@ -15,13 +15,17 @@
  */
 package io.contexa.contexacore.autonomous.store;
 
+import io.contexa.contexacore.testsupport.AdjustableClock;
+
 import java.time.Duration;
 
 class InMemorySecurityContextDataStoreContractTest extends AbstractSecurityContextDataStoreContractTest {
 
+    private final AdjustableClock clock = new AdjustableClock();
+
     @Override
     protected SecurityContextDataStore createStore() {
-        return new InMemorySecurityContextDataStore();
+        return new InMemorySecurityContextDataStore(Duration.ofHours(24), Duration.ofDays(7), Duration.ofDays(7), clock);
     }
 
     @Override
@@ -32,10 +36,30 @@ class InMemorySecurityContextDataStoreContractTest extends AbstractSecurityConte
     }
 
     @Override
+    protected SecurityContextDataStore createStoreWithObservationCapacity(int capacity) {
+        InMemorySecurityContextDataStore store = new InMemorySecurityContextDataStore();
+        store.setObservationCapacity(capacity);
+        return store;
+    }
+
+    @Override
     protected SecurityContextDataStore createStoreWithEventProcessedTtl(Duration ttl) {
         return new InMemorySecurityContextDataStore(
                 ttl,
                 Duration.ofDays(7),
                 Duration.ofDays(7));
+    }
+
+    @Override
+    protected void passTime(Duration elapsed) {
+        clock.advance(elapsed);
+    }
+
+    /** The only session risk of the test; a sweep first, so that a risk past its TTL is not counted. */
+    @Override
+    protected boolean holdsSessionRisk(String sessionId) {
+        InMemorySecurityContextDataStore memory = (InMemorySecurityContextDataStore) store;
+        memory.removeExpiredEntries();
+        return memory.keyCounts().get("sessionRisks") > 0;
     }
 }

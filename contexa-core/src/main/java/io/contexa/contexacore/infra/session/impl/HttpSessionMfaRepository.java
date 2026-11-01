@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.infra.session.impl;
 
+import io.contexa.contexacore.autonomous.store.ExpiringKeySpace;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.infra.session.SessionIdGenerationException;
 import io.contexa.contexacore.infra.session.generator.SessionIdGenerator;
@@ -25,11 +26,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.lang.Nullable;
 
+import java.time.Clock;
 import java.time.Duration;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * MFA sessions kept in the user's HTTP session. Z-16 (F5): as in RedisMfaRepository, an MFA session lasts its timeout
+ * from its creation or its last MFA event ({@link #refreshSession}), whatever other requests come, and storing it
+ * leaves the idle limit of the HTTP session alone. The sessions in force are an {@link ExpiringKeySpace} (Z-16, N-1).
+ */
 @Slf4j
 @ConditionalOnProperty(name = "contexa.auth.mfa.session-storage-type", havingValue = "http-session", matchIfMissing = true)
 public class HttpSessionMfaRepository implements MfaSessionRepository {
@@ -42,7 +47,9 @@ public class HttpSessionMfaRepository implements MfaSessionRepository {
     private Duration sessionTimeout = Duration.ofMinutes(30);
     private final AtomicLong totalSessionsCreated = new AtomicLong(0);
     private final AtomicLong sessionCollisions = new AtomicLong(0);
-    private final Set<String> activeSessionIds = ConcurrentHashMap.newKeySet();
+    /** Each MFA session in force, until it lapses without another MFA event. */
+    private final ExpiringKeySpace<Boolean> activeSessions =
+            ExpiringKeySpace.<Boolean>builder(Clock.systemUTC()).build();
 
     public HttpSessionMfaRepository(SessionIdGenerator sessionIdGenerator) {
         this.sessionIdGenerator = sessionIdGenerator;
@@ -53,9 +60,8 @@ public class HttpSessionMfaRepository implements MfaSessionRepository {
         HttpSession session = request.getSession(true);
         session.setAttribute(MFA_SESSION_ID_ATTRIBUTE, sessionId);
         session.setAttribute(SESSION_CREATION_TIME_ATTRIBUTE, System.currentTimeMillis());
-        session.setMaxInactiveInterval((int) sessionTimeout.toSeconds());
 
-        activeSessionIds.add(sessionId);
+        activeSessions.put(sessionId, Boolean.TRUE, sessionTimeout);
         totalSessionsCreated.incrementAndGet();
             }
 
@@ -66,7 +72,8 @@ public class HttpSessionMfaRepository implements MfaSessionRepository {
         if (session == null) {
             return null;
         }
-        return (String) session.getAttribute(MFA_SESSION_ID_ATTRIBUTE);
+        String sessionId = (String) session.getAttribute(MFA_SESSION_ID_ATTRIBUTE);
+        return sessionId != null && existsSession(sessionId) ? sessionId : null;
     }
 
     @Override
@@ -76,12 +83,19 @@ public class HttpSessionMfaRepository implements MfaSessionRepository {
             session.removeAttribute(MFA_SESSION_ID_ATTRIBUTE);
             session.removeAttribute(SESSION_CREATION_TIME_ATTRIBUTE);
         }
-        activeSessionIds.remove(sessionId);
+        if (sessionId != null) {
+            activeSessions.remove(sessionId);
+        }
     }
 
+    /** Keeps an MFA session in force another timeout, as the Redis repository extends its key. */
     @Override
     public void refreshSession(String sessionId) {
-            }
+        if (sessionId == null) {
+            return;
+        }
+        activeSessions.getAndRefresh(sessionId, sessionTimeout);
+    }
 
     @Override
     @Nullable
@@ -92,19 +106,28 @@ public class HttpSessionMfaRepository implements MfaSessionRepository {
     @Override
     public void forgetSession(String sessionId) {
         if (sessionId != null) {
-            activeSessionIds.remove(sessionId);
+            activeSessions.remove(sessionId);
         }
     }
 
+    /** Whether the MFA session is in force; one past its timeout is gone, as its Redis key is. */
     @Override
     public boolean existsSession(String sessionId) {
-        return sessionId != null && activeSessionIds.contains(sessionId);
+        if (sessionId == null) {
+            return false;
+        }
+        return activeSessions.containsKey(sessionId);
     }
 
     @Override
     public void setSessionTimeout(Duration timeout) {
-        this.sessionTimeout = timeout;
-            }
+        if (timeout != null && !timeout.isNegative() && !timeout.isZero()) {
+            this.sessionTimeout = timeout;
+        } else {
+            log.error("Invalid session timeout value provided: {}. Retaining current: {}",
+                    timeout, this.sessionTimeout);
+        }
+    }
 
     @Override
     public String getRepositoryType() {
@@ -118,7 +141,7 @@ public class HttpSessionMfaRepository implements MfaSessionRepository {
 
     @Override
     public boolean isSessionIdUnique(String sessionId) {
-        return isValidSessionIdFormat(sessionId) && !activeSessionIds.contains(sessionId);
+        return isValidSessionIdFormat(sessionId) && !existsSession(sessionId);
     }
 
     @Override

@@ -32,6 +32,9 @@ def visitor_text() -> str:
         for path in sorted((resources / folder).glob("*.json")):
             parts.append(path.read_text(encoding="utf-8"))
     parts.append((WEB / "index.html").read_text(encoding="utf-8"))
+    # The static data the screens show as it is (the standard benchmarks' result bundle: its limits and test names).
+    for path in sorted((WEB / "public/data").rglob("*.json")):
+        parts.append(path.read_text(encoding="utf-8"))
     return "".join(parts)
 
 

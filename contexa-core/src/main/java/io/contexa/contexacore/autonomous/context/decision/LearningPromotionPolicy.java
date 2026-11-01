@@ -17,6 +17,8 @@ package io.contexa.contexacore.autonomous.context.decision;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.security.subject.SubjectKind;
+import io.contexa.contexacore.autonomous.baseline.AgentBaselineView;
+import io.contexa.contexacore.autonomous.baseline.BaselineViewCalculator;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacore.autonomous.execution.ExecutionSubjectTypes;
@@ -94,6 +96,78 @@ public final class LearningPromotionPolicy {
     /** A held value as the records name it: the dimension and the request's value, {@code DEVICE=Chrome/140 on MAC}. */
     public static String valueOf(Deviation deviation) {
         return deviation.dimension().name() + "=" + deviation.current();
+    }
+
+    /**
+     * The values that hold the request back, each named so that the same value held on another day is the same
+     * (QF-19): what {@link #valueOf} names, except that a target is the target the request names, by its digest, and a
+     * size or a rate is the order of magnitude of its count.
+     */
+    public static List<String> heldValues(CanonicalSecurityContext context, Settings settings) {
+        return heldDifferences(context, settings).stream()
+                .map(deviation -> heldValueOf(deviation, context))
+                .distinct()
+                .toList();
+    }
+
+    /** The values that hold back the request of the event, from the context its decision used (QF-19). */
+    public static List<String> heldValues(SecurityEvent event, Settings settings) {
+        if (event == null || event.getMetadata() == null
+                || !(event.getMetadata().get(DECIDED_CONTEXT) instanceof CanonicalSecurityContext context)) {
+            return List.of();
+        }
+        return heldValues(context, settings);
+    }
+
+    /**
+     * A held value by what it is (QF-19). The fact names a target by its template's variables only (N-INJ-1), so two new
+     * projects would be one value: the target is the variables with a digest of the values the request bound to them,
+     * which keeps the requester's text out of the kept record. The fact states a size or a rate with its count, so the
+     * same habit would never repeat: it is the power-of-two band of the count ({@code SIZE=1024-2047}).
+     */
+    private static String heldValueOf(Deviation deviation, CanonicalSecurityContext context) {
+        String name = deviation.dimension().name() + "=";
+        if (deviation.dimension() == DeviationDimension.TARGET) {
+            CanonicalSecurityContext.Resource resource = context.getResource();
+            String target = resource != null
+                    ? BaselineViewCalculator.target(resource.getPathFamily(), resource.getRequestPath()) : null;
+            return target != null ? name + deviation.current() + "#" + AgentBaselineView.digest(target)
+                    : valueOf(deviation);
+        }
+        if (deviation.dimension() == DeviationDimension.SIZE || deviation.dimension() == DeviationDimension.RATE) {
+            Long count = leadingCount(deviation.current());
+            return count != null ? name + band(count) : valueOf(deviation);
+        }
+        return valueOf(deviation);
+    }
+
+    /** The count a size or rate fact starts with ({@code 1,200 items}, {@code 40 requests in the last 60 min}). */
+    private static Long leadingCount(String text) {
+        if (text == null) {
+            return null;
+        }
+        StringBuilder digits = new StringBuilder();
+        for (char character : text.trim().toCharArray()) {
+            if (Character.isDigit(character)) {
+                digits.append(character);
+            }
+            else if (character != ',') {
+                break;
+            }
+        }
+        if (digits.isEmpty() || digits.length() > 18) {
+            return null;
+        }
+        return Long.parseLong(digits.toString());
+    }
+
+    /** The power-of-two band of a count: {@code 0}, {@code 1-1}, {@code 2-3}, ..., {@code 1024-2047}. */
+    private static String band(long count) {
+        if (count <= 0) {
+            return "0";
+        }
+        long lower = Long.highestOneBit(count);
+        return lower + "-" + (lower * 2 - 1);
     }
 
     /**

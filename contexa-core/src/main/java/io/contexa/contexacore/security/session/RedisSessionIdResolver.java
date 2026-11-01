@@ -28,9 +28,6 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class RedisSessionIdResolver extends AbstractSessionIdResolver {
 
-    private static final String SESSION_ATTRIBUTE_NAME =
-            "org.springframework.session.SessionRepository.CURRENT_SESSION_ID";
-
     private final RedisTemplate<String, Object> redisTemplate;
 
     public RedisSessionIdResolver(RedisTemplate<String, Object> redisTemplate,
@@ -54,6 +51,6 @@ public class RedisSessionIdResolver extends AbstractSessionIdResolver {
 
     @Override
     protected String[] getSessionAttributeNames() {
-        return new String[]{SESSION_ATTRIBUTE_NAME, "sessionId"};
+        return SESSION_ATTRIBUTE_NAMES.clone();
     }
 }

@@ -22,16 +22,42 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.DeprecatedConfigurationProperty;
 import org.springframework.validation.annotation.Validated;
 
+/**
+ * The pgvector settings of the Contexa vector service ({@code contexa.vectorstore.pgvector.*}).
+ * <p>
+ * The table, its index and its schema are Spring AI's {@code PgVectorStore}: a key set here under this prefix is also
+ * given to Spring AI as {@code spring.ai.vectorstore.pgvector.*} (unless that key is set itself), so
+ * {@code index-type}, {@code distance-type}, {@code dimensions} and {@code initialize-schema} reach the store through
+ * Spring AI's auto-configuration. BR-S8, {@code initialize-schema}: Contexa's defaults set
+ * {@code spring.ai.vectorstore.pgvector.initialize-schema=true}, against Spring AI's own default false, so that a first
+ * start creates the extension, the table and its HNSW index, and the metadata index of the personal search is created
+ * only then. A production database whose schema is managed by migrations should set it to false and create the
+ * table, the vector index and the metadata index itself; with false, nothing is created or changed at start.
+ * <p>
+ * BR-S8: {@code hnsw.m}, {@code hnsw.ef-construction}, {@code ivfflat.*} and {@code document.*} are read by nothing
+ * (Spring AI creates its index with its own parameters and has no such keys); they still bind and validate as before
+ * and are marked deprecated, with no effect, in the configuration metadata. {@code hnsw.ef-search} is applied to every
+ * similarity search.
+ */
 @ConfigurationProperties(prefix = "contexa.vectorstore.pgvector")
 @Validated
 @Data
 public class PgVectorStoreProperties {
 
+    /**
+     * The index type; Contexa does not read it, a value set here is given to Spring AI as
+     * spring.ai.vectorstore.pgvector.index-type.
+     */
     @NotNull
     private IndexType indexType = IndexType.HNSW;
 
+    /**
+     * The distance type; Contexa does not read it, a value set here is given to Spring AI as
+     * spring.ai.vectorstore.pgvector.distance-type.
+     */
     @NotNull
     private DistanceType distanceType = DistanceType.COSINE_DISTANCE;
 
@@ -73,6 +99,10 @@ public class PgVectorStoreProperties {
 
     private DocumentConfig document = new DocumentConfig();
 
+    /** The reason the keys Contexa never reads give in the configuration metadata (BR-S8). */
+    static final String NO_EFFECT = "Read by nothing, so it has no effect: Spring AI's PgVectorStore creates the index"
+            + " with its own parameters.";
+
     @Data
     public static class HnswConfig {
 
@@ -84,9 +114,20 @@ public class PgVectorStoreProperties {
         @Max(500)
         private int efConstruction = 64;
 
+        /** The hnsw.ef_search a similarity search is run with. */
         @Min(10)
         @Max(500)
         private int efSearch = 100;
+
+        @DeprecatedConfigurationProperty(reason = NO_EFFECT)
+        public int getM() {
+            return m;
+        }
+
+        @DeprecatedConfigurationProperty(reason = NO_EFFECT)
+        public int getEfConstruction() {
+            return efConstruction;
+        }
     }
 
     @Data
@@ -99,6 +140,16 @@ public class PgVectorStoreProperties {
         @Min(1)
         @Max(1000)
         private int probes = 10;
+
+        @DeprecatedConfigurationProperty(reason = NO_EFFECT)
+        public int getLists() {
+            return lists;
+        }
+
+        @DeprecatedConfigurationProperty(reason = NO_EFFECT)
+        public int getProbes() {
+            return probes;
+        }
     }
 
     @Data
@@ -117,6 +168,31 @@ public class PgVectorStoreProperties {
         private boolean extractKeywords = true;
 
         private boolean generateSummary = false;
+
+        @DeprecatedConfigurationProperty(reason = NO_EFFECT)
+        public int getChunkSize() {
+            return chunkSize;
+        }
+
+        @DeprecatedConfigurationProperty(reason = NO_EFFECT)
+        public int getChunkOverlap() {
+            return chunkOverlap;
+        }
+
+        @DeprecatedConfigurationProperty(reason = NO_EFFECT)
+        public boolean isEnrichMetadata() {
+            return enrichMetadata;
+        }
+
+        @DeprecatedConfigurationProperty(reason = NO_EFFECT)
+        public boolean isExtractKeywords() {
+            return extractKeywords;
+        }
+
+        @DeprecatedConfigurationProperty(reason = NO_EFFECT)
+        public boolean isGenerateSummary() {
+            return generateSummary;
+        }
     }
 
     public enum IndexType {

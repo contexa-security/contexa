@@ -104,7 +104,8 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
      */
     public static final Set<String> COMPARED_V21 = Set.of("REQUEST.TargetScope", "REQUEST.Credential",
             "REQUEST.Confirmation", "SESSION.DelegationActivity", "DECISION_FACTS.RecordProvenance", "DECISION_FACTS.RecordsHolder",
-            "USER_BASELINE.BaselineSubject", "USER_BASELINE.UsualSequence", "USER_BASELINE.UsualClients");
+            "DECISION_FACTS.ArgumentOrigin", "USER_BASELINE.BaselineSubject", "USER_BASELINE.UsualSequence",
+            "USER_BASELINE.UsualClients");
 
     /**
      * v21.9 (A2-4): the entries of both dictionaries whose v21 line this check compares with its sealed sources, though
@@ -255,6 +256,9 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
             // v21.10 (A2-12): whose company records the lines are.
             expected(tally, facts.get("RecordsHolder"), AgentLineValues.recordsHolder(context),
                     CONTEXT + "frictionProfile.recordsHolderId", "records holder");
+            // CQ-1: where an argument value first appeared, as the host stated it with the call.
+            expected(tally, facts.get("ArgumentOrigin"), AgentLineValues.argumentOrigins(context),
+                    CONTEXT + "attributes.argumentOrigins", "argument origin");
         }
         authorizationEffect(tally, facts.get("AuthorizationEffect"), context);
         expected(tally, facts.get("ClientSignals"), DecisionFactLineValues.clientSignals(context.getIntent()), CONTEXT + "intent",
@@ -410,6 +414,7 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
                         AgentLineValues.callArguments(context), CONTEXT + "attributes.invocationArguments");
                 case UntrustedTextSources.DELEGATION_OBJECTIVE -> text(tally, line, source,
                         AgentLineValues.delegationObjective(context), CONTEXT + "delegation.objectiveSummary");
+                case UntrustedTextSources.TOOL_OUTPUT_EXCERPT -> toolOutputExcerpt(tally, line, source, context);
                 case UntrustedTextSources.REQUEST_BODY, UntrustedTextSources.THREAT_KNOWLEDGE -> unverifiable(tally, line,
                         CONTEXT + "untrustedText", "the " + source + " is not sealed");
                 default -> mismatch(tally, line, "a known untrusted text source", source, CONTEXT,
@@ -482,6 +487,24 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
         mismatch(tally, line, texts.isEmpty() ? "no line (the sealed context holds no validated case memory text)"
                         : "one of " + texts, line.entryLine().value(), CONTEXT + "reasoningMemoryProfile",
                 "the text is not one of the sealed validated case memory's stored texts");
+    }
+
+    /**
+     * CQ-1: a tool output sentence is one of the sentences the sealed argument origins quote for the values the argument
+     * origin line states, quoted as the render quotes it.
+     */
+    private static void toolOutputExcerpt(PromptInspectionTally tally, InspectedPrompt.Line line, String source,
+                                          CanonicalSecurityContext context) {
+        List<String> excerpts = AgentLineValues.toolOutputExcerpts(context);
+        for (String excerpt : excerpts) {
+            if (quoted(source, excerpt, line.entryLine().value())) {
+                tally.matched(line);
+                return;
+            }
+        }
+        mismatch(tally, line, excerpts.isEmpty() ? "no line (the sealed argument origins quote no tool output)"
+                        : "one of " + excerpts, line.entryLine().value(), CONTEXT + "attributes.argumentOrigins",
+                "the text is not one of the sentences the sealed argument origins quote");
     }
 
     /** The line quotes the sealed text as the render does, whole or cut with the count of what was cut. */

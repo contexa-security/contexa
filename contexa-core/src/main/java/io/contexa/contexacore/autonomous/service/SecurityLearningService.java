@@ -18,11 +18,16 @@ package io.contexa.contexacore.autonomous.service;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.context.collector.ContextObservationRecorder;
+import io.contexa.contexacore.autonomous.context.support.LearnedBy;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
 import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptShadowRun;
+import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.lang.Nullable;
+
+import java.util.Map;
 
 import java.util.concurrent.Executor;
 
@@ -66,11 +71,15 @@ public class SecurityLearningService {
         if (postProcessor == null) {
             return;
         }
+        // BR-C6: the caller states how the request was verified (the step-up, the administrator's release); the record
+        // says so. A request that states neither is stored with no source.
+        LearnedBy source = statedSourceOf(event);
         // The decision of these paths is already in effect (a verified user, an approved override), so its document
         // is stored at once.
+        SecurityEvent learned = detached(event);
         postProcessExecutor.execute(() -> {
-            updateSessionContext(event, decision, takenInAt);
-            storeDocument(event, decision, takenInAt);
+            updateSessionContext(learned, decision, takenInAt);
+            storeDocument(learned, decision, takenInAt, source);
         });
     }
 
@@ -89,7 +98,7 @@ public class SecurityLearningService {
      * record replaces the held one of the same event.
      */
     public void learnPromoted(String userId, SecurityDecision decision, SecurityEvent event) {
-        learnRecorded(userId, decision, event);
+        learnRecorded(userId, decision, event, LearnedBy.PROMOTED);
     }
 
     /**
@@ -97,17 +106,18 @@ public class SecurityLearningService {
      * session context is not updated: the request was recorded in its session when the decision in force answered it.
      */
     public void learnVerifiedResend(String userId, SecurityDecision decision, SecurityEvent event) {
-        learnRecorded(userId, decision, event);
+        learnRecorded(userId, decision, event, LearnedBy.VERIFIED);
     }
 
-    /** Baseline learning and vector storage of a request its session already recorded. */
-    private void learnRecorded(String userId, SecurityDecision decision, SecurityEvent event) {
+    /** Baseline learning and vector storage of a request its session already recorded, learned by the given source. */
+    private void learnRecorded(String userId, SecurityDecision decision, SecurityEvent event, LearnedBy source) {
         long takenInAt = takenInAt(event);
         learnBaseline(userId, decision, event, takenInAt);
         if (postProcessor == null) {
             return;
         }
-        postProcessExecutor.execute(() -> storeDocument(event, decision, takenInAt));
+        SecurityEvent learned = detached(event);
+        postProcessExecutor.execute(() -> storeDocument(learned, decision, takenInAt, source));
     }
 
     /** Ties the decision documents of the analysis layers to the outcome the enforcement applies (W5-3). */
@@ -133,7 +143,8 @@ public class SecurityLearningService {
             return;
         }
         long takenInAt = takenInAt(event);
-        postProcessExecutor.execute(() -> updateSessionContext(event, decision, takenInAt));
+        SecurityEvent observed = detached(event);
+        postProcessExecutor.execute(() -> updateSessionContext(observed, decision, takenInAt));
         ContextObservationRecorder recorder = contextObservationRecorder;
         ZeroTrustAction decided = decision != null ? decision.resolveAutonomousAction() : null;
         if (recorder == null || decided == null) {
@@ -141,9 +152,55 @@ public class SecurityLearningService {
         }
         recorder.stage(event, DECISION_DOCUMENT, null, commit -> {
             if (commit.enforced() && decided.name().equalsIgnoreCase(String.valueOf(commit.outcome()))) {
-                postProcessExecutor.execute(() -> storeDocument(event, decision, takenInAt));
+                // BR-C6: the model's own ALLOW is learned at once, with no verification and no release.
+                // QF-25 (b): the commit holds the request's lock; an executor with no room leaves the document to the
+                // store retry (LearningStoreRejectionPolicy) instead of storing it on this thread.
+                // QF-55: the document is stored from a copy of the event as the commit sees it, taken here on the
+                // request's thread: the learnedBy the store writes never reaches the event the later handlers read.
+                SecurityEvent committed = event.detachedCopy();
+                postProcessExecutor.execute(LearningStoreRejectionPolicy.deferrable(
+                        () -> storeDocument(committed, decision, takenInAt, LearnedBy.MODEL_ALLOW),
+                        () -> deferDocument(committed, decision, takenInAt, LearnedBy.MODEL_ALLOW)));
             }
         });
+    }
+
+    /**
+     * BR-C6 (QF-14): states on the event how the record about to be stored was learned; the post processor copies it to
+     * the record. Only an ALLOW is a learned allowance, and only a path that knows its source states one: for any other
+     * decision, or a path without a source, the event carries none, so a stale or unreadable value never reaches a record.
+     */
+    private static void stateLearnedBy(SecurityEvent event, SecurityDecision decision, @Nullable LearnedBy source) {
+        ZeroTrustAction action = decision != null ? decision.resolveAutonomousAction() : null;
+        if (action == ZeroTrustAction.ALLOW && source != null) {
+            event.addMetadata(VectorDocumentMetadata.LEARNED_BY, source.name());
+        }
+        else if (event.getMetadata() != null) {
+            event.getMetadata().remove(VectorDocumentMetadata.LEARNED_BY);
+        }
+    }
+
+    /**
+     * The source a request that was verified before it is learned states: the one its caller wrote on it, else the one its
+     * way of verification stands for ({@code verifiedBy}); null when it states neither.
+     */
+    @Nullable
+    private static LearnedBy statedSourceOf(SecurityEvent event) {
+        Map<String, Object> metadata = event != null ? event.getMetadata() : null;
+        if (metadata == null) {
+            return null;
+        }
+        LearnedBy stated = LearnedBy.of(metadata.get(VectorDocumentMetadata.LEARNED_BY));
+        return stated != null ? stated : LearnedBy.ofVerifiedBy(metadata.get(VerificationLearningService.VERIFIED_BY));
+    }
+
+    /**
+     * QF-55: the copy of the event the learning executor works on, taken on the thread that hands the work over, so that
+     * what the learning writes (learnedBy) and what that thread writes afterwards never meet in one map.
+     */
+    @Nullable
+    private static SecurityEvent detached(@Nullable SecurityEvent event) {
+        return event != null ? event.detachedCopy() : null;
     }
 
     /** When the engine took the event in, for the deleted account fence; unused without the fence. */
@@ -180,12 +237,30 @@ public class SecurityLearningService {
      * Stores the decision document of the request unless its account was deleted after the request was taken in. A
      * document stored while the purge of that account ran is removed again: the purge may not have seen it (Q-15).
      */
-    private void storeDocument(SecurityEvent event, SecurityDecision decision, long takenInAt) {
+    private void storeDocument(SecurityEvent event, SecurityDecision decision, long takenInAt, @Nullable LearnedBy source) {
         String userId = event.getUserId();
         if (discards(DeletedAccountWriteFence.DECISION_DOCUMENT, userId, takenInAt)) {
             return;
         }
+        stateLearnedBy(event, decision, source);
         postProcessor.storeInVectorDatabase(event, decision);
+        if (discards(DeletedAccountWriteFence.DECISION_DOCUMENT_REMOVED, userId, takenInAt)) {
+            postProcessor.removeStoredRecord(event, decision);
+        }
+    }
+
+    /**
+     * QF-25 (b): the same document as {@link #storeDocument}, left to the vector store retry without a store attempt,
+     * because the learning executor had no room for its store. Nothing here waits for the embedding or the store; the
+     * removal of a deleted account's record also drops it from the retry.
+     */
+    private void deferDocument(SecurityEvent event, SecurityDecision decision, long takenInAt, @Nullable LearnedBy source) {
+        String userId = event.getUserId();
+        if (discards(DeletedAccountWriteFence.DECISION_DOCUMENT, userId, takenInAt)) {
+            return;
+        }
+        stateLearnedBy(event, decision, source);
+        postProcessor.deferInVectorDatabase(event, decision);
         if (discards(DeletedAccountWriteFence.DECISION_DOCUMENT_REMOVED, userId, takenInAt)) {
             postProcessor.removeStoredRecord(event, decision);
         }

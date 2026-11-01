@@ -165,6 +165,8 @@ class ZeroTrustActionStorageReproductionTest {
         Awaitility.await().atMost(Duration.ofSeconds(20)).pollInterval(Duration.ofMillis(250)).untilAsserted(() -> {
             assertThat(redis.getAnalysisData(user).action()).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS.name());
             assertThat(redis.getCurrentAction(user, SESSION_A)).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+            // Z-16 (1-a): outside a request too, as the in-memory repository answers.
+            assertThat(redis.getCurrentAction(user)).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
         });
     }
 
@@ -254,6 +256,48 @@ class ZeroTrustActionStorageReproductionTest {
                 assertThat(redis.getActionFromHash(user)).isNull());
 
         assertThat(redis.getCurrentAction(user, SESSION_B)).isEqualTo(ZeroTrustAction.ESCALATE);
+        assertThat(redis.getCurrentAction(user)).isEqualTo(ZeroTrustAction.ESCALATE);
+    }
+
+    /** Z-16 (1-a): a CHALLENGE past its TTL lapses outside a request too, as in the in-memory repository. */
+    @Test
+    @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
+    void redisExpiredChallengeReadsAsPendingAnalysis() {
+        String user = user();
+        assertThat(redis.saveFinalAction(user, ZeroTrustAction.CHALLENGE, fields(SESSION_A))).isTrue();
+        strings.expire(ZeroTrustRedisKeys.autonomousActionAnalysis(user), Duration.ofMillis(300));
+        Awaitility.await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
+                assertThat(redis.getActionFromHash(user)).isNull());
+
+        assertThat(redis.getCurrentAction(user, SESSION_A)).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+        assertThat(redis.getCurrentAction(user)).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+        redis.removeAllUserData(user);
+    }
+
+    /** Z-16 (1-b): a logout leaves an ESCALATE whose analysis expired unresolved, as it still reads as ESCALATE. */
+    @Test
+    void inMemoryLogoutKeepsAnUnresolvedEscalate() {
+        AdjustableClock clock = new AdjustableClock();
+        InMemoryZeroTrustActionRepository repository =
+                new InMemoryZeroTrustActionRepository(Duration.ofHours(24), clock);
+        String user = user();
+        assertThat(repository.saveFinalAction(user, ZeroTrustAction.ESCALATE, fields(SESSION_A))).isTrue();
+        clock.advance(ZeroTrustAction.ESCALATE.getDefaultTtl().plusSeconds(1));
+        assertThat(repository.getActionFromHash(user)).isNull();
+
+        assertLogoutKeepsUnresolvedEscalate(repository, user);
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
+    void redisLogoutKeepsAnUnresolvedEscalate() {
+        String user = user();
+        assertThat(redis.saveFinalAction(user, ZeroTrustAction.ESCALATE, fields(SESSION_A))).isTrue();
+        strings.expire(ZeroTrustRedisKeys.autonomousActionAnalysis(user), Duration.ofMillis(300));
+        Awaitility.await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
+                assertThat(redis.getActionFromHash(user)).isNull());
+
+        assertLogoutKeepsUnresolvedEscalate(redis, user);
     }
 
     @Test
@@ -390,11 +434,47 @@ class ZeroTrustActionStorageReproductionTest {
         repository.removeAllUserData(user);
     }
 
+    /** Z-16 (1-c): a final write without its observation, processing generation, user or action fails in both. */
+    @Test
+    void inMemoryFinalWriteWithoutItsObservationFails() {
+        assertFinalWriteWithoutItsObservationFails(new InMemoryZeroTrustActionRepository());
+    }
+
     @Test
     @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
     void redisFinalWriteWithoutItsObservationFails() {
-        assertThat(redis.writeFinalAction(user(), ZeroTrustAction.ALLOW, Map.of("contextBindingHash", SESSION_A)))
+        assertFinalWriteWithoutItsObservationFails(redis);
+    }
+
+    private static void assertFinalWriteWithoutItsObservationFails(ZeroTrustActionRepository repository) {
+        String user = user();
+        for (Map<String, Object> incomplete : List.<Map<String, Object>>of(
+                Map.of("contextBindingHash", SESSION_A),
+                Map.of("contextBindingHash", SESSION_A, "observationId", "observation-1"),
+                Map.of("contextBindingHash", SESSION_A, "processingGeneration", "generation-1"),
+                Map.of("contextBindingHash", SESSION_A, "observationId", " ",
+                        "processingGeneration", "generation-1"))) {
+            assertThat(repository.writeFinalAction(user, ZeroTrustAction.ALLOW, incomplete)).as("%s", incomplete)
+                    .isEqualTo(ZeroTrustActionRepository.FinalActionWrite.FAILED);
+        }
+        assertThat(repository.writeFinalAction(user, ZeroTrustAction.ALLOW, null))
                 .isEqualTo(ZeroTrustActionRepository.FinalActionWrite.FAILED);
+        assertThat(repository.writeFinalAction(user, null, fields(SESSION_A)))
+                .isEqualTo(ZeroTrustActionRepository.FinalActionWrite.FAILED);
+        assertThat(repository.writeFinalAction(" ", ZeroTrustAction.ALLOW, fields(SESSION_A)))
+                .isEqualTo(ZeroTrustActionRepository.FinalActionWrite.FAILED);
+        assertThat(repository.saveFinalAction(user, ZeroTrustAction.ALLOW, Map.of("contextBindingHash", SESSION_A)))
+                .isFalse();
+        assertThat(repository.getCurrentAction(user, SESSION_A)).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+    }
+
+    private static void assertLogoutKeepsUnresolvedEscalate(ZeroTrustActionRepository repository, String user) {
+        repository.removeLogoutData(user);
+
+        assertThat(repository.getCurrentAction(user, SESSION_B)).isEqualTo(ZeroTrustAction.ESCALATE);
+        assertThat(repository.getCurrentAction(user)).isEqualTo(ZeroTrustAction.ESCALATE);
+        assertThat(repository.getLastVerifiedAction(user)).isEqualTo(ZeroTrustAction.ESCALATE);
+        repository.removeAllUserData(user);
     }
 
     /**

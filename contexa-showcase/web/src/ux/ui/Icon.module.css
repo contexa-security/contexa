@@ -1,0 +1,31 @@
+/* 12 · 14 · 16 · 18 · 20 · 24 px by the size name; 18 when none is given (the menu's size). */
+.icon {
+  flex: none;
+  inline-size: var(--ux-icon-18);
+  block-size: var(--ux-icon-18);
+}
+
+.icon[data-size='xs'] {
+  inline-size: var(--ux-icon-12);
+  block-size: var(--ux-icon-12);
+}
+
+.icon[data-size='sm'] {
+  inline-size: var(--ux-icon-14);
+  block-size: var(--ux-icon-14);
+}
+
+.icon[data-size='md'] {
+  inline-size: var(--ux-icon-16);
+  block-size: var(--ux-icon-16);
+}
+
+.icon[data-size='xl'] {
+  inline-size: var(--ux-icon-20);
+  block-size: var(--ux-icon-20);
+}
+
+.icon[data-size='xxl'] {
+  inline-size: var(--ux-icon-24);
+  block-size: var(--ux-icon-24);
+}

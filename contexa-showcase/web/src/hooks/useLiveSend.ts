@@ -42,6 +42,7 @@ export function useLiveSend(
   const live = useLiveRun(true);
   const [sending, setSending] = useState(false);
   const [refusal, setRefusal] = useState<GateRefusal | null>(null);
+  const [reason, setReason] = useState<string | null>(null);
   const [waitingFor, setWaitingFor] = useState<string | null>(null);
   const {
     container: turnstileContainer,
@@ -55,12 +56,24 @@ export function useLiveSend(
   async function send(prepare?: () => Promise<void>) {
     setSending(true);
     setRefusal(null);
-    if (prepare) {
-      await prepare();
+    setReason(null);
+    let response: StartAnswer;
+    try {
+      if (prepare) {
+        await prepare();
+      }
+      response = options.post
+        ? await options.post(turnstileToken)
+        : await postJson<LiveRunView & { reason?: string }>('/api/live/runs', { scenario, turnstileToken });
+    } catch {
+      // The request never got an answer (the network, the portal down): the visitor can send again; the button never
+      // stays locked on "sending".
+      resetTurnstile();
+      setSending(false);
+      setWaitingFor(null);
+      setRefusal('error');
+      return;
     }
-    const response: StartAnswer = options.post
-      ? await options.post(turnstileToken)
-      : await postJson<LiveRunView & { reason?: string }>('/api/live/runs', { scenario, turnstileToken });
     resetTurnstile();
     setSending(false);
     const body = response.body;
@@ -76,6 +89,7 @@ export function useLiveSend(
     } else {
       setWaitingFor(null);
       setRefusal(refusalOf(response.status, body?.reason ?? null));
+      setReason(body?.reason ?? null);
     }
   }
 
@@ -100,6 +114,8 @@ export function useLiveSend(
     sending,
     ready,
     refusal,
+    /** The portal's own reason for the refusal (AGENT_LIMIT, RUN_IN_PROGRESS, ...); null without one. */
+    reason,
     /** The visitor's earlier run is being finished; this run is sent the moment it has ended. */
     waiting: waitingFor !== null,
     turnstileContainer,

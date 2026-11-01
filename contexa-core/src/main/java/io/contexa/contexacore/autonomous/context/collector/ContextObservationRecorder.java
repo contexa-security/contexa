@@ -182,6 +182,10 @@ public class ContextObservationRecorder {
             for (Staged staged : request.staged.values()) {
                 record(staged.observations(), commit);
             }
+            // QF-42: the observations ran and are never run again; they hold the whole event, so only the mark and
+            // the snapshots a later resolution of the request is answered with stay.
+            request.staged.replaceAll((collector, staged) -> new Staged(staged.snapshot(), null));
+            request.staged.values().removeIf(staged -> staged.snapshot() == null);
         }
         if (outcome != null && event.getSessionId() != null && !event.getSessionId().isBlank() && dataStore != null) {
             String sessionId = event.getSessionId().trim();
@@ -216,6 +220,18 @@ public class ContextObservationRecorder {
         }
         synchronized (request) {
             return request.committed;
+        }
+    }
+
+    /** How many observations of the request are staged and not yet released. */
+    int stagedObservations(SecurityEvent event) {
+        String key = requestKey(event);
+        Request request = key != null ? requests.getIfPresent(key) : null;
+        if (request == null) {
+            return 0;
+        }
+        synchronized (request) {
+            return (int) request.staged.values().stream().filter(staged -> staged.observations() != null).count();
         }
     }
 

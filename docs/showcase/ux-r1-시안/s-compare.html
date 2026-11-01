@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>탐지 방식 비교</title>
+<link rel="stylesheet" href="design.css">
+<style>
+  .rule { display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: center; padding: 18px 24px; border-bottom: 1px solid var(--line); }
+  .switch { width: 44px; height: 24px; border-radius: 12px; background: var(--link); position: relative; }
+  .switch::after { content: ''; position: absolute; right: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; }
+  .rule b { display: block; font-size: 15px; } .rule span { font-size: 13px; color: var(--text-3); }
+  .vs td { height: 64px; }
+  .vs .who { font-weight: 600; color: var(--text); }
+  .vs .who small { display: block; font: 500 12px/1.4 var(--mono); color: var(--text-3); }
+  .insight { display: grid; grid-template-columns: 36px 1fr; gap: 14px; padding: 18px 24px; border-top: 1px solid var(--line); background: var(--surface-2); border-radius: 0 0 var(--r-lg) var(--r-lg); }
+  .insight .ic { width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center; background: var(--surface-3); color: var(--text-2); }
+  .insight b { display: block; font-size: 15px; margin-bottom: 2px; } .insight p { margin: 0; font-size: 14px; color: var(--text-2); }
+  .cond { display: grid; grid-template-columns: 72px 1fr 20px 1fr; gap: 10px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .cond:last-of-type { border-bottom: 0; }
+  .cond .k { color: var(--text-3); font-size: 13px; } .cond .to { color: var(--text); font-weight: 600; }
+  .cond.on { background: var(--link-soft); border-radius: var(--r-md); padding: 12px; border-bottom: 0; margin: 4px -12px; }
+</style>
+</head>
+<body data-active="compare" data-lang="ko" data-crumbs="분석|탐지 방식 비교">
+<main class="content"><div class="wrap">
+
+  <div class="ph">
+    <div class="ph-main"><h1 class="ph-title">탐지 방식 비교</h1><p class="ph-desc">규칙 기반 통제와 Contexa의 문맥 기반 판정을 같은 요청으로 비교합니다. 규칙은 미리 정한 조건만 보고, Contexa는 행위 기준선과 업무 컨텍스트를 함께 봅니다.</p></div>
+  </div>
+
+  <div class="tabs"><span class="tab on">임계값 규칙 적용</span><span class="tab">조건 변경 실험</span><span class="tab">반복 측정 결과</span></div>
+
+  <div class="grid g-12" style="align-items:start">
+    <section class="card span-8">
+      <div class="rule"><span class="switch" role="img" aria-label="켜짐"></span><div><b>임계값 규칙 적용 중</b><span>야간(22:00~06:00) 대량 반출 · 500건 초과 반출 · 30일간 접근 없던 프로젝트 접근을 차단</span></div><span class="badge b-brand">규칙 켜짐</span></div>
+      <table class="table vs">
+        <thead><tr><th>실행</th><th>요청</th><th>임계값 규칙</th><th>Contexa</th></tr></thead>
+        <tbody>
+          <tr><td class="who">계정 탈취<small>run-04cdd89264f7</small></td><td>14:20 · 480건 · 처음 확인된 단말</td><td><span class="badge b-none">허용</span> <span class="badge b-block">미탐</span></td><td><span class="badge b-stepup"><i data-icon="key-round"></i>추가 인증</span> <span class="muted" style="font-size:13px">반출 0건</span></td></tr>
+          <tr><td class="who">정상 사용자<small>run-9c74d0f95216</small></td><td>14:20 · 480건 · 평소 PC</td><td><span class="badge b-allow">허용</span></td><td><span class="badge b-allow"><i data-icon="check"></i>허용</span> <span class="muted" style="font-size:13px">480건 처리</span></td></tr>
+        </tbody>
+      </table>
+      <div class="insight"><span class="ic"><i data-icon="lightbulb"></i></span><div><b>규칙은 두 요청을 구분하지 못합니다</b><p>임계값 규칙은 시각 · 건수 · 최근 접근만 봅니다. 두 요청은 시각(14:20)과 건수(480건)가 같아 규칙을 켜도 결과가 같습니다. Contexa는 단말과 행위 기준선의 차이로 두 요청을 구분했습니다.</p></div></div>
+    </section>
+    <aside class="span-4">
+      <section class="card card-pad">
+        <h2 class="card-title" style="font-size:16px">조건 하나만 바꿔 다시 실행</h2>
+        <p class="card-sub" style="margin-bottom:12px">공격 요청에서 조건 하나를 바꾸면 판정이 어떻게 달라지는지 봅니다</p>
+        <div class="cond on"><span class="k">요청 시각</span><span>14:20</span><i data-icon="arrow-right" style="width:16px;height:16px;color:var(--text-3)"></i><span class="to">03:17</span></div>
+        <div class="cond"><span class="k">반출 건수</span><span>480건</span><i data-icon="arrow-right" style="width:16px;height:16px;color:var(--text-3)"></i><span class="to">40건</span></div>
+        <div class="cond"><span class="k">단말</span><span>처음 확인</span><i data-icon="arrow-right" style="width:16px;height:16px;color:var(--text-3)"></i><span class="to">평소 PC</span></div>
+        <button class="btn btn-primary" style="width:100%;margin-top:16px"><i data-icon="play"></i>바꾼 조건으로 실행</button>
+        <p class="card-sub" style="margin-top:10px">실제 AI 판정 · 5개 보안 통제 동시 응답</p>
+      </section>
+    </aside>
+  </div>
+
+</div></main>
+<script src="shell.js"></script>
+</body>
+</html>

@@ -16,15 +16,18 @@ class InMemoryExpiringStoresTest {
 
     @Test
     void blockMfaVerificationIsReleasedAfterItsTtl() {
-        InMemoryBlockMfaStateStore store =
-                new InMemoryBlockMfaStateStore(new InMemoryZeroTrustActionRepository(), Duration.ofHours(1), clock);
+        // Z-16 (1-d): the in-memory decision repository keeps the verification beside the user's other BLOCK MFA
+        // state, as the Redis keys sit side by side; its clock and its sweep release it.
+        InMemoryZeroTrustActionRepository decisions =
+                new InMemoryZeroTrustActionRepository(Duration.ofHours(24), clock);
+        InMemoryBlockMfaStateStore store = new InMemoryBlockMfaStateStore(decisions, Duration.ofHours(1), clock);
         store.setVerified("alice");
 
-        store.removeExpiredEntries();
+        decisions.removeExpiredEntries();
         assertThat(store.isVerified("alice")).isTrue();
 
         clock.advance(Duration.ofMinutes(61));
-        store.removeExpiredEntries();
+        decisions.removeExpiredEntries();
         assertThat(store.holdsVerificationFor("alice")).isFalse();
         assertThat(store.isVerified("alice")).isFalse();
     }

@@ -3,75 +3,30 @@
  * application and the build: src/screens.tsx reads them before the first render, and firstScreenPreload.ts writes the
  * same rule into index.html so the browser starts reading them together with the application's code instead of after
  * it has run. Free of imports so the build can read it.
+ *
+ * UX-R1 (구현계획서 DEC-14): the first screens are the start of the demo and the threat simulation's steps; the old
+ * screens have no address of their own any more (their addresses lead to the new places).
  */
 
-/** Address beginnings, checked first, in this order. */
-export const FIRST_SCREEN_PREFIXES = [
-  ['/try/timing/', 'pages/try/TimingPage'],
-  ['/try/follow', 'pages/try/FollowPage'],
-] as const;
-
-/** Whole addresses, checked next. */
+/** Whole addresses, checked first. */
 export const FIRST_SCREEN_ADDRESSES = {
-  '/choose': 'pages/main/TrackChoosePage',
-  '/person': 'pages/main/PersonChoosePage',
-  '/person/next': 'pages/main/PersonNextPage',
-  '/agent': 'pages/main/AgentChoosePage',
-  '/agent/next': 'pages/main/AgentNextPage',
-  '/deeper': 'pages/main/DeeperPage',
-  '/intro/map': 'pages/main/IntroMapPage',
-  '/attack/request': 'pages/main/RequestPage',
-  '/attack/console': 'pages/main/ConsolePage',
-  '/attack/result': 'pages/main/ResultPage',
-  '/attack/reason': 'pages/main/AttackReasonPage',
-  '/evidence/map': 'pages/main/EvidenceMapPage',
-  '/evidence/prompt': 'pages/main/EvidencePromptPage',
-  '/evidence/verdict': 'pages/main/EvidenceVerdictPage',
-  '/normal/request': 'pages/main/RequestPage',
-  '/normal/console': 'pages/main/ConsolePage',
-  '/normal/diff': 'pages/main/DiffPage',
-  '/normal/check': 'pages/main/CheckPage',
-  '/insider/request': 'pages/main/RequestPage',
-  '/insider/console': 'pages/main/ConsolePage',
-  '/insider/reason': 'pages/main/InsidePage',
-  '/agent/request': 'pages/main/AgentRequestPage',
-  '/agent/console': 'pages/main/AgentConsolePage',
-  '/agent/reason': 'pages/main/AgentReasonPage',
-  '/agent/confirm': 'pages/main/AgentConfirmPage',
-  '/agent/end': 'pages/main/AgentEndPage',
-  '/agent/burst': 'pages/main/AgentBurstPage',
-  '/agent/result': 'pages/main/AgentResultPage',
-  '/compare/rule': 'pages/main/RuleSwitchPage',
-  '/compare/change': 'pages/main/ChangePage',
-  '/compare/runs': 'pages/main/RunsPage',
-  '/summary': 'pages/main/SummaryPage',
-  '/summary/next': 'pages/main/NextPage',
-  '/more': 'pages/more/MorePage',
-  '/intro/learning': 'pages/intro/LearnWhyPage',
-  '/intro/learning/learned': 'pages/intro/LearnedPage',
-  '/intro/how': 'pages/intro/HowPage',
-  '/try/stack': 'pages/try/StackPage',
-  '/try/summary/learning': 'pages/try/LearnAfterPage',
-  '/intro/approaches': 'pages/intro/ApproachesPage',
-  '/lab': 'pages/lab/LabEntrancePage',
-  '/lab/case': 'pages/lab/LabCasePage',
-  '/lab/change': 'pages/lab/LabChangePage',
-  '/lab/before': 'pages/lab/LabBeforePage',
-  '/lab/send': 'pages/lab/LabSendPage',
-  '/lab/result': 'pages/lab/LabResultPage',
-  '/lab/rules': 'pages/lab/LabRulesPage',
-  '/lab/agent': 'pages/lab/LabAgentPage',
+  '/': 'ux/pages/home/HomePage',
+  '/simulate/person': 'ux/pages/simulate/person/PickPage',
 } as const;
 
-/** Address patterns as regular expression sources, checked last. */
+/** Address patterns as regular expression sources, checked next. */
 export const FIRST_SCREEN_PATTERNS = [
-  ['^/try/(attacker|owner)/[a-z]+$', 'pages/try/ExperiencePage'],
+  ['^/simulate/person/(S13|S13T|S16)/review$', 'ux/pages/simulate/person/ReviewPage'],
+  ['^/simulate/person/(S13|S13T|S16)/live$', 'ux/pages/simulate/person/LivePage'],
+  ['^/simulate/person/(S13|S13T|S16)/result$', 'ux/pages/simulate/person/ResultPage'],
 ] as const;
 
 export type FirstScreenModule =
-  | (typeof FIRST_SCREEN_PREFIXES)[number][1]
   | (typeof FIRST_SCREEN_ADDRESSES)[keyof typeof FIRST_SCREEN_ADDRESSES]
   | (typeof FIRST_SCREEN_PATTERNS)[number][1];
+
+/** Address beginnings, checked before the rest; none now (kept for the rule's shape). */
+export const FIRST_SCREEN_PREFIXES: readonly (readonly [string, FirstScreenModule])[] = [];
 
 /** The screen module the address opens, as a path under src without its extension; null for the other addresses. */
 export function firstScreenOf(pathname: string): FirstScreenModule | null {
@@ -91,41 +46,36 @@ export function firstScreenOf(pathname: string): FirstScreenModule | null {
   return null;
 }
 
-/** The cases the tries of the default route send, by who the visitor is and the decision mode (7.1, 7.2, work 1). */
+/**
+ * The records the request review's first render shows, read with its code: the case list and the comparison before
+ * sending of the address's scenario. The addresses are the ones the application's queries ask (src/firstScreens.test.ts
+ * holds them together).
+ */
+export const FIRST_RECORDS = {
+  pattern: '^/simulate/person/(S13|S13T|S16)/review$',
+  always: ['/api/lab/options'],
+  comparison: '/api/live/before/{case}?step=1',
+} as const;
+
+/** The record addresses the first render of this address reads; none for the screens that show no records first. */
+export function firstRecordsOf(pathname: string): string[] {
+  const match = new RegExp(FIRST_RECORDS.pattern).exec(pathname);
+  if (!match?.[1]) {
+    return [];
+  }
+  return [...FIRST_RECORDS.always, FIRST_RECORDS.comparison.replace('{case}', encodeURIComponent(match[1]))];
+}
+
+/**
+ * The cases the old try steps sent, by who the visitor is and the decision mode; kept for the old try helpers
+ * (src/pages/try/experience.ts) until the old files are removed.
+ */
 export const TRY_CASES = {
   attacker: { sync: 'A3', async: 'A3A' },
   owner: { sync: 'A3T', async: 'A3TA' },
 } as const;
 
-/**
- * The records a try step's head shows, read with its code: the case list on every step, and on the situation and the
- * comparison the latest run's comparison before sending for the step's case. The addresses are the ones the
- * application's queries ask (src/firstScreens.test.ts holds them together).
- */
-export const FIRST_RECORDS = {
-  pattern: '^/try/(attacker|owner)/([a-z]+)$',
-  always: ['/api/lab/options'],
-  compared: ['scene', 'compare'],
-  comparison: '/api/live/before/{case}?step=1',
-} as const;
-
-/** The decision mode an address asks for: asynchronous only when it says so. */
+/** The decision mode an address asks for: asynchronous only when it says so (old try helpers). */
 export function modeOfSearch(search: string): 'sync' | 'async' {
   return new URLSearchParams(search).get('mode') === 'async' ? 'async' : 'sync';
-}
-
-/** The record addresses the first render of this address reads; none for the screens that show no records first. */
-export function firstRecordsOf(pathname: string, search: string): string[] {
-  const match = new RegExp(FIRST_RECORDS.pattern).exec(pathname);
-  const role = match?.[1] === 'owner' ? 'owner' : match?.[1] === 'attacker' ? 'attacker' : null;
-  const step = match?.[2] ?? '';
-  if (role === null) {
-    return [];
-  }
-  const records: string[] = [...FIRST_RECORDS.always];
-  if ((FIRST_RECORDS.compared as readonly string[]).includes(step)) {
-    const key = TRY_CASES[role][modeOfSearch(search)];
-    records.push(FIRST_RECORDS.comparison.replace('{case}', encodeURIComponent(key)));
-  }
-  return records;
 }
