@@ -1,0 +1,79 @@
+[
+ {
+  "label": "T5-confirm-approve",
+  "runId": "run-d2ca817d4929",
+  "caseKey": "T5",
+  "kind": "DELEGATED",
+  "why": "main case of the agent group; the delegating employee approved the confirmation (APPROVE, DELEGATION_ENDED)"
+ },
+ {
+  "label": "T5-confirm-report",
+  "runId": "run-f440d9283e17",
+  "caseKey": "T5",
+  "kind": "DELEGATED",
+  "why": "the same case with the agent reported (REPORT) instead of approved"
+ },
+ {
+  "label": "M19A-delegated",
+  "runId": "run-f95da22d28e7",
+  "caseKey": "M19A",
+  "kind": "DELEGATED",
+  "why": "path 1 of 3: the agent acting for a person (token exchange); the export over the declared daily amount"
+ },
+ {
+  "label": "M19A-autonomous",
+  "runId": "run-e307f5472e7f",
+  "caseKey": "M19A",
+  "kind": "AUTONOMOUS",
+  "why": "path 2 of 3: the agent on its own client credentials"
+ },
+ {
+  "label": "M19A-session",
+  "runId": "run-6a7d52a0735f",
+  "caseKey": "M19A",
+  "kind": "SESSION",
+  "why": "path 3 of 3: the agent signed in with its own account"
+ },
+ {
+  "label": "M41A-flights-on",
+  "runId": "run-30b46eefc46b",
+  "caseKey": "M41A",
+  "kind": "BURST_ON",
+  "why": "60 identical list requests with the flights on: one analysis, 66 of 66 delivered (production models, final build)"
+ },
+ {
+  "label": "M41A-flights-off",
+  "runId": "run-98a800a4929b",
+  "caseKey": "M41A",
+  "kind": "BURST_OFF",
+  "why": "the same burst with the flights off: every request analysed (66 decisions, 61 at once)"
+ },
+ {
+  "label": "M41T-flights-on",
+  "runId": "run-edfb8ce8f8ea",
+  "caseKey": "M41T",
+  "kind": "BURST_ON",
+  "why": "40 sensitive customer records at once with the flights on: 3 analyses, 17 refused as busy, nothing leaked"
+ },
+ {
+  "label": "M41T-flights-off",
+  "runId": "run-1b713adc15c0",
+  "caseKey": "M41T",
+  "kind": "BURST_OFF",
+  "why": "the same burst with the flights off: 41 analyses at once"
+ },
+ {
+  "label": "M41X-flights-on",
+  "runId": "run-f721ad9b2cac",
+  "caseKey": "M41X",
+  "kind": "BURST_ON",
+  "why": "30 exports out of the delegation with the flights on: 2 analyses, all refused after the first BLOCK"
+ },
+ {
+  "label": "M41X-flights-off",
+  "runId": "run-38b56efb1bcc",
+  "caseKey": "M41X",
+  "kind": "BURST_OFF",
+  "why": "the same burst with the flights off: 31 analyses"
+ }
+]

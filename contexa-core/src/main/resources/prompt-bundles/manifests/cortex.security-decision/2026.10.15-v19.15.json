@@ -1,0 +1,79 @@
+{
+  "promptKey" : "cortex.security-decision",
+  "bundleVersion" : "2026.10.15-v19.15",
+  "bundleHash" : "566db4b912064356b0cffc41a1b9aa235c98e6b5501931f2878a2958b8765206",
+  "elements" : [ {
+    "id" : "B1",
+    "state" : "PRESENT",
+    "hash" : "b1816e3f2634db717b5a2864e27bc779df9845396237af8193117285c71fd10c",
+    "detail" : "rendered system text of the L1 and L2 budget profiles"
+  }, {
+    "id" : "B2",
+    "state" : "ABSENT",
+    "hash" : "523248d73a7012bbe9d9f900615ee3daba3400943c9ab0897cac9dd9cc1b0507",
+    "detail" : "no prompt dictionary in v19 (v20, W3-1)"
+  }, {
+    "id" : "B3",
+    "state" : "PRESENT",
+    "hash" : "533d86ddcad6a4422114ca905e1f38fb90b5681e460b1edb22539edc40a05221",
+    "detail" : "golden render digest: 26 cases x L1/L2, inputs 14c25f264ca4316675803f33a45ebe321b90dd1253b1ac431179ab030c66aace"
+  }, {
+    "id" : "B4",
+    "state" : "PRESENT",
+    "hash" : "5d80c5db0fa891b82362ef115fbd001e0207123efd7fe1d0449792d1d76c8213",
+    "detail" : "format instructions and the response fields"
+  }, {
+    "id" : "B5",
+    "state" : "ABSENT",
+    "hash" : "9e12668b5707b35c4fdfa8ec06d6f657a8e65b36c841ac1e79fafc5c68dea263",
+    "detail" : "no minimum response rules in v19 (W4-4)"
+  }, {
+    "id" : "B6",
+    "state" : "PRESENT",
+    "hash" : "b972da62a38b7478bdf885eb527540f099f90f3fae38c65df495481bd7955845",
+    "detail" : "response inspector definition source (no declarative rule list in v19)"
+  }, {
+    "id" : "B7",
+    "state" : "PRESENT",
+    "hash" : "7a4589ba712d4dcb8c8cbb03b47cc4c4e607f3b9a93a6a07ae45e2668b0fbecd",
+    "detail" : "retrieval counts, thresholds, waits and document truncation defaults"
+  }, {
+    "id" : "B8",
+    "state" : "PRESENT",
+    "hash" : "35e3453964c714cd8e41a89012a957806b1195f8dc72f01da335ababf97da022",
+    "detail" : "all prompt budget profiles"
+  }, {
+    "id" : "B9",
+    "state" : "ABSENT",
+    "hash" : "1379a7d2d6d698507038376bf6921a76478d01e4c174367987899cf6ec724b9d",
+    "detail" : "no verifier contracts: the former quality assurance contracts are not part of the prompt (R4-B9, Q-78)"
+  }, {
+    "id" : "B10",
+    "state" : "UNVERSIONED",
+    "hash" : "5b468f8d0ba35a6890ec716536117f6fcb74ab20c09fa39411cf692e5479c87f",
+    "detail" : "no vocabulary version in v19; classification happens before the canonical context (W2-1, W2-2, W5-7)"
+  }, {
+    "id" : "B11",
+    "state" : "INCLUDED",
+    "hash" : "1a98d74ecdb729d53725bcc87b95a86c2198b9c559a7623efb31f4d909e15ac4",
+    "detail" : "the second analysis renders with the L2 budget profile inside B3"
+  } ],
+  "goldenInputs" : {
+    "resource" : "prompt-bundles/golden/cortex.security-decision/case-inputs.json.gz",
+    "sha256" : "14c25f264ca4316675803f33a45ebe321b90dd1253b1ac431179ab030c66aace",
+    "caseCount" : 26,
+    "excludedCases" : {
+      "R1" : "not analysed by the engine (no model call), so no prompt input exists"
+    },
+    "renderProfiles" : [ "CORTEX_L1_INTERACTIVE_STRICT", "CORTEX_L2_EXPERT_STRICT" ]
+  },
+  "parentVersion" : "2026.10.15-v19.14",
+  "changeSummary" : "Zero Trust runtime decision prompt in the v19 format with computed facts: one action family vocabulary with its source (W2-1), the host's URL template as the path family (W2-2), one usual-behaviour view with its evidence grade (W2-3), and the device as one dimension with networks in one form and the host's network zone (W2-4), the host's company records as structured facts with the resource author's words apart from its business label (W2-6), and the approval facts as they hold at the request time with a missing approval status no longer read as a missing lineage (W2-5), and each past record related to the request by the URL template and the target it names, the request's own session left out of the past records (W2-8), and each distinct past record of one protected method on its own line with only copies of one record sharing a line (W2-2 correction), and a change of device or of network within the session stated against the client the session first came from, in place of the binding-hash mismatch no code produced (W2-14), and the observed work pattern from the host's access history only, a missing history stated rather than the work profile repeated (W2-12); the budget profiles fitted to the v20 prompts, the render unchanged (TO-5); the verifier contracts left the bundle, the render unchanged (R4-B9); the interactive past record wait is 600 ms, the render unchanged (P3-EXTRA-4); golden inputs from the P3 gate measurement, the render unchanged (P2-CHANGE-25); the budget profiles fitted to the v20 prompts after P4 the TO-5 way, the render unchanged (W4-2, W4-4); the response checker falls back to the contract's action after a failed retry and reads the floor each minimum action rule names, the render unchanged (N-OUT-1, W4-5, N-P3-1); the response checker keeps its label checks for v19 prompts only, the render unchanged (W4-8)",
+  "problemIds" : [ "W4-8" ],
+  "author" : "contexa-cortex-core",
+  "frozenOn" : "2026-10-15",
+  "vocabularyVersion" : null,
+  "compatibleVocabularyVersions" : [ ],
+  "rollbackTargets" : [  ],
+  "declaredModelProfiles" : [ "STRICT_JSON_SCHEMA", "LOW_TEMPERATURE_SECURITY_DECISION", "EVIDENCE_ONLY_RETRIEVAL", "MODEL_COMPATIBLE_OPENAI_ANTHROPIC_GEMINI" ]
+}

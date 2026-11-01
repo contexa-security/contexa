@@ -1,0 +1,151 @@
+{
+  "key": "INS-V1",
+  "version": 1,
+  "frozenOn": "2026-10-19",
+  "title": {
+    "ko": "담당 프로젝트 안의 영업 기밀 문서 수집",
+    "en": "Collecting sales-confidential documents inside an assigned project"
+  },
+  "protagonist": "eng-k",
+  "template": true,
+  "timeSlot": "AFTERNOON",
+  "device": "USUAL",
+  "pace": "PACED",
+  "facts": [
+    {
+      "kind": "DOCUMENT",
+      "project": "HX-310",
+      "document": {
+        "source": "최종화면-구현계획 7차 IN-d (2026-10-19): designed before measurement",
+        "type": "NOTE",
+        "sensitivity": "CONFIDENTIAL",
+        "author": "Sales Division",
+        "updatedOn": "2026-09-28",
+        "title": {
+          "ko": "HX-310 고객사 공급 단가·마진 산정표 (영업 기밀)",
+          "en": "HX-310 customer supply pricing and margin sheet (sales confidential)"
+        },
+        "summary": {
+          "ko": "HX-310 공급 계약의 고객별 단가, 원가 구성, 목표 마진. 영업본부 전용.",
+          "en": "Unit prices, cost breakdown and target margin per customer for the HX-310 supply contract. Sales division only."
+        },
+        "body": {
+          "ko": "HX-310 공급 단가·마진 산정표\n\n고객별 공급 단가와 원가 구성, 목표 마진을 정리한 영업 자료입니다.",
+          "en": "HX-310 supply pricing and margin sheet\n\nA sales document listing the supply unit price, cost breakdown and target margin per customer."
+        }
+      }
+    },
+    {
+      "kind": "DOCUMENT",
+      "project": "HX-310",
+      "document": {
+        "source": "최종화면-구현계획 7차 IN-d (2026-10-19): designed before measurement",
+        "type": "NOTE",
+        "sensitivity": "CONFIDENTIAL",
+        "author": "Sales Division",
+        "updatedOn": "2026-09-28",
+        "title": {
+          "ko": "HX-310 경쟁 입찰 대응 전략 메모 (영업본부 한정)",
+          "en": "HX-310 competitive bid strategy memo (sales division only)"
+        },
+        "summary": {
+          "ko": "다가오는 HX-310 입찰의 최저 입찰가, 경쟁사 가격 추정, 협상 방침.",
+          "en": "Bid price floor, competitor price estimates and negotiation stance for the upcoming HX-310 tender."
+        },
+        "body": {
+          "ko": "HX-310 입찰 대응 전략\n\n최저 입찰가와 경쟁사별 예상 가격, 협상 단계별 양보 한도를 정리한 메모입니다.",
+          "en": "HX-310 bid strategy\n\nA memo on the bid price floor, each competitor's expected price and the concession limits per negotiation round."
+        }
+      }
+    },
+    {
+      "kind": "DOCUMENT",
+      "project": "HX-310",
+      "document": {
+        "source": "최종화면-구현계획 7차 IN-d (2026-10-19): designed before measurement",
+        "type": "NOTE",
+        "sensitivity": "CONFIDENTIAL",
+        "author": "Sales Division",
+        "updatedOn": "2026-09-28",
+        "title": {
+          "ko": "HX-310 고객 계약 조건·위약금 조항 요약",
+          "en": "HX-310 customer contract terms and penalty clauses summary"
+        },
+        "summary": {
+          "ko": "고객과 합의한 대금 지급 조건, 위약금 조항, 할인 약정.",
+          "en": "Payment terms, penalty clauses and discount commitments agreed with the customer."
+        },
+        "body": {
+          "ko": "HX-310 계약 조건 요약\n\n대금 지급 조건과 지연 위약금, 물량 할인 약정을 요약한 문서입니다.",
+          "en": "HX-310 contract terms summary\n\nA summary of the payment terms, delay penalties and volume discount commitments."
+        }
+      }
+    }
+  ],
+  "steps": [
+    {
+      "operation": "DOCUMENT_DOWNLOAD",
+      "document": {
+        "project": "HX-310",
+        "type": "NOTE",
+        "position": 0,
+        "fact": 1
+      },
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "DOCUMENT_DOWNLOAD",
+      "document": {
+        "project": "HX-310",
+        "type": "NOTE",
+        "position": 0,
+        "fact": 2
+      },
+      "offsetSeconds": 60,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "DOCUMENT_DOWNLOAD",
+      "document": {
+        "project": "HX-310",
+        "type": "NOTE",
+        "position": 0,
+        "fact": 3
+      },
+      "offsetSeconds": 120,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "THREAT",
+    "allowedEngineActions": [
+      "CHALLENGE",
+      "ESCALATE",
+      "BLOCK"
+    ],
+    "rationale": {
+      "ko": "설계된 내부자 행위: 설계 엔지니어 K가 평일 오후 사무실의 평소 PC로, 자기 담당 HX-310 프로젝트 폴더에 있는 영업 기밀 문서 세 건(고객 단가·마진, 입찰 전략, 계약 조건)을 1분 간격으로 내려받는다. 계정·권한·담당·시각·기기·건수가 모두 평소 범위이고, 회사 규정은 담당 프로젝트 문서 내려받기에 승인을 요구하지 않는다. K가 평소 다루는 것은 설계 도면과 설계 문서이며, 이 문서들은 설계 업무와 관계없는 영업본부 전용 기밀이다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed insider behaviour: design engineer K, on a weekday afternoon from the office with the usual PC, downloads three sales-confidential documents (customer pricing and margins, bid strategy, contract terms) from K's own HX-310 project folder one minute apart. Account, permission, assignment, time, device and count are all within K's usual range, and the company policy requires no approval for downloading documents of an assigned project. K usually works with design drawings and design documents; these are sales-division-only confidential documents unrelated to design work. The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: 설계 엔지니어도 원가 검토나 입찰 기술 지원에 참여할 수 있다. 그래서 이 사례는 차단 대신 추가 인증이나 검토 대기도 맞는 대응으로 인정한다.",
+      "en": "Counterpoint: a design engineer may take part in a cost review or in technical support of a bid. This case therefore also accepts an extra check or a hold for review instead of a block."
+    }
+  }
+}

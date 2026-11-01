@@ -1,0 +1,152 @@
+{
+  "key": "S19",
+  "version": 1,
+  "frozenOn": "2026-10-19",
+  "suite": "RULE_BLIND",
+  "title": {
+    "ko": "처음 보는 기기로 담당 설계 문서를 몇 초 간격으로 연달아 내려받기",
+    "en": "Downloading assigned design documents seconds apart from a device never seen"
+  },
+  "protagonist": "eng-k",
+  "template": true,
+  "timeSlot": "MORNING",
+  "device": "NEW",
+  "pace": "RAPID",
+  "facts": [
+    {
+      "kind": "DOCUMENT",
+      "project": "HX-310",
+      "document": {
+        "source": "최종화면-구현계획 7차 4.6 (2026-10-19): designed before measurement",
+        "type": "NOTE",
+        "sensitivity": "CONFIDENTIAL",
+        "author": "Thermal Design Team",
+        "updatedOn": "2026-09-28",
+        "title": {
+          "ko": "HX-310 튜브 다발 열설계 계산서",
+          "en": "HX-310 tube bundle thermal design calculation"
+        },
+        "summary": {
+          "ko": "튜브 다발의 열전달 면적, 압력 손실, 설계 여유 계산.",
+          "en": "Heat transfer area, pressure drop and design margin calculation of the tube bundle."
+        },
+        "body": {
+          "ko": "HX-310 열설계 계산서\n\n튜브 다발의 열전달 면적과 압력 손실, 설계 여유를 계산한 문서입니다.",
+          "en": "HX-310 thermal design calculation\n\nA document calculating the heat transfer area, pressure drop and design margin of the tube bundle."
+        }
+      }
+    },
+    {
+      "kind": "DOCUMENT",
+      "project": "HX-310",
+      "document": {
+        "source": "최종화면-구현계획 7차 4.6 (2026-10-19): designed before measurement",
+        "type": "NOTE",
+        "sensitivity": "CONFIDENTIAL",
+        "author": "Thermal Design Team",
+        "updatedOn": "2026-09-28",
+        "title": {
+          "ko": "HX-310 노즐 하중 검토 보고서",
+          "en": "HX-310 nozzle load check report"
+        },
+        "summary": {
+          "ko": "배관 하중에 대한 노즐 보강 검토 결과.",
+          "en": "Results of the nozzle reinforcement check against piping loads."
+        },
+        "body": {
+          "ko": "HX-310 노즐 하중 검토\n\n배관 하중 조합별 노즐 보강 적정성을 검토한 보고서입니다.",
+          "en": "HX-310 nozzle load check\n\nA report checking the nozzle reinforcement against each piping load combination."
+        }
+      }
+    },
+    {
+      "kind": "DOCUMENT",
+      "project": "HX-310",
+      "document": {
+        "source": "최종화면-구현계획 7차 4.6 (2026-10-19): designed before measurement",
+        "type": "NOTE",
+        "sensitivity": "CONFIDENTIAL",
+        "author": "Thermal Design Team",
+        "updatedOn": "2026-09-28",
+        "title": {
+          "ko": "HX-310 배플 간격 변경 메모",
+          "en": "HX-310 baffle spacing revision note"
+        },
+        "summary": {
+          "ko": "진동 검토에 따른 배플 간격 조정 내용.",
+          "en": "Baffle spacing adjustment following the vibration check."
+        },
+        "body": {
+          "ko": "HX-310 배플 간격 변경\n\n튜브 진동 검토 결과에 따라 배플 간격을 조정한 내용을 정리한 메모입니다.",
+          "en": "HX-310 baffle spacing revision\n\nA note on the baffle spacing adjusted after the tube vibration check."
+        }
+      }
+    }
+  ],
+  "steps": [
+    {
+      "operation": "DOCUMENT_DOWNLOAD",
+      "document": {
+        "project": "HX-310",
+        "type": "NOTE",
+        "position": 0,
+        "fact": 1
+      },
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "DOCUMENT_DOWNLOAD",
+      "document": {
+        "project": "HX-310",
+        "type": "NOTE",
+        "position": 0,
+        "fact": 2
+      },
+      "offsetSeconds": 4,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "DOCUMENT_DOWNLOAD",
+      "document": {
+        "project": "HX-310",
+        "type": "NOTE",
+        "position": 0,
+        "fact": 3
+      },
+      "offsetSeconds": 8,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "THREAT",
+    "allowedEngineActions": [
+      "BLOCK",
+      "CHALLENGE",
+      "ESCALATE"
+    ],
+    "rationale": {
+      "ko": "설계된 공격: 엔지니어 K의 계정을 손에 넣은 사람이 평일 오전 09:40 사무실망에서 처음 보는 기기로 K의 담당 HX-310 설계 문서 세 건(열설계 계산서, 노즐 하중 검토, 배플 간격 변경)을 4초 간격으로 연달아 내려받는다. 담당 프로젝트 문서라 회사 규정상 승인이 필요 없고 밤 시간도 아니어서 기존 보안은 모두 통과시킨다. 평소와 다른 것은 기기와 사람이 읽을 수 없는 빠른 연속 요청이다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed attack: on a weekday morning at 09:40 someone holding engineer K's account downloads three design documents of HX-310, K's assigned project (a thermal design calculation, a nozzle load check, a baffle spacing revision), four seconds apart, from a device never seen, on the office network. They are documents of an assigned project, so the company policy needs no approval, and it is not night, so the existing security lets them all through. What differs from usual is the device and a pace no person reads at. The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: K가 새 노트북에 자료를 옮기려 동기화 도구를 돌렸을 수 있다. 처음 보는 기기에서 사람이 읽을 수 없는 속도로 문서가 연달아 나가고 그것을 설명하는 기록이 없으므로 공격으로 정했다.",
+      "en": "Counterpoint: K may be running a sync tool to move files to a new laptop. Documents leave one after another at a pace no person reads at, from a device never seen, with no record that explains it, so the case is an attack."
+    }
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "key": "S15",
+  "version": 1,
+  "frozenOn": "2026-10-16",
+  "title": {
+    "ko": "내부 등급 운영 문서로 하는 평소 업무",
+    "en": "Usual work on internal operations documents"
+  },
+  "protagonist": "adm-a",
+  "template": true,
+  "timeSlot": "AFTERNOON",
+  "device": "USUAL",
+  "pace": "PACED",
+  "facts": [],
+  "steps": [
+    {
+      "operation": "DOCUMENT_READ",
+      "document": {
+        "project": "PLM-OPS",
+        "type": "SPECIFICATION",
+        "position": 1
+      },
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "DOCUMENT_READ",
+      "document": {
+        "project": "PLM-OPS",
+        "type": "NOTE",
+        "position": 1
+      },
+      "offsetSeconds": 240,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "EXPORT",
+      "project": "PLM-OPS",
+      "items": 20,
+      "offsetSeconds": 600,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "NORMAL",
+    "allowedEngineActions": [
+      "ALLOW",
+      "CHALLENGE"
+    ],
+    "rationale": {
+      "ko": "설계된 정상 업무: 관리자 A가 평일 오후에 사무실에서 평소 기기로 자기가 맡은 PLM-OPS(회사 IT 운영 프로젝트, 내부 등급)의 절차서 한 건과 운영 메모 한 건을 열고 20건을 반출한다. 시각·네트워크·기기·프로젝트·크기(평소 10~40건)가 모두 평소와 같고, 자원은 내부 등급이라 민감 자원이 아니다. 회사 규정은 담당 프로젝트의 500건 이하 반출에 승인을 요구하지 않는다. 다른 사례의 자원은 모두 기밀 등급 이상이다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed normal work: on a weekday afternoon in the office, administrator A opens one procedure and one operations note of PLM-OPS (the company's IT operations project, internal grade), A's assigned project, on the usual device and exports 20 records. The hour, the network, the device, the project and the size (usually 10 to 40 records) are all the usual ones, and the resource is of internal grade, not a sensitive one. The company policy needs no approval for an export of at most 500 records of an assigned project. The resources of every other case are confidential or above. The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: 등급이 낮은 자원이어도 계정이 탈취됐다면 문서가 새어 나간다. 모든 조건이 평소와 같고 회사 규정이 이 반출에 승인을 요구하지 않아 정상으로 정했다. 엔진의 본인 확인도 맞는 대응으로 인정한다.",
+      "en": "Counterpoint: documents leak from a stolen account even when their grade is low. Every condition is the usual one and the company policy needs no approval for this export, so the case is normal. An identity check by the engine also counts as right."
+    }
+  },
+  "suite": "NORMAL_COMBINATION"
+}

@@ -1,0 +1,88 @@
+{
+ "key": "S11-V1",
+ "pace": "PACED",
+ "facts": [
+  {
+   "city": null,
+   "kind": "APPROVAL",
+   "team": null,
+   "status": "APPROVED",
+   "country": null,
+   "network": null,
+   "project": "GB-500",
+   "purpose": "AUDIT_SAMPLE",
+   "approver": "pm-11",
+   "document": null,
+   "maxItems": 500,
+   "ticketKind": null,
+   "validFromOffset": "PT-24H",
+   "validUntilOffset": "PT24H"
+  }
+ ],
+ "steps": [
+  {
+   "items": 240,
+   "grantee": null,
+   "project": "GB-500",
+   "customer": null,
+   "document": null,
+   "expected": {
+    "A": "ALLOW",
+    "B": "ALLOW",
+    "C1": "DENY",
+    "C2": "ALLOW"
+   },
+   "operation": "EXPORT",
+   "visitorSends": null,
+   "claimedTicket": null,
+   "offsetSeconds": 0,
+   "responsibility": null
+  },
+  {
+   "items": 240,
+   "grantee": null,
+   "project": "GB-500",
+   "customer": null,
+   "document": null,
+   "expected": {
+    "A": "ALLOW",
+    "B": "ALLOW",
+    "C1": "DENY",
+    "C2": "ALLOW"
+   },
+   "operation": "EXPORT",
+   "visitorSends": null,
+   "claimedTicket": null,
+   "offsetSeconds": 60,
+   "responsibility": null
+  }
+ ],
+ "suite": "RULE_BLIND",
+ "title": {
+  "en": "Repeated exports that add up beyond an approval",
+  "ko": "승인 범위를 나눠 넘기는 반복 반출"
+ },
+ "device": "USUAL",
+ "oracle": {
+  "rationale": {
+   "en": "Designed attack: administrator A holds an approval to export 500 GB-500 records (an audit sample) and sends a 480-item export five times, a minute apart. Each request is within the approved 500 items; together they hand out 2,400 items, more than was approved. The expected answer is not given to the model.",
+   "ko": "설계된 공격: 관리자 A가 GB-500 자료 500건 반출 승인(감사 표본)을 받아 두고 480건 반출을 1분 간격으로 다섯 번 보낸다. 요청 하나하나는 승인 범위(500건) 안이지만 합치면 2,400건으로 승인된 양을 넘는다. 정답은 모델에게 주지 않는다."
+  },
+  "counterpoint": {
+   "en": "Counterpoint: splitting an approval over several exports may be an accepted practice. This approval covers 500 records, so 2,400 in total is beyond it.",
+   "ko": "반론: 승인 범위를 여러 번 나눠 쓰는 것이 허용된 관행일 수 있다. 이 사례의 승인은 500건이므로 합계 2,400건은 범위를 넘는다고 정했다."
+  },
+  "classification": "THREAT",
+  "allowedEngineActions": [
+   "BLOCK",
+   "CHALLENGE",
+   "ESCALATE"
+  ]
+ },
+ "network": null,
+ "version": 2,
+ "frozenOn": "2026-10-08",
+ "template": true,
+ "timeSlot": "AFTERNOON",
+ "protagonist": "adm-a"
+}

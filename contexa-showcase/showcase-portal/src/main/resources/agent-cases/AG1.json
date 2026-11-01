@@ -1,0 +1,84 @@
+{
+  "key": "AG1",
+  "version": 1,
+  "title": {
+    "ko": "에이전트 자체 경로 확인(내부)",
+    "en": "Agent own paths check (internal)"
+  },
+  "protagonist": "eng-k",
+  "template": true,
+  "timeSlot": "AFTERNOON",
+  "device": "USUAL",
+  "pace": "PACED",
+  "agent": {
+    "name": "report",
+    "title": {
+      "ko": "보고서 에이전트",
+      "en": "Report agent"
+    },
+    "roleKey": "ENGINEER",
+    "network": "10.60.1.0/24",
+    "userAgent": "report-agent/1.0"
+  },
+  "facts": [],
+  "steps": [
+    {
+      "operation": "DOCUMENT_READ",
+      "document": {
+        "project": "HX-310",
+        "type": "DRAWING",
+        "position": 1
+      },
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "DOCUMENT_READ",
+      "document": {
+        "project": "HX-310",
+        "type": "DRAWING",
+        "position": 1
+      },
+      "offsetSeconds": 480,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      },
+      "sender": "AUTONOMOUS_AGENT"
+    },
+    {
+      "operation": "DOCUMENT_READ",
+      "document": {
+        "project": "HX-310",
+        "type": "DRAWING",
+        "position": 2
+      },
+      "offsetSeconds": 720,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      },
+      "sender": "AGENT_SESSION"
+    }
+  ],
+  "oracle": {
+    "classification": "NORMAL",
+    "allowedEngineActions": [
+      "ALLOW",
+      "CHALLENGE"
+    ],
+    "rationale": {
+      "ko": "내부 경로 확인용 사례: 엔지니어 K가 자기 도면을 보고, 보고서 에이전트가 혼자서(자기 토큰), 자기 계정으로 같은 담당 프로젝트 도면을 본다. 사람의 에이전트 작업 공간 로그인(내부 클라이언트 토큰 발급)을 거치지 않는 경로만 쓴다. 공개 목록·측정·벤치마크에 들어가지 않는다.",
+      "en": "Internal path check: engineer K views K's own drawing, then the report agent views drawings of the same assigned project on its own (its own token) and with its own account. It uses only the paths that do not go through the person's agent workspace sign-in (the internal client's token issuance). It is in no visitor list, measurement or benchmark."
+    }
+  }
+}

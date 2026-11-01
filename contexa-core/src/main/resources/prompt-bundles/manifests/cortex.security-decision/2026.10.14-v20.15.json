@@ -1,0 +1,79 @@
+{
+  "promptKey" : "cortex.security-decision",
+  "bundleVersion" : "2026.10.14-v20.15",
+  "bundleHash" : "ad0075365b75d550c90dcce40857a197fc860f07e60363abad9db116b0f373c6",
+  "elements" : [ {
+    "id" : "B1",
+    "state" : "PRESENT",
+    "hash" : "65117a3293f933d9b20275144312ac0fd550259da09371ac2458d8d133fe4424",
+    "detail" : "rendered system text of the L1 and L2 budget profiles"
+  }, {
+    "id" : "B2",
+    "state" : "PRESENT",
+    "hash" : "7b4cbc66460a12fdf10f8cbf6737cfb3d5e1ef7fdaffe9ddaaa174aad0af73b0",
+    "detail" : "prompt dictionary v20: every entry with all its fields and the block header labels (W3-1)"
+  }, {
+    "id" : "B3",
+    "state" : "PRESENT",
+    "hash" : "c9d98e86a7eba1e5b6ff2c403a60ba66991e929efa059b2c140acd1b1a9634c5",
+    "detail" : "golden render digest: 26 cases x L1/L2 and 23 second passes, inputs 14c25f264ca4316675803f33a45ebe321b90dd1253b1ac431179ab030c66aace"
+  }, {
+    "id" : "B4",
+    "state" : "PRESENT",
+    "hash" : "5d80c5db0fa891b82362ef115fbd001e0207123efd7fe1d0449792d1d76c8213",
+    "detail" : "format instructions and the response fields"
+  }, {
+    "id" : "B5",
+    "state" : "PRESENT",
+    "hash" : "a255e131514e0d836e6dc518e9b01b8975213c8157a33d06013a12039b9ae6ca",
+    "detail" : "minimum action rules P1-P3 (dictionary 6): the rule source and the default settings"
+  }, {
+    "id" : "B6",
+    "state" : "PRESENT",
+    "hash" : "5787859e4d82852968e65c1cc57da2d99fbd3e18cd652a89a4c8bf7d5c4226d1",
+    "detail" : "response inspector definition source (no declarative rule list yet, W4-4)"
+  }, {
+    "id" : "B7",
+    "state" : "PRESENT",
+    "hash" : "7a4589ba712d4dcb8c8cbb03b47cc4c4e607f3b9a93a6a07ae45e2668b0fbecd",
+    "detail" : "retrieval counts, thresholds, waits and document truncation defaults"
+  }, {
+    "id" : "B8",
+    "state" : "PRESENT",
+    "hash" : "35e3453964c714cd8e41a89012a957806b1195f8dc72f01da335ababf97da022",
+    "detail" : "all prompt budget profiles"
+  }, {
+    "id" : "B9",
+    "state" : "ABSENT",
+    "hash" : "1379a7d2d6d698507038376bf6921a76478d01e4c174367987899cf6ec724b9d",
+    "detail" : "no verifier contracts: the former quality assurance contracts are not part of the prompt (R4-B9, Q-78)"
+  }, {
+    "id" : "B10",
+    "state" : "UNVERSIONED",
+    "hash" : "5b468f8d0ba35a6890ec716536117f6fcb74ab20c09fa39411cf692e5479c87f",
+    "detail" : "no vocabulary version yet (W5-7)"
+  }, {
+    "id" : "B11",
+    "state" : "INCLUDED",
+    "hash" : "1a98d74ecdb729d53725bcc87b95a86c2198b9c559a7623efb31f4d909e15ac4",
+    "detail" : "the second analysis renders inside B3: the L2 budget profile and the second-pass layout (W3-9)"
+  } ],
+  "goldenInputs" : {
+    "resource" : "prompt-bundles/golden/cortex.security-decision/case-inputs.json.gz",
+    "sha256" : "14c25f264ca4316675803f33a45ebe321b90dd1253b1ac431179ab030c66aace",
+    "caseCount" : 26,
+    "excludedCases" : {
+      "R1" : "not analysed by the engine (no model call), so no prompt input exists"
+    },
+    "renderProfiles" : [ "CORTEX_L1_INTERACTIVE_STRICT", "CORTEX_L2_EXPERT_STRICT" ]
+  },
+  "parentVersion" : "2026.10.14-v20.14",
+  "changeSummary" : "Zero Trust runtime decision prompt in the v20 dictionary format (W3-1 to W3-19, TO-1 to TO-5, LU-1 to LU-4, R4-T, R4-B9 and the P3 extra work; the 2026.10.14-v20.14 manifest lists them), with the P4 system text: the minimum action rules P1 to P3 the host turned on, in place of the elevated-risk boundary (W4-4); the boundaries and evidence rules on prompt facts only, resource classes in the ResourceClass words and no fresh-verification fact (N-RULE-1); the output contract v3 block with the meaning and the cited line of every reason code (W4-2); no fixed reason sentences, the decision keeps the model's reason (W4-3). With structured output the provider schema carries the code meanings; the schema text for a provider without it does not (dictionary 4, 5). The budget profiles fitted to these prompts the TO-5 way.",
+  "problemIds" : [ "W4-2", "W4-3", "W4-4", "N-RULE-1" ],
+  "author" : "contexa-cortex-core",
+  "frozenOn" : "2026-10-14",
+  "vocabularyVersion" : null,
+  "compatibleVocabularyVersions" : [ ],
+  "rollbackTargets" : [ "2026.10.14-v19.13" ],
+  "declaredModelProfiles" : [ "STRICT_JSON_SCHEMA", "LOW_TEMPERATURE_SECURITY_DECISION", "EVIDENCE_ONLY_RETRIEVAL", "MODEL_COMPATIBLE_OPENAI_ANTHROPIC_GEMINI" ]
+}

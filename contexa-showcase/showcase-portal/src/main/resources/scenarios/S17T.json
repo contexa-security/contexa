@@ -1,0 +1,45 @@
+{
+  "key": "S17T",
+  "version": 1,
+  "frozenOn": "2026-10-19",
+  "suite": "RULE_BLIND",
+  "title": {
+    "ko": "퇴근 뒤 평소 PC로 하는 담당 범위 안 300건 반출",
+    "en": "An evening export of 300 records within the assignment, from the usual PC"
+  },
+  "protagonist": "eng-k",
+  "template": true,
+  "timeSlot": "EVENING",
+  "device": "USUAL",
+  "pace": "PACED",
+  "facts": [],
+  "steps": [
+    {
+      "operation": "EXPORT",
+      "project": "HX-310",
+      "items": 300,
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "NORMAL",
+    "allowedEngineActions": [
+      "ALLOW",
+      "CHALLENGE"
+    ],
+    "rationale": {
+      "ko": "설계된 정상 업무: 엔지니어 K가 평일 저녁 20:30 사무실에서 평소 PC로 자기 담당 HX-310 자료 300건을 반출한다(야근). 시각과 규모는 평소와 다르지만, 담당 프로젝트이고 담당 반출 한도(500건) 안이라 회사 규정상 승인이 필요 없다. S17과 다른 것은 기기 하나다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed normal work: engineer K exports 300 records of HX-310, K's assigned project, on a weekday evening at 20:30 from the usual PC in the office (working late). The hour and the size differ from usual, but the project is K's and the export is within the assigned export limit (500 records), so the company policy needs no approval. The only difference from S17 is the device. The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: 평소 시각 밖에 평소보다 훨씬 큰 반출은 한 번 확인하는 편이 안전하다는 시각이 있다. 그래서 이 사례는 엔진의 본인 확인도 맞는 대응으로 인정한다.",
+      "en": "Counterpoint: an export much larger than usual outside the usual hours may deserve one check. The case therefore also counts an identity check by the engine as right."
+    }
+  }
+}

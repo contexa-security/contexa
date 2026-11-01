@@ -1,0 +1,80 @@
+{
+  "promptKey" : "cortex.security-decision",
+  "bundleVersion" : "2026.10.19-v21.4",
+  "bundleHash" : "5e6283441ed98f9f424879d6ae91012f9ab20b23f6dc0fd508503ba4c6a9f8f7",
+  "elements" : [ {
+    "id" : "B1",
+    "state" : "PRESENT",
+    "hash" : "9f30a35150a2125913eaf6956ecafa335bb5a44ddc5673d4943f486d67fdbf67",
+    "detail" : "rendered system text of the L1 and L2 budget profiles"
+  }, {
+    "id" : "B2",
+    "state" : "PRESENT",
+    "hash" : "66e3c903856f24ae5fb3d6d3c9ebce37bf766e9373737704435357bd00a205e2",
+    "detail" : "prompt dictionary v21: every entry with all its fields, the block header labels and the block titles (V-4)"
+  }, {
+    "id" : "B3",
+    "state" : "PRESENT",
+    "hash" : "0007187f8261841de9b1a170c2eb3d87a2fd820f7aa94483e10f691fc4ef0167",
+    "detail" : "golden render digest: 27 cases x L1/L2 and 24 second passes, inputs 165fcd4d2f5dded94f8af9073cbd76b72774b20999b8c96e42b0cd9a0821a89e"
+  }, {
+    "id" : "B4",
+    "state" : "PRESENT",
+    "hash" : "399914853e74d5c6554e849b1d464ae2da332100f061e6315e7aae77ba3b948f",
+    "detail" : "format instructions, the output contract v4 schema and the response fields (V-3)"
+  }, {
+    "id" : "B5",
+    "state" : "ABSENT",
+    "hash" : "9e12668b5707b35c4fdfa8ec06d6f657a8e65b36c841ac1e79fafc5c68dea263",
+    "detail" : "no minimum action rules in v21: the model judges and no rule changes its response (V-5)"
+  }, {
+    "id" : "B6",
+    "state" : "PRESENT",
+    "hash" : "f6a9d423dbb2029fbffe2a9370fb12b340e30b9ede5b1fbf607381e00975f5c6",
+    "detail" : "v21 response check sources: the citation and honesty checks, no action check (V-5)"
+  }, {
+    "id" : "B7",
+    "state" : "PRESENT",
+    "hash" : "7a4589ba712d4dcb8c8cbb03b47cc4c4e607f3b9a93a6a07ae45e2668b0fbecd",
+    "detail" : "retrieval counts, thresholds, waits and document truncation defaults"
+  }, {
+    "id" : "B8",
+    "state" : "PRESENT",
+    "hash" : "b495e42bfa4d36c1f12dce8954f9a11090f7b6fa8a163d59cfed755fda847744",
+    "detail" : "all prompt budget profiles"
+  }, {
+    "id" : "B9",
+    "state" : "ABSENT",
+    "hash" : "1379a7d2d6d698507038376bf6921a76478d01e4c174367987899cf6ec724b9d",
+    "detail" : "no verifier contracts: the former quality assurance contracts are not part of the prompt (R4-B9, Q-78)"
+  }, {
+    "id" : "B10",
+    "state" : "PRESENT",
+    "hash" : "faa19253b1ca0b87fb3023b7bf0584dcd65e99bf1640887b0faa7dbc2f5fa14a",
+    "detail" : "vocabulary vocab-2026.10.15.2: the version and the classifier sources it was given for (W5-7)"
+  }, {
+    "id" : "B11",
+    "state" : "INCLUDED",
+    "hash" : "1a98d74ecdb729d53725bcc87b95a86c2198b9c559a7623efb31f4d909e15ac4",
+    "detail" : "the second analysis renders inside B3: the L2 budget profile and the second-pass layout (W3-9)"
+  } ],
+  "goldenInputs" : {
+    "resource" : "prompt-bundles/golden/cortex.security-decision/case-inputs.json.gz",
+    "sha256" : "165fcd4d2f5dded94f8af9073cbd76b72774b20999b8c96e42b0cd9a0821a89e",
+    "caseCount" : 27,
+    "excludedCases" : {
+      "R1" : "not analysed by the engine (no model call), so no prompt input exists"
+    },
+    "renderProfiles" : [ "CORTEX_L1_INTERACTIVE_STRICT", "CORTEX_L2_EXPERT_STRICT" ]
+  },
+  "parentVersion" : "2026.10.19-v21.3",
+  "changeSummary" : "Zero Trust runtime decision prompt v21: the model judges each request from its context. System text: the mission (sign-in, permissions and fixed rules cannot tell a stolen account or an insider misusing their own permission from legitimate work), how to read the evidence, competing explanations (legitimate work, account takeover, insider misuse, automation or error, another one), each difference checked against the company records by the model, the meaning of the four responses (a challenge verifies who holds the account and does not stop the owner), the honesty rules; no decision rule, threshold, floor or later enforcement. User prompt: the v20 dictionary blocks, the decision facts block titled RECORDS AND COMPARISONS, records and comparisons without the core's conclusions (no PolicySatisfied, no covers tails, no explained marks, no within or outside). Output contract v4: action, hypotheses, reasonCodes, reason, riskScore, confidence, mitre. The response check asks again only for a broken format or a wrong citation and never changes the action. v21.1 (R2): an unrecorded decision time is stated without the core's reading, a value a line states as not recorded is unknown, the owner's records weigh between legitimate work and insider misuse and not against a takeover, and the response weighs what each response costs and prevents across the explanations left possible. v21.2: an approval or ticket is a person's earlier judgment of the purpose, and the weighing follows how strongly the request's own facts support each other explanation. v21.3: a record line states the host's own check against the request as the host's fact. v21.4: the request block states the scope the host's records hold the target in (a document's or a customer's project) as the host's fact.",
+  "problemIds" : [ "V21-F7" ],
+  "author" : "contexa-cortex-core",
+  "frozenOn" : "2026-10-19",
+  "vocabularyVersion" : "vocab-2026.10.15.2",
+  "compatibleVocabularyVersions" : [ "vocab-unstamped", "vocab-2026.10.15", "vocab-2026.10.15.2" ],
+  "rollbackTargets" : [ "2026.10.17-v20.25" ],
+  "declaredModelProfiles" : [ "STRICT_JSON_SCHEMA", "LOW_TEMPERATURE_SECURITY_DECISION", "EVIDENCE_ONLY_RETRIEVAL", "MODEL_COMPATIBLE_OPENAI_ANTHROPIC_GEMINI" ],
+  "evaluationScenarioFamilies" : [ "PROMPT_INJECTION", "MEMORY_POISONING" ]
+}

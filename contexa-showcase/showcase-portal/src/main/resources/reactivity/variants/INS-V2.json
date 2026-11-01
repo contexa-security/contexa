@@ -1,0 +1,150 @@
+{
+  "key": "INS-V2",
+  "version": 1,
+  "frozenOn": "2026-10-19",
+  "title": {
+    "ko": "담당 프로젝트 안의 설계 문서 내려받기",
+    "en": "Downloading design documents inside an assigned project"
+  },
+  "protagonist": "eng-k",
+  "template": true,
+  "timeSlot": "AFTERNOON",
+  "device": "USUAL",
+  "pace": "PACED",
+  "facts": [
+    {
+      "kind": "DOCUMENT",
+      "project": "HX-310",
+      "document": {
+        "source": "최종화면-구현계획 7차 IN-d (2026-10-19): designed before measurement",
+        "type": "NOTE",
+        "sensitivity": "CONFIDENTIAL",
+        "author": "Thermal Design Team",
+        "updatedOn": "2026-09-28",
+        "title": {
+          "ko": "HX-310 튜브 다발 열설계 계산서",
+          "en": "HX-310 tube bundle thermal design calculation"
+        },
+        "summary": {
+          "ko": "튜브 다발의 열전달 면적, 압력 손실, 설계 여유 계산.",
+          "en": "Heat transfer area, pressure drop and design margin calculation of the tube bundle."
+        },
+        "body": {
+          "ko": "HX-310 열설계 계산서\n\n튜브 다발의 열전달 면적과 압력 손실, 설계 여유를 계산한 문서입니다.",
+          "en": "HX-310 thermal design calculation\n\nA document calculating the heat transfer area, pressure drop and design margin of the tube bundle."
+        }
+      }
+    },
+    {
+      "kind": "DOCUMENT",
+      "project": "HX-310",
+      "document": {
+        "source": "최종화면-구현계획 7차 IN-d (2026-10-19): designed before measurement",
+        "type": "NOTE",
+        "sensitivity": "CONFIDENTIAL",
+        "author": "Thermal Design Team",
+        "updatedOn": "2026-09-28",
+        "title": {
+          "ko": "HX-310 노즐 하중 검토 보고서",
+          "en": "HX-310 nozzle load check report"
+        },
+        "summary": {
+          "ko": "배관 하중에 대한 노즐 보강 검토 결과.",
+          "en": "Results of the nozzle reinforcement check against piping loads."
+        },
+        "body": {
+          "ko": "HX-310 노즐 하중 검토\n\n배관 하중 조합별 노즐 보강 적정성을 검토한 보고서입니다.",
+          "en": "HX-310 nozzle load check\n\nA report checking the nozzle reinforcement against each piping load combination."
+        }
+      }
+    },
+    {
+      "kind": "DOCUMENT",
+      "project": "HX-310",
+      "document": {
+        "source": "최종화면-구현계획 7차 IN-d (2026-10-19): designed before measurement",
+        "type": "NOTE",
+        "sensitivity": "CONFIDENTIAL",
+        "author": "Thermal Design Team",
+        "updatedOn": "2026-09-28",
+        "title": {
+          "ko": "HX-310 배플 간격 변경 메모",
+          "en": "HX-310 baffle spacing revision note"
+        },
+        "summary": {
+          "ko": "진동 검토에 따른 배플 간격 조정 내용.",
+          "en": "Baffle spacing adjustment following the vibration check."
+        },
+        "body": {
+          "ko": "HX-310 배플 간격 변경\n\n튜브 진동 검토 결과에 따라 배플 간격을 조정한 내용을 정리한 메모입니다.",
+          "en": "HX-310 baffle spacing revision\n\nA note on the baffle spacing adjusted after the tube vibration check."
+        }
+      }
+    }
+  ],
+  "steps": [
+    {
+      "operation": "DOCUMENT_DOWNLOAD",
+      "document": {
+        "project": "HX-310",
+        "type": "NOTE",
+        "position": 0,
+        "fact": 1
+      },
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "DOCUMENT_DOWNLOAD",
+      "document": {
+        "project": "HX-310",
+        "type": "NOTE",
+        "position": 0,
+        "fact": 2
+      },
+      "offsetSeconds": 60,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "DOCUMENT_DOWNLOAD",
+      "document": {
+        "project": "HX-310",
+        "type": "NOTE",
+        "position": 0,
+        "fact": 3
+      },
+      "offsetSeconds": 120,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "NORMAL",
+    "allowedEngineActions": [
+      "ALLOW",
+      "CHALLENGE"
+    ],
+    "rationale": {
+      "ko": "설계된 정상 업무: 설계 엔지니어 K가 평일 오후 사무실의 평소 PC로, 자기 담당 HX-310 프로젝트 폴더의 설계 문서 세 건(열설계 계산서, 노즐 하중 검토, 배플 간격 변경)을 1분 간격으로 내려받는다. INS-V1과 사람·시각·기기·방식·건수가 같고 문서의 성격만 다르다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed normal work: design engineer K, on a weekday afternoon from the office with the usual PC, downloads three design documents (thermal design calculation, nozzle load check, baffle spacing revision) from K's own HX-310 project folder one minute apart. Person, time, device, method and count are the same as in INS-V1; only the nature of the documents differs. The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: 세 건을 짧은 간격으로 내려받는 것은 수집의 시작일 수도 있다. 그래서 이 사례는 추가 인증도 맞는 대응으로 인정한다.",
+      "en": "Counterpoint: three downloads at short intervals could be the start of a collection. This case therefore also accepts an extra check."
+    }
+  }
+}

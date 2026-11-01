@@ -1,0 +1,85 @@
+{
+  "key": "S14",
+  "version": 1,
+  "frozenOn": "2026-10-16",
+  "title": {
+    "ko": "출장지에서 새 노트북으로 하는 새벽 정상 업무",
+    "en": "Normal work at dawn from a business trip on a new laptop"
+  },
+  "protagonist": "eng-k",
+  "template": true,
+  "timeSlot": "DAWN",
+  "device": "NEW",
+  "network": "TRAVEL",
+  "pace": "PACED",
+  "facts": [
+    {
+      "kind": "TRAVEL",
+      "city": "Singapore",
+      "country": "SG",
+      "network": "198.51.100.0/24",
+      "validFromOffset": "-P2D",
+      "validUntilOffset": "P3D"
+    }
+  ],
+  "steps": [
+    {
+      "operation": "DOCUMENT_READ",
+      "document": {
+        "project": "HX-310",
+        "type": "DRAWING",
+        "position": 5
+      },
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "DOCUMENT_READ",
+      "document": {
+        "project": "HX-310",
+        "type": "DRAWING",
+        "position": 6
+      },
+      "offsetSeconds": 240,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "EXPORT",
+      "project": "HX-310",
+      "items": 12,
+      "offsetSeconds": 600,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "ALLOW"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "NORMAL",
+    "allowedEngineActions": [
+      "ALLOW",
+      "CHALLENGE"
+    ],
+    "rationale": {
+      "ko": "설계된 정상 업무: 엔지니어 K가 회사에 등록한 싱가포르 출장 중에 처음 쓰는 노트북(Mac·Safari)으로 출장지 네트워크(198.51.100.0/24)에서 회사 시각 새벽 3시 17분(싱가포르 현지 오전 11시 17분)에 자기 담당 HX-310 도면 두 건을 열고 12건을 반출한다. 기기·네트워크·시각이 모두 평소와 다르지만 출장 기록이 네트워크와 기간을 덮고, 그 시각은 출장지의 근무 시간이며, 프로젝트와 반출 크기(평소 5~20건)는 평소와 같다. 회사 규정은 담당 프로젝트의 500건 이하 반출에 승인을 요구하지 않는다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed normal work: during a business trip to Singapore registered with the company, engineer K uses a laptop for the first time (Mac, Safari) on the trip network (198.51.100.0/24) at 03:17 company time (11:17 local time in Singapore), opens two of K's own HX-310 drawings and exports 12 records. The device, the network and the hour all differ from usual, but the trip record covers the network and the period, the hour is a working hour at the trip location, and the project and the export size (usually 5 to 20 records) are the usual ones. The company policy needs no approval for an export of at most 500 records of an assigned project. The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: 처음 보는 기기, 해외 네트워크, 새벽 시각이 한꺼번에 겹치는 것은 계정 탈취의 전형적인 모양이다. 출장 기록이 네트워크와 기간을 설명하고 그 시각이 출장지의 근무 시간이며 프로젝트와 크기가 평소와 같아 정상으로 정했다. 새 기기는 회사 기록으로 설명되지 않으므로 엔진의 본인 확인도 맞는 대응으로 인정한다.",
+      "en": "Counterpoint: a device never seen before, a foreign network and a dawn hour together are the typical shape of a stolen account. The trip record explains the network and the period, the hour is a working hour at the trip location, and the project and the size are the usual ones, so the case is normal. No company record explains the new device, so an identity check by the engine also counts as right."
+    }
+  },
+  "suite": "NORMAL_COMBINATION"
+}

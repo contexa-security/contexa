@@ -1,0 +1,79 @@
+{
+  "promptKey" : "cortex.security-decision",
+  "bundleVersion" : "2026.10.15-v20.20",
+  "bundleHash" : "048b2e0937acdad530459303e9ef67a26d3c292d7f2f59561a54ddb6a1c2d6dc",
+  "elements" : [ {
+    "id" : "B1",
+    "state" : "PRESENT",
+    "hash" : "ac9150eca61c56418429381a5fab08ede5c485911b69d30a91d4281af5beb7d0",
+    "detail" : "rendered system text of the L1 and L2 budget profiles"
+  }, {
+    "id" : "B2",
+    "state" : "PRESENT",
+    "hash" : "3fb007d87565c6ae6ca8e48675b23340c316be512b1ca5e4ae883c2919063def",
+    "detail" : "prompt dictionary v20: every entry with all its fields and the block header labels (W3-1)"
+  }, {
+    "id" : "B3",
+    "state" : "PRESENT",
+    "hash" : "000fe964cfdc13f63fb42d6d7e34c4c9729d6372b806bd3ef06352885ac06266",
+    "detail" : "golden render digest: 26 cases x L1/L2 and 23 second passes, inputs 735d7090e25a34c700496506fe2d719ed36ea7553be47c120a0cdb49aca7e5f4"
+  }, {
+    "id" : "B4",
+    "state" : "PRESENT",
+    "hash" : "5d80c5db0fa891b82362ef115fbd001e0207123efd7fe1d0449792d1d76c8213",
+    "detail" : "format instructions and the response fields"
+  }, {
+    "id" : "B5",
+    "state" : "PRESENT",
+    "hash" : "21ba89329a41e2433d6d140218e7b7c76a67d21a916e3481556c85bb6d996ec3",
+    "detail" : "minimum action rules P1-P3 (dictionary 6): the rule source and the default settings"
+  }, {
+    "id" : "B6",
+    "state" : "PRESENT",
+    "hash" : "b972da62a38b7478bdf885eb527540f099f90f3fae38c65df495481bd7955845",
+    "detail" : "response inspector definition source (no declarative rule list yet, W4-4)"
+  }, {
+    "id" : "B7",
+    "state" : "PRESENT",
+    "hash" : "7a4589ba712d4dcb8c8cbb03b47cc4c4e607f3b9a93a6a07ae45e2668b0fbecd",
+    "detail" : "retrieval counts, thresholds, waits and document truncation defaults"
+  }, {
+    "id" : "B8",
+    "state" : "PRESENT",
+    "hash" : "35e3453964c714cd8e41a89012a957806b1195f8dc72f01da335ababf97da022",
+    "detail" : "all prompt budget profiles"
+  }, {
+    "id" : "B9",
+    "state" : "ABSENT",
+    "hash" : "1379a7d2d6d698507038376bf6921a76478d01e4c174367987899cf6ec724b9d",
+    "detail" : "no verifier contracts: the former quality assurance contracts are not part of the prompt (R4-B9, Q-78)"
+  }, {
+    "id" : "B10",
+    "state" : "PRESENT",
+    "hash" : "91dcde7857307f3ade064bba0f11e909502228e0d527302c24a8bfcf25169d18",
+    "detail" : "vocabulary vocab-2026.10.15.2: the version and the classifier sources it was given for (W5-7)"
+  }, {
+    "id" : "B11",
+    "state" : "INCLUDED",
+    "hash" : "1a98d74ecdb729d53725bcc87b95a86c2198b9c559a7623efb31f4d909e15ac4",
+    "detail" : "the second analysis renders inside B3: the L2 budget profile and the second-pass layout (W3-9)"
+  } ],
+  "goldenInputs" : {
+    "resource" : "prompt-bundles/golden/cortex.security-decision/case-inputs.json.gz",
+    "sha256" : "735d7090e25a34c700496506fe2d719ed36ea7553be47c120a0cdb49aca7e5f4",
+    "caseCount" : 26,
+    "excludedCases" : {
+      "R1" : "not analysed by the engine (no model call), so no prompt input exists"
+    },
+    "renderProfiles" : [ "CORTEX_L1_INTERACTIVE_STRICT", "CORTEX_L2_EXPERT_STRICT" ]
+  },
+  "parentVersion" : "2026.10.15-v20.19",
+  "changeSummary" : "Zero Trust runtime decision prompt in the v20 dictionary format (W3-1 to W3-19, TO-1 to TO-5, LU-1 to LU-4, R4-T, R4-B9 and the P3 extra work; the 2026.10.14-v20.14 manifest lists them), with the P4 system text: the minimum action rules the host turned on, each naming its floor, P1 and P2 a challenge and P3 a review because a verified user does not supply a missing record (W4-4, N-P3-1); the boundaries and evidence rules on prompt facts only, the BLOCK boundary naming what is observed and a repeat, a new target or a large volume no risk by itself (N-RULE-1, N-WORD-1, N-FRIC-1); the output contract v3 block with the meaning and the cited line of every reason code, MATERIAL_MISSING_EVIDENCE citing the ID the UNKNOWN line gives each missing fact (W4-2, N-UID-1); no fixed reason sentences (W4-3). An approval without a decision time says what was not checked (N-WORD-1). The response checker falls back to the contract's action after a failed retry (N-OUT-1, W4-5) and checks the boundaries, the reason claims and the reason codes on the facts the prompt was drawn from (W4-8). The golden render draws the baseline the sealed prompts state (N-GOLD-1). An approval or ticket whose decision time is not recorded does not prevent covered work (N-WORD-2). The budget profiles fitted to these prompts the TO-5 way. P5 drew the learning and memory facts anew: the non-allowed records (W5-4), one protection of what is learned (W5-9), and baseline statistics v2: each dimension with its counts, days and first and last times, first seen apart from rare, one denominator, maturity by dates and convergence with the reasons it misses, one request rate, logins of two factors kept, the organization usual by frequency, the peer comparison with the group size and the tenant in the baseline key (W5-10); the bundle declares its vocabulary (W5-7).",
+  "problemIds" : [ "W5-4", "W5-7", "W5-9", "W5-10" ],
+  "author" : "contexa-cortex-core",
+  "frozenOn" : "2026-10-15",
+  "vocabularyVersion" : "vocab-2026.10.15.2",
+  "compatibleVocabularyVersions" : [ "vocab-unstamped", "vocab-2026.10.15", "vocab-2026.10.15.2" ],
+  "rollbackTargets" : [ "2026.10.15-v19.17" ],
+  "declaredModelProfiles" : [ "STRICT_JSON_SCHEMA", "LOW_TEMPERATURE_SECURITY_DECISION", "EVIDENCE_ONLY_RETRIEVAL", "MODEL_COMPATIBLE_OPENAI_ANTHROPIC_GEMINI" ]
+}

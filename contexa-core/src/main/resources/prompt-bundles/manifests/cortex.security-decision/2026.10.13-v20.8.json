@@ -1,0 +1,79 @@
+{
+  "promptKey" : "cortex.security-decision",
+  "bundleVersion" : "2026.10.13-v20.8",
+  "bundleHash" : "4cd78d37d36698f19c1f8fa2460125127f4c7e14a869c335e47a8ec157055795",
+  "elements" : [ {
+    "id" : "B1",
+    "state" : "PRESENT",
+    "hash" : "203aa0e5e0b3cfa685120079030e5bf8065080f4e699f1b51baa1783f119b607",
+    "detail" : "rendered system text of the L1 and L2 budget profiles"
+  }, {
+    "id" : "B2",
+    "state" : "PRESENT",
+    "hash" : "c055d400d1f64039c20ef4d4e461c5bc3356ebafda4ef74a5d005b5681ef0b97",
+    "detail" : "prompt dictionary v20: every entry with all its fields and the block header labels (W3-1)"
+  }, {
+    "id" : "B3",
+    "state" : "PRESENT",
+    "hash" : "1cb96838cc3712b3d64e044ef1b936d5853ece37f7e08e5c5665a0fe324f1c7e",
+    "detail" : "golden render digest: 26 cases x L1/L2 and 17 second passes, inputs bdddad5c1936720d20cd69648911727f2c7c48dee174b63bf310a48b4b4b0366"
+  }, {
+    "id" : "B4",
+    "state" : "PRESENT",
+    "hash" : "1144260d0ec27af6c9c61279374c0c7eb60336a50025e990d78e81b6214ceec9",
+    "detail" : "format instructions and the response fields"
+  }, {
+    "id" : "B5",
+    "state" : "ABSENT",
+    "hash" : "9e12668b5707b35c4fdfa8ec06d6f657a8e65b36c841ac1e79fafc5c68dea263",
+    "detail" : "no minimum response rules yet (W4-4)"
+  }, {
+    "id" : "B6",
+    "state" : "PRESENT",
+    "hash" : "5787859e4d82852968e65c1cc57da2d99fbd3e18cd652a89a4c8bf7d5c4226d1",
+    "detail" : "response inspector definition source (no declarative rule list yet, W4-4)"
+  }, {
+    "id" : "B7",
+    "state" : "PRESENT",
+    "hash" : "88840fcf3476109684f08d8d32b56954ec2102372dc25668a7baa9bd9b422085",
+    "detail" : "retrieval counts, thresholds, waits and document truncation defaults"
+  }, {
+    "id" : "B8",
+    "state" : "PRESENT",
+    "hash" : "23ae9cf0aaba4193931bb58c3cd02f6916afa037af55402485c81139fe9a4ad0",
+    "detail" : "all prompt budget profiles"
+  }, {
+    "id" : "B9",
+    "state" : "PRESENT",
+    "hash" : "50e4c4fc3912cb45282b6a92a312123f3d067925f3d03187d9be963344912708",
+    "detail" : "pqa/final-prompt-metric-contracts.json, pqa/final-prompt-signal-contracts.json"
+  }, {
+    "id" : "B10",
+    "state" : "UNVERSIONED",
+    "hash" : "5b468f8d0ba35a6890ec716536117f6fcb74ab20c09fa39411cf692e5479c87f",
+    "detail" : "no vocabulary version yet (W5-7)"
+  }, {
+    "id" : "B11",
+    "state" : "INCLUDED",
+    "hash" : "1a98d74ecdb729d53725bcc87b95a86c2198b9c559a7623efb31f4d909e15ac4",
+    "detail" : "the second analysis renders inside B3: the L2 budget profile and the second-pass layout (W3-9)"
+  } ],
+  "goldenInputs" : {
+    "resource" : "prompt-bundles/golden/cortex.security-decision/case-inputs.json.gz",
+    "sha256" : "bdddad5c1936720d20cd69648911727f2c7c48dee174b63bf310a48b4b4b0366",
+    "caseCount" : 26,
+    "excludedCases" : {
+      "R1" : "not analysed by the engine (no model call), so no prompt input exists"
+    },
+    "renderProfiles" : [ "CORTEX_L1_INTERACTIVE_STRICT", "CORTEX_L2_EXPERT_STRICT" ]
+  },
+  "parentVersion" : "2026.10.13-v20.7",
+  "changeSummary" : "Zero Trust runtime decision prompt in the v20 dictionary format: every user prompt line an entry of the prompt dictionary in its blocks (W3-1, W3-2); past records one per line, read by an exact lookup within the action family and counted on the target (W3-3, W3-4, W3-18); the items the user approved for removal left out (Q-61, Q-73, W3-5); untrusted texts in their own block (W3-6); budget trimming by dictionary priority without cutting a value (W3-7); stable parts first with a prompt cache key (W3-8); a Layer2 second pass that adds only what it found (W3-9); missing-knowledge kinds, source grades and data conflicts (W3-12); fact IDs and relative times in every cited block (W3-13, P3 extra 12); runtime rules under dictionary names (W3-14); one source per fact (W3-19, Q-79); one deviation form (P3 extra 39); fact lines without the instructions written with their facts and the UNKNOWN form from the renderer's words (TO-1 to TO-3, P3 extra 37); the v20 system text in the plan 6.3 order, with one set of boundaries on dictionary facts and the decision process in block order (TO-4, W4-1, P3 extra 33); the budget profiles fitted to these prompts (TO-5)",
+  "problemIds" : [ "TO-5" ],
+  "author" : "contexa-cortex-core",
+  "frozenOn" : "2026-10-13",
+  "vocabularyVersion" : null,
+  "compatibleVocabularyVersions" : [ ],
+  "rollbackTargets" : [ "2026.10.13-v19.9" ],
+  "declaredModelProfiles" : [ "STRICT_JSON_SCHEMA", "LOW_TEMPERATURE_SECURITY_DECISION", "EVIDENCE_ONLY_RETRIEVAL", "MODEL_COMPATIBLE_OPENAI_ANTHROPIC_GEMINI" ]
+}
