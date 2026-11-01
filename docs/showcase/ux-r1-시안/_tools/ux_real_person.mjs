@@ -106,7 +106,10 @@ try {
     entry.conclusion = (await heading.innerText()).trim();
     entry.exportsRows = await page
       .getByRole('region', { name: '반출 건수 비교' })
-      .locator('li:not([aria-hidden="true"])')
+      // The bars only: the stored responses folded under them are a list of their own (UC-5, DEC-82).
+      .locator('ul')
+      .first()
+      .locator(':scope > li:not([aria-hidden="true"])')
       .allInnerTexts();
     entry.decisionSide = await page.locator('dl').first().innerText();
     await page.screenshot({ path: join(out, `${key}-result-1440.png`), fullPage: true });

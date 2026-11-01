@@ -1,0 +1,478 @@
+{
+  "web": "http://localhost:5181",
+  "api": "http://127.0.0.1:19180",
+  "startedAt": "2026-11-01T08:13:11.889Z",
+  "checks": [
+    {
+      "area": "bundle",
+      "name": "rebuilt bytes = served file",
+      "screen": "5be588244bd9ffdb274cb90bb29824ee478e2e95c0fe9ddf6cf6279b3d2421f9",
+      "expected": "5be588244bd9ffdb274cb90bb29824ee478e2e95c0fe9ddf6cf6279b3d2421f9",
+      "same": true
+    },
+    {
+      "area": "bundle",
+      "name": "web serves the bundle file",
+      "screen": "5be588244bd9ffdb274cb90bb29824ee478e2e95c0fe9ddf6cf6279b3d2421f9",
+      "expected": "5be588244bd9ffdb274cb90bb29824ee478e2e95c0fe9ddf6cf6279b3d2421f9",
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "S-1a protected",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "S-1a unprotected",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "S-1a sample",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "S-1b protected",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "S-1b unprotected",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "S-1b sample",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "S-1c protected",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "S-1c unprotected",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "S-1c sample",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "S-4 protected",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "S-4 unprotected",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "S-4 sample",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "S-2base protected",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "S-2base unprotected",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "S-2base sample",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "S-2enhanced protected",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "S-2enhanced unprotected",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "S-2enhanced sample",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "S-3 protected",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "S-3 unprotected",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "S-3 sample",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "frozen versions",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "programme spend",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "limits listed",
+      "screen": 12,
+      "expected": 12,
+      "same": true
+    },
+    {
+      "area": "PC-9",
+      "name": "/benchmarks free of certification claims",
+      "screen": false,
+      "expected": false,
+      "same": true
+    },
+    {
+      "area": "PC-9",
+      "name": "/benchmarks/agentdojo?tab=results free of certification claims",
+      "screen": false,
+      "expected": false,
+      "same": true
+    },
+    {
+      "area": "PC-9",
+      "name": "/benchmarks/agentdojo?tab=breakdown free of certification claims",
+      "screen": false,
+      "expected": false,
+      "same": true
+    },
+    {
+      "area": "PC-9",
+      "name": "/benchmarks/agentdojo?tab=variants free of certification claims",
+      "screen": false,
+      "expected": false,
+      "same": true
+    },
+    {
+      "area": "PC-9",
+      "name": "/benchmarks/agentdojo?tab=cases free of certification claims",
+      "screen": false,
+      "expected": false,
+      "same": true
+    },
+    {
+      "area": "PC-9",
+      "name": "/benchmarks/agentdojo?tab=settings free of certification claims",
+      "screen": false,
+      "expected": false,
+      "same": true
+    },
+    {
+      "area": "PC-9",
+      "name": "/benchmarks/injecagent?tab=results free of certification claims",
+      "screen": false,
+      "expected": false,
+      "same": true
+    },
+    {
+      "area": "PC-9",
+      "name": "/benchmarks/injecagent?tab=breakdown free of certification claims",
+      "screen": false,
+      "expected": false,
+      "same": true
+    },
+    {
+      "area": "PC-9",
+      "name": "/benchmarks/injecagent?tab=variants free of certification claims",
+      "screen": false,
+      "expected": false,
+      "same": true
+    },
+    {
+      "area": "PC-9",
+      "name": "/benchmarks/injecagent?tab=cases free of certification claims",
+      "screen": false,
+      "expected": false,
+      "same": true
+    },
+    {
+      "area": "PC-9",
+      "name": "/benchmarks/injecagent?tab=settings free of certification claims",
+      "screen": false,
+      "expected": false,
+      "same": true
+    },
+    {
+      "area": "PC-9",
+      "name": "/benchmarks/promptfoo?tab=results free of certification claims",
+      "screen": false,
+      "expected": false,
+      "same": true
+    },
+    {
+      "area": "PC-9",
+      "name": "/benchmarks/promptfoo?tab=breakdown free of certification claims",
+      "screen": false,
+      "expected": false,
+      "same": true
+    },
+    {
+      "area": "PC-9",
+      "name": "/benchmarks/promptfoo?tab=variants free of certification claims",
+      "screen": false,
+      "expected": false,
+      "same": true
+    },
+    {
+      "area": "PC-9",
+      "name": "/benchmarks/promptfoo?tab=cases free of certification claims",
+      "screen": false,
+      "expected": false,
+      "same": true
+    },
+    {
+      "area": "PC-9",
+      "name": "/benchmarks/promptfoo?tab=settings free of certification claims",
+      "screen": false,
+      "expected": false,
+      "same": true
+    },
+    {
+      "area": "PC-9",
+      "name": "/benchmarks/method free of certification claims",
+      "screen": false,
+      "expected": false,
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "S-1a cases listed",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "benchmarks",
+      "name": "S-1b cases listed",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "home band",
+      "name": "S-1a unprotected → protected",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "home band",
+      "name": "S-1a condition",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "home band",
+      "name": "S-2base unprotected → protected",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "home band",
+      "name": "S-2base condition",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "home band",
+      "name": "S-3 unprotected → protected",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "home band",
+      "name": "S-3 condition",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "PC-9",
+      "name": "home band free of certification claims",
+      "screen": false,
+      "expected": false,
+      "same": true
+    },
+    {
+      "area": "validation",
+      "name": "threat runs",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "validation",
+      "name": "Contexa missed",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "validation",
+      "name": "scope line runs",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "validation",
+      "name": "A missed · false positives",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "validation",
+      "name": "B missed · false positives",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "validation",
+      "name": "C1 missed · false positives",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "validation",
+      "name": "C2 missed · false positives",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "validation",
+      "name": "D missed · false positives",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "validation",
+      "name": "runs in the database = the measurement scope",
+      "screen": 205,
+      "expected": 205,
+      "same": true
+    },
+    {
+      "area": "validation",
+      "name": "Contexa detection",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "validation",
+      "name": "Contexa false positives",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "validation",
+      "name": "judgment-time bins",
+      "screen": 7,
+      "expected": 7,
+      "same": true
+    },
+    {
+      "area": "validation",
+      "name": "decisions: HTTP engine = database decisions with an action",
+      "screen": 304,
+      "expected": 304,
+      "same": true
+    },
+    {
+      "area": "validation",
+      "name": "agent paths",
+      "screen": 3,
+      "expected": 3,
+      "same": true
+    }
+  ],
+  "problems": [],
+  "rebuilt": "E:\\projects\\contexa\\docs\\showcase\\ux-r1-검수\\I-10\\real-i6\\bundle-rebuilt.json 101,384 bytes sha256 5be588244bd9ffdb274cb90bb29824ee478e2e95c0fe9ddf6cf6279b3d2421f9 from 42 pinned files",
+  "dbDecisions": 304,
+  "finishedAt": "2026-11-01T08:13:34.034Z",
+  "summary": {
+    "checks": 66,
+    "same": 66,
+    "problems": 0
+  }
+}

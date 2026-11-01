@@ -1,0 +1,290 @@
+{
+  "base": "http://127.0.0.1:19180",
+  "startedAt": "2026-10-31T18:43:36.219Z",
+  "runs": [
+    {
+      "key": "T5",
+      "steps": [
+        "live opened 2026-10-31T18:43:38.208Z",
+        "delegator approved 2026-10-31T18:43:51.428Z"
+      ],
+      "asked": "요청 1에 대한 위임자 확인\n\n위임자 엔지니어 K으로서 답합니다\n\n확인 이유\n위임 기간이 끝난 뒤의 요청입니다\n요청\nGET /api/projects/HX-310/documents?type=DRAWING\n남은 시간\n239초\n승인\n거절\n\n신고는 이 데모에서 실시간으로 받지 않습니다. 결과에서 위임자가 신고한 실제 기록과 비교합니다.",
+      "answered": "요청 1에 대한 위임자 확인\n\n위임자 엔지니어 K으로서 답합니다\n\n확인 이유\n위임 기간이 끝난 뒤의 요청입니다\n요청\nGET /api/projects/HX-310/documents?type=DRAWING\n\n위임자가 승인했습니다\n\n다시 보낸 요청: HTTP 200 · 1건 전달\n같은 확인을 다시 쓴 요청: HTTP 403 AGENT_CONFIRMATION_REQUIRED\n다른 요청: HTTP 403 AGENT_CONFIRMATION_REQUIRED",
+      "runId": "run-e6173a5e84e4",
+      "liveRows": 1,
+      "conclusion": "요청 1에서 위임자 확인을 요구했고, 위임자가 승인했습니다",
+      "side": "판정한 요청\n요청 1 / 1\n판정\n위임자 확인\n예상 판정\n적중 중단 · 위임자 확인\n실행 ID\nrun-e6173a5e84e4",
+      "resultRows": 1,
+      "controls": [
+        "웹 방화벽(WAF)\t멈추지 않음\t0\t0",
+        "인증 · 권한(IAM)\t멈추지 않음\t0\t0",
+        "임계값 규칙\t멈추지 않음\t0\t0",
+        "승인 정책 규칙\t멈추지 않음\t0\t0",
+        "Contexa\t요청 1\t0\t0"
+      ],
+      "http": {
+        "sent": 1,
+        "steps": 1,
+        "firstStopD": 1,
+        "confirmation": {
+          "stepNo": 1,
+          "trigger": "DELEGATION_ENDED",
+          "decision": "APPROVE"
+        },
+        "stopReason": "ANSWERED"
+      },
+      "db": {
+        "run": [
+          "T5",
+          "COMPLETED",
+          "t"
+        ],
+        "stepsD": [
+          [
+            "1",
+            "D",
+            "REFUSED",
+            "0"
+          ]
+        ],
+        "decisions": [
+          [
+            "1",
+            "",
+            "0"
+          ]
+        ],
+        "confirmation": [
+          [
+            "1",
+            "DELEGATION_ENDED",
+            "APPROVE",
+            "302",
+            "{\"method\": \"GET\", \"status\": \"APPROVED\", \"target\": \"/api/projects/HX-310/documents?type=DRAWING\", \"trigger\": \"DELEGATION_ENDED\", \"decidedAt\": \"2026-10-31T18:43:51.486369Z\", \"expiresAt\": \"2026-10-31T18:58:51.486369Z\", \"httpStatus\": 200, \"authorizationId\": \"ctxa-as:140c2aaa-a07f-4d66-9cae-3e3dedfee08f\"}"
+          ]
+        ]
+      }
+    },
+    {
+      "key": "N1",
+      "steps": [
+        "live opened 2026-10-31T18:43:57.763Z"
+      ],
+      "runId": "run-6ed9d5055f95",
+      "liveRows": 6,
+      "conclusion": "에이전트 요청 6건을 모두 처리했습니다",
+      "side": "판정한 요청\n멈춘 요청 없음\n판정\n허용\n예상 판정\n처리 · 실제: 처리\n실행 ID\nrun-6ed9d5055f95",
+      "resultRows": 6,
+      "controls": [
+        "웹 방화벽(WAF)\t멈추지 않음\t0\t0",
+        "인증 · 권한(IAM)\t멈추지 않음\t0\t0",
+        "임계값 규칙\t멈추지 않음\t0\t0",
+        "승인 정책 규칙\t멈추지 않음\t0\t0",
+        "Contexa\t멈추지 않음\t0\t0"
+      ],
+      "http": {
+        "sent": 6,
+        "steps": 6,
+        "firstStopD": null,
+        "confirmation": null,
+        "stopReason": "ANSWERED"
+      },
+      "db": {
+        "run": [
+          "N1",
+          "COMPLETED",
+          "t"
+        ],
+        "stepsD": [
+          [
+            "1",
+            "D",
+            "DELIVERED",
+            "1"
+          ],
+          [
+            "2",
+            "D",
+            "DELIVERED",
+            "1"
+          ],
+          [
+            "3",
+            "D",
+            "DELIVERED",
+            "1"
+          ],
+          [
+            "4",
+            "D",
+            "DELIVERED",
+            "1"
+          ],
+          [
+            "5",
+            "D",
+            "DELIVERED",
+            "1"
+          ],
+          [
+            "6",
+            "D",
+            "DELIVERED",
+            "1"
+          ]
+        ],
+        "decisions": [
+          [
+            "1",
+            "ALLOW",
+            "1"
+          ],
+          [
+            "2",
+            "ALLOW",
+            "1"
+          ],
+          [
+            "3",
+            "ALLOW",
+            "1"
+          ],
+          [
+            "4",
+            "ALLOW",
+            "1"
+          ],
+          [
+            "5",
+            "ALLOW",
+            "1"
+          ],
+          [
+            "6",
+            "ALLOW",
+            "1"
+          ]
+        ],
+        "confirmation": []
+      }
+    },
+    {
+      "key": "BURST",
+      "steps": [
+        "sent 2026-10-31T18:44:54.761Z"
+      ],
+      "counting": "보낸 요청\n0\n전달\n0\n거부\n0\n모델 호출\n기록 저장 뒤 표시",
+      "runId": "run-ba24973a7a9a",
+      "ownColumn": [
+        [
+          "보낸 요청",
+          "16"
+        ],
+        [
+          "전달",
+          "16"
+        ],
+        [
+          "거부",
+          "0"
+        ],
+        [
+          "분석 중이라 거부",
+          "0"
+        ],
+        [
+          "자체 판정이 있는 요청",
+          "16"
+        ],
+        [
+          "모델 호출",
+          "16"
+        ]
+      ],
+      "http": {
+        "requests": 16,
+        "delivered": 16,
+        "refused": 0,
+        "busy": 0,
+        "withVerdict": 16,
+        "modelCalls": 16,
+        "firstStopStep": null,
+        "deliveredAfterFirstStop": 0
+      },
+      "db": {
+        "requests": 16,
+        "delivered": 16,
+        "withVerdict": 16,
+        "modelCalls": 16
+      }
+    },
+    {
+      "key": "LAB",
+      "steps": [
+        "sent 2026-10-31T18:45:55.044Z"
+      ],
+      "before": "3\n전송 전 비교\n\n건수: 480건 → 40건 · 바꾸기 전과 뒤의 가장 최근 실제 요청에서 엔진이 받은 것\n\n전송 전 비교\n항목\t설계대로\t바꾼 조건\n평소와 다른 점\t1개\t—\n회사 기록 경고\t0개\t—\n최소 대응 규칙\t없음 · AI가 사실을 보고 판단\t기록 없음\n바꾼 조건으로 보낸 실제 요청이 아직 없어, 실행해야 엔진이 받는 것을 알 수 있습니다.",
+      "runId": "run-43bf870226e7",
+      "result": "6\n결과 비교\n\n같은 시나리오를 설계대로 보낸 가장 최근 실제 실행과 서버가 비교한 결과입니다\n\n결과 비교\n보안 통제\t설계대로(이전)\t바꾼 조건(이번)\n웹 방화벽(WAF)\t정상 처리\t—\n인증 · 권한(IAM)\t정상 처리\t—\n임계값 규칙\t정상 처리\t—\n승인 정책 규칙\t정상 처리\t—\nContexa\t정상 처리\t—\n\nContexa 판정 \n허용 → \n허용 · 반출 480건 → 40건\n\ndim.size 480 items · false → 40 items · false\n\nrun-2856ed7c3563 → \nrun-43bf870226e7",
+      "against": "run-2856ed7c3563",
+      "http": {
+        "now": {
+          "A": "NOT_SCORED",
+          "B": "NOT_SCORED",
+          "C1": "NOT_SCORED",
+          "C2": "NOT_SCORED",
+          "D": "NOT_SCORED"
+        },
+        "nowAction": "ALLOW",
+        "before": {
+          "A": "PASSED",
+          "B": "PASSED",
+          "C1": "PASSED",
+          "C2": "PASSED",
+          "D": "PASSED"
+        }
+      },
+      "db": {
+        "composition": [
+          "S13T",
+          "f",
+          "[\"items\"]",
+          "{\"claim\": \"NONE\", \"items\": 40, \"place\": \"OFFICE\", \"device\": \"USUAL\", \"onCall\": false, \"target\": \"ASSIGNED\", \"ticket\": \"NONE\", \"approval\": false, \"employee\": \"eng-k\", \"timeSlot\": \"AFTERNOON\", \"operation\": \"EXPORT\"}"
+        ],
+        "arms": [
+          [
+            "A",
+            "DELIVERED",
+            "40"
+          ],
+          [
+            "B",
+            "DELIVERED",
+            "40"
+          ],
+          [
+            "C1",
+            "DELIVERED",
+            "40"
+          ],
+          [
+            "C2",
+            "DELIVERED",
+            "40"
+          ],
+          [
+            "D",
+            "DELIVERED",
+            "40"
+          ]
+        ],
+        "decision": [
+          "ALLOW",
+          "5515"
+        ]
+      }
+    }
+  ],
+  "problems": [],
+  "finishedAt": "2026-10-31T18:46:07.254Z"
+}

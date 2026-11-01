@@ -1,0 +1,4854 @@
+[
+  {
+    "path": "/runs",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 57,
+      "16px": 1,
+      "12px": 48,
+      "13px": 27,
+      "28px": 1,
+      "15px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 53,
+      "500": 31,
+      "600": 48,
+      "700": 3
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"라이브 데모\"",
+      "text svg \"\"",
+      "fill+line a._page_afh6t_87 \"1\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 57,
+      "16px": 1,
+      "12px": 48,
+      "13px": 27,
+      "28px": 1,
+      "15px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 53,
+      "500": 31,
+      "600": 48,
+      "700": 3
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"Live demo\"",
+      "text svg \"\"",
+      "fill+line a._page_afh6t_87 \"1\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 57,
+      "16px": 1,
+      "12px": 48,
+      "13px": 27,
+      "28px": 1,
+      "15px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 53,
+      "500": 31,
+      "600": 48,
+      "700": 3
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line a._page_afh6t_87 \"1\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 57,
+      "16px": 1,
+      "12px": 48,
+      "13px": 27,
+      "28px": 1,
+      "15px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 53,
+      "500": 31,
+      "600": 48,
+      "700": 3
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line a._page_afh6t_87 \"1\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 22,
+      "13px": 13,
+      "24px": 1,
+      "15px": 1,
+      "12px": 40
+    },
+    "contrast": [],
+    "weights": {
+      "400": 27,
+      "500": 16,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line a._page_afh6t_87 \"1\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 22,
+      "13px": 13,
+      "24px": 1,
+      "15px": 1,
+      "12px": 40
+    },
+    "contrast": [],
+    "weights": {
+      "400": 27,
+      "500": 16,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line a._page_afh6t_87 \"1\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 22,
+      "13px": 13,
+      "24px": 1,
+      "15px": 1,
+      "12px": 40
+    },
+    "contrast": [],
+    "weights": {
+      "400": 27,
+      "500": 16,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line a._page_afh6t_87 \"1\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 22,
+      "13px": 13,
+      "24px": 1,
+      "15px": 1,
+      "12px": 40
+    },
+    "contrast": [],
+    "weights": {
+      "400": 27,
+      "500": 16,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line a._page_afh6t_87 \"1\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs?run=run-63b23f7bb5b2",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 51,
+      "16px": 1,
+      "12px": 56,
+      "13px": 29,
+      "28px": 1,
+      "15px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 46,
+      "500": 32,
+      "600": 58,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"라이브 데모\"",
+      "text svg \"\"",
+      "fill+line a._page_afh6t_87 \"1\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill+line a._button_ldime_3 \"상세 보기\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs?run=run-63b23f7bb5b2",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 51,
+      "16px": 1,
+      "12px": 56,
+      "13px": 29,
+      "28px": 1,
+      "15px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 46,
+      "500": 32,
+      "600": 58,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"Live demo\"",
+      "text svg \"\"",
+      "fill+line a._page_afh6t_87 \"1\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill+line a._button_ldime_3 \"Open details\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs?run=run-63b23f7bb5b2",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 51,
+      "16px": 1,
+      "12px": 56,
+      "13px": 29,
+      "28px": 1,
+      "15px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 46,
+      "500": 32,
+      "600": 58,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line a._page_afh6t_87 \"1\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill+line a._button_ldime_3 \"상세 보기\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs?run=run-63b23f7bb5b2",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 51,
+      "16px": 1,
+      "12px": 56,
+      "13px": 29,
+      "28px": 1,
+      "15px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 46,
+      "500": 32,
+      "600": 58,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line a._page_afh6t_87 \"1\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill+line a._button_ldime_3 \"Open details\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs?run=run-63b23f7bb5b2",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 36,
+      "13px": 18,
+      "24px": 1,
+      "15px": 1,
+      "12px": 48
+    },
+    "contrast": [],
+    "weights": {
+      "400": 40,
+      "500": 17,
+      "600": 45,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line a._page_afh6t_87 \"1\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill+line a._button_ldime_3 \"상세 보기\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs?run=run-63b23f7bb5b2",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 36,
+      "13px": 18,
+      "24px": 1,
+      "15px": 1,
+      "12px": 48
+    },
+    "contrast": [],
+    "weights": {
+      "400": 40,
+      "500": 17,
+      "600": 45,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line a._page_afh6t_87 \"1\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill+line a._button_ldime_3 \"Open details\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs?run=run-63b23f7bb5b2",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 36,
+      "13px": 18,
+      "24px": 1,
+      "15px": 1,
+      "12px": 48
+    },
+    "contrast": [],
+    "weights": {
+      "400": 40,
+      "500": 17,
+      "600": 45,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line a._page_afh6t_87 \"1\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill+line a._button_ldime_3 \"상세 보기\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs?run=run-63b23f7bb5b2",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 36,
+      "13px": 18,
+      "24px": 1,
+      "15px": 1,
+      "12px": 48
+    },
+    "contrast": [],
+    "weights": {
+      "400": 40,
+      "500": 17,
+      "600": 45,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line a._page_afh6t_87 \"1\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill+line a._button_ldime_3 \"Open details\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 34,
+      "16px": 1,
+      "12px": 16,
+      "13px": 16,
+      "28px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 28,
+      "500": 22,
+      "600": 29,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"라이브 데모\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"요약\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 34,
+      "16px": 1,
+      "12px": 16,
+      "13px": 16,
+      "28px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 28,
+      "500": 22,
+      "600": 29,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"Live demo\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Summary\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 34,
+      "16px": 1,
+      "12px": 16,
+      "13px": 16,
+      "28px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 28,
+      "500": 22,
+      "600": 29,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"요약\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 34,
+      "16px": 1,
+      "12px": 16,
+      "13px": 16,
+      "28px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 28,
+      "500": 22,
+      "600": 29,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Summary\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 19,
+      "13px": 8,
+      "12px": 8,
+      "24px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 22,
+      "500": 7,
+      "600": 19,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"요약\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 19,
+      "13px": 8,
+      "12px": 8,
+      "24px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 22,
+      "500": 7,
+      "600": 19,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Summary\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 19,
+      "13px": 8,
+      "12px": 8,
+      "24px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 22,
+      "500": 7,
+      "600": 19,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"요약\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 19,
+      "13px": 8,
+      "12px": 8,
+      "24px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 22,
+      "500": 7,
+      "600": 19,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Summary\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=controls",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 39,
+      "16px": 1,
+      "12px": 21,
+      "13px": 25,
+      "28px": 1,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 37,
+      "500": 22,
+      "600": 33,
+      "700": 8
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"라이브 데모\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"통제별 응답\"",
+      "stripe th \"Contexa\"",
+      "fill span._swatch_oztmq_51 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=controls",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 39,
+      "16px": 1,
+      "12px": 21,
+      "13px": 25,
+      "28px": 1,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 37,
+      "500": 22,
+      "600": 33,
+      "700": 8
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"Live demo\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Controls\"",
+      "stripe th \"Contexa\"",
+      "fill span._swatch_oztmq_51 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=controls",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 39,
+      "16px": 1,
+      "12px": 21,
+      "13px": 25,
+      "28px": 1,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 37,
+      "500": 22,
+      "600": 33,
+      "700": 8
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"통제별 응답\"",
+      "stripe th \"Contexa\"",
+      "fill span._swatch_oztmq_51 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=controls",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 39,
+      "16px": 1,
+      "12px": 21,
+      "13px": 25,
+      "28px": 1,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 37,
+      "500": 22,
+      "600": 33,
+      "700": 8
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Controls\"",
+      "stripe th \"Contexa\"",
+      "fill span._swatch_oztmq_51 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=controls",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 24,
+      "13px": 17,
+      "12px": 13,
+      "24px": 1,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 31,
+      "500": 7,
+      "600": 23,
+      "700": 7
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"통제별 응답\"",
+      "stripe th \"Contexa\"",
+      "fill span._swatch_oztmq_51 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=controls",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 24,
+      "13px": 17,
+      "12px": 13,
+      "24px": 1,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 31,
+      "500": 7,
+      "600": 23,
+      "700": 7
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Controls\"",
+      "stripe th \"Contexa\"",
+      "fill span._swatch_oztmq_51 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=controls",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 24,
+      "13px": 17,
+      "12px": 13,
+      "24px": 1,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 31,
+      "500": 7,
+      "600": 23,
+      "700": 7
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"통제별 응답\"",
+      "stripe th \"Contexa\"",
+      "fill span._swatch_oztmq_51 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=controls",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 24,
+      "13px": 17,
+      "12px": 13,
+      "24px": 1,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 31,
+      "500": 7,
+      "600": 23,
+      "700": 7
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Controls\"",
+      "stripe th \"Contexa\"",
+      "fill span._swatch_oztmq_51 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=evidence",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 60,
+      "16px": 1,
+      "12px": 55,
+      "13px": 43,
+      "28px": 1,
+      "15px": 16,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 64,
+      "500": 27,
+      "600": 74,
+      "700": 13
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"라이브 데모\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"판정 근거\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=evidence",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 60,
+      "16px": 1,
+      "12px": 55,
+      "13px": 43,
+      "28px": 1,
+      "15px": 16,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 64,
+      "500": 27,
+      "600": 74,
+      "700": 13
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"Live demo\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Evidence\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=evidence",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 60,
+      "16px": 1,
+      "12px": 55,
+      "13px": 43,
+      "28px": 1,
+      "15px": 16,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 64,
+      "500": 27,
+      "600": 74,
+      "700": 13
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"판정 근거\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=evidence",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 60,
+      "16px": 1,
+      "12px": 55,
+      "13px": 43,
+      "28px": 1,
+      "15px": 16,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 64,
+      "500": 27,
+      "600": 74,
+      "700": 13
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Evidence\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=evidence",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 45,
+      "13px": 35,
+      "12px": 47,
+      "24px": 1,
+      "15px": 16,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 58,
+      "500": 12,
+      "600": 64,
+      "700": 12
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"판정 근거\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=evidence",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 45,
+      "13px": 35,
+      "12px": 47,
+      "24px": 1,
+      "15px": 16,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 58,
+      "500": 12,
+      "600": 64,
+      "700": 12
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Evidence\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=evidence",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 45,
+      "13px": 35,
+      "12px": 47,
+      "24px": 1,
+      "15px": 16,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 58,
+      "500": 12,
+      "600": 64,
+      "700": 12
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"판정 근거\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=evidence",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 45,
+      "13px": 35,
+      "12px": 47,
+      "24px": 1,
+      "15px": 16,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 58,
+      "500": 12,
+      "600": 64,
+      "700": 12
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Evidence\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=prompt",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 25,
+      "16px": 1,
+      "12px": 151,
+      "13px": 70,
+      "28px": 1,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 122,
+      "500": 76,
+      "600": 60,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"라이브 데모\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"판정 프롬프트\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=prompt",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 25,
+      "16px": 1,
+      "12px": 151,
+      "13px": 70,
+      "28px": 1,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 122,
+      "500": 76,
+      "600": 60,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"Live demo\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Prompt\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=prompt",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 25,
+      "16px": 1,
+      "12px": 151,
+      "13px": 70,
+      "28px": 1,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 122,
+      "500": 76,
+      "600": 60,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"판정 프롬프트\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=prompt",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 25,
+      "16px": 1,
+      "12px": 151,
+      "13px": 70,
+      "28px": 1,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 122,
+      "500": 76,
+      "600": 60,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Prompt\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=prompt",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 10,
+      "13px": 62,
+      "12px": 143,
+      "24px": 1,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 116,
+      "500": 61,
+      "600": 50,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"판정 프롬프트\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=prompt",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 10,
+      "13px": 62,
+      "12px": 143,
+      "24px": 1,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 116,
+      "500": 61,
+      "600": 50,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Prompt\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=prompt",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 10,
+      "13px": 62,
+      "12px": 143,
+      "24px": 1,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 116,
+      "500": 61,
+      "600": 50,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"판정 프롬프트\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=prompt",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 10,
+      "13px": 62,
+      "12px": 143,
+      "24px": 1,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 116,
+      "500": 61,
+      "600": 50,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Prompt\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=response",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 19,
+      "16px": 1,
+      "12px": 14,
+      "13px": 17,
+      "28px": 1,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 17,
+      "500": 22,
+      "600": 23,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"라이브 데모\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"모델 응답 원문\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=response",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 19,
+      "16px": 1,
+      "12px": 14,
+      "13px": 17,
+      "28px": 1,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 17,
+      "500": 22,
+      "600": 23,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"Live demo\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Model answer\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=response",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 19,
+      "16px": 1,
+      "12px": 14,
+      "13px": 17,
+      "28px": 1,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 17,
+      "500": 22,
+      "600": 23,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"모델 응답 원문\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=response",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 19,
+      "16px": 1,
+      "12px": 14,
+      "13px": 17,
+      "28px": 1,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 17,
+      "500": 22,
+      "600": 23,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Model answer\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=response",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 4,
+      "13px": 9,
+      "12px": 6,
+      "24px": 1,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 11,
+      "500": 7,
+      "600": 13,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"모델 응답 원문\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=response",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 4,
+      "13px": 9,
+      "12px": 6,
+      "24px": 1,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 11,
+      "500": 7,
+      "600": 13,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Model answer\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=response",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 4,
+      "13px": 9,
+      "12px": 6,
+      "24px": 1,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 11,
+      "500": 7,
+      "600": 13,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"모델 응답 원문\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=response",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 4,
+      "13px": 9,
+      "12px": 6,
+      "24px": 1,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 11,
+      "500": 7,
+      "600": 13,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Model answer\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=integrity",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 65,
+      "16px": 1,
+      "12px": 14,
+      "13px": 22,
+      "28px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 52,
+      "500": 23,
+      "600": 29,
+      "700": 13
+    },
+    "buttons": {
+      "36px": 2
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"라이브 데모\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"무결성 검증\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=integrity",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 65,
+      "16px": 1,
+      "12px": 14,
+      "13px": 22,
+      "28px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 52,
+      "500": 23,
+      "600": 29,
+      "700": 13
+    },
+    "buttons": {
+      "36px": 2
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"Live demo\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Integrity\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=integrity",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 65,
+      "16px": 1,
+      "12px": 14,
+      "13px": 22,
+      "28px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 52,
+      "500": 23,
+      "600": 29,
+      "700": 13
+    },
+    "buttons": {
+      "36px": 2
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"무결성 검증\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=integrity",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 65,
+      "16px": 1,
+      "12px": 14,
+      "13px": 22,
+      "28px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 52,
+      "500": 23,
+      "600": 29,
+      "700": 13
+    },
+    "buttons": {
+      "36px": 2
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Integrity\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=integrity",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 50,
+      "13px": 14,
+      "12px": 6,
+      "24px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 46,
+      "500": 8,
+      "600": 19,
+      "700": 12
+    },
+    "buttons": {
+      "36px": 2
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"무결성 검증\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=integrity",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 50,
+      "13px": 14,
+      "12px": 6,
+      "24px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 46,
+      "500": 8,
+      "600": 19,
+      "700": 12
+    },
+    "buttons": {
+      "36px": 2
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Integrity\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=integrity",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 50,
+      "13px": 14,
+      "12px": 6,
+      "24px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 46,
+      "500": 8,
+      "600": 19,
+      "700": 12
+    },
+    "buttons": {
+      "36px": 2
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"무결성 검증\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=integrity",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 50,
+      "13px": 14,
+      "12px": 6,
+      "24px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 46,
+      "500": 8,
+      "600": 19,
+      "700": 12
+    },
+    "buttons": {
+      "36px": 2
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Integrity\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=learning",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 18,
+      "16px": 1,
+      "12px": 13,
+      "13px": 17,
+      "28px": 1,
+      "15px": 12,
+      "18px": 1,
+      "24px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 16,
+      "500": 22,
+      "600": 25,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"라이브 데모\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"기준선 학습\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=learning",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 18,
+      "16px": 1,
+      "12px": 13,
+      "13px": 17,
+      "28px": 1,
+      "15px": 12,
+      "18px": 1,
+      "24px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 16,
+      "500": 22,
+      "600": 25,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"Live demo\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Baseline learning\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=learning",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 18,
+      "16px": 1,
+      "12px": 13,
+      "13px": 17,
+      "28px": 1,
+      "15px": 12,
+      "18px": 1,
+      "24px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 16,
+      "500": 22,
+      "600": 25,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"기준선 학습\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=learning",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 18,
+      "16px": 1,
+      "12px": 13,
+      "13px": 17,
+      "28px": 1,
+      "15px": 12,
+      "18px": 1,
+      "24px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 16,
+      "500": 22,
+      "600": 25,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Baseline learning\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=learning",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 3,
+      "13px": 9,
+      "12px": 5,
+      "24px": 4,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 10,
+      "500": 7,
+      "600": 15,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"기준선 학습\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=learning",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 3,
+      "13px": 9,
+      "12px": 5,
+      "24px": 4,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 10,
+      "500": 7,
+      "600": 15,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Baseline learning\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=learning",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 3,
+      "13px": 9,
+      "12px": 5,
+      "24px": 4,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 10,
+      "500": 7,
+      "600": 15,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"기준선 학습\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=learning",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 3,
+      "13px": 9,
+      "12px": 5,
+      "24px": 4,
+      "15px": 12,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 10,
+      "500": 7,
+      "600": 15,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Baseline learning\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-66c9a323f945",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 33,
+      "16px": 1,
+      "12px": 16,
+      "13px": 19,
+      "28px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 30,
+      "500": 22,
+      "600": 29,
+      "700": 3
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"라이브 데모\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"요약\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-66c9a323f945",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 33,
+      "16px": 1,
+      "12px": 16,
+      "13px": 19,
+      "28px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 30,
+      "500": 22,
+      "600": 29,
+      "700": 3
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"Live demo\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Summary\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-66c9a323f945",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 33,
+      "16px": 1,
+      "12px": 16,
+      "13px": 19,
+      "28px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 30,
+      "500": 22,
+      "600": 29,
+      "700": 3
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"요약\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-66c9a323f945",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 33,
+      "16px": 1,
+      "12px": 16,
+      "13px": 19,
+      "28px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 30,
+      "500": 22,
+      "600": 29,
+      "700": 3
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Summary\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-66c9a323f945",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 18,
+      "13px": 11,
+      "12px": 8,
+      "24px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 24,
+      "500": 7,
+      "600": 19,
+      "700": 2
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"요약\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-66c9a323f945",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 18,
+      "13px": 11,
+      "12px": 8,
+      "24px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 24,
+      "500": 7,
+      "600": 19,
+      "700": 2
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Summary\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-66c9a323f945",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 18,
+      "13px": 11,
+      "12px": 8,
+      "24px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 24,
+      "500": 7,
+      "600": 19,
+      "700": 2
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"요약\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-66c9a323f945",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 18,
+      "13px": 11,
+      "12px": 8,
+      "24px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 24,
+      "500": 7,
+      "600": 19,
+      "700": 2
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Summary\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 38,
+      "16px": 1,
+      "12px": 32,
+      "13px": 25,
+      "28px": 1,
+      "15px": 13,
+      "18px": 6
+    },
+    "contrast": [],
+    "weights": {
+      "400": 49,
+      "500": 21,
+      "600": 41,
+      "700": 5
+    },
+    "buttons": {
+      "32px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"라이브 데모\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"판정 흐름\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 38,
+      "16px": 1,
+      "12px": 32,
+      "13px": 25,
+      "28px": 1,
+      "15px": 13,
+      "18px": 6
+    },
+    "contrast": [],
+    "weights": {
+      "400": 49,
+      "500": 21,
+      "600": 41,
+      "700": 5
+    },
+    "buttons": {
+      "32px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"Live demo\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Decision flow\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 38,
+      "16px": 1,
+      "12px": 32,
+      "13px": 25,
+      "28px": 1,
+      "15px": 13,
+      "18px": 6
+    },
+    "contrast": [],
+    "weights": {
+      "400": 49,
+      "500": 21,
+      "600": 41,
+      "700": 5
+    },
+    "buttons": {
+      "32px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"판정 흐름\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 38,
+      "16px": 1,
+      "12px": 32,
+      "13px": 25,
+      "28px": 1,
+      "15px": 13,
+      "18px": 6
+    },
+    "contrast": [],
+    "weights": {
+      "400": 49,
+      "500": 21,
+      "600": 41,
+      "700": 5
+    },
+    "buttons": {
+      "32px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Decision flow\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 23,
+      "13px": 17,
+      "24px": 1,
+      "15px": 13,
+      "12px": 24,
+      "18px": 6
+    },
+    "contrast": [],
+    "weights": {
+      "400": 43,
+      "500": 5,
+      "600": 32,
+      "700": 4
+    },
+    "buttons": {
+      "32px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"판정 흐름\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 23,
+      "13px": 17,
+      "24px": 1,
+      "15px": 13,
+      "12px": 24,
+      "18px": 6
+    },
+    "contrast": [],
+    "weights": {
+      "400": 43,
+      "500": 5,
+      "600": 32,
+      "700": 4
+    },
+    "buttons": {
+      "32px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Decision flow\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 23,
+      "13px": 17,
+      "24px": 1,
+      "15px": 13,
+      "12px": 24,
+      "18px": 6
+    },
+    "contrast": [],
+    "weights": {
+      "400": 43,
+      "500": 5,
+      "600": 32,
+      "700": 4
+    },
+    "buttons": {
+      "32px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"판정 흐름\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 23,
+      "13px": 17,
+      "24px": 1,
+      "15px": 13,
+      "12px": 24,
+      "18px": 6
+    },
+    "contrast": [],
+    "weights": {
+      "400": 43,
+      "500": 5,
+      "600": 32,
+      "700": 4
+    },
+    "buttons": {
+      "32px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Decision flow\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=baseline",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 25,
+      "16px": 1,
+      "12px": 18,
+      "13px": 15,
+      "28px": 1,
+      "15px": 6,
+      "18px": 2,
+      "24px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 31,
+      "500": 21,
+      "600": 13,
+      "700": 4
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"라이브 데모\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"행위 기준선\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=baseline",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 25,
+      "16px": 1,
+      "12px": 18,
+      "13px": 15,
+      "28px": 1,
+      "15px": 6,
+      "18px": 2,
+      "24px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 31,
+      "500": 21,
+      "600": 13,
+      "700": 4
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"Live demo\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Behaviour baseline\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=baseline",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 25,
+      "16px": 1,
+      "12px": 18,
+      "13px": 15,
+      "28px": 1,
+      "15px": 6,
+      "18px": 2,
+      "24px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 31,
+      "500": 21,
+      "600": 13,
+      "700": 4
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"행위 기준선\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=baseline",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 25,
+      "16px": 1,
+      "12px": 18,
+      "13px": 15,
+      "28px": 1,
+      "15px": 6,
+      "18px": 2,
+      "24px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 31,
+      "500": 21,
+      "600": 13,
+      "700": 4
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Behaviour baseline\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=baseline",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 10,
+      "13px": 7,
+      "24px": 2,
+      "15px": 6,
+      "18px": 2,
+      "12px": 10
+    },
+    "contrast": [],
+    "weights": {
+      "400": 25,
+      "500": 5,
+      "600": 4,
+      "700": 3
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"행위 기준선\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=baseline",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 10,
+      "13px": 7,
+      "24px": 2,
+      "15px": 6,
+      "18px": 2,
+      "12px": 10
+    },
+    "contrast": [],
+    "weights": {
+      "400": 25,
+      "500": 5,
+      "600": 4,
+      "700": 3
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Behaviour baseline\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=baseline",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 10,
+      "13px": 7,
+      "24px": 2,
+      "15px": 6,
+      "18px": 2,
+      "12px": 10
+    },
+    "contrast": [],
+    "weights": {
+      "400": 25,
+      "500": 5,
+      "600": 4,
+      "700": 3
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"행위 기준선\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=baseline",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 10,
+      "13px": 7,
+      "24px": 2,
+      "15px": 6,
+      "18px": 2,
+      "12px": 10
+    },
+    "contrast": [],
+    "weights": {
+      "400": 25,
+      "500": 5,
+      "600": 4,
+      "700": 3
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Behaviour baseline\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=facts",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 59,
+      "16px": 1,
+      "12px": 51,
+      "13px": 39,
+      "28px": 1,
+      "15px": 10,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 60,
+      "500": 26,
+      "600": 64,
+      "700": 13
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"라이브 데모\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"판정 근거 사실\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=facts",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 59,
+      "16px": 1,
+      "12px": 51,
+      "13px": 39,
+      "28px": 1,
+      "15px": 10,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 60,
+      "500": 26,
+      "600": 64,
+      "700": 13
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"Live demo\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Evidence facts\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=facts",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 59,
+      "16px": 1,
+      "12px": 51,
+      "13px": 39,
+      "28px": 1,
+      "15px": 10,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 60,
+      "500": 26,
+      "600": 64,
+      "700": 13
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"판정 근거 사실\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=facts",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 59,
+      "16px": 1,
+      "12px": 51,
+      "13px": 39,
+      "28px": 1,
+      "15px": 10,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 60,
+      "500": 26,
+      "600": 64,
+      "700": 13
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Evidence facts\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=facts",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 44,
+      "13px": 31,
+      "24px": 1,
+      "15px": 10,
+      "18px": 2,
+      "12px": 43
+    },
+    "contrast": [],
+    "weights": {
+      "400": 54,
+      "500": 10,
+      "600": 55,
+      "700": 12
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"판정 근거 사실\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=facts",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 44,
+      "13px": 31,
+      "24px": 1,
+      "15px": 10,
+      "18px": 2,
+      "12px": 43
+    },
+    "contrast": [],
+    "weights": {
+      "400": 54,
+      "500": 10,
+      "600": 55,
+      "700": 12
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Evidence facts\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=facts",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 44,
+      "13px": 31,
+      "24px": 1,
+      "15px": 10,
+      "18px": 2,
+      "12px": 43
+    },
+    "contrast": [],
+    "weights": {
+      "400": 54,
+      "500": 10,
+      "600": 55,
+      "700": 12
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"판정 근거 사실\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=facts",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 44,
+      "13px": 31,
+      "24px": 1,
+      "15px": 10,
+      "18px": 2,
+      "12px": 43
+    },
+    "contrast": [],
+    "weights": {
+      "400": 54,
+      "500": 10,
+      "600": 55,
+      "700": 12
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Evidence facts\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=prompt",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 24,
+      "16px": 1,
+      "12px": 147,
+      "13px": 66,
+      "28px": 1,
+      "15px": 6,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 118,
+      "500": 75,
+      "600": 50,
+      "700": 3
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"라이브 데모\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"판정 프롬프트\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=prompt",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 24,
+      "16px": 1,
+      "12px": 147,
+      "13px": 66,
+      "28px": 1,
+      "15px": 6,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 118,
+      "500": 75,
+      "600": 50,
+      "700": 3
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"Live demo\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Prompt\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=prompt",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 24,
+      "16px": 1,
+      "12px": 147,
+      "13px": 66,
+      "28px": 1,
+      "15px": 6,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 118,
+      "500": 75,
+      "600": 50,
+      "700": 3
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"판정 프롬프트\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=prompt",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 24,
+      "16px": 1,
+      "12px": 147,
+      "13px": 66,
+      "28px": 1,
+      "15px": 6,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 118,
+      "500": 75,
+      "600": 50,
+      "700": 3
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Prompt\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=prompt",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 9,
+      "13px": 58,
+      "24px": 1,
+      "15px": 6,
+      "18px": 1,
+      "12px": 139
+    },
+    "contrast": [],
+    "weights": {
+      "400": 112,
+      "500": 59,
+      "600": 41,
+      "700": 2
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"판정 프롬프트\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=prompt",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 9,
+      "13px": 58,
+      "24px": 1,
+      "15px": 6,
+      "18px": 1,
+      "12px": 139
+    },
+    "contrast": [],
+    "weights": {
+      "400": 112,
+      "500": 59,
+      "600": 41,
+      "700": 2
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Prompt\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=prompt",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 9,
+      "13px": 58,
+      "24px": 1,
+      "15px": 6,
+      "18px": 1,
+      "12px": 139
+    },
+    "contrast": [],
+    "weights": {
+      "400": 112,
+      "500": 59,
+      "600": 41,
+      "700": 2
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"판정 프롬프트\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=prompt",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 9,
+      "13px": 58,
+      "24px": 1,
+      "15px": 6,
+      "18px": 1,
+      "12px": 139
+    },
+    "contrast": [],
+    "weights": {
+      "400": 112,
+      "500": 59,
+      "600": 41,
+      "700": 2
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Prompt\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=seal",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 64,
+      "16px": 1,
+      "12px": 10,
+      "13px": 18,
+      "28px": 1,
+      "15px": 6,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 48,
+      "500": 22,
+      "600": 19,
+      "700": 13
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"라이브 데모\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"무결성 봉인 · 검증\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=seal",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 64,
+      "16px": 1,
+      "12px": 10,
+      "13px": 18,
+      "28px": 1,
+      "15px": 6,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 48,
+      "500": 22,
+      "600": 19,
+      "700": 13
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"Live demo\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Seal and inspection\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=seal",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 64,
+      "16px": 1,
+      "12px": 10,
+      "13px": 18,
+      "28px": 1,
+      "15px": 6,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 48,
+      "500": 22,
+      "600": 19,
+      "700": 13
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"무결성 봉인 · 검증\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=seal",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 64,
+      "16px": 1,
+      "12px": 10,
+      "13px": 18,
+      "28px": 1,
+      "15px": 6,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 48,
+      "500": 22,
+      "600": 19,
+      "700": 13
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Seal and inspection\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=seal",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 49,
+      "13px": 10,
+      "24px": 1,
+      "15px": 6,
+      "18px": 2,
+      "12px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 42,
+      "500": 6,
+      "600": 10,
+      "700": 12
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"무결성 봉인 · 검증\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=seal",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 49,
+      "13px": 10,
+      "24px": 1,
+      "15px": 6,
+      "18px": 2,
+      "12px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 42,
+      "500": 6,
+      "600": 10,
+      "700": 12
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Seal and inspection\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=seal",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 49,
+      "13px": 10,
+      "24px": 1,
+      "15px": 6,
+      "18px": 2,
+      "12px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 42,
+      "500": 6,
+      "600": 10,
+      "700": 12
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"무결성 봉인 · 검증\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/engine?tab=seal",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 49,
+      "13px": 10,
+      "24px": 1,
+      "15px": 6,
+      "18px": 2,
+      "12px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 42,
+      "500": 6,
+      "600": 10,
+      "700": 12
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Seal and inspection\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/compare",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 26,
+      "16px": 1,
+      "12px": 16,
+      "13px": 20,
+      "28px": 1,
+      "15px": 5,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 26,
+      "500": 18,
+      "600": 24,
+      "700": 3
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"라이브 데모\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"임계값 규칙 적용\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/compare",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 26,
+      "16px": 1,
+      "12px": 16,
+      "13px": 20,
+      "28px": 1,
+      "15px": 5,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 26,
+      "500": 18,
+      "600": 24,
+      "700": 3
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"Live demo\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Threshold rule\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/compare",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 26,
+      "16px": 1,
+      "12px": 16,
+      "13px": 20,
+      "28px": 1,
+      "15px": 5,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 26,
+      "500": 18,
+      "600": 24,
+      "700": 3
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"임계값 규칙 적용\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/compare",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 26,
+      "16px": 1,
+      "12px": 16,
+      "13px": 20,
+      "28px": 1,
+      "15px": 5,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 26,
+      "500": 18,
+      "600": 24,
+      "700": 3
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Threshold rule\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/compare",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 11,
+      "13px": 12,
+      "24px": 1,
+      "15px": 5,
+      "18px": 2,
+      "12px": 8
+    },
+    "contrast": [],
+    "weights": {
+      "400": 20,
+      "500": 2,
+      "600": 15,
+      "700": 2
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"임계값 규칙 적용\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/compare",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 11,
+      "13px": 12,
+      "24px": 1,
+      "15px": 5,
+      "18px": 2,
+      "12px": 8
+    },
+    "contrast": [],
+    "weights": {
+      "400": 20,
+      "500": 2,
+      "600": 15,
+      "700": 2
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Threshold rule\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/compare",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 11,
+      "13px": 12,
+      "24px": 1,
+      "15px": 5,
+      "18px": 2,
+      "12px": 8
+    },
+    "contrast": [],
+    "weights": {
+      "400": 20,
+      "500": 2,
+      "600": 15,
+      "700": 2
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"임계값 규칙 적용\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/compare",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 11,
+      "13px": 12,
+      "24px": 1,
+      "15px": 5,
+      "18px": 2,
+      "12px": 8
+    },
+    "contrast": [],
+    "weights": {
+      "400": 20,
+      "500": 2,
+      "600": 15,
+      "700": 2
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Threshold rule\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/compare?tab=change",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 19,
+      "16px": 1,
+      "12px": 8,
+      "13px": 10,
+      "28px": 1,
+      "15px": 4,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 10,
+      "500": 18,
+      "600": 13,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"라이브 데모\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"조건 변경 실험\"",
+      "fill+line a._button_ldime_3 \"조건을 바꿔 실행하기\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/compare?tab=change",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 19,
+      "16px": 1,
+      "12px": 8,
+      "13px": 10,
+      "28px": 1,
+      "15px": 4,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 10,
+      "500": 18,
+      "600": 13,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"Live demo\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Changed conditions\"",
+      "fill+line a._button_ldime_3 \"Compose a change\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/compare?tab=change",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 19,
+      "16px": 1,
+      "12px": 8,
+      "13px": 10,
+      "28px": 1,
+      "15px": 4,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 10,
+      "500": 18,
+      "600": 13,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"조건 변경 실험\"",
+      "fill+line a._button_ldime_3 \"조건을 바꿔 실행하기\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/compare?tab=change",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 19,
+      "16px": 1,
+      "12px": 8,
+      "13px": 10,
+      "28px": 1,
+      "15px": 4,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 10,
+      "500": 18,
+      "600": 13,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Changed conditions\"",
+      "fill+line a._button_ldime_3 \"Compose a change\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/compare?tab=change",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 4,
+      "13px": 2,
+      "24px": 1,
+      "15px": 4,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 4,
+      "500": 2,
+      "600": 4,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"조건 변경 실험\"",
+      "fill+line a._button_ldime_3 \"조건을 바꿔 실행하기\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/compare?tab=change",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 4,
+      "13px": 2,
+      "24px": 1,
+      "15px": 4,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 4,
+      "500": 2,
+      "600": 4,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Changed conditions\"",
+      "fill+line a._button_ldime_3 \"Compose a change\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/compare?tab=change",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 4,
+      "13px": 2,
+      "24px": 1,
+      "15px": 4,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 4,
+      "500": 2,
+      "600": 4,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"조건 변경 실험\"",
+      "fill+line a._button_ldime_3 \"조건을 바꿔 실행하기\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/compare?tab=change",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 4,
+      "13px": 2,
+      "24px": 1,
+      "15px": 4,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 4,
+      "500": 2,
+      "600": 4,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Changed conditions\"",
+      "fill+line a._button_ldime_3 \"Compose a change\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/compare?tab=runs",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 21,
+      "16px": 1,
+      "12px": 14,
+      "13px": 18,
+      "28px": 1,
+      "15px": 4,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 19,
+      "500": 19,
+      "600": 19,
+      "700": 3
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"라이브 데모\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"반복 측정 결과\"",
+      "text span._dotsName_l66ux_170 \"Contexa\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/compare?tab=runs",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 21,
+      "16px": 1,
+      "12px": 14,
+      "13px": 18,
+      "28px": 1,
+      "15px": 4,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 19,
+      "500": 19,
+      "600": 19,
+      "700": 3
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"Live demo\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Repeated measurement\"",
+      "text span._dotsName_l66ux_170 \"Contexa\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/compare?tab=runs",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 21,
+      "16px": 1,
+      "12px": 14,
+      "13px": 18,
+      "28px": 1,
+      "15px": 4,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 19,
+      "500": 19,
+      "600": 19,
+      "700": 3
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"반복 측정 결과\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/compare?tab=runs",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 21,
+      "16px": 1,
+      "12px": 14,
+      "13px": 18,
+      "28px": 1,
+      "15px": 4,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 19,
+      "500": 19,
+      "600": 19,
+      "700": 3
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Repeated measurement\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/compare?tab=runs",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 6,
+      "13px": 7,
+      "24px": 1,
+      "15px": 4,
+      "18px": 1,
+      "12px": 6
+    },
+    "contrast": [],
+    "weights": {
+      "400": 13,
+      "500": 3,
+      "600": 7,
+      "700": 2
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"반복 측정 결과\"",
+      "text span._dotsName_l66ux_170 \"Contexa\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/compare?tab=runs",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 6,
+      "13px": 7,
+      "24px": 1,
+      "15px": 4,
+      "18px": 1,
+      "12px": 6
+    },
+    "contrast": [],
+    "weights": {
+      "400": 13,
+      "500": 3,
+      "600": 7,
+      "700": 2
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Repeated measurement\"",
+      "text span._dotsName_l66ux_170 \"Contexa\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/compare?tab=runs",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 6,
+      "13px": 7,
+      "24px": 1,
+      "15px": 4,
+      "18px": 1,
+      "12px": 6
+    },
+    "contrast": [],
+    "weights": {
+      "400": 13,
+      "500": 3,
+      "600": 7,
+      "700": 2
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"반복 측정 결과\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/compare?tab=runs",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 6,
+      "13px": 7,
+      "24px": 1,
+      "15px": 4,
+      "18px": 1,
+      "12px": 6
+    },
+    "contrast": [],
+    "weights": {
+      "400": 13,
+      "500": 3,
+      "600": 7,
+      "700": 2
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Repeated measurement\""
+    ],
+    "axe": []
+  }
+]

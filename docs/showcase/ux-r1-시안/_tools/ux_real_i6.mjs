@@ -114,8 +114,8 @@ for (const [test, rows] of Object.entries(agentdojo.cases)) {
 await shots('benchmarks-agentdojo-cases');
 
 console.log('section', '3.');
-// ── 3. The start of the demo: the band's three results = the bundle's headline ───────────────────────────────────
-await page.goto(`${web}/`);
+// ── 3. The start of the demo (/start since DEC-78): the band's three results = the bundle's headline ───────────────────────────────────
+await page.goto(`${web}/start`);
 const band = page.getByRole('region', { name: '표준 벤치마크' });
 await band.waitFor();
 const bandText = (await band.innerText()).replace(/\s+/g, ' ');
@@ -133,17 +133,19 @@ console.log('section', '4.');
 const benchmark = await (await page.request.get(`${api}/api/benchmark`)).json();
 const contexa = benchmark.controls.find((score) => score.control === 'D');
 await page.goto(`${web}/validation`);
-await page.getByRole('table', { name: '보안 통제별 결과' }).waitFor();
+await page.getByRole('table', { name: '보안 통제별 미탐 · 오탐' }).waitFor();
 const summary = (await page.locator('main').innerText()).replace(/\s+/g, ' ');
 check('validation', 'threat runs', summary.includes(`위협 시나리오 실행 ${benchmark.scope.attackRuns}`), true);
 check('validation', 'Contexa missed', summary.includes(`Contexa 미탐 ${contexa.missed}회`), true);
 check('validation', 'scope line runs', summary.includes(`모두 ${benchmark.scope.runs}회 보냈습니다`), true);
 for (const score of benchmark.controls) {
-  const row = page.getByRole('table', { name: '보안 통제별 결과' }).locator('tbody tr').nth(['A', 'B', 'C1', 'C2', 'D'].indexOf(score.control));
+  const row = page.getByRole('table', { name: '보안 통제별 미탐 · 오탐' }).locator('tbody tr').nth(['A', 'B', 'C1', 'C2', 'D'].indexOf(score.control));
   check('validation', `${score.control} missed · false positives`, (await row.innerText()).includes(`미탐 ${score.missed} · 오탐 ${score.falseBlock.hits}`), true);
 }
 const protocol = benchmark.scope.protocols[0]?.protocolId;
-const counted = Number(db(`select count(*) from run where protocol_id = '${protocol}' and status = 'COMPLETED' and setting_hash = '${benchmark.spec.settingHash}';`)[0][0]);
+// Every protocol the measurement counts (I-9 ran five of one repeat each), not the first alone.
+const protocols = benchmark.scope.protocols.map((found) => `'${found.protocolId}'`).join(', ');
+const counted = Number(db(`select count(*) from run where protocol_id in (${protocols}) and status = 'COMPLETED' and setting_hash = '${benchmark.spec.settingHash}';`)[0][0]);
 check('validation', 'runs in the database = the measurement scope', counted, benchmark.scope.runs);
 await shots('validation-summary');
 await page.goto(`${web}/validation?tab=controls`);
@@ -155,14 +157,26 @@ check('validation', 'Contexa false positives', contexaRow.includes(`${contexa.fa
 await page.goto(`${web}/validation?tab=quality`);
 await page.getByRole('heading', { name: `위협 ${benchmark.scope.attackRuns}회 판정 결과` }).waitFor();
 check('validation', 'judgment-time bins', await page.getByLabel('판정 시간 구간별 판정 수').locator('li').count(), benchmark.engine.analysisBins.length);
-const decisions = Number(db(`select count(*) from run_decision d join run r on r.run_id = d.run_id where r.protocol_id = '${protocol}' and r.status = 'COMPLETED' and r.setting_hash = '${benchmark.spec.settingHash}' and d.final_action is not null;`)[0][0]);
+const decisions = Number(db(`select count(*) from run_decision d join run r on r.run_id = d.run_id where r.protocol_id in (${protocols}) and r.status = 'COMPLETED' and r.setting_hash = '${benchmark.spec.settingHash}' and d.final_action is not null;`)[0][0]);
 report.dbDecisions = decisions;
 check('validation', 'decisions: HTTP engine = database decisions with an action', benchmark.engine.decisions, decisions);
 await shots('validation-quality');
 const agent = await (await page.request.get(`${api}/api/benchmark/agent`)).json();
 await page.goto(`${web}/validation?tab=agent`);
-await page.getByRole('table', { name: '경로별 결과' }).waitFor();
-check('validation', 'agent paths', await page.getByRole('table', { name: '경로별 결과' }).locator('tbody tr').count(), agent.byPath.length + 1);
+if (agent.build) {
+  // DEC-86: the agent part counts the current build's runs only and names that build.
+  const build = `현재 빌드로 측정: 코드 ${agent.build.codeCommit} · 엔진 ${agent.build.engineVersion} · 프롬프트 묶음 ${agent.build.promptBundle ?? '—'} · 모드 ${agent.build.effectiveMode}.`;
+  await page.getByText(build).waitFor();
+  check('validation', 'agent build named', await page.getByText(build).count(), 1);
+  const builds = db(`select count(distinct s.code_commit || s.engine_version || s.effective_mode || coalesce(s.prompt_bundle, '') || coalesce(s.model_settings::text, '')) from run r join execution_spec s on s.spec_hash = r.spec_hash where r.setting_hash = '${agent.build.settingHash}' and r.protocol_id is not null and r.status = 'COMPLETED' and r.forced_action is null;`);
+  check('validation', 'agent build: one build in the setting', Number(builds[0][0]), 1);
+}
+if (agent.scope.runs === 0) {
+  check('validation', 'agent: nothing counted yet', await page.getByText('현재 빌드로 센 에이전트 실행이 아직 없습니다. 이전 빌드의 실행은 세지 않습니다.').count(), 1);
+} else {
+  await page.getByRole('table', { name: '에이전트 시나리오 결과' }).waitFor();
+  check('validation', 'agent paths', await page.getByRole('table', { name: '에이전트 시나리오 결과' }).locator('tbody tr').count(), agent.byPath.length + 1);
+}
 await shots('validation-agent');
 
 report.finishedAt = new Date().toISOString();

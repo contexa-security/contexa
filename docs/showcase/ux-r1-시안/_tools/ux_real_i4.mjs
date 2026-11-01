@@ -210,8 +210,8 @@ async function lab(page) {
   const entry = { key: 'LAB', steps: [] };
   report.runs.push(entry);
   await page.goto(`${base}/simulate/policy?tab=compose&case=S13T&field=items&to=40&lng=ko`, { waitUntil: 'networkidle' });
-  await page.getByRole('table', { name: '전송 전 비교' }).waitFor({ timeout: 30000 }).catch(() => undefined);
-  entry.before = await page.getByRole('region', { name: /전송 전 비교/ }).innerText().catch(() => null);
+  await page.getByRole('table', { name: '전송 전 입력 비교' }).waitFor({ timeout: 30000 }).catch(() => undefined);
+  entry.before = await page.getByRole('region', { name: /전송 전 입력 비교/ }).innerText().catch(() => null);
   await page.getByRole('radio', { name: '정상 업무' }).click();
   await (await enabled(page, '조건을 바꿔 실행')).click();
   await page.waitForURL('**sent=**', { timeout: 60000 });
@@ -219,7 +219,7 @@ async function lab(page) {
   const deadline = Date.now() + 300000;
   let done = false;
   while (Date.now() < deadline) {
-    if (await page.getByRole('region', { name: /결과 비교/ }).count()) {
+    if (await page.getByRole('region', { name: /실행 결과/ }).count()) {
       done = true;
       break;
     }
@@ -233,7 +233,7 @@ async function lab(page) {
   await page.waitForTimeout(2500);
   const current = await json(page, '/api/live/runs/current');
   entry.runId = current.runId ?? null;
-  entry.result = await page.getByRole('region', { name: /결과 비교/ }).innerText();
+  entry.result = await page.getByRole('region', { name: /실행 결과/ }).innerText();
   await shots(page, 'LAB-result');
   const recent = await json(page, '/api/lab/runs/recent');
   const mine = Array.isArray(recent) ? recent.find((item) => item.runId === entry.runId) : null;

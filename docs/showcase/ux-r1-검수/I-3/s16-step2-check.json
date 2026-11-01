@@ -1,0 +1,41 @@
+{
+  "purpose": "S16(내부자) 결과 화면이 판정한 요청(요청 2)을 기준으로 그려지는지 화면 = HTTP = DB 대조. real-run-report.json은 요청 1만 대조했으므로 고친 뒤 보충한다.",
+  "checkedAt": "2026-10-31T17:41Z",
+  "runId": "run-4f4e198f551f",
+  "screen": {
+    "source": "gate_simulate_person_S16_result_run_run_4f4e198f551f_1440_light_en.png (운영 빌드)",
+    "conclusion": "Blocked after part of the export left (2 items)",
+    "decidedAt": "Request 2 of 3",
+    "decision": "Block",
+    "decisionTime": "24.8 s · Applied from the next request",
+    "riskConfidence": "Risk 0.60 · confidence 0.55",
+    "exports": { "WAF": 3, "IAM": 3, "Threshold rules": 3, "Approval rules": 3, "Contexa": 2 },
+    "existingResponse": "0.028 s ~ 0.049 s",
+    "contexaResponse": "0.059 s"
+  },
+  "http": {
+    "score.verdicts": [
+      { "stepNo": 1, "finalAction": "ALLOW", "applied": "NEXT_REQUEST" },
+      { "stepNo": 2, "finalAction": "BLOCK", "applied": "NEXT_REQUEST" },
+      { "stepNo": 3, "finalAction": null, "applied": "NONE" }
+    ],
+    "score.business.D": { "result": "PARTLY_STOPPED", "exposedItems": 2 },
+    "score.business.A|B|C1|C2.exposedItems": 3,
+    "steps/2/result responseMs": { "A": 32, "B": 28, "C1": 28, "C2": 49, "D": 59 },
+    "steps/2/anatomy totalAnalysisMs": 24769
+  },
+  "db": {
+    "run_decision": [
+      "1|ALLOW|0.3|0.6|22033|NEXT_REQUEST",
+      "2|BLOCK|0.6|0.55|24769|NEXT_REQUEST",
+      "3|||||NONE"
+    ],
+    "run_arm_result D": [
+      "1|200|DELIVERED|1|57",
+      "2|200|DELIVERED|1|59",
+      "3|403|REFUSED|0|46"
+    ],
+    "run_arm_result A delivered per step": [1, 1, 1]
+  },
+  "problems": []
+}

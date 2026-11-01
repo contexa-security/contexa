@@ -1,0 +1,139 @@
+"""Writes the wording dictionary web/src/i18n/glossary.json (DEC-72): the old words of 기획안 9절 per glossary term and
+the banned list the wording test (src/ux/ux-wording.test.ts) checks every `ux.` key against.
+
+    python -X utf8 ux_wording_gen.py
+
+Changing the banned list needs the user's approval (기획안 12절 2항); this first list holds the plan's own words only.
+"""
+import json
+import pathlib
+
+OUT = pathlib.Path('E:/projects/contexa/contexa-showcase/web/src/i18n/glossary.json')
+
+# 기획안 9절 "지금 말" → the term that replaces it (ids of the security glossary, src/ux/glossary/terms.ts).
+OLD_WORDS = {
+    'decision': ['판단'],
+    'allow': ['통과', '지나감'],
+    'stepUp': ['추가 확인', '본인 확인'],
+    'holdForReview': ['보류'],
+    'block': ['막힘', '막음'],
+    'noDecision': ['판단 없음'],
+    'missed': ['놓침', '놓친'],
+    'falsePositive': ['잘못 막음'],
+    'correct': ['맞음'],
+    'fiveControls': ['다섯 보안', '다섯 방식'],
+    'existingControls': ['기존 보안'],
+    'waf': ['방화벽'],
+    'iam': ['로그인 인증 · 권한'],
+    'thresholdRules': ['고정 규칙'],
+    'approvalRules': ['승인 규칙'],
+    'baseline': ['평소', '평소 패턴'],
+    'baselineDeviation': ['평소와 다름'],
+    'businessContext': ['회사 기록'],
+    'device': ['기기'],
+    'network': ['접속 환경', '장소'],
+    'export': ['자료', '나간 자료'],
+    'exfiltration': ['유출'],
+    'compromisedAccount': ['공격자'],
+    'atoInsider': ['사람의 요청'],
+    'insiderMisuse': ['주인의 악용'],
+    'delegator': ['위임한 사람'],
+    'delegationScope': ['맡긴 일', '위임 기록'],
+    'agentRequest': ['에이전트의 요청'],
+    'requestSurge': ['몰림', '한꺼번에'],
+    'simulation': ['체험'],
+    'policySimulator': ['실험실'],
+    'scenario': ['사례'],
+    'expectedDecision': ['내 예측', '예상'],
+    'startDemo': ['처음부터 다시', '시작'],
+    'next': ['다음 단계 고르기'],
+    'decisionLog': ['실행 기록'],
+    'engine': ['판단 엔진', '판단 과정'],
+    'detectionComparison': ['규칙과 비교'],
+    'metrics': ['운영 통계'],
+    'adoption': ['도입하기'],
+    'tour': ['미리보기 영상'],
+    'glossary': ['용어 사전'],
+    'riskScore': ['위험 점수'],
+    'confidence': ['확신'],
+    'hypotheses': ['가능성 비교'],
+    'decisionSummary': ['AI가 쓴 이유'],
+    'citedFact': ['사실'],
+    'integritySeal': ['봉인'],
+    'baselineLearning': ['배운 것', '학습'],
+    'shadowMode': ['관찰만'],
+    'enforceMode': ['적용'],
+    'syncAsync': ['응답 전', '다음 요청부터'],
+    'reusedDecision': ['재사용'],
+    'publishedRun': ['녹화 기록', '재생'],
+    'consistency': ['반복 일치'],
+    'latency': ['판단 시간'],
+}
+
+BENCH = ['ux.bench.', 'ux.home.bench.']
+# (language, pattern, the word to use, why, key prefixes where the pattern is allowed)
+BANNED = [
+    ('ko', '판단', '판정', '9절 · 12절 2항', []),
+    ('ko', '다섯 (보안|방식)', '5개 보안 통제', '9절 · 12절 2항', []),
+    ('ko', '기존 보안(?! 통제)', '기존 보안 통제(줄임: 기존 통제)', '9절', []),
+    ('ko', '(?<!웹 )방화벽', '웹 방화벽(WAF)', '9절', []),
+    ('ko', '로그인 인증', '인증 · 권한(IAM)', '9절', []),
+    ('ko', '고정 규칙', '임계값 규칙', '9절', []),
+    ('ko', '승인 규칙', '승인 정책 규칙', '9절', []),
+    ('ko', '추가 확인', '추가 인증', '9절', []),
+    ('ko', '본인 확인', '추가 인증', '9절', []),
+    ('ko', '(?<!검토 )보류', '검토 보류', '9절', []),
+    ('ko', '막힘|잘못 막음', '차단 · 오탐', '9절', []),
+    ('ko', '지나감', '허용', '9절', []),
+    ('ko', '놓[치침친쳤]', '미탐', '9절 · 12절 2항', []),
+    ('ko', '평소', '행위 기준선', '9절', []),
+    ('ko', '회사 기록', '업무 컨텍스트', '9절', []),
+    ('ko', '기기', '단말', '9절', []),
+    ('ko', '접속 환경', '네트워크', '9절', []),
+    ('ko', '나간 자료', '반출 건수', '9절', []),
+    ('ko', '공격자', '탈취된 계정 · 위협 행위자', '9절', []),
+    ('ko', '위임한 사람', '위임자', '9절', []),
+    ('ko', '맡긴 일|위임 기록', '위임 범위 · 위임 기간', '9절', []),
+    ('ko', '에이전트의 요청', 'AI 에이전트 요청', '9절', []),
+    ('ko', '몰림|몰릴|한꺼번에', '요청 급증 · 동시', '9절', []),
+    ('ko', '체험', '위협 시뮬레이션', '9절 · W-4', []),
+    ('ko', '실험실', '정책 시뮬레이터', '9절', []),
+    ('ko', '사례', '시나리오', '9절', BENCH),
+    ('ko', '내 예측', '예상 판정', '9절', []),
+    ('ko', '처음부터 다시', '데모 시작', '9절', []),
+    ('ko', '다음 단계 고르기', '다음 확인', '9절', []),
+    ('ko', '규칙과 비교', '탐지 방식 비교', '9절', []),
+    ('ko', '운영 통계', '운영 지표', '9절', []),
+    ('ko', '도입하기', '도입 · 연동 가이드', '9절', []),
+    ('ko', '미리보기 영상', '제품 투어', '9절', []),
+    ('ko', '위험 점수', '위험도', '9절', []),
+    ('ko', '확신(?!도)', '확신도', '9절', []),
+    ('ko', '가능성 비교', '가설 평가', '9절', []),
+    ('ko', 'AI가 쓴 이유', 'AI 판정 요약', '9절', []),
+    ('ko', '배운 것', '기준선 학습', '9절', []),
+    ('ko', '관찰만', '관찰 모드', '9절', []),
+    ('ko', '녹화 기록', '공개 녹화 실행', '9절', []),
+    ('ko', '(?<!판정 )반복 일치', '반복 판정 일치', '9절', []),
+    ('ko', '\\?', '명사구 · 단언형', 'W-1 질문형', []),
+    ('ko', '까요|[을를]까|는가', '명사구 · 단언형', 'W-1 질문형', []),
+    ('ko', '세요', '명사형 · 단언형', 'W-1 · W-3 권유형', []),
+    ('ko', '당신|맞혀|놀라', '사실만', 'W-4 · W-7', []),
+    ('en', '[Jj]udg', 'decide · decision', '12절 2항', []),
+    ('en', '[Aa]pproach', 'security control', '12절 2항 · W-9', []),
+    ('en', '[Tt]ry it', 'run', '12절 2항', []),
+    ('en', '[Bb]ehaviou?r baseline', 'behavioral baseline', '9절 정식 영어 이름', []),
+    ('en', '[Ee]xtra check', 'step-up authentication', '9절 정식 영어 이름', []),
+    ('en', '\\?', 'a statement', 'W-1 질문형', []),
+]
+
+out = {
+    'format': 'contexa-glossary/1',
+    'note': 'Generated by docs/showcase/ux-r1-시안/_tools/ux_wording_gen.py (DEC-72). The names and definitions are the ux.glossary.* keys.',
+    'terms': [{'id': term, 'old': words} for term, words in OLD_WORDS.items()],
+    'banned': [
+        {'lang': lang, 'pattern': pattern, 'use': use, 'why': why, 'except': except_}
+        for lang, pattern, use, why, except_ in BANNED
+    ],
+}
+OUT.write_bytes((json.dumps(out, ensure_ascii=False, indent=2) + '\n').encode('utf-8'))
+print(len(out['terms']), 'terms;', len(out['banned']), 'banned patterns ->', OUT)

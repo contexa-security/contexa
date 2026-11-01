@@ -1,0 +1,454 @@
+{
+  "web": "http://localhost:5181",
+  "api": "http://127.0.0.1:19180",
+  "startedAt": "2026-11-01T00:59:30.771Z",
+  "checks": [
+    {
+      "area": "metrics · DB",
+      "name": "completed runs",
+      "screen": 6879,
+      "expected": 6879,
+      "same": true
+    },
+    {
+      "area": "metrics · DB",
+      "name": "failed runs",
+      "screen": 87,
+      "expected": 87,
+      "same": true
+    },
+    {
+      "area": "metrics · DB",
+      "name": "visitor runs",
+      "screen": 2053,
+      "expected": 2053,
+      "same": true
+    },
+    {
+      "area": "metrics · DB",
+      "name": "engine decisions",
+      "screen": 13760,
+      "expected": 13760,
+      "same": true
+    },
+    {
+      "area": "metrics",
+      "name": "same snapshot (computed time)",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "metrics",
+      "name": "decisions card",
+      "screen": "13,760건",
+      "expected": "13,760건",
+      "same": true
+    },
+    {
+      "area": "metrics",
+      "name": "median latency",
+      "screen": "6.0초",
+      "expected": "6.0초",
+      "same": true
+    },
+    {
+      "area": "metrics",
+      "name": "p95",
+      "screen": "p95 16.3초",
+      "expected": "p95 16.3초",
+      "same": true
+    },
+    {
+      "area": "metrics",
+      "name": "completed + failed share",
+      "screen": "기술적 실패로 중단 87회 · 끝난 실행의 1.2%",
+      "expected": "기술적 실패로 중단 87회 · 끝난 실행의 1.2%",
+      "same": true
+    },
+    {
+      "area": "metrics",
+      "name": "operator runs",
+      "screen": "나머지 4,826회",
+      "expected": "나머지 4,826회",
+      "same": true
+    },
+    {
+      "area": "metrics",
+      "name": "decision mix",
+      "screen": [
+        "허용 9,957",
+        "추가 인증 2,149",
+        "검토 보류 1,136",
+        "차단 518"
+      ],
+      "expected": [
+        "허용 9,957",
+        "추가 인증 2,149",
+        "검토 보류 1,136",
+        "차단 518"
+      ],
+      "same": true
+    },
+    {
+      "area": "metrics",
+      "name": "reused prior decisions",
+      "screen": "6,846",
+      "expected": "6,846",
+      "same": true
+    },
+    {
+      "area": "metrics",
+      "name": "technical failures",
+      "screen": "572",
+      "expected": "572",
+      "same": true
+    },
+    {
+      "area": "metrics",
+      "name": "engine mode",
+      "screen": "ENFORCE",
+      "expected": "ENFORCE",
+      "same": true
+    },
+    {
+      "area": "metrics",
+      "name": "specifications",
+      "screen": "205종",
+      "expected": "205종",
+      "same": true
+    },
+    {
+      "area": "metrics",
+      "name": "agreement",
+      "screen": "3 / 3",
+      "expected": "3 / 3",
+      "same": true
+    },
+    {
+      "area": "metrics",
+      "name": "decision rows",
+      "screen": [
+        "허용9,95772.4%",
+        "추가인증2,14915.6%",
+        "검토보류1,1368.3%",
+        "차단5183.8%"
+      ],
+      "expected": [
+        "허용9,95772.4%",
+        "추가인증2,14915.6%",
+        "검토보류1,1368.3%",
+        "차단5183.8%"
+      ],
+      "same": true
+    },
+    {
+      "area": "metrics",
+      "name": "held before the response",
+      "screen": "검토 보류 1,136건 가운데 613건",
+      "expected": "검토 보류 1,136건 가운데 613건",
+      "same": true
+    },
+    {
+      "area": "metrics",
+      "name": "blocked after the hold expired",
+      "screen": "86건",
+      "expected": "86건",
+      "same": true
+    },
+    {
+      "area": "metrics",
+      "name": "latency strip",
+      "screen": "판정 시간 띠: p50 6.0초 · p95 16.3초, 축 0~20초",
+      "expected": "판정 시간 띠: p50 6.0초 · p95 16.3초, 축 0~20초",
+      "same": true
+    },
+    {
+      "area": "metrics",
+      "name": "today",
+      "screen": "오늘 방문자 실행(세계 표준시 자정부터) 0회",
+      "expected": "오늘 방문자 실행(세계 표준시 자정부터) 0회",
+      "same": true
+    },
+    {
+      "area": "metrics",
+      "name": "first run",
+      "screen": "2026-10-04 23:55",
+      "expected": "2026-10-04 23:55",
+      "same": true
+    },
+    {
+      "area": "metrics",
+      "name": "latest run",
+      "screen": "2026-10-31 18:45",
+      "expected": "2026-10-31 18:45",
+      "same": true
+    },
+    {
+      "area": "metrics",
+      "name": "scope 위협",
+      "screen": "위협 3,081회",
+      "expected": "위협 3,081회",
+      "same": true
+    },
+    {
+      "area": "metrics",
+      "name": "scope 정상 업무",
+      "screen": "정상 업무 2,195회",
+      "expected": "정상 업무 2,195회",
+      "same": true
+    },
+    {
+      "area": "metrics",
+      "name": "scope 정답 없음(점수 제외)",
+      "screen": "정답 없음(점수 제외) 1,603회",
+      "expected": "정답 없음(점수 제외) 1,603회",
+      "same": true
+    },
+    {
+      "area": "metrics",
+      "name": "recordings listed",
+      "screen": 2,
+      "expected": 2,
+      "same": true
+    },
+    {
+      "area": "adopt",
+      "name": "dependency code",
+      "screen": "implementation \"ai.ctxa:spring-boot-starter-contexa:0.1.0\"",
+      "expected": "implementation \"ai.ctxa:spring-boot-starter-contexa:0.1.0\"",
+      "same": true
+    },
+    {
+      "area": "adopt",
+      "name": "employee counts",
+      "screen": "시나리오 검증의 정상 업무 19회 가운데 업무가 멈춘 것 0회, 추가 인증을 거쳐 처리된 것 3회",
+      "expected": "시나리오 검증의 정상 업무 19회 가운데 업무가 멈춘 것 0회, 추가 인증을 거쳐 처리된 것 3회",
+      "same": true
+    },
+    {
+      "area": "adopt",
+      "name": "old ?step=on opens shadow mode",
+      "screen": "true",
+      "expected": "true",
+      "same": true
+    },
+    {
+      "area": "adopt",
+      "name": "shadow: decisions",
+      "screen": "13,760건",
+      "expected": "13,760건",
+      "same": true
+    },
+    {
+      "area": "adopt",
+      "name": "shadow: 차단",
+      "screen": "차단 518건",
+      "expected": "차단 518건",
+      "same": true
+    },
+    {
+      "area": "adopt",
+      "name": "shadow: 추가 인증",
+      "screen": "추가 인증 2,149건",
+      "expected": "추가 인증 2,149건",
+      "same": true
+    },
+    {
+      "area": "adopt",
+      "name": "shadow: 검토 보류",
+      "screen": "검토 보류 1,136건",
+      "expected": "검토 보류 1,136건",
+      "same": true
+    },
+    {
+      "area": "adopt",
+      "name": "mode now",
+      "screen": "이 데모의 지금 모드 · ENFORCE",
+      "expected": "이 데모의 지금 모드 · ENFORCE",
+      "same": true
+    },
+    {
+      "area": "adopt",
+      "name": "sample: this demo",
+      "screen": "요청의 100%",
+      "expected": "요청의 100%",
+      "same": true
+    },
+    {
+      "area": "adopt",
+      "name": "clean: this demo",
+      "screen": "90일",
+      "expected": "90일",
+      "same": true
+    },
+    {
+      "area": "adopt",
+      "name": "behaviour: this demo",
+      "screen": "400일",
+      "expected": "400일",
+      "same": true
+    },
+    {
+      "area": "adopt",
+      "name": "original text kept",
+      "screen": "이 데모 포털이 90일 보관합니다",
+      "expected": "이 데모 포털이 90일 보관합니다",
+      "same": true
+    },
+    {
+      "area": "tour",
+      "name": "videos listed",
+      "screen": 2,
+      "expected": 2,
+      "same": true
+    },
+    {
+      "area": "tour",
+      "name": "console: console.webm served",
+      "screen": 200,
+      "expected": 200,
+      "same": true
+    },
+    {
+      "area": "tour",
+      "name": "console: console.ko.vtt served",
+      "screen": 200,
+      "expected": 200,
+      "same": true
+    },
+    {
+      "area": "tour",
+      "name": "console: console.en.vtt served",
+      "screen": 200,
+      "expected": 200,
+      "same": true
+    },
+    {
+      "area": "tour",
+      "name": "console: console.ko.m.vtt served",
+      "screen": 200,
+      "expected": 200,
+      "same": true
+    },
+    {
+      "area": "tour",
+      "name": "console: console.en.m.vtt served",
+      "screen": 200,
+      "expected": 200,
+      "same": true
+    },
+    {
+      "area": "tour",
+      "name": "agent: agent.webm served",
+      "screen": 200,
+      "expected": 200,
+      "same": true
+    },
+    {
+      "area": "tour",
+      "name": "agent: agent.ko.vtt served",
+      "screen": 200,
+      "expected": 200,
+      "same": true
+    },
+    {
+      "area": "tour",
+      "name": "agent: agent.en.vtt served",
+      "screen": 200,
+      "expected": 200,
+      "same": true
+    },
+    {
+      "area": "tour",
+      "name": "agent: agent.ko.m.vtt served",
+      "screen": 200,
+      "expected": 200,
+      "same": true
+    },
+    {
+      "area": "tour",
+      "name": "agent: agent.en.m.vtt served",
+      "screen": 200,
+      "expected": 200,
+      "same": true
+    },
+    {
+      "area": "tour",
+      "name": "no autoplay",
+      "screen": null,
+      "expected": null,
+      "same": true
+    },
+    {
+      "area": "privacy",
+      "name": "cookies named = cookies set",
+      "screen": [
+        "SC_VISITOR",
+        "XSRF-TOKEN"
+      ],
+      "expected": [
+        "SC_VISITOR",
+        "XSRF-TOKEN"
+      ],
+      "same": true
+    },
+    {
+      "area": "glossary",
+      "name": "term count",
+      "screen": "용어 71개",
+      "expected": "용어 71개",
+      "same": true
+    },
+    {
+      "area": "glossary",
+      "name": "old link → baseline",
+      "screen": "주체의 학습된 정상 행위 범위",
+      "expected": "주체의 학습된 정상 행위 범위",
+      "same": true
+    },
+    {
+      "area": "old addresses",
+      "name": "/stats → /metrics",
+      "screen": "/metrics",
+      "expected": "/metrics",
+      "same": true
+    },
+    {
+      "area": "old addresses",
+      "name": "/videos → /tour",
+      "screen": "/tour",
+      "expected": "/tour",
+      "same": true
+    },
+    {
+      "area": "old addresses",
+      "name": "/summary/next → /adopt",
+      "screen": "/adopt",
+      "expected": "/adopt",
+      "same": true
+    },
+    {
+      "area": "old addresses",
+      "name": "/try/summary/end → /adopt",
+      "screen": "/adopt",
+      "expected": "/adopt",
+      "same": true
+    },
+    {
+      "area": "pages",
+      "name": "no page error",
+      "screen": [],
+      "expected": [],
+      "same": true
+    }
+  ],
+  "problems": [],
+  "statsComputedAt": "2026-11-01T00:58:35.305826400Z",
+  "finishedAt": "2026-11-01T00:59:47.500Z",
+  "summary": {
+    "checks": 59,
+    "same": 59,
+    "problems": 0
+  }
+}

@@ -258,7 +258,12 @@ for (const control of ['C1', 'C2', 'D']) {
   check(
     'compare',
     `${control} totals`,
-    (await row.innerText()).includes(`놓친 공격 ${number(total.missed)} · 막은 정상 업무 ${number(total.falseBlock.hits)}`),
+    // The words as the dictionary has them now (I-8 renamed them "미탐 n · 오탐 n").
+    (await row.innerText()).includes(
+      ko['ux.compareMenu.runs.total']
+        .replace('{{missed}}', number(total.missed))
+        .replace('{{blocked}}', number(total.falseBlock.hits)),
+    ),
     true,
   );
 }

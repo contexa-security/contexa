@@ -1,0 +1,3993 @@
+[
+  {
+    "path": "/simulate/agent",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 20,
+      "13px": 33,
+      "12px": 19,
+      "28px": 1,
+      "15px": 4,
+      "16px": 5
+    },
+    "contrast": [],
+    "weights": {
+      "400": 34,
+      "500": 10,
+      "600": 36,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 5
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"1\"",
+      "fill+line a._button_ldime_3 \"선택\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 20,
+      "13px": 33,
+      "12px": 19,
+      "28px": 1,
+      "15px": 4,
+      "16px": 5
+    },
+    "contrast": [],
+    "weights": {
+      "400": 34,
+      "500": 10,
+      "600": 36,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 5
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"1\"",
+      "fill+line a._button_ldime_3 \"Select\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 20,
+      "13px": 33,
+      "12px": 19,
+      "28px": 1,
+      "15px": 4,
+      "16px": 5
+    },
+    "contrast": [],
+    "weights": {
+      "400": 34,
+      "500": 10,
+      "600": 36,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 5
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"1\"",
+      "fill+line a._button_ldime_3 \"선택\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 20,
+      "13px": 33,
+      "12px": 19,
+      "28px": 1,
+      "15px": 4,
+      "16px": 5
+    },
+    "contrast": [],
+    "weights": {
+      "400": 34,
+      "500": 10,
+      "600": 36,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 5
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"1\"",
+      "fill+line a._button_ldime_3 \"Select\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 17,
+      "13px": 25,
+      "24px": 1,
+      "15px": 4,
+      "12px": 18,
+      "16px": 5
+    },
+    "contrast": [],
+    "weights": {
+      "400": 25,
+      "500": 9,
+      "600": 34,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 5
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"1\"",
+      "fill+line a._button_ldime_3 \"선택\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 17,
+      "13px": 25,
+      "24px": 1,
+      "15px": 4,
+      "12px": 18,
+      "16px": 5
+    },
+    "contrast": [],
+    "weights": {
+      "400": 25,
+      "500": 9,
+      "600": 34,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 5
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"1\"",
+      "fill+line a._button_ldime_3 \"Select\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 17,
+      "13px": 25,
+      "24px": 1,
+      "15px": 4,
+      "12px": 18,
+      "16px": 5
+    },
+    "contrast": [],
+    "weights": {
+      "400": 25,
+      "500": 9,
+      "600": 34,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 5
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"1\"",
+      "fill+line a._button_ldime_3 \"선택\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 17,
+      "13px": 25,
+      "24px": 1,
+      "15px": 4,
+      "12px": 18,
+      "16px": 5
+    },
+    "contrast": [],
+    "weights": {
+      "400": 25,
+      "500": 9,
+      "600": 34,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 5
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"1\"",
+      "fill+line a._button_ldime_3 \"Select\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/review",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 16,
+      "13px": 15,
+      "12px": 14,
+      "28px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 28,
+      "500": 2,
+      "600": 22,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"에이전트 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/review",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 16,
+      "13px": 15,
+      "12px": 14,
+      "28px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 28,
+      "500": 2,
+      "600": 22,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"Run the agent\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/review",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 16,
+      "13px": 15,
+      "12px": 14,
+      "28px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 28,
+      "500": 2,
+      "600": 22,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"에이전트 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/review",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 16,
+      "13px": 15,
+      "12px": 14,
+      "28px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 28,
+      "500": 2,
+      "600": 22,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"Run the agent\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/review",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 13,
+      "13px": 7,
+      "12px": 13,
+      "24px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 19,
+      "500": 1,
+      "600": 20,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"에이전트 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/review",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 13,
+      "13px": 7,
+      "12px": 13,
+      "24px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 19,
+      "500": 1,
+      "600": 20,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"Run the agent\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/review",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 13,
+      "13px": 7,
+      "12px": 13,
+      "24px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 19,
+      "500": 1,
+      "600": 20,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"에이전트 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/review",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 13,
+      "13px": 7,
+      "12px": 13,
+      "24px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 19,
+      "500": 1,
+      "600": 20,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"Run the agent\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/M10A/review",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 12,
+      "13px": 15,
+      "12px": 7,
+      "28px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 22,
+      "500": 2,
+      "600": 17,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"에이전트 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/M10A/review",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 12,
+      "13px": 15,
+      "12px": 7,
+      "28px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 22,
+      "500": 2,
+      "600": 17,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"Run the agent\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/M10A/review",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 12,
+      "13px": 15,
+      "12px": 7,
+      "28px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 22,
+      "500": 2,
+      "600": 17,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"에이전트 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/M10A/review",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 12,
+      "13px": 15,
+      "12px": 7,
+      "28px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 22,
+      "500": 2,
+      "600": 17,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"Run the agent\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/M10A/review",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 9,
+      "13px": 7,
+      "12px": 6,
+      "24px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 13,
+      "500": 1,
+      "600": 15,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"에이전트 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/M10A/review",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 9,
+      "13px": 7,
+      "12px": 6,
+      "24px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 13,
+      "500": 1,
+      "600": 15,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"Run the agent\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/M10A/review",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 9,
+      "13px": 7,
+      "12px": 6,
+      "24px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 13,
+      "500": 1,
+      "600": 15,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"에이전트 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/M10A/review",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 9,
+      "13px": 7,
+      "12px": 6,
+      "24px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 13,
+      "500": 1,
+      "600": 15,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"Run the agent\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/ED1/review?quantity=400&period=EXPIRED&operations=READ_ONLY",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 18,
+      "13px": 15,
+      "12px": 17,
+      "28px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 30,
+      "500": 2,
+      "600": 25,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"에이전트 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/ED1/review?quantity=400&period=EXPIRED&operations=READ_ONLY",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 18,
+      "13px": 15,
+      "12px": 17,
+      "28px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 30,
+      "500": 2,
+      "600": 25,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"Run the agent\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/ED1/review?quantity=400&period=EXPIRED&operations=READ_ONLY",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 18,
+      "13px": 15,
+      "12px": 17,
+      "28px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 30,
+      "500": 2,
+      "600": 25,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"에이전트 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/ED1/review?quantity=400&period=EXPIRED&operations=READ_ONLY",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 18,
+      "13px": 15,
+      "12px": 17,
+      "28px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 30,
+      "500": 2,
+      "600": 25,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"Run the agent\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/ED1/review?quantity=400&period=EXPIRED&operations=READ_ONLY",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 15,
+      "13px": 7,
+      "12px": 16,
+      "24px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 21,
+      "500": 1,
+      "600": 23,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"에이전트 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/ED1/review?quantity=400&period=EXPIRED&operations=READ_ONLY",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 15,
+      "13px": 7,
+      "12px": 16,
+      "24px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 21,
+      "500": 1,
+      "600": 23,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"Run the agent\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/ED1/review?quantity=400&period=EXPIRED&operations=READ_ONLY",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 15,
+      "13px": 7,
+      "12px": 16,
+      "24px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 21,
+      "500": 1,
+      "600": 23,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"에이전트 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/ED1/review?quantity=400&period=EXPIRED&operations=READ_ONLY",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 15,
+      "13px": 7,
+      "12px": 16,
+      "24px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 21,
+      "500": 1,
+      "600": 23,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"Run the agent\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/live",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 8,
+      "13px": 12,
+      "12px": 2,
+      "28px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 11,
+      "500": 2,
+      "600": 8,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"3\"",
+      "fill+line a._button_ldime_3 \"요청 검토로\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/live",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 8,
+      "13px": 12,
+      "12px": 2,
+      "28px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 11,
+      "500": 2,
+      "600": 8,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"3\"",
+      "fill+line a._button_ldime_3 \"To the request review\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/live",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 8,
+      "13px": 12,
+      "12px": 2,
+      "28px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 11,
+      "500": 2,
+      "600": 8,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"3\"",
+      "fill+line a._button_ldime_3 \"요청 검토로\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/live",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {},
+    "contrast": [],
+    "weights": {},
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/live",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 5,
+      "13px": 4,
+      "12px": 1,
+      "24px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 2,
+      "500": 1,
+      "600": 6,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"3\"",
+      "fill+line a._button_ldime_3 \"요청 검토로\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/live",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 5,
+      "13px": 4,
+      "12px": 1,
+      "24px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 2,
+      "500": 1,
+      "600": 6,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"3\"",
+      "fill+line a._button_ldime_3 \"To the request review\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/live",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 5,
+      "13px": 4,
+      "12px": 1,
+      "24px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 2,
+      "500": 1,
+      "600": 6,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"3\"",
+      "fill+line a._button_ldime_3 \"요청 검토로\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/live",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 5,
+      "13px": 4,
+      "12px": 1,
+      "24px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 2,
+      "500": 1,
+      "600": 6,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"3\"",
+      "fill+line a._button_ldime_3 \"To the request review\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 37,
+      "13px": 34,
+      "12px": 9,
+      "24px": 1,
+      "15px": 7,
+      "18px": 3,
+      "16px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 44,
+      "500": 8,
+      "600": 41,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"요청 1문서 목록 보기/api/projects/HX-3\"",
+      "fill+line a._button_ldime_3 \"N1 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 37,
+      "13px": 34,
+      "12px": 9,
+      "24px": 1,
+      "15px": 7,
+      "18px": 3,
+      "16px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 44,
+      "500": 8,
+      "600": 41,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"Request 1View the document lis\"",
+      "fill+line a._button_ldime_3 \"Run N1\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 37,
+      "13px": 34,
+      "12px": 9,
+      "24px": 1,
+      "15px": 7,
+      "18px": 3,
+      "16px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 44,
+      "500": 8,
+      "600": 41,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"요청 1문서 목록 보기/api/projects/HX-3\"",
+      "fill+line a._button_ldime_3 \"N1 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 37,
+      "13px": 34,
+      "12px": 9,
+      "24px": 1,
+      "15px": 7,
+      "18px": 3,
+      "16px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 44,
+      "500": 8,
+      "600": 41,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"Request 1View the document lis\"",
+      "fill+line a._button_ldime_3 \"Run N1\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 34,
+      "13px": 19,
+      "24px": 1,
+      "15px": 7,
+      "12px": 8,
+      "18px": 3,
+      "16px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 35,
+      "500": 7,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"요청 1문서 목록 보기/api/projects/HX-3\"",
+      "fill+line a._button_ldime_3 \"N1 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 34,
+      "13px": 19,
+      "24px": 1,
+      "15px": 7,
+      "12px": 8,
+      "18px": 3,
+      "16px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 35,
+      "500": 7,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 391,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"Request 1View the document lis\"",
+      "fill+line a._button_ldime_3 \"Run N1\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 34,
+      "13px": 19,
+      "24px": 1,
+      "15px": 7,
+      "12px": 8,
+      "18px": 3,
+      "16px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 35,
+      "500": 7,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"요청 1문서 목록 보기/api/projects/HX-3\"",
+      "fill+line a._button_ldime_3 \"N1 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 34,
+      "13px": 19,
+      "24px": 1,
+      "15px": 7,
+      "12px": 8,
+      "18px": 3,
+      "16px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 35,
+      "500": 7,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 391,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"Request 1View the document lis\"",
+      "fill+line a._button_ldime_3 \"Run N1\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 50,
+      "13px": 40,
+      "12px": 51,
+      "24px": 1,
+      "15px": 1,
+      "18px": 3,
+      "16px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 59,
+      "500": 15,
+      "600": 74,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"시나리오 선택\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 50,
+      "13px": 40,
+      "12px": 51,
+      "24px": 1,
+      "15px": 1,
+      "18px": 3,
+      "16px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 59,
+      "500": 15,
+      "600": 74,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"Choose a scenario\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 50,
+      "13px": 40,
+      "12px": 51,
+      "24px": 1,
+      "15px": 1,
+      "18px": 3,
+      "16px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 59,
+      "500": 15,
+      "600": 74,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"시나리오 선택\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 50,
+      "13px": 40,
+      "12px": 51,
+      "24px": 1,
+      "15px": 1,
+      "18px": 3,
+      "16px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 59,
+      "500": 15,
+      "600": 74,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"Choose a scenario\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 47,
+      "13px": 25,
+      "24px": 1,
+      "15px": 1,
+      "12px": 50,
+      "18px": 3,
+      "16px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 50,
+      "500": 14,
+      "600": 65,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"시나리오 선택\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 47,
+      "13px": 25,
+      "24px": 1,
+      "15px": 1,
+      "12px": 50,
+      "18px": 3,
+      "16px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 50,
+      "500": 14,
+      "600": 65,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 391,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"Choose a scenario\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 47,
+      "13px": 25,
+      "24px": 1,
+      "15px": 1,
+      "12px": 50,
+      "18px": 3,
+      "16px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 50,
+      "500": 14,
+      "600": 65,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"시나리오 선택\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 47,
+      "13px": 25,
+      "24px": 1,
+      "15px": 1,
+      "12px": 50,
+      "18px": 3,
+      "16px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 50,
+      "500": 14,
+      "600": 65,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 391,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"Choose a scenario\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/review",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 16,
+      "13px": 15,
+      "12px": 14,
+      "28px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 28,
+      "500": 2,
+      "600": 22,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"에이전트 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/review",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 16,
+      "13px": 15,
+      "12px": 14,
+      "28px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 28,
+      "500": 2,
+      "600": 22,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"Run the agent\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/review",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 16,
+      "13px": 15,
+      "12px": 14,
+      "28px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 28,
+      "500": 2,
+      "600": 22,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"에이전트 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/review",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 16,
+      "13px": 15,
+      "12px": 14,
+      "28px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 28,
+      "500": 2,
+      "600": 22,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"Run the agent\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/review",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 13,
+      "13px": 7,
+      "12px": 13,
+      "24px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 19,
+      "500": 1,
+      "600": 20,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"에이전트 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/review",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 13,
+      "13px": 7,
+      "12px": 13,
+      "24px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 19,
+      "500": 1,
+      "600": 20,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"Run the agent\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/review",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 13,
+      "13px": 7,
+      "12px": 13,
+      "24px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 19,
+      "500": 1,
+      "600": 20,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"에이전트 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/review",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 13,
+      "13px": 7,
+      "12px": 13,
+      "24px": 1,
+      "15px": 5,
+      "18px": 1,
+      "16px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 19,
+      "500": 1,
+      "600": 20,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill+line button._button_ldime_3 \"Run the agent\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/surge",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 42,
+      "13px": 26,
+      "12px": 9,
+      "28px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 41,
+      "500": 17,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"동시 전송\"",
+      "fill+line span._stepMark_1lfrp_91 \"1\"",
+      "fill+line button._button_ldime_3 \"10건 동시 전송\"",
+      "stripe th \"모델 호출\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/surge",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 42,
+      "13px": 26,
+      "12px": 9,
+      "28px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 41,
+      "500": 17,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Sent at once\"",
+      "fill+line span._stepMark_1lfrp_91 \"1\"",
+      "fill+line button._button_ldime_3 \"Send 10 at once\"",
+      "stripe th \"Model calls\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/surge",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 42,
+      "13px": 26,
+      "12px": 9,
+      "28px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 41,
+      "500": 17,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"동시 전송\"",
+      "fill+line span._stepMark_1lfrp_91 \"1\"",
+      "fill+line button._button_ldime_3 \"10건 동시 전송\"",
+      "stripe th \"모델 호출\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/surge",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 42,
+      "13px": 26,
+      "12px": 9,
+      "28px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 41,
+      "500": 17,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Sent at once\"",
+      "fill+line span._stepMark_1lfrp_91 \"1\"",
+      "fill+line button._button_ldime_3 \"Send 10 at once\"",
+      "stripe th \"Model calls\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/surge",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 40,
+      "13px": 18,
+      "24px": 1,
+      "15px": 12,
+      "12px": 8,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 33,
+      "500": 16,
+      "600": 30,
+      "700": 2
+    },
+    "buttons": {
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"동시 전송\"",
+      "fill+line span._stepMark_1lfrp_91 \"1\"",
+      "fill+line button._button_ldime_3 \"10건 동시 전송\"",
+      "stripe th \"모델 호출\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/surge",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 40,
+      "13px": 18,
+      "24px": 1,
+      "15px": 12,
+      "12px": 8,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 33,
+      "500": 16,
+      "600": 30,
+      "700": 2
+    },
+    "buttons": {
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Sent at once\"",
+      "fill+line span._stepMark_1lfrp_91 \"1\"",
+      "fill+line button._button_ldime_3 \"Send 10 at once\"",
+      "stripe th \"Model calls\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/surge",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 40,
+      "13px": 18,
+      "24px": 1,
+      "15px": 12,
+      "12px": 8,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 33,
+      "500": 16,
+      "600": 30,
+      "700": 2
+    },
+    "buttons": {
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"동시 전송\"",
+      "fill+line span._stepMark_1lfrp_91 \"1\"",
+      "fill+line button._button_ldime_3 \"10건 동시 전송\"",
+      "stripe th \"모델 호출\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/surge",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 40,
+      "13px": 18,
+      "24px": 1,
+      "15px": 12,
+      "12px": 8,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 33,
+      "500": 16,
+      "600": 30,
+      "700": 2
+    },
+    "buttons": {
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Sent at once\"",
+      "fill+line span._stepMark_1lfrp_91 \"1\"",
+      "fill+line button._button_ldime_3 \"Send 10 at once\"",
+      "stripe th \"Model calls\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/surge?tab=repeat",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 8,
+      "13px": 15,
+      "12px": 25,
+      "28px": 1,
+      "15px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 16,
+      "500": 18,
+      "600": 17,
+      "700": 2
+    },
+    "buttons": {
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"같은 조회 반복\"",
+      "fill+line button._button_ldime_3 \"정상 업무 다섯 번 보내기\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/surge?tab=repeat",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 8,
+      "13px": 15,
+      "12px": 25,
+      "28px": 1,
+      "15px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 16,
+      "500": 18,
+      "600": 17,
+      "700": 2
+    },
+    "buttons": {
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"The same lookup repeated\"",
+      "fill+line button._button_ldime_3 \"Send the normal work five time\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/surge?tab=repeat",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 8,
+      "13px": 15,
+      "12px": 25,
+      "28px": 1,
+      "15px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 16,
+      "500": 18,
+      "600": 17,
+      "700": 2
+    },
+    "buttons": {
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"같은 조회 반복\"",
+      "fill+line button._button_ldime_3 \"정상 업무 다섯 번 보내기\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/surge?tab=repeat",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 8,
+      "13px": 15,
+      "12px": 25,
+      "28px": 1,
+      "15px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 16,
+      "500": 18,
+      "600": 17,
+      "700": 2
+    },
+    "buttons": {
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"The same lookup repeated\"",
+      "fill+line button._button_ldime_3 \"Send the normal work five time\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/surge?tab=repeat",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 8,
+      "13px": 7,
+      "24px": 1,
+      "15px": 4,
+      "12px": 24
+    },
+    "contrast": [],
+    "weights": {
+      "400": 10,
+      "500": 17,
+      "600": 15,
+      "700": 2
+    },
+    "buttons": {
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"같은 조회 반복\"",
+      "fill+line button._button_ldime_3 \"정상 업무 다섯 번 보내기\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/surge?tab=repeat",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 8,
+      "13px": 7,
+      "24px": 1,
+      "15px": 4,
+      "12px": 24
+    },
+    "contrast": [],
+    "weights": {
+      "400": 10,
+      "500": 17,
+      "600": 15,
+      "700": 2
+    },
+    "buttons": {
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"The same lookup repeated\"",
+      "fill+line button._button_ldime_3 \"Send the normal work five time\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/surge?tab=repeat",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 8,
+      "13px": 7,
+      "24px": 1,
+      "15px": 4,
+      "12px": 24
+    },
+    "contrast": [],
+    "weights": {
+      "400": 10,
+      "500": 17,
+      "600": 15,
+      "700": 2
+    },
+    "buttons": {
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"같은 조회 반복\"",
+      "fill+line button._button_ldime_3 \"정상 업무 다섯 번 보내기\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/surge?tab=repeat",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 8,
+      "13px": 7,
+      "24px": 1,
+      "15px": 4,
+      "12px": 24
+    },
+    "contrast": [],
+    "weights": {
+      "400": 10,
+      "500": 17,
+      "600": 15,
+      "700": 2
+    },
+    "buttons": {
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"The same lookup repeated\"",
+      "fill+line button._button_ldime_3 \"Send the normal work five time\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 49,
+      "16px": 1,
+      "12px": 10,
+      "13px": 31,
+      "28px": 1,
+      "15px": 6,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 35,
+      "500": 23,
+      "600": 35,
+      "700": 6
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"라이브 데모\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"임계값 조정\"",
+      "stripe th \"Contexa실제 AI 판정 기록\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill span._fill_26sgp_72 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 49,
+      "16px": 1,
+      "12px": 10,
+      "13px": 31,
+      "28px": 1,
+      "15px": 6,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 35,
+      "500": 23,
+      "600": 35,
+      "700": 6
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"Live demo\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Thresholds\"",
+      "stripe th \"ContexaReal AI decisions as re\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill span._fill_26sgp_72 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 49,
+      "16px": 1,
+      "12px": 10,
+      "13px": 31,
+      "28px": 1,
+      "15px": 6,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 35,
+      "500": 23,
+      "600": 35,
+      "700": 6
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"임계값 조정\"",
+      "stripe th \"Contexa실제 AI 판정 기록\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill span._fill_26sgp_72 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 49,
+      "16px": 1,
+      "12px": 10,
+      "13px": 31,
+      "28px": 1,
+      "15px": 6,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 35,
+      "500": 23,
+      "600": 35,
+      "700": 6
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Thresholds\"",
+      "stripe th \"ContexaReal AI decisions as re\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill span._fill_26sgp_72 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 34,
+      "13px": 23,
+      "24px": 1,
+      "15px": 6,
+      "12px": 3,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 29,
+      "500": 8,
+      "600": 26,
+      "700": 5
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"임계값 조정\"",
+      "stripe th \"Contexa실제 AI 판정 기록\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill span._fill_26sgp_72 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 34,
+      "13px": 23,
+      "24px": 1,
+      "15px": 6,
+      "12px": 3,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 29,
+      "500": 8,
+      "600": 26,
+      "700": 5
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Thresholds\"",
+      "stripe th \"ContexaReal AI decisions as re\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill span._fill_26sgp_72 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 34,
+      "13px": 23,
+      "24px": 1,
+      "15px": 6,
+      "12px": 3,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 29,
+      "500": 8,
+      "600": 26,
+      "700": 5
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"임계값 조정\"",
+      "stripe th \"Contexa실제 AI 판정 기록\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill span._fill_26sgp_72 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 34,
+      "13px": 23,
+      "24px": 1,
+      "15px": 6,
+      "12px": 3,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 29,
+      "500": 8,
+      "600": 26,
+      "700": 5
+    },
+    "buttons": {},
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Thresholds\"",
+      "stripe th \"ContexaReal AI decisions as re\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill span._fill_26sgp_72 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy?tab=threshold&knob=volumeLimit&value=300",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 52,
+      "16px": 1,
+      "12px": 10,
+      "13px": 36,
+      "28px": 1,
+      "15px": 6,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 42,
+      "500": 23,
+      "600": 37,
+      "700": 6
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"라이브 데모\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"임계값 조정\"",
+      "stripe th \"Contexa실제 AI 판정 기록\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill span._fill_26sgp_72 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy?tab=threshold&knob=volumeLimit&value=300",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 52,
+      "16px": 1,
+      "12px": 10,
+      "13px": 36,
+      "28px": 1,
+      "15px": 6,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 42,
+      "500": 23,
+      "600": 37,
+      "700": 6
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"Live demo\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Thresholds\"",
+      "stripe th \"ContexaReal AI decisions as re\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill span._fill_26sgp_72 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy?tab=threshold&knob=volumeLimit&value=300",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 52,
+      "16px": 1,
+      "12px": 10,
+      "13px": 36,
+      "28px": 1,
+      "15px": 6,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 42,
+      "500": 23,
+      "600": 37,
+      "700": 6
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"임계값 조정\"",
+      "stripe th \"Contexa실제 AI 판정 기록\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill span._fill_26sgp_72 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy?tab=threshold&knob=volumeLimit&value=300",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 52,
+      "16px": 1,
+      "12px": 10,
+      "13px": 36,
+      "28px": 1,
+      "15px": 6,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 42,
+      "500": 23,
+      "600": 37,
+      "700": 6
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Thresholds\"",
+      "stripe th \"ContexaReal AI decisions as re\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill span._fill_26sgp_72 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy?tab=threshold&knob=volumeLimit&value=300",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 37,
+      "13px": 28,
+      "24px": 1,
+      "15px": 6,
+      "12px": 3,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 36,
+      "500": 8,
+      "600": 28,
+      "700": 5
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"임계값 조정\"",
+      "stripe th \"Contexa실제 AI 판정 기록\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill span._fill_26sgp_72 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy?tab=threshold&knob=volumeLimit&value=300",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 37,
+      "13px": 28,
+      "24px": 1,
+      "15px": 6,
+      "12px": 3,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 36,
+      "500": 8,
+      "600": 28,
+      "700": 5
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Thresholds\"",
+      "stripe th \"ContexaReal AI decisions as re\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill span._fill_26sgp_72 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy?tab=threshold&knob=volumeLimit&value=300",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 37,
+      "13px": 28,
+      "24px": 1,
+      "15px": 6,
+      "12px": 3,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 36,
+      "500": 8,
+      "600": 28,
+      "700": 5
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"임계값 조정\"",
+      "stripe th \"Contexa실제 AI 판정 기록\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill span._fill_26sgp_72 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy?tab=threshold&knob=volumeLimit&value=300",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 37,
+      "13px": 28,
+      "24px": 1,
+      "15px": 6,
+      "12px": 3,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 36,
+      "500": 8,
+      "600": 28,
+      "700": 5
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Thresholds\"",
+      "stripe th \"ContexaReal AI decisions as re\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill span._fill_26sgp_72 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy?tab=compose&case=S13&field=place&to=EXTERNAL",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 27,
+      "16px": 1,
+      "12px": 7,
+      "13px": 24,
+      "28px": 1,
+      "15px": 8,
+      "18px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 20,
+      "500": 23,
+      "600": 26,
+      "700": 3
+    },
+    "buttons": {
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"라이브 데모\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"조건 구성 · 실행\"",
+      "fill+line button._button_ldime_3 \"조건을 바꿔 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy?tab=compose&case=S13&field=place&to=EXTERNAL",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 27,
+      "16px": 1,
+      "12px": 7,
+      "13px": 24,
+      "28px": 1,
+      "15px": 8,
+      "18px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 20,
+      "500": 23,
+      "600": 26,
+      "700": 3
+    },
+    "buttons": {
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"Live demo\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Compose and run\"",
+      "fill+line button._button_ldime_3 \"Run with the change\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy?tab=compose&case=S13&field=place&to=EXTERNAL",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 27,
+      "16px": 1,
+      "12px": 7,
+      "13px": 24,
+      "28px": 1,
+      "15px": 8,
+      "18px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 20,
+      "500": 23,
+      "600": 26,
+      "700": 3
+    },
+    "buttons": {
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"조건 구성 · 실행\"",
+      "fill+line button._button_ldime_3 \"조건을 바꿔 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy?tab=compose&case=S13&field=place&to=EXTERNAL",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 27,
+      "16px": 1,
+      "12px": 7,
+      "13px": 24,
+      "28px": 1,
+      "15px": 8,
+      "18px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 20,
+      "500": 23,
+      "600": 26,
+      "700": 3
+    },
+    "buttons": {
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Compose and run\"",
+      "fill+line button._button_ldime_3 \"Run with the change\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy?tab=compose&case=S13&field=place&to=EXTERNAL",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 12,
+      "13px": 16,
+      "24px": 1,
+      "15px": 8,
+      "18px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 14,
+      "500": 8,
+      "600": 17,
+      "700": 2
+    },
+    "buttons": {
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"조건 구성 · 실행\"",
+      "fill+line button._button_ldime_3 \"조건을 바꿔 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy?tab=compose&case=S13&field=place&to=EXTERNAL",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 12,
+      "13px": 16,
+      "24px": 1,
+      "15px": 8,
+      "18px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 14,
+      "500": 8,
+      "600": 17,
+      "700": 2
+    },
+    "buttons": {
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Compose and run\"",
+      "fill+line button._button_ldime_3 \"Run with the change\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy?tab=compose&case=S13&field=place&to=EXTERNAL",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 12,
+      "13px": 16,
+      "24px": 1,
+      "15px": 8,
+      "18px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 14,
+      "500": 8,
+      "600": 17,
+      "700": 2
+    },
+    "buttons": {
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"조건 구성 · 실행\"",
+      "fill+line button._button_ldime_3 \"조건을 바꿔 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy?tab=compose&case=S13&field=place&to=EXTERNAL",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 12,
+      "13px": 16,
+      "24px": 1,
+      "15px": 8,
+      "18px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 14,
+      "500": 8,
+      "600": 17,
+      "700": 2
+    },
+    "buttons": {
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Compose and run\"",
+      "fill+line button._button_ldime_3 \"Run with the change\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy?tab=agent",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 75,
+      "16px": 3,
+      "12px": 192,
+      "13px": 35,
+      "28px": 1,
+      "15px": 4,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 71,
+      "500": 50,
+      "600": 188,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"라이브 데모\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"에이전트 정책\"",
+      "fill+line a._button_ldime_3 \"이 값으로 실제 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy?tab=agent",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 75,
+      "16px": 3,
+      "12px": 192,
+      "13px": 35,
+      "28px": 1,
+      "15px": 4,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 71,
+      "500": 50,
+      "600": 188,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"Live demo\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Agent policy\"",
+      "fill+line a._button_ldime_3 \"Run it for real with these val\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy?tab=agent",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 75,
+      "16px": 3,
+      "12px": 192,
+      "13px": 35,
+      "28px": 1,
+      "15px": 4,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 71,
+      "500": 50,
+      "600": 188,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"에이전트 정책\"",
+      "fill+line a._button_ldime_3 \"이 값으로 실제 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy?tab=agent",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 75,
+      "16px": 3,
+      "12px": 192,
+      "13px": 35,
+      "28px": 1,
+      "15px": 4,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 71,
+      "500": 50,
+      "600": 188,
+      "700": 3
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Agent policy\"",
+      "fill+line a._button_ldime_3 \"Run it for real with these val\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy?tab=agent",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 60,
+      "13px": 13,
+      "24px": 1,
+      "15px": 4,
+      "18px": 2,
+      "16px": 2,
+      "12px": 185
+    },
+    "contrast": [],
+    "weights": {
+      "400": 65,
+      "500": 35,
+      "600": 165,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"에이전트 정책\"",
+      "fill+line a._button_ldime_3 \"이 값으로 실제 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy?tab=agent",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 60,
+      "13px": 13,
+      "24px": 1,
+      "15px": 4,
+      "18px": 2,
+      "16px": 2,
+      "12px": 185
+    },
+    "contrast": [],
+    "weights": {
+      "400": 65,
+      "500": 35,
+      "600": 165,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Agent policy\"",
+      "fill+line a._button_ldime_3 \"Run it for real with these val\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy?tab=agent",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 60,
+      "13px": 13,
+      "24px": 1,
+      "15px": 4,
+      "18px": 2,
+      "16px": 2,
+      "12px": 185
+    },
+    "contrast": [],
+    "weights": {
+      "400": 65,
+      "500": 35,
+      "600": 165,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"에이전트 정책\"",
+      "fill+line a._button_ldime_3 \"이 값으로 실제 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/policy?tab=agent",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 60,
+      "13px": 13,
+      "24px": 1,
+      "15px": 4,
+      "18px": 2,
+      "16px": 2,
+      "12px": 185
+    },
+    "contrast": [],
+    "weights": {
+      "400": 65,
+      "500": 35,
+      "600": 165,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Agent policy\"",
+      "fill+line a._button_ldime_3 \"Run it for real with these val\""
+    ],
+    "axe": []
+  }
+]

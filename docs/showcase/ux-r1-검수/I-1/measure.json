@@ -1,0 +1,338 @@
+[
+  {
+    "path": "/design/ux",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "13px": 65,
+      "12px": 28,
+      "28px": 1,
+      "15px": 15,
+      "14px": 43,
+      "32px": 4,
+      "18px": 8,
+      "16px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 51,
+      "500": 15,
+      "600": 94,
+      "700": 5
+    },
+    "buttons": {
+      "32px": 7,
+      "36px": 13,
+      "44px": 4
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill+line button._button_ldime_3 \"Primary\"",
+      "fill+line span._stepMark_1lfrp_91 \"3\"",
+      "line button._tab_1lfrp_1 \"판정 결과\"",
+      "fill+line button._button_ldime_3 \"요청 실행\"",
+      "text span._badge_57oiq_1 \"Contexa\"",
+      "stripe td \"Contexa\"",
+      "fill span._fill_26sgp_72 \"\"",
+      "fill span._swatch_26sgp_78 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/design/ux",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "13px": 65,
+      "12px": 28,
+      "28px": 1,
+      "15px": 15,
+      "14px": 43,
+      "32px": 4,
+      "18px": 8,
+      "16px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 51,
+      "500": 15,
+      "600": 94,
+      "700": 5
+    },
+    "buttons": {
+      "32px": 7,
+      "36px": 13,
+      "44px": 4
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill+line button._button_ldime_3 \"Primary\"",
+      "fill+line span._stepMark_1lfrp_91 \"3\"",
+      "line button._tab_1lfrp_1 \"판정 결과\"",
+      "fill+line button._button_ldime_3 \"요청 실행\"",
+      "text span._badge_57oiq_1 \"Contexa\"",
+      "stripe td \"Contexa\"",
+      "fill span._fill_26sgp_72 \"\"",
+      "fill span._swatch_26sgp_78 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/design/ux",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "13px": 65,
+      "12px": 28,
+      "28px": 1,
+      "15px": 15,
+      "14px": 43,
+      "32px": 4,
+      "18px": 8,
+      "16px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 51,
+      "500": 15,
+      "600": 94,
+      "700": 5
+    },
+    "buttons": {
+      "32px": 7,
+      "36px": 13,
+      "44px": 4
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill+line button._button_ldime_3 \"Primary\"",
+      "fill+line span._stepMark_1lfrp_91 \"3\"",
+      "line button._tab_1lfrp_1 \"판정 결과\"",
+      "fill+line button._button_ldime_3 \"요청 실행\"",
+      "stripe td \"Contexa\"",
+      "fill span._fill_26sgp_72 \"\"",
+      "fill span._swatch_26sgp_78 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/design/ux",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "13px": 65,
+      "12px": 28,
+      "28px": 1,
+      "15px": 15,
+      "14px": 43,
+      "32px": 4,
+      "18px": 8,
+      "16px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 51,
+      "500": 15,
+      "600": 94,
+      "700": 5
+    },
+    "buttons": {
+      "32px": 7,
+      "36px": 13,
+      "44px": 4
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill+line button._button_ldime_3 \"Primary\"",
+      "fill+line span._stepMark_1lfrp_91 \"3\"",
+      "line button._tab_1lfrp_1 \"판정 결과\"",
+      "fill+line button._button_ldime_3 \"요청 실행\"",
+      "stripe td \"Contexa\"",
+      "fill span._fill_26sgp_72 \"\"",
+      "fill span._swatch_26sgp_78 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/design/ux",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "13px": 62,
+      "12px": 32,
+      "24px": 5,
+      "15px": 11,
+      "14px": 40,
+      "18px": 8,
+      "16px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 48,
+      "500": 15,
+      "600": 91,
+      "700": 5
+    },
+    "buttons": {
+      "32px": 7,
+      "36px": 13,
+      "44px": 4
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill+line button._button_ldime_3 \"Primary\"",
+      "fill+line span._stepMark_1lfrp_91 \"3\"",
+      "line button._tab_1lfrp_1 \"판정 결과\"",
+      "fill+line button._button_ldime_3 \"요청 실행\"",
+      "text span._badge_57oiq_1 \"Contexa\"",
+      "stripe td \"Contexa\"",
+      "fill span._fill_26sgp_72 \"\"",
+      "fill span._swatch_26sgp_78 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/design/ux",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "13px": 62,
+      "12px": 32,
+      "24px": 5,
+      "15px": 11,
+      "14px": 40,
+      "18px": 8,
+      "16px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 48,
+      "500": 15,
+      "600": 91,
+      "700": 5
+    },
+    "buttons": {
+      "32px": 7,
+      "36px": 13,
+      "44px": 4
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill+line button._button_ldime_3 \"Primary\"",
+      "fill+line span._stepMark_1lfrp_91 \"3\"",
+      "line button._tab_1lfrp_1 \"판정 결과\"",
+      "fill+line button._button_ldime_3 \"요청 실행\"",
+      "text span._badge_57oiq_1 \"Contexa\"",
+      "stripe td \"Contexa\"",
+      "fill span._fill_26sgp_72 \"\"",
+      "fill span._swatch_26sgp_78 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/design/ux",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "13px": 62,
+      "12px": 32,
+      "24px": 5,
+      "15px": 11,
+      "14px": 40,
+      "18px": 8,
+      "16px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 48,
+      "500": 15,
+      "600": 91,
+      "700": 5
+    },
+    "buttons": {
+      "32px": 7,
+      "36px": 13,
+      "44px": 4
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill+line button._button_ldime_3 \"Primary\"",
+      "fill+line span._stepMark_1lfrp_91 \"3\"",
+      "line button._tab_1lfrp_1 \"판정 결과\"",
+      "fill+line button._button_ldime_3 \"요청 실행\"",
+      "stripe td \"Contexa\"",
+      "fill span._fill_26sgp_72 \"\"",
+      "fill span._swatch_26sgp_78 \"\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/design/ux",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "13px": 62,
+      "12px": 32,
+      "24px": 5,
+      "15px": 11,
+      "14px": 40,
+      "18px": 8,
+      "16px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 48,
+      "500": 15,
+      "600": 91,
+      "700": 5
+    },
+    "buttons": {
+      "32px": 7,
+      "36px": 13,
+      "44px": 4
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill+line button._button_ldime_3 \"Primary\"",
+      "fill+line span._stepMark_1lfrp_91 \"3\"",
+      "line button._tab_1lfrp_1 \"판정 결과\"",
+      "fill+line button._button_ldime_3 \"요청 실행\"",
+      "stripe td \"Contexa\"",
+      "fill span._fill_26sgp_72 \"\"",
+      "fill span._swatch_26sgp_78 \"\""
+    ],
+    "axe": []
+  }
+]

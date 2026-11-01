@@ -196,8 +196,19 @@ function inspect() {
     if (ratio < (large ? 3 : 4.5)) contrast.push(`${ratio.toFixed(2)} ${label(el)}`);
   }
 
+  // A scroll box whose content is wider than the box (plan section 6, I-10): a column may hide inside it. Reported for
+  // the pictures, not counted as a problem — a phone's figure table scrolls sideways by design.
+  const scrollBoxes = [];
+  for (const el of all) {
+    const s = getComputedStyle(el);
+    if (!['auto', 'scroll'].includes(s.overflowX)) continue;
+    const hidden = el.scrollWidth - el.clientWidth;
+    if (hidden > 1) scrollBoxes.push(`${label(el)} +${hidden}px`);
+  }
+
   return {
     sizes,
+    scrollBoxes: [...new Set(scrollBoxes)],
     contrast: [...new Set(contrast)],
     weights,
     buttons,
@@ -236,6 +247,19 @@ try {
           });
           await page.evaluate(() => document.fonts.ready);
           await page.waitForTimeout(300);
+          // A screen is measured settled: an entrance (the introduction's, DEC-76) is waited out, at most five seconds;
+          // an endless animation (a live dot) is not waited for.
+          await page.evaluate(() =>
+            Promise.race([
+              Promise.all(
+                document
+                  .getAnimations()
+                  .filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
+                  .map((animation) => animation.finished.catch(() => undefined)),
+              ),
+              new Promise((done) => setTimeout(done, 5000)),
+            ]),
+          );
           const found = await page.evaluate(inspect);
           found.errors = errors;
           found.headings = await page.locator('h1').count();
@@ -253,7 +277,7 @@ try {
             `${name}: sizes[${sizes}] buttons[${Object.keys(found.buttons).join(' ')}] scroll=${found.pageScroll} ` +
               `leaks=${found.leaks.length} lonely=${found.lonely.length} gold=${found.gold.length} ` +
               `contrast=${found.contrast.length} axe=${found.axe ? found.axe.length : '-'} ` +
-              `errors=${found.errors.length} h1=${found.headings}`,
+              `errors=${found.errors.length} h1=${found.headings} scrollBoxes=${found.scrollBoxes.length}`,
           );
           await context.close();
         }

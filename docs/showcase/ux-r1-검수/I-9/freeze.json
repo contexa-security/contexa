@@ -1,0 +1,273 @@
+{
+ "frozenAt": "2026-11-01T01:39:44Z",
+ "cases": [
+  {
+   "key": "A1",
+   "version": 1,
+   "frozenOn": "2026-10-07",
+   "steps": 2
+  },
+  {
+   "key": "A1T",
+   "version": 1,
+   "frozenOn": "2026-10-07",
+   "steps": 2
+  },
+  {
+   "key": "A3",
+   "version": 1,
+   "frozenOn": "2026-10-07",
+   "steps": 1
+  },
+  {
+   "key": "A3A",
+   "version": 1,
+   "frozenOn": "2026-10-08",
+   "steps": 2
+  },
+  {
+   "key": "A3S",
+   "version": 2,
+   "frozenOn": "2026-10-07",
+   "steps": 2
+  },
+  {
+   "key": "A3ST",
+   "version": 1,
+   "frozenOn": "2026-10-07",
+   "steps": 1
+  },
+  {
+   "key": "A3T",
+   "version": 1,
+   "frozenOn": "2026-10-07",
+   "steps": 1
+  },
+  {
+   "key": "A3TA",
+   "version": 1,
+   "frozenOn": "2026-10-08",
+   "steps": 1
+  },
+  {
+   "key": "A5",
+   "version": 1,
+   "frozenOn": "2026-10-07",
+   "steps": 1
+  },
+  {
+   "key": "A5T",
+   "version": 1,
+   "frozenOn": "2026-10-07",
+   "steps": 1
+  },
+  {
+   "key": "A6",
+   "version": 1,
+   "frozenOn": "2026-10-07",
+   "steps": 5
+  },
+  {
+   "key": "A6T",
+   "version": 1,
+   "frozenOn": "2026-10-07",
+   "steps": 5
+  },
+  {
+   "key": "A8",
+   "version": 1,
+   "frozenOn": "2026-10-07",
+   "steps": 1
+  },
+  {
+   "key": "A8T",
+   "version": 1,
+   "frozenOn": "2026-10-07",
+   "steps": 1
+  },
+  {
+   "key": "K2",
+   "version": 2,
+   "frozenOn": "2026-10-08",
+   "steps": 1
+  },
+  {
+   "key": "R1",
+   "version": 2,
+   "frozenOn": "2026-10-08",
+   "steps": 2
+  },
+  {
+   "key": "S01",
+   "version": 1,
+   "frozenOn": "2026-10-07",
+   "steps": 3
+  },
+  {
+   "key": "S02",
+   "version": 2,
+   "frozenOn": "2026-10-19",
+   "steps": 1
+  },
+  {
+   "key": "S03",
+   "version": 1,
+   "frozenOn": "2026-10-07",
+   "steps": 2
+  },
+  {
+   "key": "S04",
+   "version": 1,
+   "frozenOn": "2026-10-07",
+   "steps": 4
+  },
+  {
+   "key": "S05",
+   "version": 1,
+   "frozenOn": "2026-10-07",
+   "steps": 3
+  },
+  {
+   "key": "S06",
+   "version": 1,
+   "frozenOn": "2026-10-07",
+   "steps": 5
+  },
+  {
+   "key": "S07",
+   "version": 1,
+   "frozenOn": "2026-10-07",
+   "steps": 2
+  },
+  {
+   "key": "S08",
+   "version": 1,
+   "frozenOn": "2026-10-07",
+   "steps": 2
+  },
+  {
+   "key": "S09",
+   "version": 2,
+   "frozenOn": "2026-10-08",
+   "steps": 2
+  },
+  {
+   "key": "S09C",
+   "version": 2,
+   "frozenOn": "2026-10-08",
+   "steps": 2
+  },
+  {
+   "key": "S10",
+   "version": 2,
+   "frozenOn": "2026-10-08",
+   "steps": 6
+  },
+  {
+   "key": "S11",
+   "version": 3,
+   "frozenOn": "2026-10-19",
+   "steps": 5
+  },
+  {
+   "key": "S11T",
+   "version": 2,
+   "frozenOn": "2026-10-19",
+   "steps": 5
+  },
+  {
+   "key": "S12",
+   "version": 2,
+   "frozenOn": "2026-10-08",
+   "steps": 1
+  },
+  {
+   "key": "S13",
+   "version": 1,
+   "frozenOn": "2026-10-08",
+   "steps": 1
+  },
+  {
+   "key": "S13T",
+   "version": 1,
+   "frozenOn": "2026-10-08",
+   "steps": 1
+  },
+  {
+   "key": "S14",
+   "version": 1,
+   "frozenOn": "2026-10-16",
+   "steps": 3
+  },
+  {
+   "key": "S15",
+   "version": 1,
+   "frozenOn": "2026-10-16",
+   "steps": 3
+  },
+  {
+   "key": "S16",
+   "version": 1,
+   "frozenOn": "2026-10-19",
+   "steps": 3
+  },
+  {
+   "key": "S16T",
+   "version": 1,
+   "frozenOn": "2026-10-19",
+   "steps": 3
+  },
+  {
+   "key": "S17",
+   "version": 1,
+   "frozenOn": "2026-10-19",
+   "steps": 1
+  },
+  {
+   "key": "S17T",
+   "version": 1,
+   "frozenOn": "2026-10-19",
+   "steps": 1
+  },
+  {
+   "key": "S18",
+   "version": 1,
+   "frozenOn": "2026-10-19",
+   "steps": 3
+  },
+  {
+   "key": "S19",
+   "version": 1,
+   "frozenOn": "2026-10-19",
+   "steps": 3
+  },
+  {
+   "key": "S19T",
+   "version": 1,
+   "frozenOn": "2026-10-19",
+   "steps": 3
+  }
+ ],
+ "repeat": 5,
+ "batches": "five protocols of repeat 1 (P1..P5), all cases each",
+ "engine": {
+  "engineVersion": "0.1.0",
+  "codeCommit": "46351d11c852-dirty",
+  "effectiveMode": "ENFORCE",
+  "chatModel": "gpt-5-nano",
+  "promptBundle": "2026.10.30-v21.19",
+  "timeZone": "UTC"
+ },
+ "layer1": {
+  "model": "gpt-6-luna",
+  "reasoningEffort": "low",
+  "verbosity": "low",
+  "maxOutputTokens": 2048
+ },
+ "layer2": {
+  "model": "claude-sonnet-5-5",
+  "reasoningEffort": null,
+  "verbosity": null,
+  "maxOutputTokens": 2560
+ }
+}

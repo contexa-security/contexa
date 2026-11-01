@@ -1,0 +1,2344 @@
+[
+  {
+    "path": "/",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 37,
+      "16px": 5,
+      "12px": 18,
+      "13px": 45,
+      "32px": 1,
+      "15px": 8,
+      "24px": 2,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 52,
+      "500": 16,
+      "600": 44,
+      "700": 5
+    },
+    "buttons": {
+      "44px": 2,
+      "36px": 1,
+      "32px": 4
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"라이브 데모\"",
+      "text svg \"\"",
+      "fill+line a._button_ldime_3 \"계정 탈취 시나리오 실행\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill+line a._button_ldime_3 \"실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 37,
+      "16px": 5,
+      "12px": 18,
+      "13px": 45,
+      "32px": 1,
+      "15px": 8,
+      "24px": 2,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 52,
+      "500": 16,
+      "600": 44,
+      "700": 5
+    },
+    "buttons": {
+      "44px": 2,
+      "36px": 1,
+      "32px": 4
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"Live demo\"",
+      "text svg \"\"",
+      "fill+line a._button_ldime_3 \"Run the account takeover scena\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill+line a._button_ldime_3 \"Run\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 37,
+      "16px": 5,
+      "12px": 18,
+      "13px": 45,
+      "32px": 1,
+      "15px": 8,
+      "24px": 2,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 52,
+      "500": 16,
+      "600": 44,
+      "700": 5
+    },
+    "buttons": {
+      "44px": 2,
+      "36px": 1,
+      "32px": 4
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line a._button_ldime_3 \"계정 탈취 시나리오 실행\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill+line a._button_ldime_3 \"실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 37,
+      "16px": 5,
+      "12px": 18,
+      "13px": 45,
+      "32px": 1,
+      "15px": 8,
+      "24px": 2,
+      "18px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 52,
+      "500": 16,
+      "600": 44,
+      "700": 5
+    },
+    "buttons": {
+      "44px": 2,
+      "36px": 1,
+      "32px": 4
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line a._button_ldime_3 \"Run the account takeover scena\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill+line a._button_ldime_3 \"Run\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 22,
+      "13px": 37,
+      "24px": 1,
+      "15px": 8,
+      "12px": 11,
+      "18px": 3,
+      "16px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 46,
+      "500": 1,
+      "600": 35,
+      "700": 4
+    },
+    "buttons": {
+      "44px": 2,
+      "36px": 1,
+      "32px": 4
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line a._button_ldime_3 \"계정 탈취 시나리오 실행\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill+line a._button_ldime_3 \"실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 22,
+      "13px": 37,
+      "24px": 1,
+      "15px": 8,
+      "12px": 11,
+      "18px": 3,
+      "16px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 46,
+      "500": 1,
+      "600": 35,
+      "700": 4
+    },
+    "buttons": {
+      "44px": 2,
+      "36px": 1,
+      "32px": 4
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line a._button_ldime_3 \"Run the account takeover scena\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill+line a._button_ldime_3 \"Run\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 22,
+      "13px": 37,
+      "24px": 1,
+      "15px": 8,
+      "12px": 11,
+      "18px": 3,
+      "16px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 46,
+      "500": 1,
+      "600": 35,
+      "700": 4
+    },
+    "buttons": {
+      "44px": 2,
+      "36px": 1,
+      "32px": 4
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line a._button_ldime_3 \"계정 탈취 시나리오 실행\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill+line a._button_ldime_3 \"실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 22,
+      "13px": 37,
+      "24px": 1,
+      "15px": 8,
+      "12px": 11,
+      "18px": 3,
+      "16px": 4
+    },
+    "contrast": [],
+    "weights": {
+      "400": 46,
+      "500": 1,
+      "600": 35,
+      "700": 4
+    },
+    "buttons": {
+      "44px": 2,
+      "36px": 1,
+      "32px": 4
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line a._button_ldime_3 \"Run the account takeover scena\"",
+      "fill span._swatch_oztmq_51 \"\"",
+      "fill+line a._button_ldime_3 \"Run\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 29,
+      "13px": 35,
+      "12px": 11,
+      "28px": 1,
+      "15px": 7,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 47,
+      "500": 5,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 4
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"1\"",
+      "fill+line a._button_ldime_3 \"선택\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 29,
+      "13px": 35,
+      "12px": 11,
+      "28px": 1,
+      "15px": 7,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 47,
+      "500": 5,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 4
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"1\"",
+      "fill+line a._button_ldime_3 \"Select\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 29,
+      "13px": 35,
+      "12px": 11,
+      "28px": 1,
+      "15px": 7,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 47,
+      "500": 5,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 4
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"1\"",
+      "fill+line a._button_ldime_3 \"선택\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 29,
+      "13px": 35,
+      "12px": 11,
+      "28px": 1,
+      "15px": 7,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 47,
+      "500": 5,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 4
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"1\"",
+      "fill+line a._button_ldime_3 \"Select\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 26,
+      "13px": 27,
+      "24px": 1,
+      "15px": 7,
+      "12px": 10,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 38,
+      "500": 4,
+      "600": 30,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 4
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"1\"",
+      "fill+line a._button_ldime_3 \"선택\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 26,
+      "13px": 27,
+      "24px": 1,
+      "15px": 7,
+      "12px": 10,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 38,
+      "500": 4,
+      "600": 30,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 4
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"1\"",
+      "fill+line a._button_ldime_3 \"Select\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 26,
+      "13px": 27,
+      "24px": 1,
+      "15px": 7,
+      "12px": 10,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 38,
+      "500": 4,
+      "600": 30,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 4
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"1\"",
+      "fill+line a._button_ldime_3 \"선택\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 26,
+      "13px": 27,
+      "24px": 1,
+      "15px": 7,
+      "12px": 10,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 38,
+      "500": 4,
+      "600": 30,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 4
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"1\"",
+      "fill+line a._button_ldime_3 \"Select\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13/review",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 16,
+      "13px": 29,
+      "12px": 17,
+      "28px": 1,
+      "16px": 7,
+      "18px": 1,
+      "15px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 29,
+      "500": 3,
+      "600": 38,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill span._swatch_11iur_159 \"\"",
+      "fill+line button._button_ldime_3 \"요청 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13/review",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 16,
+      "13px": 29,
+      "12px": 17,
+      "28px": 1,
+      "16px": 7,
+      "18px": 1,
+      "15px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 29,
+      "500": 3,
+      "600": 38,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill span._swatch_11iur_159 \"\"",
+      "fill+line button._button_ldime_3 \"Run the request\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13/review",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 16,
+      "13px": 29,
+      "12px": 17,
+      "28px": 1,
+      "16px": 7,
+      "18px": 1,
+      "15px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 29,
+      "500": 3,
+      "600": 38,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill span._swatch_11iur_159 \"\"",
+      "fill+line button._button_ldime_3 \"요청 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13/review",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 16,
+      "13px": 29,
+      "12px": 17,
+      "28px": 1,
+      "16px": 7,
+      "18px": 1,
+      "15px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 29,
+      "500": 3,
+      "600": 38,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill span._swatch_11iur_159 \"\"",
+      "fill+line button._button_ldime_3 \"Run the request\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13/review",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 13,
+      "13px": 21,
+      "12px": 16,
+      "24px": 1,
+      "16px": 7,
+      "18px": 1,
+      "15px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 20,
+      "500": 2,
+      "600": 36,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill span._swatch_11iur_159 \"\"",
+      "fill+line button._button_ldime_3 \"요청 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13/review",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 13,
+      "13px": 21,
+      "12px": 16,
+      "24px": 1,
+      "16px": 7,
+      "18px": 1,
+      "15px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 20,
+      "500": 2,
+      "600": 36,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill span._swatch_11iur_159 \"\"",
+      "fill+line button._button_ldime_3 \"Run the request\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13/review",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 13,
+      "13px": 21,
+      "12px": 16,
+      "24px": 1,
+      "16px": 7,
+      "18px": 1,
+      "15px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 20,
+      "500": 2,
+      "600": 36,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill span._swatch_11iur_159 \"\"",
+      "fill+line button._button_ldime_3 \"요청 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13/review",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 13,
+      "13px": 21,
+      "12px": 16,
+      "24px": 1,
+      "16px": 7,
+      "18px": 1,
+      "15px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 20,
+      "500": 2,
+      "600": 36,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill span._swatch_11iur_159 \"\"",
+      "fill+line button._button_ldime_3 \"Run the request\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S16/review",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 16,
+      "13px": 29,
+      "12px": 12,
+      "28px": 1,
+      "16px": 7,
+      "18px": 1,
+      "15px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 28,
+      "500": 3,
+      "600": 34,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill span._swatch_11iur_159 \"\"",
+      "fill+line button._button_ldime_3 \"요청 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S16/review",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 16,
+      "13px": 29,
+      "12px": 12,
+      "28px": 1,
+      "16px": 7,
+      "18px": 1,
+      "15px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 28,
+      "500": 3,
+      "600": 34,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill span._swatch_11iur_159 \"\"",
+      "fill+line button._button_ldime_3 \"Run the request\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S16/review",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 16,
+      "13px": 29,
+      "12px": 12,
+      "28px": 1,
+      "16px": 7,
+      "18px": 1,
+      "15px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 28,
+      "500": 3,
+      "600": 34,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill span._swatch_11iur_159 \"\"",
+      "fill+line button._button_ldime_3 \"요청 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S16/review",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 16,
+      "13px": 29,
+      "12px": 12,
+      "28px": 1,
+      "16px": 7,
+      "18px": 1,
+      "15px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 28,
+      "500": 3,
+      "600": 34,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill span._swatch_11iur_159 \"\"",
+      "fill+line button._button_ldime_3 \"Run the request\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S16/review",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 13,
+      "13px": 21,
+      "12px": 11,
+      "24px": 1,
+      "16px": 7,
+      "18px": 1,
+      "15px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 19,
+      "500": 2,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill span._swatch_11iur_159 \"\"",
+      "fill+line button._button_ldime_3 \"요청 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S16/review",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 13,
+      "13px": 21,
+      "12px": 11,
+      "24px": 1,
+      "16px": 7,
+      "18px": 1,
+      "15px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 19,
+      "500": 2,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill span._swatch_11iur_159 \"\"",
+      "fill+line button._button_ldime_3 \"Run the request\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S16/review",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 13,
+      "13px": 21,
+      "12px": 11,
+      "24px": 1,
+      "16px": 7,
+      "18px": 1,
+      "15px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 19,
+      "500": 2,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill span._swatch_11iur_159 \"\"",
+      "fill+line button._button_ldime_3 \"요청 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S16/review",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 13,
+      "13px": 21,
+      "12px": 11,
+      "24px": 1,
+      "16px": 7,
+      "18px": 1,
+      "15px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 19,
+      "500": 2,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1,
+      "44px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"2\"",
+      "fill span._swatch_11iur_159 \"\"",
+      "fill+line button._button_ldime_3 \"Run the request\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13/live",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 8,
+      "13px": 12,
+      "12px": 2,
+      "28px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 11,
+      "500": 2,
+      "600": 8,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"3\"",
+      "fill+line a._button_ldime_3 \"요청 검토로\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13/live",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 8,
+      "13px": 12,
+      "12px": 2,
+      "28px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 11,
+      "500": 2,
+      "600": 8,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"3\"",
+      "fill+line a._button_ldime_3 \"To the request review\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13/live",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 8,
+      "13px": 12,
+      "12px": 2,
+      "28px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 11,
+      "500": 2,
+      "600": 8,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"3\"",
+      "fill+line a._button_ldime_3 \"요청 검토로\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13/live",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 8,
+      "13px": 12,
+      "12px": 2,
+      "28px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 11,
+      "500": 2,
+      "600": 8,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"3\"",
+      "fill+line a._button_ldime_3 \"To the request review\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13/live",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 5,
+      "13px": 4,
+      "12px": 1,
+      "24px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 2,
+      "500": 1,
+      "600": 6,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"3\"",
+      "fill+line a._button_ldime_3 \"요청 검토로\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13/live",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 5,
+      "13px": 4,
+      "12px": 1,
+      "24px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 2,
+      "500": 1,
+      "600": 6,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"3\"",
+      "fill+line a._button_ldime_3 \"To the request review\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13/live",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 5,
+      "13px": 4,
+      "12px": 1,
+      "24px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 2,
+      "500": 1,
+      "600": 6,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"3\"",
+      "fill+line a._button_ldime_3 \"요청 검토로\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13/live",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 5,
+      "13px": 4,
+      "12px": 1,
+      "24px": 1
+    },
+    "contrast": [],
+    "weights": {
+      "400": 2,
+      "500": 1,
+      "600": 6,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 1
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"3\"",
+      "fill+line a._button_ldime_3 \"To the request review\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13/result?run=run-f2b58445fb72",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 33,
+      "13px": 32,
+      "12px": 17,
+      "24px": 1,
+      "15px": 1,
+      "18px": 4,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 52,
+      "500": 5,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "fill+line a._button_ldime_3 \"S13T 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13/result?run=run-f2b58445fb72",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 33,
+      "13px": 32,
+      "12px": 17,
+      "24px": 1,
+      "15px": 1,
+      "18px": 4,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 52,
+      "500": 5,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "fill+line a._button_ldime_3 \"Run S13T\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13/result?run=run-f2b58445fb72",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 33,
+      "13px": 32,
+      "12px": 17,
+      "24px": 1,
+      "15px": 1,
+      "18px": 4,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 52,
+      "500": 5,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "fill+line a._button_ldime_3 \"S13T 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13/result?run=run-f2b58445fb72",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 33,
+      "13px": 32,
+      "12px": 17,
+      "24px": 1,
+      "15px": 1,
+      "18px": 4,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 52,
+      "500": 5,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "fill+line a._button_ldime_3 \"Run S13T\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13/result?run=run-f2b58445fb72",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 30,
+      "13px": 24,
+      "24px": 1,
+      "15px": 1,
+      "12px": 13,
+      "18px": 4,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 40,
+      "500": 4,
+      "600": 30,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "fill+line a._button_ldime_3 \"S13T 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13/result?run=run-f2b58445fb72",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 30,
+      "13px": 24,
+      "24px": 1,
+      "15px": 1,
+      "12px": 13,
+      "18px": 4,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 40,
+      "500": 4,
+      "600": 30,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 391,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "fill+line a._button_ldime_3 \"Run S13T\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13/result?run=run-f2b58445fb72",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 30,
+      "13px": 24,
+      "24px": 1,
+      "15px": 1,
+      "12px": 13,
+      "18px": 4,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 40,
+      "500": 4,
+      "600": 30,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "fill+line a._button_ldime_3 \"S13T 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13/result?run=run-f2b58445fb72",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 30,
+      "13px": 24,
+      "24px": 1,
+      "15px": 1,
+      "12px": 13,
+      "18px": 4,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 40,
+      "500": 4,
+      "600": 30,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 391,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "fill+line a._button_ldime_3 \"Run S13T\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13T/result?run=run-2856ed7c3563",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 33,
+      "13px": 32,
+      "12px": 17,
+      "24px": 1,
+      "15px": 1,
+      "18px": 4,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 52,
+      "500": 5,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "fill span._fill_26sgp_72 \"\"",
+      "fill+line a._button_ldime_3 \"S13 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13T/result?run=run-2856ed7c3563",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 33,
+      "13px": 32,
+      "12px": 17,
+      "24px": 1,
+      "15px": 1,
+      "18px": 4,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 52,
+      "500": 5,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "fill span._fill_26sgp_72 \"\"",
+      "fill+line a._button_ldime_3 \"Run S13\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13T/result?run=run-2856ed7c3563",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 33,
+      "13px": 32,
+      "12px": 17,
+      "24px": 1,
+      "15px": 1,
+      "18px": 4,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 52,
+      "500": 5,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "fill span._fill_26sgp_72 \"\"",
+      "fill+line a._button_ldime_3 \"S13 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13T/result?run=run-2856ed7c3563",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 33,
+      "13px": 32,
+      "12px": 17,
+      "24px": 1,
+      "15px": 1,
+      "18px": 4,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 52,
+      "500": 5,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "fill span._fill_26sgp_72 \"\"",
+      "fill+line a._button_ldime_3 \"Run S13\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13T/result?run=run-2856ed7c3563",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 30,
+      "13px": 24,
+      "24px": 1,
+      "15px": 1,
+      "12px": 13,
+      "18px": 4,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 40,
+      "500": 4,
+      "600": 30,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "fill span._fill_26sgp_72 \"\"",
+      "fill+line a._button_ldime_3 \"S13 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13T/result?run=run-2856ed7c3563",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 30,
+      "13px": 24,
+      "24px": 1,
+      "15px": 1,
+      "12px": 13,
+      "18px": 4,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 40,
+      "500": 4,
+      "600": 30,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 391,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "fill span._fill_26sgp_72 \"\"",
+      "fill+line a._button_ldime_3 \"Run S13\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13T/result?run=run-2856ed7c3563",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 30,
+      "13px": 24,
+      "24px": 1,
+      "15px": 1,
+      "12px": 13,
+      "18px": 4,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 40,
+      "500": 4,
+      "600": 30,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "fill span._fill_26sgp_72 \"\"",
+      "fill+line a._button_ldime_3 \"S13 실행\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S13T/result?run=run-2856ed7c3563",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 30,
+      "13px": 24,
+      "24px": 1,
+      "15px": 1,
+      "12px": 13,
+      "18px": 4,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 40,
+      "500": 4,
+      "600": 30,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 391,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "fill span._fill_26sgp_72 \"\"",
+      "fill+line a._button_ldime_3 \"Run S13\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S16/result?run=run-4f4e198f551f",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 34,
+      "13px": 33,
+      "12px": 17,
+      "24px": 1,
+      "15px": 1,
+      "18px": 4,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 54,
+      "500": 5,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "fill span._fill_26sgp_72 \"\"",
+      "fill+line a._button_ldime_3 \"에이전트 시나리오\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S16/result?run=run-4f4e198f551f",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 34,
+      "13px": 33,
+      "12px": 17,
+      "24px": 1,
+      "15px": 1,
+      "18px": 4,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 54,
+      "500": 5,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "fill span._fill_26sgp_72 \"\"",
+      "fill+line a._button_ldime_3 \"Agent scenarios\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S16/result?run=run-4f4e198f551f",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 34,
+      "13px": 33,
+      "12px": 17,
+      "24px": 1,
+      "15px": 1,
+      "18px": 4,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 54,
+      "500": 5,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "fill span._fill_26sgp_72 \"\"",
+      "fill+line a._button_ldime_3 \"에이전트 시나리오\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S16/result?run=run-4f4e198f551f",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 34,
+      "13px": 33,
+      "12px": 17,
+      "24px": 1,
+      "15px": 1,
+      "18px": 4,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 54,
+      "500": 5,
+      "600": 32,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "fill span._fill_26sgp_72 \"\"",
+      "fill+line a._button_ldime_3 \"Agent scenarios\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S16/result?run=run-4f4e198f551f",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 31,
+      "13px": 25,
+      "24px": 1,
+      "15px": 1,
+      "12px": 13,
+      "18px": 4,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 42,
+      "500": 4,
+      "600": 30,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "fill span._fill_26sgp_72 \"\"",
+      "fill+line a._button_ldime_3 \"에이전트 시나리오\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S16/result?run=run-4f4e198f551f",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 31,
+      "13px": 25,
+      "24px": 1,
+      "15px": 1,
+      "12px": 13,
+      "18px": 4,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 42,
+      "500": 4,
+      "600": 30,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 391,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "fill span._fill_26sgp_72 \"\"",
+      "fill+line a._button_ldime_3 \"Agent scenarios\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S16/result?run=run-4f4e198f551f",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 31,
+      "13px": 25,
+      "24px": 1,
+      "15px": 1,
+      "12px": 13,
+      "18px": 4,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 42,
+      "500": 4,
+      "600": 30,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "fill span._fill_26sgp_72 \"\"",
+      "fill+line a._button_ldime_3 \"에이전트 시나리오\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/simulate/person/S16/result?run=run-4f4e198f551f",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 31,
+      "13px": 25,
+      "24px": 1,
+      "15px": 1,
+      "12px": 13,
+      "18px": 4,
+      "16px": 3
+    },
+    "contrast": [],
+    "weights": {
+      "400": 42,
+      "500": 4,
+      "600": 30,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 391,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "fill+line span._stepMark_1lfrp_91 \"4\"",
+      "fill span._fill_26sgp_72 \"\"",
+      "fill+line a._button_ldime_3 \"Agent scenarios\""
+    ],
+    "axe": []
+  }
+]

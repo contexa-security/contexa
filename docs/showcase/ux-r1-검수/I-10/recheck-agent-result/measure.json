@@ -1,0 +1,1700 @@
+[
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 64,
+      "13px": 55,
+      "12px": 10,
+      "24px": 1,
+      "15px": 8,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [],
+    "contrast": [],
+    "weights": {
+      "400": 82,
+      "500": 12,
+      "600": 49,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill span._liveIcon_qzzp2_277 \"\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"요청 1문서 목록 보기/api/projects/HX-3\"",
+      "fill+line a._button_ldime_3 \"N1 실행\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 64,
+      "13px": 55,
+      "12px": 10,
+      "24px": 1,
+      "15px": 8,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [
+      "div._countsScroll_1o04w_583 \"Data let go by kindSecurity co\" +124px"
+    ],
+    "contrast": [],
+    "weights": {
+      "400": 82,
+      "500": 12,
+      "600": 49,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill span._liveIcon_qzzp2_277 \"\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"Request 1View the document lis\"",
+      "fill+line a._button_ldime_3 \"Run N1\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 64,
+      "13px": 55,
+      "12px": 10,
+      "24px": 1,
+      "15px": 8,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [],
+    "contrast": [],
+    "weights": {
+      "400": 82,
+      "500": 12,
+      "600": 49,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill span._liveIcon_qzzp2_277 \"\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"요청 1문서 목록 보기/api/projects/HX-3\"",
+      "fill+line a._button_ldime_3 \"N1 실행\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 64,
+      "13px": 55,
+      "12px": 10,
+      "24px": 1,
+      "15px": 8,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [
+      "div._countsScroll_1o04w_583 \"Data let go by kindSecurity co\" +124px"
+    ],
+    "contrast": [],
+    "weights": {
+      "400": 82,
+      "500": 12,
+      "600": 49,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill span._liveIcon_qzzp2_277 \"\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"Request 1View the document lis\"",
+      "fill+line a._button_ldime_3 \"Run N1\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 1280,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 64,
+      "13px": 55,
+      "12px": 10,
+      "24px": 1,
+      "15px": 8,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [],
+    "contrast": [],
+    "weights": {
+      "400": 82,
+      "500": 12,
+      "600": 49,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1280,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill span._liveIcon_qzzp2_277 \"\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"요청 1문서 목록 보기/api/projects/HX-3\"",
+      "fill+line a._button_ldime_3 \"N1 실행\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 1280,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 64,
+      "13px": 55,
+      "12px": 10,
+      "24px": 1,
+      "15px": 8,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [
+      "div._countsScroll_1o04w_583 \"Data let go by kindSecurity co\" +124px"
+    ],
+    "contrast": [],
+    "weights": {
+      "400": 82,
+      "500": 12,
+      "600": 49,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1280,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill span._liveIcon_qzzp2_277 \"\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"Request 1View the document lis\"",
+      "fill+line a._button_ldime_3 \"Run N1\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 1280,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 64,
+      "13px": 55,
+      "12px": 10,
+      "24px": 1,
+      "15px": 8,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [],
+    "contrast": [],
+    "weights": {
+      "400": 82,
+      "500": 12,
+      "600": 49,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1280,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill span._liveIcon_qzzp2_277 \"\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"요청 1문서 목록 보기/api/projects/HX-3\"",
+      "fill+line a._button_ldime_3 \"N1 실행\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 1280,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 64,
+      "13px": 55,
+      "12px": 10,
+      "24px": 1,
+      "15px": 8,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [
+      "div._countsScroll_1o04w_583 \"Data let go by kindSecurity co\" +124px"
+    ],
+    "contrast": [],
+    "weights": {
+      "400": 82,
+      "500": 12,
+      "600": 49,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1280,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill span._liveIcon_qzzp2_277 \"\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"Request 1View the document lis\"",
+      "fill+line a._button_ldime_3 \"Run N1\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 1024,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 64,
+      "13px": 51,
+      "12px": 10,
+      "24px": 1,
+      "15px": 8,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [],
+    "contrast": [],
+    "weights": {
+      "400": 80,
+      "500": 12,
+      "600": 47,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1024,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill span._liveIcon_qzzp2_277 \"\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"요청 1문서 목록 보기/api/projects/HX-3\"",
+      "fill+line a._button_ldime_3 \"N1 실행\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 1024,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 64,
+      "13px": 46,
+      "12px": 10,
+      "24px": 1,
+      "15px": 8,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [
+      "div._countsScroll_1o04w_583 \"Each control across the workSe\" +70px",
+      "div._countsScroll_1o04w_583 \"Data let go by kindSecurity co\" +259px",
+      "div._scroll_v6gb0_1 \"Requests the agent sentRequest\" +50px"
+    ],
+    "contrast": [],
+    "weights": {
+      "400": 75,
+      "500": 12,
+      "600": 47,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1024,
+    "leaks": [],
+    "lonely": [
+      "code \"ctxa-as:140c2aaa-a07f-4d66-9ca\""
+    ],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill span._liveIcon_qzzp2_277 \"\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"Request 1View the document lis\"",
+      "fill+line a._button_ldime_3 \"Run N1\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 1024,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 64,
+      "13px": 51,
+      "12px": 10,
+      "24px": 1,
+      "15px": 8,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [],
+    "contrast": [],
+    "weights": {
+      "400": 80,
+      "500": 12,
+      "600": 47,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1024,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill span._liveIcon_qzzp2_277 \"\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"요청 1문서 목록 보기/api/projects/HX-3\"",
+      "fill+line a._button_ldime_3 \"N1 실행\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 1024,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 64,
+      "13px": 46,
+      "12px": 10,
+      "24px": 1,
+      "15px": 8,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [
+      "div._countsScroll_1o04w_583 \"Each control across the workSe\" +70px",
+      "div._countsScroll_1o04w_583 \"Data let go by kindSecurity co\" +259px",
+      "div._scroll_v6gb0_1 \"Requests the agent sentRequest\" +50px"
+    ],
+    "contrast": [],
+    "weights": {
+      "400": 75,
+      "500": 12,
+      "600": 47,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1024,
+    "leaks": [],
+    "lonely": [
+      "code \"ctxa-as:140c2aaa-a07f-4d66-9ca\""
+    ],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill span._liveIcon_qzzp2_277 \"\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"Request 1View the document lis\"",
+      "fill+line a._button_ldime_3 \"Run N1\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 768,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 61,
+      "13px": 50,
+      "12px": 10,
+      "24px": 1,
+      "15px": 8,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [],
+    "contrast": [],
+    "weights": {
+      "400": 77,
+      "500": 11,
+      "600": 47,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 768,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"요청 1문서 목록 보기/api/projects/HX-3\"",
+      "fill+line a._button_ldime_3 \"N1 실행\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 768,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 61,
+      "13px": 50,
+      "12px": 10,
+      "24px": 1,
+      "15px": 8,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [
+      "div._countsScroll_1o04w_583 \"Data let go by kindSecurity co\" +48px",
+      "div._scroll_v6gb0_1 \"Requests the agent sentRequest\" +218px"
+    ],
+    "contrast": [],
+    "weights": {
+      "400": 77,
+      "500": 11,
+      "600": 47,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 768,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"Request 1View the document lis\"",
+      "fill+line a._button_ldime_3 \"Run N1\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 768,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 61,
+      "13px": 50,
+      "12px": 10,
+      "24px": 1,
+      "15px": 8,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [],
+    "contrast": [],
+    "weights": {
+      "400": 77,
+      "500": 11,
+      "600": 47,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 768,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"요청 1문서 목록 보기/api/projects/HX-3\"",
+      "fill+line a._button_ldime_3 \"N1 실행\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 768,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 61,
+      "13px": 50,
+      "12px": 10,
+      "24px": 1,
+      "15px": 8,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [
+      "div._countsScroll_1o04w_583 \"Data let go by kindSecurity co\" +48px",
+      "div._scroll_v6gb0_1 \"Requests the agent sentRequest\" +218px"
+    ],
+    "contrast": [],
+    "weights": {
+      "400": 77,
+      "500": 11,
+      "600": 47,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 768,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"Request 1View the document lis\"",
+      "fill+line a._button_ldime_3 \"Run N1\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 61,
+      "13px": 40,
+      "24px": 1,
+      "15px": 8,
+      "12px": 9,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [
+      "div._countsScroll_1o04w_583 \"통제별 결과보안 통제처음 멈춘 요청내준 자료필요 이상웹\" +68px",
+      "div._countsScroll_1o04w_583 \"통제별 내준 자료 구분보안 통제문서항목고객 기록권한 변\" +119px"
+    ],
+    "contrast": [],
+    "weights": {
+      "400": 73,
+      "500": 11,
+      "600": 40,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"요청 1문서 목록 보기/api/projects/HX-3\"",
+      "fill+line a._button_ldime_3 \"N1 실행\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 61,
+      "13px": 35,
+      "24px": 1,
+      "15px": 8,
+      "12px": 9,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [
+      "div._countsScroll_1o04w_583 \"Each control across the workSe\" +221px",
+      "div._countsScroll_1o04w_583 \"Data let go by kindSecurity co\" +410px"
+    ],
+    "contrast": [],
+    "weights": {
+      "400": 68,
+      "500": 11,
+      "600": 40,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 391,
+    "leaks": [],
+    "lonely": [
+      "code \"ctxa-as:140c2aaa-a07f-4d66-9ca\""
+    ],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"Request 1View the document lis\"",
+      "fill+line a._button_ldime_3 \"Run N1\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 61,
+      "13px": 40,
+      "24px": 1,
+      "15px": 8,
+      "12px": 9,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [
+      "div._countsScroll_1o04w_583 \"통제별 결과보안 통제처음 멈춘 요청내준 자료필요 이상웹\" +68px",
+      "div._countsScroll_1o04w_583 \"통제별 내준 자료 구분보안 통제문서항목고객 기록권한 변\" +119px"
+    ],
+    "contrast": [],
+    "weights": {
+      "400": 73,
+      "500": 11,
+      "600": 40,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"요청 1문서 목록 보기/api/projects/HX-3\"",
+      "fill+line a._button_ldime_3 \"N1 실행\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/T5/result?run=run-e6173a5e84e4",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 61,
+      "13px": 35,
+      "24px": 1,
+      "15px": 8,
+      "12px": 9,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [
+      "div._countsScroll_1o04w_583 \"Each control across the workSe\" +221px",
+      "div._countsScroll_1o04w_583 \"Data let go by kindSecurity co\" +410px"
+    ],
+    "contrast": [],
+    "weights": {
+      "400": 68,
+      "500": 11,
+      "600": 40,
+      "700": 2
+    },
+    "buttons": {
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 391,
+    "leaks": [],
+    "lonely": [
+      "code \"ctxa-as:140c2aaa-a07f-4d66-9ca\""
+    ],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "stripe td \"Request 1View the document lis\"",
+      "fill+line a._button_ldime_3 \"Run N1\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 77,
+      "13px": 48,
+      "12px": 52,
+      "24px": 1,
+      "15px": 1,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [],
+    "contrast": [],
+    "weights": {
+      "400": 84,
+      "500": 19,
+      "600": 81,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill span._liveIcon_qzzp2_277 \"\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"시나리오 선택\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 77,
+      "13px": 48,
+      "12px": 52,
+      "24px": 1,
+      "15px": 1,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [
+      "div._countsScroll_1o04w_583 \"Data let go by kindSecurity co\" +124px"
+    ],
+    "contrast": [],
+    "weights": {
+      "400": 84,
+      "500": 19,
+      "600": 81,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill span._liveIcon_qzzp2_277 \"\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"Choose a scenario\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 77,
+      "13px": 48,
+      "12px": 52,
+      "24px": 1,
+      "15px": 1,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [],
+    "contrast": [],
+    "weights": {
+      "400": 84,
+      "500": 19,
+      "600": 81,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill span._liveIcon_qzzp2_277 \"\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"시나리오 선택\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 77,
+      "13px": 48,
+      "12px": 52,
+      "24px": 1,
+      "15px": 1,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [
+      "div._countsScroll_1o04w_583 \"Data let go by kindSecurity co\" +124px"
+    ],
+    "contrast": [],
+    "weights": {
+      "400": 84,
+      "500": 19,
+      "600": 81,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill span._liveIcon_qzzp2_277 \"\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"Choose a scenario\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 1280,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 77,
+      "13px": 48,
+      "12px": 52,
+      "24px": 1,
+      "15px": 1,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [],
+    "contrast": [],
+    "weights": {
+      "400": 84,
+      "500": 19,
+      "600": 81,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1280,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill span._liveIcon_qzzp2_277 \"\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"시나리오 선택\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 1280,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 77,
+      "13px": 48,
+      "12px": 52,
+      "24px": 1,
+      "15px": 1,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [
+      "div._countsScroll_1o04w_583 \"Data let go by kindSecurity co\" +124px"
+    ],
+    "contrast": [],
+    "weights": {
+      "400": 84,
+      "500": 19,
+      "600": 81,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1280,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill span._liveIcon_qzzp2_277 \"\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"Choose a scenario\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 1280,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 77,
+      "13px": 48,
+      "12px": 52,
+      "24px": 1,
+      "15px": 1,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [],
+    "contrast": [],
+    "weights": {
+      "400": 84,
+      "500": 19,
+      "600": 81,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1280,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill span._liveIcon_qzzp2_277 \"\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"시나리오 선택\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 1280,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 77,
+      "13px": 48,
+      "12px": 52,
+      "24px": 1,
+      "15px": 1,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [
+      "div._countsScroll_1o04w_583 \"Data let go by kindSecurity co\" +124px"
+    ],
+    "contrast": [],
+    "weights": {
+      "400": 84,
+      "500": 19,
+      "600": 81,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1280,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill span._liveIcon_qzzp2_277 \"\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"Choose a scenario\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 1024,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 77,
+      "13px": 44,
+      "12px": 52,
+      "24px": 1,
+      "15px": 1,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [],
+    "contrast": [],
+    "weights": {
+      "400": 82,
+      "500": 19,
+      "600": 79,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1024,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill span._liveIcon_qzzp2_277 \"\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"시나리오 선택\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 1024,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 77,
+      "13px": 44,
+      "12px": 52,
+      "24px": 1,
+      "15px": 1,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [
+      "div._countsScroll_1o04w_583 \"Each control across the workSe\" +70px",
+      "div._countsScroll_1o04w_583 \"Data let go by kindSecurity co\" +259px"
+    ],
+    "contrast": [],
+    "weights": {
+      "400": 82,
+      "500": 19,
+      "600": 79,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1024,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill span._liveIcon_qzzp2_277 \"\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"Choose a scenario\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 1024,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 77,
+      "13px": 44,
+      "12px": 52,
+      "24px": 1,
+      "15px": 1,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [],
+    "contrast": [],
+    "weights": {
+      "400": 82,
+      "500": 19,
+      "600": 79,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1024,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill span._liveIcon_qzzp2_277 \"\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"시나리오 선택\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 1024,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 77,
+      "13px": 44,
+      "12px": 52,
+      "24px": 1,
+      "15px": 1,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [
+      "div._countsScroll_1o04w_583 \"Each control across the workSe\" +70px",
+      "div._countsScroll_1o04w_583 \"Data let go by kindSecurity co\" +259px"
+    ],
+    "contrast": [],
+    "weights": {
+      "400": 82,
+      "500": 19,
+      "600": 79,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 1024,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill span._liveIcon_qzzp2_277 \"\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"Choose a scenario\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 768,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 74,
+      "13px": 43,
+      "12px": 52,
+      "24px": 1,
+      "15px": 1,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [],
+    "contrast": [],
+    "weights": {
+      "400": 79,
+      "500": 18,
+      "600": 79,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 768,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"시나리오 선택\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 768,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 74,
+      "13px": 43,
+      "12px": 52,
+      "24px": 1,
+      "15px": 1,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [
+      "div._countsScroll_1o04w_583 \"Data let go by kindSecurity co\" +48px",
+      "div._scroll_v6gb0_1 \"Requests the agent sentRequest\" +158px"
+    ],
+    "contrast": [],
+    "weights": {
+      "400": 79,
+      "500": 18,
+      "600": 79,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 768,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"Choose a scenario\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 768,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 74,
+      "13px": 43,
+      "12px": 52,
+      "24px": 1,
+      "15px": 1,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [],
+    "contrast": [],
+    "weights": {
+      "400": 79,
+      "500": 18,
+      "600": 79,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 768,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"시나리오 선택\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 768,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 74,
+      "13px": 43,
+      "12px": 52,
+      "24px": 1,
+      "15px": 1,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [
+      "div._countsScroll_1o04w_583 \"Data let go by kindSecurity co\" +48px",
+      "div._scroll_v6gb0_1 \"Requests the agent sentRequest\" +158px"
+    ],
+    "contrast": [],
+    "weights": {
+      "400": 79,
+      "500": 18,
+      "600": 79,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 768,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"Choose a scenario\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 74,
+      "13px": 33,
+      "24px": 1,
+      "15px": 1,
+      "12px": 51,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [
+      "div._countsScroll_1o04w_583 \"통제별 결과보안 통제처음 멈춘 요청내준 자료필요 이상웹\" +68px",
+      "div._countsScroll_1o04w_583 \"통제별 내준 자료 구분보안 통제문서항목고객 기록권한 변\" +119px"
+    ],
+    "contrast": [],
+    "weights": {
+      "400": 75,
+      "500": 18,
+      "600": 72,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"시나리오 선택\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 74,
+      "13px": 33,
+      "24px": 1,
+      "15px": 1,
+      "12px": 51,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [
+      "div._countsScroll_1o04w_583 \"Each control across the workSe\" +221px",
+      "div._countsScroll_1o04w_583 \"Data let go by kindSecurity co\" +410px"
+    ],
+    "contrast": [],
+    "weights": {
+      "400": 75,
+      "500": 18,
+      "600": 72,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 391,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"Choose a scenario\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 74,
+      "13px": 33,
+      "24px": 1,
+      "15px": 1,
+      "12px": 51,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [
+      "div._countsScroll_1o04w_583 \"통제별 결과보안 통제처음 멈춘 요청내준 자료필요 이상웹\" +68px",
+      "div._countsScroll_1o04w_583 \"통제별 내준 자료 구분보안 통제문서항목고객 기록권한 변\" +119px"
+    ],
+    "contrast": [],
+    "weights": {
+      "400": 75,
+      "500": 18,
+      "600": 72,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"시나리오 선택\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  },
+  {
+    "path": "/simulate/agent/N1/result?run=run-6ed9d5055f95",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 74,
+      "13px": 33,
+      "24px": 1,
+      "15px": 1,
+      "12px": 51,
+      "18px": 3,
+      "16px": 4
+    },
+    "scrollBoxes": [
+      "div._countsScroll_1o04w_583 \"Each control across the workSe\" +221px",
+      "div._countsScroll_1o04w_583 \"Data let go by kindSecurity co\" +410px"
+    ],
+    "contrast": [],
+    "weights": {
+      "400": 75,
+      "500": 18,
+      "600": 72,
+      "700": 2
+    },
+    "buttons": {
+      "32px": 1,
+      "36px": 3
+    },
+    "pageScroll": false,
+    "scrollWidth": 391,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_qzzp2_64 \"C\"",
+      "fill+line span._stepMark_vq79b_91 \"4\"",
+      "stripe th \"Contexa\"",
+      "fill+line a._button_ldime_3 \"Choose a scenario\""
+    ],
+    "errors": [],
+    "headings": 1,
+    "axe": []
+  }
+]

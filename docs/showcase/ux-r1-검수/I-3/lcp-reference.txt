@@ -1,0 +1,5 @@
+첫 화면(/?lng=ko) LCP 참고값 — 2026-10-31 17:47Z, 포털 19180 운영 빌드, Playwright Chromium 1440×900, 망 · CPU 제한 없음, 새 브라우저 문맥 3회
+공식 판정값이 아니다. 공식 측정(Lighthouse 느린 4G · CPU 4배)은 I-10에서 한다.
+172ms H1._heroTitle_1xz45_39
+152ms H1._heroTitle_1xz45_39
+148ms H1._heroTitle_1xz45_39

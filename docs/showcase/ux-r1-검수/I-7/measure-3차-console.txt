@@ -1,0 +1,113 @@
+_metrics_tab_overview_1440_dark_ko: sizes[32px 28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=4 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_overview_1440_dark_en: sizes[32px 28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=4 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_overview_1440_light_ko: sizes[32px 28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_overview_1440_light_en: sizes[32px 28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_overview_390_dark_ko: sizes[24px 18px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_overview_390_dark_en: sizes[24px 18px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_overview_390_light_ko: sizes[24px 18px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_overview_390_light_en: sizes[24px 18px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_decisions_1440_dark_ko: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=4 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_decisions_1440_dark_en: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=4 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_decisions_1440_light_ko: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_decisions_1440_light_en: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_decisions_390_dark_ko: sizes[24px 18px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_decisions_390_dark_en: sizes[24px 18px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_decisions_390_light_ko: sizes[24px 18px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_decisions_390_light_en: sizes[24px 18px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_latency_1440_dark_ko: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=4 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_latency_1440_dark_en: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=4 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_latency_1440_light_ko: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_latency_1440_light_en: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_latency_390_dark_ko: sizes[24px 18px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_latency_390_dark_en: sizes[24px 18px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_latency_390_light_ko: sizes[24px 18px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_latency_390_light_en: sizes[24px 18px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_runs_1440_dark_ko: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=4 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_runs_1440_dark_en: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=4 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_runs_1440_light_ko: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_runs_1440_light_en: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_runs_390_dark_ko: sizes[24px 18px 15px 14px 13px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_runs_390_dark_en: sizes[24px 18px 15px 14px 13px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_runs_390_light_ko: sizes[24px 18px 15px 14px 13px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_runs_390_light_en: sizes[24px 18px 15px 14px 13px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_agreement_1440_dark_ko: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=4 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_agreement_1440_dark_en: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=4 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_agreement_1440_light_ko: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_agreement_1440_light_en: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_agreement_390_dark_ko: sizes[24px 18px 15px 14px 13px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_agreement_390_dark_en: sizes[24px 18px 15px 14px 13px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_agreement_390_light_ko: sizes[24px 18px 15px 14px 13px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_metrics_tab_agreement_390_light_en: sizes[24px 18px 15px 14px 13px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_steps_1440_dark_ko: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[36px 32px] scroll=false leaks=0 lonely=0 gold=4 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_steps_1440_dark_en: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[36px 32px] scroll=false leaks=0 lonely=0 gold=4 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_steps_1440_light_ko: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[36px 32px] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_steps_1440_light_en: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[36px 32px] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_steps_390_dark_ko: sizes[24px 18px 15px 14px 13px] buttons[36px 32px] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_steps_390_dark_en: sizes[24px 18px 15px 14px 13px] buttons[36px 32px] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_steps_390_light_ko: sizes[24px 18px 15px 14px 13px] buttons[36px 32px] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_steps_390_light_en: sizes[24px 18px 15px 14px 13px] buttons[36px 32px] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_shadow_1440_dark_ko: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[36px 32px] scroll=false leaks=0 lonely=0 gold=4 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_shadow_1440_dark_en: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[36px 32px] scroll=false leaks=0 lonely=0 gold=4 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_shadow_1440_light_ko: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[36px 32px] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_shadow_1440_light_en: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[36px 32px] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_shadow_390_dark_ko: sizes[24px 18px 15px 14px 13px 12px] buttons[36px 32px] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_shadow_390_dark_en: sizes[24px 18px 15px 14px 13px 12px] buttons[36px 32px] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_shadow_390_light_ko: sizes[24px 18px 15px 14px 13px 12px] buttons[36px 32px] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_shadow_390_light_en: sizes[24px 18px 15px 14px 13px 12px] buttons[36px 32px] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_retention_1440_dark_ko: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[36px] scroll=false leaks=0 lonely=0 gold=4 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_retention_1440_dark_en: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[36px] scroll=false leaks=0 lonely=0 gold=4 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_retention_1440_light_ko: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[36px] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_retention_1440_light_en: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[36px] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_retention_390_dark_ko: sizes[24px 18px 15px 14px 13px] buttons[36px] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_retention_390_dark_en: sizes[24px 18px 15px 14px 13px] buttons[36px] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_retention_390_light_ko: sizes[24px 18px 15px 14px 13px] buttons[36px] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_retention_390_light_en: sizes[24px 18px 15px 14px 13px] buttons[36px] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_integration_1440_dark_ko: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[36px 32px] scroll=false leaks=0 lonely=0 gold=4 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_integration_1440_dark_en: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[36px 32px] scroll=false leaks=0 lonely=0 gold=4 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_integration_1440_light_ko: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[36px 32px] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_integration_1440_light_en: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[36px 32px] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_integration_390_dark_ko: sizes[24px 18px 15px 14px 13px] buttons[36px 32px] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_integration_390_dark_en: sizes[24px 18px 15px 14px 13px] buttons[36px 32px] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_integration_390_light_ko: sizes[24px 18px 15px 14px 13px] buttons[36px 32px] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_adopt_tab_integration_390_light_en: sizes[24px 18px 15px 14px 13px] buttons[36px 32px] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_glossary_1440_dark_ko: sizes[28px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_glossary_1440_dark_en: sizes[28px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_glossary_1440_light_ko: sizes[28px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_glossary_1440_light_en: sizes[28px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_glossary_390_dark_ko: sizes[24px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=1 contrast=0 axe=0 errors=0 h1=1
+_glossary_390_dark_en: sizes[24px 15px 14px 13px] buttons[] scroll=false leaks=0 lonely=0 gold=1 contrast=0 axe=0 errors=0 h1=1
+_glossary_390_light_ko: sizes[24px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=1 contrast=0 axe=0 errors=0 h1=1
+_glossary_390_light_en: sizes[24px 15px 14px 13px] buttons[] scroll=false leaks=0 lonely=0 gold=1 contrast=0 axe=0 errors=0 h1=1
+_glossary_term_baseline_1440_dark_ko: sizes[28px 16px 15px 14px 13px 12px] buttons[36px] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_glossary_term_baseline_1440_dark_en: sizes[28px 16px 15px 14px 13px 12px] buttons[36px] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_glossary_term_baseline_1440_light_ko: sizes[28px 16px 15px 14px 13px 12px] buttons[36px] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_glossary_term_baseline_1440_light_en: sizes[28px 16px 15px 14px 13px 12px] buttons[36px] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_glossary_term_baseline_390_dark_ko: sizes[24px 18px 15px 14px 13px 12px] buttons[36px] scroll=false leaks=0 lonely=0 gold=1 contrast=0 axe=0 errors=0 h1=1
+_glossary_term_baseline_390_dark_en: sizes[24px 18px 15px 14px 13px] buttons[36px] scroll=false leaks=0 lonely=0 gold=1 contrast=0 axe=0 errors=0 h1=1
+_glossary_term_baseline_390_light_ko: sizes[24px 18px 15px 14px 13px 12px] buttons[36px] scroll=false leaks=0 lonely=0 gold=1 contrast=0 axe=0 errors=0 h1=1
+_glossary_term_baseline_390_light_en: sizes[24px 18px 15px 14px 13px] buttons[36px] scroll=false leaks=0 lonely=0 gold=1 contrast=0 axe=0 errors=0 h1=1
+_privacy_1440_dark_ko: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_privacy_1440_dark_en: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_privacy_1440_light_ko: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_privacy_1440_light_en: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_privacy_390_dark_ko: sizes[24px 18px 15px 14px 13px] buttons[] scroll=false leaks=0 lonely=0 gold=1 contrast=0 axe=0 errors=0 h1=1
+_privacy_390_dark_en: sizes[24px 18px 15px 14px 13px] buttons[] scroll=false leaks=0 lonely=0 gold=1 contrast=0 axe=0 errors=0 h1=1
+_privacy_390_light_ko: sizes[24px 18px 15px 14px 13px] buttons[] scroll=false leaks=0 lonely=0 gold=1 contrast=0 axe=0 errors=0 h1=1
+_privacy_390_light_en: sizes[24px 18px 15px 14px 13px] buttons[] scroll=false leaks=0 lonely=0 gold=1 contrast=0 axe=0 errors=0 h1=1
+_tour_1440_dark_ko: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_tour_1440_dark_en: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_tour_1440_light_ko: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_tour_1440_light_en: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_tour_390_dark_ko: sizes[24px 18px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=1 contrast=0 axe=0 errors=0 h1=1
+_tour_390_dark_en: sizes[24px 18px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=1 contrast=0 axe=0 errors=0 h1=1
+_tour_390_light_ko: sizes[24px 18px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=1 contrast=0 axe=0 errors=0 h1=1
+_tour_390_light_en: sizes[24px 18px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=1 contrast=0 axe=0 errors=0 h1=1
+_tour_video_agent_1440_dark_ko: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_tour_video_agent_1440_dark_en: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=3 contrast=0 axe=0 errors=0 h1=1
+_tour_video_agent_1440_light_ko: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_tour_video_agent_1440_light_en: sizes[28px 18px 16px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=2 contrast=0 axe=0 errors=0 h1=1
+_tour_video_agent_390_dark_ko: sizes[24px 18px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=1 contrast=0 axe=0 errors=0 h1=1
+_tour_video_agent_390_dark_en: sizes[24px 18px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=1 contrast=0 axe=0 errors=0 h1=1
+_tour_video_agent_390_light_ko: sizes[24px 18px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=1 contrast=0 axe=0 errors=0 h1=1
+_tour_video_agent_390_light_en: sizes[24px 18px 15px 14px 13px 12px] buttons[] scroll=false leaks=0 lonely=0 gold=1 contrast=0 axe=0 errors=0 h1=1
+combinations 112, with a problem 0

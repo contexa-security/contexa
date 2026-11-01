@@ -10,7 +10,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const require = createRequire('E:/projects/contexa/contexa-showcase/web/package.json');
-const { chromium } = require('playwright');
+const { chromium, request: playwrightRequest } = require('playwright');
 
 function arg(name, fallback) {
   const index = process.argv.indexOf(`--${name}`);
@@ -38,7 +38,9 @@ function check(area, name, screen, expected) {
     report.problems.push(`${area} · ${name}: screen ${JSON.stringify(screen)} ≠ ${JSON.stringify(expected)}`);
   }
 }
-const has = (area, name, text, part) => check(area, name, text.includes(part) ? part : `(missing) ${part}`, part);
+// White space aside: a card that puts its unit under the number (I-10) reads "14,092\n건" as text.
+const has = (area, name, text, part) =>
+  check(area, name, text.replace(/\s+/g, '').includes(part.replace(/\s+/g, '')) ? part : `(missing) ${part}`, part);
 
 const n = (value) => new Intl.NumberFormat('ko-KR').format(value);
 const one = (value) => new Intl.NumberFormat('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value);
@@ -165,7 +167,10 @@ for (const [id, video] of Object.entries(manifest)) {
 }
 check('tour', 'no autoplay', await page.locator('video').getAttribute('autoplay'), null);
 await shots('tour');
-const visitor = await page.request.get(`${api}/api/visitor`);
+// A request context without the page's cookies: when the web and the API share one origin (the portal serving its own
+// bundle), the page already holds the cookies and the portal sets none again.
+const fresh = await playwrightRequest.newContext();
+const visitor = await fresh.get(`${api}/api/visitor`);
 const cookieNames = visitor.headersArray().filter((header) => header.name.toLowerCase() === 'set-cookie').map((header) => header.value.split('=')[0]);
 await open('/privacy');
 const named = await page.getByRole('table', { name: '쿠키' }).locator('tbody tr code').allInnerTexts();

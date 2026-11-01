@@ -1,0 +1,1116 @@
+{
+  "web": "http://localhost:5180",
+  "api": "http://127.0.0.1:19180",
+  "startedAt": "2026-10-31T20:00:18.422Z",
+  "checks": [
+    {
+      "area": "log",
+      "name": "runs of the three sources found in the database",
+      "screen": 44,
+      "expected": 44,
+      "same": true
+    },
+    {
+      "area": "log",
+      "name": "all rows (a new visitor has no run of its own)",
+      "screen": 44,
+      "expected": 44,
+      "same": true
+    },
+    {
+      "area": "log",
+      "name": "public recorded rows",
+      "screen": 4,
+      "expected": 4,
+      "same": true
+    },
+    {
+      "area": "log",
+      "name": "measured rows",
+      "screen": 40,
+      "expected": 40,
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-9e971454c4de verdict",
+      "screen": "허용",
+      "expected": "허용",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-9e971454c4de decision time",
+      "screen": "6.3초",
+      "expected": "6.3초",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-9e971454c4de existing controls that stopped",
+      "screen": "1 / 4",
+      "expected": "1 / 4",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-f1ca01d70aad verdict",
+      "screen": "차단",
+      "expected": "차단",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-f1ca01d70aad decision time",
+      "screen": "10.5초",
+      "expected": "10.5초",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-f1ca01d70aad existing controls that stopped",
+      "screen": "2 / 4",
+      "expected": "2 / 4",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-b0d5b4f9da7f verdict",
+      "screen": "차단",
+      "expected": "차단",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-b0d5b4f9da7f decision time",
+      "screen": "17.2초",
+      "expected": "17.2초",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-b0d5b4f9da7f existing controls that stopped",
+      "screen": "2 / 4",
+      "expected": "2 / 4",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-feb8d93ed2c1 verdict",
+      "screen": "허용",
+      "expected": "허용",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-feb8d93ed2c1 decision time",
+      "screen": "5.1초",
+      "expected": "5.1초",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-feb8d93ed2c1 existing controls that stopped",
+      "screen": "0 / 4",
+      "expected": "0 / 4",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-c2f5718b3ffc verdict",
+      "screen": "추가 인증",
+      "expected": "추가 인증",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-c2f5718b3ffc decision time",
+      "screen": "6.0초",
+      "expected": "6.0초",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-c2f5718b3ffc existing controls that stopped",
+      "screen": "1 / 4",
+      "expected": "1 / 4",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-58aa7d799333 verdict",
+      "screen": "추가 인증",
+      "expected": "추가 인증",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-58aa7d799333 decision time",
+      "screen": "8.5초",
+      "expected": "8.5초",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-58aa7d799333 existing controls that stopped",
+      "screen": "0 / 4",
+      "expected": "0 / 4",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-8d9e43b2882e verdict",
+      "screen": "추가 인증",
+      "expected": "추가 인증",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-8d9e43b2882e decision time",
+      "screen": "7.4초",
+      "expected": "7.4초",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-8d9e43b2882e existing controls that stopped",
+      "screen": "0 / 4",
+      "expected": "0 / 4",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-059481fa8ca6 verdict",
+      "screen": "차단",
+      "expected": "차단",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-059481fa8ca6 decision time",
+      "screen": "11.1초",
+      "expected": "11.1초",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-059481fa8ca6 existing controls that stopped",
+      "screen": "0 / 4",
+      "expected": "0 / 4",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-7ca6c022c40a verdict",
+      "screen": "허용",
+      "expected": "허용",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-7ca6c022c40a decision time",
+      "screen": "7.4초",
+      "expected": "7.4초",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-7ca6c022c40a existing controls that stopped",
+      "screen": "0 / 4",
+      "expected": "0 / 4",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-3bb57a898289 verdict",
+      "screen": "허용",
+      "expected": "허용",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-3bb57a898289 decision time",
+      "screen": "7.6초",
+      "expected": "7.6초",
+      "same": true
+    },
+    {
+      "area": "log row",
+      "name": "run-3bb57a898289 existing controls that stopped",
+      "screen": "0 / 4",
+      "expected": "0 / 4",
+      "same": true
+    },
+    {
+      "area": "detail",
+      "name": "run-63b23f7bb5b2 verdict",
+      "screen": "추가 인증",
+      "expected": "추가 인증",
+      "same": true
+    },
+    {
+      "area": "detail",
+      "name": "run-63b23f7bb5b2 verdict (HTTP)",
+      "screen": "CHALLENGE",
+      "expected": "CHALLENGE",
+      "same": true
+    },
+    {
+      "area": "detail",
+      "name": "run-63b23f7bb5b2 risk · confidence",
+      "screen": "0.35 · 0.78",
+      "expected": "0.35 · 0.78",
+      "same": true
+    },
+    {
+      "area": "detail",
+      "name": "run-63b23f7bb5b2 decision time",
+      "screen": "8.7초",
+      "expected": "8.7초",
+      "same": true
+    },
+    {
+      "area": "detail",
+      "name": "run-63b23f7bb5b2 decision time (HTTP)",
+      "screen": 8650,
+      "expected": 8650,
+      "same": true
+    },
+    {
+      "area": "detail",
+      "name": "run-63b23f7bb5b2 request path",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "detail",
+      "name": "run-66c9a323f945 verdict",
+      "screen": "추가 인증",
+      "expected": "추가 인증",
+      "same": true
+    },
+    {
+      "area": "detail",
+      "name": "run-66c9a323f945 verdict (HTTP)",
+      "screen": "CHALLENGE",
+      "expected": "CHALLENGE",
+      "same": true
+    },
+    {
+      "area": "detail",
+      "name": "run-66c9a323f945 risk · confidence",
+      "screen": "0.34 · 0.79",
+      "expected": "0.34 · 0.79",
+      "same": true
+    },
+    {
+      "area": "detail",
+      "name": "run-66c9a323f945 decision time",
+      "screen": "10.5초",
+      "expected": "10.5초",
+      "same": true
+    },
+    {
+      "area": "detail",
+      "name": "run-66c9a323f945 decision time (HTTP)",
+      "screen": 10509,
+      "expected": 10509,
+      "same": true
+    },
+    {
+      "area": "detail",
+      "name": "run-66c9a323f945 request path",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "detail",
+      "name": "run-66c9a323f945 request shown first = the deciding request",
+      "screen": "요청 1",
+      "expected": "요청 1",
+      "same": true
+    },
+    {
+      "area": "detail",
+      "name": "run-586d6f270c8c verdict",
+      "screen": "허용",
+      "expected": "허용",
+      "same": true
+    },
+    {
+      "area": "detail",
+      "name": "run-586d6f270c8c verdict (HTTP)",
+      "screen": "ALLOW",
+      "expected": "ALLOW",
+      "same": true
+    },
+    {
+      "area": "detail",
+      "name": "run-586d6f270c8c risk · confidence",
+      "screen": "0.12 · 0.86",
+      "expected": "0.12 · 0.86",
+      "same": true
+    },
+    {
+      "area": "detail",
+      "name": "run-586d6f270c8c decision time",
+      "screen": "6.5초",
+      "expected": "6.5초",
+      "same": true
+    },
+    {
+      "area": "detail",
+      "name": "run-586d6f270c8c decision time (HTTP)",
+      "screen": 6496,
+      "expected": 6496,
+      "same": true
+    },
+    {
+      "area": "detail",
+      "name": "run-586d6f270c8c request path",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "detail",
+      "name": "run-586d6f270c8c request shown first = the deciding request",
+      "screen": "요청 2",
+      "expected": "요청 2",
+      "same": true
+    },
+    {
+      "area": "integrity",
+      "name": "inspection verdict",
+      "screen": "불완전 · 확인 불가 항목 있음",
+      "expected": "불완전 · 확인 불가 항목 있음",
+      "same": true
+    },
+    {
+      "area": "integrity",
+      "name": "checks (matched · mismatched · unverifiable)",
+      "screen": [
+        [
+          10,
+          0,
+          0
+        ],
+        [
+          10,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          1
+        ]
+      ],
+      "expected": [
+        [
+          10,
+          0,
+          0
+        ],
+        [
+          10,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          1
+        ]
+      ],
+      "same": true
+    },
+    {
+      "area": "integrity",
+      "name": "package id",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "engine",
+      "name": "stage count",
+      "screen": 7,
+      "expected": 7,
+      "same": true
+    },
+    {
+      "area": "engine",
+      "name": "learning: requests learned",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "engine",
+      "name": "learning: observations compared",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "engine",
+      "name": "prompt lines",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "engine",
+      "name": "model calls (screen)",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "engine",
+      "name": "model calls (HTTP = DB)",
+      "screen": 1,
+      "expected": 1,
+      "same": true
+    },
+    {
+      "area": "engine",
+      "name": "prompt tokens",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "engine",
+      "name": "model",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "engine",
+      "name": "verdict",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "engine",
+      "name": "total time",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "engine",
+      "name": "seal counts",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "compare",
+      "name": "C1 · THREAT dots",
+      "screen": [
+        "run-059481fa8ca6",
+        "run-19cdb77eb24b",
+        "run-1cc910699239",
+        "run-202bd2067d43",
+        "run-2531e4155dac",
+        "run-380cfa4c6dff",
+        "run-3bb57a898289",
+        "run-4314803adfde",
+        "run-63b23f7bb5b2",
+        "run-66c9a323f945",
+        "run-6a46f1261f0f",
+        "run-6f8e926ff024",
+        "run-71104ba3250f",
+        "run-87c7bd071cb8",
+        "run-8d9e43b2882e",
+        "run-8ddb21acf432",
+        "run-b0d5b4f9da7f",
+        "run-bf56ef4fa669",
+        "run-c2f5718b3ffc",
+        "run-d144ca7c4d85",
+        "run-d58a8e902d0b",
+        "run-f1ca01d70aad",
+        "run-fb17a207d34d"
+      ],
+      "expected": [
+        "run-059481fa8ca6",
+        "run-19cdb77eb24b",
+        "run-1cc910699239",
+        "run-202bd2067d43",
+        "run-2531e4155dac",
+        "run-380cfa4c6dff",
+        "run-3bb57a898289",
+        "run-4314803adfde",
+        "run-63b23f7bb5b2",
+        "run-66c9a323f945",
+        "run-6a46f1261f0f",
+        "run-6f8e926ff024",
+        "run-71104ba3250f",
+        "run-87c7bd071cb8",
+        "run-8d9e43b2882e",
+        "run-8ddb21acf432",
+        "run-b0d5b4f9da7f",
+        "run-bf56ef4fa669",
+        "run-c2f5718b3ffc",
+        "run-d144ca7c4d85",
+        "run-d58a8e902d0b",
+        "run-f1ca01d70aad",
+        "run-fb17a207d34d"
+      ],
+      "same": true
+    },
+    {
+      "area": "compare",
+      "name": "C1 · NORMAL dots",
+      "screen": [
+        "run-0781df5c8463",
+        "run-0a19ab899827",
+        "run-10cfd4a047a6",
+        "run-1757482a48c7",
+        "run-30693e800edb",
+        "run-357e7d1947c4",
+        "run-3c74b4731c1f",
+        "run-47366ff6ce8e",
+        "run-586d6f270c8c",
+        "run-58aa7d799333",
+        "run-628102ce91e6",
+        "run-7ca6c022c40a",
+        "run-7cfc9c91e9cd",
+        "run-83f034bc6ecc",
+        "run-93d1b757491d",
+        "run-9e971454c4de",
+        "run-d00f69bdfbee",
+        "run-f11859d3089f",
+        "run-feb8d93ed2c1"
+      ],
+      "expected": [
+        "run-0781df5c8463",
+        "run-0a19ab899827",
+        "run-10cfd4a047a6",
+        "run-1757482a48c7",
+        "run-30693e800edb",
+        "run-357e7d1947c4",
+        "run-3c74b4731c1f",
+        "run-47366ff6ce8e",
+        "run-586d6f270c8c",
+        "run-58aa7d799333",
+        "run-628102ce91e6",
+        "run-7ca6c022c40a",
+        "run-7cfc9c91e9cd",
+        "run-83f034bc6ecc",
+        "run-93d1b757491d",
+        "run-9e971454c4de",
+        "run-d00f69bdfbee",
+        "run-f11859d3089f",
+        "run-feb8d93ed2c1"
+      ],
+      "same": true
+    },
+    {
+      "area": "compare",
+      "name": "C1 totals",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "compare",
+      "name": "C2 · THREAT dots",
+      "screen": [
+        "run-059481fa8ca6",
+        "run-19cdb77eb24b",
+        "run-1cc910699239",
+        "run-202bd2067d43",
+        "run-2531e4155dac",
+        "run-380cfa4c6dff",
+        "run-3bb57a898289",
+        "run-4314803adfde",
+        "run-63b23f7bb5b2",
+        "run-66c9a323f945",
+        "run-6a46f1261f0f",
+        "run-6f8e926ff024",
+        "run-71104ba3250f",
+        "run-87c7bd071cb8",
+        "run-8d9e43b2882e",
+        "run-8ddb21acf432",
+        "run-b0d5b4f9da7f",
+        "run-bf56ef4fa669",
+        "run-c2f5718b3ffc",
+        "run-d144ca7c4d85",
+        "run-d58a8e902d0b",
+        "run-f1ca01d70aad",
+        "run-fb17a207d34d"
+      ],
+      "expected": [
+        "run-059481fa8ca6",
+        "run-19cdb77eb24b",
+        "run-1cc910699239",
+        "run-202bd2067d43",
+        "run-2531e4155dac",
+        "run-380cfa4c6dff",
+        "run-3bb57a898289",
+        "run-4314803adfde",
+        "run-63b23f7bb5b2",
+        "run-66c9a323f945",
+        "run-6a46f1261f0f",
+        "run-6f8e926ff024",
+        "run-71104ba3250f",
+        "run-87c7bd071cb8",
+        "run-8d9e43b2882e",
+        "run-8ddb21acf432",
+        "run-b0d5b4f9da7f",
+        "run-bf56ef4fa669",
+        "run-c2f5718b3ffc",
+        "run-d144ca7c4d85",
+        "run-d58a8e902d0b",
+        "run-f1ca01d70aad",
+        "run-fb17a207d34d"
+      ],
+      "same": true
+    },
+    {
+      "area": "compare",
+      "name": "C2 · NORMAL dots",
+      "screen": [
+        "run-0781df5c8463",
+        "run-0a19ab899827",
+        "run-10cfd4a047a6",
+        "run-1757482a48c7",
+        "run-30693e800edb",
+        "run-357e7d1947c4",
+        "run-3c74b4731c1f",
+        "run-47366ff6ce8e",
+        "run-586d6f270c8c",
+        "run-58aa7d799333",
+        "run-628102ce91e6",
+        "run-7ca6c022c40a",
+        "run-7cfc9c91e9cd",
+        "run-83f034bc6ecc",
+        "run-93d1b757491d",
+        "run-9e971454c4de",
+        "run-d00f69bdfbee",
+        "run-f11859d3089f",
+        "run-feb8d93ed2c1"
+      ],
+      "expected": [
+        "run-0781df5c8463",
+        "run-0a19ab899827",
+        "run-10cfd4a047a6",
+        "run-1757482a48c7",
+        "run-30693e800edb",
+        "run-357e7d1947c4",
+        "run-3c74b4731c1f",
+        "run-47366ff6ce8e",
+        "run-586d6f270c8c",
+        "run-58aa7d799333",
+        "run-628102ce91e6",
+        "run-7ca6c022c40a",
+        "run-7cfc9c91e9cd",
+        "run-83f034bc6ecc",
+        "run-93d1b757491d",
+        "run-9e971454c4de",
+        "run-d00f69bdfbee",
+        "run-f11859d3089f",
+        "run-feb8d93ed2c1"
+      ],
+      "same": true
+    },
+    {
+      "area": "compare",
+      "name": "C2 totals",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "compare",
+      "name": "D · THREAT dots",
+      "screen": [
+        "run-059481fa8ca6",
+        "run-19cdb77eb24b",
+        "run-1cc910699239",
+        "run-202bd2067d43",
+        "run-2531e4155dac",
+        "run-380cfa4c6dff",
+        "run-3bb57a898289",
+        "run-4314803adfde",
+        "run-63b23f7bb5b2",
+        "run-66c9a323f945",
+        "run-6a46f1261f0f",
+        "run-6f8e926ff024",
+        "run-71104ba3250f",
+        "run-87c7bd071cb8",
+        "run-8d9e43b2882e",
+        "run-8ddb21acf432",
+        "run-b0d5b4f9da7f",
+        "run-bf56ef4fa669",
+        "run-c2f5718b3ffc",
+        "run-d144ca7c4d85",
+        "run-d58a8e902d0b",
+        "run-f1ca01d70aad",
+        "run-fb17a207d34d"
+      ],
+      "expected": [
+        "run-059481fa8ca6",
+        "run-19cdb77eb24b",
+        "run-1cc910699239",
+        "run-202bd2067d43",
+        "run-2531e4155dac",
+        "run-380cfa4c6dff",
+        "run-3bb57a898289",
+        "run-4314803adfde",
+        "run-63b23f7bb5b2",
+        "run-66c9a323f945",
+        "run-6a46f1261f0f",
+        "run-6f8e926ff024",
+        "run-71104ba3250f",
+        "run-87c7bd071cb8",
+        "run-8d9e43b2882e",
+        "run-8ddb21acf432",
+        "run-b0d5b4f9da7f",
+        "run-bf56ef4fa669",
+        "run-c2f5718b3ffc",
+        "run-d144ca7c4d85",
+        "run-d58a8e902d0b",
+        "run-f1ca01d70aad",
+        "run-fb17a207d34d"
+      ],
+      "same": true
+    },
+    {
+      "area": "compare",
+      "name": "D · NORMAL dots",
+      "screen": [
+        "run-0781df5c8463",
+        "run-0a19ab899827",
+        "run-10cfd4a047a6",
+        "run-1757482a48c7",
+        "run-30693e800edb",
+        "run-357e7d1947c4",
+        "run-3c74b4731c1f",
+        "run-47366ff6ce8e",
+        "run-586d6f270c8c",
+        "run-58aa7d799333",
+        "run-628102ce91e6",
+        "run-7ca6c022c40a",
+        "run-7cfc9c91e9cd",
+        "run-83f034bc6ecc",
+        "run-93d1b757491d",
+        "run-9e971454c4de",
+        "run-d00f69bdfbee",
+        "run-f11859d3089f",
+        "run-feb8d93ed2c1"
+      ],
+      "expected": [
+        "run-0781df5c8463",
+        "run-0a19ab899827",
+        "run-10cfd4a047a6",
+        "run-1757482a48c7",
+        "run-30693e800edb",
+        "run-357e7d1947c4",
+        "run-3c74b4731c1f",
+        "run-47366ff6ce8e",
+        "run-586d6f270c8c",
+        "run-58aa7d799333",
+        "run-628102ce91e6",
+        "run-7ca6c022c40a",
+        "run-7cfc9c91e9cd",
+        "run-83f034bc6ecc",
+        "run-93d1b757491d",
+        "run-9e971454c4de",
+        "run-d00f69bdfbee",
+        "run-f11859d3089f",
+        "run-feb8d93ed2c1"
+      ],
+      "same": true
+    },
+    {
+      "area": "compare",
+      "name": "D totals",
+      "screen": true,
+      "expected": true,
+      "same": true
+    },
+    {
+      "area": "compare",
+      "name": "dot runs found in the database",
+      "screen": 42,
+      "expected": 42,
+      "same": true
+    }
+  ],
+  "problems": [],
+  "log": {
+    "public": 4,
+    "measured": 44,
+    "measuredOnly": 40,
+    "union": 44
+  },
+  "firstPage": [
+    {
+      "runId": "run-9e971454c4de",
+      "cells": [
+        "10-21 01:29",
+        "승인된 프로젝트 이관\nA3 · run-9e971454c4de\n공개 녹화",
+        "허용",
+        "정상 처리",
+        "1 / 4",
+        "6.3초"
+      ],
+      "decidingStep": 1
+    },
+    {
+      "runId": "run-f1ca01d70aad",
+      "cells": [
+        "10-21 01:29",
+        "내부자 대량 반출\nA3 · run-f1ca01d70aad\n공개 녹화",
+        "차단",
+        "적중",
+        "2 / 4",
+        "10.5초"
+      ],
+      "decidingStep": 1
+    },
+    {
+      "runId": "run-b0d5b4f9da7f",
+      "cells": [
+        "10-20 12:42",
+        "내부자 대량 반출\nA3 · run-b0d5b4f9da7f\n측정",
+        "차단",
+        "적중",
+        "2 / 4",
+        "17.2초"
+      ],
+      "decidingStep": 1
+    },
+    {
+      "runId": "run-feb8d93ed2c1",
+      "cells": [
+        "10-20 12:42",
+        "등록된 출장지에서의 정상 접속\nA1T · run-feb8d93ed2c1\n측정",
+        "허용",
+        "정상 처리",
+        "0 / 4",
+        "5.1초"
+      ],
+      "decidingStep": 2
+    },
+    {
+      "runId": "run-c2f5718b3ffc",
+      "cells": [
+        "10-20 12:41",
+        "새 기기·회사 밖 네트워크에서 쓰는 계정\nA1 · run-c2f5718b3ffc\n측정",
+        "추가 인증",
+        "일부 반출 뒤 차단",
+        "1 / 4",
+        "6.0초"
+      ],
+      "decidingStep": 1
+    },
+    {
+      "runId": "run-58aa7d799333",
+      "cells": [
+        "10-20 12:41",
+        "평소 PC로 담당 설계 문서를 몇 초 간격으로 연달아 내려받기\nS19T · run-58aa7d799333\n측정",
+        "추가 인증",
+        "정상 처리",
+        "0 / 4",
+        "8.5초"
+      ],
+      "decidingStep": 1
+    },
+    {
+      "runId": "run-8d9e43b2882e",
+      "cells": [
+        "10-20 12:40",
+        "처음 보는 기기로 담당 설계 문서를 몇 초 간격으로 연달아 내려받기\nS19 · run-8d9e43b2882e\n측정",
+        "추가 인증",
+        "미탐",
+        "0 / 4",
+        "7.4초"
+      ],
+      "decidingStep": 3
+    },
+    {
+      "runId": "run-059481fa8ca6",
+      "cells": [
+        "10-20 12:37",
+        "담당 프로젝트 폴더의 인사 문서 수집\nS18 · run-059481fa8ca6\n측정",
+        "차단",
+        "일부 반출 뒤 차단",
+        "0 / 4",
+        "11.1초"
+      ],
+      "decidingStep": 1
+    },
+    {
+      "runId": "run-7ca6c022c40a",
+      "cells": [
+        "10-20 12:36",
+        "퇴근 뒤 평소 PC로 하는 담당 범위 안 300건 반출\nS17T · run-7ca6c022c40a\n측정",
+        "허용",
+        "정상 처리",
+        "0 / 4",
+        "7.4초"
+      ],
+      "decidingStep": 1
+    },
+    {
+      "runId": "run-3bb57a898289",
+      "cells": [
+        "10-20 12:36",
+        "퇴근 뒤 처음 보는 기기로 담당 범위 안 300건 반출\nS17 · run-3bb57a898289\n측정",
+        "허용",
+        "미탐",
+        "0 / 4",
+        "7.6초"
+      ],
+      "decidingStep": 1
+    }
+  ],
+  "details": [
+    {
+      "runId": "run-63b23f7bb5b2",
+      "steps": 1,
+      "decidingStep": 1,
+      "cells": {
+        "요청": "POST /api/projects/HX-310/exports",
+        "단말": "Safari/18 on MAC",
+        "위험도 · 확신도": "0.35 · 0.78",
+        "판정 시간 · 적용": "8.7초 · 응답 전 적용",
+        "판정 시각": "2026-10-20 12:31 (세계 표준시)"
+      },
+      "status": "추가 인증"
+    },
+    {
+      "runId": "run-66c9a323f945",
+      "steps": 2,
+      "decidingStep": 1,
+      "cells": {
+        "요청": "GET /api/documents/HX-310-DWG-00004",
+        "단말": "Safari/18 on MAC",
+        "위험도 · 확신도": "0.34 · 0.79",
+        "판정 시간 · 적용": "10.5초 · 다음 요청부터 적용",
+        "판정 시각": "2026-10-20 11:46 (세계 표준시)"
+      },
+      "status": "추가 인증"
+    },
+    {
+      "runId": "run-586d6f270c8c",
+      "steps": 2,
+      "decidingStep": 2,
+      "cells": {
+        "요청": "GET /api/documents/HX-310-DWG-00005",
+        "단말": "Edge/140 on WINDOWS",
+        "위험도 · 확신도": "0.12 · 0.86",
+        "판정 시간 · 적용": "6.5초 · 다음 요청부터 적용",
+        "판정 시각": "2026-10-20 11:47 (세계 표준시)"
+      },
+      "status": "허용"
+    }
+  ],
+  "engine": {
+    "runId": "run-63b23f7bb5b2",
+    "head": "판정 흐름 담당 범위 안에서 평소의 20배 넘게 반출 · 2026-10-20 12:31 (세계 표준시) · 추가 인증 총 8.7초",
+    "stages": [
+      "1 행위 기준선 학습 학습 요청 49건 · 최근 7일 21건과 비교 BaselineStatus",
+      "2 업무 컨텍스트 수집 HX-310 담당 · 승인 기록 없음 · 작업 티켓 없음 Policy",
+      "3 기준선 대조 기준선과 다른 항목 2개 / 9개 · 자료 민감도 HIGH Deviations",
+      "4 판정 프롬프트 구성 시스템 규칙 91줄 + 상황 61줄 = 152줄 bundle 2026.10.20-v21.8",
+      "5 AI 추론 gpt-6-luna · 호출 1회 · 입력 6,215 토큰 · 8.7초 proposedAction CHALLENGE",
+      "6 응답 검증 · 판정 적용 근거 코드 5개 · 응답 전 적용 finalAction CHALLENGE",
+      "7 무결성 봉인 · 학습 반영 봉인함 · 이 요청은 기준선에 더하지 않음 sha256 52e2ab…5398"
+    ]
+  },
+  "dots": {
+    "C1.THREAT": 23,
+    "C1.NORMAL": 19,
+    "C2.THREAT": 23,
+    "C2.NORMAL": 19,
+    "D.THREAT": 23,
+    "D.NORMAL": 19
+  },
+  "finishedAt": "2026-10-31T20:00:31.290Z",
+  "summary": {
+    "checks": 78,
+    "same": 78,
+    "problems": 0
+  }
+}

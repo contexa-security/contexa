@@ -1,0 +1,396 @@
+{
+  "base": "http://localhost:5181",
+  "startedAt": "2026-11-01T06:15:05.633Z",
+  "runs": [
+    {
+      "key": "S13",
+      "steps": [
+        "live opened 2026-11-01T06:15:06.799Z"
+      ],
+      "runId": "run-258e0ff31e40",
+      "liveRows": [
+        "웹 방화벽(WAF)\n요청 속 공격 문자열\n허용\t480건\t0.020초",
+        "인증 · 권한(IAM)\n계정 인증 · 역할 권한\n허용\t480건\t0.013초",
+        "임계값 규칙\n야간 · 대량 건수 · 휴면\n허용\t480건\t0.015초",
+        "승인 정책 규칙\n승인 · 티켓 · 담당 예외\n허용\t480건\t0.023초",
+        "Contexa\n행위 기준선 · 업무 컨텍스트\n추가 인증\t0건\t10.8초"
+      ],
+      "conclusion": "추가 인증을 요구해 반출 480건을 막았습니다",
+      "exportsRows": [
+        "웹 방화벽\n480\n미탐",
+        "인증 · 권한\n480\n미탐",
+        "임계값 규칙\n480\n미탐",
+        "승인 정책 규칙\n480\n미탐",
+        "Contexa\n0\n적중",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "decisionSide": "판정\n추가 인증\n예상 판정\n적중 차단 · 추가 인증\n판정 시간\n10.7초 · 응답 전 적용\n실행 ID\nrun-258e0ff31e40",
+      "http": {
+        "business": {
+          "A": {
+            "result": "MISSED",
+            "exposedItems": 480,
+            "worstStep": 1
+          },
+          "B": {
+            "result": "MISSED",
+            "exposedItems": 480,
+            "worstStep": 1
+          },
+          "C1": {
+            "result": "MISSED",
+            "exposedItems": 480,
+            "worstStep": 1
+          },
+          "C2": {
+            "result": "MISSED",
+            "exposedItems": 480,
+            "worstStep": 1
+          },
+          "D": {
+            "result": "STOPPED",
+            "exposedItems": 0,
+            "worstStep": null
+          }
+        },
+        "finalAction": "CHALLENGE",
+        "applied": "BEFORE_RESPONSE",
+        "delivered": {
+          "A": 480,
+          "B": 480,
+          "C1": 480,
+          "C2": 480,
+          "D": 0
+        },
+        "responseMs": {
+          "A": 20,
+          "B": 13,
+          "C1": 15,
+          "C2": 23,
+          "D": 10794
+        },
+        "totalAnalysisMs": 10737
+      },
+      "db": {
+        "run": [
+          "S13",
+          "COMPLETED",
+          "t"
+        ],
+        "arms": [
+          [
+            "A",
+            "200",
+            "DELIVERED",
+            "480",
+            "20"
+          ],
+          [
+            "B",
+            "200",
+            "DELIVERED",
+            "480",
+            "13"
+          ],
+          [
+            "C1",
+            "200",
+            "DELIVERED",
+            "480",
+            "15"
+          ],
+          [
+            "C2",
+            "200",
+            "DELIVERED",
+            "480",
+            "23"
+          ],
+          [
+            "D",
+            "401",
+            "REFUSED",
+            "0",
+            "10794"
+          ]
+        ],
+        "decision": [
+          "CHALLENGE",
+          "0.38",
+          "0.74",
+          "10737",
+          "BEFORE_RESPONSE"
+        ]
+      }
+    },
+    {
+      "key": "S13T",
+      "steps": [
+        "live opened 2026-11-01T06:15:24.284Z"
+      ],
+      "runId": "run-7065c12cbaf4",
+      "liveRows": [
+        "웹 방화벽(WAF)\n요청 속 공격 문자열\n허용\t480건\t0.023초",
+        "인증 · 권한(IAM)\n계정 인증 · 역할 권한\n허용\t480건\t0.017초",
+        "임계값 규칙\n야간 · 대량 건수 · 휴면\n허용\t480건\t0.023초",
+        "승인 정책 규칙\n승인 · 티켓 · 담당 예외\n허용\t480건\t0.034초",
+        "Contexa\n행위 기준선 · 업무 컨텍스트\n허용\t480건\t8.3초"
+      ],
+      "conclusion": "정상 업무로 판정해 480건을 그대로 처리했습니다",
+      "exportsRows": [
+        "웹 방화벽\n480\n정상 처리",
+        "인증 · 권한\n480\n정상 처리",
+        "임계값 규칙\n480\n정상 처리",
+        "승인 정책 규칙\n480\n정상 처리",
+        "Contexa\n480\n정상 처리",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "decisionSide": "판정\n허용\n예상 판정\n적중 허용\n판정 시간\n8.2초 · 응답 전 적용\n실행 ID\nrun-7065c12cbaf4",
+      "http": {
+        "business": {
+          "A": {
+            "result": "PASSED",
+            "exposedItems": 480,
+            "worstStep": null
+          },
+          "B": {
+            "result": "PASSED",
+            "exposedItems": 480,
+            "worstStep": null
+          },
+          "C1": {
+            "result": "PASSED",
+            "exposedItems": 480,
+            "worstStep": null
+          },
+          "C2": {
+            "result": "PASSED",
+            "exposedItems": 480,
+            "worstStep": null
+          },
+          "D": {
+            "result": "PASSED",
+            "exposedItems": 480,
+            "worstStep": null
+          }
+        },
+        "finalAction": "ALLOW",
+        "applied": "BEFORE_RESPONSE",
+        "delivered": {
+          "A": 480,
+          "B": 480,
+          "C1": 480,
+          "C2": 480,
+          "D": 480
+        },
+        "responseMs": {
+          "A": 23,
+          "B": 17,
+          "C1": 23,
+          "C2": 34,
+          "D": 8277
+        },
+        "totalAnalysisMs": 8176
+      },
+      "db": {
+        "run": [
+          "S13T",
+          "COMPLETED",
+          "t"
+        ],
+        "arms": [
+          [
+            "A",
+            "200",
+            "DELIVERED",
+            "480",
+            "23"
+          ],
+          [
+            "B",
+            "200",
+            "DELIVERED",
+            "480",
+            "17"
+          ],
+          [
+            "C1",
+            "200",
+            "DELIVERED",
+            "480",
+            "23"
+          ],
+          [
+            "C2",
+            "200",
+            "DELIVERED",
+            "480",
+            "34"
+          ],
+          [
+            "D",
+            "200",
+            "DELIVERED",
+            "480",
+            "8277"
+          ]
+        ],
+        "decision": [
+          "ALLOW",
+          "0.18",
+          "0.84",
+          "8176",
+          "BEFORE_RESPONSE"
+        ]
+      }
+    },
+    {
+      "key": "S16",
+      "steps": [
+        "live opened 2026-11-01T06:15:38.564Z"
+      ],
+      "runId": "run-fbabed16aaf3",
+      "liveRows": [
+        "웹 방화벽(WAF)\n요청 속 공격 문자열\n허용\t1건\t0.009초",
+        "인증 · 권한(IAM)\n계정 인증 · 역할 권한\n허용\t1건\t0.008초",
+        "임계값 규칙\n야간 · 대량 건수 · 휴면\n허용\t1건\t0.009초",
+        "승인 정책 규칙\n승인 · 티켓 · 담당 예외\n허용\t1건\t0.015초",
+        "Contexa\n행위 기준선 · 업무 컨텍스트\n허용\t1건\t0.037초"
+      ],
+      "conclusion": "일부가 반출된 뒤 차단했습니다(반출 2건)",
+      "exportsRows": [
+        "웹 방화벽\n3\n미탐",
+        "인증 · 권한\n3\n미탐",
+        "임계값 규칙\n3\n미탐",
+        "승인 정책 규칙\n3\n미탐",
+        "Contexa\n2\n일부 반출 뒤 차단",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "decisionSide": "판정한 요청\n요청 2 / 3\n판정\n차단\n예상 판정\n예상과 다름 차단 · 추가 인증\n판정 시간\n13.0초 · 다음 요청부터 적용\n실행 ID\nrun-fbabed16aaf3",
+      "http": {
+        "business": {
+          "A": {
+            "result": "MISSED",
+            "exposedItems": 3,
+            "worstStep": 1
+          },
+          "B": {
+            "result": "MISSED",
+            "exposedItems": 3,
+            "worstStep": 1
+          },
+          "C1": {
+            "result": "MISSED",
+            "exposedItems": 3,
+            "worstStep": 1
+          },
+          "C2": {
+            "result": "MISSED",
+            "exposedItems": 3,
+            "worstStep": 1
+          },
+          "D": {
+            "result": "PARTLY_STOPPED",
+            "exposedItems": 2,
+            "worstStep": 1
+          }
+        },
+        "finalAction": "ALLOW",
+        "applied": "NEXT_REQUEST",
+        "delivered": {
+          "A": 1,
+          "B": 1,
+          "C1": 1,
+          "C2": 1,
+          "D": 1
+        },
+        "responseMs": {
+          "A": 9,
+          "B": 8,
+          "C1": 9,
+          "C2": 15,
+          "D": 37
+        },
+        "totalAnalysisMs": 22962
+      },
+      "db": {
+        "run": [
+          "S16",
+          "COMPLETED",
+          "t"
+        ],
+        "arms": [
+          [
+            "A",
+            "200",
+            "DELIVERED",
+            "1",
+            "9"
+          ],
+          [
+            "B",
+            "200",
+            "DELIVERED",
+            "1",
+            "8"
+          ],
+          [
+            "C1",
+            "200",
+            "DELIVERED",
+            "1",
+            "9"
+          ],
+          [
+            "C2",
+            "200",
+            "DELIVERED",
+            "1",
+            "15"
+          ],
+          [
+            "D",
+            "200",
+            "DELIVERED",
+            "1",
+            "37"
+          ]
+        ],
+        "decision": [
+          "ALLOW",
+          "0.3",
+          "0.65",
+          "22962",
+          "NEXT_REQUEST"
+        ]
+      }
+    }
+  ],
+  "compare": {
+    "changedRows": [
+      "단말",
+      "기준선 이탈"
+    ],
+    "insight": 1,
+    "learning": "기준선 학습\n\n허용된 정상 업무만 행위 기준선에 더합니다\n\n탈취된 계정 · \n추가 인증\n47 → 47\n학습 안 함\n정상 사용자(계정 주인) · \n허용\n47 → 48\n+1 학습"
+  },
+  "progress": "이 묶음에서 실행한 시나리오 3 / 3",
+  "problems": [
+    "S13: screen exports [480,480,480,480,0,null,null,null,null,null] ≠ HTTP [480,480,480,480,0]",
+    "S13T: screen exports [480,480,480,480,480,null,null,null,null,null] ≠ HTTP [480,480,480,480,480]",
+    "S16: screen exports [3,3,3,3,2,null,null,null,null,null] ≠ HTTP [3,3,3,3,2]"
+  ],
+  "finishedAt": "2026-11-01T06:19:01.458Z"
+}

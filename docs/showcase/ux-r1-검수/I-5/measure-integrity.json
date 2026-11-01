@@ -1,0 +1,276 @@
+[
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=integrity",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 65,
+      "16px": 1,
+      "12px": 14,
+      "13px": 22,
+      "28px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 52,
+      "500": 23,
+      "600": 29,
+      "700": 13
+    },
+    "buttons": {
+      "36px": 2
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"라이브 데모\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"무결성 검증\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=integrity",
+    "width": 1440,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 65,
+      "16px": 1,
+      "12px": 14,
+      "13px": 22,
+      "28px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 52,
+      "500": 23,
+      "600": 29,
+      "700": 13
+    },
+    "buttons": {
+      "36px": 2
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text span._brandTag_11rml_84 \"Live demo\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Integrity\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=integrity",
+    "width": 1440,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 65,
+      "16px": 1,
+      "12px": 14,
+      "13px": 22,
+      "28px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 52,
+      "500": 23,
+      "600": 29,
+      "700": 13
+    },
+    "buttons": {
+      "36px": 2
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"무결성 검증\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=integrity",
+    "width": 1440,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 65,
+      "16px": 1,
+      "12px": 14,
+      "13px": 22,
+      "28px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 52,
+      "500": 23,
+      "600": 29,
+      "700": 13
+    },
+    "buttons": {
+      "36px": 2
+    },
+    "pageScroll": false,
+    "scrollWidth": 1440,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "text svg \"\"",
+      "line button._tab_1lfrp_1 \"Integrity\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=integrity",
+    "width": 390,
+    "theme": "dark",
+    "lang": "ko",
+    "sizes": {
+      "14px": 50,
+      "13px": 14,
+      "12px": 6,
+      "24px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 46,
+      "500": 8,
+      "600": 19,
+      "700": 12
+    },
+    "buttons": {
+      "36px": 2
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"무결성 검증\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=integrity",
+    "width": 390,
+    "theme": "dark",
+    "lang": "en",
+    "sizes": {
+      "14px": 50,
+      "13px": 14,
+      "12px": 6,
+      "24px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 46,
+      "500": 8,
+      "600": 19,
+      "700": 12
+    },
+    "buttons": {
+      "36px": 2
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Integrity\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=integrity",
+    "width": 390,
+    "theme": "light",
+    "lang": "ko",
+    "sizes": {
+      "14px": 50,
+      "13px": 14,
+      "12px": 6,
+      "24px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 46,
+      "500": 8,
+      "600": 19,
+      "700": 12
+    },
+    "buttons": {
+      "36px": 2
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"무결성 검증\""
+    ],
+    "axe": []
+  },
+  {
+    "path": "/runs/run-63b23f7bb5b2?tab=integrity",
+    "width": 390,
+    "theme": "light",
+    "lang": "en",
+    "sizes": {
+      "14px": 50,
+      "13px": 14,
+      "12px": 6,
+      "24px": 1,
+      "15px": 12,
+      "18px": 2
+    },
+    "contrast": [],
+    "weights": {
+      "400": 46,
+      "500": 8,
+      "600": 19,
+      "700": 12
+    },
+    "buttons": {
+      "36px": 2
+    },
+    "pageScroll": false,
+    "scrollWidth": 390,
+    "leaks": [],
+    "lonely": [],
+    "gold": [
+      "fill span._brandMark_11rml_64 \"C\"",
+      "line button._tab_1lfrp_1 \"Integrity\""
+    ],
+    "axe": []
+  }
+]
