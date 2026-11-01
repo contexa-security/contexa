@@ -67,7 +67,7 @@ class TeaserServiceTest {
                         JSON.createArrayNode()),
                 List.of(), null, new AnatomyBuilder.Surroundings(null, null, null, Map.of(), Map.of(), null, null,
                         attack.path("userPrompt").asText()));
-        HookStore.RunFacts run = new HookStore.RunFacts("run-3766bd77c869", "A3", "COMPLETED", null, null, null, null);
+        HookStore.RunFacts run = new HookStore.RunFacts("run-3766bd77c869", "A3", "COMPLETED", null, null, null, null, null);
 
         TeaserService.Teaser teaser = TeaserService.resultFacts(run, anatomy);
 

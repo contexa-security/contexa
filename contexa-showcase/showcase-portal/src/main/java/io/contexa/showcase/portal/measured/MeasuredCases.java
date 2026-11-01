@@ -25,7 +25,9 @@ import java.util.function.Supplier;
  * The runs of one case in the current measurement as the screens' "measured N times" lines show them (E1-5 and E2-5 of
  * docs/showcase/화면설계서-v2-구현계획.md, V-17): Contexa's result of each run, its analysis time of the first request,
  * what it let out and the time to resume after a check, with the counts and ranges the sentences need. Everything is
- * counted here from the stored runs, so a screen only writes the values down.
+ * counted here from the stored runs, so a screen only writes the values down. The runs are the ones the benchmark
+ * counts for the setting (every protocol of it, DEC-85 of docs/showcase/UX-R1-구현계획서.md), so a case measured in
+ * several batches shows all its repeats.
  */
 public class MeasuredCases {
 
@@ -68,6 +70,7 @@ public class MeasuredCases {
      * @param responseMs the shortest and longest time Contexa's application took to answer the first request
      * @param middleRun  the run whose analysis time is in the middle (the lower middle of an even count), the one a
      *                   screen shows as the example of the measurement; null without a decision
+     * @param protocolId the protocol of the case's latest run, the one that stands for the measurement
      */
     public record View(String caseKey, String settingHash, String protocolId, int runs, Map<String, Long> results,
                        boolean allSame, Range analysisMs, Range exposedItems, List<MeasuredRun> list,
@@ -92,7 +95,7 @@ public class MeasuredCases {
         this.clock = clock;
     }
 
-    /** The case's runs in the latest measurement of the current setting; empty without one. */
+    /** The case's measured runs in the current setting, every protocol of it; empty without one. */
     public synchronized Optional<View> view(String caseKey) {
         Optional<String> setting = currentSetting.get();
         if (setting.isEmpty()) {
@@ -121,9 +124,9 @@ public class MeasuredCases {
         Map<String, Instant> started = new LinkedHashMap<>();
         jdbc.query("""
                         select r.run_id, r.started_at from run r
-                         where r.protocol_id = :protocol and r.setting_hash = :setting and r.scenario_key = :case
+                         where r.setting_hash = :setting and r.scenario_key = :case and r.protocol_id is not null
                            and r.status = 'COMPLETED' and r.forced_action is null
-                         order by r.started_at""", parameters.addValue("protocol", protocols.get(0)),
+                         order by r.started_at, r.run_id""", parameters,
                 rs -> {
                     Timestamp at = rs.getTimestamp(2);
                     started.put(rs.getString(1), at == null ? null : at.toInstant());

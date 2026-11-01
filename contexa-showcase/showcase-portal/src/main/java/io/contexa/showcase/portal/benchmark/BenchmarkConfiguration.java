@@ -33,8 +33,9 @@ public class BenchmarkConfiguration {
 
     /** docs/agent Agent중심-화면 AS-11: the agent part of the benchmark, counted from the recorded agent runs. */
     @Bean
-    AgentBenchmarkService agentBenchmarkService(NamedParameterJdbcTemplate jdbc) {
-        return new AgentBenchmarkService(jdbc);
+    AgentBenchmarkService agentBenchmarkService(NamedParameterJdbcTemplate jdbc, BenchmarkService benchmarkService) {
+        return new AgentBenchmarkService(jdbc, () -> benchmarkService.view(null).map(BenchmarkView::spec)
+                .map(BenchmarkView.Spec::settingHash));
     }
 
     /** BM-S8 of docs/showcase/벤치마크-구현계획.md: the decision quality an operator published for a setting. */

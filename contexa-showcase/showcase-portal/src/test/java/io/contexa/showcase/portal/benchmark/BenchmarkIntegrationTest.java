@@ -210,20 +210,26 @@ class BenchmarkIntegrationTest {
         // How long Contexa's application took to answer step 1: t1 answered at once, t2 held the response.
         jdbc.update("update run_arm_result set elapsed_ms = 70 where run_id = 't1' and control = 'D'");
         jdbc.update("update run_arm_result set elapsed_ms = 3100 where run_id = 't2' and control = 'D'");
+        // DEC-85: a later batch of the same setting (p-2) adds its run of A3 to the lines; the latest protocol stands
+        // for the measurement. t3 is stopped after 2000 ms.
+        protocol("p-2", NOW.minusSeconds(1900));
+        run("t3", "A3", THREAT, "COMPLETED", null, "p-2", SETTING, SPEC_ADMIN, false, NOW.minusSeconds(1800));
+        arms("t3", "REFUSED", null);
+        decision("t3", "BLOCK", 2000L, 0.9, 9000L, 1);
         MeasuredCases measured = new MeasuredCases(named, new RunScores(named, scenarios, json),
                 () -> Optional.of(SETTING), Clock.fixed(NOW, ZoneOffset.UTC));
         MeasuredCases.View a3 = measured.view("A3").orElseThrow();
-        assertThat(a3.protocolId()).isEqualTo("p-1");
-        assertThat(a3.runs()).isEqualTo(2);
-        assertThat(a3.list()).extracting(MeasuredCases.MeasuredRun::runId).containsExactly("t1", "t2");
-        assertThat(a3.results()).containsExactly(Map.entry("MISSED", 1L), Map.entry("STOPPED", 1L));
+        assertThat(a3.protocolId()).isEqualTo("p-2");
+        assertThat(a3.runs()).isEqualTo(3);
+        assertThat(a3.list()).extracting(MeasuredCases.MeasuredRun::runId).containsExactly("t1", "t2", "t3");
+        assertThat(a3.results()).containsExactly(Map.entry("MISSED", 1L), Map.entry("STOPPED", 2L));
         assertThat(a3.allSame()).isFalse();
         assertThat(a3.analysisMs()).isEqualTo(new MeasuredCases.Range(1000, 3000));
         assertThat(a3.exposedItems()).isEqualTo(new MeasuredCases.Range(0, 10));
         assertThat(a3.list().get(1).engineAction()).isEqualTo("BLOCK");
         assertThat(a3.responseMs()).isEqualTo(new MeasuredCases.Range(70, 3100));
-        assertThat(a3.list()).extracting(MeasuredCases.MeasuredRun::responseMs).containsExactly(70L, 3100L);
-        assertThat(a3.middleRun()).as("the lower middle of two decided runs by analysis time").isEqualTo("t1");
+        assertThat(a3.list()).extracting(MeasuredCases.MeasuredRun::responseMs).containsExactly(70L, 3100L, null);
+        assertThat(a3.middleRun()).as("the middle of three decided runs by analysis time").isEqualTo("t3");
         assertThat(measured.view("S10")).as("a case without a measured run").isEmpty();
 
         BenchmarkView other = benchmark.view(OTHER_SETTING).orElseThrow();

@@ -35,10 +35,11 @@ public class HookStore {
     }
 
     /**
+     * @param settingHash the measurement setting the run was sent under; null when it recorded none
      * @param firstTextAt when the first model call text of the run's engine decisions was kept; null without any
      */
     public record RunFacts(String runId, String scenarioKey, String status, String forcedAction, String protocolId,
-                           Instant startedAt, Instant firstTextAt) {
+                           String settingHash, Instant startedAt, Instant firstTextAt) {
     }
 
     private final NamedParameterJdbcTemplate jdbc;
@@ -58,14 +59,16 @@ public class HookStore {
 
     public Optional<RunFacts> facts(String runId) {
         List<RunFacts> rows = jdbc.query("""
-                        select r.run_id, r.scenario_key, r.status, r.forced_action, r.protocol_id, r.started_at,
+                        select r.run_id, r.scenario_key, r.status, r.forced_action, r.protocol_id, r.setting_hash,
+                               r.started_at,
                                (select min(e.captured_at) from run_model_exchange e
                                   join run_decision d on d.request_id = e.request_id
                                  where d.run_id = r.run_id)
                           from run r where r.run_id = :run""",
                 new MapSqlParameterSource("run", runId),
                 (rs, n) -> new RunFacts(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4),
-                        rs.getString(5), rs.getTimestamp(6).toInstant(), instant(rs.getTimestamp(7))));
+                        rs.getString(5), rs.getString(6), rs.getTimestamp(7).toInstant(),
+                        instant(rs.getTimestamp(8))));
         return rows.stream().findFirst();
     }
 
@@ -77,6 +80,19 @@ public class HookStore {
                            and forced_action is null
                          order by started_at, run_id""",
                 new MapSqlParameterSource("protocol", protocolId).addValue("case", caseKey), String.class);
+    }
+
+    /**
+     * The completed, unforced protocol runs of a case in one measurement setting, every protocol of it, oldest first:
+     * the runs the benchmark counts for the setting (DEC-85 of docs/showcase/UX-R1-구현계획서.md).
+     */
+    public List<String> settingRuns(String settingHash, String caseKey) {
+        return jdbc.queryForList("""
+                        select run_id from run
+                         where setting_hash = :setting and scenario_key = :case and protocol_id is not null
+                           and status = 'COMPLETED' and forced_action is null
+                         order by started_at, run_id""",
+                new MapSqlParameterSource("setting", settingHash).addValue("case", caseKey), String.class);
     }
 
     public void designate(Slot slot, String runId, Instant at) {

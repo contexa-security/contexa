@@ -26,12 +26,15 @@ class HookViewsTest {
 
     private final List<String> designated = new ArrayList<>();
     private final Map<String, RunFacts> runs = Map.of(
-            "run-a", facts("run-a", "S13", "COMPLETED", null, "p-1", NOW.minus(Duration.ofDays(1))),
-            "run-o", facts("run-o", "S13T", "COMPLETED", null, "p-1", NOW.minus(Duration.ofDays(1))),
-            "run-other", facts("run-other", "S13T", "COMPLETED", null, "p-2", NOW.minus(Duration.ofDays(1))),
-            "run-forced", facts("run-forced", "S13", "COMPLETED", "CHALLENGE", "p-1", NOW.minus(Duration.ofDays(1))),
-            "run-live", facts("run-live", "S13", "COMPLETED", null, null, NOW.minus(Duration.ofDays(1))),
-            "run-old", facts("run-old", "S13", "COMPLETED", null, "p-1", NOW.minus(Duration.ofDays(91))));
+            "run-a", facts("run-a", "S13", "COMPLETED", null, "p-1", "s-1", NOW.minus(Duration.ofDays(1))),
+            "run-o", facts("run-o", "S13T", "COMPLETED", null, "p-1", "s-1", NOW.minus(Duration.ofDays(1))),
+            "run-later", facts("run-later", "S13T", "COMPLETED", null, "p-2", "s-1", NOW.minus(Duration.ofDays(1))),
+            "run-other", facts("run-other", "S13T", "COMPLETED", null, "p-3", "s-2", NOW.minus(Duration.ofDays(1))),
+            "run-forced", facts("run-forced", "S13", "COMPLETED", "CHALLENGE", "p-1", "s-1",
+                    NOW.minus(Duration.ofDays(1))),
+            "run-live", facts("run-live", "S13", "COMPLETED", null, null, "s-1", NOW.minus(Duration.ofDays(1))),
+            "run-unset", facts("run-unset", "S13", "COMPLETED", null, "p-1", null, NOW.minus(Duration.ofDays(1))),
+            "run-old", facts("run-old", "S13", "COMPLETED", null, "p-1", "s-1", NOW.minus(Duration.ofDays(91))));
 
     private final HookStore store = new HookStore(null) {
         @Override
@@ -54,10 +57,19 @@ class HookViewsTest {
     }
 
     @Test
+    void twoRunsOfTheSameSettingInDifferentProtocolsAreDesignatedTogether() {
+        // DEC-85: the measurement is the setting, as the benchmark counts it, not one batch of it.
+        assertThat(hook.designate("run-a", "run-later")).isEmpty();
+        assertThat(designated).containsExactly("ATTACKER=run-a", "OWNER=run-later");
+    }
+
+    @Test
     void aRunThatIsNotAKeptMeasuredRunOfTheSlotsCaseIsRefused() {
         assertThat(hook.designate("run-o", "run-o")).contains(new HookViews.Refusal("ATTACKER", "WRONG_CASE"));
         assertThat(hook.designate("run-forced", "run-o")).contains(new HookViews.Refusal("ATTACKER", "FORCED"));
         assertThat(hook.designate("run-live", "run-o")).contains(new HookViews.Refusal("ATTACKER", "NOT_MEASURED"));
+        assertThat(hook.designate("run-unset", "run-o")).as("a protocol run that recorded no setting")
+                .contains(new HookViews.Refusal("ATTACKER", "NOT_MEASURED"));
         assertThat(hook.designate("run-old", "run-o")).as("its texts passed the retention period")
                 .contains(new HookViews.Refusal("ATTACKER", "TEXTS_GONE"));
         assertThat(hook.designate("run-a", "missing")).contains(new HookViews.Refusal("OWNER", "UNKNOWN_RUN"));
@@ -84,7 +96,7 @@ class HookViewsTest {
     }
 
     private static RunFacts facts(String runId, String caseKey, String status, String forced, String protocol,
-                                  Instant firstText) {
-        return new RunFacts(runId, caseKey, status, forced, protocol, firstText, firstText);
+                                  String setting, Instant firstText) {
+        return new RunFacts(runId, caseKey, status, forced, protocol, setting, firstText, firstText);
     }
 }

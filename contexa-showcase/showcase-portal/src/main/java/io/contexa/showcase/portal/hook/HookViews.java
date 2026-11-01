@@ -20,8 +20,9 @@ import java.util.TreeMap;
 
 /**
  * The first screen's replay (work 17 of docs/showcase/화면설계서-v2-구현계획.md): the designated representative run of
- * each case with every approach's recorded result, and the same measurement's runs of the case counted by the server,
- * so the line under each column ("the same in all three", "one of three went on after the check") is a count.
+ * each case with every approach's recorded result, and the same measurement setting's runs of the case counted by the
+ * server (every protocol of the setting, as the benchmark counts them: DEC-85 of docs/showcase/UX-R1-구현계획서.md), so
+ * the line under each column ("the same in all three", "one of three went on after the check") is a count.
  */
 public class HookViews {
 
@@ -29,7 +30,8 @@ public class HookViews {
     static final int STEP = 1;
 
     /**
-     * @param results          control D's business result over the measurement's runs of the case, by result name
+     * @param protocolId       the protocol of the representative run
+     * @param results          control D's business result over the setting's runs of the case, by result name
      * @param sameResult       runs whose control D result is the representative run's
      * @param passedAfterCheck runs whose work went on after the additional check was answered
      */
@@ -103,7 +105,7 @@ public class HookViews {
 
     /**
      * Designates the two representative runs together: measured, completed, unforced runs of the slots' cases in the
-     * same measurement, whose model call texts are still kept.
+     * same measurement setting (any of its protocols), whose model call texts are still kept.
      */
     public Optional<Refusal> designate(String attackerRunId, String ownerRunId) {
         Optional<RunFacts> attacker = attackerRunId == null ? Optional.empty() : store.facts(attackerRunId);
@@ -112,7 +114,7 @@ public class HookViews {
         if (refused.isPresent()) {
             return refused;
         }
-        if (!attacker.get().protocolId().equals(owner.get().protocolId())) {
+        if (!attacker.get().settingHash().equals(owner.get().settingHash())) {
             return Optional.of(new Refusal(Slot.OWNER.name(), "DIFFERENT_MEASUREMENT"));
         }
         Instant now = clock.instant();
@@ -133,7 +135,7 @@ public class HookViews {
             reason = "NOT_COMPLETED";
         } else if (run.forcedAction() != null) {
             reason = "FORCED";
-        } else if (run.protocolId() == null) {
+        } else if (run.protocolId() == null || run.settingHash() == null) {
             reason = "NOT_MEASURED";
         } else if (run.firstTextAt() == null || !clock.instant().isBefore(run.firstTextAt().plus(textRetention))) {
             reason = "TEXTS_GONE";
@@ -144,7 +146,7 @@ public class HookViews {
     }
 
     private Column column(Slot slot, RunFacts run) {
-        List<RunScore> scored = scores.scoreAll(store.measurementRuns(run.protocolId(), slot.caseKey()));
+        List<RunScore> scored = scores.scoreAll(store.settingRuns(run.settingHash(), slot.caseKey()));
         RunScore representative = scores.score(run.runId()).orElseThrow();
         String business = businessOf(representative);
         Map<String, Long> results = new TreeMap<>();

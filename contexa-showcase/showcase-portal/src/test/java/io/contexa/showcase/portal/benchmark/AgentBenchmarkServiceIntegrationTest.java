@@ -19,6 +19,8 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -36,9 +38,15 @@ class AgentBenchmarkServiceIntegrationTest {
             DockerImageName.parse("pgvector/pgvector:pg16").asCompatibleSubstituteFor("postgres"));
 
     private static final Instant AT = Instant.parse("2026-10-25T05:00:00Z");
+    /** The measurement setting the benchmark shows by default, and the specifications of its build and an older one. */
+    private static final String SETTING = "5".repeat(64);
+    private static final String SPEC_NOW = "a".repeat(64);
+    private static final String SPEC_OLD = "b".repeat(64);
+    private static final String SETTINGS = "{\"layer1Model\": {\"model\": \"gpt-6-luna\"}}";
 
     private static RunStore store;
     private static JdbcTemplate jdbc;
+    private static NamedParameterJdbcTemplate named;
     private static AgentBenchmarkService service;
 
     @BeforeAll
@@ -48,13 +56,25 @@ class AgentBenchmarkServiceIntegrationTest {
         DriverManagerDataSource dataSource = new DriverManagerDataSource(POSTGRES.getJdbcUrl(),
                 POSTGRES.getUsername(), POSTGRES.getPassword());
         jdbc = new JdbcTemplate(dataSource);
-        NamedParameterJdbcTemplate named = new NamedParameterJdbcTemplate(dataSource);
+        named = new NamedParameterJdbcTemplate(dataSource);
         store = new RunStore(named, new ObjectMapper().findAndRegisterModules());
-        service = new AgentBenchmarkService(named);
+        service = new AgentBenchmarkService(named, () -> Optional.of(SETTING));
         recordTheMeasurements();
     }
 
     private static void recordTheMeasurements() {
+        // DEC-86: the current build is read from the setting's protocol run (a person case); the agent runs are matched
+        // on its build fields, not on the setting hash, which also holds the template version.
+        spec(SPEC_NOW, "46351d11c852", "2026.10.30-v21.19");
+        spec(SPEC_OLD, "b78441c38bea", "2026.10.27-v21.17");
+        jdbc.update("""
+                insert into measurement_protocol (protocol_id, repeat, cases, started_at, finished_at)
+                values ('p-now', 1, '["S13"]'::jsonb, ?, ?)""", Timestamp.from(AT), Timestamp.from(AT.plusSeconds(60)));
+        store.start(new RunStore.RunStart("run-person", "S13", 1, "E-0042", "kim", null, "org", "tenant", "10.0.0.1",
+                "laptop", AT, null, null, "{}", "9".repeat(64)));
+        store.finish("run-person", "COMPLETED", null, Map.of());
+        jdbc.update("update run set protocol_id = 'p-now', setting_hash = ?, spec_hash = ? where run_id = 'run-person'",
+                SETTING, SPEC_NOW);
         String shaA = "1".repeat(64);
         String shaB = "2".repeat(64);
         // case X1 (attack), definition shaA: delegated path: 3 runs; two the existing controls all missed, Contexa stopped one
@@ -76,7 +96,19 @@ class AgentBenchmarkServiceIntegrationTest {
         // a run of the model comparison (the business agent on Claude Sonnet 5.5, docs/agent 모델비교) is not the benchmark's agent
         run("run-b-10", "X1", shaA, "DELEGATED_AGENT", true, null, null, null, null, null, false, AT.plusSeconds(10),
                 "claude-sonnet-5-5");
+        // a run of the definition in force on an older build (another code commit and prompt bundle) is not counted
+        run("run-b-13", "X1", shaA, "DELEGATED_AGENT", true, null, null, null, null, null, false, AT.plusSeconds(13));
+        jdbc.update("update run set spec_hash = ? where run_id = 'run-b-13'", SPEC_OLD);
+    }
 
+    private static void spec(String specHash, String commit, String bundle) {
+        jdbc.update("""
+                insert into execution_spec (spec_id, spec_hash, code_commit, engine_version, effective_mode,
+                    endpoint_protection, chat_model, embedding_model, embedding_dimensions, prompt_hash, rule_version,
+                    time_zone, model_settings, prompt_bundle)
+                values (?, ?, ?, '0.1.0', 'ENFORCE', '{}'::jsonb, 'gpt-5-nano', 'text-embedding-3-small', 1024, ?, ?,
+                    'UTC', cast(? as jsonb), ?)""",
+                UUID.randomUUID(), specHash, commit, "c".repeat(64), "d".repeat(64), SETTINGS, bundle);
     }
 
     private static void run(String runId, String key, String sha, String sender, boolean attack, Integer a, Integer b,
@@ -90,7 +122,7 @@ class AgentBenchmarkServiceIntegrationTest {
         store.start(new RunStore.RunStart(runId, key, 1, "E-0042", "kim", null, "org", "tenant", "10.0.0.1", "laptop", at,
                 null, live ? "v".repeat(64) : null, "{}", sha));
         store.finish(runId, "COMPLETED", null, Map.of());
-        jdbc.update("update run set started_at = ? where run_id = ?", Timestamp.from(at), runId);
+        jdbc.update("update run set started_at = ?, spec_hash = ? where run_id = ?", Timestamp.from(at), SPEC_NOW, runId);
         AgentWork.Transcript work = new AgentWork.Transcript(agentModel, "prompt", "work", List.of(), "done", "ANSWERED",
                 null, Map.of(), at, at.plusSeconds(5));
         Map<String, AgentTaskProof.Control> controls = Map.of(
@@ -110,8 +142,11 @@ class AgentBenchmarkServiceIntegrationTest {
         AgentBenchmarkService.View view = service.view(List.of(new AgentBenchmarkService.CatalogCase("X1", shaA),
                 new AgentBenchmarkService.CatalogCase("X2", shaA), new AgentBenchmarkService.CatalogCase("X3", shaA)));
 
-        assertThat(view.scope().runs()).as("the Sonnet comparison run is not counted").isEqualTo(6);
+        assertThat(view.scope().runs()).as("the Sonnet comparison run and the older build's run are not counted")
+                .isEqualTo(6);
         assertThat(view.scope().cases()).isEqualTo(2);
+        assertThat(view.build()).isEqualTo(new AgentBenchmarkService.Build(SETTING, "46351d11c852", "0.1.0", "ENFORCE",
+                "2026.10.30-v21.19"));
         AgentBenchmarkService.PathRow delegated = view.byPath().stream()
                 .filter(row -> "DELEGATED_AGENT".equals(row.path())).findFirst().orElseThrow();
         assertThat(delegated.runs()).isEqualTo(5);
@@ -148,6 +183,17 @@ class AgentBenchmarkServiceIntegrationTest {
         assertThat(view.contexaMissed()).as("X4's run no control stopped is no miss").containsExactly("X1");
         assertThat(view.notMeasured()).as("X4 was measured, only its truth is open").isEmpty();
         assertThat(view.uncertain()).containsExactly("X4");
+    }
+
+    @Test
+    void withoutAMeasurementSettingThereIsNoBuildAndNoRunCounts() {
+        AgentBenchmarkService none = new AgentBenchmarkService(named, Optional::empty);
+
+        AgentBenchmarkService.View view = none.view(List.of(new AgentBenchmarkService.CatalogCase("X1", "1".repeat(64))));
+
+        assertThat(view.build()).isNull();
+        assertThat(view.scope().runs()).isZero();
+        assertThat(view.notMeasured()).containsExactly("X1");
     }
 
     @Test
