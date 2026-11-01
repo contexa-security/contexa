@@ -1,8 +1,0 @@
-/*
- * The lab's live bar (B-07): the moment Contexa cut a streamed export is the stream screen's point, so its words stand
- * out in the color of the cut bar (partly out, then blocked).
- */
-.cut {
-  color: var(--color-auth);
-  font-weight: var(--weight-semibold);
-}

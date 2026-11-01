@@ -1,7 +1,0 @@
-/* The deeper hub's group headings, shown only to a visitor who comes without a track (구현계획 NW-5). */
-.group {
-  margin: var(--space-4) 0 0;
-  color: var(--color-accent);
-  font-size: var(--type-pick-card-sub);
-  font-weight: var(--weight-bold);
-}

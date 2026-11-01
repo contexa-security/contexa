@@ -15,15 +15,8 @@ import { Shell } from './shell/Shell';
 // The screens built so far (구현계획서 4절) are the first screens of src/screens.tsx; a menu without one opens its
 // pending screen (DEC-15).
 
-// Development-only pages (Vite removes these branches from the production bundle): the new parts and states, and the
-// old screens' design mocks that the old e2e tools still open until the old files are removed.
+// Development-only page (Vite removes this branch from the production bundle): the new parts and states.
 const PartsPage = import.meta.env.DEV ? lazy(withDictionary(() => import('./pages/design/PartsPage'))) : null;
-const OldDesignStatesPage = import.meta.env.DEV
-  ? lazy(withDictionary(() => import('../pages/design/DesignStatesPage')))
-  : null;
-const OldDesignPartsPage = import.meta.env.DEV
-  ? lazy(withDictionary(() => import('../pages/design/DesignPartsPage')))
-  : null;
 
 // The screens built after the first screens (UX-R1 I-4~): their code and the rest of the dictionary load when opened.
 const AgentPickPage = lazy(withDictionary(() => import('./pages/simulate/agent/PickPage')));
@@ -98,8 +91,6 @@ export function UxApp() {
         <Route path="*" element={<Navigate replace to="/start" />} />
       </Route>
       {PartsPage ? <Route path="/design/ux" element={<PartsPage />} /> : null}
-      {OldDesignStatesPage ? <Route path="/design/states" element={<OldDesignStatesPage />} /> : null}
-      {OldDesignPartsPage ? <Route path="/design/parts" element={<OldDesignPartsPage />} /> : null}
     </Routes>
   );
 }

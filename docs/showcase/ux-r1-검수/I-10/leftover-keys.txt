@@ -5460,7 +5460,6 @@ value.what.3
 value.what.4
 value.what.5
 value.what.6
-verdict.unresolved
 where.code
 where.company
 where.figure
