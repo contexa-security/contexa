@@ -108,7 +108,10 @@ class ContexaCapabilityAutoConfigurationTest {
     @Test
     @DisplayName("fail-fast message and console logs include actionable guidance")
     void failFastMessageAndConsoleLogsIncludeActionableGuidance(CapturedOutput output) {
+        // a customer application that has not added the pgvector starter
         contextRunner
+                .withClassLoader(new FilteredClassLoader(
+                        "org.springframework.ai.vectorstore.pgvector.autoconfigure"))
                 .withPropertyValues(
                         "spring.application.name=contexa-demo",
                         "contexa.capability.mode=fail-fast",
@@ -157,7 +160,10 @@ class ContexaCapabilityAutoConfigurationTest {
     @Test
     @DisplayName("customer applications still see actionable capability warnings")
     void keepsActionableWarningsForCustomerApplications(CapturedOutput output) {
+        // a customer application that has not added the pgvector starter
         contextRunner
+                .withClassLoader(new FilteredClassLoader(
+                        "org.springframework.ai.vectorstore.pgvector.autoconfigure"))
                 .withPropertyValues(
                         "spring.application.name=legacy-customer-app",
                         "contexa.capability.mode=warn",

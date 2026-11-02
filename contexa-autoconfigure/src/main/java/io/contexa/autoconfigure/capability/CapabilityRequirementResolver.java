@@ -22,6 +22,7 @@ import io.contexa.contexacommon.autoconfigure.capability.CapabilityRequirement;
 import io.contexa.contexacommon.autoconfigure.capability.ContexaCapability;
 import org.springframework.beans.factory.BeanFactoryUtils;
 import org.springframework.beans.factory.ListableBeanFactory;
+import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.core.env.Environment;
 import org.springframework.util.ClassUtils;
 
@@ -275,8 +276,16 @@ public class CapabilityRequirementResolver {
         return environment.getProperty(key, Boolean.class, defaultValue);
     }
 
+    /**
+     * Whether the application context can load the class: its own class loader, which is the application's in a running
+     * application and the one a test filters to leave a starter out.
+     */
     private boolean classPresent(String className) {
-        return ClassUtils.isPresent(className, getClass().getClassLoader());
+        ClassLoader loader = beanFactory instanceof ConfigurableBeanFactory configurable
+                && configurable.getBeanClassLoader() != null
+                ? configurable.getBeanClassLoader()
+                : getClass().getClassLoader();
+        return ClassUtils.isPresent(className, loader);
     }
 
     private boolean hasBean(String className) {

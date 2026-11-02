@@ -277,7 +277,9 @@ class CoreContexaDataSourceIsolationContractTest {
                     List<String> lines = Files.readAllLines(path, StandardCharsets.UTF_8);
                     for (int index = 0; index < lines.size(); index++) {
                         String line = lines.get(index);
+                        // @TransactionalEventListener runs in the transaction of the publisher: it has no manager to name
                         if (line.contains("@Transactional")
+                                && !line.contains("@TransactionalEventListener")
                                 && !line.contains("transactionManager = \"" + CONTEXA_TRANSACTION_MANAGER + "\"")) {
                             violations.add(path + ":" + (index + 1) + ": " + line.trim());
                         }
