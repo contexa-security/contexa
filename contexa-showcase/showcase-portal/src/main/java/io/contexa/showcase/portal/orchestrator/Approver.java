@@ -82,6 +82,9 @@ public interface Approver {
         return null;
     }
 
+    record LearningResult(int status, JsonNode answer) {
+    }
+
     /**
      * The block as the engine's administrator API returns it.
      *
@@ -90,9 +93,6 @@ public interface Approver {
      * @param unblockReason the reason the principal gave for the release
      * @param mfaVerified   the principal passed the identity check before asking
      */
-    record LearningResult(int status, JsonNode answer) {
-    }
-
     record BlockRecord(long id, String username, String status, String reasoning, String blockedAt, String unblockReason,
                        Boolean mfaVerified, String unblockRequestedAt) {
     }
