@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.std.pipeline.step;
 
+import io.contexa.contexacore.std.llm.gate.ModelServerSignals;
 import io.contexa.contexacore.util.SensitiveValueSanitizer;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
@@ -200,8 +201,10 @@ public class LLMExecutionStep implements PipelineStep {
                                 request.getRequestId(), signalType, elapsedMs);
                     })
                     .onErrorResume(error -> {
-                        log.error("[PIPELINE-STEP] Security decision raw execution failed; fail-closed parsing will produce a challenge. Request: {}",
-                                request.getRequestId(), error);
+                        // O-2: the safe-side decision is the defined outcome; the model call's own failure is logged
+                        // where it happened, as an error when it is one.
+                        log.warn("[PIPELINE-STEP] Security decision raw execution failed; fail-closed parsing will produce a challenge. Request: {}: {}",
+                                request.getRequestId(), error.toString());
                         String failureCategory = rawExecutionFailureCategory(context, lastCall.get(), error);
                         context.addMetadata("rawExecutionSucceeded", false);
                         context.addMetadata("structuredOutputFailureCategory", failureCategory);
@@ -1320,8 +1323,31 @@ public class LLMExecutionStep implements PipelineStep {
         return null;
     }
 
+    private static boolean violatedResponseContract(Throwable error) {
+        for (Throwable current = error; current != null;
+             current = current.getCause() != current ? current.getCause() : null) {
+            if (current instanceof StructuredOutputExecutionException structured
+                    && structured.getCategory() == StructuredOutputFailureCategory.VALIDATION_FAILED) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void logError(String requestId, Throwable error, long startTime) {
         long totalTime = System.currentTimeMillis() - startTime;
+        if (ModelServerSignals.isTimeLimit(error)) {
+            // O-2: cut by a time limit; the caller's defined outcome follows.
+            log.warn("[PIPELINE-STEP] LLM execution ended at a time limit - Request: {}, Duration: {}ms, Error: {}",
+                    requestId, totalTime, error.getMessage());
+            return;
+        }
+        if (violatedResponseContract(error)) {
+            // O-2: the model's answer broke the response contract; the safe-side fallback decision follows.
+            log.warn("[PIPELINE-STEP] LLM answer broke the response contract - Request: {}, Duration: {}ms, Error: {}",
+                    requestId, totalTime, error.getMessage());
+            return;
+        }
         log.error("[PIPELINE-STEP] LLM execution failed - Request: {}, Duration: {}ms, Error: {}",
                 requestId, totalTime, error.getMessage());
     }

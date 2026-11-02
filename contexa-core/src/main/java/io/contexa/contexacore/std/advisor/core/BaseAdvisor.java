@@ -64,6 +64,7 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
         long startTime = System.currentTimeMillis();
         ChatClientRequest advisedRequest = request;
         boolean chainInvoked = false;
+        boolean chainReturned = false;
 
         try {
             advisedRequest = beforeCall(request);
@@ -72,6 +73,7 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
 
             chainInvoked = true;
             ChatClientResponse response = chain.nextCall(advisedRequest);
+            chainReturned = true;
 
             response = afterCall(response, advisedRequest);
 
@@ -90,7 +92,13 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
             }
 
         } catch (Exception e) {
-            log.error("[{}] Unexpected error", getName(), e);
+            if (chainInvoked && !chainReturned) {
+                // O-2: the model call behind this advisor failed (or was cut by its time limit); the caller logs it at
+                // the level it deserves, so it is passed on unlogged.
+                log.debug("[{}] The advised call failed: {}", getName(), e.toString());
+            } else {
+                log.error("[{}] Unexpected error", getName(), e);
+            }
 
             if (advisedRequest != null && advisedRequest.context() != null) {
                 advisedRequest.context().put(getName() + ".error", e.getMessage());

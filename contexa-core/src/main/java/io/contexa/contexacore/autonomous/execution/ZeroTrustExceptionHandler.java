@@ -53,7 +53,8 @@ public class ZeroTrustExceptionHandler {
         // R-12: this deny response answers the decision itself and carries no protected data; a BLOCK must not cut it.
         BlockableResponseWrapper.permitOwnDenyResponse(servletResponse);
 
-        log.error("Zero Trust access denied - action: {}, resource: {}, risk: {}, reason: {}",
+        // O-2: a denial is the decision working as meant, not a failure.
+        log.warn("Zero Trust access denied - action: {}, resource: {}, risk: {}, reason: {}",
             ex.getAction(), ex.getResourceId(), ex.getRiskScore(), ex.getReason());
 
         if (answeredForAgent(ex, request, servletResponse)) {
@@ -86,7 +87,7 @@ public class ZeroTrustExceptionHandler {
             AnomalyDetectedException ex, HttpServletResponse servletResponse) {
         BlockableResponseWrapper.permitOwnDenyResponse(servletResponse);
 
-        log.error("Anomaly detection access denied - message: {}", ex.getMessage());
+        log.warn("Anomaly detection access denied - message: {}", ex.getMessage());
 
         ZeroTrustErrorResponse response = ZeroTrustErrorResponse.builder()
             .status(403)
@@ -110,7 +111,7 @@ public class ZeroTrustExceptionHandler {
             RapidProtectableReentryDeniedException ex, HttpServletResponse servletResponse) {
         BlockableResponseWrapper.permitOwnDenyResponse(servletResponse);
 
-        log.error("Rapid protectable re-entry denied - resource: {}, windowSeconds: {}",
+        log.warn("Rapid protectable re-entry denied - resource: {}, windowSeconds: {}",
             ex.getResourceId(), ex.getWindowSeconds());
 
         ZeroTrustErrorResponse response = ZeroTrustErrorResponse.builder()

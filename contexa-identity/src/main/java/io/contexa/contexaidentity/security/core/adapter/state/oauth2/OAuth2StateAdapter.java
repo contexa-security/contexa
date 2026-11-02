@@ -115,7 +115,8 @@ public final class OAuth2StateAdapter implements StateAdapter {
                     && properties.getTokenTransportType() != TokenTransportType.COOKIE
                     && TOKEN_PERSISTENCE_MEMORY.equalsIgnoreCase(properties.getTokenPersistence())
                     && PAGE_NAVIGATION_LIMIT_REPORTED.compareAndSet(false, true)) {
-                log.error("OAuth2 state with the {} token transport and memory token persistence: browser page "
+                // O-2: valid for an SPA, so a warning rather than an error.
+                log.warn("OAuth2 state with the {} token transport and memory token persistence: browser page "
                                 + "navigations carry no access token, so server-rendered pages stay unauthenticated "
                                 + "after login. Use the COOKIE transport for server-rendered pages.",
                         properties.getTokenTransportType());

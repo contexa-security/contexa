@@ -35,6 +35,7 @@ public final class OAuth2CsrfConfigurer extends AbstractHttpConfigurer<OAuth2Csr
         if (!oauth2Csrf) {
             http.csrf(AbstractHttpConfigurer::disable);
         }
-        log.error("OAuth2CsrfConfigurer: CSRF {}", oauth2Csrf ? "enabled" : "disabled for OAuth2 mode");
+        // O-2: a report of the setting, not a failure.
+        log.info("OAuth2CsrfConfigurer: CSRF {}", oauth2Csrf ? "enabled" : "disabled for OAuth2 mode");
     }
 }

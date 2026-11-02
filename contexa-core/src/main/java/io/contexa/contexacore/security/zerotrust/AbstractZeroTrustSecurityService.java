@@ -306,14 +306,15 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
             }
             case BLOCK -> {
                 adjustedAuthorities.add(new SimpleGrantedAuthority(action.getGrantedAuthority()));
-                log.error("[ZeroTrust][AI Native] User BLOCKED (CRITICAL RISK): {}", userId);
+                log.warn("[ZeroTrust][AI Native] User BLOCKED (CRITICAL RISK): {}", userId);
             }
             case CHALLENGE -> {
                 adjustedAuthorities.add(new SimpleGrantedAuthority(action.getGrantedAuthority()));
             }
             case ESCALATE -> {
                 adjustedAuthorities.add(new SimpleGrantedAuthority(action.getGrantedAuthority()));
-                log.error("[ZeroTrust][AI Native] Security REVIEW required (ESCALATE): {}", userId);
+                // O-2: a decision outcome, not a failure.
+                log.warn("[ZeroTrust][AI Native] Security REVIEW required (ESCALATE): {}", userId);
             }
             case PENDING_ANALYSIS -> {
                 addOriginalOrCurrentAuthorities(auth, adjustedAuthorities, currentAuthorities);
