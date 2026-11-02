@@ -29,6 +29,7 @@ io.contexa.autoconfigure.core.advisor.CoreAdvisorAutoConfiguration
 
 # Core RAG
 io.contexa.autoconfigure.core.rag.CoreRAGAutoConfiguration
+io.contexa.autoconfigure.core.rag.ContexaPgVectorStoreAutoConfiguration
 
 # Core Std Components
 io.contexa.autoconfigure.core.std.CoreStdComponentsAutoConfiguration
