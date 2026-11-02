@@ -27,3 +27,10 @@ INSERT INTO USER_GROUPS (user_id, group_id, assigned_at) VALUES
     (4, 3, CURRENT_TIMESTAMP),
     (5, 4, CURRENT_TIMESTAMP)
 ON CONFLICT (group_id, user_id) DO NOTHING;
+
+-- ----------------------------------------------------------------
+-- The sequence follows the ids set above (as db/data.sql does for its rows), so that the next user created,
+-- such as the bridge's mirror of a signed-in user, takes a free id.
+-- ----------------------------------------------------------------
+SELECT setval('users_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM users), 0), 1), COALESCE((SELECT MAX(id) FROM users), 0) > 0)
+WHERE to_regclass('users_id_seq') IS NOT NULL;
