@@ -19,6 +19,7 @@ import io.contexa.autoconfigure.properties.ContexaLlmSelectionProperties;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
+import io.contexa.contexacore.std.llm.gate.ModelServerGates;
 import io.contexa.contexacore.std.llm.handler.StreamingHandler;
 import io.contexa.contexacore.std.llm.runtime.LlmRuntimeCatalog;
 import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
@@ -93,7 +94,8 @@ class CoreLLMTieredAutoConfigurationProviderResolutionTest {
                 beanFactory.getBeanProvider(ModelSelectionStrategy.class),
                 streamingHandler,
                 advisorRegistry,
-                beanFactory.getBeanProvider(ChatClient.class)))
+                beanFactory.getBeanProvider(ChatClient.class),
+                beanFactory.getBeanProvider(ModelServerGates.class)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("No Spring AI ChatModel is configured for CONTEXA")
                 .hasMessageContaining("spring-ai-starter-model-openai")

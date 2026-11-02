@@ -19,8 +19,10 @@ import io.contexa.autoconfigure.properties.ContexaLlmSelectionProperties;
 import io.contexa.autoconfigure.properties.ContexaLlmBindingProperties;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.autoconfigure.core.llm.runtime.SpringLlmRuntimeCatalog;
+import io.contexa.autoconfigure.core.llm.runtime.SpringModelServerResolver;
 import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
+import io.contexa.contexacore.properties.ModelServerGateProperties;
 import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
 import io.contexa.contexacore.std.llm.client.ThinkingGenerationAdvisor;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
@@ -31,6 +33,8 @@ import io.contexa.contexacore.std.llm.handler.StreamingHandler;
 import io.contexa.contexacore.std.llm.model.DynamicModelRegistry;
 import io.contexa.contexacore.std.llm.model.TieredLayerModelVerifier;
 import io.contexa.contexacore.std.llm.runtime.LlmRuntimeCatalog;
+import io.contexa.contexacore.std.llm.gate.GatedEmbeddingModel;
+import io.contexa.contexacore.std.llm.gate.ModelServerGates;
 import io.contexa.contexacore.std.llm.strategy.DynamicModelSelectionStrategy;
 import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
 import io.contexa.contexacore.std.pipeline.streaming.JsonStreamingProcessor;
@@ -60,6 +64,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.core.env.Environment;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -89,7 +94,8 @@ import org.springframework.web.reactive.function.client.WebClient;
         "org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration"
 })
 @ConditionalOnProperty(prefix = "contexa.llm", name = "enabled", havingValue = "true", matchIfMissing = true)
-@EnableConfigurationProperties({TieredLLMProperties.class, ContexaLlmSelectionProperties.class, ContexaLlmBindingProperties.class, SecurityPlaneProperties.class})
+@EnableConfigurationProperties({TieredLLMProperties.class, ContexaLlmSelectionProperties.class, ContexaLlmBindingProperties.class, SecurityPlaneProperties.class,
+        ModelServerGateProperties.class})
 public class CoreLLMTieredAutoConfiguration {
 
     private static final String DEFAULT_OLLAMA_CHAT_MODEL = "qwen3:8b";
@@ -118,6 +124,25 @@ public class CoreLLMTieredAutoConfiguration {
             ContexaLlmBindingProperties contexaLlmBindingProperties) {
         return new SpringLlmRuntimeCatalog((ConfigurableApplicationContext) applicationContext,
                 contexaProperties, contexaLlmBindingProperties);
+    }
+
+    /** O-1: which model server a chat or embedding model calls. */
+    @Bean
+    @ConditionalOnMissingBean
+    public SpringModelServerResolver modelServerResolver(Environment environment) {
+        return new SpringModelServerResolver(environment);
+    }
+
+    /**
+     * O-1: one gate per model server that every chat and embedding call passes. A call waits at most until its event's
+     * deadline, and without one at most the event budget.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public ModelServerGates modelServerGates(SpringModelServerResolver modelServerResolver,
+                                             ModelServerGateProperties modelServerGateProperties) {
+        return new ModelServerGates(modelServerResolver, modelServerGateProperties,
+                securityPlaneProperties.getAgent().getEventTimeoutMs());
     }
 
     @Bean
@@ -229,7 +254,8 @@ public class CoreLLMTieredAutoConfiguration {
             ObjectProvider<ModelSelectionStrategy> modelSelectionStrategyProvider,
             StreamingHandler streamingHandler,
             AdvisorRegistry advisorRegistry,
-            @Qualifier("primaryChatClient") ObjectProvider<ChatClient> primaryChatClientProvider) {
+            @Qualifier("primaryChatClient") ObjectProvider<ChatClient> primaryChatClientProvider,
+            ObjectProvider<ModelServerGates> modelServerGates) {
 
         ModelSelectionStrategy modelSelectionStrategy = modelSelectionStrategyProvider.getIfAvailable();
         if (modelSelectionStrategy == null) {
@@ -242,6 +268,7 @@ public class CoreLLMTieredAutoConfiguration {
         UnifiedLLMOrchestrator orchestrator = new UnifiedLLMOrchestrator(modelSelectionStrategy, streamingHandler,
                 tieredLLMProperties, advisorRegistry, securityPlaneProperties);
         orchestrator.setObservationRegistry(observationRegistry());
+        orchestrator.setModelServerGates(modelServerGates.getIfAvailable());
         return orchestrator;
     }
 
@@ -272,9 +299,11 @@ public class CoreLLMTieredAutoConfiguration {
     @ConditionalOnMissingBean(name = {"primaryEmbeddingModel", "embeddingModel"})
     @Conditional(AnyEmbeddingModelAvailableCondition.class)
     @ConditionalOnProperty(prefix = "contexa.llm.selection.embedding", name = "mode", havingValue = "fixed", matchIfMissing = true)
-    public EmbeddingModel fixedPrimaryEmbeddingModel(LlmRuntimeCatalog llmRuntimeCatalog) {
+    public EmbeddingModel fixedPrimaryEmbeddingModel(LlmRuntimeCatalog llmRuntimeCatalog,
+                                                     ObjectProvider<ModelServerGates> modelServerGates) {
         String provider = resolveFixedEmbeddingProvider();
         return llmRuntimeCatalog.resolvePrimaryEmbeddingModel(provider)
+                .map(model -> gated(model, modelServerGates))
                 .orElseThrow(() -> new IllegalStateException(
                         "No embedding runtime binding could be resolved for fixed provider '" + provider + "'. "
                                 + "Configure exactly one contexa.llm.selection.embedding.priority value and the matching Spring AI embedding runtime."));
@@ -295,14 +324,22 @@ public class CoreLLMTieredAutoConfiguration {
     @ConditionalOnMissingBean(name = {"primaryEmbeddingModel", "embeddingModel"})
     @Conditional(AnyEmbeddingModelAvailableCondition.class)
     @ConditionalOnProperty(prefix = "contexa.llm.selection.embedding", name = "mode", havingValue = "spring-primary")
-    public EmbeddingModel springPrimaryEmbeddingModel(LlmRuntimeCatalog llmRuntimeCatalog) {
+    public EmbeddingModel springPrimaryEmbeddingModel(LlmRuntimeCatalog llmRuntimeCatalog,
+                                                      ObjectProvider<ModelServerGates> modelServerGates) {
         return llmRuntimeCatalog.resolveSpringPrimaryEmbeddingModel()
+                .map(model -> gated(model, modelServerGates))
                 .orElseThrow(() -> new IllegalStateException(
                         "No embedding runtime binding is available for spring-primary selection. Register a Spring AI EmbeddingModel bean first."));
     }
 
     @PostConstruct
     public void init() {
+    }
+
+    /** O-1: Contexa's vector store embeds through the gate of the embedding model's server. */
+    private static EmbeddingModel gated(EmbeddingModel model, ObjectProvider<ModelServerGates> modelServerGates) {
+        ModelServerGates gates = modelServerGates.getIfAvailable();
+        return gates != null && !(model instanceof GatedEmbeddingModel) ? new GatedEmbeddingModel(model, gates) : model;
     }
 
     private String resolveChatPriority() {
@@ -386,7 +423,8 @@ public class CoreLLMTieredAutoConfiguration {
         @ConditionalOnMissingBean(name = "contexaOllamaChatModel")
         public OllamaChatModel contexaOllamaChatModel(
                 @Qualifier("contexaOllamaChatApi") OllamaApi ollamaApi,
-                ContexaProperties contexaProperties) {
+                ContexaProperties contexaProperties,
+                ObjectProvider<SpringModelServerResolver> modelServerResolver) {
 
             OllamaChatOptions options = OllamaChatOptions.builder().build();
             if (StringUtils.hasText(contexaProperties.getLlm().getChat().getOllama().getModel())) {
@@ -397,10 +435,13 @@ public class CoreLLMTieredAutoConfiguration {
             if (StringUtils.hasText(contexaProperties.getLlm().getChat().getOllama().getKeepAlive())) {
                 options.setKeepAlive(contexaProperties.getLlm().getChat().getOllama().getKeepAlive().trim());
             }
-            return OllamaChatModel.builder()
+            OllamaChatModel model = OllamaChatModel.builder()
                     .ollamaApi(ollamaApi)
                     .defaultOptions(options)
                     .build();
+            modelServerResolver.ifAvailable(resolver -> resolver.register(model, "ollama",
+                    resolveChatOllamaBaseUrl(contexaProperties), options.getModel()));
+            return model;
         }
 
         @Bean(name = "contexaDedicatedEmbeddingOllamaApi")
@@ -424,9 +465,14 @@ public class CoreLLMTieredAutoConfiguration {
                 @Qualifier("contexaDedicatedEmbeddingOllamaApi") OllamaApi ollamaApi,
                 ObjectProvider<ObservationRegistry> observationRegistry,
                 ObjectProvider<EmbeddingModelObservationConvention> observationConvention,
-                ContexaProperties contexaProperties) {
+                ContexaProperties contexaProperties,
+                ObjectProvider<SpringModelServerResolver> modelServerResolver) {
 
-            return buildOllamaEmbeddingModel(ollamaApi, observationRegistry, observationConvention, resolveEmbeddingModel(contexaProperties));
+            OllamaEmbeddingModel model = buildOllamaEmbeddingModel(ollamaApi, observationRegistry, observationConvention,
+                    resolveEmbeddingModel(contexaProperties));
+            modelServerResolver.ifAvailable(resolver -> resolver.register(model, "ollama",
+                    resolveDedicatedEmbeddingOllamaBaseUrl(contexaProperties), resolveEmbeddingModel(contexaProperties)));
+            return model;
         }
 
         @Bean(name = "contexaSharedOllamaEmbeddingModel")
@@ -436,9 +482,14 @@ public class CoreLLMTieredAutoConfiguration {
                 @Qualifier("contexaOllamaChatApi") OllamaApi ollamaApi,
                 ObjectProvider<ObservationRegistry> observationRegistry,
                 ObjectProvider<EmbeddingModelObservationConvention> observationConvention,
-                ContexaProperties contexaProperties) {
+                ContexaProperties contexaProperties,
+                ObjectProvider<SpringModelServerResolver> modelServerResolver) {
 
-            return buildOllamaEmbeddingModel(ollamaApi, observationRegistry, observationConvention, resolveEmbeddingModel(contexaProperties));
+            OllamaEmbeddingModel model = buildOllamaEmbeddingModel(ollamaApi, observationRegistry, observationConvention,
+                    resolveEmbeddingModel(contexaProperties));
+            modelServerResolver.ifAvailable(resolver -> resolver.register(model, "ollama",
+                    resolveChatOllamaBaseUrl(contexaProperties), resolveEmbeddingModel(contexaProperties)));
+            return model;
         }
 
         private OllamaApi buildOllamaApi(

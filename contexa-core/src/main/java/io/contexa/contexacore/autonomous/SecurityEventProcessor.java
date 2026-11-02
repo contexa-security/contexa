@@ -29,7 +29,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Slf4j
 public class SecurityEventProcessor {
 
-    static final String PROCESSING_DEADLINE_AT = "processingDeadlineAt";
+    /** The time (epoch milliseconds) the event's processing budget ends; a model call waits in line at most until then. */
+    public static final String PROCESSING_DEADLINE_AT = "processingDeadlineAt";
     static final String PROCESSING_TIMED_OUT = "processingTimedOut";
     static final String PROCESSING_DEADLINE_EXCEEDED = "processingDeadlineExceeded";
     static final String PROCESSING_DEADLINE_EXCEEDED_AT = "processingDeadlineExceededAt";

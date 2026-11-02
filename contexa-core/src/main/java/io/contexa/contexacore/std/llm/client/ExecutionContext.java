@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.std.llm.client;
 
+import io.contexa.contexacore.std.llm.gate.ModelCallTimer;
 import lombok.Builder;
 import lombok.Data;
 import lombok.experimental.Accessors;
@@ -105,6 +106,12 @@ public class ExecutionContext {
     private Boolean streamingMode;
     private Boolean toolExecutionEnabled;
     private Boolean advisorEnabled;
+
+    /**
+     * O-1: the timer of the work the call belongs to (a layer's analysis); the wait at the model server's gate is left
+     * out of its limits and bounded by its deadline. Taken from the calling thread when not set.
+     */
+    private transient ModelCallTimer modelCallTimer;
 
     public enum AnalysisLevel {
         QUICK(1),     

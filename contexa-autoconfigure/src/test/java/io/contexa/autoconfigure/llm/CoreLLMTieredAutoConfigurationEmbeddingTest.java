@@ -18,6 +18,7 @@ package io.contexa.autoconfigure.llm;
 import io.contexa.autoconfigure.core.llm.CoreLLMTieredAutoConfiguration;
 import io.contexa.autoconfigure.properties.ContexaLlmSelectionProperties;
 import io.contexa.autoconfigure.properties.ContexaProperties;
+import io.contexa.contexacore.std.llm.gate.ModelServerGates;
 import io.contexa.contexacore.std.llm.runtime.LlmRuntimeCatalog;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.embedding.EmbeddingModel;
@@ -37,6 +38,11 @@ import static org.mockito.Mockito.when;
 
 class CoreLLMTieredAutoConfigurationEmbeddingTest {
 
+    @SuppressWarnings("unchecked")
+    private static ObjectProvider<ModelServerGates> noGates() {
+        return mock(ObjectProvider.class);
+    }
+
     private CoreLLMTieredAutoConfiguration createConfiguration(String embeddingPriority) {
         CoreLLMTieredAutoConfiguration configuration = new CoreLLMTieredAutoConfiguration();
         ContexaProperties properties = new ContexaProperties();
@@ -53,7 +59,7 @@ class CoreLLMTieredAutoConfigurationEmbeddingTest {
         EmbeddingModel embeddingModel = mock(EmbeddingModel.class);
         when(catalog.resolvePrimaryEmbeddingModel("openai")).thenReturn(Optional.of(embeddingModel));
 
-        EmbeddingModel selected = configuration.fixedPrimaryEmbeddingModel(catalog);
+        EmbeddingModel selected = configuration.fixedPrimaryEmbeddingModel(catalog, noGates());
 
         assertThat(selected).isSameAs(embeddingModel);
         verify(catalog).resolvePrimaryEmbeddingModel("openai");
@@ -69,7 +75,7 @@ class CoreLLMTieredAutoConfigurationEmbeddingTest {
         EmbeddingModel embeddingModel = mock(EmbeddingModel.class);
         when(catalog.resolvePrimaryEmbeddingModel("voyageai")).thenReturn(Optional.of(embeddingModel));
 
-        EmbeddingModel selected = configuration.fixedPrimaryEmbeddingModel(catalog);
+        EmbeddingModel selected = configuration.fixedPrimaryEmbeddingModel(catalog, noGates());
 
         assertThat(selected).isSameAs(embeddingModel);
         verify(catalog).resolvePrimaryEmbeddingModel("voyageai");
@@ -81,7 +87,7 @@ class CoreLLMTieredAutoConfigurationEmbeddingTest {
         LlmRuntimeCatalog catalog = mock(LlmRuntimeCatalog.class);
         when(catalog.resolvePrimaryEmbeddingModel("openai")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> configuration.fixedPrimaryEmbeddingModel(catalog))
+        assertThatThrownBy(() -> configuration.fixedPrimaryEmbeddingModel(catalog, noGates()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("No embedding runtime binding could be resolved for fixed provider");
     }
@@ -93,7 +99,7 @@ class CoreLLMTieredAutoConfigurationEmbeddingTest {
         selectionProperties.getEmbedding().setPriority("openai,ollama");
         ReflectionTestUtils.setField(configuration, "contexaLlmSelectionProperties", selectionProperties);
 
-        assertThatThrownBy(() -> configuration.fixedPrimaryEmbeddingModel(mock(LlmRuntimeCatalog.class)))
+        assertThatThrownBy(() -> configuration.fixedPrimaryEmbeddingModel(mock(LlmRuntimeCatalog.class), noGates()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Embedding runtime must be fixed to exactly one provider");
     }
@@ -117,7 +123,7 @@ class CoreLLMTieredAutoConfigurationEmbeddingTest {
         EmbeddingModel embeddingModel = mock(EmbeddingModel.class);
         when(catalog.resolveSpringPrimaryEmbeddingModel()).thenReturn(Optional.of(embeddingModel));
 
-        EmbeddingModel selected = configuration.springPrimaryEmbeddingModel(catalog);
+        EmbeddingModel selected = configuration.springPrimaryEmbeddingModel(catalog, noGates());
 
         assertThat(selected).isSameAs(embeddingModel);
         verify(catalog).resolveSpringPrimaryEmbeddingModel();

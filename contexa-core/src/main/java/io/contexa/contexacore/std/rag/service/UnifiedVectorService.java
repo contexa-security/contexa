@@ -17,6 +17,7 @@ package io.contexa.contexacore.std.rag.service;
 
 import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
 import io.contexa.contexacore.autonomous.telemetry.SecurityEventTelemetryContext;
+import io.contexa.contexacore.std.llm.gate.ModelCallTimer;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.std.rag.properties.PgVectorStoreProperties;
@@ -603,10 +604,12 @@ public class UnifiedVectorService implements VectorOperations, DisposableBean {
         SecurityEventTelemetryContext.putIfAbsent("vectorRetryCount", 0L);
         Future<T> future = null;
         long effectiveTimeoutMs = Math.max(100L, timeoutMs);
+        // O-1 (3): the limit counts from the embedding call's start; a wait at the model server's gate is left out.
+        ModelCallTimer timer = ModelCallTimer.start(effectiveTimeoutMs);
         try {
             SecurityEventTelemetryContext.put("vectorOperationLabel", operationLabel);
-            future = vectorOperationExecutor.submit(operation);
-            return future.get(effectiveTimeoutMs, TimeUnit.MILLISECONDS);
+            future = vectorOperationExecutor.submit(timer.bind(operation));
+            return timer.await(future);
         } catch (TimeoutException timeoutException) {
             if (future != null) {
                 future.cancel(true);

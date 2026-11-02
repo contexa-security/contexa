@@ -40,6 +40,7 @@ import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptShadowRun;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
+import io.contexa.contexacore.std.llm.gate.ModelServerSignals;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
@@ -316,18 +317,19 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             if (pipelineOrchestrator != null) {
                 long llmExecutionStart = System.currentTimeMillis();
                 // Apply layer1.timeout.llmMs to the blocking pipeline call so a stalled
-                // upstream model never wedges Layer 1 indefinitely. Reactor surfaces a
-                // timeout as IllegalStateException, which the outer catch converts to a
-                // technical fallback decision (ESCALATE to Layer 2).
-                pipelineResponse = executeSecurityDecisionPipeline(
+                // upstream model never wedges Layer 1 indefinitely. A timeout is an
+                // IllegalStateException, which the outer catch converts to a technical
+                // fallback decision (ESCALATE to Layer 2). O-1 (3): the time the model call
+                // waits at its server's gate is not counted; the event's deadline bounds it.
+                pipelineResponse = awaitPipeline(executeSecurityDecisionPipeline(
                                 pipelineOrchestrator,
                                 event,
                                 sessionCtx,
                                 behaviorCtx,
-                                relatedDocuments)
-                        // N-OUT-1 (G1-7): on a thread of its own, so the budget holds when the pipeline runs synchronously.
-                        .subscribeOn(Schedulers.boundedElastic())
-                        .block(Duration.ofMillis(llmTimeoutMs));
+                                relatedDocuments),
+                        llmTimeoutMs, event,
+                        limitMs -> new IllegalStateException("Timeout on blocking read for "
+                                + TimeUnit.MILLISECONDS.toNanos(limitMs) + " NANOSECONDS"));
                 llmExecutionMs = System.currentTimeMillis() - llmExecutionStart;
 
                 if (pipelineResponse == null) {
@@ -403,7 +405,12 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             return decision;
 
         } catch (Exception e) {
-            log.error("Layer 1 analysis failed for event {}", event.getEventId(), e);
+            if (ModelServerSignals.isTimeLimit(e)) {
+                // O-2: the analysis ended at its time limit; the escalation below is the defined outcome.
+                log.warn("Layer 1 analysis ended at its time limit for event {}: {}", event.getEventId(), e.toString());
+            } else {
+                log.error("Layer 1 analysis failed for event {}", event.getEventId(), e);
+            }
             SecurityDecision fallbackDecision = createTechnicalFallbackDecision(
                     event,
                     ZeroTrustAction.ESCALATE,

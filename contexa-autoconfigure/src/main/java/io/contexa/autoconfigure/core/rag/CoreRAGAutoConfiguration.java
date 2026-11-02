@@ -28,6 +28,8 @@ import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
+import io.contexa.contexacore.std.llm.gate.CallKind;
+import io.contexa.contexacore.std.llm.gate.ModelServerGates;
 import io.contexa.contexacore.std.llm.runtime.LlmRuntimeCatalog;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
@@ -48,6 +50,7 @@ import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.rag.Query;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.ai.rag.preretrieval.query.transformation.QueryTransformer;
@@ -81,6 +84,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 @Slf4j
 @AutoConfiguration
@@ -407,7 +411,9 @@ public class CoreRAGAutoConfiguration {
     @Bean("behaviorQueryTransformer")
     @ConditionalOnBean(ChatClient.Builder.class)
     @ConditionalOnMissingBean(name = "behaviorQueryTransformer")
-    public QueryTransformer behaviorQueryTransformer(ChatClient.Builder chatClientBuilder) {
+    public QueryTransformer behaviorQueryTransformer(ChatClient.Builder chatClientBuilder,
+            ObjectProvider<ModelServerGates> modelServerGates,
+            @Qualifier("primaryChatModel") ObjectProvider<ChatModel> primaryChatModel) {
         return new QueryTransformer() {
             private final ChatClient chatClient = chatClientBuilder.build();
 
@@ -431,10 +437,11 @@ public class CoreRAGAutoConfiguration {
                         Return only the optimized query.
                         """.formatted(originalQuery.text());
 
-                String transformedText = chatClient.prompt()
-                        .user(prompt)
-                        .call()
-                        .content();
+                String transformedText = throughModelServerGate(modelServerGates, primaryChatModel,
+                        () -> chatClient.prompt()
+                                .user(prompt)
+                                .call()
+                                .content());
 
                 return new Query(transformedText);
             }
@@ -444,7 +451,9 @@ public class CoreRAGAutoConfiguration {
     @Bean("riskQueryTransformer")
     @ConditionalOnBean(ChatClient.Builder.class)
     @ConditionalOnMissingBean(name = "riskQueryTransformer")
-    public QueryTransformer riskQueryTransformer(ChatClient.Builder chatClientBuilder) {
+    public QueryTransformer riskQueryTransformer(ChatClient.Builder chatClientBuilder,
+            ObjectProvider<ModelServerGates> modelServerGates,
+            @Qualifier("primaryChatModel") ObjectProvider<ChatModel> primaryChatModel) {
         return new QueryTransformer() {
             private final ChatClient chatClient = chatClientBuilder.build();
 
@@ -468,10 +477,11 @@ public class CoreRAGAutoConfiguration {
                         Return only the optimized query.
                         """.formatted(originalQuery.text());
 
-                String transformedText = chatClient.prompt()
-                        .user(prompt)
-                        .call()
-                        .content();
+                String transformedText = throughModelServerGate(modelServerGates, primaryChatModel,
+                        () -> chatClient.prompt()
+                                .user(prompt)
+                                .call()
+                                .content());
 
                 return new Query(transformedText);
             }
@@ -481,7 +491,9 @@ public class CoreRAGAutoConfiguration {
     @Bean("policyQueryTransformer")
     @ConditionalOnBean(ChatClient.Builder.class)
     @ConditionalOnMissingBean(name = "policyQueryTransformer")
-    public QueryTransformer policyQueryTransformer(ChatClient.Builder chatClientBuilder) {
+    public QueryTransformer policyQueryTransformer(ChatClient.Builder chatClientBuilder,
+            ObjectProvider<ModelServerGates> modelServerGates,
+            @Qualifier("primaryChatModel") ObjectProvider<ChatModel> primaryChatModel) {
         return new QueryTransformer() {
             private final ChatClient chatClient = chatClientBuilder.build();
 
@@ -505,13 +517,33 @@ public class CoreRAGAutoConfiguration {
                         Return only the optimized query.
                         """.formatted(originalQuery.text());
 
-                String transformedText = chatClient.prompt()
-                        .user(prompt)
-                        .call()
-                        .content();
+                String transformedText = throughModelServerGate(modelServerGates, primaryChatModel,
+                        () -> chatClient.prompt()
+                                .user(prompt)
+                                .call()
+                                .content());
 
                 return new Query(transformedText);
             }
         };
+    }
+
+    /** O-1: a query rewrite is a call of the primary chat model's server and passes its gate. */
+    private static String throughModelServerGate(ObjectProvider<ModelServerGates> modelServerGates,
+                                                 ObjectProvider<ChatModel> primaryChatModel,
+                                                 Supplier<String> call) {
+        ModelServerGates gates = modelServerGates.getIfAvailable();
+        ChatModel model = primaryChatModel.getIfAvailable();
+        if (gates == null || model == null) {
+            return call.get();
+        }
+        String modelName = model.getDefaultOptions() != null ? model.getDefaultOptions().getModel() : null;
+        try {
+            return gates.call(model, CallKind.CHAT, modelName, call::get);
+        } catch (RuntimeException failure) {
+            throw failure;
+        } catch (Exception failure) {
+            throw new IllegalStateException(failure);
+        }
     }
 }

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
+import io.contexa.contexacore.autonomous.SecurityEventProcessor;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import io.contexa.contexacore.autonomous.context.support.PastRecordScope;
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
@@ -53,6 +54,7 @@ import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContractV4;
+import io.contexa.contexacore.std.llm.gate.ModelCallTimer;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionV21OutputInspector;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
@@ -88,6 +90,7 @@ import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -95,6 +98,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.LongFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
@@ -103,7 +108,9 @@ import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.util.StringUtils;
+import reactor.core.Exceptions;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 
 @Slf4j
@@ -345,6 +352,56 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             provenance.put(field, "PLATFORM_FALLBACK");
         }
         return Map.copyOf(provenance);
+    }
+
+    /** O-1: the time (epoch milliseconds) the event's processing budget ends, or 0 when it has none. */
+    protected static long processingDeadline(SecurityEvent event) {
+        Object value = event != null && event.getMetadata() != null
+                ? event.getMetadata().get(SecurityEventProcessor.PROCESSING_DEADLINE_AT) : null;
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        if (value instanceof String text) {
+            try {
+                return Long.parseLong(text.trim());
+            } catch (NumberFormatException ignored) {
+                return 0L;
+            }
+        }
+        return 0L;
+    }
+
+    /**
+     * The pipeline's result, waited for on a thread of its own (N-OUT-1) as long as the layer's limit allows. O-1 (3):
+     * the time its model calls wait at a model server's gate is not counted, and the event's deadline bounds that wait
+     * instead; when the limit runs out the pipeline is cancelled and {@code timeout} is thrown.
+     */
+    protected <T> T awaitPipeline(Mono<T> pipeline, long limitMs, SecurityEvent event,
+                                  LongFunction<RuntimeException> timeout) {
+        ModelCallTimer timer = ModelCallTimer.start(limitMs).withDeadline(processingDeadline(event));
+        Callable<T> work = pipeline::block;
+        CompletableFuture<T> future = Mono.fromCallable(timer.bind(work))
+                .subscribeOn(Schedulers.boundedElastic())
+                .toFuture();
+        try {
+            return timer.await(future);
+        } catch (TimeoutException timedOut) {
+            future.cancel(true);
+            throw timeout.apply(limitMs);
+        } catch (ExecutionException failed) {
+            Throwable cause = failed.getCause();
+            if (cause instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            if (cause instanceof Error error) {
+                throw error;
+            }
+            throw Exceptions.propagate(cause);
+        } catch (InterruptedException interrupted) {
+            future.cancel(true);
+            Thread.currentThread().interrupt();
+            throw Exceptions.propagate(interrupted);
+        }
     }
 
     protected String resolveTechnicalFailureCategory(Throwable throwable) {

@@ -38,16 +38,18 @@ import io.contexa.contexacore.soar.approval.ApprovalRequestDetails;
 import io.contexa.contexacore.soar.approval.ApprovalService;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
+import io.contexa.contexacore.std.llm.gate.ModelServerSignals;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Autowired;
+import reactor.core.Exceptions;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
+import java.util.concurrent.TimeoutException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -266,12 +268,14 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                     request.withParameter("layer2FirstPassVerdict", firstPass.verdict());
                     request.withParameter("layer2FirstPassPastRecordsState", firstPass.pastRecordsState());
                 }
-                pipelineResponse = pipelineOrchestrator.execute(request, SECURITY_DECISION_PIPELINE_CONFIGURATION,
-                                SecurityDecisionResponse.class)
-                        // N-OUT-1 (G1-7): on a thread of its own, so the budget holds when the pipeline runs synchronously.
-                        .subscribeOn(Schedulers.boundedElastic())
-                        .timeout(Duration.ofMillis(tieredStrategyProperties.getLayer2().getTimeoutMs()))
-                        .block();
+                // N-OUT-1 (G1-7): on a thread of its own, so the budget holds when the pipeline runs synchronously.
+                // O-1 (3): the time the model call waits at its server's gate is not counted; the event's deadline
+                // bounds it.
+                pipelineResponse = awaitPipeline(pipelineOrchestrator.execute(request,
+                                SECURITY_DECISION_PIPELINE_CONFIGURATION, SecurityDecisionResponse.class),
+                        tieredStrategyProperties.getLayer2().getTimeoutMs(), event,
+                        limitMs -> Exceptions.propagate(new TimeoutException("Did not observe any item or terminal "
+                                + "signal within " + limitMs + "ms in 'subscribeOn' (and no fallback has been configured)")));
                 pipelineBlockMs = System.currentTimeMillis() - pipelineStart;
                 if (pipelineResponse == null) {
                     throw new IllegalStateException("Layer2 structured security decision pipeline returned null");
@@ -333,7 +337,13 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             return expertDecision;
 
         } catch (Exception e) {
-            log.error("[Layer2] Expert analysis failed for event {}", event.getEventId() != null ? event.getEventId() : "unknown", e);
+            String eventId = event.getEventId() != null ? event.getEventId() : "unknown";
+            if (ModelServerSignals.isTimeLimit(e)) {
+                // O-2: the analysis ended at layer2.timeout-ms; held for review is the defined outcome.
+                log.warn("[Layer2] Expert analysis ended at its time limit for event {}: {}", eventId, e.toString());
+            } else {
+                log.error("[Layer2] Expert analysis failed for event {}", eventId, e);
+            }
             return createLayer2TechnicalFailureDecision(event, startTime, resolveTechnicalFailureCategory(e));
         }
     }

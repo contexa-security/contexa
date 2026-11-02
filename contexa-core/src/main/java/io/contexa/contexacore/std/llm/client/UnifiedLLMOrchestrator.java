@@ -22,6 +22,12 @@ import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import io.contexa.contexacore.properties.SecurityPlaneProperties.LlmProviderThrottleSettings;
 import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
 import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
+import io.contexa.contexacore.std.llm.gate.CallKind;
+import io.contexa.contexacore.std.llm.gate.ModelCallTimer;
+import io.contexa.contexacore.std.llm.gate.ModelServerBusyException;
+import io.contexa.contexacore.std.llm.gate.ModelServerGate;
+import io.contexa.contexacore.std.llm.gate.ModelServerGates;
+import io.contexa.contexacore.std.llm.gate.ModelServerSignals;
 import io.contexa.contexacore.std.llm.handler.StreamingHandler;
 import io.contexa.contexacore.std.llm.observation.LlmObservationContext;
 import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
@@ -38,6 +44,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
@@ -59,10 +66,13 @@ import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
+import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.tool.ToolCallback;
 import reactor.core.publisher.Flux;
+import reactor.core.Exceptions;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 import reactor.util.retry.Retry;
 
 
@@ -99,6 +109,12 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
     private static final Pattern PROVIDER_STATUS = Pattern.compile("^(?:HTTP )?(\\d{3}) - ");
     /** Set on a call once its request was sent again without the fields the provider refused (design 4.5-C). */
     private static final String REFUSAL_RESENT = "providerRefusalResent";
+    private static final int PROVIDER_RETRY_ATTEMPTS = 4;
+    private static final Duration PROVIDER_RETRY_FIRST_BACKOFF = Duration.ofSeconds(2);
+    private static final Duration PROVIDER_RETRY_MAX_BACKOFF = Duration.ofSeconds(12);
+    /** O-1: the model server the call went to, and how long it waited at its gate over all attempts. */
+    public static final String MODEL_SERVER = "modelServer";
+    public static final String MODEL_SERVER_WAIT_MS = "modelServerWaitMs";
 
     private final ModelSelectionStrategy modelSelectionStrategy;
     private final StreamingHandler streamingHandler;
@@ -111,6 +127,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
     private final SecurityDecisionOutputParser securityDecisionOutputParser = new SecurityDecisionOutputParser();
     private volatile List<Advisor> cachedAdvisorSnapshot = List.of();
     private volatile ObservationRegistry observationRegistry = ObservationRegistry.NOOP;
+    private volatile ModelServerGates modelServerGates;
     private final ProviderThrottle providerThrottle = new ProviderThrottle();
     private static final AtomicInteger PROVIDER_CALL_THREAD_SEQUENCE = new AtomicInteger();
     private static final ExecutorService PROVIDER_CALL_EXECUTOR = Executors.newCachedThreadPool(new ThreadFactory() {
@@ -147,8 +164,9 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         if (context.getPrompt() == null) {
             return Mono.error(new IllegalArgumentException("Prompt cannot be null"));
         }
+        rememberCallTimer(context);
 
-        Mono<String> execution = Mono.fromCallable(() -> {
+        Mono<String> execution = blockingCall(context, () -> {
                     ChatResponse chatResponse = executeForChatResponse(context);
                     long responseExtractStart = System.currentTimeMillis();
                     String response = extractResponseText(chatResponse);
@@ -162,7 +180,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                     }
                     return response;
                 })
-                .doOnError(error -> log.error("LLM execution failed - RequestId: {}", context.getRequestId(), error));
+                .doOnError(error -> logCallFailure("LLM execution", context, error));
 
         if (isRetryDisabled(context)) {
             return execution;
@@ -189,14 +207,39 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                 ChatClient chatClient = buildChatClient(selectedModel, context.getAdvisorEnabled());
 
                 // A stream asked with tools (streamTools, streamToolCallbacks) goes where the tools are attached.
-                return Boolean.TRUE.equals(context.getToolExecutionEnabled())
+                Flux<String> stream = Boolean.TRUE.equals(context.getToolExecutionEnabled())
                         ? streamingHandler.handleStreamingWithTools(chatClient, context, selectedModel)
                         : streamingHandler.handleStreaming(chatClient, context, selectedModel);
+                return throughModelServerGate(context, selectedModel, stream);
             } catch (Exception e) {
                 log.error("LLM Streaming failed - RequestId: {}", context.getRequestId(), e);
                 return Flux.error(e);
             }
         });
+    }
+
+    /**
+     * O-1: a stream holds a slot of its model server's gate from its start to its end. The wait for the slot runs on a
+     * thread that may block; the stream's own time limit starts when it is in.
+     */
+    private Flux<String> throughModelServerGate(ExecutionContext context, ChatModel selectedModel, Flux<String> stream) {
+        ModelServerGates gates = modelServerGates;
+        ModelServerGate gate = gates != null ? gates.gateFor(selectedModel, CallKind.CHAT) : null;
+        if (gate == null) {
+            return stream;
+        }
+        rememberCallTimer(context);
+        ModelCallTimer timer = context.getModelCallTimer();
+        String model = chatModelName(context, selectedModel);
+        context.addMetadata(MODEL_SERVER, gate.server().key());
+        return Flux.using(
+                        () -> gate.enter(CallKind.CHAT, model, gates.maxWaitMs(timer), timer),
+                        permit -> {
+                            context.addMetadata(MODEL_SERVER_WAIT_MS, permit.waitedMillis());
+                            return stream.doOnError(error -> signalServerLoad(permit, error));
+                        },
+                        ModelServerGate.Permit::close)
+                .subscribeOn(Schedulers.boundedElastic());
     }
 
     @Override
@@ -208,11 +251,12 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         if (targetType == null) {
             return Mono.error(new IllegalArgumentException("Target type cannot be null"));
         }
+        rememberCallTimer(context);
         if (SecurityDecisionResponseLite.class.equals(targetType)) {
             return executeSecurityDecisionRawGuarded(context, targetType);
         }
 
-        return Mono.fromCallable(() -> {
+        return blockingCall(context, () -> {
                     ResponseEntity<ChatResponse, T> responseEntity = executeForResponseEntity(context, targetType);
                     T entity = responseEntity.getEntity();
                     if (entity == null) {
@@ -220,8 +264,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                     }
                     return entity;
                 })
-                .doOnError(error -> log.error("LLM Entity execution failed - RequestId: {}", context.getRequestId(),
-                        error))
+                .doOnError(error -> logCallFailure("LLM Entity execution", context, error))
                 .transform(entityExecution -> isRetryDisabled(context)
                         ? entityExecution
                         : entityExecution.retryWhen(llmProviderRetry("LLM Entity", context)));
@@ -253,8 +296,13 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                     });
                 })
                 .onErrorResume(error -> {
-                    log.error("LLM security decision raw guarded execution failed - RequestId: {}",
-                            context.getRequestId(), error);
+                    if (isModelServerBusy(error)) {
+                        log.warn("LLM security decision got no turn at the model server - RequestId: {}: {}",
+                                context.getRequestId(), error.getMessage());
+                    } else {
+                        log.error("LLM security decision raw guarded execution failed - RequestId: {}",
+                                context.getRequestId(), error);
+                    }
                     context.addMetadata("rawExecutionSucceeded", false);
                     String failureCategory = isTimeoutFailure(error)
                             ? providerTimeoutFailureCategory(context) : providerFailureCategory(context, error);
@@ -287,6 +335,9 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         }
         Throwable current = error;
         while (current != null) {
+            if (current instanceof ModelServerBusyException) {
+                return ModelServerBusyException.FAILURE_CATEGORY;
+            }
             String message = current.getMessage() != null ? current.getMessage() : "";
             if (message.startsWith(EMPTY_RESPONSE_MESSAGE)) {
                 return "EMPTY_RESPONSE";
@@ -305,6 +356,67 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             current = current.getCause();
         }
         return "MODEL_UNAVAILABLE";
+    }
+
+    private static boolean isModelServerBusy(Throwable error) {
+        for (Throwable current = error; current != null; current = current.getCause() != current ? current.getCause() : null) {
+            if (current instanceof ModelServerBusyException) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * A blocking provider call as a Mono, run on the subscribing thread as Mono.fromCallable runs it. When the
+     * subscriber has gone before the call ends (its time limit cut it), a failure of the call is no longer anyone's to
+     * handle: it is left out instead of being reported as a dropped error (O-2).
+     */
+    private static <T> Mono<T> blockingCall(ExecutionContext context, Callable<T> call) {
+        return Mono.create(sink -> {
+            AtomicBoolean gone = new AtomicBoolean();
+            sink.onCancel(() -> gone.set(true));
+            try {
+                T value = call.call();
+                if (value == null) {
+                    sink.success();
+                } else {
+                    sink.success(value);
+                }
+            } catch (Throwable failure) {
+                if (gone.get()) {
+                    log.debug("LLM call ended after its caller stopped waiting - RequestId: {}: {}",
+                            context != null ? context.getRequestId() : "unknown", failure.toString());
+                } else {
+                    sink.error(failure);
+                }
+            }
+        });
+    }
+
+    /** O-1: the timer of the work the call belongs to, taken from the calling thread when the context has none. */
+    private static void rememberCallTimer(ExecutionContext context) {
+        if (context != null && context.getModelCallTimer() == null) {
+            context.setModelCallTimer(ModelCallTimer.current());
+        }
+    }
+
+    /**
+     * A failed attempt: one that gets no turn at the model server or may pass when sent again is a warning (the call
+     * waits in line again or ends as a defined outcome); any other failure is an error.
+     */
+    private void logCallFailure(String operation, ExecutionContext context, Throwable error) {
+        String requestId = context != null ? context.getRequestId() : "unknown";
+        if (isModelServerBusy(error)) {
+            log.warn("{} got no turn at the model server - RequestId: {}: {}", operation, requestId, error.getMessage());
+        } else if (ModelServerSignals.isTimeLimit(error)) {
+            log.warn("{} ended at a time limit - RequestId: {}: {}", operation, requestId, error.getMessage());
+        } else if (isRetryableProviderFailure(error)) {
+            log.warn("{} failed and may pass when sent again - RequestId: {}: {}", operation, requestId,
+                    error.getMessage());
+        } else {
+            log.error("{} failed - RequestId: {}", operation, requestId, error);
+        }
     }
 
     private static Integer httpStatus(String message) {
@@ -421,15 +533,21 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         recordProviderTiming(context, "providerPromptSpecPrepareMs", promptSpecPrepareMs);
 
         long providerThrottleWaitMs = throttleProviderCall(context, selectedModel);
-        long providerCallStart = System.currentTimeMillis();
         ChatResponse chatResponse;
-        try {
-            chatResponse = executeProviderCallWithinTimeout(context, selectedModel, () -> promptSpec.call().chatResponse());
-        } catch (RuntimeException ex) {
-            chatResponse = resendWithoutRefusedFields(context, selectedModel, chatClient, providerCallStart, ex,
-                    spec -> spec.call().chatResponse());
+        long providerCallMs;
+        // O-1: the call waits for its turn at the model server's gate; the provider call limit counts from here on.
+        try (ModelServerGate.Permit permit = enterModelServer(context, selectedModel)) {
+            long providerCallStart = System.currentTimeMillis();
+            try {
+                chatResponse = executeProviderCallWithinTimeout(context, selectedModel,
+                        inSlot(permit, () -> promptSpec.call().chatResponse()));
+            } catch (RuntimeException ex) {
+                signalServerLoad(permit, ex);
+                chatResponse = resendWithoutRefusedFields(context, selectedModel, chatClient, permit,
+                        providerCallStart, ex, spec -> spec.call().chatResponse());
+            }
+            providerCallMs = System.currentTimeMillis() - providerCallStart;
         }
-        long providerCallMs = System.currentTimeMillis() - providerCallStart;
         recordProviderTiming(context, "providerCallMs", providerCallMs);
         enforceProviderCallTimeout(context, selectedModel, providerCallMs);
 
@@ -467,15 +585,21 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         recordProviderTiming(context, "providerPromptSpecPrepareMs", promptSpecPrepareMs);
 
         long providerThrottleWaitMs = throttleProviderCall(context, selectedModel);
-        long providerCallStart = System.currentTimeMillis();
         ResponseEntity<ChatResponse, T> responseEntity;
-        try {
-            responseEntity = executeProviderCallWithinTimeout(context, selectedModel, () -> promptSpec.call().responseEntity(targetType));
-        } catch (RuntimeException ex) {
-            responseEntity = resendWithoutRefusedFields(context, selectedModel, chatClient, providerCallStart, ex,
-                    spec -> spec.call().responseEntity(targetType));
+        long providerCallMs;
+        // O-1: the call waits for its turn at the model server's gate; the provider call limit counts from here on.
+        try (ModelServerGate.Permit permit = enterModelServer(context, selectedModel)) {
+            long providerCallStart = System.currentTimeMillis();
+            try {
+                responseEntity = executeProviderCallWithinTimeout(context, selectedModel,
+                        inSlot(permit, () -> promptSpec.call().responseEntity(targetType)));
+            } catch (RuntimeException ex) {
+                signalServerLoad(permit, ex);
+                responseEntity = resendWithoutRefusedFields(context, selectedModel, chatClient, permit,
+                        providerCallStart, ex, spec -> spec.call().responseEntity(targetType));
+            }
+            providerCallMs = System.currentTimeMillis() - providerCallStart;
         }
-        long providerCallMs = System.currentTimeMillis() - providerCallStart;
         recordProviderTiming(context, "providerCallMs", providerCallMs);
         enforceProviderCallTimeout(context, selectedModel, providerCallMs);
 
@@ -506,6 +630,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             ExecutionContext context,
             ChatModel selectedModel,
             ChatClient chatClient,
+            ModelServerGate.Permit permit,
             long providerCallStart,
             RuntimeException failure,
             Function<ChatClient.ChatClientRequestSpec, T> call) {
@@ -525,7 +650,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         AnthropicThinkingOptions.Resend resend = AnthropicThinkingOptions.beginResend(context, selectedModel, groups);
         try {
             ChatClient.ChatClientRequestSpec promptSpec = preparePromptSpec(chatClient, context, selectedModel);
-            T result = callProviderWithin(selectedModel, () -> call.apply(promptSpec), remainingMs);
+            T result = callProviderWithin(selectedModel, inSlot(permit, () -> call.apply(promptSpec)), remainingMs);
             AnthropicThinkingOptions.confirmResend(resend, SensitiveValueSanitizer.sanitizeText(failure.getMessage()));
             return result;
         } catch (RuntimeException resendFailure) {
@@ -631,6 +756,64 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         if (context != null && selectedModel != null) {
             context.addMetadata("chatModelClass", selectedModel.getClass().getName());
         }
+    }
+
+    /**
+     * O-1: waits for the call's turn at the gate of the model's server, without counting the wait against the limits
+     * of the work's timer and at most until its deadline; null when the call passes no gate.
+     */
+    private ModelServerGate.Permit enterModelServer(ExecutionContext context, ChatModel selectedModel) {
+        ModelServerGates gates = modelServerGates;
+        ModelServerGate gate = gates != null ? gates.gateFor(selectedModel, CallKind.CHAT) : null;
+        if (gate == null) {
+            return null;
+        }
+        ModelCallTimer timer = context != null ? context.getModelCallTimer() : null;
+        if (context != null) {
+            context.addMetadata(MODEL_SERVER, gate.server().key());
+        }
+        try {
+            ModelServerGate.Permit permit = gate.enter(CallKind.CHAT, chatModelName(context, selectedModel),
+                    gates.maxWaitMs(timer), timer);
+            if (context != null) {
+                Long waitedBefore = metadataLong(context.getMetadata().get(MODEL_SERVER_WAIT_MS));
+                context.addMetadata(MODEL_SERVER_WAIT_MS,
+                        (waitedBefore != null ? waitedBefore : 0L) + permit.waitedMillis());
+            }
+            return permit;
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new ProviderCallTimeoutException("LLM provider call interrupted while waiting for model server "
+                    + gate.server().key(), ex);
+        }
+    }
+
+    /**
+     * O-1: the provider call with the call's slot held on the thread that runs it, so that a tool or an advisor calling
+     * the same server inside it goes in under that slot instead of waiting for one.
+     */
+    private static <T> Callable<T> inSlot(ModelServerGate.Permit permit, Callable<T> providerCall) {
+        return permit != null ? permit.scope(providerCall) : providerCall;
+    }
+
+    /** A failure that may pass when sent again closes the server for a while: the retry waits in line (O-1 (4)). */
+    private void signalServerLoad(ModelServerGate.Permit permit, Throwable failure) {
+        if (permit != null && isRetryableProviderFailure(failure)) {
+            permit.overloaded();
+        }
+    }
+
+    /** The model the call asks the server for: the one the selection chose, else the model's default. */
+    private static String chatModelName(ExecutionContext context, ChatModel selectedModel) {
+        String selected = ProviderAwareChatOptionsFactory.resolveSelectedModelId(context);
+        if (selected != null && !selected.isBlank()) {
+            return selected;
+        }
+        ChatOptions defaults = selectedModel != null ? selectedModel.getDefaultOptions() : null;
+        if (defaults != null && defaults.getModel() != null && !defaults.getModel().isBlank()) {
+            return defaults.getModel();
+        }
+        return selectedModel != null ? selectedModel.getClass().getName() : null;
     }
 
     private void enforceProviderCallTimeout(ExecutionContext context, ChatModel selectedModel, long providerCallMs) {
@@ -1321,8 +1504,9 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
      * provider time limit, the response metadata, and the retry of a failure that may pass when sent again.
      */
     private Mono<ChatResponse> executeChatResponse(ExecutionContext context) {
-        Mono<ChatResponse> execution = Mono.fromCallable(() -> executeForChatResponse(context))
-                .doOnError(error -> log.error("LLM tool call failed - RequestId: {}", context.getRequestId(), error));
+        rememberCallTimer(context);
+        Mono<ChatResponse> execution = blockingCall(context, () -> executeForChatResponse(context))
+                .doOnError(error -> logCallFailure("LLM tool call", context, error));
         return isRetryDisabled(context) ? execution : execution.retryWhen(llmProviderRetry("LLM tool call", context));
     }
 
@@ -1350,6 +1534,11 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                 .build();
 
         return stream(context);
+    }
+
+    /** O-1: the gates of the model servers the chat calls pass. */
+    public void setModelServerGates(ModelServerGates modelServerGates) {
+        this.modelServerGates = modelServerGates;
     }
 
     /** The observation registry the ChatClients observe through (Spring AI's chat client and advisor observations). */
@@ -1408,21 +1597,61 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         return false;
     }
 
+    /**
+     * A failure that may pass is sent again up to four times. Through a model server's gate, the server backs off
+     * after a rate limit or an overload and the retry waits in line for it (O-1 (4)), so it is sent again at once;
+     * any other failure is sent again after 2 s, 4 s, 8 s and 12 s, as without a gate.
+     */
     private Retry llmProviderRetry(String operation, ExecutionContext context) {
-        return Retry.backoff(4, Duration.ofSeconds(2))
-                .maxBackoff(Duration.ofSeconds(12))
-                .filter(this::isRetryableProviderFailure)
-                .doBeforeRetry(retrySignal -> {
-                    long retryCount = retrySignal.totalRetries() + 1;
-                    if (context != null) {
-                        context.addMetadata("providerRetryCount", retryCount);
-                    }
-                    log.warn("{} Retry #{} - RequestId: {}, Error: {}",
-                            operation,
-                            retryCount,
-                            context != null ? context.getRequestId() : "unknown",
-                            retrySignal.failure() != null ? retrySignal.failure().getMessage() : "unknown");
-                });
+        if (modelServerGates == null) {
+            return Retry.backoff(PROVIDER_RETRY_ATTEMPTS, PROVIDER_RETRY_FIRST_BACKOFF)
+                    .maxBackoff(PROVIDER_RETRY_MAX_BACKOFF)
+                    .filter(this::isRetryableProviderFailure)
+                    .doBeforeRetry(retrySignal -> recordRetry(operation, context, retrySignal))
+                    .onRetryExhaustedThrow((spec, retrySignal) -> retriesExhausted(operation, context,
+                            retrySignal.failure()));
+        }
+        return Retry.from(signals -> signals.concatMap(retrySignal -> {
+            Throwable failure = retrySignal.failure();
+            if (!isRetryableProviderFailure(failure)) {
+                return Mono.error(failure);
+            }
+            if (retrySignal.totalRetries() >= PROVIDER_RETRY_ATTEMPTS) {
+                return Mono.error(retriesExhausted(operation, context, failure));
+            }
+            recordRetry(operation, context, retrySignal);
+            boolean serverBacksOff = ModelServerSignals.isOverload(failure) && context != null
+                    && context.getMetadata().get(MODEL_SERVER) != null;
+            if (serverBacksOff) {
+                return Mono.just(retrySignal.totalRetries());
+            }
+            long backoffMs = Math.min(PROVIDER_RETRY_MAX_BACKOFF.toMillis(),
+                    PROVIDER_RETRY_FIRST_BACKOFF.toMillis() << Math.min(10, retrySignal.totalRetries()));
+            return Mono.delay(Duration.ofMillis(backoffMs), Schedulers.boundedElastic());
+        }));
+    }
+
+    /**
+     * As Retry.backoff ends: the last failure inside a retries-exhausted exception. Each attempt was a warning; that
+     * every attempt failed is the error.
+     */
+    private Throwable retriesExhausted(String operation, ExecutionContext context, Throwable failure) {
+        log.error("{} failed after {} retries - RequestId: {}", operation, PROVIDER_RETRY_ATTEMPTS,
+                context != null ? context.getRequestId() : "unknown", failure);
+        return Exceptions.retryExhausted("Retries exhausted: " + PROVIDER_RETRY_ATTEMPTS + "/"
+                + PROVIDER_RETRY_ATTEMPTS, failure);
+    }
+
+    private void recordRetry(String operation, ExecutionContext context, Retry.RetrySignal retrySignal) {
+        long retryCount = retrySignal.totalRetries() + 1;
+        if (context != null) {
+            context.addMetadata("providerRetryCount", retryCount);
+        }
+        log.warn("{} Retry #{} - RequestId: {}, Error: {}",
+                operation,
+                retryCount,
+                context != null ? context.getRequestId() : "unknown",
+                retrySignal.failure() != null ? retrySignal.failure().getMessage() : "unknown");
     }
 
     private boolean isRetryableProviderFailure(Throwable throwable) {
