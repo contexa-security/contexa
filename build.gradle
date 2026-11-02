@@ -12,15 +12,9 @@ repositories {
     mavenCentral()
 }
 
-// The modules published to Maven Central are 0.1.1: 0.1.0 reached Maven Central before the seed scripts
-// were read as UTF-8 and before the first administrator could be created, and a published version cannot
-// be replaced. The showcase and the demo keep 0.1.0, so their jar names and recorded engine version stay.
-def publishedModules = ['contexa-common', 'contexa-core', 'contexa-identity', 'contexa-iam',
-                        'contexa-autoconfigure', 'spring-boot-starter-contexa']
-
 allprojects {
     group = 'ai.ctxa'
-    version = publishedModules.contains(name) ? '0.1.1' : '0.1.0'
+    version = '0.1.1'
     description = 'contexa'
 }
 

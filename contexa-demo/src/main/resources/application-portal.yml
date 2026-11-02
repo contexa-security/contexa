@@ -1,3 +1,0 @@
-spring:
-  flyway:
-    locations: classpath:lab/db/migration,classpath:lab/db/portal

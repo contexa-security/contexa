@@ -1,2 +1,0 @@
-# Files read directly by Linux containers (psql init scripts, Dockerfiles, compose) keep LF on every checkout.
-* text=auto eol=lf
