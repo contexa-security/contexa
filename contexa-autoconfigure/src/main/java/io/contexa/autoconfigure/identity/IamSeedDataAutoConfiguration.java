@@ -28,6 +28,7 @@ import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.InitializingBean;
+import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.context.annotation.Bean;
@@ -123,6 +124,9 @@ public class IamSeedDataAutoConfiguration {
             Pattern.compile("^create table if not exists ([\\w.\"]+)");
     private static final Pattern CREATE_INDEX_IF_NOT_EXISTS =
             Pattern.compile("^create (?:unique )?index if not exists \\S+ on (?:only )?([\\w.\"]+)");
+    /** The columns the schema adds to a table after its {@code create table}; the same statements the maintenance replays. */
+    private static final Pattern ALTER_TABLE_ADD_COLUMN_IF_NOT_EXISTS =
+            Pattern.compile("^alter table (?:if exists )?(?:only )?([\\w.\"]+) .*\\badd column if not exists\\b.*");
 
     /** The seed files the initializer runs, in order; the sample accounts last, and only when the property is true. */
     static List<String> seedLocations(Environment environment) {
@@ -159,6 +163,7 @@ public class IamSeedDataAutoConfiguration {
     public InitializingBean iamSeedDataInitializer(
             @Qualifier("contexaDataSource") DataSource dataSource,
             OssSchemaGovernance ossSchemaGovernance,
+            OssSchemaMaintenanceBacklog maintenanceBacklog,
             Environment environment) {
         return () -> {
             boolean enterpriseManaged = ossSchemaGovernance.hasProvenance(OssSchemaGovernance.ENTERPRISE_OWNER);
@@ -177,7 +182,8 @@ public class IamSeedDataAutoConfiguration {
             if (schemaInstallState == SchemaInstallState.ABSENT) {
                 ossSchemaGovernance.assertNoOssOwnershipCollisions(preInstallationObjects);
             }
-            initializeSchemaAndSeedData(dataSource, schemaInstallState, enterpriseManaged, seedLocations(environment));
+            initializeSchemaAndSeedData(dataSource, schemaInstallState, enterpriseManaged,
+                    enterpriseRequested ? maintenanceBacklog : null, seedLocations(environment));
             seedAdministrator(dataSource, environment);
             OssSchemaGovernance.GovernanceReport report = ossSchemaGovernance.initializeAndRecordOss(
                     schemaInstallState == SchemaInstallState.ABSENT ? preInstallationObjects : null);
@@ -196,10 +202,27 @@ public class IamSeedDataAutoConfiguration {
         return new OssSchemaGovernance(dataSource);
     }
 
+    @Bean
+    public OssSchemaMaintenanceBacklog ossSchemaMaintenanceBacklog(
+            @Qualifier("contexaDataSource") DataSource dataSource) {
+        return new OssSchemaMaintenanceBacklog(dataSource);
+    }
+
+    /**
+     * Runs after every singleton exists, which is after the enterprise Flyway migrations. Nothing is left over when
+     * the schema needed no put-off statement; a statement that still fails stops the start.
+     */
+    @Bean
+    public static SmartInitializingSingleton ossSchemaMaintenanceBacklogCompletion(
+            OssSchemaMaintenanceBacklog maintenanceBacklog) {
+        return maintenanceBacklog::complete;
+    }
+
     private void initializeSchemaAndSeedData(
             DataSource dataSource,
             SchemaInstallState schemaInstallState,
             boolean enterpriseManaged,
+            OssSchemaMaintenanceBacklog deferTo,
             List<String> seedLocations)
             throws SQLException, IOException {
         if (schemaInstallState == SchemaInstallState.PARTIAL) {
@@ -229,7 +252,7 @@ public class IamSeedDataAutoConfiguration {
         } else if (schemaInstallState == SchemaInstallState.COMPLETE) {
             log.info("[IamSeedData] Contexa schema already installed, skipping schema initialization");
             if (shouldApplyCanonicalSchemaMaintenance(schemaInstallState, enterpriseManaged)) {
-                applyCanonicalSchemaMaintenance(dataSource);
+                applyCanonicalSchemaMaintenance(dataSource, deferTo, deferTo != null);
             } else {
                 log.info("[IamSeedData] Enterprise provenance is present; OSS canonical DDL maintenance is skipped");
                 createMissingOssTables(dataSource);
@@ -324,7 +347,14 @@ public class IamSeedDataAutoConfiguration {
                 && (!preInstallationObjects.tables().isEmpty() || !preInstallationObjects.views().isEmpty());
     }
 
-    private void applyCanonicalSchemaMaintenance(DataSource dataSource) throws IOException, SQLException {
+    /**
+     * @param deferTo where a statement goes that names a column or table only the enterprise migrations add; used
+     *                only when {@code deferMissingObjects} is set, which an enterprise start sets. Without it every
+     *                failure stops the start.
+     */
+    static void applyCanonicalSchemaMaintenance(
+            DataSource dataSource, OssSchemaMaintenanceBacklog deferTo, boolean deferMissingObjects)
+            throws IOException, SQLException {
         Resource schema = new ClassPathResource(CANONICAL_SCHEMA_LOCATION);
         if (!schema.exists()) {
             log.warn("[IamSeedData] classpath:{} not found, skipping schema maintenance",
@@ -335,6 +365,14 @@ public class IamSeedDataAutoConfiguration {
                 sanitizeSchemaSqlForInstalledDatabase(schema.getContentAsString(StandardCharsets.UTF_8)));
         if (maintenanceSql.isBlank()) {
             log.info("[IamSeedData] No idempotent schema maintenance statements found");
+            return;
+        }
+        if (deferMissingObjects) {
+            List<String> deferred = executeSchemaSqlDeferring(
+                    dataSource, CANONICAL_SCHEMA_LOCATION + "#maintenance", maintenanceSql);
+            deferTo.defer(deferred);
+            log.info("[IamSeedData] {} idempotent schema maintenance executed; {} statement(s) wait for the enterprise "
+                    + "migrations", CANONICAL_SCHEMA_LOCATION, deferred.size());
             return;
         }
         executeSchemaSql(dataSource, CANONICAL_SCHEMA_LOCATION + "#maintenance", maintenanceSql);
@@ -367,7 +405,11 @@ public class IamSeedDataAutoConfiguration {
         log.info("[IamSeedData] OSS tables missing from the enterprise-managed database were created: {}", missingTables);
     }
 
-    /** The {@code create table if not exists} and {@code create index if not exists} statements of the given tables. */
+    /**
+     * The {@code create table if not exists}, {@code add column if not exists} and {@code create index if not exists}
+     * statements of the given tables, in the order of the schema. A column that the schema adds to a table with
+     * {@code alter table} is not in its {@code create table}, so a table created here would lack it.
+     */
     static String extractMissingTableCreationSql(String sql, Set<String> missingTables) {
         if (sql == null || sql.isBlank() || missingTables == null || missingTables.isEmpty()) {
             return "";
@@ -383,6 +425,9 @@ public class IamSeedDataAutoConfiguration {
             String table = matchedTable(CREATE_TABLE_IF_NOT_EXISTS, normalized);
             if (table == null) {
                 table = matchedTable(CREATE_INDEX_IF_NOT_EXISTS, normalized);
+            }
+            if (table == null) {
+                table = matchedTable(ALTER_TABLE_ADD_COLUMN_IF_NOT_EXISTS, normalized);
             }
             if (table != null && missing.contains(table)) {
                 creation.append(candidate).append(";\n");
@@ -493,6 +538,27 @@ public class IamSeedDataAutoConfiguration {
     }
 
     static void executeSchemaSql(DataSource dataSource, String location, String sql) throws SQLException {
+        executeStatements(dataSource, location, sql, null);
+    }
+
+    /**
+     * Like {@link #executeSchemaSql}, but a statement that fails because a column or table does not exist yet is
+     * returned instead of stopping the script; every other failure still stops it.
+     */
+    static List<String> executeSchemaSqlDeferring(DataSource dataSource, String location, String sql)
+            throws SQLException {
+        List<String> deferred = new ArrayList<>();
+        executeStatements(dataSource, location, sql, deferred);
+        return deferred;
+    }
+
+    /** PostgreSQL {@code undefined_column} and {@code undefined_table}. */
+    static boolean isMissingObjectFailure(SQLException error) {
+        return "42703".equals(error.getSQLState()) || "42P01".equals(error.getSQLState());
+    }
+
+    private static void executeStatements(
+            DataSource dataSource, String location, String sql, List<String> deferred) throws SQLException {
         List<String> statements = splitSqlStatements(sql);
         try (Connection connection = dataSource.getConnection();
              Statement statement = connection.createStatement()) {
@@ -506,6 +572,12 @@ public class IamSeedDataAutoConfiguration {
                 try {
                     statement.execute(sqlStatement);
                 } catch (SQLException ex) {
+                    if (deferred != null && isMissingObjectFailure(ex)) {
+                        log.warn("[IamSeedData] Statement #{} of {} waits for the enterprise migrations ({}): {}",
+                                statementNumber, location, ex.getMessage(), abbreviate(sqlStatement));
+                        deferred.add(sqlStatement);
+                        continue;
+                    }
                     throw new SQLException(
                             "Failed to execute SQL script statement #" + statementNumber + " of " + location
                                     + ": " + abbreviate(sqlStatement),

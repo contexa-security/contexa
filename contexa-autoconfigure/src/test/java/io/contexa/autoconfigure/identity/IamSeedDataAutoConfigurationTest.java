@@ -95,7 +95,8 @@ class IamSeedDataAutoConfigurationTest {
     @DisplayName("IAM seed data should be exposed as an InitializingBean")
     void iamSeedDataIsExposedAsInitializingBean() throws NoSuchMethodException {
         Method initializer = IamSeedDataAutoConfiguration.class.getDeclaredMethod(
-                "iamSeedDataInitializer", DataSource.class, OssSchemaGovernance.class, Environment.class);
+                "iamSeedDataInitializer", DataSource.class, OssSchemaGovernance.class, OssSchemaMaintenanceBacklog.class,
+                Environment.class);
 
         assertThat(initializer.getReturnType())
                 .as("IAM seed must run during bean initialization against contexaDataSource")
@@ -188,6 +189,45 @@ class IamSeedDataAutoConfigurationTest {
                 .doesNotContain("users")
                 .doesNotContain("admin_menu");
         assertThat(IamSeedDataAutoConfiguration.extractMissingTableCreationSql(sql, Set.of())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("A1-6: a missing table also gets the columns the schema adds to it later, an existing table does not")
+    void aMissingTableGetsTheColumnsTheSchemaAddsToItLater() {
+        String sql = """
+                create table users (id bigint primary key);
+
+                create table prompt_inspection_result (
+                    id bigserial primary key,
+                    verdict varchar(32) not null
+                );
+
+                alter table users add column if not exists locale varchar(10);
+
+                alter table prompt_inspection_result
+                    add column if not exists finding_kinds_json text,
+                    add column if not exists inspected_by varchar(64);
+
+                create index if not exists idx_pir_kinds on prompt_inspection_result (finding_kinds_json);
+
+                alter table prompt_inspection_result alter column verdict type varchar(64);
+                """;
+
+        String creation = IamSeedDataAutoConfiguration.extractMissingTableCreationSql(
+                IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(sql),
+                Set.of("prompt_inspection_result"));
+
+        assertThat(creation)
+                .contains("create table if not exists prompt_inspection_result")
+                .contains("add column if not exists finding_kinds_json text")
+                .contains("add column if not exists inspected_by varchar(64)")
+                .contains("idx_pir_kinds")
+                .doesNotContain("locale")
+                .doesNotContain("alter column");
+        // the statements keep the order of the schema: the table, its columns, then the index that needs them
+        assertThat(creation.indexOf("create table if not exists prompt_inspection_result"))
+                .isLessThan(creation.indexOf("finding_kinds_json text"));
+        assertThat(creation.indexOf("finding_kinds_json text")).isLessThan(creation.indexOf("idx_pir_kinds"));
     }
 
     @Test
