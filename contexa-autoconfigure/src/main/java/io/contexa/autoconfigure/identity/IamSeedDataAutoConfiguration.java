@@ -36,6 +36,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 
 import javax.sql.DataSource;
 import java.io.IOException;
@@ -105,6 +106,19 @@ public class IamSeedDataAutoConfiguration {
     static final String ACCOUNT_SEED_LOCATION = "db/data-accounts.sql";
     static final String ACCOUNT_SEED_PROPERTY = "contexa.iam.seed.accounts.enabled";
 
+    /**
+     * One administrator whose password comes from the configuration (contexa init keeps it outside the
+     * project), so an application whose sign-in Contexa provides can be signed in to without the shared-password
+     * sample accounts. Nothing happens without the password.
+     */
+    static final String ADMIN_PASSWORD_PROPERTY = "contexa.iam.seed.admin.password";
+    static final String ADMIN_USERNAME_PROPERTY = "contexa.iam.seed.admin.username";
+    static final String ADMIN_EMAIL_PROPERTY = "contexa.iam.seed.admin.email";
+    static final String DEFAULT_ADMIN_USERNAME = "admin";
+    static final String DEFAULT_ADMIN_EMAIL = "admin@localhost";
+    /** The system administrators group of db/data.sql, which holds ROLE_ADMIN. */
+    static final long ADMIN_GROUP_ID = 1L;
+
     private static final Pattern CREATE_TABLE_IF_NOT_EXISTS =
             Pattern.compile("^create table if not exists ([\\w.\"]+)");
     private static final Pattern CREATE_INDEX_IF_NOT_EXISTS =
@@ -164,6 +178,7 @@ public class IamSeedDataAutoConfiguration {
                 ossSchemaGovernance.assertNoOssOwnershipCollisions(preInstallationObjects);
             }
             initializeSchemaAndSeedData(dataSource, schemaInstallState, enterpriseManaged, seedLocations(environment));
+            seedAdministrator(dataSource, environment);
             OssSchemaGovernance.GovernanceReport report = ossSchemaGovernance.initializeAndRecordOss(
                     schemaInstallState == SchemaInstallState.ABSENT ? preInstallationObjects : null);
             log.info("[IamSeedData] OSS schema provenance verified. version={}, tables={}, views={}, checksum={}, "
@@ -226,13 +241,70 @@ public class IamSeedDataAutoConfiguration {
                 log.warn("[IamSeedData] classpath:{} not found, skipping", location);
                 continue;
             }
-            ResourceDatabasePopulator populator = new ResourceDatabasePopulator();
-            populator.setContinueOnError(false);
-            populator.addScript(seed);
-            populator.execute(dataSource);
+            seedPopulator(seed).execute(dataSource);
             log.info("[IamSeedData] {} executed", location);
         }
         completePqaOfficialSchemaIfNeeded(dataSource);
+    }
+
+    /**
+     * The seed scripts are UTF-8, like the schema. Without the explicit encoding Java 17 reads them with the
+     * operating system's charset: Korean names are stored garbled on Korean Windows (MS949), and under a POSIX
+     * locale different names turn into the same '?' text and the startup fails on a unique constraint.
+     */
+    static ResourceDatabasePopulator seedPopulator(Resource seed) {
+        ResourceDatabasePopulator populator = new ResourceDatabasePopulator();
+        populator.setContinueOnError(false);
+        populator.setSqlScriptEncoding(StandardCharsets.UTF_8.name());
+        populator.addScript(seed);
+        return populator;
+    }
+
+    /**
+     * Creates the configured administrator once. An existing user with that username or e-mail is never changed, so a
+     * password changed in the admin console is not reset at the next start. The password is stored in the {@code {bcrypt}}
+     * form of Spring's delegating encoder, like the sample accounts; the encoder is made here rather than injected
+     * because this initializer runs before Contexa's JPA setup. The account signs in with two steps, like the sample
+     * administrator, and its e-mail receives the one-time code.
+     */
+    static AdministratorSeed seedAdministrator(DataSource dataSource, Environment environment) {
+        String password = environment.getProperty(ADMIN_PASSWORD_PROPERTY);
+        if (password == null || password.isBlank()) {
+            return AdministratorSeed.NOT_REQUESTED;
+        }
+        String username = environment.getProperty(ADMIN_USERNAME_PROPERTY, DEFAULT_ADMIN_USERNAME).trim();
+        String email = environment.getProperty(ADMIN_EMAIL_PROPERTY, DEFAULT_ADMIN_EMAIL).trim();
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        Integer existing = jdbc.queryForObject(
+                "select count(*) from users where username = ? or email = ?", Integer.class, username, email);
+        if (existing != null && existing > 0) {
+            log.info("[IamSeedData] A user named '{}' or with the e-mail {} exists; the administrator from {} is not created",
+                    username, email, ADMIN_PASSWORD_PROPERTY);
+            return AdministratorSeed.ALREADY_PRESENT;
+        }
+        String encoded = PasswordEncoderFactories.createDelegatingPasswordEncoder().encode(password);
+        jdbc.update("insert into users (username, email, password, name, enabled, account_locked, credentials_expired, "
+                        + "failed_login_attempts, mfa_enabled, bridge_managed, external_auth_only, created_at) "
+                        + "values (?, ?, ?, ?, true, false, false, 0, true, false, false, current_timestamp)",
+                username, email, encoded, "Administrator");
+        Long userId = jdbc.queryForObject("select id from users where username = ?", Long.class, username);
+        Integer group = jdbc.queryForObject(
+                "select count(*) from app_group where group_id = ?", Integer.class, ADMIN_GROUP_ID);
+        if (group != null && group > 0) {
+            jdbc.update("insert into user_groups (user_id, group_id, assigned_at) values (?, ?, current_timestamp)",
+                    userId, ADMIN_GROUP_ID);
+            log.info("[IamSeedData] Administrator '{}' created from {}", username, ADMIN_PASSWORD_PROPERTY);
+        } else {
+            log.warn("[IamSeedData] Administrator '{}' created from {}, but the administrators group {} is missing; "
+                    + "assign a group in the admin console", username, ADMIN_PASSWORD_PROPERTY, ADMIN_GROUP_ID);
+        }
+        return AdministratorSeed.CREATED;
+    }
+
+    enum AdministratorSeed {
+        NOT_REQUESTED,
+        CREATED,
+        ALREADY_PRESENT
     }
 
     static boolean shouldApplyCanonicalSchemaMaintenance(
