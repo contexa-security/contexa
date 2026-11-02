@@ -4,6 +4,20 @@ All notable changes to the open-source CONTEXA core are documented in this file.
 
 The format is based on Keep a Changelog and the project follows semantic versioning in principle.
 
+## [0.1.1] - 2026-11-02
+
+### Fixed
+
+- The IAM seed scripts are read as UTF-8, like the schema. Java 17 takes its default charset from the operating
+  system, so the Korean seed data was stored garbled on Korean Windows (MS949) and the startup failed on a unique
+  constraint under a POSIX locale.
+
+### Added
+
+- `contexa.iam.seed.admin.password` (with `.username`, default `admin`, and `.email`, default `admin@localhost`)
+  creates one administrator in the system administrators group at the start. An existing user with that name or
+  e-mail is never changed, so a password changed in the admin console stays. Without the password nothing is created.
+
 ## [0.1.0] - 2026-04-13
 
 ### Added

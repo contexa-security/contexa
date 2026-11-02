@@ -4,7 +4,7 @@ This repository is the open-source core of CONTEXA.
 
 ## Current Project Status
 
-- Public OSS version: `0.1.0`
+- Public OSS version: `0.1.1`
 - Release stage: initial public open-source release
 - Product category: AI-native post-authentication runtime control plane for Spring applications
 

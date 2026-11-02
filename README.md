@@ -40,7 +40,7 @@ Add Contexa to an **existing Spring Boot application** using the steps below. Th
 
 **Requirements:** Java 17+, Spring Boot 3.5.x, and a Maven or Gradle project. AI analysis also needs a configured Contexa database and chat/embedding models. Use PostgreSQL with pgvector for the PostgreSQL vector-store setup. Ollama provides a local model option; cloud providers need their own credentials. Docker is needed only when provisioning containerized infrastructure.
 
-**Version:** `0.1.0`. Contexa supports Spring Boot 3.x; Spring Boot 4.x is not supported.
+**Version:** `0.1.1`. Contexa needs Spring Boot 3.5.x; older versions do not start, and Spring Boot 4.x is not supported.
 
 ### 1. Configure your application
 
@@ -71,7 +71,7 @@ The application uses the Contexa starter dependency. For Gradle:
 
 ```gradle
 dependencies {
-    implementation "ai.ctxa:spring-boot-starter-contexa:0.1.0"
+    implementation "ai.ctxa:spring-boot-starter-contexa:0.1.1"
 }
 ```
 
@@ -81,7 +81,7 @@ For Maven, use the equivalent dependency:
 <dependency>
     <groupId>ai.ctxa</groupId>
     <artifactId>spring-boot-starter-contexa</artifactId>
-    <version>0.1.0</version>
+    <version>0.1.1</version>
 </dependency>
 ```
 
@@ -237,7 +237,7 @@ The open-source modules provide the runtime control foundation. Commercial and e
 
 ## Project and community
 
-Contexa **`0.1.0`** is an open-source platform licensed under Apache 2.0. Explore the documentation and benchmarks, share integration experiences, and contribute to the project.
+Contexa **`0.1.1`** is an open-source platform licensed under Apache 2.0. Explore the documentation and benchmarks, share integration experiences, and contribute to the project.
 
 - **Learn:** [Documentation](https://docs.ctxa.ai), [public benchmarks](https://ctxa.ai/benchmark), [website](https://ctxa.ai).
 - **Contribute:** [Contributing guide](CONTRIBUTING.md), [issues](https://github.com/contexa-security/contexa/issues), [maintainers](MAINTAINERS.md), [governance](GOVERNANCE.md).

@@ -1,5 +1,13 @@
 # Release Notes
 
+## v0.1.1
+
+Release date: 2026-11-02
+Release stage: fix release for the initial public open-source release
+
+- IAM seed scripts are read as UTF-8 (Java 17 on Korean Windows and under a POSIX locale)
+- first administrator from `contexa.iam.seed.admin.password`, for applications whose sign-in Contexa provides
+
 ## v0.1.0
 
 Release date: 2026-04-13
