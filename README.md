@@ -1,102 +1,136 @@
 <p align="center">
-  <img src="logo.jpg" alt="Contexa Logo" width="400" />
+  <img src="logo.jpg" alt="Contexa" width="400" />
 </p>
 
 <p align="center">
-  <strong>Open-source AI-native Post-Authentication Runtime Control Plane</strong>
+  <strong>AI-native runtime security for Spring Boot: decide what a signed-in user may do, request by request.</strong>
 </p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"/></a>
+  <a href="https://central.sonatype.com/artifact/ai.ctxa/spring-boot-starter-contexa"><img src="https://img.shields.io/maven-central/v/ai.ctxa/spring-boot-starter-contexa" alt="Maven Central"/></a>
   <a href="https://openjdk.org/"><img src="https://img.shields.io/badge/Java-17%2B-orange.svg" alt="Java 17 or later"/></a>
   <a href="https://spring.io/projects/spring-boot"><img src="https://img.shields.io/badge/Spring%20Boot-3.5-green.svg" alt="Spring Boot 3.5"/></a>
 </p>
 
-> **Security does not end at login.**
+## What is Contexa?
 
-Contexa brings AI-based security decisions into your Spring Boot application **after authentication**. It combines the authenticated identity, requested resource, available business context, and recent activity to assess whether access still makes sense. The application can then require additional verification, restrict access, or allow work to continue.
+A login proves who someone is. A role says what they may access. Neither tells you whether the person using the account is its owner doing their own work, or someone who stole the account, or an insider using a legitimate permission for another purpose.
 
-Your login establishes who is making a request. Your authorization policy establishes what they may access. Contexa adds runtime evaluation of **what that authenticated identity is doing in context**.
+Contexa is an open-source Spring Boot library that closes this gap. For each request to a protected method, it asks an AI model whether the account's owner is doing their own work right now. It weighs the session so far, how the request differs from the user's usual behavior, company records and earlier decisions. It stores the answer as a **decision** and applies it to that user's requests: let them continue, ask for another verification, or stop them.
 
-**[Try the demo](https://demo.ctxa.ai)** · **[Get started](#get-started)** · [Documentation](https://docs.ctxa.ai) · [Examples](#examples) · [Website](https://ctxa.ai)
+- **Added to an application you already have.** Your login and your roles stay as they are. Contexa adds one dependency, one annotation and `@Protectable` on the methods to protect.
+- **No policy rules to write for the decision.** The AI model chooses the action from the facts of the request; your authorization policies still apply.
+- **Not in the request path.** By default the model runs after the response has been sent, so the user does not wait for it; the decision applies from the user's next request. A method can ask for the decision inside the call (`@Protectable(sync = true)`).
+- **Explainable.** Every decision is written to a hash-chained, signed audit record, and for a sample of the model's decisions the exact prompt it received is sealed as evidence for later review.
+- **Covers AI agents.** Requests from agents are told apart from people's requests and decided separately.
 
-## See the value
+### The same permission, three outcomes
 
-Consider an employee who is allowed to read settlement documents. A valid login and the correct role remain the same across these situations:
+An employee is allowed to read settlement documents. The login and the role are the same in each case:
 
-| Available context | What Contexa evaluates | Possible response |
+| What happens | What Contexa weighs | Decision |
 |---|---|---|
-| Reads records relevant to an assigned settlement task | Whether access fits the task and recent activity | Continue the work |
-| The same identity starts accessing unrelated customer records | Whether the stated purpose and actual behavior are consistent | Require additional verification |
-| Activity provides evidence of continued misuse | Whether access should remain available | Restrict access and record the reason |
+| Reads the records of an assigned settlement task | Fits the task and the user's recent activity | `ALLOW` |
+| Starts opening unrelated customer records | Behavior differs from the user's usual work | `CHALLENGE`: asks for MFA again |
+| Keeps going after failing the check | Evidence of continued misuse | `BLOCK`: stopped until an administrator releases it |
 
-This example illustrates how the same permission can lead to different runtime responses. Contexa selects an action using the supplied context, configured policies, model analysis, and operating mode.
+The scenario is illustrative: the decision always depends on the context that is supplied, the configured policies, the model's analysis and the enforcement mode.
 
-The [demo](https://demo.ctxa.ai) connects each stage of runtime security: **perform a task → inspect the decision and its evidence → observe access control → complete verification or recovery → return to authorized work**.
+## The five decisions
+
+| Decision | Meaning | HTTP status | Valid for |
+|---|---|---|---|
+| `ALLOW` | Continue as usual | 200 | 15 s, then back to pending analysis |
+| `CHALLENGE` | Step-up authentication (MFA) is required | 401 | 30 min, or until MFA is passed |
+| `ESCALATE` | Held for review while the analysis settles | 423 | 5 min |
+| `BLOCK` | Refused until an administrator releases it | 403 | Until released |
+| `PENDING_ANALYSIS` | No decision stored yet: the request goes on and is analyzed | request passes | Until a decision is stored |
+
+The table shows the behavior when enforcement is on. The stricter decision wins: a weaker new decision is not stored while a stricter one is in force. Agent requests and `@Protectable(sync = true)` calls are decided on the spot and are refused with 503 when no decision can be obtained.
+
+## How it works
+
+```mermaid
+flowchart LR
+    A[Signed-in request] --> B[Apply the stored decision]
+    B -->|allowed| C[Your protected method]
+    B -->|CHALLENGE, ESCALATE or BLOCK| X[Verification or refusal]
+    C -. analysis event .-> D[AI analysis:<br/>session, behavior, records, history]
+    D --> E[Decision and audit evidence]
+    E --> F[(Decision store)]
+    F -. read on the next request .-> B
+```
+
+The request path only reads the stored decision; it never calls the model. The analysis runs separately, one user session at a time, and the two meet only at the decision store. Analysis is triggered by `@Protectable` calls and by MFA sign-in; an ordinary URL request that is not a protected method is not analyzed. Read [How Contexa Works](https://docs.ctxa.ai/en/docs/reference/architecture/overview.html) for the details.
 
 ## Get started
 
-Add Contexa to an **existing Spring Boot application** using the steps below. The [demo](https://demo.ctxa.ai) provides a guided product experience, and the [example applications](#examples) show common integration scenarios.
+**You need:** Java 17+, Spring Boot **3.5.x** (older versions do not start, and 4.x is not supported), a PostgreSQL database with the pgvector extension that is dedicated to Contexa, and an AI model for chat and for embeddings: a local [Ollama](https://ollama.com), or OpenAI. Anthropic can serve chat, with OpenAI or Ollama for the embeddings.
 
-**Requirements:** Java 17+, Spring Boot 3.5.x, and a Maven or Gradle project. AI analysis also needs a configured Contexa database and chat/embedding models. Use PostgreSQL with pgvector for the PostgreSQL vector-store setup. Ollama provides a local model option; cloud providers need their own credentials. Docker is needed only when provisioning containerized infrastructure.
+### Fastest: the CLI
 
-**Version:** `0.1.1`. Contexa needs Spring Boot 3.5.x; older versions do not start, and Spring Boot 4.x is not supported.
-
-### 1. Configure your application
-
-Install the [Contexa CLI](https://github.com/contexa-security/contexa-cli), which guides dependency and configuration setup.
-
-Linux / macOS:
+In your Spring Boot project (or an empty folder, which gets a sample application):
 
 ```bash
-curl -fsSL https://install.ctxa.ai/install.sh | sh
-```
-
-Windows PowerShell:
-
-```powershell
-irm https://install.ctxa.ai/install.ps1 | iex
-```
-
-Open a new terminal if needed, then run these commands from the directory containing your application's `pom.xml` or `build.gradle`:
-
-```bash
-contexa --version
+curl -fsSL https://install.ctxa.ai/install.sh | sh      # Windows: irm https://install.ctxa.ai/install.ps1 | iex
 contexa init
 ```
 
-Enable AI security in the guided setup and select a model provider. Configure host-owned integration with `SANDBOX` and begin observing decisions in `SHADOW` mode, as shown below.
+[`contexa init`](https://github.com/contexa-security/contexa-cli) asks which AI model to use, prepares a local PostgreSQL with pgvector and the model, adds the dependencies, `@EnableAISecurity` and the settings to your project, checks that everything resolves, and offers to start the application. `contexa reset` undoes it.
 
-The application uses the Contexa starter dependency. For Gradle:
+### By hand
+
+**1. Add the dependencies.** The starter brings the five Contexa modules; add the Spring AI model and vector-store starters you use next to it.
 
 ```gradle
 dependencies {
-    implementation "ai.ctxa:spring-boot-starter-contexa:0.1.1"
+    implementation 'ai.ctxa:spring-boot-starter-contexa:0.1.1'
+    implementation platform('org.springframework.ai:spring-ai-bom:1.1.8')
+    implementation 'org.springframework.ai:spring-ai-starter-model-ollama'
+    implementation 'org.springframework.ai:spring-ai-starter-vector-store-pgvector'
 }
 ```
 
-For Maven, use the equivalent dependency:
+<details>
+<summary>Maven</summary>
 
 ```xml
-<dependency>
-    <groupId>ai.ctxa</groupId>
-    <artifactId>spring-boot-starter-contexa</artifactId>
-    <version>0.1.1</version>
-</dependency>
+<dependencyManagement>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-bom</artifactId>
+            <version>1.1.8</version>
+            <type>pom</type>
+            <scope>import</scope>
+        </dependency>
+    </dependencies>
+</dependencyManagement>
+<dependencies>
+    <dependency>
+        <groupId>ai.ctxa</groupId>
+        <artifactId>spring-boot-starter-contexa</artifactId>
+        <version>0.1.1</version>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework.ai</groupId>
+        <artifactId>spring-ai-starter-model-ollama</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework.ai</groupId>
+        <artifactId>spring-ai-starter-vector-store-pgvector</artifactId>
+    </dependency>
+</dependencies>
 ```
 
-Configure the selected provider's Spring AI dependencies, chat model, and embedding model using the [installation guide](https://docs.ctxa.ai/en/get-started.html) and [AI configuration](https://docs.ctxa.ai/en/docs/install/configuration/ai.html). For Ollama, install both configured models before starting the application.
+</details>
 
-In your existing main application class, enable host-owned integration:
+**2. Turn Contexa on.** With only the dependency, Contexa stays off and your application runs as before. The annotation turns it on; without a mode your application keeps its own sign-in.
 
 ```java
-import io.contexa.contexacommon.annotation.EnableAISecurity;
-import io.contexa.contexacommon.security.bridge.SecurityMode;
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-
 @SpringBootApplication
-@EnableAISecurity(mode = SecurityMode.SANDBOX)
+@EnableAISecurity   // io.contexa.contexacommon.annotation.EnableAISecurity
 public class MyApplication {
     public static void main(String[] args) {
         SpringApplication.run(MyApplication.class, args);
@@ -104,143 +138,89 @@ public class MyApplication {
 }
 ```
 
-`SANDBOX` keeps authentication and IAM ownership with the host application. The separate `SHADOW` setting enables AI analysis and records decisions without applying new AI-driven access restrictions. Configure both the runtime mode and Contexa database in the application's active configuration:
+**3. Configure.** Contexa needs a database of its own (it creates its tables there at the first start) and an AI model. Pull the Ollama models first: `ollama pull qwen3:8b` and `ollama pull mxbai-embed-large`.
 
 ```yaml
 contexa:
   security:
     zerotrust:
-      mode: SHADOW
-  infrastructure:
-    mode: standalone
-  datasource:
-    url: ${CONTEXA_DB_URL}
-    username: ${CONTEXA_DB_USERNAME}
+      mode: SHADOW             # analyze and record decisions without applying them
+  datasource:                  # the dedicated Contexa database, not your application's
+    url: jdbc:postgresql://localhost:5432/contexa
+    username: contexa
     password: ${CONTEXA_DB_PASSWORD}
+  llm:
+    selection:
+      chat:
+        mode: dynamic-priority
+        priority: ollama
+      embedding:
+        mode: fixed
+        priority: ollama
+    chat:
+      ollama:
+        base-url: http://127.0.0.1:11434
 ```
 
-Set `CONTEXA_DB_URL`, `CONTEXA_DB_USERNAME`, and `CONTEXA_DB_PASSWORD` in the environment used to launch the application. Configure the Contexa datasource alongside your host application's datasource using the [configuration guide](https://docs.ctxa.ai/en/docs/install/configuration.html). Load a separate Contexa configuration file through the application's active profile or configuration import.
-
-### 2. Protect a resource
-
-Add `@Protectable` to a Spring-managed method. This small read-only endpoint gives you a concrete first request; place it under your application's component-scan package:
+**4. Protect a method.**
 
 ```java
-import io.contexa.contexacommon.annotation.Protectable;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
+@Service
+public class OrderService {
 
-@RestController
-public class RuntimeSecurityExampleController {
-    @Protectable
-    @GetMapping("/api/runtime-security/example")
-    public String readExample() {
-        return "Example resource reached";
+    @Protectable   // io.contexa.contexacommon.annotation.Protectable
+    public Order getOrder(Long orderId) {
+        return orderRepository.findById(orderId).orElseThrow();
     }
 }
 ```
 
-Use your application's existing login and authorize this resource through the applicable host/Contexa policy integration. `@Protectable` connects authenticated resource access to Contexa's runtime evaluation. See [resource protection and policy setup](https://docs.ctxa.ai/en/docs/reference/iam/protectable.html) and [legacy integration](https://github.com/contexa73/contexa-examples/tree/master/contexa-example-legacy-system).
+A signed-in user (a Spring `Authentication`) is needed when the method is called. Run the application, call the method as a signed-in user, and look for `[IamSeedData] OSS schema provenance verified.` in the startup log. With Spring Boot Actuator, `GET /actuator/contexacapabilities` shows which parts are ready. Details: [Getting started](https://docs.ctxa.ai/en/get-started.html).
 
-### 3. Run and observe the first decision
+## Choose the modes
 
-From your application's project directory, start the server:
+Three independent settings decide how Contexa runs:
 
-| Build tool | Linux / macOS | Windows PowerShell |
+| Setting | Options | What it decides |
 |---|---|---|
-| Gradle | `./gradlew bootRun` | `.\gradlew.bat bootRun` |
-| Maven | `./mvnw spring-boot:run` | `.\mvnw.cmd spring-boot:run` |
+| Sign-in ownership | `SANDBOX` (default) / `FULL` | Your application keeps sign-in, or Contexa provides sign-in, MFA and the admin console (`@EnableAISecurity(mode = SecurityMode.FULL)`) |
+| Enforcement, `contexa.security.zerotrust.mode` | `SHADOW` / `ENFORCE` (default) / `OBSERVE` / `DISABLED` | `SHADOW` analyzes and records only; `ENFORCE` stores and applies decisions |
+| Infrastructure, `contexa.infrastructure.mode` | `standalone` (default) / `distributed` | State in memory of one server, or shared through Redis and Kafka |
 
-Log in through your existing application, then visit `/api/runtime-security/example` on its configured address, for example `http://localhost:8080/api/runtime-security/example`. For a token-based API, send the request through your existing authenticated client.
+**Start with `SHADOW`.** Watch the decisions for your own scenarios, then switch to `ENFORCE`. See [Start Safely with Enforcement Modes](https://docs.ctxa.ai/en/docs/install/shadow-mode.html).
 
-Check both parts of the result:
+## Documentation and examples
 
-- **Application:** an authorized request reaches the method and returns `Example resource reached`.
-- **Analysis:** wait for asynchronous processing and inspect the decision in the security audit output. At INFO level, the default enforcement handler logs `[SecurityDecisionEnforcementHandler][SHADOW] Observation-only`, including the observed action. This confirms observation without applying that new decision to runtime access.
+- **Documentation:** [docs.ctxa.ai](https://docs.ctxa.ai): [Getting started](https://docs.ctxa.ai/en/get-started.html), [How Contexa Works](https://docs.ctxa.ai/en/docs/reference/architecture/overview.html), [Configuration](https://docs.ctxa.ai/en/docs/install/configuration.html), [`@Protectable` reference](https://docs.ctxa.ai/en/docs/reference/iam/protectable.html).
 
-The application response shows the resource-access result. The audit output shows the analysis result and identifies whether it came from a model decision or a technical fallback. Inspect both to follow the request through the full security flow.
+Runnable applications in [contexa-examples](https://github.com/contexa73/contexa-examples), described in the [Examples Guide](https://docs.ctxa.ai/en/docs/install/examples.html):
 
-Review decisions and explanations for your application's business scenarios in `SHADOW`. Enable `ENFORCE` to apply runtime controls after configuring resource quality checks, authorization policies, and verification/recovery flows. See the [Shadow mode guide](https://docs.ctxa.ai/en/docs/install/shadow-mode.html).
-
-## How analysis becomes runtime control
-
-The default `@Protectable` path is **asynchronous**. Existing authentication, authorization, and applicable runtime controls govern the request; eligible resource invocations emit an event for new AI analysis. In `ENFORCE`, the resulting state can affect subsequent requests.
-
-```mermaid
-flowchart LR
-    A[Authenticated request] --> B{Existing runtime controls}
-    B -->|Access can proceed| C[IAM policy and resource gates]
-    B -->|Restriction applies| R[Verification or restricted access]
-    C -->|Authorized| D[Application method]
-    D -. Eligible analysis event .-> E[Core: context, history and LLM analysis]
-    E --> F[Decision and audit evidence]
-    F -->|ENFORCE| G[Updated runtime security state]
-    G -. Read on subsequent requests .-> B
-    F -->|SHADOW| H[Observe without applying the new decision]
-```
-
-**Choose when a new decision takes effect:** asynchronous analysis updates controls for subsequent requests. For a resource that requires a fresh decision before execution, use `@Protectable(sync = true)`; in `ENFORCE`, a non-ALLOW result prevents method execution. Synchronous requests include model analysis time in their response latency.
-
-`@Protectable(verificationRequired = true)` enables the resource prompt-quality gate by default. Setting it to `false` permits analysis regardless of the resource's quality-verification state. In `SHADOW`, unmet quality requirements are recorded without enforcing the access restriction. **Resource prompt-quality verification and user MFA are separate processes.**
-
-| Decision | Meaning when enforcement is enabled |
+| Example | What it shows |
 |---|---|
-| `ALLOW` | Continue subject to the application's authorization checks |
-| `CHALLENGE` | Require additional identity verification through the configured flow |
-| `BLOCK` | Restrict access; recovery depends on the configured policy |
-| `ESCALATE` | Internal hand-off to a deeper second analysis, which settles the case; an `ESCALATE` it still returns becomes `CHALLENGE` by default (`contexa.security.tiered.layer2.escalate-fallback-action`). Enforced only as a technical fallback when that analysis fails: requests receive `423 Locked` with `Retry-After` (browsers see an analysis-pending page) until the case is resolved or promoted to `BLOCK` |
-| `PENDING_ANALYSIS` | No decision has been recorded yet. The request proceeds with the user's existing authorities; if a `BLOCK` arrives while the response is being written, the response is cut off |
+| `contexa-example-quickstart` | The smallest setup |
+| `contexa-example-protectable` | Four ways to use `@Protectable` |
+| `contexa-example-identity-dsl` | The authentication DSL |
+| `contexa-example-identity-mfa`, `-mfa-multi` | MFA with custom pages, and two MFA flows |
+| `contexa-example-identity-oauth2` | OAuth2 stateless authentication |
+| `contexa-example-legacy-system` | Adding Contexa to an existing login |
 
-Browser flows use verification or restriction pages, while APIs receive the corresponding HTTP response. With `ALLOW`, the application continues processing and produces its normal response.
-
-## Choose the right modes
-
-These are three independent choices:
-
-| Choice | Options | What it controls |
-|---|---|---|
-| Security ownership | `SANDBOX` / `FULL` | Host-owned integration or Contexa-managed identity/IAM; see [integration guidance](https://docs.ctxa.ai/en/get-started.html) for ownership overrides |
-| AI runtime control | `SHADOW` / `ENFORCE` | Observe decisions or apply runtime controls |
-| Infrastructure | `standalone` / `distributed` | In-process event/state handling or Redis/Kafka-backed distributed handling |
-
-Both infrastructure modes use the database and model services required by the enabled features. Choose Ollama or a cloud model provider independently of the infrastructure mode. `standalone` keeps runtime state in memory for the application's lifetime; `distributed` uses Redis and Kafka for shared state and event processing. See [infrastructure configuration](https://docs.ctxa.ai/en/docs/install/configuration/infrastructure.html).
-
-## Examples
-
-Choose an example by the behavior you want to explore and follow its Java, database, and model setup instructions.
-
-| Example | What to learn |
-|---|---|
-| [Quickstart](https://github.com/contexa73/contexa-examples/tree/master/contexa-example-quickstart) | Basic integration and observation in Shadow mode |
-| [Resource protection](https://github.com/contexa73/contexa-examples/tree/master/contexa-example-protectable) | Method protection and the context-to-decision pipeline |
-| [Identity and MFA](https://github.com/contexa73/contexa-examples/tree/master/contexa-example-identity-mfa) | Authentication, passkeys, and additional verification |
-| [Legacy integration](https://github.com/contexa73/contexa-examples/tree/master/contexa-example-legacy-system) | Connect an existing application's identity and security context |
-
-The [Examples Guide](https://docs.ctxa.ai/en/docs/install/examples.html) explains the scenarios and setup requirements.
-
-## Architecture
-
-Contexa integrates authentication, authorization, AI analysis, and runtime enforcement through these modules:
+## Modules
 
 | Module | Responsibility |
 |---|---|
-| `contexa-identity` | Authentication flows, MFA/passkeys, and runtime access-control filters |
-| `contexa-iam` | URL/method authorization, resource policies, and `@Protectable` interception |
-| `contexa-core` | Context processing, retrieval, LLM orchestration, decisions, audit, and runtime state |
-| `contexa-common` | Shared annotations, security context, DTOs, and integration contracts |
-| `contexa-autoconfigure` | Spring Boot configuration and component wiring |
-| `spring-boot-starter-contexa` | Dependency entry point for application integration |
+| `spring-boot-starter-contexa` | The one dependency an application adds |
+| `contexa-autoconfigure` | Spring Boot auto-configuration and wiring |
+| `contexa-core` | The decision engine: AI calls, analysis, learning, sealed evidence, audit |
+| `contexa-identity` | Sign-in flows, MFA and passkeys, OAuth2, request-time filters |
+| `contexa-iam` | Policy-based authorization, `@Protectable`, the admin console |
+| `contexa-common` | Decision types, shared annotations, the authentication bridge |
 
-Read the [architecture overview](https://docs.ctxa.ai/en/docs/reference/architecture/overview.html) and [runtime flow](https://docs.ctxa.ai/en/docs/reference/architecture/zero-trust-flow.html) for the module connections and control lifecycle.
+These modules are the open-source runtime. Commercial and enterprise operational features are delivered separately.
 
-The open-source modules provide the runtime control foundation. Commercial and enterprise operational features are delivered separately. Contexa complements authentication, authorization, and broader security tooling with context-aware control inside the application.
+## Project
 
-## Project and community
+Contexa is at an early stage (`0.1.x`) and licensed under [Apache 2.0](LICENSE).
 
-Contexa **`0.1.1`** is an open-source platform licensed under Apache 2.0. Explore the documentation and benchmarks, share integration experiences, and contribute to the project.
-
-- **Learn:** [Documentation](https://docs.ctxa.ai), [public benchmarks](https://ctxa.ai/benchmark), [website](https://ctxa.ai).
-- **Contribute:** [Contributing guide](CONTRIBUTING.md), [issues](https://github.com/contexa-security/contexa/issues), [maintainers](MAINTAINERS.md), [governance](GOVERNANCE.md).
-- **Report security issues:** follow [SECURITY.md](SECURITY.md) or the [security contact](https://ctxa.ai/.well-known/security.txt).
-- **Release history:** [Changelog](CHANGELOG.md), [release notes](RELEASE_NOTES.md).
-- **License:** [Apache License 2.0](LICENSE).
+- **Contribute:** [Contributing guide](CONTRIBUTING.md), [issues](https://github.com/contexa-security/contexa/issues), [maintainers](MAINTAINERS.md), [governance](GOVERNANCE.md), [code of conduct](CODE_OF_CONDUCT.md).
+- **Report a vulnerability:** follow [SECURITY.md](SECURITY.md).
+- **History:** [Changelog](CHANGELOG.md), [release notes](RELEASE_NOTES.md).
