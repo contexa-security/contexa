@@ -231,7 +231,7 @@ class ContexaRedisSerializationTest {
         runner.run(context -> {
             assertThat(context).hasNotFailed();
             InjectionProbe probe = context.getBean(InjectionProbe.class);
-            Object general = context.getBean("generalRedisTemplate");
+            Object general = context.getBean("contexaGeneralRedisTemplate");
             assertThat(probe.unqualified()).isSameAs(general);
             assertThat(probe.provided()).isSameAs(general);
             assertThat(probe.qualified()).isSameAs(general);
@@ -243,7 +243,7 @@ class ContexaRedisSerializationTest {
             Object application = context.getBean("applicationRedisTemplate");
             assertThat(probe.unqualified()).isSameAs(application);
             assertThat(probe.provided()).isSameAs(application);
-            assertThat(probe.qualified()).isSameAs(context.getBean("generalRedisTemplate"));
+            assertThat(probe.qualified()).isSameAs(context.getBean("contexaGeneralRedisTemplate"));
         });
     }
 
@@ -321,7 +321,7 @@ class ContexaRedisSerializationTest {
         InjectionProbe injectionProbe(
                 RedisTemplate<String, Object> unqualified,
                 ObjectProvider<RedisTemplate<String, Object>> provider,
-                @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> qualified) {
+                @Qualifier("contexaGeneralRedisTemplate") RedisTemplate<String, Object> qualified) {
             return new InjectionProbe(unqualified, provider.getIfAvailable(), qualified);
         }
     }

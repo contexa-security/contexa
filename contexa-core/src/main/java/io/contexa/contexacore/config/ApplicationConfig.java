@@ -27,18 +27,14 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
-import org.springframework.scheduling.annotation.EnableAsync;
-import org.springframework.scheduling.annotation.EnableScheduling;
 
 @Slf4j
 @EnableConfigurationProperties({TieredLLMProperties.class, SecurityMappingProperties.class})
 @Configuration
-@EnableAspectJAutoProxy(proxyTargetClass = true, exposeProxy = true)
-@EnableScheduling
-@EnableAsync
+@EnableAspectJAutoProxy
 public class ApplicationConfig {
 
-    @Bean
+    @Bean(name = "contexaObjectMapper", defaultCandidate = false)
     public ObjectMapper objectMapper() {
         ObjectMapper mapper = new ObjectMapper();
         mapper.registerModule(new JavaTimeModule());
@@ -49,7 +45,7 @@ public class ApplicationConfig {
         return mapper;
     }
 
-    @Bean
+    @Bean(name = "contexaModelMapper", defaultCandidate = false)
     public ModelMapper modelMapper() {
         return new ModelMapper();
     }

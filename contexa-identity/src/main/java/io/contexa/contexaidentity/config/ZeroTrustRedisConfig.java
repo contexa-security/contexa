@@ -27,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
 import org.springframework.boot.autoconfigure.data.redis.RedisProperties;
@@ -53,7 +54,7 @@ public class ZeroTrustRedisConfig {
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
     private final RedisProperties redisProperties;
 
-    @Bean
+    @Bean(name = "contexaClientResources")
     public ClientResources clientResources() {
         return DefaultClientResources.builder()
                 .ioThreadPoolSize(8)  
@@ -62,8 +63,8 @@ public class ZeroTrustRedisConfig {
                 .build();
     }
 
-    @Bean
-    public LettuceClientConfiguration lettuceClientConfiguration(ClientResources clientResources) {
+    @Bean(name = "contexaLettuceClientConfiguration")
+    public LettuceClientConfiguration lettuceClientConfiguration(ClientResources contexaClientResources) {
         
         SocketOptions socketOptions = SocketOptions.builder()
                 .connectTimeout(Duration.ofMillis(securityZeroTrustProperties.getRedis().getTimeout()))  
@@ -92,13 +93,14 @@ public class ZeroTrustRedisConfig {
         return LettucePoolingClientConfiguration.builder()
                         .poolConfig(poolConfig)
                         .clientOptions(clientOptions)
-                        .clientResources(clientResources)
+                        .clientResources(contexaClientResources)
                         .commandTimeout(Duration.ofMillis(securityZeroTrustProperties.getRedis().getTimeout()))
                         .build();
     }
 
-    @Bean
-    public RedisConnectionFactory redisConnectionFactory(LettuceClientConfiguration lettuceClientConfiguration) {
+    @Bean(name = "contexaRedisConnectionFactory")
+    @ConditionalOnMissingBean(RedisConnectionFactory.class)
+    public RedisConnectionFactory redisConnectionFactory(LettuceClientConfiguration contexaLettuceClientConfiguration) {
         RedisStandaloneConfiguration redisConfig = new RedisStandaloneConfiguration();
         redisConfig.setHostName(redisProperties.getHost());
         redisConfig.setPort(redisProperties.getPort());
@@ -107,13 +109,13 @@ public class ZeroTrustRedisConfig {
             redisConfig.setPassword(redisPassword);
         }
         
-        return new LettuceConnectionFactory(redisConfig, lettuceClientConfiguration);
+        return new LettuceConnectionFactory(redisConfig, contexaLettuceClientConfiguration);
     }
 
-    @Bean(name = "stateMachineRedisTemplate", defaultCandidate = false)
-    public RedisTemplate<String, Object> stateMachineRedisTemplate(RedisConnectionFactory redisConnectionFactory) {
+    @Bean(name = "contexaStateMachineRedisTemplate", defaultCandidate = false)
+    public RedisTemplate<String, Object> stateMachineRedisTemplate(RedisConnectionFactory contexaRedisConnectionFactory) {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
-        template.setConnectionFactory(redisConnectionFactory);
+        template.setConnectionFactory(contexaRedisConnectionFactory);
 
         StringRedisSerializer stringSerializer = new StringRedisSerializer();
         template.setKeySerializer(stringSerializer);

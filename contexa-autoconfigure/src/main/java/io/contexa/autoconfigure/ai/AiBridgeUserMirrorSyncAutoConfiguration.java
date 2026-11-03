@@ -22,7 +22,9 @@ import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncService;
 import io.contexa.contexacommon.security.bridge.sync.DefaultBridgeUserMirrorSyncService;
+import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -45,20 +47,20 @@ import org.springframework.security.web.SecurityFilterChain;
 @ConditionalOnBean({BridgeProperties.class, UserRepository.class, BridgeUserProfileRepository.class})
 public class AiBridgeUserMirrorSyncAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaBridgeUserMirrorSyncService")
     @ConditionalOnMissingBean
     public BridgeUserMirrorSyncService bridgeUserMirrorSyncService(
             UserRepository userRepository,
             BridgeUserProfileRepository bridgeUserProfileRepository,
             BridgeProperties properties,
-            ObjectProvider<ObjectMapper> objectMapperProvider,
-            ObjectProvider<CacheManager> cacheManagerProvider) {
+            @Qualifier("contexaObjectMapper") ObjectProvider<ObjectMapper> objectMapperProvider,
+            BeanFactory beanFactory) {
         return new DefaultBridgeUserMirrorSyncService(
                 userRepository,
                 bridgeUserProfileRepository,
                 properties,
                 objectMapperProvider.getIfAvailable(ObjectMapper::new),
-                cacheManagerProvider.getIfAvailable()
+                beanFactory.containsBean("contexaCacheManager") ? beanFactory.getBean("contexaCacheManager", CacheManager.class) : null
         );
     }
 }

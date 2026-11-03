@@ -16,6 +16,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 /**
  * The inspection screens, one purpose each: the overview of a period, the sealed prompt list, and one prompt's
@@ -49,7 +50,7 @@ public class PromptInspectionPageController {
     private final MessageSource messages;
     private final ObjectMapper objectMapper;
 
-    public PromptInspectionPageController(MessageSource messages, ObjectMapper objectMapper) {
+    public PromptInspectionPageController(MessageSource messages, @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         this.messages = Objects.requireNonNull(messages, "messages");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
     }

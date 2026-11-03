@@ -53,119 +53,119 @@ import org.springframework.context.annotation.Bean;
 })
 public class IamAdminCenterAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaPolicyCenterQueryService")
     @ConditionalOnMissingBean
     public PolicyCenterQueryService policyCenterQueryService(
-            ResourceRegistryService resourceRegistryService,
-            RoleService roleService,
-            PermissionCatalogService permissionCatalogService,
+            ResourceRegistryService contexaResourceRegistryService,
+            RoleService contexaRoleService,
+            PermissionCatalogService contexaPermissionCatalogService,
             ConditionTemplateRepository conditionTemplateRepository,
             ManagedResourceRepository managedResourceRepository,
             SecuritySpelRepository securitySpelRepository,
             PolicyRepository policyRepository,
-            PolicyService policyService,
-            PolicyVersionService policyVersionService) {
+            PolicyService contexaPolicyService,
+            PolicyVersionService contexaPolicyVersionService) {
         return new PolicyCenterQueryService(
-                resourceRegistryService,
-                roleService,
-                permissionCatalogService,
+                contexaResourceRegistryService,
+                contexaRoleService,
+                contexaPermissionCatalogService,
                 conditionTemplateRepository,
                 managedResourceRepository,
                 securitySpelRepository,
                 policyRepository,
-                policyService,
-                policyVersionService);
+                contexaPolicyService,
+                contexaPolicyVersionService);
     }
 
-    @Bean
+    @Bean(name = "contexaPolicyCenterPageService")
     @ConditionalOnMissingBean
     public PolicyCenterPageService policyCenterPageService(
-            ResourceRegistryService resourceRegistryService,
-            PolicyService policyService,
+            ResourceRegistryService contexaResourceRegistryService,
+            PolicyService contexaPolicyService,
             PolicyCombiningProperties policyCombiningProperties) {
         return new PolicyCenterPageService(
-                resourceRegistryService,
-                policyService,
+                contexaResourceRegistryService,
+                contexaPolicyService,
                 policyCombiningProperties);
     }
 
-    @Bean
+    @Bean(name = "contexaPolicyCenterCommandService")
     @ConditionalOnMissingBean
     public PolicyCenterCommandService policyCenterCommandService(
-            ResourceRegistryService resourceRegistryService,
-            PolicyService policyService,
+            ResourceRegistryService contexaResourceRegistryService,
+            PolicyService contexaPolicyService,
             PolicyRepository policyRepository,
-            RoleService roleService,
-            BusinessPolicyService businessPolicyService,
+            RoleService contexaRoleService,
+            BusinessPolicyService contexaBusinessPolicyService,
             ManagedResourceRepository managedResourceRepository,
             PermissionRepository permissionRepository,
-            PolicyValidationService policyValidationService,
-            PolicyEnrichmentService policyEnrichmentService,
-            PolicyVersionService policyVersionService,
+            PolicyValidationService contexaPolicyValidationService,
+            PolicyEnrichmentService contexaPolicyEnrichmentService,
+            PolicyVersionService contexaPolicyVersionService,
             CustomDynamicAuthorizationManager authorizationManager,
-            CentralAuditFacade centralAuditFacade,
+            CentralAuditFacade contexaCentralAuditFacade,
             MessageSource messageSource,
             ObjectProvider<PolicyReloadBroadcaster> policyReloadBroadcasterProvider) {
         PolicyCenterCommandService service = new PolicyCenterCommandService(
-                resourceRegistryService,
-                policyService,
+                contexaResourceRegistryService,
+                contexaPolicyService,
                 policyRepository,
-                roleService,
-                businessPolicyService,
+                contexaRoleService,
+                contexaBusinessPolicyService,
                 managedResourceRepository,
                 permissionRepository,
-                policyValidationService,
-                policyEnrichmentService,
-                policyVersionService,
+                contexaPolicyValidationService,
+                contexaPolicyEnrichmentService,
+                contexaPolicyVersionService,
                 authorizationManager,
-                centralAuditFacade,
+                contexaCentralAuditFacade,
                 messageSource);
         policyReloadBroadcasterProvider.ifAvailable(service::setPolicyReloadBroadcaster);
         return service;
     }
 
-    @Bean
+    @Bean(name = "contexaPolicyCenterAnalysisService")
     @ConditionalOnMissingBean
     public PolicyCenterAnalysisService policyCenterAnalysisService(
-            PolicyService policyService,
-            PolicyValidationService policyValidationService,
+            PolicyService contexaPolicyService,
+            PolicyValidationService contexaPolicyValidationService,
             PermissionRepository permissionRepository,
-            PolicyMatrixService policyMatrixService) {
+            PolicyMatrixService contexaPolicyMatrixService) {
         return new PolicyCenterAnalysisService(
-                policyService,
-                policyValidationService,
+                contexaPolicyService,
+                contexaPolicyValidationService,
                 permissionRepository,
-                policyMatrixService);
+                contexaPolicyMatrixService);
     }
 
-    @Bean
+    @Bean(name = "contexaPolicyCenterController")
     @ConditionalOnMissingBean
     public PolicyCenterController policyCenterController(
             MessageSource messageSource,
-            PolicyCenterPageService policyCenterPageService,
-            PolicyCenterQueryService policyCenterQueryService,
-            PolicyCenterCommandService policyCenterCommandService,
-            PolicyCenterAnalysisService policyCenterAnalysisService) {
+            PolicyCenterPageService contexaPolicyCenterPageService,
+            PolicyCenterQueryService contexaPolicyCenterQueryService,
+            PolicyCenterCommandService contexaPolicyCenterCommandService,
+            PolicyCenterAnalysisService contexaPolicyCenterAnalysisService) {
         return new PolicyCenterController(
                 messageSource,
-                policyCenterPageService,
-                policyCenterQueryService,
-                policyCenterCommandService,
-                policyCenterAnalysisService);
+                contexaPolicyCenterPageService,
+                contexaPolicyCenterQueryService,
+                contexaPolicyCenterCommandService,
+                contexaPolicyCenterAnalysisService);
     }
 
-    @Bean
+    @Bean(name = "contexaPolicyCenterOperationsController")
     @ConditionalOnMissingBean
     public PolicyCenterOperationsController policyCenterOperationsController(
             MessageSource messageSource,
-            PolicyCenterQueryService policyCenterQueryService,
-            PolicyCenterCommandService policyCenterCommandService,
-            PolicyCenterAnalysisService policyCenterAnalysisService) {
+            PolicyCenterQueryService contexaPolicyCenterQueryService,
+            PolicyCenterCommandService contexaPolicyCenterCommandService,
+            PolicyCenterAnalysisService contexaPolicyCenterAnalysisService) {
         return new PolicyCenterOperationsController(
                 messageSource,
-                policyCenterQueryService,
-                policyCenterCommandService,
-                policyCenterAnalysisService);
+                contexaPolicyCenterQueryService,
+                contexaPolicyCenterCommandService,
+                contexaPolicyCenterAnalysisService);
     }
 }
 

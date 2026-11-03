@@ -53,39 +53,39 @@ import java.util.List;
 @EnableConfigurationProperties(PolicyCombiningProperties.class)
 public class IamXacmlPepAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaExpressionAuthorizationManagerResolver")
     @ConditionalOnMissingBean
     public ExpressionAuthorizationManagerResolver expressionAuthorizationManagerResolver(
             List<ExpressionEvaluator> evaluators,
-            @Qualifier("customWebSecurityExpressionHandler") SecurityExpressionHandler<RequestAuthorizationContext> customWebSecurityExpressionHandler) {
+            @Qualifier("contexaCustomWebSecurityExpressionHandler") SecurityExpressionHandler<RequestAuthorizationContext> customWebSecurityExpressionHandler) {
         return new ExpressionAuthorizationManagerResolver(evaluators, customWebSecurityExpressionHandler);
     }
 
     
-    @Bean
+    @Bean(name = "contexaPolicyCombiningEvaluator")
     @ConditionalOnMissingBean
     public PolicyCombiningEvaluator policyCombiningEvaluator() {
         return new PolicyCombiningEvaluator();
     }
 
-    @Bean
+    @Bean(name = "contexaCustomDynamicAuthorizationManager")
     @ConditionalOnMissingBean
     public CustomDynamicAuthorizationManager customDynamicAuthorizationManager(
             PolicyRetrievalPoint policyRetrievalPoint,
             ExpressionAuthorizationManagerResolver managerResolver,
-            ObjectMapper objectMapper,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             ContextHandler contextHandler,
             @Autowired(required = false) AuthorizationMetrics metricsCollector,
-            CentralAuditFacade centralAuditFacade,
-            PolicyCombiningEvaluator policyCombiningEvaluator,
+            CentralAuditFacade contexaCentralAuditFacade,
+            PolicyCombiningEvaluator contexaPolicyCombiningEvaluator,
             PolicyCombiningProperties policyCombiningProperties,
             ObjectProvider<AuthorizationDenialRecorder> authorizationDenialRecorderProvider,
             ObjectProvider<DelegatorAuthority> delegatorAuthority,
             ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustProperties) {
         CustomDynamicAuthorizationManager manager = new CustomDynamicAuthorizationManager(
                 policyRetrievalPoint, managerResolver,
-                objectMapper, contextHandler, metricsCollector, centralAuditFacade,
-                policyCombiningEvaluator);
+                objectMapper, contextHandler, metricsCollector, contexaCentralAuditFacade,
+                contexaPolicyCombiningEvaluator);
         manager.setCombiningAlgorithm(policyCombiningProperties.getCombiningAlgorithm());
         manager.setNoMatchingUrlPolicyDecision(policyCombiningProperties.getNoMatchingUrlPolicyDecision());
         AuthorizationDenialRecorder authorizationDenialRecorder = authorizationDenialRecorderProvider.getIfAvailable();
@@ -104,7 +104,7 @@ public class IamXacmlPepAutoConfiguration {
      * A1-8: the authority of the person a delegated agent acts for comes from a {@link DelegatorAuthoritySource} bean,
      * else from the {@code UserDetailsService}; without either, delegators cannot be checked.
      */
-    @Bean
+    @Bean(name = "contexaDelegatorAuthority")
     @ConditionalOnMissingBean
     public DelegatorAuthority delegatorAuthority(ObjectProvider<DelegatorAuthoritySource> delegatorAuthoritySource,
                                                  ObjectProvider<UserDetailsService> userDetailsService) {
@@ -116,13 +116,13 @@ public class IamXacmlPepAutoConfiguration {
         return new DelegatorAuthority(source);
     }
 
-    @Bean
+    @Bean(name = "contexaProtectableMethodAuthorizationManager")
     @ConditionalOnMissingBean
     public ProtectableMethodAuthorizationManager protectableMethodAuthorizationManager(
             CustomMethodSecurityExpressionHandlerFactory expressionHandlerFactory,
-            PolicyCombiningEvaluator policyCombiningEvaluator) {
+            PolicyCombiningEvaluator contexaPolicyCombiningEvaluator) {
         return new ProtectableMethodAuthorizationManager(
-                expressionHandlerFactory.getHandler(), policyCombiningEvaluator);
+                expressionHandlerFactory.getHandler(), contexaPolicyCombiningEvaluator);
     }
 }
 

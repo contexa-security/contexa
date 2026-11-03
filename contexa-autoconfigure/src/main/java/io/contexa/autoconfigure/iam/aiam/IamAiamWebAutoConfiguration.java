@@ -47,35 +47,35 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 @EnableConfigurationProperties(SecurityStepUpProperties.class)
 public class IamAiamWebAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaAiApiController")
     @ConditionalOnMissingBean
     public AiApiController aiApiController(
-            AICoreOperations<PolicyContext> aiNativeProcessor,
+            AICoreOperations<PolicyContext> contexaAiNativeProcessor,
             StandardStreamingService streamingService) {
-        return new AiApiController(aiNativeProcessor, streamingService);
+        return new AiApiController(contexaAiNativeProcessor, streamingService);
     }
 
-    @Bean
+    @Bean(name = "contexaZeroTrustSseController")
     @ConditionalOnMissingBean
     public ZeroTrustSseController zeroTrustSseController(
-            ZeroTrustSsePublisher zeroTrustSsePublisher) {
-        return new ZeroTrustSseController(zeroTrustSsePublisher);
+            ZeroTrustSsePublisher contexaZeroTrustSsePublisher) {
+        return new ZeroTrustSseController(contexaZeroTrustSsePublisher);
     }
 
-    @Bean
+    @Bean(name = "contexaZeroTrustPageController")
     @ConditionalOnMissingBean
     public ZeroTrustPageController zeroTrustPageController(BlockMfaStateStore blockMfaStateStore,
-                                                            BlockedUserService blockedUserService,
+                                                            BlockedUserService contexaBlockedUserService,
                                                             SecurityZeroTrustProperties securityZeroTrustProperties) {
-        return new ZeroTrustPageController(blockMfaStateStore, blockedUserService, securityZeroTrustProperties);
+        return new ZeroTrustPageController(blockMfaStateStore, contexaBlockedUserService, securityZeroTrustProperties);
     }
 
-    @Bean
+    @Bean(name = "contexaZeroTrustUnblockController")
     @ConditionalOnMissingBean
     public ZeroTrustUnblockController zeroTrustUnblockController(
-            BlockedUserService blockedUserService, BlockMfaStateStore blockMfaStateStore,
+            BlockedUserService contexaBlockedUserService, BlockMfaStateStore blockMfaStateStore,
             SecurityZeroTrustProperties securityZeroTrustProperties) {
-        return new ZeroTrustUnblockController(blockedUserService, blockMfaStateStore, securityZeroTrustProperties);
+        return new ZeroTrustUnblockController(contexaBlockedUserService, blockMfaStateStore, securityZeroTrustProperties);
     }
 
     @Configuration
@@ -83,7 +83,7 @@ public class IamAiamWebAutoConfiguration {
     @ConditionalOnBean(type = "org.springframework.data.redis.core.StringRedisTemplate")
     static class DistributedBlockMfaConfig {
 
-        @Bean
+        @Bean(name = "contexaRedisBlockMfaStateStore")
         @ConditionalOnMissingBean(BlockMfaStateStore.class)
         public RedisBlockMfaStateStore redisBlockMfaStateStore(StringRedisTemplate stringRedisTemplate,
                                                                ZeroTrustActionRepository actionRepository) {
@@ -94,7 +94,7 @@ public class IamAiamWebAutoConfiguration {
     @Configuration
     static class StandaloneBlockMfaConfig {
 
-        @Bean
+        @Bean(name = "contexaInMemoryBlockMfaStateStore")
         @ConditionalOnMissingBean(BlockMfaStateStore.class)
         public InMemoryBlockMfaStateStore inMemoryBlockMfaStateStore(
                 ZeroTrustActionRepository actionRepository) {

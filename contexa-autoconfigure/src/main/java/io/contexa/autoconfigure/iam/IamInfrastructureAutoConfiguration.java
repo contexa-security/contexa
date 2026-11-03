@@ -46,9 +46,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
 import org.springframework.boot.web.reactive.function.client.WebClientCustomizer;
-import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.CacheManager;
-import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Role;
@@ -65,20 +63,9 @@ import reactor.netty.resources.ConnectionProvider;
 
 @Slf4j
 @AutoConfiguration
-@EnableCaching
 public class IamInfrastructureAutoConfiguration {
 
-    @Bean
-    @ConditionalOnMissingBean(CacheManager.class)
-    public CacheManager cacheManager() {
-        CaffeineCacheManager manager = new CaffeineCacheManager();
-        manager.setCaffeine(Caffeine.newBuilder()
-                .maximumSize(500)
-                .expireAfterWrite(Duration.ofMinutes(5)));
-        return manager;
-    }
-
-    @Bean
+    @Bean(name = "contexaJpaQueryFactory")
     @ConditionalOnMissingBean
     public JPAQueryFactory jpaQueryFactory(
             @Qualifier("contexaEntityManagerFactory") EntityManagerFactory entityManagerFactory) {
@@ -92,7 +79,7 @@ public class IamInfrastructureAutoConfiguration {
         return PasswordEncoderFactories.createDelegatingPasswordEncoder();
     }
 
-    @Bean
+    @Bean(name = "contexaWebSecurityCustomizer")
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
     public WebSecurityCustomizer webSecurityCustomizer() {
@@ -100,7 +87,7 @@ public class IamInfrastructureAutoConfiguration {
                 .requestMatchers(PathRequest.toStaticResources().atCommonLocations());
     }
 
-    @Bean
+    @Bean(name = "contexaProtectableRapidReentryGuard")
     @ConditionalOnMissingBean
     public ProtectableRapidReentryGuard protectableRapidReentryGuard(
             ProtectableRapidReentryRepository protectableRapidReentryRepository,
@@ -117,7 +104,7 @@ public class IamInfrastructureAutoConfiguration {
      * the data sources) miss the post-processors not yet registered, and left @Protectable methods among them
      * unprotected. It is an infrastructure bean, as Spring Security's method advisors are.
      */
-    @Bean
+    @Bean(name = "contexaProtectableAuthorizationAdvisor")
     @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
     @ConditionalOnMissingBean
     public static AuthorizationManagerMethodInterceptor protectableAuthorizationAdvisor(
@@ -149,11 +136,11 @@ public class IamInfrastructureAutoConfiguration {
         return interceptor;
     }
 
-    @Bean
+    @Bean(name = "contexaProtectableLlmSuppressionWriter")
     @ConditionalOnMissingBean
     public ProtectableLlmSuppressionWriter protectableLlmSuppressionWriter(
             ObjectProvider<JdbcOperations> jdbcOperationsProvider,
-            ObjectProvider<ObjectMapper> objectMapperProvider,
+            @Qualifier("contexaObjectMapper") ObjectProvider<ObjectMapper> objectMapperProvider,
             @Qualifier("contexaTransactionManager") PlatformTransactionManager transactionManager) {
         ObjectMapper objectMapper = objectMapperProvider.getIfAvailable(ObjectMapper::new);
         return new ProtectableLlmSuppressionWriter(
@@ -168,13 +155,13 @@ public class IamInfrastructureAutoConfiguration {
                 new AnnotationMatchingPointcut(Protectable.class, true));
     }
 
-    @Bean
+    @Bean(name = "contexaRoleHierarchy")
     @ConditionalOnMissingBean
     public RoleHierarchyImpl roleHierarchy() {
         return new RoleHierarchyImpl();
     }
 
-    @Bean
+    @Bean(name = "contexaWebClientCustomizer")
     @ConditionalOnMissingBean
     public WebClientCustomizer webClientCustomizer() {
 

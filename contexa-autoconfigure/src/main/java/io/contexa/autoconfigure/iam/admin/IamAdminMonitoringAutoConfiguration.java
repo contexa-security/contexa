@@ -56,30 +56,30 @@ import io.contexa.contexacore.verification.evidence.EvidenceSigner;
 @AutoConfiguration
 public class IamAdminMonitoringAutoConfiguration {
 
-    private static final String IAM_SEED_DATA_INITIALIZER_BEAN = "iamSeedDataInitializer";
-    private static final String ADMIN_MENU_SERVICE_BEAN = "adminMenuService";
+    private static final String IAM_SEED_DATA_INITIALIZER_BEAN = "contexaIamSeedDataInitializer";
+    private static final String ADMIN_MENU_SERVICE_BEAN = "contexaAdminMenuService";
 
-    @Bean
+    @Bean(name = "contexaIamAdminDashboardController")
     @ConditionalOnMissingBean
-    public DashboardController iamAdminDashboardController(DashboardService dashboardService) {
-        return new DashboardController(dashboardService);
+    public DashboardController iamAdminDashboardController(DashboardService contexaDashboardService) {
+        return new DashboardController(contexaDashboardService);
     }
 
-    @Bean
+    @Bean(name = "contexaSecurityMonitorController")
     @ConditionalOnMissingBean
     public SecurityMonitorController securityMonitorController(AuditLogRepository auditLogRepository,
-                                                               CsvExportService csvExportService,
+                                                               CsvExportService contexaCsvExportService,
                                                                ObjectProvider<DelegationRegistry> delegationRegistry,
                                                                ObjectProvider<EvidenceSigner> evidenceSigner) {
         // docs/agent A5-5: the delegation an agent's decision ran under, when Contexa keeps delegations (OC-1).
-        SecurityMonitorController controller = new SecurityMonitorController(auditLogRepository, csvExportService,
+        SecurityMonitorController controller = new SecurityMonitorController(auditLogRepository, contexaCsvExportService,
                 delegationRegistry.getIfAvailable());
         // docs/agent A5-6: the decision records' integrity.
         evidenceSigner.ifAvailable(controller::setEvidenceSigner);
         return controller;
     }
 
-    @Bean
+    @Bean(name = "contexaAiSecurityDecisionMonitoringService")
     @ConditionalOnMissingBean
     public AiSecurityDecisionMonitoringService aiSecurityDecisionMonitoringService(
             @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
@@ -91,20 +91,20 @@ public class IamAdminMonitoringAutoConfiguration {
                 messageSource);
     }
 
-    @Bean
+    @Bean(name = "contexaAiMonitorController")
     @ConditionalOnMissingBean
     public AiMonitorController aiMonitorController(
-            AiSecurityDecisionMonitoringService aiSecurityDecisionMonitoringService) {
-        return new AiMonitorController(aiSecurityDecisionMonitoringService);
+            AiSecurityDecisionMonitoringService contexaAiSecurityDecisionMonitoringService) {
+        return new AiMonitorController(contexaAiSecurityDecisionMonitoringService);
     }
 
-    @Bean
+    @Bean(name = "contexaCsvExportService")
     @ConditionalOnMissingBean
     public CsvExportService csvExportService() {
         return new CsvExportService();
     }
 
-    @Bean
+    @Bean(name = "contexaDashboardService")
     @ConditionalOnMissingBean
     public DashboardService dashboardService(
             UserRepository userRepository,
@@ -114,12 +114,12 @@ public class IamAdminMonitoringAutoConfiguration {
             PolicyRepository policyRepository,
             AuditLogRepository auditLogRepository,
             RoleHierarchyRepository roleHierarchyRepository,
-            UserContextService userContextService,
-            SecurityScoreCalculator securityScoreCalculator,
-            PermissionMatrixService permissionMatrixService,
+            UserContextService contexaUserContextService,
+            SecurityScoreCalculator contexaSecurityScoreCalculator,
+            PermissionMatrixService contexaPermissionMatrixService,
             ManagedResourceRepository managedResourceRepository,
             BlockedUserJpaRepository blockedUserJpaRepository,
-            PolicyValidationService policyValidationService,
+            PolicyValidationService contexaPolicyValidationService,
             PolicyCombiningProperties policyCombiningProperties) {
         return new DashboardServiceImpl(
                 userRepository,
@@ -129,16 +129,16 @@ public class IamAdminMonitoringAutoConfiguration {
                 policyRepository,
                 auditLogRepository,
                 roleHierarchyRepository,
-                userContextService,
-                securityScoreCalculator,
-                permissionMatrixService,
+                contexaUserContextService,
+                contexaSecurityScoreCalculator,
+                contexaPermissionMatrixService,
                 managedResourceRepository,
                 blockedUserJpaRepository,
-                policyValidationService,
+                contexaPolicyValidationService,
                 policyCombiningProperties);
     }
 
-    @Bean
+    @Bean(name = "contexaSecurityScoreCalculator")
     @ConditionalOnMissingBean
     public SecurityScoreCalculator securityScoreCalculator(
             UserRepository userRepository,
@@ -152,15 +152,15 @@ public class IamAdminMonitoringAutoConfiguration {
                 auditLogRepository);
     }
 
-    @Bean
+    @Bean(name = "contexaPermissionMatrixService")
     @ConditionalOnMissingBean
     public PermissionMatrixService permissionMatrixService(
             GroupRepository groupRepository,
-            PermissionCatalogService permissionCatalogService) {
-        return new PermissionMatrixServiceImpl(groupRepository, permissionCatalogService);
+            PermissionCatalogService contexaPermissionCatalogService) {
+        return new PermissionMatrixServiceImpl(groupRepository, contexaPermissionCatalogService);
     }
 
-    @Bean
+    @Bean(name = "contexaAdminEnterpriseModelAdvice")
     @ConditionalOnMissingBean(AdminEnterpriseModelAdvice.class)
     public AutoConfiguredAdminEnterpriseModelAdvice adminEnterpriseModelAdvice(
             ContexaProperties contexaProperties,
@@ -180,13 +180,13 @@ public class IamAdminMonitoringAutoConfiguration {
                     adminMenuServiceProvider.getIfAvailable());
         }
     }
-    @Bean
+    @Bean(name = "contexaAdminMenuQueryCache")
     @ConditionalOnMissingBean
     public AdminMenuQueryCache adminMenuQueryCache(AdminMenuRepository adminMenuRepository) {
         return new AdminMenuQueryCache(adminMenuRepository);
     }
 
-    @Bean
+    @Bean(name = "contexaAdminMenuSeedDataDependencyConfigurer")
     public static BeanFactoryPostProcessor adminMenuSeedDataDependencyConfigurer() {
         return beanFactory -> {
             if (!beanFactory.containsBeanDefinition(ADMIN_MENU_SERVICE_BEAN)
@@ -206,38 +206,38 @@ public class IamAdminMonitoringAutoConfiguration {
         };
     }
 
-    @Bean
+    @Bean(name = "contexaAdminMenuService")
     @ConditionalOnMissingBean
     public AdminMenuService adminMenuService(
             AdminMenuRepository adminMenuRepository,
-            AdminMenuQueryCache adminMenuQueryCache,
+            AdminMenuQueryCache contexaAdminMenuQueryCache,
             ContexaProperties contexaProperties) {
         AdminMenuService service =
                 new AdminMenuService(
                         adminMenuRepository,
-                        adminMenuQueryCache,
+                        contexaAdminMenuQueryCache,
                         contexaProperties.getEnterprise().isEnabled(),
                         contexaProperties.getSaas().isEnabled());
         service.initializeDefaultMenusIfEmpty();
         return service;
     }
 
-    @Bean
+    @Bean(name = "contexaAdminMenuManagementService")
     @ConditionalOnMissingBean
     public AdminMenuManagementService adminMenuManagementService(
-            AdminMenuService adminMenuService,
+            AdminMenuService contexaAdminMenuService,
             RoleRepository roleRepository,
             MessageSource messageSource) {
         return new AdminMenuManagementService(
-                adminMenuService,
+                contexaAdminMenuService,
                 roleRepository,
                 messageSource);
     }
 
-    @Bean
+    @Bean(name = "contexaAdminMenuController")
     @ConditionalOnMissingBean
     public AdminMenuController adminMenuController(
-            AdminMenuManagementService adminMenuManagementService) {
-        return new AdminMenuController(adminMenuManagementService);
+            AdminMenuManagementService contexaAdminMenuManagementService) {
+        return new AdminMenuController(contexaAdminMenuManagementService);
     }
 }

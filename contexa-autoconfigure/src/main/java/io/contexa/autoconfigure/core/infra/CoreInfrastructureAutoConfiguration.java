@@ -78,23 +78,23 @@ public class CoreInfrastructureAutoConfiguration {
 
     @Configuration
     @ConditionalOnClass(name = "org.springframework.data.redis.core.RedisTemplate")
-    @ConditionalOnBean(name = "generalRedisTemplate")
+    @ConditionalOnBean(name = "contexaGeneralRedisTemplate")
     @ConditionalOnProperty(prefix = "contexa.security.async", name = "enabled", havingValue = "true", matchIfMissing = true)
     static class RedisAsyncConfiguration {
 
-        @Bean
+        @Bean(name = "contexaAsyncSecurityContextProvider")
         @ConditionalOnMissingBean
         public RedisAsyncSecurityContextProvider asyncSecurityContextProvider(
-                @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
+                @Qualifier("contexaGeneralRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
             return new RedisAsyncSecurityContextProvider(redisTemplate);
         }
     }
 
     @Configuration
-    @ConditionalOnMissingBean(name = "generalRedisTemplate")
+    @ConditionalOnMissingBean(name = "contexaGeneralRedisTemplate")
     static class StandaloneAsyncConfiguration {
 
-        @Bean
+        @Bean(name = "contexaInMemoryAsyncSecurityContextProvider")
         @ConditionalOnMissingBean
         @ConditionalOnProperty(prefix = "contexa.security.async", name = "enabled", havingValue = "true", matchIfMissing = true)
         public InMemoryAsyncSecurityContextProvider inMemoryAsyncSecurityContextProvider() {

@@ -54,12 +54,12 @@ class SpringBootStarterContexaApplicationTests {
             assertThat(context).hasNotFailed();
             assertThat(context).hasBean("standardChatModel");
             assertThat(context).hasBean("standardEmbeddingModel");
-            assertThat(context).hasBean("primaryChatModel");
-            assertThat(context).hasBean("primaryEmbeddingModel");
+            assertThat(context).hasBean("contexaPrimaryChatModel");
+            assertThat(context).hasBean("contexaPrimaryEmbeddingModel");
             assertThat(context.getBean(ChatModel.class)).isSameAs(context.getBean("standardChatModel"));
-            assertThat(context.getBean(ChatModel.class)).isSameAs(context.getBean("primaryChatModel"));
+            assertThat(context.getBean(ChatModel.class)).isSameAs(context.getBean("contexaPrimaryChatModel"));
             assertThat(context.getBean(EmbeddingModel.class)).isSameAs(context.getBean("standardEmbeddingModel"));
-            assertThat(context.getBean(EmbeddingModel.class)).isSameAs(context.getBean("primaryEmbeddingModel"));
+            assertThat(context.getBean(EmbeddingModel.class)).isSameAs(context.getBean("contexaPrimaryEmbeddingModel"));
             assertThat(context.getBean(LlmRuntimeCatalog.class).getChatBindings()).hasSize(1);
             assertThat(context.getBean(LlmRuntimeCatalog.class).getEmbeddingBindings()).hasSize(1);
         });

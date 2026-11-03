@@ -55,6 +55,7 @@ import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
 import org.modelmapper.ModelMapper;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -77,29 +78,29 @@ import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 public class IamXacmlPapAutoConfiguration {
 
     
-    @Bean
+    @Bean(name = "contexaPolicyEnrichmentService")
     @ConditionalOnMissingBean
-    public PolicyEnrichmentService policyEnrichmentService(PolicyTranslator policyTranslator) {
-        return new PolicyEnrichmentService(policyTranslator);
+    public PolicyEnrichmentService policyEnrichmentService(PolicyTranslator contexaPolicyTranslator) {
+        return new PolicyEnrichmentService(contexaPolicyTranslator);
     }
 
-    @Bean
+    @Bean(name = "contexaPolicySynchronizationService")
     @ConditionalOnMissingBean
     public PolicySynchronizationService policySynchronizationService(
             PolicyRepository policyRepository,
             RoleRepository roleRepository,
-            PolicyService policyService) {
-        return new PolicySynchronizationService(policyRepository, roleRepository, policyService);
+            PolicyService contexaPolicyService) {
+        return new PolicySynchronizationService(policyRepository, roleRepository, contexaPolicyService);
     }
 
-    @Bean
+    @Bean(name = "contexaPolicyConflictAnalyzer")
     @ConditionalOnMissingBean
     public PolicyConflictAnalyzer policyConflictAnalyzer(PolicyRepository policyRepository,
                                                          MessageSource messageSource) {
         return new PolicyConflictAnalyzer(policyRepository, messageSource);
     }
 
-    @Bean
+    @Bean(name = "contexaPolicyDuplicateDetector")
     @ConditionalOnMissingBean
     public PolicyDuplicateDetector policyDuplicateDetector(
             PolicyRepository policyRepository,
@@ -108,27 +109,27 @@ public class IamXacmlPapAutoConfiguration {
         return new PolicyDuplicateDetector(policyRepository, roleHierarchy, messageSource);
     }
 
-    @Bean
+    @Bean(name = "contexaPolicyValidationService")
     @ConditionalOnMissingBean
     public PolicyValidationService policyValidationService(
-            PolicyConflictAnalyzer policyConflictAnalyzer,
-            PolicyDuplicateDetector policyDuplicateDetector,
+            PolicyConflictAnalyzer contexaPolicyConflictAnalyzer,
+            PolicyDuplicateDetector contexaPolicyDuplicateDetector,
             PolicyRepository policyRepository,
             MessageSource messageSource) {
-        return new PolicyValidationService(policyConflictAnalyzer, policyDuplicateDetector, policyRepository, messageSource);
+        return new PolicyValidationService(contexaPolicyConflictAnalyzer, contexaPolicyDuplicateDetector, policyRepository, messageSource);
     }
 
-    @Bean
+    @Bean(name = "contexaPolicyImpactAnalyzer")
     @ConditionalOnMissingBean
     public PolicyImpactAnalyzer policyImpactAnalyzer(
             UserRepository userRepository,
             PolicyRepository policyRepository,
             RoleHierarchy roleHierarchy,
-            AuthorityResolver authorityResolver) {
-        return new PolicyImpactAnalyzer(userRepository, policyRepository, roleHierarchy, authorityResolver);
+            AuthorityResolver contexaAuthorityResolver) {
+        return new PolicyImpactAnalyzer(userRepository, policyRepository, roleHierarchy, contexaAuthorityResolver);
     }
 
-    @Bean
+    @Bean(name = "contexaPolicySimulator")
     @ConditionalOnMissingBean
     public PolicySimulator policySimulator(
             UserRepository userRepository,
@@ -141,7 +142,7 @@ public class IamXacmlPapAutoConfiguration {
                 policyCombiningProperties.getIfAvailable(PolicyCombiningProperties::new));
     }
 
-    @Bean
+    @Bean(name = "contexaPolicyMatrixService")
     @ConditionalOnMissingBean
     public PolicyMatrixService policyMatrixService(
             PolicyRepository policyRepository,
@@ -150,25 +151,25 @@ public class IamXacmlPapAutoConfiguration {
         return new PolicyMatrixService(policyRepository, roleRepository, roleHierarchy);
     }
 
-    @Bean
+    @Bean(name = "contexaAiPolicyValidator")
     @ConditionalOnMissingBean
     public AIPolicyValidator aiPolicyValidator(
             RoleRepository roleRepository,
             PermissionRepository permissionRepository,
-            PolicyConflictAnalyzer policyConflictAnalyzer,
-            PolicyDuplicateDetector policyDuplicateDetector,
+            PolicyConflictAnalyzer contexaPolicyConflictAnalyzer,
+            PolicyDuplicateDetector contexaPolicyDuplicateDetector,
             MessageSource messageSource) {
         return new AIPolicyValidator(roleRepository, permissionRepository,
-                policyConflictAnalyzer, policyDuplicateDetector, messageSource);
+                contexaPolicyConflictAnalyzer, contexaPolicyDuplicateDetector, messageSource);
     }
 
-    @Bean
+    @Bean(name = "contexaPolicyVersionService")
     @ConditionalOnMissingBean
     public PolicyVersionService policyVersionService(
             PolicyVersionRepository policyVersionRepository,
-            ObjectMapper objectMapper,
-            ModelMapper modelMapper) {
-        return new PolicyVersionService(policyVersionRepository, objectMapper, modelMapper);
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
+            @Qualifier("contexaModelMapper") ModelMapper contexaModelMapper) {
+        return new PolicyVersionService(policyVersionRepository, objectMapper, contexaModelMapper);
     }
 
     @Configuration(proxyBeanMethods = false)
@@ -176,15 +177,15 @@ public class IamXacmlPapAutoConfiguration {
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     static class RedissonPapConfiguration {
 
-        @Bean
+        @Bean(name = "contexaPolicyReloadBroadcaster")
         @ConditionalOnMissingBean
         @ConditionalOnBean(type = "org.redisson.api.RedissonClient")
         public PolicyReloadBroadcaster policyReloadBroadcaster(
-                RedissonClient redissonClient,
+                RedissonClient contexaRedissonClient,
                 PolicyRetrievalPoint policyRetrievalPoint,
                 CustomDynamicAuthorizationManager authorizationManager,
                 ObjectProvider<SystemSettingsRuntimeApplier> runtimeApplierProvider) {
-            return new PolicyReloadBroadcaster(redissonClient, () -> {
+            return new PolicyReloadBroadcaster(contexaRedissonClient, () -> {
                 runtimeApplierProvider.ifAvailable(SystemSettingsRuntimeApplier::applyPolicyDecisionSettings);
                 policyRetrievalPoint.clearUrlPoliciesCache();
                 policyRetrievalPoint.clearMethodPoliciesCache();
@@ -193,106 +194,106 @@ public class IamXacmlPapAutoConfiguration {
         }
     }
 
-    @Bean
+    @Bean(name = "contexaDefaultPolicyService")
     @ConditionalOnMissingBean
     public PolicyService defaultPolicyService(
             PolicyRepository policyRepository,
             PolicyRetrievalPoint policyRetrievalPoint,
             CustomDynamicAuthorizationManager authorizationManager,
-            PolicyEnrichmentService policyEnrichmentService,
+            PolicyEnrichmentService contexaPolicyEnrichmentService,
             IntegrationEventBus eventBus,
             PermissionRepository permissionRepository,
             ManagedResourceRepository managedResourceRepository,
-            CentralAuditFacade centralAuditFacade,
-            PolicyConflictAnalyzer policyConflictAnalyzer,
-            PolicyValidationService policyValidationService,
-            PolicyVersionService policyVersionService,
-            PolicyImpactAnalyzer policyImpactAnalyzer,
-            PolicySimulator policySimulator,
+            CentralAuditFacade contexaCentralAuditFacade,
+            PolicyConflictAnalyzer contexaPolicyConflictAnalyzer,
+            PolicyValidationService contexaPolicyValidationService,
+            PolicyVersionService contexaPolicyVersionService,
+            PolicyImpactAnalyzer contexaPolicyImpactAnalyzer,
+            PolicySimulator contexaPolicySimulator,
             MessageSource messageSource,
-            AIPolicyValidator aiPolicyValidator,
+            AIPolicyValidator contexaAiPolicyValidator,
             ObjectProvider<PolicyReloadBroadcaster> policyReloadBroadcasterProvider) {
         DefaultPolicyService service = new DefaultPolicyService(
                 policyRepository, policyRetrievalPoint, authorizationManager,
-                policyEnrichmentService, eventBus, permissionRepository, managedResourceRepository,
-                centralAuditFacade, policyConflictAnalyzer, policyValidationService,
-                policyVersionService, policyImpactAnalyzer, policySimulator, messageSource, aiPolicyValidator);
+                contexaPolicyEnrichmentService, eventBus, permissionRepository, managedResourceRepository,
+                contexaCentralAuditFacade, contexaPolicyConflictAnalyzer, contexaPolicyValidationService,
+                contexaPolicyVersionService, contexaPolicyImpactAnalyzer, contexaPolicySimulator, messageSource, contexaAiPolicyValidator);
         policyReloadBroadcasterProvider.ifAvailable(service::setPolicyReloadBroadcaster);
         return service;
     }
 
-    @Bean
+    @Bean(name = "contexaPolicyBuilderService")
     @ConditionalOnMissingBean
     public PolicyBuilderService policyBuilderService(
             PolicyRepository policyRepository,
             UserRepository userRepository,
             PermissionRepository permissionRepository,
             PolicyTemplateRepository policyTemplateRepository,
-            PolicyService policyService,
-            ModelMapper modelMapper,
-            ObjectMapper objectMapper,
-            PolicyConflictAnalyzer policyConflictAnalyzer) {
+            PolicyService contexaPolicyService,
+            @Qualifier("contexaModelMapper") ModelMapper contexaModelMapper,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
+            PolicyConflictAnalyzer contexaPolicyConflictAnalyzer) {
         return new PolicyBuilderServiceImpl(
                 policyRepository, userRepository, permissionRepository,
-                policyTemplateRepository, policyService, modelMapper, objectMapper,
-                policyConflictAnalyzer);
+                policyTemplateRepository, contexaPolicyService, contexaModelMapper, objectMapper,
+                contexaPolicyConflictAnalyzer);
     }
 
-    @Bean
+    @Bean(name = "contexaBusinessPolicyService")
     @ConditionalOnMissingBean
     public BusinessPolicyService businessPolicyService(
             PolicyRepository policyRepository,
-            @Lazy RoleService roleService,
+            @Lazy RoleService contexaRoleService,
             RoleRepository roleRepository,
             PermissionRepository permissionRepository,
             ConditionTemplateRepository conditionTemplateRepository,
-            PolicyEnrichmentService policyEnrichmentService,
+            PolicyEnrichmentService contexaPolicyEnrichmentService,
             CustomDynamicAuthorizationManager authorizationManager,
             SecuritySpelRepository securitySpelRepository,
-            CentralAuditFacade centralAuditFacade,
-            PolicyConflictAnalyzer policyConflictAnalyzer,
-            PolicyVersionService policyVersionService,
+            CentralAuditFacade contexaCentralAuditFacade,
+            PolicyConflictAnalyzer contexaPolicyConflictAnalyzer,
+            PolicyVersionService contexaPolicyVersionService,
             MessageSource messageSource,
             ObjectProvider<PolicyReloadBroadcaster> policyReloadBroadcasterProvider) {
         BusinessPolicyServiceImpl service = new BusinessPolicyServiceImpl(
-                policyRepository, roleService, roleRepository, permissionRepository,
-                conditionTemplateRepository, policyEnrichmentService, authorizationManager,
-                securitySpelRepository, centralAuditFacade, policyConflictAnalyzer,
-                policyVersionService, messageSource);
+                policyRepository, contexaRoleService, roleRepository, permissionRepository,
+                conditionTemplateRepository, contexaPolicyEnrichmentService, authorizationManager,
+                securitySpelRepository, contexaCentralAuditFacade, contexaPolicyConflictAnalyzer,
+                contexaPolicyVersionService, messageSource);
         policyReloadBroadcasterProvider.ifAvailable(service::setPolicyReloadBroadcaster);
         return service;
     }
 
-    @Bean
+    @Bean(name = "contexaPolicyController")
     @ConditionalOnMissingBean
     public PolicyController policyController(
-            PolicyService policyService,
-            ModelMapper modelMapper,
+            PolicyService contexaPolicyService,
+            @Qualifier("contexaModelMapper") ModelMapper contexaModelMapper,
             MessageSource messageSource) {
-        return new PolicyController(policyService, modelMapper, messageSource);
+        return new PolicyController(contexaPolicyService, contexaModelMapper, messageSource);
     }
 
-    @Bean
+    @Bean(name = "contexaPolicyApiController")
     @ConditionalOnMissingBean
     public PolicyApiController policyApiController(
-            BusinessPolicyService businessPolicyService,
-            ModelMapper modelMapper) {
-        return new PolicyApiController(businessPolicyService, modelMapper);
+            BusinessPolicyService contexaBusinessPolicyService,
+            @Qualifier("contexaModelMapper") ModelMapper contexaModelMapper) {
+        return new PolicyApiController(contexaBusinessPolicyService, contexaModelMapper);
     }
 
-    @Bean
+    @Bean(name = "contexaPolicyBuilderController")
     @ConditionalOnMissingBean
     public PolicyBuilderController policyBuilderController(
-            RoleService roleService,
-            PermissionCatalogService permissionCatalogService,
+            RoleService contexaRoleService,
+            PermissionCatalogService contexaPermissionCatalogService,
             ConditionTemplateRepository conditionTemplateRepository,
             ManagedResourceRepository managedResourceRepository,
-            ObjectMapper objectMapper,
-            PermissionService permissionService,
-            ConditionCompatibilityService conditionCompatibilityService) {
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
+            PermissionService contexaPermissionService,
+            ConditionCompatibilityService contexaConditionCompatibilityService) {
         return new PolicyBuilderController(
-                roleService, permissionCatalogService, conditionTemplateRepository, managedResourceRepository,
-                objectMapper, permissionService, conditionCompatibilityService);
+                contexaRoleService, contexaPermissionCatalogService, conditionTemplateRepository, managedResourceRepository,
+                objectMapper, contexaPermissionService, contexaConditionCompatibilityService);
     }
 }
 

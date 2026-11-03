@@ -92,7 +92,7 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
     @KafkaListener(
             topicPattern = "security\\.events\\..*",
             groupId = "${security.plane.kafka.group-id:security-plane-consumer}",
-            containerFactory = "kafkaListenerContainerFactory"
+            containerFactory = "contexaKafkaListenerContainerFactory"
     )
     public void consumeZeroTrustEvents(
             @Payload String message,

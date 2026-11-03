@@ -43,7 +43,7 @@ public class CoreAdvisorAutoConfiguration {
     @Autowired(required = false)
     private List<BaseAdvisor> baseAdvisors;
 
-    @Bean
+    @Bean(name = "contexaAdvisorRegistry")
     @ConditionalOnMissingBean
     public AdvisorRegistry advisorRegistry() {
         AdvisorRegistry advisorRegistry = new AdvisorRegistry();

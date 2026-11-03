@@ -114,23 +114,23 @@ public class CoreAutonomousEventAutoConfiguration {
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     static class KafkaEventConfiguration {
 
-        @Bean
+        @Bean(name = "contexaKafkaSecurityEventCollector")
         @ConditionalOnMissingBean
         @ConditionalOnBean(type = "org.springframework.kafka.core.KafkaTemplate")
         public KafkaSecurityEventCollector kafkaSecurityEventCollector(
-                ObjectMapper objectMapper,
-                KafkaTemplate<String, Object> kafkaTemplate,
+                @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
+                @Qualifier("contexaKafkaTemplate") KafkaTemplate<String, Object> contexaKafkaTemplate,
                 SecurityKafkaProperties securityKafkaProperties) {
-            return new KafkaSecurityEventCollector(objectMapper, kafkaTemplate, securityKafkaProperties);
+            return new KafkaSecurityEventCollector(objectMapper, contexaKafkaTemplate, securityKafkaProperties);
         }
 
-        @Bean
+        @Bean(name = "contexaKafkaSecurityEventPublisher")
         @ConditionalOnMissingBean
         @ConditionalOnBean(type = "org.springframework.kafka.core.KafkaTemplate")
         public KafkaSecurityEventPublisher kafkaSecurityEventPublisher(
-                KafkaTemplate<String, Object> kafkaTemplate,
+                @Qualifier("contexaKafkaTemplate") KafkaTemplate<String, Object> contexaKafkaTemplate,
                 SecurityKafkaProperties securityKafkaProperties) {
-            return new KafkaSecurityEventPublisher(kafkaTemplate, securityKafkaProperties);
+            return new KafkaSecurityEventPublisher(contexaKafkaTemplate, securityKafkaProperties);
         }
     }
 
@@ -139,29 +139,29 @@ public class CoreAutonomousEventAutoConfiguration {
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     static class RedissonEventConfiguration {
 
-        @Bean
+        @Bean(name = "contexaBlockingDecisionRegistry")
         @ConditionalOnMissingBean
         @ConditionalOnBean(type = "org.redisson.api.RedissonClient")
         public BlockingDecisionRegistry blockingDecisionRegistry(
-                RedissonClient redissonClient, ObjectProvider<ZeroTrustActionRepository> decisions) {
-            return new BlockingDecisionRegistry(redissonClient, decisionInForce(decisions));
+                RedissonClient contexaRedissonClient, ObjectProvider<ZeroTrustActionRepository> decisions) {
+            return new BlockingDecisionRegistry(contexaRedissonClient, decisionInForce(decisions));
         }
     }
 
-    @Bean
+    @Bean(name = "contexaInMemorySecurityEventCollector")
     @ConditionalOnMissingBean(SecurityEventCollector.class)
     public InMemorySecurityEventCollector inMemorySecurityEventCollector() {
         return new InMemorySecurityEventCollector();
     }
 
-    @Bean
+    @Bean(name = "contexaInMemorySecurityEventPublisher")
     @ConditionalOnMissingBean(SecurityEventPublisher.class)
     public InMemorySecurityEventPublisher inMemorySecurityEventPublisher(
             SecurityEventCollector collector) {
         return new InMemorySecurityEventPublisher(collector);
     }
 
-    @Bean
+    @Bean(name = "contexaInMemoryBlockingSignalBroadcaster")
     @ConditionalOnMissingBean(BlockingSignalBroadcaster.class)
     public InMemoryBlockingSignalBroadcaster inMemoryBlockingSignalBroadcaster(
             ObjectProvider<ZeroTrustActionRepository> decisions) {
@@ -177,7 +177,7 @@ public class CoreAutonomousEventAutoConfiguration {
     }
 
 
-    @Bean
+    @Bean(name = "contexaZeroTrustEventListener")
     @ConditionalOnMissingBean
     public ZeroTrustEventListener zeroTrustEventListener(
             SecurityEventPublisher securityEventPublisher,
@@ -191,7 +191,7 @@ public class CoreAutonomousEventAutoConfiguration {
     }
 
     /** docs/agent F-1: how far an ALLOW in force answers an agent's later requests without a new decision. */
-    @Bean
+    @Bean(name = "contexaAgentAllowReuse")
     @ConditionalOnMissingBean
     public AgentAllowReuse agentAllowReuse(SecurityZeroTrustProperties securityZeroTrustProperties) {
         SecurityZeroTrustProperties.AllowReuse settings = securityZeroTrustProperties.getAgent().getAllowReuse();
@@ -203,7 +203,7 @@ public class CoreAutonomousEventAutoConfiguration {
      * docs/agent RL-12: one agent's requests that come in numbers are analysed once per question, under a limit of
      * analyses running at once. contexa.security.zerotrust.agent.flight.*; off by default.
      */
-    @Bean
+    @Bean(name = "contexaAgentDecisionFlights")
     @ConditionalOnMissingBean
     public AgentDecisionFlights agentDecisionFlights(SecurityZeroTrustProperties securityZeroTrustProperties) {
         SecurityZeroTrustProperties.Flight settings = securityZeroTrustProperties.getAgent().getFlight();
@@ -219,7 +219,7 @@ public class CoreAutonomousEventAutoConfiguration {
                 settings.getPassBudget(), passFamilies));
     }
 
-    @Bean
+    @Bean(name = "contexaZeroTrustEventPublisher")
     @ConditionalOnMissingBean
     public ZeroTrustEventPublisher zeroTrustEventPublisher(
             ApplicationEventPublisher applicationEventPublisher,
@@ -233,23 +233,23 @@ public class CoreAutonomousEventAutoConfiguration {
                 securityPlaneProperties);
     }
 
-    @Bean
+    @Bean(name = "contexaLlmAnalysisEventListener")
     @ConditionalOnMissingBean
     public LlmAnalysisEventListener llmAnalysisEventListener(ObjectProvider<List<LlmAnalysisEventObserver>> observersProvider) {
         return new CompositeLlmAnalysisEventListener(observersProvider.getIfAvailable(List::of));
     }
 
-    @Bean
+    @Bean(name = "contexaColdPathEventProcessor")
     @ConditionalOnMissingBean
     @ConditionalOnBean({Layer1ContextualStrategy.class, Layer2ExpertStrategy.class})
     public ColdPathEventProcessor coldPathEventProcessor(
-            Layer1ContextualStrategy contextualStrategy,
-            Layer2ExpertStrategy expertStrategy,
-            LlmAnalysisEventListener llmAnalysisEventListener,
+            Layer1ContextualStrategy contexaContextualStrategy,
+            Layer2ExpertStrategy contexaExpertStrategy,
+            LlmAnalysisEventListener contexaLlmAnalysisEventListener,
             ObjectProvider<PromptShadowRunner> promptShadowRunner,
             ObjectProvider<SecurityColdPathProperties> securityColdPathProperties) {
-        ColdPathEventProcessor processor = new ColdPathEventProcessor(contextualStrategy, expertStrategy,
-                llmAnalysisEventListener);
+        ColdPathEventProcessor processor = new ColdPathEventProcessor(contexaContextualStrategy, contexaExpertStrategy,
+                contexaLlmAnalysisEventListener);
         // W6-9: the shadow run after the decision, when one is configured.
         processor.setShadowRunner(promptShadowRunner.getIfAvailable());
         // QF-42: the bound on escalation protection windows.
@@ -260,21 +260,21 @@ public class CoreAutonomousEventAutoConfiguration {
         return processor;
     }
 
-    @Bean
+    @Bean(name = "contexaColdPathStrategy")
     @ConditionalOnMissingBean
     @ConditionalOnBean(ColdPathEventProcessor.class)
-    public ColdPathStrategy coldPathStrategy(ColdPathEventProcessor coldPathEventProcessor) {
-        return new ColdPathStrategy(coldPathEventProcessor);
+    public ColdPathStrategy coldPathStrategy(ColdPathEventProcessor contexaColdPathEventProcessor) {
+        return new ColdPathStrategy(contexaColdPathEventProcessor);
     }
 
-    @Bean
+    @Bean(name = "contexaProcessingExecutionHandler")
     @ConditionalOnMissingBean
     public ProcessingExecutionHandler processingExecutionHandler(
             List<ProcessingStrategy> processingStrategies) {
         return new ProcessingExecutionHandler(processingStrategies);
     }
 
-    @Bean
+    @Bean(name = "contexaSecurityEventProcessingOrchestrator")
     @ConditionalOnMissingBean
     public SecurityEventProcessor securityEventProcessingOrchestrator(
             List<SecurityEventHandler> handlers,
@@ -282,8 +282,8 @@ public class CoreAutonomousEventAutoConfiguration {
         return new SecurityEventProcessor(handlers, securityPlaneProperties.getAgent().getName());
     }
 
-    @Bean
-    @ConditionalOnMissingBean(name = "securityBaselineLearningExecutor")
+    @Bean(name = "contexaSecurityBaselineLearningExecutor", defaultCandidate = false)
+    @ConditionalOnMissingBean(name = "contexaSecurityBaselineLearningExecutor")
     public Executor securityBaselineLearningExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(1);
@@ -297,11 +297,11 @@ public class CoreAutonomousEventAutoConfiguration {
         return executor;
     }
 
-    @Bean
+    @Bean(name = "contexaAiSecurityDecisionObservationWriter")
     @ConditionalOnMissingBean
     public AiSecurityDecisionObservationWriter aiSecurityDecisionObservationWriter(
             @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
-            ObjectMapper objectMapper,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             Environment environment) {
         return new AiSecurityDecisionObservationWriter(
                 jdbcOperationsProvider::getIfAvailable,
@@ -374,15 +374,15 @@ public class CoreAutonomousEventAutoConfiguration {
         return value != null && !value.isBlank();
     }
 
-    @Bean
+    @Bean(name = "contexaSecurityDecisionEnforcementHandler")
     @ConditionalOnMissingBean
     @ConditionalOnBean(SecurityLearningService.class)
     public SecurityDecisionEnforcementHandler securityDecisionEnforcementHandler(
             ZeroTrustActionRepository actionRepository,
-            SecurityLearningService securityLearningService,
-            IBlockedUserRecorder blockedUserRecorder,
+            SecurityLearningService contexaSecurityLearningService,
+            IBlockedUserRecorder contexaBlockedUserRecorder,
             BlockingSignalBroadcaster blockingSignalBroadcaster,
-            @Qualifier("securityBaselineLearningExecutor") ObjectProvider<Executor> baselineLearningExecutorProvider,
+            @Qualifier("contexaSecurityBaselineLearningExecutor") ObjectProvider<Executor> baselineLearningExecutorProvider,
             ObjectProvider<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterProvider,
             SecurityContextDataStore securityContextDataStore,
             SecurityZeroTrustProperties securityZeroTrustProperties,
@@ -395,8 +395,8 @@ public class CoreAutonomousEventAutoConfiguration {
             ObjectProvider<RiskSignalEmitter> riskSignalEmitters) {
         SecurityDecisionEnforcementHandler handler = new SecurityDecisionEnforcementHandler(
                 actionRepository,
-                securityLearningService,
-                blockedUserRecorder,
+                contexaSecurityLearningService,
+                contexaBlockedUserRecorder,
                 blockingSignalBroadcaster,
                 securityZeroTrustProperties,
                 baselineLearningExecutorProvider.getIfAvailable(() -> command -> command.run()),
@@ -420,7 +420,7 @@ public class CoreAutonomousEventAutoConfiguration {
      * ({@code contexa.security.zerotrust.agent.scope-narrowing}); off, nothing is narrowed. An application declares
      * its own {@link AgentScopeNarrower} to narrow otherwise.
      */
-    @Bean
+    @Bean(name = "contexaAgentScopeNarrower")
     @ConditionalOnMissingBean(AgentScopeNarrower.class)
     public AgentScopeNarrower agentScopeNarrower(SecurityZeroTrustProperties securityZeroTrustProperties) {
         SecurityZeroTrustProperties.ScopeNarrowing settings = securityZeroTrustProperties.getAgent().getScopeNarrowing();
@@ -429,12 +429,12 @@ public class CoreAutonomousEventAutoConfiguration {
                 : (subject, event, result) -> Optional.empty();
     }
 
-    @Bean
+    @Bean(name = "contexaAgentScopeService")
     @ConditionalOnMissingBean
     public AgentScopeService agentScopeService(ObjectProvider<AgentScopeStore> agentScopeStore,
-                                               AgentScopeNarrower agentScopeNarrower,
+                                               AgentScopeNarrower contexaAgentScopeNarrower,
                                                ObjectProvider<CentralAuditFacade> auditFacade) {
-        return new AgentScopeService(agentScopeStore.getIfAvailable(InMemoryAgentScopeStore::new), agentScopeNarrower,
+        return new AgentScopeService(agentScopeStore.getIfAvailable(InMemoryAgentScopeStore::new), contexaAgentScopeNarrower,
                 auditFacade.getIfAvailable(), null);
     }
 
@@ -442,7 +442,7 @@ public class CoreAutonomousEventAutoConfiguration {
      * docs/agent A5-3: stops and releases agents: the delegation and tokens of an agent a BLOCK stopped, the agent's
      * suspension, the kill switch, and the notice to the accountable person.
      */
-    @Bean
+    @Bean(name = "contexaAgentContainmentService")
     @ConditionalOnMissingBean
     public AgentContainmentService agentContainmentService(ZeroTrustActionRepository actionRepository,
                                                            ObjectProvider<AgentRegistry> agentRegistry,
@@ -455,7 +455,7 @@ public class CoreAutonomousEventAutoConfiguration {
                 agentNotices.getIfAvailable(), auditFacade.getIfAvailable());
     }
 
-    @Bean
+    @Bean(name = "contexaRiskAssessment")
     @ConditionalOnMissingBean
     public RiskAssessment riskAssessment() {
         return new RiskAssessment();

@@ -15,7 +15,10 @@
  */
 package io.contexa.contexacommon.cache;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -29,6 +32,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.data.redis.listener.adapter.MessageListenerAdapter;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 
 @AutoConfiguration
@@ -47,8 +52,8 @@ public class ContexaCacheAutoConfiguration {
         public RedisContexaCacheService contexaCacheService(
                 ContexaCacheProperties properties,
                 StringRedisTemplate redisTemplate,
-                ObjectMapper objectMapper) {
-            return new RedisContexaCacheService(properties, redisTemplate, objectMapper);
+                @Qualifier("contexaObjectMapper") ObjectProvider<ObjectMapper> objectMapper) {
+            return new RedisContexaCacheService(properties, redisTemplate, objectMapper.getIfAvailable(ContexaCacheAutoConfiguration::ownObjectMapper));
         }
 
         @Bean
@@ -96,8 +101,8 @@ public class ContexaCacheAutoConfiguration {
         @ConditionalOnMissingBean(ContexaCacheService.class)
         public LocalContexaCacheService contexaCacheService(
                 ContexaCacheProperties properties,
-                ObjectMapper objectMapper) {
-            return new LocalContexaCacheService(properties, objectMapper);
+                @Qualifier("contexaObjectMapper") ObjectProvider<ObjectMapper> objectMapper) {
+            return new LocalContexaCacheService(properties, objectMapper.getIfAvailable(ContexaCacheAutoConfiguration::ownObjectMapper));
         }
     }
 
@@ -109,9 +114,21 @@ public class ContexaCacheAutoConfiguration {
         @Bean
         public LocalContexaCacheService contexaCacheService(
                 ContexaCacheProperties properties,
-                ObjectMapper objectMapper) {
+                @Qualifier("contexaObjectMapper") ObjectProvider<ObjectMapper> objectMapper) {
             log.warn("No ContexaCacheService bean found from distributed or standalone config. Falling back to local cache.");
-            return new LocalContexaCacheService(properties, objectMapper);
+            return new LocalContexaCacheService(properties, objectMapper.getIfAvailable(ContexaCacheAutoConfiguration::ownObjectMapper));
         }
+    }
+
+    /**
+     * The mapper of the cache when Contexa's own is not in the context (this library is used without the Contexa core). It is never the
+     * application's mapper: what the cache stores must not depend on how the application configured its JSON.
+     */
+    static ObjectMapper ownObjectMapper() {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new JavaTimeModule());
+        mapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        return mapper;
     }
 }

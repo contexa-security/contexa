@@ -21,7 +21,6 @@ import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
 import io.contexa.contexaiam.domain.dto.RoleDto;
 import io.contexa.contexacommon.entity.Role;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.context.MessageSource;
@@ -40,11 +39,11 @@ import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 @Slf4j
 @Controller
 @RequestMapping("/contexa/admin/roles")
-@RequiredArgsConstructor
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 @PreAuthorize("hasRole('ADMIN')")
 public class RoleController {
@@ -53,6 +52,14 @@ public class RoleController {
 	private final PermissionService permissionService;
 	private final ModelMapper modelMapper;
 	private final MessageSource messageSource;
+
+
+	public RoleController(RoleService roleService, PermissionService permissionService, @Qualifier("contexaModelMapper") ModelMapper modelMapper, MessageSource messageSource) {
+		this.roleService = roleService;
+		this.permissionService = permissionService;
+		this.modelMapper = modelMapper;
+		this.messageSource = messageSource;
+	}
 
 	private String msg(String key, Object... args) {
 		return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());

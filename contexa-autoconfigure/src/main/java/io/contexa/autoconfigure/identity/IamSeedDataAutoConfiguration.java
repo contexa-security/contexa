@@ -65,7 +65,7 @@ public class IamSeedDataAutoConfiguration {
     private static final char BYTE_ORDER_MARK = (char) 0xFEFF;
 
     private static final String CANONICAL_SCHEMA_LOCATION = "db/schema.sql";
-    static final String IAM_SEED_DATA_INITIALIZER_BEAN = "iamSeedDataInitializer";
+    static final String IAM_SEED_DATA_INITIALIZER_BEAN = "contexaIamSeedDataInitializer";
     static final String CONTEXA_ENTITY_MANAGER_FACTORY_BEAN = "contexaEntityManagerFactory";
     private static final int EXPECTED_OFFICIAL_METRIC_EVALUATION_CONTRACTS = 66;
     private static final int EXPECTED_OFFICIAL_PROMPT_SIGNAL_CONTRACTS = 688;
@@ -137,7 +137,7 @@ public class IamSeedDataAutoConfiguration {
         return List.copyOf(locations);
     }
 
-    @Bean
+    @Bean(name = "contexaIamSeedDataJpaDependencyConfigurer")
     public static BeanFactoryPostProcessor iamSeedDataJpaDependencyConfigurer() {
         return beanFactory -> {
             if (!beanFactory.containsBeanDefinition(CONTEXA_ENTITY_MANAGER_FACTORY_BEAN)
@@ -162,12 +162,12 @@ public class IamSeedDataAutoConfiguration {
     @Bean(name = IAM_SEED_DATA_INITIALIZER_BEAN)
     public InitializingBean iamSeedDataInitializer(
             @Qualifier("contexaDataSource") DataSource dataSource,
-            OssSchemaGovernance ossSchemaGovernance,
+            OssSchemaGovernance contexaOssSchemaGovernance,
             OssSchemaMaintenanceBacklog maintenanceBacklog,
             Environment environment) {
         return () -> {
-            boolean enterpriseManaged = ossSchemaGovernance.hasProvenance(OssSchemaGovernance.ENTERPRISE_OWNER);
-            boolean ossProvenanceExists = ossSchemaGovernance.hasProvenance(OssSchemaGovernance.OSS_OWNER);
+            boolean enterpriseManaged = contexaOssSchemaGovernance.hasProvenance(OssSchemaGovernance.ENTERPRISE_OWNER);
+            boolean ossProvenanceExists = contexaOssSchemaGovernance.hasProvenance(OssSchemaGovernance.OSS_OWNER);
             boolean enterpriseRequested = environment.getProperty(
                     "contexa.enterprise.enabled", Boolean.class, false);
             ContexaSchemaInventory.DatabaseObjects preInstallationObjects =
@@ -180,12 +180,12 @@ public class IamSeedDataAutoConfiguration {
                                 + "provenance. No schema changes were applied.");
             }
             if (schemaInstallState == SchemaInstallState.ABSENT) {
-                ossSchemaGovernance.assertNoOssOwnershipCollisions(preInstallationObjects);
+                contexaOssSchemaGovernance.assertNoOssOwnershipCollisions(preInstallationObjects);
             }
             initializeSchemaAndSeedData(dataSource, schemaInstallState, enterpriseManaged,
                     enterpriseRequested ? maintenanceBacklog : null, seedLocations(environment));
             seedAdministrator(dataSource, environment);
-            OssSchemaGovernance.GovernanceReport report = ossSchemaGovernance.initializeAndRecordOss(
+            OssSchemaGovernance.GovernanceReport report = contexaOssSchemaGovernance.initializeAndRecordOss(
                     schemaInstallState == SchemaInstallState.ABSENT ? preInstallationObjects : null);
             log.info("[IamSeedData] OSS schema provenance verified. version={}, tables={}, views={}, checksum={}, "
                             + "hostTables={}, hostViews={}, unownedTables={}, unownedViews={}",
@@ -196,13 +196,13 @@ public class IamSeedDataAutoConfiguration {
         };
     }
 
-    @Bean
+    @Bean(name = "contexaOssSchemaGovernance")
     public OssSchemaGovernance ossSchemaGovernance(
             @Qualifier("contexaDataSource") DataSource dataSource) {
         return new OssSchemaGovernance(dataSource);
     }
 
-    @Bean
+    @Bean(name = "contexaOssSchemaMaintenanceBacklog")
     public OssSchemaMaintenanceBacklog ossSchemaMaintenanceBacklog(
             @Qualifier("contexaDataSource") DataSource dataSource) {
         return new OssSchemaMaintenanceBacklog(dataSource);
@@ -212,7 +212,7 @@ public class IamSeedDataAutoConfiguration {
      * Runs after every singleton exists, which is after the enterprise Flyway migrations. Nothing is left over when
      * the schema needed no put-off statement; a statement that still fails stops the start.
      */
-    @Bean
+    @Bean(name = "contexaOssSchemaMaintenanceBacklogCompletion")
     public static SmartInitializingSingleton ossSchemaMaintenanceBacklogCompletion(
             OssSchemaMaintenanceBacklog maintenanceBacklog) {
         return maintenanceBacklog::complete;

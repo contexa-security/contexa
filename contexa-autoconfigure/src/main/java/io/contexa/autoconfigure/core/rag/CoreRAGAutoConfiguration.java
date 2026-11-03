@@ -111,23 +111,23 @@ public class CoreRAGAutoConfiguration {
         this.ragProps = ragProps;
     }
 
-    @Bean
+    @Bean(name = "contexaBehaviorVectorService")
     @ConditionalOnMissingBean
     @ConditionalOnBean(VectorStore.class)
     public BehaviorVectorService behaviorVectorService(
             VectorStore vectorStore,
-            @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics,
+            @Autowired(required = false) VectorStoreMetrics contexaVectorStoreMetrics,
             ContexaRagProperties ragProperties) {
-        return new BehaviorVectorService(vectorStore, vectorStoreMetrics, ragProperties);
+        return new BehaviorVectorService(vectorStore, contexaVectorStoreMetrics, ragProperties);
     }
 
-    @Bean
+    @Bean(name = "contexaDistributedStrategyExecutor")
     @ConditionalOnMissingBean
     public DistributedStrategyExecutor distributedStrategyExecutor(AIStrategyRegistry strategyRegistry) {
         return new DistributedStrategyExecutor(strategyRegistry);
     }
 
-    @Bean
+    @Bean(name = "contexaBehaviorDocumentRetentionScheduler")
     @ConditionalOnMissingBean
     @ConditionalOnBean(VectorStore.class)
     public BehaviorDocumentRetentionScheduler behaviorDocumentRetentionScheduler(
@@ -139,7 +139,7 @@ public class CoreRAGAutoConfiguration {
         return scheduler;
     }
 
-    @Bean
+    @Bean(name = "contexaVectorStoreCacheLayer")
     @ConditionalOnMissingBean
     @ConditionalOnBean(VectorStore.class)
     public VectorStoreCacheLayer vectorStoreCacheLayer(
@@ -154,7 +154,7 @@ public class CoreRAGAutoConfiguration {
      * The metadata index of the pgvector table, created at start when Spring AI initialises the schema (W2-15), so
      * that a personal search reads one user's rows directly. A store that is not pgvector has none.
      */
-    @Bean
+    @Bean(name = "contexaPgVectorMetadataIndexInitializer")
     @ConditionalOnBean(VectorStore.class)
     @ConditionalOnProperty(prefix = "spring.ai.vectorstore.pgvector", name = "initialize-schema", havingValue = "true")
     public SmartInitializingSingleton pgVectorMetadataIndexInitializer(VectorStore vectorStore, Environment environment) {
@@ -168,7 +168,7 @@ public class CoreRAGAutoConfiguration {
      * is ready (W5-7 D5), on a background thread so that the start does not wait for it. A store that is not
      * pgvector has none to move.
      */
-    @Bean
+    @Bean(name = "contexaPgVectorVocabularyReindexOnStart")
     @ConditionalOnBean(VectorStore.class)
     @ConditionalOnProperty(prefix = "contexa.rag", name = "vocabulary-reindex-on-start", havingValue = "true",
             matchIfMissing = true)
@@ -191,8 +191,8 @@ public class CoreRAGAutoConfiguration {
     }
 
     /** Vector searches and stores; all configured threads run before work queues (W2-15). */
-    @Bean(destroyMethod = "shutdown")
-    @ConditionalOnMissingBean(name = "vectorOperationExecutor")
+    @Bean(name = "contexaVectorOperationExecutor", destroyMethod = "shutdown", defaultCandidate = false)
+    @ConditionalOnMissingBean(name = "contexaVectorOperationExecutor")
     public ExecutorService vectorOperationExecutor(PgVectorStoreProperties pgVectorStoreProperties) {
         int threads = Math.max(1, pgVectorStoreProperties.getParallelThreads());
         return new ThreadPoolExecutor(
@@ -209,31 +209,31 @@ public class CoreRAGAutoConfiguration {
      * Where the documents whose vector store failed wait for their retry (BR-C4, QF-8): a bounded queue in memory.
      * An adopter whose records must outlive a restart provides its own {@link FailedDocumentSink} bean.
      */
-    @Bean
+    @Bean(name = "contexaFailedDocumentSink")
     @ConditionalOnMissingBean(FailedDocumentSink.class)
     public FailedDocumentSink failedDocumentSink(VectorStoreRetryProperties retryProperties) {
         return new InMemoryFailedDocumentSink(retryProperties.getQueueSize());
     }
 
-    @Bean
+    @Bean(name = "contexaUnifiedVectorService")
     @ConditionalOnMissingBean
     @ConditionalOnBean(VectorStore.class)
     public UnifiedVectorService unifiedVectorService(
             PgVectorStoreProperties properties,
             VectorStoreCacheLayer cacheLayer,
             VectorStore vectorStore,
-            @Qualifier("vectorOperationExecutor") ExecutorService vectorOperationExecutor,
+            @Qualifier("contexaVectorOperationExecutor") ExecutorService contexaVectorOperationExecutor,
             Environment environment,
             VectorStoreRetryProperties retryProperties,
-            FailedDocumentSink failedDocumentSink,
+            FailedDocumentSink contexaFailedDocumentSink,
             ObjectProvider<EmbeddingDimensionConsistencyVerifier> embeddingDimensionVerifier) {
         // W3-18: the past records of a v20 prompt are read by an exact lookup of the pgvector table.
         UnifiedVectorService service = new UnifiedVectorService(properties, cacheLayer, vectorStore,
-                vectorOperationExecutor,
+                contexaVectorOperationExecutor,
                 new PgVectorPastRecordQuery(vectorStore,
                         environment.getProperty("spring.ai.vectorstore.pgvector.schema-name", "public"),
                         environment.getProperty("spring.ai.vectorstore.pgvector.table-name", "ctxa_vector_store")),
-                retryProperties, failedDocumentSink);
+                retryProperties, contexaFailedDocumentSink);
         // BR-S2: a stored document names the embedding model as the start-up dimension check resolves it (read at the
         // first store, not at start, so that the check's beans are not created early).
         service.setEmbeddingModelSource(() -> {
@@ -247,11 +247,11 @@ public class CoreRAGAutoConfiguration {
      * Removes the documents of a deleted account that still wait for a vector store retry when the account is purged
      * (BR-C4), so that a retry does not bring its records back.
      */
-    @Bean
+    @Bean(name = "contexaPendingStoreUserPurgeContributor")
     @ConditionalOnMissingBean(PendingStoreUserPurgeContributor.class)
     @ConditionalOnBean(VectorStore.class)
-    public PendingStoreUserPurgeContributor pendingStoreUserPurgeContributor(UnifiedVectorService unifiedVectorService) {
-        return new PendingStoreUserPurgeContributor(unifiedVectorService);
+    public PendingStoreUserPurgeContributor pendingStoreUserPurgeContributor(UnifiedVectorService contexaUnifiedVectorService) {
+        return new PendingStoreUserPurgeContributor(contexaUnifiedVectorService);
     }
 
     /**
@@ -270,8 +270,8 @@ public class CoreRAGAutoConfiguration {
          * Binds once every singleton exists, so that the registry does not start the vector service early; without a
          * registry or a vector service nothing is bound.
          */
-        @Bean
-        @ConditionalOnMissingBean(name = "unifiedVectorServiceStoreFailureMetrics")
+        @Bean(name = "contexaUnifiedVectorServiceStoreFailureMetrics")
+        @ConditionalOnMissingBean(name = "contexaUnifiedVectorServiceStoreFailureMetrics")
         public SmartInitializingSingleton unifiedVectorServiceStoreFailureMetrics(
                 ObjectProvider<MeterRegistry> registry, ObjectProvider<UnifiedVectorService> vectorService) {
             return () -> vectorService.ifAvailable(
@@ -279,8 +279,8 @@ public class CoreRAGAutoConfiguration {
         }
 
         /** BR-S5 (QF-12): the baseline learnings that could not be stored; nothing is bound without either bean. */
-        @Bean
-        @ConditionalOnMissingBean(name = "baselineLearningLossMetrics")
+        @Bean(name = "contexaBaselineLearningLossMetrics")
+        @ConditionalOnMissingBean(name = "contexaBaselineLearningLossMetrics")
         public SmartInitializingSingleton baselineLearningLossMetrics(
                 ObjectProvider<MeterRegistry> registry, ObjectProvider<BaselineLearningService> baselineLearningService) {
             return () -> baselineLearningService.ifAvailable(
@@ -288,7 +288,7 @@ public class CoreRAGAutoConfiguration {
         }
     }
 
-    @Bean
+    @Bean(name = "contexaEmbeddingDimensionConsistencyVerifier")
     @ConditionalOnMissingBean
     @ConditionalOnBean(VectorStore.class)
     public EmbeddingDimensionConsistencyVerifier embeddingDimensionConsistencyVerifier(
@@ -314,14 +314,14 @@ public class CoreRAGAutoConfiguration {
         };
     }
 
-    @Bean
+    @Bean(name = "contexaAiNativeProcessor")
     @ConditionalOnMissingBean
     public AICoreOperations aiNativeProcessor(
-            AuditLogger auditLogger,
+            AuditLogger contexaAuditLogger,
             DistributedLockService distributedLockService,
-            DistributedStrategyExecutor distributedStrategyExecutor,
+            DistributedStrategyExecutor contexaDistributedStrategyExecutor,
             SecurityPlaneProperties securityPlaneProperties) {
-        return new AINativeProcessor(auditLogger, distributedLockService, distributedStrategyExecutor,
+        return new AINativeProcessor(contexaAuditLogger, distributedLockService, contexaDistributedStrategyExecutor,
                 securityPlaneProperties.getAgent().getName());
     }
 
@@ -330,13 +330,13 @@ public class CoreRAGAutoConfiguration {
      * {@code contexa.rag.behavior.shared-advisor-enabled=true} and is never the primary advisor, so that a host injecting a
      * {@link RetrievalAugmentationAdvisor} by type does not read other users' documents by accident.
      */
-    @Bean
+    @Bean(name = "contexaBehaviorAnalysisRagAdvisor")
     @ConditionalOnProperty(prefix = "contexa.rag.behavior", name = "shared-advisor-enabled", havingValue = "true")
-    @ConditionalOnBean(value = VectorStore.class, name = "behaviorQueryTransformer")
-    @ConditionalOnMissingBean(name = "behaviorAnalysisRagAdvisor")
+    @ConditionalOnBean(value = VectorStore.class, name = "contexaBehaviorQueryTransformer")
+    @ConditionalOnMissingBean(name = "contexaBehaviorAnalysisRagAdvisor")
     public RetrievalAugmentationAdvisor behaviorAnalysisRagAdvisor(
             VectorStore vectorStore,
-            @Qualifier("behaviorQueryTransformer") QueryTransformer behaviorQueryTransformer) {
+            @Qualifier("contexaBehaviorQueryTransformer") QueryTransformer contexaBehaviorQueryTransformer) {
 
         String thirtyDaysAgo = LocalDateTime.now()
                 .minusDays(ragProps.getBehavior().getLookbackDays())
@@ -356,16 +356,16 @@ public class CoreRAGAutoConfiguration {
 
         return RetrievalAugmentationAdvisor.builder()
                 .documentRetriever(documentRetriever)
-                .queryTransformers(behaviorQueryTransformer)
+                .queryTransformers(contexaBehaviorQueryTransformer)
                 .build();
     }
 
-    @Bean
-    @ConditionalOnBean(value = VectorStore.class, name = "riskQueryTransformer")
-    @ConditionalOnMissingBean(name = "riskAssessmentRagAdvisor")
+    @Bean(name = "contexaRiskAssessmentRagAdvisor")
+    @ConditionalOnBean(value = VectorStore.class, name = "contexaRiskQueryTransformer")
+    @ConditionalOnMissingBean(name = "contexaRiskAssessmentRagAdvisor")
     public RetrievalAugmentationAdvisor riskAssessmentRagAdvisor(
             VectorStore vectorStore,
-            @Qualifier("riskQueryTransformer") QueryTransformer riskQueryTransformer) {
+            @Qualifier("contexaRiskQueryTransformer") QueryTransformer contexaRiskQueryTransformer) {
 
         FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
         var filter = filterBuilder.and(
@@ -381,16 +381,16 @@ public class CoreRAGAutoConfiguration {
 
         return RetrievalAugmentationAdvisor.builder()
                 .documentRetriever(documentRetriever)
-                .queryTransformers(riskQueryTransformer)
+                .queryTransformers(contexaRiskQueryTransformer)
                 .build();
     }
 
-    @Bean
-    @ConditionalOnBean(value = VectorStore.class, name = "policyQueryTransformer")
-    @ConditionalOnMissingBean(name = "policyGenerationRagAdvisor")
+    @Bean(name = "contexaPolicyGenerationRagAdvisor")
+    @ConditionalOnBean(value = VectorStore.class, name = "contexaPolicyQueryTransformer")
+    @ConditionalOnMissingBean(name = "contexaPolicyGenerationRagAdvisor")
     public RetrievalAugmentationAdvisor policyGenerationRagAdvisor(
             VectorStore vectorStore,
-            @Qualifier("policyQueryTransformer") QueryTransformer policyQueryTransformer) {
+            @Qualifier("contexaPolicyQueryTransformer") QueryTransformer contexaPolicyQueryTransformer) {
 
         FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
         var filter = filterBuilder.eq("documentType", VectorDocumentType.POLICY_EVOLUTION.getValue()).build();
@@ -404,18 +404,18 @@ public class CoreRAGAutoConfiguration {
 
         return RetrievalAugmentationAdvisor.builder()
                 .documentRetriever(documentRetriever)
-                .queryTransformers(policyQueryTransformer)
+                .queryTransformers(contexaPolicyQueryTransformer)
                 .build();
     }
 
-    @Bean("behaviorQueryTransformer")
+    @Bean("contexaBehaviorQueryTransformer")
     @ConditionalOnBean(ChatClient.Builder.class)
-    @ConditionalOnMissingBean(name = "behaviorQueryTransformer")
-    public QueryTransformer behaviorQueryTransformer(ChatClient.Builder chatClientBuilder,
+    @ConditionalOnMissingBean(name = "contexaBehaviorQueryTransformer")
+    public QueryTransformer behaviorQueryTransformer(ChatClient.Builder contexaChatClientBuilder,
             ObjectProvider<ModelServerGates> modelServerGates,
-            @Qualifier("primaryChatModel") ObjectProvider<ChatModel> primaryChatModel) {
+            @Qualifier("contexaPrimaryChatModel") ObjectProvider<ChatModel> primaryChatModel) {
         return new QueryTransformer() {
-            private final ChatClient chatClient = chatClientBuilder.build();
+            private final ChatClient chatClient = contexaChatClientBuilder.build();
 
             @Override
             public Query transform(Query originalQuery) {
@@ -448,14 +448,14 @@ public class CoreRAGAutoConfiguration {
         };
     }
 
-    @Bean("riskQueryTransformer")
+    @Bean("contexaRiskQueryTransformer")
     @ConditionalOnBean(ChatClient.Builder.class)
-    @ConditionalOnMissingBean(name = "riskQueryTransformer")
-    public QueryTransformer riskQueryTransformer(ChatClient.Builder chatClientBuilder,
+    @ConditionalOnMissingBean(name = "contexaRiskQueryTransformer")
+    public QueryTransformer riskQueryTransformer(ChatClient.Builder contexaChatClientBuilder,
             ObjectProvider<ModelServerGates> modelServerGates,
-            @Qualifier("primaryChatModel") ObjectProvider<ChatModel> primaryChatModel) {
+            @Qualifier("contexaPrimaryChatModel") ObjectProvider<ChatModel> primaryChatModel) {
         return new QueryTransformer() {
-            private final ChatClient chatClient = chatClientBuilder.build();
+            private final ChatClient chatClient = contexaChatClientBuilder.build();
 
             @Override
             public Query transform(Query originalQuery) {
@@ -488,14 +488,14 @@ public class CoreRAGAutoConfiguration {
         };
     }
 
-    @Bean("policyQueryTransformer")
+    @Bean("contexaPolicyQueryTransformer")
     @ConditionalOnBean(ChatClient.Builder.class)
-    @ConditionalOnMissingBean(name = "policyQueryTransformer")
-    public QueryTransformer policyQueryTransformer(ChatClient.Builder chatClientBuilder,
+    @ConditionalOnMissingBean(name = "contexaPolicyQueryTransformer")
+    public QueryTransformer policyQueryTransformer(ChatClient.Builder contexaChatClientBuilder,
             ObjectProvider<ModelServerGates> modelServerGates,
-            @Qualifier("primaryChatModel") ObjectProvider<ChatModel> primaryChatModel) {
+            @Qualifier("contexaPrimaryChatModel") ObjectProvider<ChatModel> primaryChatModel) {
         return new QueryTransformer() {
-            private final ChatClient chatClient = chatClientBuilder.build();
+            private final ChatClient chatClient = contexaChatClientBuilder.build();
 
             @Override
             public Query transform(Query originalQuery) {

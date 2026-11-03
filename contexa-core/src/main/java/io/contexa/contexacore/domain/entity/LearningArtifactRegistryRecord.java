@@ -32,7 +32,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+import io.contexa.contexacommon.entity.ContexaAuditingEntityListener;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -48,7 +48,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@EntityListeners(AuditingEntityListener.class)
+@EntityListeners(ContexaAuditingEntityListener.class)
 public class LearningArtifactRegistryRecord {
 
     @Id

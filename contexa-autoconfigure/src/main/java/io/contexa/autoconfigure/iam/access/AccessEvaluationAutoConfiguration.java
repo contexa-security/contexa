@@ -41,7 +41,7 @@ import org.springframework.context.annotation.Bean;
 @ConditionalOnBean({ZeroTrustEventPublisher.class, SynchronousProtectableDecisionService.class})
 public class AccessEvaluationAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaAccessEvaluationService")
     @ConditionalOnMissingBean
     public AccessEvaluationService accessEvaluationService(ZeroTrustEventPublisher events,
                                                            SynchronousProtectableDecisionService decisions,
@@ -49,7 +49,7 @@ public class AccessEvaluationAutoConfiguration {
         return new AccessEvaluationService(events, decisions, properties.getIfAvailable(), null);
     }
 
-    @Bean
+    @Bean(name = "contexaAccessEvaluationController")
     @ConditionalOnMissingBean
     public AccessEvaluationController accessEvaluationController(AccessEvaluationService evaluations,
                                                                  ObjectProvider<SecurityZeroTrustProperties> properties) {

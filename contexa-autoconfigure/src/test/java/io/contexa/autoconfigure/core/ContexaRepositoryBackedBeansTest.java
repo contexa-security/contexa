@@ -47,27 +47,27 @@ import static org.mockito.Mockito.mock;
 class ContexaRepositoryBackedBeansTest {
 
     private static final String[] REPOSITORY_BACKED_BEANS = {
-            "bridgeUserMirrorSyncService",
-            "baselineSignalAggregationService",
-            "saasBaselineSignalDispatcher",
-            "saasBaselineSignalScheduler",
-            "modelPerformanceTelemetryCollector",
-            "modelPerformanceTelemetryObserver",
-            "saasModelPerformanceTelemetryDispatcher",
-            "saasModelPerformanceTelemetryScheduler",
-            "saasPromptContextAuditDispatcher",
-            "promptContextAuditForwardingService",
-            "saasPromptContextAuditRetryScheduler",
-            "saasDecisionDispatcher",
-            "saasDecisionOutboxService",
-            "saasOutboxRetryScheduler",
-            "saasForwardingHandler",
-            "saasDecisionFeedbackDispatcher",
-            "saasDecisionFeedbackOutboxService",
-            "saasDecisionFeedbackRetryScheduler",
-            "saasThreatOutcomeDispatcher",
-            "saasThreatOutcomeOutboxService",
-            "saasThreatOutcomeRetryScheduler"
+            "contexaBridgeUserMirrorSyncService",
+            "contexaBaselineSignalAggregationService",
+            "contexaSaasBaselineSignalDispatcher",
+            "contexaSaasBaselineSignalScheduler",
+            "contexaModelPerformanceTelemetryCollector",
+            "contexaModelPerformanceTelemetryObserver",
+            "contexaSaasModelPerformanceTelemetryDispatcher",
+            "contexaSaasModelPerformanceTelemetryScheduler",
+            "contexaSaasPromptContextAuditDispatcher",
+            "contexaPromptContextAuditForwardingService",
+            "contexaSaasPromptContextAuditRetryScheduler",
+            "contexaSaasDecisionDispatcher",
+            "contexaSaasDecisionOutboxService",
+            "contexaSaasOutboxRetryScheduler",
+            "contexaSaasForwardingHandler",
+            "contexaSaasDecisionFeedbackDispatcher",
+            "contexaSaasDecisionFeedbackOutboxService",
+            "contexaSaasDecisionFeedbackRetryScheduler",
+            "contexaSaasThreatOutcomeDispatcher",
+            "contexaSaasThreatOutcomeOutboxService",
+            "contexaSaasThreatOutcomeRetryScheduler"
     };
 
     private static final String[] CONTEXA_DATASOURCE_PROPERTIES = {
@@ -112,7 +112,7 @@ class ContexaRepositoryBackedBeansTest {
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context.getBeanFactory().getBeanDefinitionNames())
-                            .contains("bridgeRuntimeSupport", "saasDecisionHttpClient")
+                            .contains("contexaBridgeRuntimeSupport", "contexaSaasDecisionHttpClient")
                             .doesNotContain("contexaUserRepository", "contexaBridgeUserProfileRepository")
                             .doesNotContain(REPOSITORY_BACKED_BEANS);
                 });

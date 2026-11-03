@@ -60,7 +60,7 @@ class PromptGovernanceAutoConfigurationTest {
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(PromptGovernanceAutoConfiguration.class))
             .withBean("contexaJdbcTemplate", JdbcTemplate.class, () -> mock(JdbcTemplate.class))
-            .withBean(ObjectMapper.class, ObjectMapper::new)
+            .withBean("contexaObjectMapper", ObjectMapper.class, ObjectMapper::new)
             .withBean(PromptQualityMessageResolver.class, () -> mock(PromptQualityMessageResolver.class))
             .withBean(PromptGovernanceRegistryRepository.class, () -> mock(PromptGovernanceRegistryRepository.class))
             .withBean(PromptGovernanceChangeRecordRepository.class, () -> mock(PromptGovernanceChangeRecordRepository.class))
@@ -78,8 +78,8 @@ class PromptGovernanceAutoConfigurationTest {
             for (Class<?> type : GOVERNANCE_TYPES) {
                 assertThat(context).as(type.getSimpleName()).hasSingleBean(type);
             }
-            assertThat(context).hasBean("promptGovernanceRegistryBootstrapRunner");
-            assertThat(context.getBean("promptGovernanceRegistryBootstrapRunner")).isInstanceOf(ApplicationRunner.class);
+            assertThat(context).hasBean("contexaPromptGovernanceRegistryBootstrapRunner");
+            assertThat(context.getBean("contexaPromptGovernanceRegistryBootstrapRunner")).isInstanceOf(ApplicationRunner.class);
         });
     }
 
@@ -89,7 +89,7 @@ class PromptGovernanceAutoConfigurationTest {
                 .run(context -> {
                     assertThat(context).hasSingleBean(PromptGovernanceReleaseGateService.class);
                     assertThat(context).hasSingleBean(PromptRuntimeGovernanceDescriptorVerifier.class);
-                    assertThat(context).hasBean("promptGovernanceRegistryBootstrapRunner");
+                    assertThat(context).hasBean("contexaPromptGovernanceRegistryBootstrapRunner");
                 });
     }
 
@@ -101,7 +101,7 @@ class PromptGovernanceAutoConfigurationTest {
                     for (Class<?> type : GOVERNANCE_TYPES) {
                         assertThat(context).as(type.getSimpleName()).doesNotHaveBean(type);
                     }
-                    assertThat(context).doesNotHaveBean("promptGovernanceRegistryBootstrapRunner");
+                    assertThat(context).doesNotHaveBean("contexaPromptGovernanceRegistryBootstrapRunner");
                 });
     }
 
@@ -124,7 +124,7 @@ class PromptGovernanceAutoConfigurationTest {
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(PromptGovernanceAutoConfiguration.class))
                 .withBean("contexaJdbcTemplate", JdbcTemplate.class, () -> mock(JdbcTemplate.class))
-                .withBean(ObjectMapper.class, ObjectMapper::new)
+                .withBean("contexaObjectMapper", ObjectMapper.class, ObjectMapper::new)
                 .withBean(PromptQualityMessageResolver.class, () -> mock(PromptQualityMessageResolver.class))
                 .withBean(PromptGovernanceChangeRecordRepository.class, () -> mock(PromptGovernanceChangeRecordRepository.class))
                 .withBean(PromptGovernanceEvaluationRecordRepository.class, () -> mock(PromptGovernanceEvaluationRecordRepository.class))
@@ -134,7 +134,7 @@ class PromptGovernanceAutoConfigurationTest {
                 .run(context -> {
                     // The verifier would fail every judgment on an empty registry, so it is not registered (PV-22).
                     assertThat(context).doesNotHaveBean(PromptGovernanceRegistryService.class);
-                    assertThat(context).doesNotHaveBean("promptGovernanceRegistryBootstrapRunner");
+                    assertThat(context).doesNotHaveBean("contexaPromptGovernanceRegistryBootstrapRunner");
                     assertThat(context).doesNotHaveBean(PromptRuntimeGovernanceDescriptorVerifier.class);
                 });
     }

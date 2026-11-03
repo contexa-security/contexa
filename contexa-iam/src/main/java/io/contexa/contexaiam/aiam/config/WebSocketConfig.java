@@ -18,7 +18,14 @@ package io.contexa.contexaiam.aiam.config;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.server.ServerHttpResponse;
+import org.springframework.messaging.support.AbstractSubscribableChannel;
+import org.springframework.scheduling.TaskScheduler;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.web.socket.server.HandshakeInterceptor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.TaskExecutor;
@@ -28,6 +35,7 @@ import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.messaging.support.ChannelInterceptor;
+import org.springframework.web.servlet.HandlerMapping;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurationSupport;
@@ -40,6 +48,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import java.security.Principal;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Executor;
 
 @Configuration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
@@ -83,7 +92,8 @@ public class WebSocketConfig extends WebSocketMessageBrokerConfigurationSupport 
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws-soar")
                 .setAllowedOriginPatterns("*")
-                .setHandshakeHandler(handshakeHandler) 
+                .addInterceptors(new AuthenticatedHandshakeInterceptor())
+                .setHandshakeHandler(handshakeHandler)
                 .withSockJS();
             }
 
@@ -115,16 +125,65 @@ public class WebSocketConfig extends WebSocketMessageBrokerConfigurationSupport 
         });
     }
 
-    @Bean
+    /*
+     * The executors and the scheduler of the message broker are generic types (Executor, TaskExecutor, TaskScheduler). They are not
+     * candidates for injection by type, so that an application's own executor, its default executor of Spring Boot and its @Scheduled
+     * tasks never end up on the threads of Contexa's message broker. Spring's own wiring names them by qualifier.
+     */
+    @Bean(defaultCandidate = false)
     @Override
     public TaskExecutor clientInboundChannelExecutor() {
         return (TaskExecutor) super.clientInboundChannelExecutor();
     }
 
-    @Bean
+    @Bean(defaultCandidate = false)
     @Override
     public TaskExecutor clientOutboundChannelExecutor() {
         return (TaskExecutor) super.clientOutboundChannelExecutor();
+    }
+
+    @Bean(defaultCandidate = false)
+    @Override
+    public Executor brokerChannelExecutor(@Qualifier("clientInboundChannel") AbstractSubscribableChannel clientInboundChannel,
+                                          @Qualifier("clientOutboundChannel") AbstractSubscribableChannel clientOutboundChannel) {
+        return super.brokerChannelExecutor(clientInboundChannel, clientOutboundChannel);
+    }
+
+    @Bean(defaultCandidate = false)
+    @Override
+    public TaskScheduler messageBrokerTaskScheduler() {
+        return super.messageBrokerTaskScheduler();
+    }
+
+    /** Spring asks for the scheduler by type here; the scheduler is not a candidate by type, so it is named. */
+    @Bean
+    @Override
+    public HandlerMapping stompWebSocketHandlerMapping(
+            @Qualifier("subProtocolWebSocketHandler") WebSocketHandler subProtocolWebSocketHandler,
+            @Qualifier("messageBrokerTaskScheduler") TaskScheduler messageBrokerTaskScheduler,
+            @Qualifier("clientInboundChannel") AbstractSubscribableChannel clientInboundChannel) {
+        return super.stompWebSocketHandlerMapping(subProtocolWebSocketHandler, messageBrokerTaskScheduler, clientInboundChannel);
+    }
+
+    /** Only a signed-in user may open the connection: it serves the screens of the console, not the public. */
+    static final class AuthenticatedHandshakeInterceptor implements HandshakeInterceptor {
+
+        @Override
+        public boolean beforeHandshake(@NonNull ServerHttpRequest request, @NonNull ServerHttpResponse response,
+                                       @NonNull WebSocketHandler wsHandler, @NonNull Map<String, Object> attributes) {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            boolean signedIn = authentication != null && authentication.isAuthenticated()
+                    && !(authentication instanceof AnonymousAuthenticationToken);
+            if (!signedIn) {
+                response.setStatusCode(HttpStatus.UNAUTHORIZED);
+            }
+            return signedIn;
+        }
+
+        @Override
+        public void afterHandshake(@NonNull ServerHttpRequest request, @NonNull ServerHttpResponse response,
+                                   @NonNull WebSocketHandler wsHandler, Exception exception) {
+        }
     }
 }
 

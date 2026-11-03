@@ -182,52 +182,52 @@ import java.util.Optional;
 })
 public class PqaOfficialInspectionAutoConfiguration {
 
-    @Bean(name = "pqaOssPromptQualityAssuranceCaseService")
+    @Bean(name = "contexaPqaOssPromptQualityAssuranceCaseService")
     @ConditionalOnMissingBean(PromptQualityAssuranceCaseService.class)
     public PromptQualityAssuranceCaseService pqaOssPromptQualityAssuranceCaseService() {
         return new NoResolutionPromptQualityAssuranceCaseService();
     }
 
-    @Bean(name = "pqaOssPromptRuntimeGovernanceDescriptorVerifier")
+    @Bean(name = "contexaPqaOssPromptRuntimeGovernanceDescriptorVerifier")
     @ConditionalOnMissingBean(PromptRuntimeGovernanceDescriptorVerifier.class)
     public PromptRuntimeGovernanceDescriptorVerifier pqaOssPromptRuntimeGovernanceDescriptorVerifier() {
         return PromptRuntimeGovernanceDescriptorVerifier.none();
     }
 
-    @Bean(name = "pqaOssPromptQualityProtectableResourceLookup")
+    @Bean(name = "contexaPqaOssPromptQualityProtectableResourceLookup")
     @ConditionalOnMissingBean(PromptQualityProtectableResourceLookup.class)
     public PromptQualityProtectableResourceLookup pqaOssPromptQualityProtectableResourceLookup() {
         return PromptQualityProtectableResourceLookup.none();
     }
 
-    @Bean(name = "pqaOssRuntimeIssueDiagnosticService")
+    @Bean(name = "contexaPqaOssRuntimeIssueDiagnosticService")
     @ConditionalOnMissingBean(RuntimeIssueDiagnosticService.class)
     public RuntimeIssueDiagnosticService pqaOssRuntimeIssueDiagnosticService() {
         return RuntimeIssueDiagnosticService.none();
     }
 
-    @Bean(name = "promptQualityRouteModelAdvice")
+    @Bean(name = "contexaPromptQualityRouteModelAdvice")
     @ConditionalOnMissingBean(PromptQualityRouteModelAdvice.class)
     public PromptQualityRouteModelAdvice promptQualityRouteModelAdvice(PromptQualityRouteProperties properties) {
         return new PromptQualityRouteModelAdvice(properties);
     }
 
-    @Bean(name = "pqaOfficialVerificationMetricCatalog")
+    @Bean(name = "contexaPqaOfficialVerificationMetricCatalog")
     @ConditionalOnMissingBean(OfficialVerificationMetricCatalog.class)
     public OfficialVerificationMetricCatalog pqaOfficialVerificationMetricCatalog() {
         return new OfficialVerificationMetricCatalog();
     }
 
-    @Bean(name = "pqaOfficialVerificationRunStore")
+    @Bean(name = "contexaPqaOfficialVerificationRunStore")
     @ConditionalOnMissingBean(OfficialVerificationRunStore.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationRunStore pqaJdbcOfficialVerificationRunStore(
             @Qualifier("contexaJdbcTemplate") JdbcOperations jdbcOperations,
-            ObjectMapper objectMapper) {
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         return new JdbcOfficialVerificationRunStore(jdbcOperations, objectMapper);
     }
 
-    @Bean(name = "pqaOfficialVerificationCasePublisher")
+    @Bean(name = "contexaPqaOfficialVerificationCasePublisher")
     @ConditionalOnMissingBean(OfficialVerificationCasePublisher.class)
     public OfficialVerificationCasePublisher pqaOfficialVerificationCasePublisher() {
         return (userId, record) -> {
@@ -235,36 +235,36 @@ public class PqaOfficialInspectionAutoConfiguration {
         };
     }
 
-    @Bean(name = "pqaPromptQualityMessageResolver")
+    @Bean(name = "contexaPqaPromptQualityMessageResolver")
     @ConditionalOnMissingBean(PromptQualityMessageResolver.class)
     public PromptQualityMessageResolver pqaPromptQualityMessageResolver(MessageSource messageSource) {
         return new DefaultPromptQualityMessageResolver(messageSource);
     }
 
-    @Bean(name = "pqaOfficialVerificationMessageResolver")
+    @Bean(name = "contexaPqaOfficialVerificationMessageResolver")
     @ConditionalOnMissingBean(OfficialVerificationMessageResolver.class)
     public OfficialVerificationMessageResolver pqaOfficialVerificationMessageResolver(
             PromptQualityMessageResolver messageResolver) {
         return messageResolver::resolveRequired;
     }
-    @Bean(name = "pqaOfficialMetricPurposeContractCatalogWriter")
+    @Bean(name = "contexaPqaOfficialMetricPurposeContractCatalogWriter")
     @ConditionalOnMissingBean(value = OfficialMetricPurposeContractWriter.class,
-            name = "officialMetricPurposeContractCatalogWriter")
+            name = "contexaOfficialMetricPurposeContractCatalogWriter")
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialMetricPurposeContractCatalogWriter pqaOfficialMetricPurposeContractCatalogWriter(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
-            ObjectMapper objectMapper) {
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         return new OfficialMetricPurposeContractCatalogWriter(jdbcTemplate, objectMapper);
     }
 
-    @Bean(name = "pqaOfficialMetricPurposeContractCatalogBootstrap")
-    @DependsOn("iamSeedDataInitializer")
+    @Bean(name = "contexaPqaOfficialMetricPurposeContractCatalogBootstrap")
+    @DependsOn("contexaIamSeedDataInitializer")
     @ConditionalOnMissingBean(name = {
             "officialMetricPurposeContractCatalogBootstrap",
-            "pqaOfficialMetricPurposeContractCatalogBootstrap",
-            "enterpriseResolutionContractCatalogBootstrap"
+            "contexaPqaOfficialMetricPurposeContractCatalogBootstrap",
+            "contexaEnterpriseResolutionContractCatalogBootstrap"
     })
-    @ConditionalOnBean(name = "iamSeedDataInitializer")
+    @ConditionalOnBean(name = "contexaIamSeedDataInitializer")
     @ConditionalOnProperty(prefix = "contexa.pqa.official.contract-seed",
             name = "enabled", havingValue = "true", matchIfMissing = true)
     public OfficialMetricPurposeContractCatalogBootstrap pqaOfficialMetricPurposeContractCatalogBootstrap(
@@ -272,7 +272,7 @@ public class PqaOfficialInspectionAutoConfiguration {
         return new OfficialMetricPurposeContractCatalogBootstrap(writer);
     }
 
-    @Bean(name = "pqaSealedEvidencePackageLookupService")
+    @Bean(name = "contexaPqaSealedEvidencePackageLookupService")
     @ConditionalOnMissingBean(SealedEvidencePackageLookupPort.class)
     public SealedEvidencePackageLookupService pqaSealedEvidencePackageLookupService(
             SealedEvidencePackageRepository repository,
@@ -280,14 +280,14 @@ public class PqaOfficialInspectionAutoConfiguration {
         return new SealedEvidencePackageLookupService(repository, integrity);
     }
 
-    @Bean(name = "pqaOfficialSealedEvidenceVerificationRuntime")
+    @Bean(name = "contexaPqaOfficialSealedEvidenceVerificationRuntime")
     @ConditionalOnMissingBean(OfficialSealedEvidenceVerificationRuntime.class)
     public OfficialSealedEvidenceVerificationRuntime pqaOfficialSealedEvidenceVerificationRuntime(
             SealedEvidencePackageLookupPort evidenceLookupService,
             OfficialVerificationMetricCatalog metricCatalog,
             OfficialVerificationRunStore runStore,
             OfficialVerificationCasePublisher casePublisher,
-            ObjectMapper objectMapper,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             OfficialVerificationMessageResolver messageResolver) {
         return new DefaultOfficialSealedEvidenceVerificationRuntime(
                 evidenceLookupService,
@@ -298,7 +298,7 @@ public class PqaOfficialInspectionAutoConfiguration {
                 messageResolver);
     }
 
-    @Bean(name = "pqaSealedEvidencePackageQueryService")
+    @Bean(name = "contexaPqaSealedEvidencePackageQueryService")
     @ConditionalOnMissingBean(SealedEvidencePackageQueryService.class)
     public SealedEvidencePackageQueryService pqaSealedEvidencePackageQueryService(
             SealedEvidencePackageLookupPort evidenceLookupService,
@@ -306,25 +306,25 @@ public class PqaOfficialInspectionAutoConfiguration {
         return new DefaultSealedEvidencePackageQueryService(evidenceLookupService, jdbcTemplate);
     }
 
-    @Bean(name = "pqaVerificationLedgerService")
+    @Bean(name = "contexaPqaVerificationLedgerService")
     @ConditionalOnMissingBean(VerificationLedgerService.class)
     public VerificationLedgerService pqaVerificationLedgerService(OfficialVerificationRunStore runStore) {
         return new VerificationLedgerService(runStore);
     }
 
-    @Bean(name = "pqaRuntimeEvidencePromptConsistencyGate")
+    @Bean(name = "contexaPqaRuntimeEvidencePromptConsistencyGate")
     @ConditionalOnMissingBean(RuntimeEvidencePromptConsistencyGate.class)
     public RuntimeEvidencePromptConsistencyGate pqaRuntimeEvidencePromptConsistencyGate(
-            ObjectMapper objectMapper,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             PromptQualityMessageResolver messageResolver) {
         return new DefaultRuntimeEvidencePromptConsistencyGate(objectMapper, messageResolver);
     }
 
-    @Bean(name = "pqaPromptQualityRuntimeEvidenceService")
+    @Bean(name = "contexaPqaPromptQualityRuntimeEvidenceService")
     @ConditionalOnMissingBean(PromptQualityRuntimeEvidenceService.class)
     public PromptQualityRuntimeEvidenceService pqaPromptQualityRuntimeEvidenceService(
             SealedEvidencePackageQueryService queryService,
-            ObjectMapper objectMapper,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             PromptQualityMessageResolver messageResolver,
             RuntimeEvidencePromptConsistencyGate promptConsistencyGate,
             PromptQualityStateCatalog stateCatalog,
@@ -338,59 +338,59 @@ public class PqaOfficialInspectionAutoConfiguration {
                 processRunService);
     }
 
-    @Bean(name = "pqaPromptQualityOfficialMetricCatalog")
+    @Bean(name = "contexaPqaPromptQualityOfficialMetricCatalog")
     @ConditionalOnMissingBean(PromptQualityOfficialMetricCatalog.class)
     public PromptQualityOfficialMetricCatalog pqaPromptQualityOfficialMetricCatalog(
             OfficialVerificationMetricCatalog metricCatalog) {
         return new DefaultPromptQualityOfficialMetricCatalog(metricCatalog);
     }
 
-    @Bean(name = "pqaVerificationPromptReplayBuilder")
+    @Bean(name = "contexaPqaVerificationPromptReplayBuilder")
     @ConditionalOnMissingBean(VerificationPromptReplayBuilder.class)
     public VerificationPromptReplayBuilder pqaVerificationPromptReplayBuilder() {
         return new VerificationPromptReplayBuilder();
     }
 
-    @Bean(name = "pqaDeterministicReplayService")
+    @Bean(name = "contexaPqaDeterministicReplayService")
     @ConditionalOnMissingBean(DeterministicReplayService.class)
     public DeterministicReplayService pqaDeterministicReplayService(
             SealedEvidencePackageLookupPort evidenceLookupService,
             CanonicalSecurityContextSerializer contextSerializer,
-            PromptContextComposer promptContextComposer,
+            PromptContextComposer contexaPromptContextComposer,
             SealedEvidencePackageIntegrity integrity,
             VerificationPromptReplayBuilder promptReplayBuilder) {
         return new DeterministicReplayService(
                 evidenceLookupService,
                 contextSerializer,
-                promptContextComposer,
+                contexaPromptContextComposer,
                 integrity,
                 promptReplayBuilder);
     }
 
-    @Bean(name = "pqaSealedEvidencePromptScorecard")
+    @Bean(name = "contexaPqaSealedEvidencePromptScorecard")
     @ConditionalOnMissingBean(SealedEvidencePromptScorecard.class)
-    public SealedEvidencePromptScorecard pqaSealedEvidencePromptScorecard(ObjectMapper objectMapper) {
+    public SealedEvidencePromptScorecard pqaSealedEvidencePromptScorecard(@Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         return new SealedEvidencePromptScorecard(objectMapper);
     }
 
-    @Bean(name = "pqaRuntimeEvidenceReplayService")
+    @Bean(name = "contexaPqaRuntimeEvidenceReplayService")
     @ConditionalOnMissingBean(RuntimeEvidenceReplayService.class)
     public RuntimeEvidenceReplayService pqaRuntimeEvidenceReplayService(
             DeterministicReplayService replayService) {
         return new DefaultRuntimeEvidenceReplayService(replayService);
     }
 
-    @Bean(name = "pqaRuntimeEvidencePromptScorecardService")
+    @Bean(name = "contexaPqaRuntimeEvidencePromptScorecardService")
     @ConditionalOnMissingBean(RuntimeEvidencePromptScorecardService.class)
     public RuntimeEvidencePromptScorecardService pqaRuntimeEvidencePromptScorecardService(
             SealedEvidencePromptScorecard promptScorecard) {
         return new DefaultRuntimeEvidencePromptScorecardService(promptScorecard);
     }
 
-    @Bean(name = "pqaPromptQualityRuntimeCertificationPolicy")
+    @Bean(name = "contexaPqaPromptQualityRuntimeCertificationPolicy")
     @ConditionalOnMissingBean(PromptQualityRuntimeCertificationPolicy.class)
     public PromptQualityRuntimeCertificationPolicy pqaPromptQualityRuntimeCertificationPolicy(
-            ObjectMapper objectMapper,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             PromptRuntimeGovernanceDescriptorVerifier governanceDescriptorVerifier,
             PromptQualityMessageResolver messageResolver) {
         return new DefaultPromptQualityRuntimeCertificationPolicy(
@@ -399,29 +399,29 @@ public class PqaOfficialInspectionAutoConfiguration {
                 messageResolver);
     }
 
-    @Bean(name = "pqaPromptQualityStateCatalog")
+    @Bean(name = "contexaPqaPromptQualityStateCatalog")
     @ConditionalOnMissingBean(PromptQualityStateCatalog.class)
     public PromptQualityStateCatalog pqaPromptQualityStateCatalog() {
         return new DefaultPromptQualityStateCatalog();
     }
 
-    @Bean(name = "pqaPromptQualityProcessRunService")
+    @Bean(name = "contexaPqaPromptQualityProcessRunService")
     @ConditionalOnMissingBean(PromptQualityProcessRunService.class)
     @ConditionalOnProperty(prefix = "contexa.enterprise", name = "enabled", havingValue = "false", matchIfMissing = true)
     public PromptQualityProcessRunService pqaOssPromptQualityProcessRunService() {
         return new NoOpPromptQualityProcessRunService();
     }
 
-    @Bean(name = "pqaPromptQualityProcessRunService")
+    @Bean(name = "contexaPqaPromptQualityProcessRunService")
     @ConditionalOnMissingBean(PromptQualityProcessRunService.class)
     @ConditionalOnProperty(prefix = "contexa.enterprise", name = "enabled", havingValue = "true")
     public PromptQualityProcessRunService pqaEnterprisePromptQualityProcessRunService(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
-            ObjectMapper objectMapper) {
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         return new JdbcPromptQualityProcessRunService(jdbcTemplate, objectMapper);
     }
 
-    @Bean(name = "pqaOfficialVerificationSnapshotRepository")
+    @Bean(name = "contexaPqaOfficialVerificationSnapshotRepository")
     @ConditionalOnMissingBean(OfficialVerificationSnapshotRepository.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationSnapshotRepository pqaOfficialVerificationSnapshotRepository(
@@ -429,7 +429,7 @@ public class PqaOfficialInspectionAutoConfiguration {
         return new JdbcOfficialVerificationSnapshotRepository(jdbcTemplate);
     }
 
-    @Bean(name = "pqaOfficialVerificationSnapshotCleanupRepository")
+    @Bean(name = "contexaPqaOfficialVerificationSnapshotCleanupRepository")
     @ConditionalOnMissingBean(OfficialVerificationSnapshotCleanupRepository.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationSnapshotCleanupRepository pqaOfficialVerificationSnapshotCleanupRepository(
@@ -438,89 +438,89 @@ public class PqaOfficialInspectionAutoConfiguration {
         return new JdbcOfficialVerificationSnapshotCleanupRepository(jdbcTemplate, resolutionCleanup);
     }
 
-    @Bean(name = "pqaOfficialVerificationResolutionCleanup")
+    @Bean(name = "contexaPqaOfficialVerificationResolutionCleanup")
     @ConditionalOnMissingBean(OfficialVerificationResolutionCleanup.class)
     public OfficialVerificationResolutionCleanup pqaOfficialVerificationResolutionCleanup() {
         return OfficialVerificationResolutionCleanup.none();
     }
-    @Bean(name = "pqaOfficialPromptFieldDefinitionWriter")
+    @Bean(name = "contexaPqaOfficialPromptFieldDefinitionWriter")
     @ConditionalOnMissingBean(OfficialPromptFieldDefinitionWriter.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialPromptFieldDefinitionWriter pqaOfficialPromptFieldDefinitionWriter(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
-            ObjectMapper objectMapper) {
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         return new JdbcOfficialPromptFieldDefinitionWriter(jdbcTemplate, objectMapper);
     }
-    @Bean(name = "pqaOfficialVerificationActualPromptProblemWriter")
+    @Bean(name = "contexaPqaOfficialVerificationActualPromptProblemWriter")
     @ConditionalOnMissingBean(OfficialVerificationActualPromptProblemWriter.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationActualPromptProblemWriter pqaOfficialVerificationActualPromptProblemWriter(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate) {
         return new JdbcOfficialVerificationActualPromptProblemWriter(jdbcTemplate);
     }
-    @Bean(name = "pqaOfficialVerificationPromptQualityIssueSynchronizer")
+    @Bean(name = "contexaPqaOfficialVerificationPromptQualityIssueSynchronizer")
     @ConditionalOnMissingBean(OfficialVerificationPromptQualityIssueSynchronizer.class)
     public OfficialVerificationPromptQualityIssueSynchronizer pqaOfficialVerificationPromptQualityIssueSynchronizer() {
         return OfficialVerificationPromptQualityIssueSynchronizer.none();
     }
-    @Bean(name = "pqaOfficialVerificationPromptComparisonWriter")
+    @Bean(name = "contexaPqaOfficialVerificationPromptComparisonWriter")
     @ConditionalOnMissingBean(OfficialVerificationPromptComparisonWriter.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationPromptComparisonWriter pqaOfficialVerificationPromptComparisonWriter(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate) {
         return new JdbcOfficialVerificationPromptComparisonWriter(jdbcTemplate);
     }
-    @Bean(name = "pqaOfficialVerificationRemediationGroupWriter")
+    @Bean(name = "contexaPqaOfficialVerificationRemediationGroupWriter")
     @ConditionalOnMissingBean(OfficialVerificationRemediationGroupWriter.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationRemediationGroupWriter pqaOfficialVerificationRemediationGroupWriter(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate) {
         return new JdbcOfficialVerificationRemediationGroupWriter(jdbcTemplate);
     }
-    @Bean(name = "pqaOfficialVerificationFindingWriter")
+    @Bean(name = "contexaPqaOfficialVerificationFindingWriter")
     @ConditionalOnMissingBean(OfficialVerificationFindingWriter.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationFindingWriter pqaOfficialVerificationFindingWriter(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate) {
         return new JdbcOfficialVerificationFindingWriter(jdbcTemplate);
     }
-    @Bean(name = "pqaOfficialVerificationMetricSnapshotWriter")
+    @Bean(name = "contexaPqaOfficialVerificationMetricSnapshotWriter")
     @ConditionalOnMissingBean(OfficialVerificationMetricSnapshotWriter.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationMetricSnapshotWriter pqaOfficialVerificationMetricSnapshotWriter(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
-            ObjectMapper objectMapper) {
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         return new JdbcOfficialVerificationMetricSnapshotWriter(jdbcTemplate, objectMapper);
     }
-    @Bean(name = "pqaOfficialVerificationMetricPurposeWriter")
+    @Bean(name = "contexaPqaOfficialVerificationMetricPurposeWriter")
     @ConditionalOnMissingBean(OfficialVerificationMetricPurposeWriter.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationMetricPurposeWriter pqaOfficialVerificationMetricPurposeWriter(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate) {
         return new JdbcOfficialVerificationMetricPurposeWriter(jdbcTemplate);
     }
-    @Bean(name = "pqaOfficialVerificationMetricPurposeEvidenceWriter")
+    @Bean(name = "contexaPqaOfficialVerificationMetricPurposeEvidenceWriter")
     @ConditionalOnMissingBean(OfficialVerificationMetricPurposeEvidenceWriter.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationMetricPurposeEvidenceWriter pqaOfficialVerificationMetricPurposeEvidenceWriter(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate) {
         return new JdbcOfficialVerificationMetricPurposeEvidenceWriter(jdbcTemplate);
     }
-    @Bean(name = "pqaOfficialVerificationPromptSignalWriter")
+    @Bean(name = "contexaPqaOfficialVerificationPromptSignalWriter")
     @ConditionalOnMissingBean(OfficialVerificationPromptSignalWriter.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationPromptSignalWriter pqaOfficialVerificationPromptSignalWriter(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate) {
         return new JdbcOfficialVerificationPromptSignalWriter(jdbcTemplate);
     }
-    @Bean(name = "pqaOfficialVerificationActualPromptProblemLinker")
+    @Bean(name = "contexaPqaOfficialVerificationActualPromptProblemLinker")
     @ConditionalOnMissingBean(OfficialVerificationActualPromptProblemLinker.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationActualPromptProblemLinker pqaOfficialVerificationActualPromptProblemLinker(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate) {
         return new JdbcOfficialVerificationActualPromptProblemLinker(jdbcTemplate);
     }
-    @Bean(name = "pqaOfficialVerificationPromptLineageWriter")
+    @Bean(name = "contexaPqaOfficialVerificationPromptLineageWriter")
     @ConditionalOnMissingBean(OfficialVerificationPromptLineageWriter.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationPromptLineageWriter pqaOfficialVerificationPromptLineageWriter(
@@ -528,14 +528,14 @@ public class PqaOfficialInspectionAutoConfiguration {
         return new JdbcOfficialVerificationPromptLineageWriter(jdbcTemplate);
     }
 
-    @Bean(name = "pqaOfficialVerificationPromptFieldStateWriter")
+    @Bean(name = "contexaPqaOfficialVerificationPromptFieldStateWriter")
     @ConditionalOnMissingBean(OfficialVerificationPromptFieldStateWriter.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationPromptFieldStateWriter pqaOfficialVerificationPromptFieldStateWriter(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate) {
         return new JdbcOfficialVerificationPromptFieldStateWriter(jdbcTemplate);
     }
-    @Bean(name = "pqaOfficialVerificationLedgerWriters")
+    @Bean(name = "contexaPqaOfficialVerificationLedgerWriters")
     @ConditionalOnMissingBean(OfficialVerificationLedgerWriters.class)
     public OfficialVerificationLedgerWriters pqaOfficialVerificationLedgerWriters(
             OfficialVerificationActualPromptProblemWriter actualPromptProblemWriter,
@@ -551,7 +551,7 @@ public class PqaOfficialInspectionAutoConfiguration {
                 metricPurposeEvidenceWriter, promptSignalWriter, actualPromptProblemLinker,
                 promptLineageWriter, promptFieldStateWriter);
     }
-    @Bean(name = "pqaOfficialVerificationReverificationWriter")
+    @Bean(name = "contexaPqaOfficialVerificationReverificationWriter")
     @ConditionalOnMissingBean(OfficialVerificationReverificationWriter.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationReverificationWriter pqaOfficialVerificationReverificationWriter(
@@ -559,7 +559,7 @@ public class PqaOfficialInspectionAutoConfiguration {
         return new JdbcOfficialVerificationReverificationWriter(jdbcTemplate);
     }
 
-    @Bean(name = "pqaOfficialVerificationMetricExecutionReferenceWriter")
+    @Bean(name = "contexaPqaOfficialVerificationMetricExecutionReferenceWriter")
     @ConditionalOnMissingBean(OfficialVerificationMetricExecutionReferenceWriter.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationMetricExecutionReferenceWriter pqaOfficialVerificationMetricExecutionReferenceWriter(
@@ -567,14 +567,14 @@ public class PqaOfficialInspectionAutoConfiguration {
         return new JdbcOfficialVerificationMetricExecutionReferenceWriter(jdbcTemplate);
     }
 
-    @Bean(name = "pqaOfficialVerificationExecutionWriters")
+    @Bean(name = "contexaPqaOfficialVerificationExecutionWriters")
     @ConditionalOnMissingBean(OfficialVerificationExecutionWriters.class)
     public OfficialVerificationExecutionWriters pqaOfficialVerificationExecutionWriters(
             OfficialVerificationReverificationWriter reverificationWriter,
             OfficialVerificationMetricExecutionReferenceWriter metricExecutionReferenceWriter) {
         return new OfficialVerificationExecutionWriters(reverificationWriter, metricExecutionReferenceWriter);
     }
-    @Bean(name = "pqaOfficialVerificationSnapshotCommandWriters")
+    @Bean(name = "contexaPqaOfficialVerificationSnapshotCommandWriters")
     @ConditionalOnMissingBean(OfficialVerificationSnapshotCommandWriters.class)
     public OfficialVerificationSnapshotCommandWriters pqaOfficialVerificationSnapshotCommandWriters(
             OfficialVerificationAuditSnapshotWriter auditSnapshotWriter,
@@ -589,28 +589,28 @@ public class PqaOfficialInspectionAutoConfiguration {
                 auditSnapshotWriter, runBatchWriter, metricSnapshotWriter, findingWriter, remediationGroupWriter,
                 promptComparisonWriter, promptFieldDefinitionWriter, executionWriters);
     }
-    @Bean(name = "pqaOfficialVerificationRunBatchWriter")
+    @Bean(name = "contexaPqaOfficialVerificationRunBatchWriter")
     @ConditionalOnMissingBean(OfficialVerificationRunBatchWriter.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationRunBatchWriter pqaOfficialVerificationRunBatchWriter(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate) {
         return new JdbcOfficialVerificationRunBatchWriter(jdbcTemplate);
     }
-    @Bean(name = "pqaOfficialVerificationAuditSnapshotWriter")
+    @Bean(name = "contexaPqaOfficialVerificationAuditSnapshotWriter")
     @ConditionalOnMissingBean(OfficialVerificationAuditSnapshotWriter.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationAuditSnapshotWriter pqaOfficialVerificationAuditSnapshotWriter(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
-            ObjectMapper objectMapper) {
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         return new JdbcOfficialVerificationAuditSnapshotWriter(jdbcTemplate, objectMapper);
     }
-    @Bean(name = "pqaOfficialVerificationSnapshotRowMapper")
+    @Bean(name = "contexaPqaOfficialVerificationSnapshotRowMapper")
     @ConditionalOnMissingBean(OfficialVerificationSnapshotRowMapper.class)
-    public OfficialVerificationSnapshotRowMapper pqaOfficialVerificationSnapshotRowMapper(ObjectMapper objectMapper) {
+    public OfficialVerificationSnapshotRowMapper pqaOfficialVerificationSnapshotRowMapper(@Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         return new OfficialVerificationSnapshotRowMapper(objectMapper);
     }
 
-    @Bean(name = "pqaOfficialVerificationMetricSnapshotRepository")
+    @Bean(name = "contexaPqaOfficialVerificationMetricSnapshotRepository")
     @ConditionalOnMissingBean(OfficialVerificationMetricSnapshotRepository.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationMetricSnapshotRepository pqaOfficialVerificationMetricSnapshotRepository(
@@ -619,7 +619,7 @@ public class PqaOfficialInspectionAutoConfiguration {
         return new JdbcOfficialVerificationMetricSnapshotRepository(jdbcTemplate, rowMapper);
     }
 
-    @Bean(name = "pqaOfficialVerificationFindingRepository")
+    @Bean(name = "contexaPqaOfficialVerificationFindingRepository")
     @ConditionalOnMissingBean(OfficialVerificationFindingRepository.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationFindingRepository pqaOfficialVerificationFindingRepository(
@@ -628,7 +628,7 @@ public class PqaOfficialInspectionAutoConfiguration {
         return new JdbcOfficialVerificationFindingRepository(jdbcTemplate, rowMapper);
     }
 
-    @Bean(name = "pqaOfficialVerificationRemediationGroupRepository")
+    @Bean(name = "contexaPqaOfficialVerificationRemediationGroupRepository")
     @ConditionalOnMissingBean(OfficialVerificationRemediationGroupRepository.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationRemediationGroupRepository pqaOfficialVerificationRemediationGroupRepository(
@@ -637,7 +637,7 @@ public class PqaOfficialInspectionAutoConfiguration {
         return new JdbcOfficialVerificationRemediationGroupRepository(jdbcTemplate, rowMapper);
     }
 
-    @Bean(name = "pqaOfficialVerificationPromptComparisonRepository")
+    @Bean(name = "contexaPqaOfficialVerificationPromptComparisonRepository")
     @ConditionalOnMissingBean(OfficialVerificationPromptComparisonRepository.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationPromptComparisonRepository pqaOfficialVerificationPromptComparisonRepository(
@@ -646,7 +646,7 @@ public class PqaOfficialInspectionAutoConfiguration {
         return new JdbcOfficialVerificationPromptComparisonRepository(jdbcTemplate, rowMapper);
     }
 
-    @Bean(name = "pqaOfficialVerificationActualPromptProblemRepository")
+    @Bean(name = "contexaPqaOfficialVerificationActualPromptProblemRepository")
     @ConditionalOnMissingBean(OfficialVerificationActualPromptProblemRepository.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationActualPromptProblemRepository pqaOfficialVerificationActualPromptProblemRepository(
@@ -655,7 +655,7 @@ public class PqaOfficialInspectionAutoConfiguration {
         return new JdbcOfficialVerificationActualPromptProblemRepository(jdbcTemplate, rowMapper);
     }
 
-    @Bean(name = "pqaOfficialVerificationPurposeEvidenceRepository")
+    @Bean(name = "contexaPqaOfficialVerificationPurposeEvidenceRepository")
     @ConditionalOnMissingBean(OfficialVerificationPurposeEvidenceRepository.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationPurposeEvidenceRepository pqaOfficialVerificationPurposeEvidenceRepository(
@@ -664,7 +664,7 @@ public class PqaOfficialInspectionAutoConfiguration {
         return new JdbcOfficialVerificationPurposeEvidenceRepository(jdbcTemplate, rowMapper);
     }
 
-    @Bean(name = "pqaOfficialVerificationAuditSnapshotRepository")
+    @Bean(name = "contexaPqaOfficialVerificationAuditSnapshotRepository")
     @ConditionalOnMissingBean(OfficialVerificationAuditSnapshotRepository.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationAuditSnapshotRepository pqaOfficialVerificationAuditSnapshotRepository(
@@ -673,7 +673,7 @@ public class PqaOfficialInspectionAutoConfiguration {
         return new JdbcOfficialVerificationAuditSnapshotRepository(jdbcTemplate, rowMapper);
     }
 
-    @Bean(name = "pqaOfficialVerificationReverificationResultRepository")
+    @Bean(name = "contexaPqaOfficialVerificationReverificationResultRepository")
     @ConditionalOnMissingBean(OfficialVerificationReverificationResultRepository.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationReverificationResultRepository pqaOfficialVerificationReverificationResultRepository(
@@ -682,7 +682,7 @@ public class PqaOfficialInspectionAutoConfiguration {
         return new JdbcOfficialVerificationReverificationResultRepository(jdbcTemplate, rowMapper);
     }
 
-    @Bean(name = "pqaOfficialVerificationSnapshotReadModel")
+    @Bean(name = "contexaPqaOfficialVerificationSnapshotReadModel")
     @ConditionalOnMissingBean(OfficialVerificationSnapshotReadModel.class)
     public OfficialVerificationSnapshotReadModel pqaOfficialVerificationSnapshotReadModel(
             OfficialVerificationMetricSnapshotRepository metricRepository,
@@ -698,14 +698,14 @@ public class PqaOfficialInspectionAutoConfiguration {
                 problemRepository, purposeRepository, auditRepository, reverificationRepository);
     }
 
-    @Bean(name = "pqaOfficialVerificationSnapshotCompletionRepository")
+    @Bean(name = "contexaPqaOfficialVerificationSnapshotCompletionRepository")
     @ConditionalOnMissingBean(OfficialVerificationSnapshotCompletionRepository.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationSnapshotCompletionRepository pqaOfficialVerificationSnapshotCompletionRepository(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate) {
         return new JdbcOfficialVerificationSnapshotCompletionRepository(jdbcTemplate);
     }
-    @Bean(name = "pqaOfficialVerificationSnapshotRelationIntegrityRepository")
+    @Bean(name = "contexaPqaOfficialVerificationSnapshotRelationIntegrityRepository")
     @ConditionalOnMissingBean(OfficialVerificationSnapshotRelationIntegrityRepository.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationSnapshotRelationIntegrityRepository pqaOfficialVerificationSnapshotRelationIntegrityRepository(
@@ -713,14 +713,14 @@ public class PqaOfficialInspectionAutoConfiguration {
         return new JdbcOfficialVerificationSnapshotRelationIntegrityRepository(jdbcTemplate);
     }
 
-    @Bean(name = "pqaOfficialVerificationCustomerPurposeIntegrityRepository")
+    @Bean(name = "contexaPqaOfficialVerificationCustomerPurposeIntegrityRepository")
     @ConditionalOnMissingBean(OfficialVerificationCustomerPurposeIntegrityRepository.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationCustomerPurposeIntegrityRepository pqaOfficialVerificationCustomerPurposeIntegrityRepository(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate) {
         return new JdbcOfficialVerificationCustomerPurposeIntegrityRepository(jdbcTemplate);
     }
-    @Bean(name = "pqaOfficialVerificationCustomerDisplayIntegrityRepository")
+    @Bean(name = "contexaPqaOfficialVerificationCustomerDisplayIntegrityRepository")
     @ConditionalOnMissingBean(OfficialVerificationCustomerDisplayIntegrityRepository.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationCustomerDisplayIntegrityRepository pqaOfficialVerificationCustomerDisplayIntegrityRepository(
@@ -728,14 +728,14 @@ public class PqaOfficialInspectionAutoConfiguration {
         return new JdbcOfficialVerificationCustomerDisplayIntegrityRepository(jdbcTemplate);
     }
 
-    @Bean(name = "pqaOfficialVerificationContractLinkIntegrityRepository")
+    @Bean(name = "contexaPqaOfficialVerificationContractLinkIntegrityRepository")
     @ConditionalOnMissingBean(OfficialVerificationContractLinkIntegrityRepository.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationContractLinkIntegrityRepository pqaOfficialVerificationContractLinkIntegrityRepository(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate) {
         return new JdbcOfficialVerificationContractLinkIntegrityRepository(jdbcTemplate);
     }
-    @Bean(name = "pqaOfficialVerificationSnapshotIntegrityRepositories")
+    @Bean(name = "contexaPqaOfficialVerificationSnapshotIntegrityRepositories")
     @ConditionalOnMissingBean(OfficialVerificationSnapshotIntegrityRepositories.class)
     public OfficialVerificationSnapshotIntegrityRepositories pqaOfficialVerificationSnapshotIntegrityRepositories(
             OfficialVerificationSnapshotCompletionRepository completionRepository,
@@ -747,7 +747,7 @@ public class PqaOfficialInspectionAutoConfiguration {
                 completionRepository, relationIntegrityRepository,
                 customerPurposeIntegrityRepository, customerDisplayIntegrityRepository, contractLinkIntegrityRepository);
     }
-    @Bean(name = "pqaOfficialVerificationSnapshotQueryService")
+    @Bean(name = "contexaPqaOfficialVerificationSnapshotQueryService")
     @ConditionalOnMissingBean(OfficialVerificationSnapshotQueryService.class)
     public OfficialVerificationSnapshotQueryService pqaOfficialVerificationSnapshotQueryService(
             OfficialVerificationSnapshotRepository batchRepository,
@@ -761,13 +761,13 @@ public class PqaOfficialInspectionAutoConfiguration {
                 OfficialVerificationOperatorSnapshotService.DIAGNOSTIC_CATALOG_VERSION,
                 integrityRepositories);
     }
-    @Bean(name = "pqaOfficialVerificationSnapshotAssembler")
+    @Bean(name = "contexaPqaOfficialVerificationSnapshotAssembler")
     @ConditionalOnMissingBean(OfficialVerificationSnapshotAssembler.class)
     public OfficialVerificationSnapshotAssembler pqaOfficialVerificationSnapshotAssembler() {
         return new OfficialVerificationSnapshotAssembler();
     }
 
-    @Bean(name = "pqaOfficialVerificationCurrentResultCoordinator")
+    @Bean(name = "contexaPqaOfficialVerificationCurrentResultCoordinator")
     @ConditionalOnMissingBean(OfficialVerificationCurrentResultCoordinator.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationCurrentResultCoordinator pqaOfficialVerificationCurrentResultCoordinator(
@@ -775,11 +775,11 @@ public class PqaOfficialInspectionAutoConfiguration {
         return new JdbcOfficialVerificationCurrentResultCoordinator(jdbcTemplate);
     }
 
-    @Bean(name = "pqaOfficialVerificationOperatorSnapshotService")
+    @Bean(name = "contexaPqaOfficialVerificationOperatorSnapshotService")
     @ConditionalOnMissingBean(OfficialVerificationOperatorSnapshotService.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationOperatorSnapshotService pqaOfficialVerificationOperatorSnapshotService(
-            ObjectMapper objectMapper,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             OfficialMetricPurposeContractWriter contractCatalogWriter,
             OfficialVerificationSnapshotCleanupRepository snapshotCleanupRepository,
             OfficialVerificationSnapshotQueryService snapshotQueryService,
@@ -797,11 +797,11 @@ public class PqaOfficialInspectionAutoConfiguration {
                 currentResultCoordinator,
                 messageResolver::resolveRequired);
     }
-    @Bean(name = "pqaPromptQualityOfficialRunDetailService")
+    @Bean(name = "contexaPqaPromptQualityOfficialRunDetailService")
     @ConditionalOnMissingBean(PromptQualityOfficialRunDetailService.class)
     public PromptQualityOfficialRunDetailService pqaPromptQualityOfficialRunDetailService(
             OfficialSealedEvidenceVerificationRuntime officialRuntime,
-            VerificationLedgerService verificationLedgerService,
+            VerificationLedgerService contexaVerificationLedgerService,
             PromptQualityRuntimeEvidenceService evidenceService,
             PromptQualityOfficialMetricCatalog metricCatalog,
             PromptQualityMessageResolver messageResolver,
@@ -809,7 +809,7 @@ public class PqaOfficialInspectionAutoConfiguration {
             PromptQualityProcessRunService processRunService,
             OfficialVerificationOperatorSnapshotService operatorSnapshotService,
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
-            ObjectMapper objectMapper,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             RuntimeEvidencePromptConsistencyGate promptConsistencyGate) {
         OfficialRunLightweightEvidenceReader evidenceReader = new OfficialRunLightweightEvidenceReader(
                 jdbcTemplate,
@@ -822,7 +822,7 @@ public class PqaOfficialInspectionAutoConfiguration {
                 FinalPromptMetricContractCatalog.load(objectMapper));
         return new DefaultPromptQualityOfficialRunDetailService(
                 officialRuntime,
-                verificationLedgerService,
+                contexaVerificationLedgerService,
                 evidenceReader,
                 metricContractView,
                 messageResolver,
@@ -831,12 +831,12 @@ public class PqaOfficialInspectionAutoConfiguration {
                 operatorSnapshotService);
     }
 
-    @Bean(name = "pqaOfficialVerificationExecutionLockService")
+    @Bean(name = "contexaPqaOfficialVerificationExecutionLockService")
     @ConditionalOnMissingBean(OfficialVerificationExecutionLockService.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationExecutionLockService pqaOfficialVerificationExecutionLockService(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
-            ObjectMapper objectMapper,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             PromptQualityOfficialVerificationProperties properties) {
         return new JdbcOfficialVerificationExecutionLockService(
                 jdbcTemplate,
@@ -844,30 +844,30 @@ public class PqaOfficialInspectionAutoConfiguration {
                 properties.getStaleExecutionTimeout());
     }
 
-    @Bean(name = "pqaOfficialVerificationVerdictQueryService")
+    @Bean(name = "contexaPqaOfficialVerificationVerdictQueryService")
     @ConditionalOnMissingBean(OfficialVerificationVerdictQueryService.class)
     @ConditionalOnBean(OfficialVerificationExecutionLockService.class)
     public OfficialVerificationVerdictQueryService pqaOfficialVerificationVerdictQueryService(
             OfficialVerificationExecutionLockService executionLockService) {
         return new ExecutionLockOfficialVerificationVerdictQueryService(executionLockService);
     }
-    @Bean(name = "pqaPromptComparisonValueInterpreter")
+    @Bean(name = "contexaPqaPromptComparisonValueInterpreter")
     @ConditionalOnMissingBean(PromptComparisonValueInterpreter.class)
     public PromptComparisonValueInterpreter pqaPromptComparisonValueInterpreter(
             PromptQualityMessageResolver messageResolver) {
         return new PromptComparisonValueInterpreter(messageResolver);
     }
 
-    @Bean(name = "pqaSealedPromptEvidenceComparisonAssembler")
+    @Bean(name = "contexaPqaSealedPromptEvidenceComparisonAssembler")
     @ConditionalOnMissingBean(SealedPromptEvidenceComparisonAssembler.class)
     public SealedPromptEvidenceComparisonAssembler pqaSealedPromptEvidenceComparisonAssembler(
-            ObjectMapper objectMapper,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             PromptQualityMessageResolver messageResolver,
             PromptComparisonValueInterpreter values) {
         return new SealedPromptEvidenceComparisonAssembler(objectMapper, messageResolver, values);
     }
 
-    @Bean(name = "pqaOfficialVerificationPromptComparisonAssembler")
+    @Bean(name = "contexaPqaOfficialVerificationPromptComparisonAssembler")
     @ConditionalOnMissingBean(OfficialVerificationPromptComparisonAssembler.class)
     public OfficialVerificationPromptComparisonAssembler pqaOfficialVerificationPromptComparisonAssembler(
             SealedPromptEvidenceComparisonAssembler sealedEvidenceAssembler,
@@ -878,14 +878,14 @@ public class PqaOfficialInspectionAutoConfiguration {
                 values,
                 messageResolver);
     }
-    @Bean(name = "pqaOfficialVerificationResourceResolver")
+    @Bean(name = "contexaPqaOfficialVerificationResourceResolver")
     @ConditionalOnMissingBean(OfficialVerificationResourceResolver.class)
     public OfficialVerificationResourceResolver pqaOfficialVerificationResourceResolver(
             PromptQualityProtectableResourceLookup resourceLookup) {
         return new OfficialVerificationResourceResolver(resourceLookup);
     }
 
-    @Bean(name = "pqaOfficialVerificationEvidencePreflight")
+    @Bean(name = "contexaPqaOfficialVerificationEvidencePreflight")
     @ConditionalOnMissingBean(OfficialVerificationEvidencePreflight.class)
     public OfficialVerificationEvidencePreflight pqaOfficialVerificationEvidencePreflight(
             SealedEvidencePackageQueryService queryService,
@@ -893,7 +893,7 @@ public class PqaOfficialInspectionAutoConfiguration {
             RuntimeEvidencePromptScorecardService promptScorecardService,
             RuntimeEvidencePromptConsistencyGate promptConsistencyGate,
             OfficialVerificationResourceResolver resourceResolver,
-            ObjectMapper objectMapper,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             PromptQualityMessageResolver messageResolver) {
         return new OfficialVerificationEvidencePreflight(
                 queryService,
@@ -904,7 +904,7 @@ public class PqaOfficialInspectionAutoConfiguration {
                 objectMapper,
                 messageResolver);
     }
-    @Bean(name = "pqaOfficialVerificationResultAssembler")
+    @Bean(name = "contexaPqaOfficialVerificationResultAssembler")
     @ConditionalOnMissingBean(OfficialVerificationResultAssembler.class)
     public OfficialVerificationResultAssembler pqaOfficialVerificationResultAssembler(
             OfficialVerificationFailureAssembler failureAssembler,
@@ -918,7 +918,7 @@ public class PqaOfficialInspectionAutoConfiguration {
                 customerNarrativeAssembler);
     }
 
-    @Bean(name = "pqaOfficialVerificationResultCoordinator")
+    @Bean(name = "contexaPqaOfficialVerificationResultCoordinator")
     @ConditionalOnMissingBean(OfficialVerificationResultCoordinator.class)
     public OfficialVerificationResultCoordinator pqaOfficialVerificationResultCoordinator(
             PromptQualityAssuranceCaseService assuranceCaseService,
@@ -937,14 +937,14 @@ public class PqaOfficialInspectionAutoConfiguration {
                 executionLedger,
                 messageResolver);
     }
-    @Bean(name = "pqaOfficialVerificationExecutionLedger")
+    @Bean(name = "contexaPqaOfficialVerificationExecutionLedger")
     @ConditionalOnMissingBean(OfficialVerificationExecutionLedger.class)
     public OfficialVerificationExecutionLedger pqaOfficialVerificationExecutionLedger(
             OfficialVerificationExecutionLockService executionLockService,
             OfficialVerificationOperatorSnapshotService operatorSnapshotService,
             OfficialVerificationMetricContract metricContract,
             OfficialVerificationEvidencePreflight evidencePreflight,
-            ObjectMapper objectMapper,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             PromptQualityMessageResolver messageResolver) {
         return new OfficialVerificationExecutionLedger(
                 executionLockService,
@@ -954,34 +954,34 @@ public class PqaOfficialInspectionAutoConfiguration {
                 objectMapper,
                 messageResolver);
     }
-    @Bean(name = "pqaOfficialVerificationMetricContract")
+    @Bean(name = "contexaPqaOfficialVerificationMetricContract")
     @ConditionalOnMissingBean(OfficialVerificationMetricContract.class)
     public OfficialVerificationMetricContract pqaOfficialVerificationMetricContract(
             PromptQualityOfficialMetricCatalog metricCatalog,
             OfficialSealedEvidenceVerificationRuntime runtime) {
         return new OfficialVerificationMetricContract(metricCatalog, runtime);
     }
-    @Bean(name = "pqaOfficialVerificationCustomerNarrativeAssembler")
+    @Bean(name = "contexaPqaOfficialVerificationCustomerNarrativeAssembler")
     @ConditionalOnMissingBean(OfficialVerificationCustomerNarrativeAssembler.class)
     public OfficialVerificationCustomerNarrativeAssembler pqaOfficialVerificationCustomerNarrativeAssembler(
             PromptQualityOfficialMetricCatalog metricCatalog,
             PromptQualityMessageResolver messageResolver) {
         return new OfficialVerificationCustomerNarrativeAssembler(metricCatalog, messageResolver);
     }
-    @Bean(name = "pqaOfficialVerificationMetricResultAssembler")
+    @Bean(name = "contexaPqaOfficialVerificationMetricResultAssembler")
     @ConditionalOnMissingBean(OfficialVerificationMetricResultAssembler.class)
     public OfficialVerificationMetricResultAssembler pqaOfficialVerificationMetricResultAssembler(
             PromptQualityOfficialMetricCatalog metricCatalog,
             PromptQualityMessageResolver messageResolver) {
         return new OfficialVerificationMetricResultAssembler(metricCatalog, messageResolver);
     }
-    @Bean(name = "pqaOfficialVerificationFailureAssembler")
+    @Bean(name = "contexaPqaOfficialVerificationFailureAssembler")
     @ConditionalOnMissingBean(OfficialVerificationFailureAssembler.class)
     public OfficialVerificationFailureAssembler pqaOfficialVerificationFailureAssembler(
             PromptQualityMessageResolver messageResolver) {
         return new OfficialVerificationFailureAssembler(messageResolver);
     }
-    @Bean(name = "pqaOfficialVerificationReverificationCoordinator")
+    @Bean(name = "contexaPqaOfficialVerificationReverificationCoordinator")
     @ConditionalOnMissingBean(OfficialVerificationReverificationCoordinator.class)
     public OfficialVerificationReverificationCoordinator pqaOfficialVerificationReverificationCoordinator(
             OfficialVerificationOperatorSnapshotService operatorSnapshotService,
@@ -992,7 +992,7 @@ public class PqaOfficialInspectionAutoConfiguration {
                 progressRecorder,
                 messageResolver);
     }
-    @Bean(name = "pqaOfficialVerificationProgressRecorder")
+    @Bean(name = "contexaPqaOfficialVerificationProgressRecorder")
     @ConditionalOnMissingBean(OfficialVerificationProgressRecorder.class)
     public OfficialVerificationProgressRecorder pqaOfficialVerificationProgressRecorder(
             PromptQualityProcessRunService processRunService,
@@ -1005,7 +1005,7 @@ public class PqaOfficialInspectionAutoConfiguration {
                 executionLockService,
                 messageResolver);
     }
-    @Bean(name = "pqaPromptQualityRuntimeVerificationService")
+    @Bean(name = "contexaPqaPromptQualityRuntimeVerificationService")
     @ConditionalOnMissingBean(PromptQualityRuntimeVerificationService.class)
     public PromptQualityRuntimeVerificationService pqaPromptQualityRuntimeVerificationService(
             OfficialSealedEvidenceVerificationRuntime runtime,
@@ -1027,14 +1027,14 @@ public class PqaOfficialInspectionAutoConfiguration {
                 reverificationCoordinator);
     }
 
-    @Bean(name = "pqaPromptQualityOfficialConsoleViewAssembler")
+    @Bean(name = "contexaPqaPromptQualityOfficialConsoleViewAssembler")
     @ConditionalOnMissingBean(PromptQualityOfficialConsoleViewAssembler.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public PromptQualityOfficialConsoleViewAssembler pqaPromptQualityOfficialConsoleViewAssembler(
             SealedEvidencePackageLookupPort evidenceLookupService,
             PromptQualityOfficialRunDetailService runDetailService,
             OfficialVerificationRunStore runStore,
-            ObjectMapper objectMapper,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             RuntimeEvidencePromptConsistencyGate promptConsistencyGate,
             PromptQualityMessageResolver messageResolver) {
         return new PromptQualityOfficialConsoleViewAssembler(
@@ -1046,7 +1046,7 @@ public class PqaOfficialInspectionAutoConfiguration {
                 messageResolver);
     }
 
-    @Bean(name = "pqaPromptQualityOfficialConsoleApiController")
+    @Bean(name = "contexaPqaPromptQualityOfficialConsoleApiController")
     @ConditionalOnMissingBean(PromptQualityOfficialConsoleApiController.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public PromptQualityOfficialConsoleApiController pqaPromptQualityOfficialConsoleApiController(
@@ -1054,7 +1054,7 @@ public class PqaOfficialInspectionAutoConfiguration {
         return new PromptQualityOfficialConsoleApiController(views);
     }
 
-    @Bean(name = "pqaPromptQualityOfficialResourceApiController")
+    @Bean(name = "contexaPqaPromptQualityOfficialResourceApiController")
     @ConditionalOnMissingBean(PromptQualityOfficialResourceApiController.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public PromptQualityOfficialResourceApiController pqaPromptQualityOfficialResourceApiController(
@@ -1062,7 +1062,7 @@ public class PqaOfficialInspectionAutoConfiguration {
         return new PromptQualityOfficialResourceApiController(views);
     }
 
-    @Bean(name = "pqaPromptQualityOfficialRuntimeEvidenceApiController")
+    @Bean(name = "contexaPqaPromptQualityOfficialRuntimeEvidenceApiController")
     @ConditionalOnMissingBean(PromptQualityOfficialRuntimeEvidenceApiController.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public PromptQualityOfficialRuntimeEvidenceApiController pqaPromptQualityOfficialRuntimeEvidenceApiController(
@@ -1071,7 +1071,7 @@ public class PqaOfficialInspectionAutoConfiguration {
         return new PromptQualityOfficialRuntimeEvidenceApiController(runtimeEvidenceService, views);
     }
 
-    @Bean(name = "pqaPromptQualityOfficialMetricApiController")
+    @Bean(name = "contexaPqaPromptQualityOfficialMetricApiController")
     @ConditionalOnMissingBean(PromptQualityOfficialMetricApiController.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public PromptQualityOfficialMetricApiController pqaPromptQualityOfficialMetricApiController(
@@ -1080,7 +1080,7 @@ public class PqaOfficialInspectionAutoConfiguration {
         return new PromptQualityOfficialMetricApiController(runDetailService, views);
     }
 
-    @Bean(name = "pqaPromptQualityOfficialVerificationRunApiController")
+    @Bean(name = "contexaPqaPromptQualityOfficialVerificationRunApiController")
     @ConditionalOnMissingBean(PromptQualityOfficialVerificationRunApiController.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public PromptQualityOfficialVerificationRunApiController pqaPromptQualityOfficialVerificationRunApiController(
@@ -1091,7 +1091,7 @@ public class PqaOfficialInspectionAutoConfiguration {
                 verificationService, runDetailService, views);
     }
 
-    @Bean(name = "pqaPromptQualityAssurancePageController")
+    @Bean(name = "contexaPqaPromptQualityAssurancePageController")
     @ConditionalOnMissingBean(PromptQualityAssurancePageController.class)
     public PromptQualityAssurancePageController pqaPromptQualityAssurancePageController(
             PromptQualityMessageResolver messageResolver) {

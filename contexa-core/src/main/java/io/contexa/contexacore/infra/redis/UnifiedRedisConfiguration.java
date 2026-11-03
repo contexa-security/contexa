@@ -49,7 +49,7 @@ public class UnifiedRedisConfiguration {
 
     public static final String SOAR_APPROVAL_CHANNEL = "soar:approval:requests";
 
-    @Bean
+    @Bean(name = "contexaSecurityEventRedisTemplate", defaultCandidate = false)
     public RedisTemplate<String, SecurityEvent> securityEventRedisTemplate(
             RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, SecurityEvent> template = new RedisTemplate<>();
@@ -75,11 +75,11 @@ public class UnifiedRedisConfiguration {
         return ContexaJsonRedisSerializer.activateDefaultTyping(objectMapper, JsonTypeInfo.As.PROPERTY);
     }
 
-    @Bean
+    @Bean(name = "contexaRedisMessageListenerContainer")
     public RedisMessageListenerContainer redisMessageListenerContainer(
             RedisConnectionFactory connectionFactory,
             @Autowired(required = false) SoarApprovalNotifier soarApprovalNotifier,
-            @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> generalRedisTemplate) {
+            @Qualifier("contexaGeneralRedisTemplate") RedisTemplate<String, Object> contexaGeneralRedisTemplate) {
 
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
@@ -87,7 +87,7 @@ public class UnifiedRedisConfiguration {
         if (soarApprovalNotifier != null) {
             MessageListenerAdapter listenerAdapter =
                     new MessageListenerAdapter(soarApprovalNotifier, "receiveApprovalNotification");
-            listenerAdapter.setSerializer(generalRedisTemplate.getValueSerializer());
+            listenerAdapter.setSerializer(contexaGeneralRedisTemplate.getValueSerializer());
             container.addMessageListener(listenerAdapter, new ChannelTopic(SOAR_APPROVAL_CHANNEL));
         } else {
         }
@@ -95,9 +95,9 @@ public class UnifiedRedisConfiguration {
         return container;
     }
 
-    @Bean
+    @Bean(name = "contexaRedisDistributedLockService")
     public RedisDistributedLockService redisDistributedLockService(
-            @Autowired(required = false) @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
+            @Autowired(required = false) @Qualifier("contexaGeneralRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
 
         if (redisTemplate != null) {
             return new RedisDistributedLockService(redisTemplate);

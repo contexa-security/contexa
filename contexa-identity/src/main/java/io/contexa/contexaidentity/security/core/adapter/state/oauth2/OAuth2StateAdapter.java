@@ -50,7 +50,7 @@ import org.springframework.security.web.authentication.logout.LogoutSuccessHandl
 public final class OAuth2StateAdapter implements StateAdapter {
 
     private static final String ID = "oauth2";
-    private static final String OAUTH2_LOGOUT_SUCCESS_HANDLER = "oauth2LogoutSuccessHandler";
+    private static final String OAUTH2_LOGOUT_SUCCESS_HANDLER = "contexaOauth2LogoutSuccessHandler";
     private static final String TOKEN_PERSISTENCE_MEMORY = "memory";
     private static final AtomicBoolean PAGE_NAVIGATION_LIMIT_REPORTED = new AtomicBoolean();
 
@@ -93,7 +93,7 @@ public final class OAuth2StateAdapter implements StateAdapter {
 
     private void configureSharedInfrastructure(HttpSecurity http, ApplicationContext appContext) {
         try {
-            ObjectMapper objectMapper = appContext.getBean(ObjectMapper.class);
+            ObjectMapper objectMapper = appContext.getBean("contexaObjectMapper", ObjectMapper.class);
             JsonAuthResponseWriter responseWriter = appContext.getBean(JsonAuthResponseWriter.class);
             http.setSharedObject(ObjectMapper.class, objectMapper);
             http.setSharedObject(JsonAuthResponseWriter.class, responseWriter);
@@ -205,7 +205,7 @@ public final class OAuth2StateAdapter implements StateAdapter {
 
     private void configureLogout(HttpSecurity http, ApplicationContext appContext) throws Exception {
         try {
-            LogoutHandler logoutHandler = appContext.getBean("compositeLogoutHandler", LogoutHandler.class);
+            LogoutHandler logoutHandler = appContext.getBean("contexaCompositeLogoutHandler", LogoutHandler.class);
             LogoutSuccessHandler logoutSuccessHandler = resolveLogoutSuccessHandler(http, appContext);
             http.setSharedObject(LogoutHandler.class, logoutHandler);
             // The session only carries MFA progress, CSRF and passkey registration state of the login;

@@ -42,18 +42,18 @@ import org.springframework.context.annotation.Primary;
 @AutoConfigureAfter(CoreAutonomousEventAutoConfiguration.class)
 public class IamAiamZeroTrustSseAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaZeroTrustSsePublisher")
     @ConditionalOnMissingBean
     public ZeroTrustSsePublisher zeroTrustSsePublisher() {
         return new ZeroTrustSsePublisher();
     }
 
-    @Bean
+    @Bean(name = "contexaZeroTrustAnalysisEventListener")
     @Primary
     public LlmAnalysisEventListener zeroTrustAnalysisEventListener(
-            ZeroTrustSsePublisher zeroTrustSsePublisher,
-            @Qualifier("llmAnalysisEventListener") LlmAnalysisEventListener delegate) {
-        return new ZeroTrustAnalysisEventListener(zeroTrustSsePublisher, delegate);
+            ZeroTrustSsePublisher contexaZeroTrustSsePublisher,
+            @Qualifier("contexaLlmAnalysisEventListener") LlmAnalysisEventListener delegate) {
+        return new ZeroTrustAnalysisEventListener(contexaZeroTrustSsePublisher, delegate);
     }
 }
 

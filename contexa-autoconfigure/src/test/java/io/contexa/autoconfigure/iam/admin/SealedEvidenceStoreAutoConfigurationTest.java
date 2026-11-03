@@ -41,7 +41,7 @@ class SealedEvidenceStoreAutoConfigurationTest {
                     AopAutoConfiguration.class,
                     SealedEvidenceStoreAutoConfiguration.class,
                     PqaSealedEvidenceAutoConfiguration.class))
-            .withBean(ObjectMapper.class, ObjectMapper::new);
+            .withBean("contexaObjectMapper", ObjectMapper.class, ObjectMapper::new);
 
     @Test
     void captureAndRetentionHaveTheirStoreWithoutTheOfficialVerificationConfiguration() {
@@ -49,13 +49,13 @@ class SealedEvidenceStoreAutoConfigurationTest {
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context.getBeanNamesForType(SealedEvidencePackageRepository.class))
-                            .containsExactly("pqaSealedEvidencePackageRepository");
+                            .containsExactly("contexaPqaSealedEvidencePackageRepository");
                     assertThat(context.getBean(SealedEvidencePackageRepository.class).getClass().getName())
                             .isEqualTo(NEUTRAL_REPOSITORY);
                     assertThat(context.getBeanNamesForType(SealedEvidencePackageIntegrity.class))
-                            .containsExactly("pqaSealedEvidencePackageIntegrity");
+                            .containsExactly("contexaPqaSealedEvidencePackageIntegrity");
                     assertThat(context.getBeanNamesForType(CanonicalSecurityContextSerializer.class))
-                            .containsExactly("pqaCanonicalSecurityContextSerializer");
+                            .containsExactly("contexaPqaCanonicalSecurityContextSerializer");
                     assertThat(context).hasSingleBean(SealedEvidenceCaptureHandler.class);
                     assertThat(context).hasSingleBean(SealedEvidencePackageRetentionScheduler.class);
                 });
@@ -74,16 +74,16 @@ class SealedEvidenceStoreAutoConfigurationTest {
     @Test
     void integrityAndSerializerAlreadyThereAreKept() {
         runner.withBean("contexaJdbcTemplate", JdbcTemplate.class, () -> new JdbcTemplate(mock(DataSource.class)))
-                .withBean("ossSealedEvidencePackageIntegrity", SealedEvidencePackageIntegrity.class,
+                .withBean("contexaOssSealedEvidencePackageIntegrity", SealedEvidencePackageIntegrity.class,
                         SealedEvidencePackageIntegrity::new)
-                .withBean("ossCanonicalSecurityContextSerializer", CanonicalSecurityContextSerializer.class,
+                .withBean("contexaOssCanonicalSecurityContextSerializer", CanonicalSecurityContextSerializer.class,
                         () -> new CanonicalSecurityContextSerializer(new ObjectMapper()))
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context.getBeanNamesForType(SealedEvidencePackageIntegrity.class))
-                            .containsExactly("ossSealedEvidencePackageIntegrity");
+                            .containsExactly("contexaOssSealedEvidencePackageIntegrity");
                     assertThat(context.getBeanNamesForType(CanonicalSecurityContextSerializer.class))
-                            .containsExactly("ossCanonicalSecurityContextSerializer");
+                            .containsExactly("contexaOssCanonicalSecurityContextSerializer");
                     assertThat(context).hasSingleBean(SealedEvidencePackageRepository.class);
                 });
     }

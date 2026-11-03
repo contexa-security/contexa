@@ -56,16 +56,16 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @EnableConfigurationProperties(PgVectorStoreProperties.class)
 public class ContexaPgVectorStoreAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaVectorStore")
     @ConditionalOnMissingBean(VectorStore.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate", value = EmbeddingModel.class)
     public PgVectorStore vectorStore(@Qualifier("contexaJdbcTemplate") JdbcTemplate contexaJdbcTemplate,
-                                     EmbeddingModel embeddingModel,
+                                     EmbeddingModel contexaEmbeddingModel,
                                      PgVectorStoreProperties properties,
                                      ObjectProvider<ObservationRegistry> observationRegistry,
                                      ObjectProvider<VectorStoreObservationConvention> customObservationConvention,
                                      ObjectProvider<BatchingStrategy> batchingStrategy) {
-        return PgVectorStore.builder(contexaJdbcTemplate, embeddingModel)
+        return PgVectorStore.builder(contexaJdbcTemplate, contexaEmbeddingModel)
                 .schemaName(properties.getSchemaName())
                 .idType(properties.getIdType())
                 .vectorTableName(properties.getTableName())

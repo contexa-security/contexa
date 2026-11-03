@@ -113,7 +113,7 @@ import org.springframework.security.oauth2.server.authorization.OAuth2Authorizat
 @AutoConfiguration(before = CoreAutonomousAutoConfiguration.class)
 public class IamAgentRegistryAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaAgentRegistry")
     @ConditionalOnMissingBean(AgentRegistry.class)
     public AgentRegistry agentRegistry(@Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperations) {
         JdbcOperations operations = jdbcOperations.getIfAvailable();
@@ -121,7 +121,7 @@ public class IamAgentRegistryAutoConfiguration {
     }
 
     /** docs/agent OC-1: the delegations kept in the Contexa database; without it the core keeps them in memory. */
-    @Bean
+    @Bean(name = "contexaDelegationRegistry")
     @ConditionalOnMissingBean(DelegationRegistry.class)
     public DelegationRegistry delegationRegistry(@Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperations,
                                                  ObjectProvider<SecurityZeroTrustProperties> properties) {
@@ -133,7 +133,7 @@ public class IamAgentRegistryAutoConfiguration {
     }
 
     /** docs/agent A5-3, A5-2: the notices kept in the Contexa database when it is there, else in memory. */
-    @Bean
+    @Bean(name = "contexaAgentNoticeStore")
     @ConditionalOnMissingBean(AgentNoticeStore.class)
     public AgentNoticeStore agentNoticeStore(@Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperations) {
         JdbcOperations jdbc = jdbcOperations.getIfAvailable();
@@ -141,14 +141,14 @@ public class IamAgentRegistryAutoConfiguration {
     }
 
     /** docs/agent A5-3, A5-2: notices delivered by the application's channel and kept for the console. */
-    @Bean
+    @Bean(name = "contexaAgentNotices")
     @ConditionalOnMissingBean
-    public AgentNotices agentNotices(AgentNoticeStore agentNoticeStore, ObjectProvider<AgentNoticeChannel> channel) {
-        return new AgentNotices(agentNoticeStore, channel.getIfAvailable());
+    public AgentNotices agentNotices(AgentNoticeStore contexaAgentNoticeStore, ObjectProvider<AgentNoticeChannel> channel) {
+        return new AgentNotices(contexaAgentNoticeStore, channel.getIfAvailable());
     }
 
     /** docs/agent A5-4: the narrowed scopes of agents kept in the Contexa database, else in memory. */
-    @Bean
+    @Bean(name = "contexaAgentScopeStore")
     @ConditionalOnMissingBean(AgentScopeStore.class)
     public AgentScopeStore agentScopeStore(@Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperations) {
         JdbcOperations jdbc = jdbcOperations.getIfAvailable();
@@ -159,16 +159,16 @@ public class IamAgentRegistryAutoConfiguration {
      * docs/agent A5-2~A5-4: an account's deletion also removes the narrowed scopes of the agents that acted for the
      * person, the confirmations of their requests and the person's notices.
      */
-    @Bean
+    @Bean(name = "contexaAgentRequestStatePurgeContributor")
     @ConditionalOnMissingBean
-    public AgentRequestStatePurgeContributor agentRequestStatePurgeContributor(AgentScopeStore agentScopeStore,
-                                                                               AgentConfirmationStore agentConfirmationStore,
-                                                                               AgentNoticeStore agentNoticeStore) {
-        return new AgentRequestStatePurgeContributor(agentScopeStore, agentConfirmationStore, agentNoticeStore);
+    public AgentRequestStatePurgeContributor agentRequestStatePurgeContributor(AgentScopeStore contexaAgentScopeStore,
+                                                                               AgentConfirmationStore contexaAgentConfirmationStore,
+                                                                               AgentNoticeStore contexaAgentNoticeStore) {
+        return new AgentRequestStatePurgeContributor(contexaAgentScopeStore, contexaAgentConfirmationStore, contexaAgentNoticeStore);
     }
 
     /** docs/agent A5-2: the confirmations of agents' requests kept in the Contexa database, else in memory. */
-    @Bean
+    @Bean(name = "contexaAgentConfirmationStore")
     @ConditionalOnMissingBean(AgentConfirmationStore.class)
     public AgentConfirmationStore agentConfirmationStore(
             @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperations) {
@@ -180,19 +180,19 @@ public class IamAgentRegistryAutoConfiguration {
      * docs/agent A5-2, A5-9, F-2: the confirmation of agents' requests by the people accountable for them. A report
      * stops the agent through the autonomous security plane's containment when it runs.
      */
-    @Bean
+    @Bean(name = "contexaAgentConfirmationService")
     @ConditionalOnMissingBean
-    public AgentConfirmationService agentConfirmationService(AgentConfirmationStore agentConfirmationStore,
+    public AgentConfirmationService agentConfirmationService(AgentConfirmationStore contexaAgentConfirmationStore,
                                                              ObjectProvider<AgentConfirmationAuthorizer> authorizer,
-                                                             AgentNotices agentNotices, AgentRegistry agentRegistry,
+                                                             AgentNotices contexaAgentNotices, AgentRegistry contexaAgentRegistry,
                                                              ObjectProvider<CentralAuditFacade> auditFacade,
                                                              ObjectProvider<SecurityZeroTrustProperties> properties,
                                                              ObjectProvider<EvidenceSigner> evidenceSigner,
                                                              ObjectProvider<AgentContainmentService> containment) {
-        AgentConfirmationService service = new AgentConfirmationService(agentConfirmationStore,
+        AgentConfirmationService service = new AgentConfirmationService(contexaAgentConfirmationStore,
                 authorizer.getIfAvailable(() -> new SignedAgentConfirmationAuthorizer(
                         evidenceSigner.getIfAvailable(() -> HmacEvidenceSigner.of(Map.of(), null)))),
-                agentNotices, agentRegistry, auditFacade.getIfAvailable(),
+                contexaAgentNotices, contexaAgentRegistry, auditFacade.getIfAvailable(),
                 properties.getIfAvailable(SecurityZeroTrustProperties::new).getAgent().getConfirmationTimeout(),
                 null);
         service.setContainment(containment.getIfAvailable());
@@ -203,16 +203,16 @@ public class IamAgentRegistryAutoConfiguration {
      * docs/agent A5-7: the call limits of agents and delegations and the denial alarm. Past a limit that stops, the
      * autonomous security plane's containment stops the agent when it runs.
      */
-    @Bean
+    @Bean(name = "contexaAgentCallGuard")
     @ConditionalOnMissingBean
     public AgentCallGuard agentCallGuard(ObjectProvider<SecurityZeroTrustProperties> properties,
-                                         AgentNotices agentNotices, AgentRegistry agentRegistry,
+                                         AgentNotices contexaAgentNotices, AgentRegistry contexaAgentRegistry,
                                          ObjectProvider<CentralAuditFacade> auditFacade,
                                          ObjectProvider<AgentContainmentService> containment) {
         SecurityZeroTrustProperties.AgentSettings agent = properties.getIfAvailable(SecurityZeroTrustProperties::new)
                 .getAgent();
-        AgentCallGuard guard = new AgentCallGuard(agent.getCallLimit(), agent.getDenialAlarm(), agentNotices,
-                agentRegistry, auditFacade.getIfAvailable(), null);
+        AgentCallGuard guard = new AgentCallGuard(agent.getCallLimit(), agent.getDenialAlarm(), contexaAgentNotices,
+                contexaAgentRegistry, auditFacade.getIfAvailable(), null);
         guard.setContainment(containment.getIfAvailable());
         // docs/agent G-9: in the report-only mode a passed limit is recorded, not acted on.
         SecurityZeroTrustProperties zeroTrust = properties.getIfAvailable(SecurityZeroTrustProperties::new);
@@ -221,14 +221,14 @@ public class IamAgentRegistryAutoConfiguration {
     }
 
     /** docs/agent A5-2: the confirmations not decided or used in time are refused and recorded on schedule. */
-    @Bean
+    @Bean(name = "contexaAgentConfirmationExpiry")
     @ConditionalOnMissingBean
-    public AgentConfirmationExpiry agentConfirmationExpiry(AgentConfirmationService agentConfirmationService) {
-        return new AgentConfirmationExpiry(agentConfirmationService);
+    public AgentConfirmationExpiry agentConfirmationExpiry(AgentConfirmationService contexaAgentConfirmationService) {
+        return new AgentConfirmationExpiry(contexaAgentConfirmationService);
     }
 
     /** docs/agent OC-2: the company records kept in the Contexa database; without it the core keeps them in memory. */
-    @Bean
+    @Bean(name = "contexaCompanyRecordStore")
     @ConditionalOnMissingBean(CompanyRecordStore.class)
     public CompanyRecordStore companyRecordStore(
             @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperations) {
@@ -237,27 +237,27 @@ public class IamAgentRegistryAutoConfiguration {
     }
 
     /** docs/agent OC-2: the admin API and the console of company records. */
-    @Bean
+    @Bean(name = "contexaCompanyRecordsAdminService")
     @ConditionalOnMissingBean
-    public CompanyRecordsAdminService companyRecordsAdminService(CompanyRecordStore companyRecordStore,
+    public CompanyRecordsAdminService companyRecordsAdminService(CompanyRecordStore contexaCompanyRecordStore,
                                                                  ObjectProvider<CentralAuditFacade> auditFacade) {
-        return new CompanyRecordsAdminService(companyRecordStore, auditFacade.getIfAvailable());
+        return new CompanyRecordsAdminService(contexaCompanyRecordStore, auditFacade.getIfAvailable());
     }
 
-    @Bean
+    @Bean(name = "contexaCompanyRecordsApiController")
     @ConditionalOnMissingBean
-    public CompanyRecordsApiController companyRecordsApiController(CompanyRecordsAdminService companyRecordsAdminService) {
-        return new CompanyRecordsApiController(companyRecordsAdminService);
+    public CompanyRecordsApiController companyRecordsApiController(CompanyRecordsAdminService contexaCompanyRecordsAdminService) {
+        return new CompanyRecordsApiController(contexaCompanyRecordsAdminService);
     }
 
-    @Bean
+    @Bean(name = "contexaCompanyRecordsAdminController")
     @ConditionalOnMissingBean
     public CompanyRecordsAdminController companyRecordsAdminController(
-            CompanyRecordsAdminService companyRecordsAdminService) {
-        return new CompanyRecordsAdminController(companyRecordsAdminService);
+            CompanyRecordsAdminService contexaCompanyRecordsAdminService) {
+        return new CompanyRecordsAdminController(contexaCompanyRecordsAdminService);
     }
 
-    @Bean
+    @Bean(name = "contexaAgentLearningAdminService")
     @ConditionalOnMissingBean
     public AgentLearningAdminService agentLearningAdminService(ObjectProvider<AgentLearningControl> control,
                                                                ObjectProvider<CentralAuditFacade> auditFacade) {
@@ -265,37 +265,37 @@ public class IamAgentRegistryAutoConfiguration {
     }
 
     /** docs/agent OC-1: records and revokes delegations for the APIs and the console, audited. */
-    @Bean
+    @Bean(name = "contexaAgentDelegationService")
     @ConditionalOnMissingBean
-    public AgentDelegationService agentDelegationService(DelegationRegistry delegationRegistry,
+    public AgentDelegationService agentDelegationService(DelegationRegistry contexaDelegationRegistry,
                                                          ObjectProvider<AgentClientDirectory> agentClientDirectory,
                                                          ObjectProvider<CentralAuditFacade> auditFacade) {
-        return new AgentDelegationService(delegationRegistry, agentClientDirectory.getIfAvailable(),
+        return new AgentDelegationService(contexaDelegationRegistry, agentClientDirectory.getIfAvailable(),
                 auditFacade.getIfAvailable());
     }
 
-    @Bean
+    @Bean(name = "contexaAgentDelegationApiController")
     @ConditionalOnMissingBean
-    public AgentDelegationApiController agentDelegationApiController(AgentDelegationService agentDelegationService) {
-        return new AgentDelegationApiController(agentDelegationService);
+    public AgentDelegationApiController agentDelegationApiController(AgentDelegationService contexaAgentDelegationService) {
+        return new AgentDelegationApiController(contexaAgentDelegationService);
     }
 
-    @Bean
+    @Bean(name = "contexaAgentDelegationAdminApiController")
     @ConditionalOnMissingBean
     public AgentDelegationAdminApiController agentDelegationAdminApiController(
-            AgentDelegationService agentDelegationService) {
-        return new AgentDelegationAdminApiController(agentDelegationService);
+            AgentDelegationService contexaAgentDelegationService) {
+        return new AgentDelegationAdminApiController(contexaAgentDelegationService);
     }
 
-    @Bean
+    @Bean(name = "contexaAgentAdminController")
     @ConditionalOnMissingBean
-    public AgentAdminController agentAdminController(AgentRegistry agentRegistry, MessageSource messageSource,
-                                                     AgentLearningAdminService agentLearningAdminService,
-                                                     AgentDelegationService agentDelegationService,
+    public AgentAdminController agentAdminController(AgentRegistry contexaAgentRegistry, MessageSource messageSource,
+                                                     AgentLearningAdminService contexaAgentLearningAdminService,
+                                                     AgentDelegationService contexaAgentDelegationService,
                                                      ObjectProvider<AgentProvisioning> agentProvisioning,
                                                      ObjectProvider<AuditLogRepository> auditLogRepository) {
-        AgentAdminController controller = new AgentAdminController(agentRegistry, messageSource,
-                agentLearningAdminService, agentDelegationService,
+        AgentAdminController controller = new AgentAdminController(contexaAgentRegistry, messageSource,
+                contexaAgentLearningAdminService, contexaAgentDelegationService,
                 agentProvisioning.getIfAvailable(AgentProvisioning::unavailable));
         // docs/agent A5-5: the agents' latest decisions, from the decision records.
         auditLogRepository.ifAvailable(controller::setDecisionRecords);
@@ -303,12 +303,12 @@ public class IamAgentRegistryAutoConfiguration {
     }
 
     /** docs/agent OC-3: the admin API of agent registration. */
-    @Bean
+    @Bean(name = "contexaAgentRegistrationApiController")
     @ConditionalOnMissingBean
     public AgentRegistrationApiController agentRegistrationApiController(
-            ObjectProvider<AgentProvisioning> agentProvisioning, AgentRegistry agentRegistry) {
+            ObjectProvider<AgentProvisioning> agentProvisioning, AgentRegistry contexaAgentRegistry) {
         return new AgentRegistrationApiController(agentProvisioning.getIfAvailable(AgentProvisioning::unavailable),
-                agentRegistry);
+                contexaAgentRegistry);
     }
 
     /**
@@ -322,7 +322,7 @@ public class IamAgentRegistryAutoConfiguration {
             havingValue = "true")
     static class RiskSignalReceiverConfiguration {
 
-        @Bean
+        @Bean(name = "contexaSecurityEventTokenVerifier")
         @ConditionalOnMissingBean(SecurityEventTokenVerifier.class)
         SecurityEventTokenVerifier securityEventTokenVerifier(ObjectProvider<SecurityZeroTrustProperties> properties) {
             SecurityZeroTrustProperties.RiskSignals settings = properties.getIfAvailable(SecurityZeroTrustProperties::new)
@@ -337,7 +337,7 @@ public class IamAgentRegistryAutoConfiguration {
             return new JwtSecurityEventTokenVerifier(decoders, settings.getAudience());
         }
 
-        @Bean
+        @Bean(name = "contexaRiskSignalReceiver")
         @ConditionalOnMissingBean
         RiskSignalReceiver riskSignalReceiver(ZeroTrustActionRepository actionRepository,
                                               ObjectProvider<ZeroTrustSecurityService> zeroTrustSecurityService,
@@ -350,7 +350,7 @@ public class IamAgentRegistryAutoConfiguration {
                     auditFacade.getIfAvailable());
         }
 
-        @Bean
+        @Bean(name = "contexaRiskSignalReceiverController")
         @ConditionalOnMissingBean
         RiskSignalReceiverController riskSignalReceiverController(SecurityEventTokenVerifier verifier,
                                                                   RiskSignalReceiver receiver) {
@@ -367,7 +367,7 @@ public class IamAgentRegistryAutoConfiguration {
             "org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository"})
     static class AgentIdentityConfiguration {
 
-        @Bean
+        @Bean(name = "contexaAgentNoticeChannel")
         @ConditionalOnMissingBean(AgentNoticeChannel.class)
         AgentNoticeChannel agentNoticeChannel(ObjectProvider<EmailService> emailService,
                                               ObjectProvider<UserRepository> userRepository) {
@@ -378,7 +378,7 @@ public class IamAgentRegistryAutoConfiguration {
          * docs/agent A5-2: an approval is recorded as an authorization of Contexa's authorization server when it runs
          * here and registers the agent's client; otherwise as a keyed signature.
          */
-        @Bean
+        @Bean(name = "contexaAgentConfirmationAuthorizer")
         @ConditionalOnMissingBean(AgentConfirmationAuthorizer.class)
         AgentConfirmationAuthorizer agentConfirmationAuthorizer(ObjectProvider<OAuth2AuthorizationService> authorizations,
                                                                 ObjectProvider<RegisteredClientRepository> clients,
@@ -393,7 +393,7 @@ public class IamAgentRegistryAutoConfiguration {
                     : signed;
         }
 
-        @Bean
+        @Bean(name = "contexaAgentTokenRevoker")
         @ConditionalOnMissingBean(AgentTokenRevoker.class)
         AgentTokenRevoker agentTokenRevoker(ObjectProvider<OAuth2AuthorizationService> authorizations,
                                             ObjectProvider<RegisteredClientRepository> clients) {
@@ -414,9 +414,9 @@ public class IamAgentRegistryAutoConfiguration {
     @ConditionalOnClass(name = "org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository")
     static class AgentProvisioningConfiguration {
 
-        @Bean
+        @Bean(name = "contexaAgentProvisioning")
         @ConditionalOnMissingBean(AgentProvisioning.class)
-        AgentProvisioning agentProvisioning(AgentRegistry agentRegistry,
+        AgentProvisioning agentProvisioning(AgentRegistry contexaAgentRegistry,
                                             ObjectProvider<RegisteredClientRepository> clients,
                                             ObjectProvider<PasswordEncoder> passwordEncoder,
                                             @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbc,
@@ -431,7 +431,7 @@ public class IamAgentRegistryAutoConfiguration {
             if (repository == null || encoder == null) {
                 return AgentProvisioning.unavailable();
             }
-            OAuth2AgentProvisioning provisioning = new OAuth2AgentProvisioning(agentRegistry, repository, encoder,
+            OAuth2AgentProvisioning provisioning = new OAuth2AgentProvisioning(contexaAgentRegistry, repository, encoder,
                     jdbc.getIfAvailable(), users.getIfAvailable(), userRepository.getIfAvailable(),
                     groups.getIfAvailable(), auditFacade.getIfAvailable(),
                     properties.getIfAvailable(SecurityZeroTrustProperties::new).getAgent().getClientTokenLifetime());
@@ -440,68 +440,68 @@ public class IamAgentRegistryAutoConfiguration {
         }
     }
 
-    @Bean
+    @Bean(name = "contexaAgentLearningApiController")
     @ConditionalOnMissingBean
-    public AgentLearningApiController agentLearningApiController(AgentLearningAdminService agentLearningAdminService) {
-        return new AgentLearningApiController(agentLearningAdminService);
+    public AgentLearningApiController agentLearningApiController(AgentLearningAdminService contexaAgentLearningAdminService) {
+        return new AgentLearningApiController(contexaAgentLearningAdminService);
     }
 
     /**
      * docs/agent A5-3 (AM-4): the console's agent stops. Acting on them needs the autonomous security plane's
      * containment; without it the stops are shown and every action is refused.
      */
-    @Bean
+    @Bean(name = "contexaAgentContainmentAdminService")
     @ConditionalOnMissingBean
     public AgentContainmentAdminService agentContainmentAdminService(
-            ObjectProvider<AgentContainmentService> containment, AgentRegistry agentRegistry,
-            ObjectProvider<AuditLogRepository> auditLogRepository, AgentNoticeStore agentNoticeStore,
+            ObjectProvider<AgentContainmentService> containment, AgentRegistry contexaAgentRegistry,
+            ObjectProvider<AuditLogRepository> auditLogRepository, AgentNoticeStore contexaAgentNoticeStore,
             ObjectProvider<AgentScopeService> scopes) {
         AgentContainmentAdminService service = new AgentContainmentAdminService(containment.getIfAvailable(),
-                agentRegistry, auditLogRepository.getIfAvailable(), agentNoticeStore);
+                contexaAgentRegistry, auditLogRepository.getIfAvailable(), contexaAgentNoticeStore);
         // docs/agent A5-4: the agents still narrowed, shown with the stops.
         service.setScopes(scopes.getIfAvailable());
         return service;
     }
 
-    @Bean
+    @Bean(name = "contexaAgentStopController")
     @ConditionalOnMissingBean
-    public AgentStopController agentStopController(AgentContainmentAdminService agentContainmentAdminService,
+    public AgentStopController agentStopController(AgentContainmentAdminService contexaAgentContainmentAdminService,
                                                    MessageSource messageSource) {
-        return new AgentStopController(agentContainmentAdminService, messageSource);
+        return new AgentStopController(contexaAgentContainmentAdminService, messageSource);
     }
 
-    @Bean
+    @Bean(name = "contexaAgentStopApiController")
     @ConditionalOnMissingBean
-    public AgentStopApiController agentStopApiController(AgentContainmentAdminService agentContainmentAdminService) {
-        return new AgentStopApiController(agentContainmentAdminService);
+    public AgentStopApiController agentStopApiController(AgentContainmentAdminService contexaAgentContainmentAdminService) {
+        return new AgentStopApiController(contexaAgentContainmentAdminService);
     }
 
     /**
      * docs/agent A5-2 (AC-1~AC-3): the pages a person confirms an agent's request on, and where the agent follows its
      * confirmation. They need the confirmation of the autonomous security plane.
      */
-    @Bean
+    @Bean(name = "contexaAgentConfirmationController")
     @ConditionalOnMissingBean
-    public AgentConfirmationController agentConfirmationController(AgentConfirmationService agentConfirmationService,
+    public AgentConfirmationController agentConfirmationController(AgentConfirmationService contexaAgentConfirmationService,
                                                                    MessageSource messageSource,
                                                                    ObjectProvider<DelegationRegistry> delegations,
                                                                    ObjectProvider<AuditLogRepository> auditLogRepository,
-                                                                   AgentNoticeStore agentNoticeStore,
+                                                                   AgentNoticeStore contexaAgentNoticeStore,
                                                                    ObjectProvider<AgentContainmentAdminService> stops) {
-        AgentConfirmationController controller = new AgentConfirmationController(agentConfirmationService,
+        AgentConfirmationController controller = new AgentConfirmationController(contexaAgentConfirmationService,
                 messageSource);
         controller.setDelegations(delegations.getIfAvailable());
         controller.setDecisionRecords(auditLogRepository.getIfAvailable());
-        controller.setNotices(agentNoticeStore);
+        controller.setNotices(contexaAgentNoticeStore);
         // docs/agent A5-3: the accountable person releases their own stopped agent too.
         controller.setStops(stops.getIfAvailable());
         return controller;
     }
 
-    @Bean
+    @Bean(name = "contexaAgentConfirmationApiController")
     @ConditionalOnMissingBean
     public AgentConfirmationApiController agentConfirmationApiController(
-            AgentConfirmationService agentConfirmationService) {
-        return new AgentConfirmationApiController(agentConfirmationService);
+            AgentConfirmationService contexaAgentConfirmationService) {
+        return new AgentConfirmationApiController(contexaAgentConfirmationService);
     }
 }

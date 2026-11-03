@@ -51,19 +51,19 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 @AutoConfigureAfter(name = "org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration")
 public class IamAiamLabsAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaPolicyGenerationVectorService")
     @ConditionalOnMissingBean
     @ConditionalOnBean({VectorStore.class, ContexaRagProperties.class})
     public PolicyGenerationVectorService policyGenerationVectorService(
             VectorStore vectorStore,
-            @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics,
+            @Autowired(required = false) VectorStoreMetrics contexaVectorStoreMetrics,
             ContexaRagProperties ragProperties,
             MessageSource messageSource) {
-        return new PolicyGenerationVectorService(vectorStore, vectorStoreMetrics, ragProperties, messageSource);
+        return new PolicyGenerationVectorService(vectorStore, contexaVectorStoreMetrics, ragProperties, messageSource);
     }
 
-    @Bean
-    @ConditionalOnMissingBean(name = "policyGenerationCollectionExecutor")
+    @Bean(name = "contexaPolicyGenerationCollectionExecutor", defaultCandidate = false)
+    @ConditionalOnMissingBean(name = "contexaPolicyGenerationCollectionExecutor")
     public Executor policyGenerationCollectionExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(2);
@@ -77,28 +77,28 @@ public class IamAiamLabsAutoConfiguration {
         return executor;
     }
 
-    @Bean
+    @Bean(name = "contexaPolicyGenerationCollectionService")
     @ConditionalOnMissingBean
     public PolicyGenerationCollectionService policyGenerationCollectionService(
-            RoleService roleService,
-            PermissionCatalogService permissionCatalogService,
+            RoleService contexaRoleService,
+            PermissionCatalogService contexaPermissionCatalogService,
             ConditionTemplateRepository conditionTemplateRepository,
             PolicyRepository policyRepository,
-            RoleHierarchyService roleHierarchyService,
-            @Qualifier("policyGenerationCollectionExecutor") Executor policyGenerationCollectionExecutor) {
+            RoleHierarchyService contexaRoleHierarchyService,
+            @Qualifier("contexaPolicyGenerationCollectionExecutor") Executor contexaPolicyGenerationCollectionExecutor) {
         return new PolicyGenerationCollectionService(
-                roleService, permissionCatalogService, conditionTemplateRepository,
-                policyRepository, roleHierarchyService, policyGenerationCollectionExecutor);
+                contexaRoleService, contexaPermissionCatalogService, conditionTemplateRepository,
+                policyRepository, contexaRoleHierarchyService, contexaPolicyGenerationCollectionExecutor);
     }
 
-    @Bean
+    @Bean(name = "contexaIamDataCollectionService")
     @ConditionalOnMissingBean
     public IAMDataCollectionService iamDataCollectionService(
-            PolicyGenerationCollectionService policyGenerationCollectionService) {
-        return new IAMDataCollectionService(policyGenerationCollectionService);
+            PolicyGenerationCollectionService contexaPolicyGenerationCollectionService) {
+        return new IAMDataCollectionService(contexaPolicyGenerationCollectionService);
     }
 
-    @Bean
+    @Bean(name = "contexaAdvancedPolicyGenerationLab")
     @ConditionalOnMissingBean
     @ConditionalOnBean(PolicyGenerationVectorService.class)
     public AdvancedPolicyGenerationLab advancedPolicyGenerationLab(
@@ -108,14 +108,14 @@ public class IamAiamLabsAutoConfiguration {
         return new AdvancedPolicyGenerationLab(orchestrator, dataCollectionService, vectorService);
     }
 
-    @Bean
+    @Bean(name = "contexaResourceNamingLab")
     @ConditionalOnMissingBean
     public ResourceNamingLab resourceNamingLab(
             PipelineOrchestrator orchestrator) {
         return new ResourceNamingLab(orchestrator);
     }
 
-    @Bean
+    @Bean(name = "contexaConditionTemplateGenerationLab")
     @ConditionalOnMissingBean
     public ConditionTemplateGenerationLab conditionTemplateGenerationLab(
             PipelineOrchestrator orchestrator) {

@@ -109,6 +109,10 @@ class JdbcPromptReleaseQueryServiceTest {
                 "CORTEX_PROMPT_CONTRACT_V2", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
                 "PRODUCTION", "contexa-cortex-core", "approval-" + version, "baseline-" + version, rollbackVersion,
                 "summary", "SecurityDecisionStandardPromptTemplate", "STANDARD_TEMPLATE_BOOTSTRAP", "[]", timestamp);
+        // Auditing stamps the modification time of a row as the application's JPA auditing does; the test needs a known moment.
+        database.jdbcTemplate().update("update ctxa_prompt_governance_registry set updated_at = ? "
+                + "where registry_scope = ? and prompt_version = ?",
+                timestamp, scope, version);
     }
 
     private void approval(String approvalState, String releaseStatus, LocalDateTime timestamp) {

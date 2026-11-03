@@ -116,7 +116,7 @@ public class CoreLLMTieredAutoConfiguration {
     @Autowired
     private ObjectProvider<ObservationRegistry> observationRegistryProvider;
 
-    @Bean
+    @Bean(name = "contexaLlmRuntimeCatalog")
     @ConditionalOnMissingBean
     public LlmRuntimeCatalog llmRuntimeCatalog(
             ApplicationContext applicationContext,
@@ -127,7 +127,7 @@ public class CoreLLMTieredAutoConfiguration {
     }
 
     /** O-1: which model server a chat or embedding model calls. */
-    @Bean
+    @Bean(name = "contexaModelServerResolver")
     @ConditionalOnMissingBean
     public SpringModelServerResolver modelServerResolver(Environment environment) {
         return new SpringModelServerResolver(environment);
@@ -137,124 +137,124 @@ public class CoreLLMTieredAutoConfiguration {
      * O-1: one gate per model server that every chat and embedding call passes. A call waits at most until its event's
      * deadline, and without one at most the event budget.
      */
-    @Bean
+    @Bean(name = "contexaModelServerGates")
     @ConditionalOnMissingBean
-    public ModelServerGates modelServerGates(SpringModelServerResolver modelServerResolver,
+    public ModelServerGates modelServerGates(SpringModelServerResolver contexaModelServerResolver,
                                              ModelServerGateProperties modelServerGateProperties) {
-        return new ModelServerGates(modelServerResolver, modelServerGateProperties,
+        return new ModelServerGates(contexaModelServerResolver, modelServerGateProperties,
                 securityPlaneProperties.getAgent().getEventTimeoutMs());
     }
 
-    @Bean
+    @Bean(name = "contexaDynamicModelRegistry")
     @ConditionalOnMissingBean
     public DynamicModelRegistry dynamicModelRegistry(
             ApplicationContext applicationContext,
             TieredLLMProperties tieredLLMProperties,
-            LlmRuntimeCatalog llmRuntimeCatalog,
-            @Qualifier("primaryChatModel") ObjectProvider<ChatModel> primaryChatModel) {
+            LlmRuntimeCatalog contexaLlmRuntimeCatalog,
+            @Qualifier("contexaPrimaryChatModel") ObjectProvider<ChatModel> primaryChatModel) {
         DynamicModelRegistry registry = new DynamicModelRegistry(applicationContext, tieredLLMProperties,
-                llmRuntimeCatalog);
+                contexaLlmRuntimeCatalog);
         // A layer model named in application.yml with no runtime binding runs on a copy of the primary chat model.
         registry.setVariantBase(primaryChatModel::getIfAvailable);
         return registry;
     }
 
-    @Bean
+    @Bean(name = "contexaTieredLayerModelVerifier")
     @ConditionalOnMissingBean
-    @ConditionalOnBean(name = "primaryChatModel")
-    public TieredLayerModelVerifier tieredLayerModelVerifier(DynamicModelRegistry dynamicModelRegistry,
+    @ConditionalOnBean(name = "contexaPrimaryChatModel")
+    public TieredLayerModelVerifier tieredLayerModelVerifier(DynamicModelRegistry contexaDynamicModelRegistry,
                                                              TieredLLMProperties tieredLLMProperties) {
-        return new TieredLayerModelVerifier(dynamicModelRegistry, tieredLLMProperties);
+        return new TieredLayerModelVerifier(contexaDynamicModelRegistry, tieredLLMProperties);
     }
 
-    @Bean(name = "primaryChatModel")
+    @Bean(name = "contexaPrimaryChatModel")
     @Primary
-    @ConditionalOnMissingBean(name = "primaryChatModel")
+    @ConditionalOnMissingBean(name = "contexaPrimaryChatModel")
     @Conditional(AnyChatModelAvailableCondition.class)
     @ConditionalOnProperty(prefix = "contexa.llm.selection.chat", name = "mode", havingValue = "dynamic-priority", matchIfMissing = true)
-    public ChatModel dynamicPriorityPrimaryChatModel(LlmRuntimeCatalog llmRuntimeCatalog) {
-        return llmRuntimeCatalog.resolvePrimaryChatModel(resolveChatPriority())
+    public ChatModel dynamicPriorityPrimaryChatModel(LlmRuntimeCatalog contexaLlmRuntimeCatalog) {
+        return contexaLlmRuntimeCatalog.resolvePrimaryChatModel(resolveChatPriority())
                 .orElseThrow(() -> new IllegalStateException(
                         "No chat runtime binding could be resolved from the available Spring AI ChatModel beans. "
                                 + "Configure contexa.llm.selection.chat.priority or provide a ready chat runtime binding."));
     }
 
-    @Bean(name = "primaryChatModel")
-    @ConditionalOnMissingBean(name = "primaryChatModel")
+    @Bean(name = "contexaPrimaryChatModel")
+    @ConditionalOnMissingBean(name = "contexaPrimaryChatModel")
     @Conditional(AnyChatModelAvailableCondition.class)
     @ConditionalOnProperty(prefix = "contexa.llm.selection.chat", name = "mode", havingValue = "spring-primary")
-    public ChatModel springPrimaryChatModel(LlmRuntimeCatalog llmRuntimeCatalog) {
-        return llmRuntimeCatalog.resolveSpringPrimaryChatModel()
+    public ChatModel springPrimaryChatModel(LlmRuntimeCatalog contexaLlmRuntimeCatalog) {
+        return contexaLlmRuntimeCatalog.resolveSpringPrimaryChatModel()
                 .orElseThrow(() -> new IllegalStateException(
                         "No chat runtime binding is available for spring-primary selection. Register a Spring AI ChatModel bean first."));
     }
 
-    @Bean(name = "primaryChatModel")
+    @Bean(name = "contexaPrimaryChatModel")
     @Primary
-    @ConditionalOnMissingBean(name = "primaryChatModel")
+    @ConditionalOnMissingBean(name = "contexaPrimaryChatModel")
     @Conditional(AnyChatModelAvailableCondition.class)
     @ConditionalOnProperty(prefix = "contexa.llm.selection.chat", name = "mode", havingValue = "fixed")
-    public ChatModel fixedPrimaryChatModel(LlmRuntimeCatalog llmRuntimeCatalog) {
+    public ChatModel fixedPrimaryChatModel(LlmRuntimeCatalog contexaLlmRuntimeCatalog) {
         String provider = resolveFixedChatProvider();
-        return llmRuntimeCatalog.resolveProviderChatModel(provider)
+        return contexaLlmRuntimeCatalog.resolveProviderChatModel(provider)
                 .orElseThrow(() -> new IllegalStateException(
                         "No chat runtime binding could be resolved for fixed provider '" + provider + "'. "
                                 + "Configure exactly one contexa.llm.selection.chat.priority value and the matching Spring AI chat runtime."));
     }
 
-    @Bean
+    @Bean(name = "contexaDynamicModelSelectionStrategy")
     @ConditionalOnMissingBean(ModelSelectionStrategy.class)
-    @ConditionalOnBean(name = "primaryChatModel")
+    @ConditionalOnBean(name = "contexaPrimaryChatModel")
     public DynamicModelSelectionStrategy dynamicModelSelectionStrategy(
-            DynamicModelRegistry dynamicModelRegistry,
+            DynamicModelRegistry contexaDynamicModelRegistry,
             TieredLLMProperties tieredLLMProperties,
-            @Qualifier("primaryChatModel") ChatModel primaryChatModel) {
-        return new DynamicModelSelectionStrategy(dynamicModelRegistry, tieredLLMProperties, primaryChatModel);
+            @Qualifier("contexaPrimaryChatModel") ChatModel contexaPrimaryChatModel) {
+        return new DynamicModelSelectionStrategy(contexaDynamicModelRegistry, tieredLLMProperties, contexaPrimaryChatModel);
     }
 
-    @Bean(name = "chatClientBuilder")
+    @Bean(name = "contexaChatClientBuilder")
     @Primary
-    @ConditionalOnMissingBean(name = "chatClientBuilder")
-    @ConditionalOnBean(name = "primaryChatModel")
+    @ConditionalOnMissingBean(name = "contexaChatClientBuilder")
+    @ConditionalOnBean(name = "contexaPrimaryChatModel")
     public ChatClient.Builder contexaPrimaryChatClientBuilder(
-            @Qualifier("primaryChatModel") ChatModel primaryChatModel) {
+            @Qualifier("contexaPrimaryChatModel") ChatModel contexaPrimaryChatModel) {
         // Spring AI's entity conversion and streamed content read the first generation, where Claude puts its thinking.
-        return ChatClient.builder(primaryChatModel, observationRegistry(), null, null)
+        return ChatClient.builder(contexaPrimaryChatModel, observationRegistry(), null, null)
                 .defaultAdvisors(ThinkingGenerationAdvisor.INSTANCE);
     }
 
-    @Bean
+    @Bean(name = "contexaPrimaryChatClient")
     @ConditionalOnMissingBean
-    @ConditionalOnBean(name = "primaryChatModel")
-    public ChatClient primaryChatClient(@Qualifier("primaryChatModel") ChatModel primaryChatModel, AdvisorRegistry advisorRegistry) {
-        ChatClient.Builder builder = ChatClient.builder(primaryChatModel, observationRegistry(), null, null)
+    @ConditionalOnBean(name = "contexaPrimaryChatModel")
+    public ChatClient primaryChatClient(@Qualifier("contexaPrimaryChatModel") ChatModel contexaPrimaryChatModel, AdvisorRegistry contexaAdvisorRegistry) {
+        ChatClient.Builder builder = ChatClient.builder(contexaPrimaryChatModel, observationRegistry(), null, null)
                 .defaultAdvisors(ThinkingGenerationAdvisor.INSTANCE);
-        List<Advisor> advisors = advisorRegistry.getEnabled();
+        List<Advisor> advisors = contexaAdvisorRegistry.getEnabled();
         if (!advisors.isEmpty()) {
             builder = builder.defaultAdvisors(advisors.toArray(new Advisor[0]));
         }
         return builder.build();
     }
 
-    @Bean
+    @Bean(name = "contexaStreamingHandler")
     @ConditionalOnMissingBean(StreamingHandler.class)
-    public StreamingHandler streamingHandler(JsonStreamingProcessor jsonStreamingProcessor) {
-        return new DefaultStreamingHandler(tieredLLMProperties, jsonStreamingProcessor);
+    public StreamingHandler streamingHandler(JsonStreamingProcessor contexaJsonStreamingProcessor) {
+        return new DefaultStreamingHandler(tieredLLMProperties, contexaJsonStreamingProcessor);
     }
 
-    @Bean
+    @Bean(name = "contexaUnifiedLLMOrchestrator")
     @Primary
     @ConditionalOnMissingBean(UnifiedLLMOrchestrator.class)
     @Conditional(AnyChatModelAvailableCondition.class)
     @ConditionalOnBean(
             value = {ModelSelectionStrategy.class, StreamingHandler.class, AdvisorRegistry.class},
-            name = "primaryChatClient"
+            name = "contexaPrimaryChatClient"
     )
     public UnifiedLLMOrchestrator unifiedLLMOrchestrator(
             ObjectProvider<ModelSelectionStrategy> modelSelectionStrategyProvider,
-            StreamingHandler streamingHandler,
-            AdvisorRegistry advisorRegistry,
-            @Qualifier("primaryChatClient") ObjectProvider<ChatClient> primaryChatClientProvider,
+            StreamingHandler contexaStreamingHandler,
+            AdvisorRegistry contexaAdvisorRegistry,
+            @Qualifier("contexaPrimaryChatClient") ObjectProvider<ChatClient> primaryChatClientProvider,
             ObjectProvider<ModelServerGates> modelServerGates) {
 
         ModelSelectionStrategy modelSelectionStrategy = modelSelectionStrategyProvider.getIfAvailable();
@@ -265,8 +265,8 @@ public class CoreLLMTieredAutoConfiguration {
             throw new IllegalStateException(missingChatRuntimeConfigurationMessage());
         }
 
-        UnifiedLLMOrchestrator orchestrator = new UnifiedLLMOrchestrator(modelSelectionStrategy, streamingHandler,
-                tieredLLMProperties, advisorRegistry, securityPlaneProperties);
+        UnifiedLLMOrchestrator orchestrator = new UnifiedLLMOrchestrator(modelSelectionStrategy, contexaStreamingHandler,
+                tieredLLMProperties, contexaAdvisorRegistry, securityPlaneProperties);
         orchestrator.setObservationRegistry(observationRegistry());
         orchestrator.setModelServerGates(modelServerGates.getIfAvailable());
         return orchestrator;
@@ -278,55 +278,55 @@ public class CoreLLMTieredAutoConfiguration {
                 ? observationRegistryProvider.getIfUnique(() -> ObservationRegistry.NOOP) : ObservationRegistry.NOOP;
     }
 
-    @Bean(name = "llmClient")
+    @Bean(name = "contexaLlmClient")
     @ConditionalOnMissingBean(LLMClient.class)
     @Conditional(AnyChatModelAvailableCondition.class)
     @ConditionalOnBean(UnifiedLLMOrchestrator.class)
-    public LLMClient llmClient(UnifiedLLMOrchestrator unifiedLLMOrchestrator) {
-        return unifiedLLMOrchestrator;
+    public LLMClient llmClient(UnifiedLLMOrchestrator contexaUnifiedLLMOrchestrator) {
+        return contexaUnifiedLLMOrchestrator;
     }
 
-    @Bean(name = "toolCapableLLMClient")
+    @Bean(name = "contexaToolCapableLLMClient")
     @ConditionalOnMissingBean(ToolCapableLLMClient.class)
     @Conditional(AnyChatModelAvailableCondition.class)
     @ConditionalOnBean(UnifiedLLMOrchestrator.class)
-    public ToolCapableLLMClient toolCapableLLMClient(UnifiedLLMOrchestrator unifiedLLMOrchestrator) {
-        return unifiedLLMOrchestrator;
+    public ToolCapableLLMClient toolCapableLLMClient(UnifiedLLMOrchestrator contexaUnifiedLLMOrchestrator) {
+        return contexaUnifiedLLMOrchestrator;
     }
 
-    @Bean(name = {"primaryEmbeddingModel", "embeddingModel"})
+    @Bean(name = {"contexaPrimaryEmbeddingModel", "contexaEmbeddingModel"})
     @Primary
-    @ConditionalOnMissingBean(name = {"primaryEmbeddingModel", "embeddingModel"})
+    @ConditionalOnMissingBean(name = {"contexaPrimaryEmbeddingModel", "contexaEmbeddingModel"})
     @Conditional(AnyEmbeddingModelAvailableCondition.class)
     @ConditionalOnProperty(prefix = "contexa.llm.selection.embedding", name = "mode", havingValue = "fixed", matchIfMissing = true)
-    public EmbeddingModel fixedPrimaryEmbeddingModel(LlmRuntimeCatalog llmRuntimeCatalog,
+    public EmbeddingModel fixedPrimaryEmbeddingModel(LlmRuntimeCatalog contexaLlmRuntimeCatalog,
                                                      ObjectProvider<ModelServerGates> modelServerGates) {
         String provider = resolveFixedEmbeddingProvider();
-        return llmRuntimeCatalog.resolvePrimaryEmbeddingModel(provider)
+        return contexaLlmRuntimeCatalog.resolvePrimaryEmbeddingModel(provider)
                 .map(model -> gated(model, modelServerGates))
                 .orElseThrow(() -> new IllegalStateException(
                         "No embedding runtime binding could be resolved for fixed provider '" + provider + "'. "
                                 + "Configure exactly one contexa.llm.selection.embedding.priority value and the matching Spring AI embedding runtime."));
     }
 
-    @Bean(name = {"primaryEmbeddingModel", "embeddingModel"})
+    @Bean(name = {"contexaPrimaryEmbeddingModel", "contexaEmbeddingModel"})
     @Primary
-    @ConditionalOnMissingBean(name = {"primaryEmbeddingModel", "embeddingModel"})
+    @ConditionalOnMissingBean(name = {"contexaPrimaryEmbeddingModel", "contexaEmbeddingModel"})
     @Conditional(AnyEmbeddingModelAvailableCondition.class)
     @ConditionalOnProperty(prefix = "contexa.llm.selection.embedding", name = "mode", havingValue = "dynamic-priority")
-    public EmbeddingModel dynamicPriorityPrimaryEmbeddingModel(LlmRuntimeCatalog llmRuntimeCatalog) {
+    public EmbeddingModel dynamicPriorityPrimaryEmbeddingModel(LlmRuntimeCatalog contexaLlmRuntimeCatalog) {
         throw new IllegalStateException(
                 "Dynamic priority embedding selection is not supported because RAG vectors require a fixed provider and dimension. "
                         + "Configure contexa.llm.selection.embedding.mode=fixed and exactly one contexa.llm.selection.embedding.priority value.");
     }
 
-    @Bean(name = {"primaryEmbeddingModel", "embeddingModel"})
-    @ConditionalOnMissingBean(name = {"primaryEmbeddingModel", "embeddingModel"})
+    @Bean(name = {"contexaPrimaryEmbeddingModel", "contexaEmbeddingModel"})
+    @ConditionalOnMissingBean(name = {"contexaPrimaryEmbeddingModel", "contexaEmbeddingModel"})
     @Conditional(AnyEmbeddingModelAvailableCondition.class)
     @ConditionalOnProperty(prefix = "contexa.llm.selection.embedding", name = "mode", havingValue = "spring-primary")
-    public EmbeddingModel springPrimaryEmbeddingModel(LlmRuntimeCatalog llmRuntimeCatalog,
+    public EmbeddingModel springPrimaryEmbeddingModel(LlmRuntimeCatalog contexaLlmRuntimeCatalog,
                                                       ObjectProvider<ModelServerGates> modelServerGates) {
-        return llmRuntimeCatalog.resolveSpringPrimaryEmbeddingModel()
+        return contexaLlmRuntimeCatalog.resolveSpringPrimaryEmbeddingModel()
                 .map(model -> gated(model, modelServerGates))
                 .orElseThrow(() -> new IllegalStateException(
                         "No embedding runtime binding is available for spring-primary selection. Register a Spring AI EmbeddingModel bean first."));

@@ -171,7 +171,7 @@ class CoreAutonomousAutoConfigurationTest {
         @DisplayName("Should draw the prompt with the bundle the selector bean chooses (W3-16)")
         void shouldDrawThePromptWithTheBundleTheSelectorBeanChooses() {
             DefaultListableBeanFactory beans = new DefaultListableBeanFactory();
-            beans.registerSingleton("promptBundleSelector", (PromptBundleSelector) (context, subject) ->
+            beans.registerSingleton("contexaPromptBundleSelector", (PromptBundleSelector) (context, subject) ->
                     new PromptBundleSelection("2026.10.24-v20.26", PromptBundleSelectionSource.REGISTRY));
 
             SecurityDecisionStandardPromptTemplate template = new CoreAutonomousAutoConfiguration()

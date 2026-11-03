@@ -70,28 +70,28 @@ import java.time.Clock;
 @EnableConfigurationProperties({ SecurityZeroTrustProperties.class, SecuritySessionProperties.class })
 public class IamSecurityCoreAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaLoginAttemptIpUpserter")
     @ConditionalOnMissingBean
     public LoginAttemptIpUpserter loginAttemptIpUpserter(LoginAttemptIpRepository loginAttemptIpRepository) {
         return new LoginAttemptIpUpserter(loginAttemptIpRepository);
     }
 
-    @Bean
+    @Bean(name = "contexaLoginPolicyHandler")
     @ConditionalOnMissingBean
     public LoginPolicyHandler loginPolicyHandler(UserRepository userRepository,
                                                   LoginAttemptIpRepository loginAttemptIpRepository,
-                                                  PasswordPolicyService passwordPolicyService,
-                                                  LoginAttemptIpUpserter loginAttemptIpUpserter,
+                                                  PasswordPolicyService contexaPasswordPolicyService,
+                                                  LoginAttemptIpUpserter contexaLoginAttemptIpUpserter,
                                                   ObjectProvider<SecurityContextDataStore> securityContextDataStoreProvider) {
         return new LoginPolicyService(userRepository, loginAttemptIpRepository,
-                passwordPolicyService, loginAttemptIpUpserter, securityContextDataStoreProvider);
+                contexaPasswordPolicyService, contexaLoginAttemptIpUpserter, securityContextDataStoreProvider);
     }
 
-    @Bean
+    @Bean(name = "contexaLoginAttemptEventListener")
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
-    public LoginAttemptEventListener loginAttemptEventListener(LoginPolicyHandler loginPolicyHandler) {
-        return new LoginAttemptEventListener(loginPolicyHandler);
+    public LoginAttemptEventListener loginAttemptEventListener(LoginPolicyHandler contexaLoginPolicyHandler) {
+        return new LoginAttemptEventListener(contexaLoginPolicyHandler);
     }
 
     /**
@@ -100,8 +100,8 @@ public class IamSecurityCoreAutoConfiguration {
      * filter in {@link FilterRegistrationBean} also prevents accidental double registration
      * (the wrapped filter is registered by this bean and skipped by the auto-detection path).
      */
-    @Bean
-    @ConditionalOnMissingBean(name = "loginAttemptCleanupFilterRegistration")
+    @Bean(name = "contexaLoginAttemptCleanupFilterRegistration")
+    @ConditionalOnMissingBean(name = "contexaLoginAttemptCleanupFilterRegistration")
     @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
     public FilterRegistrationBean<LoginAttemptCleanupFilter> loginAttemptCleanupFilterRegistration() {
         FilterRegistrationBean<LoginAttemptCleanupFilter> registration =
@@ -112,41 +112,41 @@ public class IamSecurityCoreAutoConfiguration {
         return registration;
     }
 
-    @Bean
+    @Bean(name = "contexaCustomAuthenticationProvider")
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
     public CustomAuthenticationProvider customAuthenticationProvider(UserDetailsService userDetailsService,
                                                                     PasswordEncoder passwordEncoder,
-                                                                    LoginPolicyHandler loginPolicyHandler) {
-        return new CustomAuthenticationProvider(userDetailsService, passwordEncoder, loginPolicyHandler);
+                                                                    LoginPolicyHandler contexaLoginPolicyHandler) {
+        return new CustomAuthenticationProvider(userDetailsService, passwordEncoder, contexaLoginPolicyHandler);
     }
 
-    @Bean
+    @Bean(name = "contexaAiSecurityContextSupport")
     @ConditionalOnMissingBean
     public AISecurityContextSupport aiSecurityContextSupport(
             SecurityZeroTrustProperties securityZeroTrustProperties,
-            @Nullable ZeroTrustSecurityService zeroTrustSecurityService,
+            @Nullable ZeroTrustSecurityService contexaZeroTrustSecurityService,
             @Nullable SessionIdResolver sessionIdResolver) {
-        return new AISecurityContextSupport(securityZeroTrustProperties, zeroTrustSecurityService, sessionIdResolver);
+        return new AISecurityContextSupport(securityZeroTrustProperties, contexaZeroTrustSecurityService, sessionIdResolver);
     }
 
-    @Bean
+    @Bean(name = "contexaAiSessionSecurityContextRepository")
     @ConditionalOnMissingBean
     public AISessionSecurityContextRepository aiSessionSecurityContextRepository(
-            AISecurityContextSupport aiSecurityContextSupport,
+            AISecurityContextSupport contexaAiSecurityContextSupport,
             @Nullable SecurityContextDataStore securityContextDataStore,
-            @Nullable AsyncSecurityContextProvider asyncSecurityContextProvider) {
+            @Nullable AsyncSecurityContextProvider contexaAsyncSecurityContextProvider) {
         return new AISessionSecurityContextRepository(
-                aiSecurityContextSupport,
+                contexaAiSecurityContextSupport,
                 securityContextDataStore,
-                asyncSecurityContextProvider);
+                contexaAsyncSecurityContextProvider);
     }
 
-    @Bean
+    @Bean(name = "contexaAiOAuth2SecurityContextRepository")
     @ConditionalOnMissingBean
     public AIOAuth2SecurityContextRepository aiOAuth2SecurityContextRepository(
-            AISecurityContextSupport aiSecurityContextSupport) {
-        return new AIOAuth2SecurityContextRepository(aiSecurityContextSupport);
+            AISecurityContextSupport contexaAiSecurityContextSupport) {
+        return new AIOAuth2SecurityContextRepository(contexaAiSecurityContextSupport);
     }
 
     @Configuration
@@ -155,10 +155,10 @@ public class IamSecurityCoreAutoConfiguration {
     @ConditionalOnBean(type = "org.springframework.data.redis.core.RedisTemplate")
     static class DistributedSecurityConfig {
 
-        @Bean
+        @Bean(name = "contexaZeroTrustSecurityService")
         @ConditionalOnMissingBean(ZeroTrustSecurityService.class)
         public RedisZeroTrustSecurityService zeroTrustSecurityService(
-                @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate,
+                @Qualifier("contexaGeneralRedisTemplate") RedisTemplate<String, Object> redisTemplate,
                 ThreatScoreUtil threatScoreUtil,
                 SecurityZeroTrustProperties securityZeroTrustProperties,
                 ZeroTrustActionRepository actionRedisRepository) {
@@ -166,16 +166,16 @@ public class IamSecurityCoreAutoConfiguration {
                     threatScoreUtil, securityZeroTrustProperties, actionRedisRepository);
         }
 
-        @Bean
+        @Bean(name = "contexaRedisSessionIdResolver")
         @ConditionalOnMissingBean(SessionIdResolver.class)
         public RedisSessionIdResolver redisSessionIdResolver(
-                @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate,
+                @Qualifier("contexaGeneralRedisTemplate") RedisTemplate<String, Object> redisTemplate,
                 SecuritySessionProperties securitySessionProperties) {
             return new RedisSessionIdResolver(redisTemplate, securitySessionProperties);
         }
     }
 
-    @Bean
+    @Bean(name = "contexaInMemorySessionIdResolver")
     @ConditionalOnMissingBean(SessionIdResolver.class)
     public SessionIdResolver inMemorySessionIdResolver(SecuritySessionProperties securitySessionProperties) {
         return new InMemorySessionIdResolver(securitySessionProperties);
@@ -185,7 +185,7 @@ public class IamSecurityCoreAutoConfiguration {
      * Z-16 (2-a, 2-c): as the Redis service, invalidations last {@code contexa.security.zerotrust.cache.ttl-hours}
      * and a forced logout also reaches the ids of the context store's list of the user's sessions.
      */
-    @Bean
+    @Bean(name = "contexaInMemoryZeroTrustSecurityService")
     @ConditionalOnMissingBean(ZeroTrustSecurityService.class)
     public InMemoryZeroTrustSecurityService inMemoryZeroTrustSecurityService(
             ThreatScoreUtil threatScoreUtil,

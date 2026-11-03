@@ -20,7 +20,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+import io.contexa.contexacommon.entity.ContexaAuditingEntityListener;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -35,7 +35,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@EntityListeners(AuditingEntityListener.class)
+@EntityListeners(ContexaAuditingEntityListener.class)
 public class ModelPerformanceTelemetryOutboxRecord {
 
     public static final String STATUS_PENDING = "PENDING";

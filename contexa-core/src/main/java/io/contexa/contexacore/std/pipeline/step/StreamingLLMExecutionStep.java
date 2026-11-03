@@ -31,7 +31,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Slf4j
-@Qualifier("streamingLLMExecutionStep")
+@Qualifier("contexaStreamingLLMExecutionStep")
 public class StreamingLLMExecutionStep extends LLMExecutionStep {
 
     public StreamingLLMExecutionStep(ToolCapableLLMClient llmClient) {

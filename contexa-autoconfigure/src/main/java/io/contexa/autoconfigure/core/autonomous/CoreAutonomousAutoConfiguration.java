@@ -217,14 +217,14 @@ public class CoreAutonomousAutoConfiguration {
         return () -> SessionFingerprintUtil.unbindClientIpResolution(tieredStrategyProperties);
     }
 
-    @Bean
+    @Bean(name = "contexaBaselineLearningService")
     @ConditionalOnMissingBean
     public BaselineLearningService baselineLearningService(
-            BaselineDataStore baselineDataStore,
+            BaselineDataStore contexaBaselineDataStore,
             SecurityZeroTrustProperties zeroTrustProperties,
             ObjectProvider<DistributedLockService> lockServiceProvider,
             ObjectProvider<SecurityContextDataStore> contextDataStoreProvider) {
-        BaselineLearningService service = new BaselineLearningService(baselineDataStore, zeroTrustProperties);
+        BaselineLearningService service = new BaselineLearningService(contexaBaselineDataStore, zeroTrustProperties);
         // The personal and organization baseline updates run under the configured lock service (W5-8).
         service.setLockService(lockServiceProvider.getIfAvailable());
         // docs/agent A3-8: a quarantined agent's baseline is neither learned nor read.
@@ -236,32 +236,32 @@ public class CoreAutonomousAutoConfiguration {
         return service;
     }
 
-    @Bean
+    @Bean(name = "contexaSecurityEventEnricher")
     @ConditionalOnMissingBean
     public SecurityEventEnricher securityEventEnricher() {
         return new SecurityEventEnricher();
     }
 
-    @Bean
+    @Bean(name = "contexaDelegatedExecutionFingerprintService")
     @ConditionalOnMissingBean
     public DelegatedExecutionFingerprintService delegatedExecutionFingerprintService() {
         return new DelegatedExecutionFingerprintService();
     }
 
-    @Bean
+    @Bean(name = "contexaResourceContextRegistry")
     @ConditionalOnMissingBean
     public ResourceContextRegistry resourceContextRegistry() {
         return new InMemoryResourceContextRegistry();
     }
 
-    @Bean
+    @Bean(name = "contexaProtectableResourceContextScanner")
     @ConditionalOnMissingBean
     public ProtectableResourceContextScanner protectableResourceContextScanner(
-            ListableBeanFactory beanFactory, ResourceContextRegistry resourceContextRegistry) {
-        return new ProtectableResourceContextScanner(beanFactory, resourceContextRegistry);
+            ListableBeanFactory beanFactory, ResourceContextRegistry contexaResourceContextRegistry) {
+        return new ProtectableResourceContextScanner(beanFactory, contexaResourceContextRegistry);
     }
 
-    @Bean
+    @Bean(name = "contexaContextCoverageEvaluator")
     @ConditionalOnMissingBean
     public ContextCoverageEvaluator contextCoverageEvaluator() {
         return new ContextCoverageEvaluator();
@@ -271,7 +271,7 @@ public class CoreAutonomousAutoConfiguration {
      * docs/agent A3-8: an operator's quarantine, release and removal of what an agent, or a delegation, learned. The
      * decision records are reached through the past record lookup of the vector store when there is one.
      */
-    @Bean
+    @Bean(name = "contexaAgentLearningControl")
     @ConditionalOnMissingBean
     public AgentLearningControl agentLearningControl(ObjectProvider<SecurityContextDataStore> securityContextDataStore,
                                                      ObjectProvider<BaselineDataStore> baselineDataStoreProvider,
@@ -284,7 +284,7 @@ public class CoreAutonomousAutoConfiguration {
     }
 
     /** A1-6: the agents Contexa knows; the database registry of the IAM module replaces this one when present. */
-    @Bean
+    @Bean(name = "contexaDefaultAgentRegistry")
     @ConditionalOnMissingBean(AgentRegistry.class)
     public AgentRegistry defaultAgentRegistry() {
         return new InMemoryAgentRegistry();
@@ -294,18 +294,18 @@ public class CoreAutonomousAutoConfiguration {
      * A1-2: the approved agents, by the client their tokens are issued to. The resource server admits a client's own
      * token without a user account only for these, and the delegation stamp reads such a token as the agent's.
      */
-    @Bean
+    @Bean(name = "contexaAgentClientDirectory")
     @ConditionalOnMissingBean(AgentClientDirectory.class)
-    public AgentClientDirectory agentClientDirectory(AgentRegistry agentRegistry) {
-        return new RegistryAgentClientDirectory(agentRegistry);
+    public AgentClientDirectory agentClientDirectory(AgentRegistry contexaAgentRegistry) {
+        return new RegistryAgentClientDirectory(contexaAgentRegistry);
     }
 
     /** A1-6: every agent request reaches the registry. */
-    @Bean
+    @Bean(name = "contexaAgentRegistryRecorder")
     @ConditionalOnMissingBean
-    public AgentRegistryRecorder agentRegistryRecorder(AgentRegistry agentRegistry,
+    public AgentRegistryRecorder agentRegistryRecorder(AgentRegistry contexaAgentRegistry,
                                                        SecurityZeroTrustProperties securityZeroTrustProperties) {
-        return new AgentRegistryRecorder(agentRegistry,
+        return new AgentRegistryRecorder(contexaAgentRegistry,
                 securityZeroTrustProperties.getAgent().getRegistryWriteInterval());
     }
 
@@ -313,7 +313,7 @@ public class CoreAutonomousAutoConfiguration {
      * docs/agent OC-1: the delegations Contexa keeps; the database registry of the IAM module replaces this one when
      * present.
      */
-    @Bean
+    @Bean(name = "contexaDefaultDelegationRegistry")
     @ConditionalOnMissingBean(DelegationRegistry.class)
     public DelegationRegistry defaultDelegationRegistry(SecurityZeroTrustProperties securityZeroTrustProperties) {
         return new InMemoryDelegationRegistry(securityZeroTrustProperties.getAgent().getDelegationMaxValidity(), null);
@@ -323,24 +323,24 @@ public class CoreAutonomousAutoConfiguration {
      * docs/agent OC-1: agent requests are decided with the delegations Contexa keeps; an application that keeps them in
      * its own system declares its own lookup instead.
      */
-    @Bean
+    @Bean(name = "contexaDelegationRecordLookup")
     @ConditionalOnMissingBean(DelegationRecordLookup.class)
-    public DelegationRecordLookup delegationRecordLookup(DelegationRegistry delegationRegistry) {
-        return new RegistryDelegationRecordLookup(delegationRegistry);
+    public DelegationRecordLookup delegationRecordLookup(DelegationRegistry contexaDelegationRegistry) {
+        return new RegistryDelegationRecordLookup(contexaDelegationRegistry);
     }
 
     /** docs/agent OC-1: a deleted account's delegations go with it. */
-    @Bean
+    @Bean(name = "contexaDelegationPurgeContributor")
     @ConditionalOnMissingBean(DelegationPurgeContributor.class)
-    public DelegationPurgeContributor delegationPurgeContributor(DelegationRegistry delegationRegistry) {
-        return new DelegationPurgeContributor(delegationRegistry);
+    public DelegationPurgeContributor delegationPurgeContributor(DelegationRegistry contexaDelegationRegistry) {
+        return new DelegationPurgeContributor(contexaDelegationRegistry);
     }
 
     /**
      * docs/agent OC-2: the company records Contexa keeps; the database store of the IAM module replaces this one when
      * present, and an application whose records live elsewhere declares its own.
      */
-    @Bean
+    @Bean(name = "contexaDefaultCompanyRecordStore")
     @ConditionalOnMissingBean(CompanyRecordStore.class)
     public CompanyRecordStore defaultCompanyRecordStore() {
         return new InMemoryCompanyRecordStore();
@@ -350,31 +350,31 @@ public class CoreAutonomousAutoConfiguration {
      * docs/agent OC-2: every request a company rule covers is judged with the company records of the person who answers
      * for it; an application's own friction providers run beside it.
      */
-    @Bean
+    @Bean(name = "contexaCompanyRecordsContextProvider")
     @ConditionalOnMissingBean(CompanyRecordsContextProvider.class)
-    public CompanyRecordsContextProvider companyRecordsContextProvider(CompanyRecordStore companyRecordStore) {
-        return new CompanyRecordsContextProvider(companyRecordStore);
+    public CompanyRecordsContextProvider companyRecordsContextProvider(CompanyRecordStore contexaCompanyRecordStore) {
+        return new CompanyRecordsContextProvider(contexaCompanyRecordStore);
     }
 
     /** docs/agent OC-2: a deleted account's company records go with it. */
-    @Bean
+    @Bean(name = "contexaCompanyRecordsPurgeContributor")
     @ConditionalOnMissingBean(CompanyRecordsPurgeContributor.class)
-    public CompanyRecordsPurgeContributor companyRecordsPurgeContributor(CompanyRecordStore companyRecordStore) {
-        return new CompanyRecordsPurgeContributor(companyRecordStore);
+    public CompanyRecordsPurgeContributor companyRecordsPurgeContributor(CompanyRecordStore contexaCompanyRecordStore) {
+        return new CompanyRecordsPurgeContributor(contexaCompanyRecordStore);
     }
 
     /** A1-4, OC-1: the delegation record reaches every agent request. */
-    @Bean
+    @Bean(name = "contexaRecordedDelegationContextProvider")
     @ConditionalOnMissingBean(RecordedDelegationContextProvider.class)
-    public RecordedDelegationContextProvider recordedDelegationContextProvider(DelegationRecordLookup delegationRecordLookup) {
-        return new RecordedDelegationContextProvider(delegationRecordLookup);
+    public RecordedDelegationContextProvider recordedDelegationContextProvider(DelegationRecordLookup contexaDelegationRecordLookup) {
+        return new RecordedDelegationContextProvider(contexaDelegationRecordLookup);
     }
 
-    @Bean
+    @Bean(name = "contexaCanonicalSecurityContextProvider")
     @ConditionalOnMissingBean
     public CanonicalSecurityContextProvider canonicalSecurityContextProvider(
-            ResourceContextRegistry resourceContextRegistry,
-            ContextCoverageEvaluator contextCoverageEvaluator,
+            ResourceContextRegistry contexaResourceContextRegistry,
+            ContextCoverageEvaluator contexaContextCoverageEvaluator,
             ObjectProvider<AuthenticationContextProvider> authenticationContextProviders,
             ObjectProvider<AuthorizationSnapshotProvider> authorizationSnapshotProviders,
             ObjectProvider<OrganizationContextProvider> organizationContextProviders,
@@ -388,8 +388,8 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<ObservedScopeInferenceService> observedScopeInferenceService,
             ObjectProvider<ObjectiveResourceCompatibilityCatalog> objectiveCatalog) {
         DefaultCanonicalSecurityContextProvider provider = new DefaultCanonicalSecurityContextProvider(
-                resourceContextRegistry,
-                contextCoverageEvaluator,
+                contexaResourceContextRegistry,
+                contexaContextCoverageEvaluator,
                 authenticationContextProviders.orderedStream().toList(),
                 authorizationSnapshotProviders.orderedStream().toList(),
                 organizationContextProviders.orderedStream().toList(),
@@ -410,7 +410,7 @@ public class CoreAutonomousAutoConfiguration {
      * {@code contexa.security.zerotrust.agent.objective-contracts} and the ones its {@link ObjectiveContractSource} beans
      * declare (in that order, a later contract of the same family taking the earlier one's place).
      */
-    @Bean
+    @Bean(name = "contexaObjectiveResourceCompatibilityCatalog")
     @ConditionalOnMissingBean
     public ObjectiveResourceCompatibilityCatalog objectiveResourceCompatibilityCatalog(
             SecurityZeroTrustProperties securityZeroTrustProperties,
@@ -425,7 +425,7 @@ public class CoreAutonomousAutoConfiguration {
         return new ObjectiveResourceCompatibilityCatalog(contracts);
     }
 
-    @Bean
+    @Bean(name = "contexaPromptContextComposer")
     @ConditionalOnMissingBean
     public PromptContextComposer promptContextComposer(ObjectProvider<PromptSlotPlanProvider> slotPlanProvider) {
         return new PromptContextComposer(
@@ -434,63 +434,63 @@ public class CoreAutonomousAutoConfiguration {
     }
 
     /** Where the context collectors stage a request's observations until its final decision commits them (W2-7). */
-    @Bean
+    @Bean(name = "contexaContextObservationRecorder")
     @ConditionalOnMissingBean
     public ContextObservationRecorder contextObservationRecorder(SecurityContextDataStore dataStore) {
         return new ContextObservationRecorder(dataStore);
     }
 
-    @Bean
+    @Bean(name = "contexaSessionNarrativeCollector")
     @ConditionalOnMissingBean
     public SessionNarrativeCollector sessionNarrativeCollector(SecurityContextDataStore dataStore,
-                                                               ContextObservationRecorder contextObservationRecorder) {
-        return new DefaultSessionNarrativeCollector(dataStore, contextObservationRecorder);
+                                                               ContextObservationRecorder contexaContextObservationRecorder) {
+        return new DefaultSessionNarrativeCollector(dataStore, contexaContextObservationRecorder);
     }
 
-    @Bean
+    @Bean(name = "contexaProtectableWorkProfileCollector")
     @ConditionalOnMissingBean
     public ProtectableWorkProfileCollector protectableWorkProfileCollector(
-            SecurityContextDataStore dataStore, ContextObservationRecorder contextObservationRecorder) {
-        return new DefaultProtectableWorkProfileCollector(dataStore, contextObservationRecorder);
+            SecurityContextDataStore dataStore, ContextObservationRecorder contexaContextObservationRecorder) {
+        return new DefaultProtectableWorkProfileCollector(dataStore, contexaContextObservationRecorder);
     }
 
-    @Bean
+    @Bean(name = "contexaRoleScopeCollector")
     @ConditionalOnMissingBean
     public RoleScopeCollector roleScopeCollector(SecurityContextDataStore dataStore,
-                                                 ContextObservationRecorder contextObservationRecorder) {
-        return new DefaultRoleScopeCollector(dataStore, contextObservationRecorder);
+                                                 ContextObservationRecorder contexaContextObservationRecorder) {
+        return new DefaultRoleScopeCollector(dataStore, contexaContextObservationRecorder);
     }
 
-    @Bean
+    @Bean(name = "contexaObservedScopeInferenceService")
     @ConditionalOnMissingBean
     public ObservedScopeInferenceService observedScopeInferenceService() {
         return new MetadataObservedScopeInferenceService();
     }
 
 
-    @Bean
+    @Bean(name = "contexaPromptContextAuthorizationService")
     @ConditionalOnMissingBean
     public PromptContextAuthorizationService promptContextAuthorizationService() {
         return new PromptContextAuthorizationService();
     }
 
-    @Bean
+    @Bean(name = "contexaSecurityDecisionStandardPromptTemplate")
     @ConditionalOnMissingBean
     public SecurityDecisionStandardPromptTemplate securityDecisionStandardPromptTemplate(
-            SecurityEventEnricher securityEventEnricher,
+            SecurityEventEnricher contexaSecurityEventEnricher,
             TieredStrategyProperties tieredStrategyProperties,
-            CanonicalSecurityContextProvider canonicalSecurityContextProvider,
-            PromptContextComposer promptContextComposer,
+            CanonicalSecurityContextProvider contexaCanonicalSecurityContextProvider,
+            PromptContextComposer contexaPromptContextComposer,
             ObjectProvider<PromptGovernanceDescriptorResolver> promptGovernanceDescriptorResolver,
             ObjectProvider<PromptRuntimeGovernanceRuleProvider> promptRuntimeGovernanceRuleProvider,
             ObjectProvider<PromptBundleSelector> promptBundleSelector,
             SecurityZeroTrustProperties securityZeroTrustProperties) {
         // Without a selector bean the configured bundle runs (contexa.security.tiered.prompt-bundle.active, W3-16).
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
-                securityEventEnricher,
+                contexaSecurityEventEnricher,
                 tieredStrategyProperties,
-                canonicalSecurityContextProvider,
-                promptContextComposer,
+                contexaCanonicalSecurityContextProvider,
+                contexaPromptContextComposer,
                 promptGovernanceDescriptorResolver.getIfAvailable(PromptGovernanceDescriptorResolver::identity),
                 promptRuntimeGovernanceRuleProvider.getIfAvailable(PromptRuntimeGovernanceRuleProvider::none),
                 promptBundleSelector.getIfAvailable());
@@ -503,8 +503,8 @@ public class CoreAutonomousAutoConfiguration {
      * The executor of the learning writes. With no room, a decision document store the enforcement hands over under the
      * request's lock is left to the vector store retry (QF-25 b, R12); every other task runs on the caller as before.
      */
-    @Bean(destroyMethod = "shutdown")
-    @ConditionalOnMissingBean(name = "securityLearningPostProcessExecutor")
+    @Bean(name = "contexaSecurityLearningPostProcessExecutor", destroyMethod = "shutdown", defaultCandidate = false)
+    @ConditionalOnMissingBean(name = "contexaSecurityLearningPostProcessExecutor")
     public ExecutorService securityLearningPostProcessExecutor() {
         return new ThreadPoolExecutor(
                 2,
@@ -516,51 +516,51 @@ public class CoreAutonomousAutoConfiguration {
                 new LearningStoreRejectionPolicy());
     }
 
-    @Bean
+    @Bean(name = "contexaSecurityLearningService")
     @ConditionalOnMissingBean
     public SecurityLearningService securityLearningService(
             ObjectProvider<BaselineLearningService> baselineLearningServiceProvider,
             ObjectProvider<SecurityDecisionPostProcessor> postProcessorProvider,
-            @Qualifier("securityLearningPostProcessExecutor") ExecutorService securityLearningPostProcessExecutor,
+            @Qualifier("contexaSecurityLearningPostProcessExecutor") ExecutorService contexaSecurityLearningPostProcessExecutor,
             ObjectProvider<ContextObservationRecorder> contextObservationRecorderProvider,
             ObjectProvider<DeletedAccountWriteFence> deletedAccountWriteFence) {
         SecurityLearningService service = new SecurityLearningService(
                 baselineLearningServiceProvider.getIfAvailable(),
                 postProcessorProvider.getIfAvailable(),
-                securityLearningPostProcessExecutor);
+                contexaSecurityLearningPostProcessExecutor);
         // The analysis layers' decision documents are stored once the decision is enforced (W5-3).
         service.setContextObservationRecorder(contextObservationRecorderProvider.getIfAvailable());
         // Q-15: the late writes of a request whose account was deleted after it was taken in are discarded.
         service.setDeletedAccountWriteFence(deletedAccountWriteFence.getIfAvailable());
         return service;
     }
-@Bean
+@Bean(name = "contexaAdminOverrideService")
     @ConditionalOnMissingBean
     public AdminOverrideService adminOverrideService(
-            SecurityLearningService securityLearningService,
+            SecurityLearningService contexaSecurityLearningService,
             ZeroTrustActionRepository actionRedisRepository,
             DistributedLockService lockService,
-            CentralAuditFacade centralAuditFacade,
+            CentralAuditFacade contexaCentralAuditFacade,
             @Nullable DecisionFeedbackForwardingService decisionFeedbackForwardingService,
             @Nullable ThreatOutcomeForwardingService threatOutcomeForwardingService,
             BlockingSignalBroadcaster blockingSignalBroadcaster) {
         return new AdminOverrideService(
-                securityLearningService,
+                contexaSecurityLearningService,
                 actionRedisRepository,
                 lockService,
-                centralAuditFacade,
+                contexaCentralAuditFacade,
                 decisionFeedbackForwardingService,
                 threatOutcomeForwardingService,
                 blockingSignalBroadcaster
                 );
     }
 
-    @Bean
+    @Bean(name = "contexaCentralAuditFacade")
     @ConditionalOnMissingBean
     public CentralAuditFacade centralAuditFacade(
             AuditLogRepository auditLogRepository,
             ApplicationEventPublisher eventPublisher,
-            ObjectMapper objectMapper,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             ObjectProvider<EvidenceSigner> evidenceSigner) {
         CentralAuditFacade facade = new CentralAuditFacade(auditLogRepository, eventPublisher, objectMapper);
         // docs/agent A5-6: decision records are signed and linked.
@@ -572,31 +572,31 @@ public class CoreAutonomousAutoConfiguration {
      * docs/agent A5-6: the signer of decision records and sealed evidence, HMAC-SHA256 over the configured keys
      * ({@code contexa.security.evidence.signing}); an ephemeral key, reported, without one.
      */
-    @Bean
+    @Bean(name = "contexaEvidenceSigner")
     @ConditionalOnMissingBean
     public EvidenceSigner evidenceSigner(EvidenceSigningProperties properties) {
         return HmacEvidenceSigner.of(properties.getKeys(), properties.getActiveKeyId());
     }
 
-    @Bean
+    @Bean(name = "contexaAuditPersistenceListener")
     @ConditionalOnMissingBean
-    public AuditPersistenceListener auditPersistenceListener(CentralAuditFacade centralAuditFacade) {
-        return new AuditPersistenceListener(centralAuditFacade);
+    public AuditPersistenceListener auditPersistenceListener(CentralAuditFacade contexaCentralAuditFacade) {
+        return new AuditPersistenceListener(contexaCentralAuditFacade);
     }
 
-    @Bean
+    @Bean(name = "contexaAuditingHandler")
     @ConditionalOnMissingBean
-    public AuditingHandler auditingHandler(CentralAuditFacade centralAuditFacade) {
-        return new AuditingHandler(centralAuditFacade);
+    public AuditingHandler auditingHandler(CentralAuditFacade contexaCentralAuditFacade) {
+        return new AuditingHandler(contexaCentralAuditFacade);
     }
 
-    @Bean
+    @Bean(name = "contexaSoarContextProviderImpl")
     @ConditionalOnMissingBean
     public SoarContextProviderImpl soarContextProviderImpl(SecurityPlaneProperties securityPlaneProperties) {
         return new SoarContextProviderImpl(securityPlaneProperties);
     }
 
-    @Bean
+    @Bean(name = "contexaSecurityMonitoringService")
     @ConditionalOnMissingBean
     public SecurityMonitoringService securityMonitoringService(
             SecurityEventCollector eventCollector,
@@ -604,7 +604,7 @@ public class CoreAutonomousAutoConfiguration {
         return new SecurityMonitoringService(eventCollector, securityPlaneProperties);
     }
 
-    @Bean
+    @Bean(name = "contexaVectorStoreCacheLayer")
     @ConditionalOnMissingBean
     @ConditionalOnBean(VectorStore.class)
     public VectorStoreCacheLayer vectorStoreCacheLayer(
@@ -613,8 +613,8 @@ public class CoreAutonomousAutoConfiguration {
         return new VectorStoreCacheLayer(vectorStore, tieredStrategyProperties);
     }
 
-    @Bean(destroyMethod = "shutdown")
-    @ConditionalOnMissingBean(name = "layer1RagRetrievalExecutor")
+    @Bean(name = "contexaLayer1RagRetrievalExecutor", destroyMethod = "shutdown", defaultCandidate = false)
+    @ConditionalOnMissingBean(name = "contexaLayer1RagRetrievalExecutor")
     public ExecutorService layer1RagRetrievalExecutor() {
         return new ThreadPoolExecutor(
                 2,
@@ -626,47 +626,47 @@ public class CoreAutonomousAutoConfiguration {
                 new ThreadPoolExecutor.AbortPolicy());
     }
 
-    @Bean
+    @Bean(name = "contexaContextualStrategy")
     @ConditionalOnMissingBean
     @ConditionalOnBean({UnifiedLLMOrchestrator.class, UnifiedVectorService.class, BehaviorVectorService.class, BaselineLearningService.class})
     public Layer1ContextualStrategy contextualStrategy(
-            UnifiedVectorService unifiedVectorService,
+            UnifiedVectorService contexaUnifiedVectorService,
             SecurityContextDataStore dataStore,
-            SecurityEventEnricher securityEventEnricher,
-            SecurityDecisionStandardPromptTemplate securityDecisionStandardPromptTemplate,
-            BehaviorVectorService behaviorVectorService,
-            BaselineLearningService baselineLearningService,
-            SecurityLearningService securityLearningService,
+            SecurityEventEnricher contexaSecurityEventEnricher,
+            SecurityDecisionStandardPromptTemplate contexaSecurityDecisionStandardPromptTemplate,
+            BehaviorVectorService contexaBehaviorVectorService,
+            BaselineLearningService contexaBaselineLearningService,
+            SecurityLearningService contexaSecurityLearningService,
             ObjectProvider<SaasBaselineSeedService> baselineSeedService,
             ObjectProvider<SaasThreatIntelligenceService> threatIntelligenceService,
             ObjectProvider<SaasThreatKnowledgePackService> threatKnowledgePackService,
             ObjectProvider<SaasDetectionStrategyPackService> detectionStrategyPackService,
             ObjectProvider<PromptContextAuditRecorder> promptContextAuditRecorder,
-            PromptContextAuthorizationService promptContextAuthorizationService,
+            PromptContextAuthorizationService contexaPromptContextAuthorizationService,
             ObjectProvider<PipelineOrchestrator> pipelineOrchestrator,
-            StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry,
-            @Qualifier("layer1RagRetrievalExecutor") ExecutorService layer1RagRetrievalExecutor,
+            StructuredOutputCapabilityRegistry contexaStructuredOutputCapabilityRegistry,
+            @Qualifier("contexaLayer1RagRetrievalExecutor") ExecutorService contexaLayer1RagRetrievalExecutor,
             TieredStrategyProperties tieredStrategyProperties,
             SecurityZeroTrustProperties securityZeroTrustProperties,
             ObjectProvider<ModelSelectionStrategy> modelSelectionStrategy) {
         Layer1ContextualStrategy strategy = new Layer1ContextualStrategy(
-                unifiedVectorService,
+                contexaUnifiedVectorService,
                 dataStore,
-                securityEventEnricher,
-                securityDecisionStandardPromptTemplate,
-                behaviorVectorService,
-                baselineLearningService,
-                securityLearningService,
+                contexaSecurityEventEnricher,
+                contexaSecurityDecisionStandardPromptTemplate,
+                contexaBehaviorVectorService,
+                contexaBaselineLearningService,
+                contexaSecurityLearningService,
                 baselineSeedService.getIfAvailable(),
                 threatIntelligenceService.getIfAvailable(),
                 threatKnowledgePackService.getIfAvailable(),
                 detectionStrategyPackService.getIfAvailable(),
-                promptContextAuthorizationService,
+                contexaPromptContextAuthorizationService,
                 promptContextAuditRecorder.getIfAvailable(),
                 pipelineOrchestrator.getIfAvailable(),
                 tieredStrategyProperties,
-                structuredOutputCapabilityRegistry,
-                layer1RagRetrievalExecutor);
+                contexaStructuredOutputCapabilityRegistry,
+                contexaLayer1RagRetrievalExecutor);
         applyMinimumActionSettings(strategy, securityZeroTrustProperties);
         strategy.setModelSelectionStrategy(modelSelectionStrategy::getIfAvailable);
         return strategy;
@@ -687,60 +687,60 @@ public class CoreAutonomousAutoConfiguration {
         };
     }
 
-    @Bean
+    @Bean(name = "contexaExpertStrategy")
     @ConditionalOnMissingBean
     @ConditionalOnBean({UnifiedLLMOrchestrator.class, UnifiedVectorService.class, BehaviorVectorService.class, BaselineLearningService.class})
     public Layer2ExpertStrategy expertStrategy(
             @Autowired(required = false) ApprovalService approvalService,
             SecurityContextDataStore dataStore,
-            SecurityEventEnricher securityEventEnricher,
-            SecurityDecisionStandardPromptTemplate securityDecisionStandardPromptTemplate,
-            UnifiedVectorService unifiedVectorService,
-            BehaviorVectorService behaviorVectorService,
-            BaselineLearningService baselineLearningService,
+            SecurityEventEnricher contexaSecurityEventEnricher,
+            SecurityDecisionStandardPromptTemplate contexaSecurityDecisionStandardPromptTemplate,
+            UnifiedVectorService contexaUnifiedVectorService,
+            BehaviorVectorService contexaBehaviorVectorService,
+            BaselineLearningService contexaBaselineLearningService,
             TieredStrategyProperties tieredStrategyProperties,
-            SecurityLearningService securityLearningService,
+            SecurityLearningService contexaSecurityLearningService,
             ObjectProvider<SaasBaselineSeedService> baselineSeedService,
             ObjectProvider<SaasThreatIntelligenceService> threatIntelligenceService,
             ObjectProvider<SaasThreatKnowledgePackService> threatKnowledgePackService,
             ObjectProvider<SaasDetectionStrategyPackService> detectionStrategyPackService,
             ObjectProvider<PromptContextAuditRecorder> promptContextAuditRecorder,
-            PromptContextAuthorizationService promptContextAuthorizationService,
+            PromptContextAuthorizationService contexaPromptContextAuthorizationService,
             ObjectProvider<PipelineOrchestrator> pipelineOrchestrator,
-            StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry,
+            StructuredOutputCapabilityRegistry contexaStructuredOutputCapabilityRegistry,
             SecurityZeroTrustProperties securityZeroTrustProperties,
             ObjectProvider<ModelSelectionStrategy> modelSelectionStrategy) {
         Layer2ExpertStrategy strategy = new Layer2ExpertStrategy(
                 approvalService,
                 dataStore,
-                securityEventEnricher,
-                securityDecisionStandardPromptTemplate,
-                unifiedVectorService,
-                behaviorVectorService,
-                baselineLearningService,
+                contexaSecurityEventEnricher,
+                contexaSecurityDecisionStandardPromptTemplate,
+                contexaUnifiedVectorService,
+                contexaBehaviorVectorService,
+                contexaBaselineLearningService,
                 tieredStrategyProperties,
-                securityLearningService,
+                contexaSecurityLearningService,
                 baselineSeedService.getIfAvailable(),
                 threatIntelligenceService.getIfAvailable(),
                 threatKnowledgePackService.getIfAvailable(),
                 detectionStrategyPackService.getIfAvailable(),
-                promptContextAuthorizationService,
+                contexaPromptContextAuthorizationService,
                 promptContextAuditRecorder.getIfAvailable(),
                 pipelineOrchestrator.getIfAvailable(),
-                structuredOutputCapabilityRegistry);
+                contexaStructuredOutputCapabilityRegistry);
         applyMinimumActionSettings(strategy, securityZeroTrustProperties);
         strategy.setModelSelectionStrategy(modelSelectionStrategy::getIfAvailable);
         return strategy;
     }
 
-    @Bean
+    @Bean(name = "contexaSecurityDecisionPostProcessor")
     @ConditionalOnBean(UnifiedVectorService.class)
     @ConditionalOnMissingBean
     public SecurityDecisionPostProcessor securityDecisionPostProcessor(
             SecurityContextDataStore dataStore,
-            UnifiedVectorService unifiedVectorService,
+            UnifiedVectorService contexaUnifiedVectorService,
             ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustProperties) {
-        SecurityDecisionPostProcessor postProcessor = new SecurityDecisionPostProcessor(dataStore, unifiedVectorService);
+        SecurityDecisionPostProcessor postProcessor = new SecurityDecisionPostProcessor(dataStore, contexaUnifiedVectorService);
         SecurityZeroTrustProperties properties = securityZeroTrustProperties.getIfAvailable();
         if (properties != null && properties.getBaseline() != null && properties.getBaseline().getPromotion() != null) {
             // The past record of an allowed request the learning promotion holds is stored held (W5-1).
@@ -749,22 +749,22 @@ public class CoreAutonomousAutoConfiguration {
         return postProcessor;
     }
 
-    @Bean
+    @Bean(name = "contexaSecurityPlaneAgent")
     @ConditionalOnMissingBean
     public SecurityPlaneAgent securityPlaneAgent(
             SecurityMonitoringService securityMonitor,
             SecurityContextDataStore dataStore,
-            CentralAuditFacade centralAuditFacade,
+            CentralAuditFacade contexaCentralAuditFacade,
             SecurityEventProcessor processingOrchestrator,
             SecurityPlaneProperties securityPlaneProperties,
-            @Qualifier("llmAnalysisExecutor") Executor llmAnalysisExecutor,
+            @Qualifier("contexaLlmAnalysisExecutor") Executor llmAnalysisExecutor,
             ObjectProvider<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterProvider,
             ZeroTrustActionRepository zeroTrustActionRepository,
             ObjectProvider<SecurityDecisionEnforcementHandler> decisionEnforcementHandlerProvider,
             ObjectProvider<QueuedAgentEventRecheck> queuedAgentEventRecheckProvider
     ) {
         SecurityPlaneAgent agent = new SecurityPlaneAgent(
-                securityMonitor, dataStore, centralAuditFacade,
+                securityMonitor, dataStore, contexaCentralAuditFacade,
                 processingOrchestrator, securityPlaneProperties, llmAnalysisExecutor);
         // docs/agent RL-12 (QD): an agent's queued event is read against the stored decisions again at its turn.
         agent.setQueuedEventRecheck(event -> {
@@ -778,7 +778,7 @@ public class CoreAutonomousAutoConfiguration {
     }
 
     /** docs/agent RL-12 (QD): what answers a queued agent event without a new analysis when its turn comes. */
-    @Bean
+    @Bean(name = "contexaQueuedAgentEventRecheck")
     @ConditionalOnMissingBean
     public QueuedAgentEventRecheck queuedAgentEventRecheck(
             ZeroTrustActionRepository zeroTrustActionRepository,
@@ -788,26 +788,26 @@ public class CoreAutonomousAutoConfiguration {
                 unanalysedRequestRecorder.getIfAvailable());
     }
 
-    @Bean
+    @Bean(name = "contexaEventTimeZoneRegistrar")
     @ConditionalOnMissingBean
     public EventTimeZoneRegistrar eventTimeZoneRegistrar(SecurityPlaneProperties securityPlaneProperties) {
         return new EventTimeZoneRegistrar(securityPlaneProperties);
     }
 
-    @Bean
+    @Bean(name = "contexaAuthorizationDenialRecorder")
     @ConditionalOnMissingBean
     public AuthorizationDenialRecorder authorizationDenialRecorder(
-            ZeroTrustEventPublisher zeroTrustEventPublisher,
+            ZeroTrustEventPublisher contexaZeroTrustEventPublisher,
             SecurityContextDataStore securityContextDataStore,
             ObjectProvider<RoleScopeCollector> roleScopeCollectorProvider,
-            ContextObservationRecorder contextObservationRecorder) {
+            ContextObservationRecorder contexaContextObservationRecorder) {
         return new AuthorizationDenialRecorder(
-                zeroTrustEventPublisher, securityContextDataStore, roleScopeCollectorProvider.getIfAvailable(),
-                contextObservationRecorder);
+                contexaZeroTrustEventPublisher, securityContextDataStore, roleScopeCollectorProvider.getIfAvailable(),
+                contexaContextObservationRecorder);
     }
 
     /** Learns, once the user is verified, the request a restriction stopped, at a reduced weight (W5-2). */
-    @Bean
+    @Bean(name = "contexaVerificationLearningService")
     @ConditionalOnMissingBean
     public VerificationLearningService verificationLearningService(
             SecurityContextDataStore securityContextDataStore,
@@ -830,7 +830,7 @@ public class CoreAutonomousAutoConfiguration {
      * Holds back an allowed request whose first-seen values on a sensitive resource no record explains, and learns it
      * once they are seen on other days or verified (W5-1, plan L1).
      */
-    @Bean
+    @Bean(name = "contexaLearningPromotionService")
     @ConditionalOnMissingBean
     public LearningPromotionService learningPromotionService(
             SecurityContextDataStore securityContextDataStore,
@@ -850,42 +850,42 @@ public class CoreAutonomousAutoConfiguration {
      * Keeps a request answered by the decision in force, which reaches no analysis, in its session (N-SES-1), and
      * learns the first one sent again after a passed step-up of those a web filter stopped (N-LRN-3).
      */
-    @Bean
+    @Bean(name = "contexaUnanalysedRequestRecorder")
     @ConditionalOnMissingBean
     public UnanalysedRequestRecorder unanalysedRequestRecorder(
-            SessionNarrativeCollector sessionNarrativeCollector,
-            ContextObservationRecorder contextObservationRecorder,
+            SessionNarrativeCollector contexaSessionNarrativeCollector,
+            ContextObservationRecorder contexaContextObservationRecorder,
             SecurityZeroTrustProperties securityZeroTrustProperties,
-            ZeroTrustEventPublisher zeroTrustEventPublisher,
+            ZeroTrustEventPublisher contexaZeroTrustEventPublisher,
             ObjectProvider<VerificationLearningService> verificationLearningService) {
-        UnanalysedRequestRecorder recorder = new UnanalysedRequestRecorder(sessionNarrativeCollector,
-                contextObservationRecorder, securityZeroTrustProperties, zeroTrustEventPublisher);
+        UnanalysedRequestRecorder recorder = new UnanalysedRequestRecorder(contexaSessionNarrativeCollector,
+                contexaContextObservationRecorder, securityZeroTrustProperties, contexaZeroTrustEventPublisher);
         recorder.setVerificationLearningService(verificationLearningService.getIfAvailable());
         return recorder;
     }
 
-    @Bean
+    @Bean(name = "contexaSessionRecordsIdChangeListener")
     @ConditionalOnMissingBean
     public SessionRecordsIdChangeListener sessionRecordsIdChangeListener(
             SecurityContextDataStore securityContextDataStore) {
         return new SessionRecordsIdChangeListener(securityContextDataStore);
     }
 
-    @Bean
+    @Bean(name = "contexaSynchronousProtectableDecisionService")
     @ConditionalOnMissingBean
     public SynchronousProtectableDecisionService synchronousProtectableDecisionService(
-            ZeroTrustEventPublisher zeroTrustEventPublisher,
-            ZeroTrustEventListener zeroTrustEventListener,
-            SecurityPlaneAgent securityPlaneAgent,
+            ZeroTrustEventPublisher contexaZeroTrustEventPublisher,
+            ZeroTrustEventListener contexaZeroTrustEventListener,
+            SecurityPlaneAgent contexaSecurityPlaneAgent,
             ZeroTrustActionRepository actionRepository,
             ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder,
             SecurityZeroTrustProperties securityZeroTrustProperties,
             ObjectProvider<AgentAllowReuse> agentAllowReuse,
             ObjectProvider<AgentDecisionFlights> agentDecisionFlights) {
         SynchronousProtectableDecisionService service = new SynchronousProtectableDecisionService(
-                zeroTrustEventPublisher,
-                zeroTrustEventListener,
-                securityPlaneAgent,
+                contexaZeroTrustEventPublisher,
+                contexaZeroTrustEventListener,
+                contexaSecurityPlaneAgent,
                 actionRepository);
         service.setUnanalysedRequestRecorder(unanalysedRequestRecorder.getIfAvailable());
         // A1-5: contexa.security.zerotrust.protectable.unrecorded-agent-request
@@ -900,7 +900,7 @@ public class CoreAutonomousAutoConfiguration {
      * The step-up flow of a CHALLENGE decided in the request starts through the identity module's starter (its
      * challenge filter), looked up when the answer is written so the bean order does not matter.
      */
-    @Bean
+    @Bean(name = "contexaZeroTrustExceptionHandler")
     @ConditionalOnMissingBean
     public ZeroTrustExceptionHandler zeroTrustExceptionHandler(
             ObjectProvider<ZeroTrustChallengeFlowStarter> challengeFlowStarters) {
@@ -917,41 +917,41 @@ public class CoreAutonomousAutoConfiguration {
     static class DistributedRepositoryConfiguration {
 
         /** BR-C11 (DD-52): each baseline is kept for the configured retention after its last learning. */
-        @Bean
+        @Bean(name = "contexaBaselineDataStore")
         @ConditionalOnMissingBean(BaselineDataStore.class)
         public RedisBaselineDataStore baselineDataStore(
-                @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate,
+                @Qualifier("contexaGeneralRedisTemplate") RedisTemplate<String, Object> redisTemplate,
                 SecurityZeroTrustProperties securityZeroTrustProperties) {
             return new RedisBaselineDataStore(redisTemplate, securityZeroTrustProperties.getBaseline().getRetention());
         }
 
-        @Bean
+        @Bean(name = "contexaZeroTrustActionRedisRepository")
         @ConditionalOnMissingBean(ZeroTrustActionRepository.class)
         public ZeroTrustActionRedisRepository zeroTrustActionRedisRepository(
-                @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate,
+                @Qualifier("contexaGeneralRedisTemplate") RedisTemplate<String, Object> redisTemplate,
                 StringRedisTemplate stringRedisTemplate) {
             return new ZeroTrustActionRedisRepository(redisTemplate, stringRedisTemplate);
         }
 
-        @Bean
+        @Bean(name = "contexaRedisProtectableRapidReentryRepository")
         @ConditionalOnMissingBean(ProtectableRapidReentryRepository.class)
         public RedisProtectableRapidReentryRepository redisProtectableRapidReentryRepository(
                 StringRedisTemplate stringRedisTemplate) {
             return new RedisProtectableRapidReentryRepository(stringRedisTemplate);
         }
 
-        @Bean
+        @Bean(name = "contexaRedisThreatScoreUtil")
         @ConditionalOnMissingBean(ThreatScoreUtil.class)
         public RedisThreatScoreUtil redisThreatScoreUtil(
-                @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate,
+                @Qualifier("contexaGeneralRedisTemplate") RedisTemplate<String, Object> redisTemplate,
                 SecurityZeroTrustProperties securityZeroTrustProperties) {
             return new RedisThreatScoreUtil(redisTemplate, securityZeroTrustProperties);
         }
 
-        @Bean
+        @Bean(name = "contexaRedisSecurityContextDataStore")
         @ConditionalOnMissingBean(SecurityContextDataStore.class)
         public RedisSecurityContextDataStore redisSecurityContextDataStore(
-                @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate,
+                @Qualifier("contexaGeneralRedisTemplate") RedisTemplate<String, Object> redisTemplate,
                 ObjectProvider<SecurityPlaneProperties> securityPlaneProperties) {
             RedisSecurityContextDataStore store = new RedisSecurityContextDataStore(redisTemplate);
             SecurityPlaneProperties properties = securityPlaneProperties.getIfAvailable();
@@ -964,15 +964,15 @@ public class CoreAutonomousAutoConfiguration {
             return store;
         }
 
-        @Bean
+        @Bean(name = "contexaRedisDistributedLockService")
         @ConditionalOnMissingBean(DistributedLockService.class)
         public RedisDistributedLockService redisDistributedLockService(
-                @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
+                @Qualifier("contexaGeneralRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
             return new RedisDistributedLockService(redisTemplate);
         }
     }
 
-    @Bean
+    @Bean(name = "contexaInMemoryZeroTrustActionRepository")
     @ConditionalOnMissingBean(ZeroTrustActionRepository.class)
       @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
       public InMemoryZeroTrustActionRepository inMemoryZeroTrustActionRepository(
@@ -984,7 +984,7 @@ public class CoreAutonomousAutoConfiguration {
       }
 
       /** BR-C11 (DD-52): the in-memory store keeps each baseline for the same configured retention. */
-      @Bean
+      @Bean(name = "contexaBaselineDataStore")
       @ConditionalOnMissingBean(BaselineDataStore.class)
       @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
       public InMemoryBaselineDataStore baselineDataStore(SecurityZeroTrustProperties securityZeroTrustProperties) {
@@ -993,21 +993,21 @@ public class CoreAutonomousAutoConfiguration {
                   ? retention : RedisBaselineDataStore.DEFAULT_BASELINE_TTL);
       }
 
-    @Bean(destroyMethod = "close")
+    @Bean(name = "contexaInMemoryProtectableRapidReentryRepository", destroyMethod = "close")
     @ConditionalOnMissingBean(ProtectableRapidReentryRepository.class)
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
     public InMemoryProtectableRapidReentryRepository inMemoryProtectableRapidReentryRepository() {
         return new InMemoryProtectableRapidReentryRepository();
     }
 
-    @Bean
+    @Bean(name = "contexaInMemoryDistributedLockService")
     @ConditionalOnMissingBean(DistributedLockService.class)
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
     public InMemoryDistributedLockService inMemoryDistributedLockService() {
         return new InMemoryDistributedLockService();
     }
 
-    @Bean
+    @Bean(name = "contexaInMemoryThreatScoreUtil")
     @ConditionalOnMissingBean(ThreatScoreUtil.class)
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
     public InMemoryThreatScoreUtil inMemoryThreatScoreUtil(
@@ -1015,7 +1015,7 @@ public class CoreAutonomousAutoConfiguration {
         return new InMemoryThreatScoreUtil(securityZeroTrustProperties);
     }
 
-    @Bean
+    @Bean(name = "contexaInMemorySecurityContextDataStore")
     @ConditionalOnMissingBean(SecurityContextDataStore.class)
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
     public InMemorySecurityContextDataStore inMemorySecurityContextDataStore(
@@ -1041,7 +1041,7 @@ public class CoreAutonomousAutoConfiguration {
      * QF-32: the default infrastructure mode keeps what is learned in memory; one warning at startup says so when the
      * in-memory baseline, observation and hold stores are the ones in use.
      */
-    @Bean
+    @Bean(name = "contexaStandaloneLearningStateWarning")
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
     public StandaloneLearningStateWarning standaloneLearningStateWarning(
             ObjectProvider<BaselineDataStore> baselineDataStore,
@@ -1051,7 +1051,7 @@ public class CoreAutonomousAutoConfiguration {
     }
 
     /** Discards the late writes of a deleted account's requests for the analysis budget and a margin (Q-15). */
-    @Bean
+    @Bean(name = "contexaDeletedAccountWriteFence")
     @ConditionalOnMissingBean
     public DeletedAccountWriteFence deletedAccountWriteFence(
             ObjectProvider<SecurityContextDataStore> securityContextDataStore,
@@ -1063,7 +1063,7 @@ public class CoreAutonomousAutoConfiguration {
         return new DeletedAccountWriteFence(securityContextDataStore.getIfAvailable(), retention);
     }
 
-    @Bean
+    @Bean(name = "contexaUserEngineStatePurger")
     @ConditionalOnMissingBean
     public UserEngineStatePurger userEngineStatePurger(
             ZeroTrustActionRepository zeroTrustActionRepository,
@@ -1093,7 +1093,7 @@ public class CoreAutonomousAutoConfiguration {
     }
 
     /** Removes the security bridge's mirror users of a deleted account; skips itself without the user tables. */
-    @Bean
+    @Bean(name = "contexaBridgeMirrorUserStatePurgeContributor")
     public UserStatePurgeContributor bridgeMirrorUserStatePurgeContributor(
             ObjectProvider<UserRepository> userRepository,
             ObjectProvider<BridgeUserProfileRepository> bridgeUserProfileRepository,
@@ -1103,13 +1103,13 @@ public class CoreAutonomousAutoConfiguration {
                 userRolePermissionRepository, contexaTransactionManager);
     }
 
-    @Bean
+    @Bean(name = "contexaUserAccountDeletionListener")
     @ConditionalOnMissingBean
-    public UserAccountDeletionListener userAccountDeletionListener(UserEngineStatePurger userEngineStatePurger) {
-        return new UserAccountDeletionListener(userEngineStatePurger);
+    public UserAccountDeletionListener userAccountDeletionListener(UserEngineStatePurger contexaUserEngineStatePurger) {
+        return new UserAccountDeletionListener(contexaUserEngineStatePurger);
     }
 
-    @Bean(destroyMethod = "close")
+    @Bean(name = "contexaInMemoryStateSweeper", destroyMethod = "close")
     @ConditionalOnMissingBean
     public InMemoryStateSweeper inMemoryStateSweeper(ObjectProvider<ExpiringStateStore> expiringStateStores) {
         return new InMemoryStateSweeper(

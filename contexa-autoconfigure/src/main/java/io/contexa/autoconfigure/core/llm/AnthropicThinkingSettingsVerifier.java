@@ -46,7 +46,7 @@ import org.springframework.core.env.Environment;
 public class AnthropicThinkingSettingsVerifier implements SmartInitializingSingleton, EnvironmentAware, BeanFactoryAware {
 
     private static final String TIERED_PREFIX = "contexa.security.tiered";
-    private static final String PRIMARY_CHAT_MODEL = "primaryChatModel";
+    private static final String PRIMARY_CHAT_MODEL = "contexaPrimaryChatModel";
 
     private Environment environment;
     private BeanFactory beanFactory;

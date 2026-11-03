@@ -26,12 +26,13 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 @Component
 public class JsonAuthResponseWriter implements AuthResponseWriter {
     private final ObjectMapper objectMapper;
 
-    public JsonAuthResponseWriter(ObjectMapper objectMapper) {
+    public JsonAuthResponseWriter(@Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         this.objectMapper = Objects.requireNonNull(objectMapper, "ObjectMapper cannot be null");
     }
 

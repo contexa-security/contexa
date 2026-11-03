@@ -29,7 +29,7 @@ import org.springframework.core.env.Environment;
 @ConditionalOnClass(name = "org.springframework.ai.openai.OpenAiChatModel")
 public class OpenAiChatModelOptionsAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaProviderAwareChatOptionsEnvironmentBridge")
     public static BeanFactoryPostProcessor providerAwareChatOptionsEnvironmentBridge(Environment environment) {
         return beanFactory -> {
             OpenAiModelCapabilitiesProperties capabilities = Binder.get(environment)
@@ -45,7 +45,7 @@ public class OpenAiChatModelOptionsAutoConfiguration {
         };
     }
 
-    @Bean
+    @Bean(name = "contexaOpenAiChatModelPostProcessor")
     public static OpenAiChatModelPostProcessor openAiChatModelPostProcessor() {
         return new OpenAiChatModelPostProcessor();
     }

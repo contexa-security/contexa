@@ -36,7 +36,7 @@ public class OllamaChatModelOptionsAutoConfiguration {
 
     static final String DISABLE_THINKING_PATTERNS = "contexa.llm.model-capabilities.ollama.disable-thinking-patterns";
 
-    @Bean
+    @Bean(name = "contexaOllamaModelCapabilitiesEnvironmentBridge")
     public static CapabilitiesBridge ollamaModelCapabilitiesEnvironmentBridge() {
         return new CapabilitiesBridge();
     }

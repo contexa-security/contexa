@@ -185,7 +185,7 @@ public class IdentityOAuth2AutoConfiguration {
         this.zeroTrustProperties = zeroTrustProperties;
     }
 
-    @Bean
+    @Bean(name = "contexaOauth2StateAdapter")
     @ConditionalOnMissingBean(OAuth2StateAdapter.class)
     public OAuth2StateAdapter oauth2StateAdapter() {
         return new OAuth2StateAdapter();
@@ -219,7 +219,7 @@ public class IdentityOAuth2AutoConfiguration {
     }
 
 
-    @Bean
+    @Bean(name = "contexaJwtEncoder")
     @ConditionalOnMissingBean(JwtEncoder.class)
     public JwtEncoder jwtEncoder(JWKSource<SecurityContext> jwkSource) {
         return new NimbusJwtEncoder(jwkSource);
@@ -297,7 +297,7 @@ public class IdentityOAuth2AutoConfiguration {
         }
     }
 
-    @Bean
+    @Bean(name = "contexaAuthorizationService")
     @ConditionalOnMissingBean(OAuth2AuthorizationService.class)
     public OAuth2AuthorizationService authorizationService(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
@@ -458,7 +458,7 @@ public class IdentityOAuth2AutoConfiguration {
      * customizer below. An application that declares its own generator adds those claims itself.
      */
 
-    @Bean
+    @Bean(name = "contexaTokenCustomizer")
     @ConditionalOnMissingBean(OAuth2TokenCustomizer.class)
     public OAuth2TokenCustomizer<JwtEncodingContext> tokenCustomizer(
             ObjectProvider<DelegationRegistry> delegationRegistry,
@@ -622,37 +622,37 @@ public class IdentityOAuth2AutoConfiguration {
     /** The most of a person's delegations to one agent read when a token is exchanged. */
     private static final int DELEGATION_CANDIDATES = 50;
 
-    @Bean
+    @Bean(name = "contexaOauth2TokenValidator")
     @ConditionalOnMissingBean(TokenValidator.class)
     public TokenValidator oauth2TokenValidator(
             JwtDecoder jwtDecoder,
-            OAuth2AuthorizationService authorizationService) {
+            OAuth2AuthorizationService contexaAuthorizationService) {
 
         long rotateThresholdMillis = authContextProperties.getRefreshTokenValidity() / 2;
 
         return new OAuth2TokenValidator(
                 jwtDecoder,
-                authorizationService,
+                contexaAuthorizationService,
                 rotateThresholdMillis);
     }
 
-    @Bean
+    @Bean(name = "contexaOauth2TokenService")
     @ConditionalOnMissingBean(TokenService.class)
     public TokenService oauth2TokenService(
-            OAuth2AuthorizedClientManager authorizedClientManager,
-            ClientRegistrationRepository clientRegistrationRepository,
-            OAuth2AuthorizationService authorizationService,
-            TokenValidator oauth2TokenValidator,
-            ObjectMapper objectMapper,
+            OAuth2AuthorizedClientManager contexaAuthorizedClientManager,
+            ClientRegistrationRepository contexaClientRegistrationRepository,
+            OAuth2AuthorizationService contexaAuthorizationService,
+            TokenValidator contexaOauth2TokenValidator,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             ObjectProvider<ZeroTrustActionRepository> zeroTrustActionRepositoryProvider) {
 
         TokenTransportStrategy transport = TokenTransportStrategyFactory.create(authContextProperties);
 
         OAuth2TokenService tokenService = new OAuth2TokenService(
-                authorizedClientManager,
-                clientRegistrationRepository,
-                authorizationService,
-                oauth2TokenValidator,
+                contexaAuthorizedClientManager,
+                contexaClientRegistrationRepository,
+                contexaAuthorizationService,
+                contexaOauth2TokenValidator,
                 authContextProperties,
                 objectMapper,
                 transport);
@@ -660,14 +660,14 @@ public class IdentityOAuth2AutoConfiguration {
         return tokenService;
     }
 
-    @Bean("oauth2TokenSuccessHandler")
-    @ConditionalOnMissingBean(name = "oauth2TokenSuccessHandler")
+    @Bean("contexaOauth2TokenSuccessHandler")
+    @ConditionalOnMissingBean(name = "contexaOauth2TokenSuccessHandler")
     public AuthenticationSuccessHandler oauth2TokenSuccessHandler() {
         return new OAuth2TokenSuccessHandler();
     }
 
-    @Bean("compositeLogoutHandler")
-    @ConditionalOnMissingBean(name = "compositeLogoutHandler")
+    @Bean("contexaCompositeLogoutHandler")
+    @ConditionalOnMissingBean(name = "contexaCompositeLogoutHandler")
     public CompositeLogoutHandler compositeLogoutHandler(
             TokenService tokenService,
             AuthContextProperties authContextProperties,
@@ -691,15 +691,15 @@ public class IdentityOAuth2AutoConfiguration {
                 authorizationService);
     }
 
-    @Bean("oauth2LogoutSuccessHandler")
-    @ConditionalOnMissingBean(name = "oauth2LogoutSuccessHandler")
+    @Bean("contexaOauth2LogoutSuccessHandler")
+    @ConditionalOnMissingBean(name = "contexaOauth2LogoutSuccessHandler")
     public LogoutSuccessHandler oauth2LogoutSuccessHandler(AuthResponseWriter responseWriter) {
         return new OAuth2LogoutSuccessHandler(responseWriter);
     }
 
     @Primary
-    @Bean
-    @ConditionalOnMissingBean(name = "clientRegistrationRepository")
+    @Bean(name = "contexaClientRegistrationRepository")
+    @ConditionalOnMissingBean(name = "contexaClientRegistrationRepository")
     public ClientRegistrationRepository clientRegistrationRepository(
             RegisteredClientRepository registeredClientRepository) {
         OAuth2TokenSettings oauth2 = authContextProperties.getOauth2();
@@ -843,25 +843,25 @@ public class IdentityOAuth2AutoConfiguration {
     }
 
     @Primary
-    @Bean
-    @ConditionalOnMissingBean(name = "authorizedClientRepository")
+    @Bean(name = "contexaAuthorizedClientRepository")
+    @ConditionalOnMissingBean(name = "contexaAuthorizedClientRepository")
     public OAuth2AuthorizedClientRepository authorizedClientRepository() {
         return new HttpSessionOAuth2AuthorizedClientRepository();
     }
 
     @Primary
-    @Bean
-    @ConditionalOnMissingBean(name = "authorizedClientManager")
+    @Bean(name = "contexaAuthorizedClientManager")
+    @ConditionalOnMissingBean(name = "contexaAuthorizedClientManager")
     public OAuth2AuthorizedClientManager authorizedClientManager(
-            ClientRegistrationRepository clientRegistrationRepository,
+            ClientRegistrationRepository contexaClientRegistrationRepository,
             ObjectProvider<FilterChainProxy> filterChainProxyProvider,
             RegisteredClientRepository registeredClientRepository,
-            OAuth2AuthorizationService authorizationService) {
+            OAuth2AuthorizationService contexaAuthorizationService) {
 
         InProcessOAuth2TokenEndpoint tokenEndpoint = new InProcessOAuth2TokenEndpoint(
                 filterChainProxyProvider,
                 new ClientSecretBasicAuthenticationConverter(),
-                new ClientSecretAuthenticationProvider(registeredClientRepository, authorizationService));
+                new ClientSecretAuthenticationProvider(registeredClientRepository, contexaAuthorizationService));
 
         AuthenticatedUserOAuth2AuthorizedClientProvider authenticatedUserProvider =
                 new AuthenticatedUserOAuth2AuthorizedClientProvider(
@@ -874,7 +874,7 @@ public class IdentityOAuth2AutoConfiguration {
                 .build();
 
         DefaultOAuth2AuthorizedClientManager authorizedClientManager = new DefaultOAuth2AuthorizedClientManager(
-                clientRegistrationRepository,
+                contexaClientRegistrationRepository,
                 new TransientOAuth2AuthorizedClientRepository());
 
         authorizedClientManager.setAuthorizedClientProvider(authorizedClientProvider);

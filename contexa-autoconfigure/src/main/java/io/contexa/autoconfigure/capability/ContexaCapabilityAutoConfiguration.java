@@ -41,7 +41,7 @@ import java.util.List;
 @EnableConfigurationProperties(ContexaCapabilityProperties.class)
 public class ContexaCapabilityAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaCapabilityRequirementResolver")
     @ConditionalOnMissingBean
     public CapabilityRequirementResolver capabilityRequirementResolver(
             ContexaCapabilityProperties properties,
@@ -50,7 +50,7 @@ public class ContexaCapabilityAutoConfiguration {
         return new CapabilityRequirementResolver(properties, environment, beanFactory);
     }
 
-    @Bean
+    @Bean(name = "contexaCoreCapabilityContributor")
     @ConditionalOnMissingBean
     public CoreCapabilityContributor coreCapabilityContributor(
             ListableBeanFactory beanFactory,
@@ -79,7 +79,7 @@ public class ContexaCapabilityAutoConfiguration {
     @ConditionalOnProperty(prefix = "contexa.capability", name = "expose-diagnostics-endpoint", havingValue = "true", matchIfMissing = true)
     static class EndpointConfiguration {
 
-        @Bean
+        @Bean(name = "contexaCapabilityDiagnosticsEndpoint")
         @ConditionalOnMissingBean
         CapabilityDiagnosticsEndpoint capabilityDiagnosticsEndpoint(
                 ContexaCapabilityRegistry registry,

@@ -40,18 +40,18 @@ import org.springframework.core.env.Environment;
 @ConditionalOnClass(name = "org.springframework.ai.anthropic.AnthropicChatModel")
 public class AnthropicChatModelOptionsAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaAnthropicModelCapabilitiesEnvironmentBridge")
     public static CapabilitiesBridge anthropicModelCapabilitiesEnvironmentBridge() {
         return new CapabilitiesBridge();
     }
 
-    @Bean
+    @Bean(name = "contexaAnthropicChatModelPostProcessor")
     public static AnthropicChatModelPostProcessor anthropicChatModelPostProcessor() {
         return new AnthropicChatModelPostProcessor();
     }
 
     /** Design 4.5-A: the start refuses the Anthropic thinking settings a layer model or Spring AI 1.1 contradicts. */
-    @Bean
+    @Bean(name = "contexaAnthropicThinkingSettingsVerifier")
     public static AnthropicThinkingSettingsVerifier anthropicThinkingSettingsVerifier() {
         return new AnthropicThinkingSettingsVerifier();
     }

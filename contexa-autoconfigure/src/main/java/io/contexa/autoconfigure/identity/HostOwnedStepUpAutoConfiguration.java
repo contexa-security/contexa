@@ -86,7 +86,7 @@ public class HostOwnedStepUpAutoConfiguration {
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     static class DistributedStepUpOptions {
 
-        @Bean
+        @Bean(name = "contexaStepUpOptionsStore")
         @ConditionalOnMissingBean(StepUpOptionsStore.class)
         @ConditionalOnBean(StringRedisTemplate.class)
         public StepUpOptionsStore stepUpOptionsStore(StringRedisTemplate redis) {
@@ -94,13 +94,13 @@ public class HostOwnedStepUpAutoConfiguration {
         }
     }
 
-    @Bean
+    @Bean(name = "contexaInMemoryStepUpOptionsStore")
     @ConditionalOnMissingBean(StepUpOptionsStore.class)
     public StepUpOptionsStore inMemoryStepUpOptionsStore() {
         return new InMemoryStepUpOptionsStore();
     }
 
-    @Bean
+    @Bean(name = "contexaHostOwnedStepUpService")
     @ConditionalOnMissingBean
     public HostOwnedStepUpService hostOwnedStepUpService(
             ZeroTrustActionRepository actionRepository,
@@ -108,7 +108,7 @@ public class HostOwnedStepUpAutoConfiguration {
             BridgeProperties bridgeProperties,
             AuthContextProperties authContextProperties,
             Environment environment,
-            StepUpOptionsStore stepUpOptionsStore,
+            StepUpOptionsStore contexaStepUpOptionsStore,
             ObjectProvider<SecurityLearningService> securityLearningService,
             ObjectProvider<VerificationLearningService> verificationLearningService,
             ObjectProvider<SecurityContextDataStore> securityContextDataStore,
@@ -135,29 +135,29 @@ public class HostOwnedStepUpAutoConfiguration {
                 ? relyingParty(entities, credentials, authContextProperties, environment) : null;
 
         return new HostOwnedStepUpService(actionRepository, resolution, userRepository,
-                bridgeProperties.getSync().getSyntheticEmailDomain(), stepUpOptionsStore,
+                bridgeProperties.getSync().getSyntheticEmailDomain(), contexaStepUpOptionsStore,
                 stepUpCodes, emailService.getIfAvailable(), relyingParty, entities,
                 credentials, passkeyCreationOptionsCodec.getIfAvailable(DefaultPasskeyCreationOptionsCodec::new),
                 bridgeProperties.getStepUp().getReauthenticationUrl());
     }
 
-    @Bean
+    @Bean(name = "contexaHostOwnedStepUpController")
     @ConditionalOnMissingBean
-    public HostOwnedStepUpController hostOwnedStepUpController(HostOwnedStepUpService hostOwnedStepUpService) {
-        return new HostOwnedStepUpController(hostOwnedStepUpService);
+    public HostOwnedStepUpController hostOwnedStepUpController(HostOwnedStepUpService contexaHostOwnedStepUpService) {
+        return new HostOwnedStepUpController(contexaHostOwnedStepUpService);
     }
 
     /** The application's interactive sign-in goes to the engine as Contexa's own does (ownership design S-8). */
-    @Bean
+    @Bean(name = "contexaHostOwnedSignInListener")
     @ConditionalOnMissingBean
     @ConditionalOnBean(ZeroTrustEventPublisher.class)
-    public HostOwnedSignInListener hostOwnedSignInListener(ZeroTrustEventPublisher zeroTrustEventPublisher) {
-        return new HostOwnedSignInListener(zeroTrustEventPublisher);
+    public HostOwnedSignInListener hostOwnedSignInListener(ZeroTrustEventPublisher contexaZeroTrustEventPublisher) {
+        return new HostOwnedSignInListener(contexaZeroTrustEventPublisher);
     }
 
     /** Contexa's pages for the signed-in user answer only a signed-in user (ownership design S-3). */
-    @Bean
-    @ConditionalOnMissingBean(name = "hostOwnedUserPathGuardRegistration")
+    @Bean(name = "contexaHostOwnedUserPathGuardRegistration")
+    @ConditionalOnMissingBean(name = "contexaHostOwnedUserPathGuardRegistration")
     public FilterRegistrationBean<HostOwnedUserPathGuard> hostOwnedUserPathGuardRegistration(
             ObjectProvider<SecurityProperties> securityProperties) {
         FilterRegistrationBean<HostOwnedUserPathGuard> registration =

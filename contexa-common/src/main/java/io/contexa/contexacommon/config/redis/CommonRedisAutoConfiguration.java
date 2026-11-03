@@ -49,9 +49,9 @@ public class CommonRedisAutoConfiguration {
      * application-defined {@code RedisTemplate<String, Object>} wins plain by-type injection;
      * Contexa injection points select this template by name.
      */
-    @Bean(name = "generalRedisTemplate")
+    @Bean(name = "contexaGeneralRedisTemplate")
     @Fallback
-    @ConditionalOnMissingBean(name = "generalRedisTemplate")
+    @ConditionalOnMissingBean(name = "contexaGeneralRedisTemplate")
     public RedisTemplate<String, Object> generalRedisTemplate(RedisConnectionFactory connectionFactory) {
         
         RedisTemplate<String, Object> template = new RedisTemplate<>();
@@ -74,8 +74,8 @@ public class CommonRedisAutoConfiguration {
     }
 
     
-    @Bean(name = "eventRedisTemplate", defaultCandidate = false)
-    @ConditionalOnMissingBean(name = "eventRedisTemplate")
+    @Bean(name = "contexaEventRedisTemplate", defaultCandidate = false)
+    @ConditionalOnMissingBean(name = "contexaEventRedisTemplate")
     public RedisTemplate<String, Object> eventRedisTemplate(RedisConnectionFactory connectionFactory) {
         
         RedisTemplate<String, Object> template = new RedisTemplate<>();
@@ -111,8 +111,8 @@ public class CommonRedisAutoConfiguration {
     }
 
     
-    @Bean(name = "trustScoreRedisTemplate")
-    @ConditionalOnMissingBean(name = "trustScoreRedisTemplate")
+    @Bean(name = "contexaTrustScoreRedisTemplate", defaultCandidate = false)
+    @ConditionalOnMissingBean(name = "contexaTrustScoreRedisTemplate")
     public RedisTemplate<String, Double> trustScoreRedisTemplate(RedisConnectionFactory connectionFactory) {
         
         RedisTemplate<String, Double> template = new RedisTemplate<>();

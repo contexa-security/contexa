@@ -24,7 +24,6 @@ import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
 import java.util.List;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
-import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.context.MessageSource;
@@ -36,11 +35,11 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 
 @Controller
 @RequestMapping("/contexa/admin/policies")
-@RequiredArgsConstructor
 @Slf4j
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 @PreAuthorize("hasRole('ADMIN')")
@@ -49,6 +48,13 @@ public class PolicyController {
     private final PolicyService policyService;
     private final ModelMapper modelMapper;
     private final MessageSource messageSource;
+
+
+    public PolicyController(PolicyService policyService, @Qualifier("contexaModelMapper") ModelMapper modelMapper, MessageSource messageSource) {
+        this.policyService = policyService;
+        this.modelMapper = modelMapper;
+        this.messageSource = messageSource;
+    }
 
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());

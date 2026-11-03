@@ -97,45 +97,45 @@ import org.springframework.context.ConfigurableApplicationContext;
 })
 public class CoreStdComponentsAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaSecurityContextAdvisor")
     @ConditionalOnMissingBean
-    public SecurityContextAdvisor securityContextAdvisor(ContexaAdvisorProperties contexaAdvisorProperties, AsyncSecurityContextProvider asyncSecurityContextProvider) {
-        return new SecurityContextAdvisor(asyncSecurityContextProvider, contexaAdvisorProperties);
+    public SecurityContextAdvisor securityContextAdvisor(ContexaAdvisorProperties contexaAdvisorProperties, AsyncSecurityContextProvider contexaAsyncSecurityContextProvider) {
+        return new SecurityContextAdvisor(contexaAsyncSecurityContextProvider, contexaAdvisorProperties);
     }
 
-    @Bean
+    @Bean(name = "contexaLlmViewComposer")
     @ConditionalOnMissingBean
     public LLMViewComposer llmViewComposer() {
         return new SafePromptNormalizationLLMViewComposer();
     }
 
-    @Bean
+    @Bean(name = "contexaPromptGenerator")
     @ConditionalOnMissingBean
     public PromptGenerator promptGenerator(
             List<PromptTemplate> promptTemplates,
-            LLMViewComposer llmViewComposer,
+            LLMViewComposer contexaLlmViewComposer,
             TieredStrategyProperties tieredStrategyProperties) {
-        return new PromptGenerator(promptTemplates, llmViewComposer, tieredStrategyProperties);
+        return new PromptGenerator(promptTemplates, contexaLlmViewComposer, tieredStrategyProperties);
     }
 
-    @Bean
+    @Bean(name = "contexaStructuredOutputCapabilityRegistry")
     @ConditionalOnMissingBean
     public StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry() {
         return StructuredOutputCapabilityRegistry.defaultRegistry();
     }
 
-    @Bean
+    @Bean(name = "contexaPromptContextAuthorizationService")
     @ConditionalOnMissingBean
     public PromptContextAuthorizationService promptContextAuthorizationService() {
         return new PromptContextAuthorizationService();
     }
 
-        @Bean
+        @Bean(name = "contexaContextRetriever")
     @Primary
     public ContextRetriever contextRetriever(
             ObjectProvider<UnifiedVectorService> unifiedVectorServiceProvider,
             ContexaRagProperties ragProperties,
-            PromptContextAuthorizationService promptContextAuthorizationService) {
+            PromptContextAuthorizationService contexaPromptContextAuthorizationService) {
         VectorOperations vectorOperations = unifiedVectorServiceProvider.getIfAvailable();
         if (vectorOperations == null) {
             vectorOperations = new VectorOperations() {
@@ -167,143 +167,143 @@ public class CoreStdComponentsAutoConfiguration {
                 }
             };
         }
-        return new AuthorizedContextRetriever(vectorOperations, ragProperties, promptContextAuthorizationService);
+        return new AuthorizedContextRetriever(vectorOperations, ragProperties, contexaPromptContextAuthorizationService);
     }
 
-    @Bean
+    @Bean(name = "contexaContextRetrieverRegistry")
     @ConditionalOnMissingBean
     public ContextRetrieverRegistry contextRetrieverRegistry(ContextRetriever defaultRetriever) {
         return new ContextRetrieverRegistry(defaultRetriever);
     }
 
-    @Bean
+    @Bean(name = "contexaDefaultAILabFactory")
     @ConditionalOnMissingBean
     public DefaultAILabFactory defaultAILabFactory(ApplicationContext applicationContext) {
         return new DefaultAILabFactory(applicationContext);
     }
 
-    @Bean
+    @Bean(name = "contexaDefaultStreamingHandler")
     @ConditionalOnMissingBean
     public DefaultStreamingHandler defaultStreamingHandler(
             TieredLLMProperties tieredLLMProperties,
-            JsonStreamingProcessor jsonStreamingProcessor) {
-        return new DefaultStreamingHandler(tieredLLMProperties, jsonStreamingProcessor);
+            JsonStreamingProcessor contexaJsonStreamingProcessor) {
+        return new DefaultStreamingHandler(tieredLLMProperties, contexaJsonStreamingProcessor);
     }
 
-    @Bean
+    @Bean(name = "contexaDynamicModelSelectionStrategy")
     @ConditionalOnMissingBean
-    @ConditionalOnBean(name = "primaryChatModel")
+    @ConditionalOnBean(name = "contexaPrimaryChatModel")
     public DynamicModelSelectionStrategy dynamicModelSelectionStrategy(
-            DynamicModelRegistry dynamicModelRegistry,
+            DynamicModelRegistry contexaDynamicModelRegistry,
             TieredLLMProperties tieredLLMProperties,
-            @Qualifier("primaryChatModel") ChatModel primaryChatModel) {
-        return new DynamicModelSelectionStrategy(dynamicModelRegistry, tieredLLMProperties, primaryChatModel);
+            @Qualifier("contexaPrimaryChatModel") ChatModel contexaPrimaryChatModel) {
+        return new DynamicModelSelectionStrategy(contexaDynamicModelRegistry, tieredLLMProperties, contexaPrimaryChatModel);
     }
 
-    @Bean
+    @Bean(name = "contexaStreamingUniversalPipelineExecutor")
     @ConditionalOnMissingBean
     @ConditionalOnBean({LLMClient.class, ToolCapableLLMClient.class})
     public StreamingUniversalPipelineExecutor streamingUniversalPipelineExecutor(
-            ContextRetrievalStep contextRetrievalStep,
-            PreprocessingStep preprocessingStep,
-            PromptGenerationStep promptGenerationStep,
-            @Qualifier("llmExecutionStep") LLMExecutionStep llmExecutionStep,
-            @Qualifier("pipelineSoarToolExecutionStep") @Autowired(required = false) PipelineStep pipelineStep,
-            ResponseParsingStep responseParsingStep,
-            PostprocessingStep postprocessingStep,
-            StreamingLLMExecutionStep streamingLLMExecutionStep,
-            ObjectMapper objectMapper) {
-        return new StreamingUniversalPipelineExecutor(contextRetrievalStep, preprocessingStep,
-                promptGenerationStep, llmExecutionStep, pipelineStep, responseParsingStep, postprocessingStep,
-                streamingLLMExecutionStep, objectMapper);
+            ContextRetrievalStep contexaContextRetrievalStep,
+            PreprocessingStep contexaPreprocessingStep,
+            PromptGenerationStep contexaPromptGenerationStep,
+            @Qualifier("contexaLlmExecutionStep") LLMExecutionStep contexaLlmExecutionStep,
+            @Qualifier("contexaPipelineSoarToolExecutionStep") @Autowired(required = false) PipelineStep pipelineStep,
+            ResponseParsingStep contexaResponseParsingStep,
+            PostprocessingStep contexaPostprocessingStep,
+            StreamingLLMExecutionStep contexaStreamingLLMExecutionStep,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
+        return new StreamingUniversalPipelineExecutor(contexaContextRetrievalStep, contexaPreprocessingStep,
+                contexaPromptGenerationStep, contexaLlmExecutionStep, pipelineStep, contexaResponseParsingStep, contexaPostprocessingStep,
+                contexaStreamingLLMExecutionStep, objectMapper);
     }
 
-    @Bean
-    @ConditionalOnMissingBean(name = "universalPipelineExecutor")
+    @Bean(name = "contexaUniversalPipelineExecutor")
+    @ConditionalOnMissingBean(name = "contexaUniversalPipelineExecutor")
     @ConditionalOnBean(LLMClient.class)
     public UniversalPipelineExecutor universalPipelineExecutor(
-            ContextRetrievalStep contextRetrievalStep,
-            PreprocessingStep preprocessingStep,
-            PromptGenerationStep promptGenerationStep,
-            @Qualifier("llmExecutionStep") LLMExecutionStep llmExecutionStep,
-            @Qualifier("pipelineSoarToolExecutionStep") @Autowired(required = false) PipelineStep pipelineStep,
-            ResponseParsingStep responseParsingStep,
-            PostprocessingStep postprocessingStep) {
-        return new UniversalPipelineExecutor(contextRetrievalStep, preprocessingStep, promptGenerationStep,
-                llmExecutionStep, pipelineStep, responseParsingStep, postprocessingStep);
+            ContextRetrievalStep contexaContextRetrievalStep,
+            PreprocessingStep contexaPreprocessingStep,
+            PromptGenerationStep contexaPromptGenerationStep,
+            @Qualifier("contexaLlmExecutionStep") LLMExecutionStep contexaLlmExecutionStep,
+            @Qualifier("contexaPipelineSoarToolExecutionStep") @Autowired(required = false) PipelineStep pipelineStep,
+            ResponseParsingStep contexaResponseParsingStep,
+            PostprocessingStep contexaPostprocessingStep) {
+        return new UniversalPipelineExecutor(contexaContextRetrievalStep, contexaPreprocessingStep, contexaPromptGenerationStep,
+                contexaLlmExecutionStep, pipelineStep, contexaResponseParsingStep, contexaPostprocessingStep);
     }
 
-    @Bean
+    @Bean(name = "contexaContextRetrievalStep")
     @ConditionalOnBean(ContextRetrieverRegistry.class)
     @ConditionalOnMissingBean
-    public ContextRetrievalStep contextRetrievalStep(ContextRetrieverRegistry contextRetrieverRegistry) {
-        return new ContextRetrievalStep(contextRetrieverRegistry);
+    public ContextRetrievalStep contextRetrievalStep(ContextRetrieverRegistry contexaContextRetrieverRegistry) {
+        return new ContextRetrievalStep(contexaContextRetrieverRegistry);
     }
 
-    @Bean
-    @Qualifier("llmExecutionStep")
+    @Bean(name = "contexaLlmExecutionStep")
+    @Qualifier("contexaLlmExecutionStep")
     @ConditionalOnBean(LLMClient.class)
     public LLMExecutionStep llmExecutionStep(
-            LLMClient llmClient,
-            StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry) {
-        return new LLMExecutionStep(llmClient, structuredOutputCapabilityRegistry);
+            LLMClient contexaLlmClient,
+            StructuredOutputCapabilityRegistry contexaStructuredOutputCapabilityRegistry) {
+        return new LLMExecutionStep(contexaLlmClient, contexaStructuredOutputCapabilityRegistry);
     }
-    @Bean
+    @Bean(name = "contexaPostprocessingStep")
     @ConditionalOnMissingBean
     public PostprocessingStep postprocessingStep(Optional<List<DomainResponseProcessor>> domainResponseProcessors) {
         return new PostprocessingStep(domainResponseProcessors);
     }
 
-    @Bean
+    @Bean(name = "contexaSecurityDecisionResponseProcessor")
     @ConditionalOnMissingBean
     public SecurityDecisionResponseProcessor securityDecisionResponseProcessor() {
         return new SecurityDecisionResponseProcessor();
     }
 
-    @Bean
+    @Bean(name = "contexaPreprocessingStep")
     @ConditionalOnMissingBean
     public PreprocessingStep preprocessingStep() {
         return new PreprocessingStep();
     }
 
-    @Bean
+    @Bean(name = "contexaPromptGenerationStep")
     @ConditionalOnMissingBean
-    public PromptGenerationStep promptGenerationStep(PromptGenerator promptGenerator) {
-        return new PromptGenerationStep(promptGenerator);
+    public PromptGenerationStep promptGenerationStep(PromptGenerator contexaPromptGenerator) {
+        return new PromptGenerationStep(contexaPromptGenerator);
     }
 
-    @Bean
+    @Bean(name = "contexaResponseParsingStep")
     @ConditionalOnMissingBean
     public ResponseParsingStep responseParsingStep() {
         return new ResponseParsingStep();
     }
 
-    @Bean
+    @Bean(name = "contexaStreamingLLMExecutionStep")
     @ConditionalOnMissingBean
     @ConditionalOnBean(ToolCapableLLMClient.class)
-    public StreamingLLMExecutionStep streamingLLMExecutionStep(ToolCapableLLMClient toolCapableLLMClient) {
-        return new StreamingLLMExecutionStep(toolCapableLLMClient);
+    public StreamingLLMExecutionStep streamingLLMExecutionStep(ToolCapableLLMClient contexaToolCapableLLMClient) {
+        return new StreamingLLMExecutionStep(contexaToolCapableLLMClient);
     }
 
-    @Bean
+    @Bean(name = "contexaJsonStreamingProcessor")
     @ConditionalOnMissingBean
     public JsonStreamingProcessor jsonStreamingProcessor() {
         return new JsonStreamingProcessor();
     }
 
-    @Bean
+    @Bean(name = "contexaAiStrategyRegistry")
     @ConditionalOnMissingBean
     public AIStrategyRegistry aiStrategyRegistry(List<AIStrategy<?, ?>> allStrategies) {
         return new AIStrategyRegistry(allStrategies);
     }
 
-    @Bean
+    @Bean(name = "contexaAuditLogger")
     @ConditionalOnMissingBean
     public AuditLogger auditLogger() {
         return new AuditLogger();
     }
 
-    @Bean
+    @Bean(name = "contexaLlmRuntimeCatalog")
     @ConditionalOnMissingBean
     public LlmRuntimeCatalog llmRuntimeCatalog(
             ApplicationContext applicationContext,
@@ -313,16 +313,16 @@ public class CoreStdComponentsAutoConfiguration {
                 contexaProperties, contexaLlmBindingProperties);
     }
 
-    @Bean
+    @Bean(name = "contexaDynamicModelRegistry")
     @ConditionalOnMissingBean
     public DynamicModelRegistry dynamicModelRegistry(
             ApplicationContext applicationContext,
             TieredLLMProperties tieredLLMProperties,
-            LlmRuntimeCatalog llmRuntimeCatalog) {
-        return new DynamicModelRegistry(applicationContext, tieredLLMProperties, llmRuntimeCatalog);
+            LlmRuntimeCatalog contexaLlmRuntimeCatalog) {
+        return new DynamicModelRegistry(applicationContext, tieredLLMProperties, contexaLlmRuntimeCatalog);
     }
 
-    @Bean
+    @Bean(name = "contexaPipelineOrchestrator")
     @ConditionalOnMissingBean
     public PipelineOrchestrator pipelineOrchestrator(
             List<PipelineExecutor> executors,
@@ -330,7 +330,7 @@ public class CoreStdComponentsAutoConfiguration {
         return new PipelineOrchestrator(executors);
     }
 
-    @Bean
+    @Bean(name = "contexaApprovalPolicyRepository")
     @ConditionalOnMissingBean
     public ApprovalPolicyRepository approvalPolicyRepository(
             ApprovalPolicyJpaRepository jpaRepository) {

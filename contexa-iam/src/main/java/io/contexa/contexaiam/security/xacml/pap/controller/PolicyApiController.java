@@ -19,7 +19,6 @@ import io.contexa.contexaiam.domain.dto.BusinessPolicyDto;
 import io.contexa.contexaiam.domain.dto.PolicyDto;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.security.xacml.pap.service.BusinessPolicyService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.http.ResponseEntity;
@@ -28,16 +27,22 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 @Slf4j
 @RestController
 @RequestMapping("/contexa/admin/api/policies")
-@RequiredArgsConstructor
 @PreAuthorize("hasRole('ADMIN')")
 public class PolicyApiController {
 
     private final BusinessPolicyService businessPolicyService;
     private final ModelMapper modelMapper;
+
+
+    public PolicyApiController(BusinessPolicyService businessPolicyService, @Qualifier("contexaModelMapper") ModelMapper modelMapper) {
+        this.businessPolicyService = businessPolicyService;
+        this.modelMapper = modelMapper;
+    }
 
     @PostMapping("/build-from-business-rule")
     public ResponseEntity<PolicyDto> buildPolicyFromBusinessRule(@RequestBody BusinessPolicyDto dto) {

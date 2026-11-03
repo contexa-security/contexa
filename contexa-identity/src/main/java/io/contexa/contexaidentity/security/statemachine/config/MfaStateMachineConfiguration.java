@@ -326,7 +326,7 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .event(MfaEvent.SYSTEM_ERROR);
     }
 
-    @Bean
+    @Bean(name = "contexaListener")
     public StateMachineListener<MfaState, MfaEvent> listener() {
         return new StateMachineListenerAdapter<MfaState, MfaEvent>() {
             @Override

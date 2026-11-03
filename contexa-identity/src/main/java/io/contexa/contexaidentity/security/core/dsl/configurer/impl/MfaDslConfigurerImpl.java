@@ -326,7 +326,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
 
         ObjectMapper objectMapper;
         try {
-            objectMapper = this.applicationContext.getBean(ObjectMapper.class);
+            objectMapper = this.applicationContext.getBean("contexaObjectMapper", ObjectMapper.class);
         } catch (Exception e) {
             throw new DslConfigurationException("Failed to retrieve ObjectMapper bean from ApplicationContext for MfaAuthenticationEntryPoint", e);
         }

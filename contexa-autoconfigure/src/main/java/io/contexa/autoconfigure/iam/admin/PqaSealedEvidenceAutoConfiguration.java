@@ -58,7 +58,7 @@ public class PqaSealedEvidenceAutoConfiguration {
     @ConditionalOnBean(SealedEvidencePackageRepository.class)
     static class OssSealedEvidenceRetentionConfiguration {
 
-        @Bean(name = "pqaOssSealedEvidencePackageRetentionScheduler")
+        @Bean(name = "contexaPqaOssSealedEvidencePackageRetentionScheduler")
         @ConditionalOnMissingBean(SealedEvidencePackageRetentionScheduler.class)
         public SealedEvidencePackageRetentionScheduler pqaOssSealedEvidencePackageRetentionScheduler(
                 SealedEvidencePackageRepository repository) {
@@ -73,9 +73,9 @@ public class PqaSealedEvidenceAutoConfiguration {
     @EnableConfigurationProperties(PqaOssSealedEvidenceCaptureProperties.class)
     static class OssSealedEvidenceCaptureConfiguration {
 
-        static final String CAPTURE_EXECUTOR = "pqaOssSealedEvidenceCaptureExecutor";
+        static final String CAPTURE_EXECUTOR = "contexaPqaOssSealedEvidenceCaptureExecutor";
 
-        @Bean(name = CAPTURE_EXECUTOR)
+        @Bean(name = CAPTURE_EXECUTOR, defaultCandidate = false)
         @ConditionalOnMissingBean(name = CAPTURE_EXECUTOR)
         public Executor pqaOssSealedEvidenceCaptureExecutor() {
             ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
@@ -91,47 +91,47 @@ public class PqaSealedEvidenceAutoConfiguration {
             return executor;
         }
 
-        @Bean(name = "pqaOssSealedEvidencePromptTraceStore")
+        @Bean(name = "contexaPqaOssSealedEvidencePromptTraceStore")
         @ConditionalOnMissingBean(SealedEvidencePromptTraceStore.class)
         public SealedEvidencePromptTraceStore pqaOssSealedEvidencePromptTraceStore(
                 PqaOssSealedEvidenceCaptureProperties properties) {
             return new SealedEvidencePromptTraceStore(properties.storeOptions(), Clock.systemUTC());
         }
 
-        @Bean(name = "pqaOssSealedEvidencePromptCaptureAspect")
+        @Bean(name = "contexaPqaOssSealedEvidencePromptCaptureAspect")
         @ConditionalOnMissingBean(SealedEvidencePromptCaptureAspect.class)
         public SealedEvidencePromptCaptureAspect pqaOssSealedEvidencePromptCaptureAspect(
-                SealedEvidencePromptTraceStore sealedEvidencePromptTraceStore) {
-            return new SealedEvidencePromptCaptureAspect(sealedEvidencePromptTraceStore);
+                SealedEvidencePromptTraceStore contexaSealedEvidencePromptTraceStore) {
+            return new SealedEvidencePromptCaptureAspect(contexaSealedEvidencePromptTraceStore);
         }
 
-        @Bean(name = "pqaOssSealedEvidenceLayer1CompletionAspect")
+        @Bean(name = "contexaPqaOssSealedEvidenceLayer1CompletionAspect")
         @ConditionalOnMissingBean(SealedEvidenceLayer1CompletionAspect.class)
         public SealedEvidenceLayer1CompletionAspect pqaOssSealedEvidenceLayer1CompletionAspect(
-                SealedEvidencePromptTraceStore sealedEvidencePromptTraceStore) {
-            return new SealedEvidenceLayer1CompletionAspect(sealedEvidencePromptTraceStore);
+                SealedEvidencePromptTraceStore contexaSealedEvidencePromptTraceStore) {
+            return new SealedEvidenceLayer1CompletionAspect(contexaSealedEvidencePromptTraceStore);
         }
 
-        @Bean(name = "pqaOssSealedEvidenceLayer2CompletionAspect")
+        @Bean(name = "contexaPqaOssSealedEvidenceLayer2CompletionAspect")
         @ConditionalOnMissingBean(SealedEvidenceLayer2CompletionAspect.class)
         public SealedEvidenceLayer2CompletionAspect pqaOssSealedEvidenceLayer2CompletionAspect(
-                SealedEvidencePromptTraceStore sealedEvidencePromptTraceStore) {
-            return new SealedEvidenceLayer2CompletionAspect(sealedEvidencePromptTraceStore);
+                SealedEvidencePromptTraceStore contexaSealedEvidencePromptTraceStore) {
+            return new SealedEvidenceLayer2CompletionAspect(contexaSealedEvidencePromptTraceStore);
         }
 
-        @Bean(name = "pqaOssSealedEvidencePackageAssembler")
+        @Bean(name = "contexaPqaOssSealedEvidencePackageAssembler")
         @ConditionalOnMissingBean(SealedEvidencePackageAssembler.class)
         public SealedEvidencePackageAssembler pqaOssSealedEvidencePackageAssembler(
-                ObjectMapper objectMapper,
+                @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
                 CanonicalSecurityContextSerializer canonicalSecurityContextSerializer,
                 SealedEvidencePackageIntegrity sealedEvidencePackageIntegrity,
-                SealedEvidencePromptTraceStore sealedEvidencePromptTraceStore,
+                SealedEvidencePromptTraceStore contexaSealedEvidencePromptTraceStore,
                 PqaOssSealedEvidenceCaptureProperties properties) {
             return new SealedEvidencePackageAssembler(
                     objectMapper,
                     canonicalSecurityContextSerializer,
                     sealedEvidencePackageIntegrity,
-                    sealedEvidencePromptTraceStore,
+                    contexaSealedEvidencePromptTraceStore,
                     properties.getRetention().getPeriod());
         }
 
@@ -140,7 +140,7 @@ public class PqaSealedEvidenceAutoConfiguration {
          * shadow release is read from the registry whichever selector chooses the decision's bundle, so a host that
          * runs its configured bundle can try a candidate in the shadow without handing the decision to the registry.
          */
-        @Bean(name = "pqaOssPromptShadowRunner")
+        @Bean(name = "contexaPqaOssPromptShadowRunner")
         @ConditionalOnMissingBean(PromptShadowRunner.class)
         @ConditionalOnProperty(prefix = "contexa.security.tiered.prompt-bundle.shadow", name = "sample-percent")
         public PromptShadowRunner pqaOssPromptShadowRunner(ObjectProvider<PromptBundleSelector> selector,
@@ -164,25 +164,25 @@ public class PqaSealedEvidenceAutoConfiguration {
         }
 
         /** R4-S6, decision D-B: a stable share of the requests, and every decision of the window after a change. */
-        @Bean(name = "pqaOssSealedEvidenceCaptureSampling")
+        @Bean(name = "contexaPqaOssSealedEvidenceCaptureSampling")
         @ConditionalOnMissingBean(SealedEvidenceCaptureSampling.class)
         public SealedEvidenceCaptureSampling pqaOssSealedEvidenceCaptureSampling(
-                ObjectMapper objectMapper,
+                @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
                 PqaOssSealedEvidenceCaptureProperties properties) {
             return new VersionChangeCaptureSampling(properties.getSamplePercent(),
                     properties.getFullCaptureAfterChange(), objectMapper);
         }
 
-        @Bean(name = "pqaOssSealedEvidenceCaptureHandler")
+        @Bean(name = "contexaPqaOssSealedEvidenceCaptureHandler")
         @ConditionalOnMissingBean(SealedEvidenceCaptureHandler.class)
         public SealedEvidenceCaptureHandler pqaOssSealedEvidenceCaptureHandler(
-                SealedEvidencePackageAssembler sealedEvidencePackageAssembler,
+                SealedEvidencePackageAssembler contexaSealedEvidencePackageAssembler,
                 SealedEvidencePackageRepository sealedEvidencePackageRepository,
                 @Qualifier(CAPTURE_EXECUTOR) Executor captureExecutor,
                 ObjectProvider<SecurityContextDataStore> securityContextDataStoreProvider,
                 SealedEvidenceCaptureSampling sealedEvidenceCaptureSampling) {
             return new SealedEvidenceCaptureHandler(
-                    sealedEvidencePackageAssembler,
+                    contexaSealedEvidencePackageAssembler,
                     sealedEvidencePackageRepository,
                     captureExecutor,
                     securityContextDataStoreProvider.getIfAvailable(),

@@ -26,7 +26,7 @@ import org.springframework.beans.factory.ObjectProvider;
 @ConditionalOnClass(JdbcSealedEvidencePackageRepository.class)
 public class SealedEvidenceStoreAutoConfiguration {
 
-    @Bean(name = "pqaSealedEvidencePackageIntegrity")
+    @Bean(name = "contexaPqaSealedEvidencePackageIntegrity")
     @ConditionalOnMissingBean(SealedEvidencePackageIntegrity.class)
     public SealedEvidencePackageIntegrity pqaSealedEvidencePackageIntegrity(
             ObjectProvider<EvidenceSigner> evidenceSigner) {
@@ -34,7 +34,7 @@ public class SealedEvidenceStoreAutoConfiguration {
         return new SealedEvidencePackageIntegrity(evidenceSigner.getIfAvailable());
     }
 
-    @Bean(name = "pqaSealedEvidencePackageRepository")
+    @Bean(name = "contexaPqaSealedEvidencePackageRepository")
     @ConditionalOnMissingBean(SealedEvidencePackageRepository.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public SealedEvidencePackageRepository pqaSealedEvidencePackageRepository(
@@ -46,9 +46,9 @@ public class SealedEvidenceStoreAutoConfiguration {
         return repository;
     }
 
-    @Bean(name = "pqaCanonicalSecurityContextSerializer")
+    @Bean(name = "contexaPqaCanonicalSecurityContextSerializer")
     @ConditionalOnMissingBean(CanonicalSecurityContextSerializer.class)
-    public CanonicalSecurityContextSerializer pqaCanonicalSecurityContextSerializer(ObjectMapper objectMapper) {
+    public CanonicalSecurityContextSerializer pqaCanonicalSecurityContextSerializer(@Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         return new CanonicalSecurityContextSerializer(objectMapper);
     }
 }

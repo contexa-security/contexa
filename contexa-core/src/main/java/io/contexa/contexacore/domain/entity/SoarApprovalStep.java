@@ -21,7 +21,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+import io.contexa.contexacommon.entity.ContexaAuditingEntityListener;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -42,7 +42,7 @@ import java.util.List;
 )
 @Getter
 @Setter
-@EntityListeners(AuditingEntityListener.class)
+@EntityListeners(ContexaAuditingEntityListener.class)
 public class SoarApprovalStep {
 
     @Id

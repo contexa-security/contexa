@@ -31,6 +31,7 @@ import io.contexa.contexaiam.resource.service.ConditionCompatibilityService;
 import io.contexa.contexaiam.resource.service.ResourceRegistryService;
 import io.contexa.contexaiam.resource.service.ResourceRegistryServiceImpl;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.ApplicationContext;
@@ -42,40 +43,40 @@ import java.util.List;
 @AutoConfiguration
 public class IamResourceAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaResourceRegistryService")
     @ConditionalOnMissingBean
     public ResourceRegistryService resourceRegistryService(
             List<ResourceScanner> scanners,
             ManagedResourceRepository managedResourceRepository,
-            PermissionCatalogService permissionCatalogService,
-            AICoreOperations aiNativeProcessor,
-            AutoConditionTemplateService autoConditionTemplateService,
+            PermissionCatalogService contexaPermissionCatalogService,
+            AICoreOperations contexaAiNativeProcessor,
+            AutoConditionTemplateService contexaAutoConditionTemplateService,
             PolicyRepository policyRepository,
             IamAdminProperties iamAdminProperties,
             MessageSource messageSource) {
         return new ResourceRegistryServiceImpl(
-                scanners, managedResourceRepository, permissionCatalogService,
-                aiNativeProcessor, autoConditionTemplateService, policyRepository,
+                scanners, managedResourceRepository, contexaPermissionCatalogService,
+                contexaAiNativeProcessor, contexaAutoConditionTemplateService, policyRepository,
                 iamAdminProperties, messageSource);
     }
 
-    @Bean
+    @Bean(name = "contexaConditionCompatibilityService")
     @ConditionalOnMissingBean
     public ConditionCompatibilityService conditionCompatibilityService() {
         return new ConditionCompatibilityService();
     }
 
-    @Bean
+    @Bean(name = "contexaAutoConditionTemplateService")
     @ConditionalOnMissingBean
     public AutoConditionTemplateService autoConditionTemplateService(
             ConditionTemplateRepository conditionTemplateRepository,
             ManagedResourceRepository managedResourceRepository,
-            AICoreOperations aiNativeProcessor) {
+            AICoreOperations contexaAiNativeProcessor) {
         return new AutoConditionTemplateService(
-                conditionTemplateRepository, managedResourceRepository, aiNativeProcessor);
+                conditionTemplateRepository, managedResourceRepository, contexaAiNativeProcessor);
     }
 
-    @Bean
+    @Bean(name = "contexaMvcResourceScanner")
     @ConditionalOnMissingBean
     public MvcResourceScanner mvcResourceScanner(
             ApplicationContext applicationContext,
@@ -84,11 +85,11 @@ public class IamResourceAutoConfiguration {
         return new MvcResourceScanner(applicationContext, iamAdminProperties, runtimeSettingsServiceProvider.getIfAvailable());
     }
 
-    @Bean
+    @Bean(name = "contexaMethodResourceScanner")
     @ConditionalOnMissingBean
     public MethodResourceScanner methodResourceScanner(
             ApplicationContext applicationContext,
-            ObjectMapper objectMapper,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             ObjectProvider<SystemRuntimeSettingsService> runtimeSettingsServiceProvider) {
         return new MethodResourceScanner(applicationContext, objectMapper,
                 runtimeSettingsServiceProvider.getIfAvailable());

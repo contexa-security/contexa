@@ -28,7 +28,6 @@ import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.GroupRole;
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.entity.RolePermission;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.context.MessageSource;
@@ -47,10 +46,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 @Controller
 @RequestMapping("/contexa/admin/role-hierarchies")
-@RequiredArgsConstructor
 @Slf4j
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 @PreAuthorize("hasRole('ADMIN')")
@@ -61,6 +60,15 @@ public class RoleHierarchyController {
     private final RoleService roleService;
     private final GroupService groupService;
     private final MessageSource messageSource;
+
+
+    public RoleHierarchyController(RoleHierarchyService roleHierarchyService, @Qualifier("contexaModelMapper") ModelMapper modelMapper, RoleService roleService, GroupService groupService, MessageSource messageSource) {
+        this.roleHierarchyService = roleHierarchyService;
+        this.modelMapper = modelMapper;
+        this.roleService = roleService;
+        this.groupService = groupService;
+        this.messageSource = messageSource;
+    }
 
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());

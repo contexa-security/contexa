@@ -36,20 +36,20 @@ import org.springframework.context.annotation.Bean;
 @EnableConfigurationProperties(IamAdminProperties.class)
 public class IamMiscAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaIntegrationEventBus")
     @ConditionalOnMissingBean
     public IntegrationEventBus integrationEventBus(ApplicationEventPublisher applicationEventPublisher) {
         return new InMemoryEventBus(applicationEventPublisher);
     }
 
-    @Bean
+    @Bean(name = "contexaPolicyService")
     @ConditionalOnMissingBean
     public PolicyService policyService(
             PolicyRepository policyRepository) {
         return new PolicyService(policyRepository);
     }
 
-    @Bean
+    @Bean(name = "contexaUserContextService")
     @ConditionalOnMissingBean
     public UserContextService userContextService(
             AuditLogRepository auditLogRepository) {

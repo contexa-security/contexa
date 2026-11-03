@@ -47,12 +47,12 @@ class PqaSealedEvidenceAutoConfigurationTest {
 
     private static final List<String> ENTERPRISE_CAPTURE_BEAN_NAMES = List.of(
             "promptEvidenceMetadataProvider",
-            "sealedEvidencePromptTraceStore",
-            "sealedEvidencePromptCaptureAspect",
-            "sealedEvidenceLayer1CompletionAspect",
-            "sealedEvidencePackageAssembler",
-            "sealedEvidenceCaptureExecutor",
-            "sealedEvidenceCaptureHandler");
+            "contexaSealedEvidencePromptTraceStore",
+            "contexaSealedEvidencePromptCaptureAspect",
+            "contexaSealedEvidenceLayer1CompletionAspect",
+            "contexaSealedEvidencePackageAssembler",
+            "contexaSealedEvidenceCaptureExecutor",
+            "contexaSealedEvidenceCaptureHandler");
 
     private static final List<Class<?>> CAPTURE_TYPES = List.of(
             SealedEvidencePromptTraceStore.class,
@@ -65,7 +65,7 @@ class PqaSealedEvidenceAutoConfigurationTest {
             .withConfiguration(AutoConfigurations.of(
                     AopAutoConfiguration.class,
                     PqaSealedEvidenceAutoConfiguration.class))
-            .withBean(ObjectMapper.class, ObjectMapper::new)
+            .withBean("contexaObjectMapper", ObjectMapper.class, ObjectMapper::new)
             .withBean(CanonicalSecurityContextSerializer.class,
                     () -> new CanonicalSecurityContextSerializer(new ObjectMapper()))
             .withBean(SealedEvidencePackageIntegrity.class, SealedEvidencePackageIntegrity::new);
@@ -76,33 +76,33 @@ class PqaSealedEvidenceAutoConfigurationTest {
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     CAPTURE_TYPES.forEach(type -> assertThat(context).hasSingleBean(type));
-                    assertThat(context).hasBean("pqaOssSealedEvidenceCaptureExecutor");
+                    assertThat(context).hasBean("contexaPqaOssSealedEvidenceCaptureExecutor");
                     assertThat(context).hasSingleBean(SealedEvidencePackageRetentionScheduler.class);
                     assertThat(context.getBean(SecurityEventHandler.class).getOrder()).isEqualTo(56);
                     List<String> ossNames = CAPTURE_TYPES.stream()
                             .flatMap(type -> Arrays.stream(context.getBeanNamesForType(type)))
                             .toList();
-                    assertThat(ossNames).allMatch(name -> name.startsWith("pqaOss"));
+                    assertThat(ossNames).allMatch(name -> name.startsWith("contexaPqaOss"));
                     assertThat(ossNames).doesNotContainAnyElementsOf(ENTERPRISE_CAPTURE_BEAN_NAMES);
-                    assertThat(context.containsBean("sealedEvidenceCaptureExecutor")).isFalse();
+                    assertThat(context.containsBean("contexaSealedEvidenceCaptureExecutor")).isFalse();
                 });
     }
 
     @Test
     void enterpriseEnabledCreatesNoOssCaptureOrRetentionBeans() {
         runner.withBean(SealedEvidencePackageRepository.class, () -> mock(SealedEvidencePackageRepository.class))
-                .withBean("sealedEvidencePromptTraceStore", SealedEvidencePromptTraceStore.class,
+                .withBean("contexaSealedEvidencePromptTraceStore", SealedEvidencePromptTraceStore.class,
                         SealedEvidencePromptTraceStore::new)
                 .withPropertyValues("contexa.enterprise.enabled=true")
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context.getBeanNamesForType(SealedEvidencePromptTraceStore.class))
-                            .containsExactly("sealedEvidencePromptTraceStore");
+                            .containsExactly("contexaSealedEvidencePromptTraceStore");
                     assertThat(context).doesNotHaveBean(SealedEvidenceCaptureHandler.class);
                     assertThat(context).doesNotHaveBean(SealedEvidencePromptCaptureAspect.class);
                     assertThat(context).doesNotHaveBean(SealedEvidenceLayer1CompletionAspect.class);
                     assertThat(context).doesNotHaveBean(SealedEvidencePackageAssembler.class);
-                    assertThat(context).doesNotHaveBean("pqaOssSealedEvidenceCaptureExecutor");
+                    assertThat(context).doesNotHaveBean("contexaPqaOssSealedEvidenceCaptureExecutor");
                     assertThat(context).doesNotHaveBean(SecurityEventHandler.class);
                     assertThat(context).doesNotHaveBean(SealedEvidencePackageRetentionScheduler.class);
                 });
@@ -115,7 +115,7 @@ class PqaSealedEvidenceAutoConfigurationTest {
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     CAPTURE_TYPES.forEach(type -> assertThat(context).doesNotHaveBean(type));
-                    assertThat(context).doesNotHaveBean("pqaOssSealedEvidenceCaptureExecutor");
+                    assertThat(context).doesNotHaveBean("contexaPqaOssSealedEvidenceCaptureExecutor");
                     assertThat(context).hasSingleBean(SealedEvidencePackageRetentionScheduler.class);
                 });
     }

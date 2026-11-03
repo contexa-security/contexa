@@ -265,7 +265,7 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
 
             configurer.tokenEndpoint(endpoint -> {
                 AuthenticationSuccessHandler successHandler = getOptionalBean(
-                        appContext, "oauth2TokenSuccessHandler", AuthenticationSuccessHandler.class);
+                        appContext, "contexaOauth2TokenSuccessHandler", AuthenticationSuccessHandler.class);
                 if (successHandler != null) {
                     endpoint.accessTokenResponseHandler(successHandler);
                 }

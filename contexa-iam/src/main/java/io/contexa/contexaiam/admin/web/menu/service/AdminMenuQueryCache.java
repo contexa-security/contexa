@@ -17,6 +17,7 @@ package io.contexa.contexaiam.admin.web.menu.service;
 
 import io.contexa.contexacommon.entity.AdminMenu;
 import io.contexa.contexacommon.repository.AdminMenuRepository;
+import org.springframework.cache.annotation.CacheConfig;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +31,7 @@ import java.util.List;
  * the repository so the sidebar render path triggers the underlying join query
  * only once per process window.
  */
+@CacheConfig(cacheManager = "contexaCacheManager")
 public class AdminMenuQueryCache {
 
     static final String CACHE_NAME = "adminMenuAllWithRoles";

@@ -28,7 +28,7 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration(after = ContexaCacheAutoConfiguration.class)
 public class IamXacmlPrpAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaDatabasePolicyRetrievalPoint")
     @ConditionalOnMissingBean
     public DatabasePolicyRetrievalPoint databasePolicyRetrievalPoint(
             PolicyRepository policyRepository,

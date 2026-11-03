@@ -28,35 +28,36 @@ import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 
 @AutoConfiguration
 @AutoConfigureAfter(name = "org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration")
 public class IamAiamServiceStrategyAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaDataIngestionService")
     @ConditionalOnMissingBean
     @ConditionalOnBean(VectorStore.class)
     public DataIngestionServiceImpl dataIngestionService(
             VectorStore vectorStore,
             PolicyRepository policyRepository,
-            ObjectMapper objectMapper) {
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         return new DataIngestionServiceImpl(vectorStore, policyRepository, objectMapper);
     }
 
-    @Bean
+    @Bean(name = "contexaConditionTemplateDiagnosisStrategy")
     @ConditionalOnMissingBean
     public ConditionTemplateDiagnosisStrategy conditionTemplateDiagnosisStrategy(AILabFactory labFactory) {
         return new ConditionTemplateDiagnosisStrategy(labFactory);
     }
 
-    @Bean
+    @Bean(name = "contexaPolicyGenerationDiagnosisStrategy")
     @ConditionalOnMissingBean
     public PolicyGenerationDiagnosisStrategy policyGenerationDiagnosisStrategy(AILabFactory labFactory) {
         return new PolicyGenerationDiagnosisStrategy(labFactory);
     }
 
-    @Bean
+    @Bean(name = "contexaResourceNamingDiagnosisStrategy")
     @ConditionalOnMissingBean
     public ResourceNamingDiagnosisStrategy resourceNamingDiagnosisStrategy(AILabFactory labFactory) {
         return new ResourceNamingDiagnosisStrategy(labFactory);

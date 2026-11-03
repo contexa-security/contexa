@@ -49,7 +49,7 @@ class PromptInspectionAutoConfigurationTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(PromptInspectionAutoConfiguration.class))
-            .withBean(ObjectMapper.class, ObjectMapper::new)
+            .withBean("contexaObjectMapper", ObjectMapper.class, ObjectMapper::new)
             .withBean(SealedEvidencePackageRepository.class, () -> mock(SealedEvidencePackageRepository.class))
             .withBean("contexaJdbcTemplate", JdbcTemplate.class, () -> mock(JdbcTemplate.class))
             .withBean("contexaTransactionManager", PlatformTransactionManager.class,
@@ -183,7 +183,7 @@ class PromptInspectionAutoConfigurationTest {
     void withoutTheContexaDatabaseThereIsNoStoreAndNoRound() {
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(PromptInspectionAutoConfiguration.class))
-                .withBean(ObjectMapper.class, ObjectMapper::new)
+                .withBean("contexaObjectMapper", ObjectMapper.class, ObjectMapper::new)
                 .withBean(SealedEvidencePackageRepository.class, () -> mock(SealedEvidencePackageRepository.class))
                 .run(context -> {
                     assertThat(context).hasNotFailed();

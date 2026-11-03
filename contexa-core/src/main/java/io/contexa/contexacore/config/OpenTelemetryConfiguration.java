@@ -35,6 +35,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.util.concurrent.TimeUnit;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 @Slf4j
 @Configuration
@@ -43,7 +44,7 @@ public class OpenTelemetryConfiguration {
 
     private final OpenTelemetryProperties openTelemetryProperties;
 
-    @Bean
+    @Bean(name = "contexaOpenTelemetry", defaultCandidate = false)
     public OpenTelemetry openTelemetry() {
         if (!openTelemetryProperties.isEnabled()) {
                         return OpenTelemetry.noop();
@@ -99,9 +100,9 @@ public class OpenTelemetryConfiguration {
         }
     }
 
-    @Bean
-    public Tracer tracer(OpenTelemetry openTelemetry) {
-        return openTelemetry.getTracer("io.contexa.contexacore");
+    @Bean(name = "contexaTracer", defaultCandidate = false)
+    public Tracer tracer(@Qualifier("contexaOpenTelemetry") OpenTelemetry contexaOpenTelemetry) {
+        return contexaOpenTelemetry.getTracer("io.contexa.contexacore");
     }
 
     private String getEnvironment() {

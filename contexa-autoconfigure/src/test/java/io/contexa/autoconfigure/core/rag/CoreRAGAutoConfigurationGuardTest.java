@@ -61,12 +61,12 @@ class CoreRAGAutoConfigurationGuardTest {
     @DisplayName("rag advisors and vector services back off without ChatClient.Builder and VectorStore")
     void ragBeansBackOffWithoutChatClientBuilderAndVectorStore() {
         contextRunner.run(context -> {
-            assertThat(context).doesNotHaveBean("behaviorQueryTransformer");
-            assertThat(context).doesNotHaveBean("riskQueryTransformer");
-            assertThat(context).doesNotHaveBean("policyQueryTransformer");
-            assertThat(context).doesNotHaveBean("behaviorAnalysisRagAdvisor");
-            assertThat(context).doesNotHaveBean("riskAssessmentRagAdvisor");
-            assertThat(context).doesNotHaveBean("policyGenerationRagAdvisor");
+            assertThat(context).doesNotHaveBean("contexaBehaviorQueryTransformer");
+            assertThat(context).doesNotHaveBean("contexaRiskQueryTransformer");
+            assertThat(context).doesNotHaveBean("contexaPolicyQueryTransformer");
+            assertThat(context).doesNotHaveBean("contexaBehaviorAnalysisRagAdvisor");
+            assertThat(context).doesNotHaveBean("contexaRiskAssessmentRagAdvisor");
+            assertThat(context).doesNotHaveBean("contexaPolicyGenerationRagAdvisor");
             assertThat(context).doesNotHaveBean(UnifiedVectorService.class);
         });
     }
@@ -87,12 +87,12 @@ class CoreRAGAutoConfigurationGuardTest {
     @DisplayName("the vector executor runs the configured number of threads, sixteen by default (W2-15)")
     void theVectorExecutorRunsTheConfiguredNumberOfThreads() {
         contextRunner.run(context -> {
-            ThreadPoolExecutor executor = context.getBean("vectorOperationExecutor", ThreadPoolExecutor.class);
+            ThreadPoolExecutor executor = context.getBean("contexaVectorOperationExecutor", ThreadPoolExecutor.class);
             assertThat(executor.getCorePoolSize()).isEqualTo(16);
             assertThat(executor.getMaximumPoolSize()).isEqualTo(16);
         });
         contextRunner.withPropertyValues("contexa.vectorstore.pgvector.parallel-threads=6").run(context -> {
-            ThreadPoolExecutor executor = context.getBean("vectorOperationExecutor", ThreadPoolExecutor.class);
+            ThreadPoolExecutor executor = context.getBean("contexaVectorOperationExecutor", ThreadPoolExecutor.class);
             assertThat(executor.getCorePoolSize()).isEqualTo(6);
             assertThat(executor.getMaximumPoolSize()).isEqualTo(6);
         });
@@ -103,10 +103,10 @@ class CoreRAGAutoConfigurationGuardTest {
     void theMetadataIndexIsSetUpOnlyWhenTheSchemaIsInitialised() {
         contextRunner.withBean(VectorStore.class, () -> mock(VectorStore.class))
                 .withPropertyValues("spring.ai.vectorstore.pgvector.initialize-schema=true")
-                .run(context -> assertThat(context).hasBean("pgVectorMetadataIndexInitializer"));
+                .run(context -> assertThat(context).hasBean("contexaPgVectorMetadataIndexInitializer"));
         contextRunner.withBean(VectorStore.class, () -> mock(VectorStore.class))
                 .withPropertyValues("spring.ai.vectorstore.pgvector.initialize-schema=false")
-                .run(context -> assertThat(context).doesNotHaveBean("pgVectorMetadataIndexInitializer"));
+                .run(context -> assertThat(context).doesNotHaveBean("contexaPgVectorMetadataIndexInitializer"));
     }
 
     @Test
@@ -237,7 +237,7 @@ class CoreRAGAutoConfigurationGuardTest {
                 .run(context -> {
                     assertThat(context).hasSingleBean(BehaviorVectorService.class);
                     assertThat(context).hasSingleBean(UnifiedVectorService.class);
-                    assertThat(context).hasBean("vectorStoreCacheLayer");
+                    assertThat(context).hasBean("contexaVectorStoreCacheLayer");
                 });
     }
 
@@ -246,8 +246,8 @@ class CoreRAGAutoConfigurationGuardTest {
     void theUnfilteredBehaviourAdvisorIsOffByDefault() {
         contextRunner
                 .withBean(VectorStore.class, () -> mock(VectorStore.class))
-                .withBean("behaviorQueryTransformer", QueryTransformer.class, () -> mock(QueryTransformer.class))
-                .run(context -> assertThat(context).doesNotHaveBean("behaviorAnalysisRagAdvisor"));
+                .withBean("contexaBehaviorQueryTransformer", QueryTransformer.class, () -> mock(QueryTransformer.class))
+                .run(context -> assertThat(context).doesNotHaveBean("contexaBehaviorAnalysisRagAdvisor"));
     }
 
     @Test
@@ -255,11 +255,11 @@ class CoreRAGAutoConfigurationGuardTest {
     void theUnfilteredBehaviourAdvisorIsNeverPrimary() {
         contextRunner
                 .withBean(VectorStore.class, () -> mock(VectorStore.class))
-                .withBean("behaviorQueryTransformer", QueryTransformer.class, () -> mock(QueryTransformer.class))
+                .withBean("contexaBehaviorQueryTransformer", QueryTransformer.class, () -> mock(QueryTransformer.class))
                 .withPropertyValues("contexa.rag.behavior.shared-advisor-enabled=true")
                 .run(context -> {
-                    assertThat(context).hasBean("behaviorAnalysisRagAdvisor");
-                    assertThat(context.getBeanFactory().getBeanDefinition("behaviorAnalysisRagAdvisor").isPrimary()).isFalse();
+                    assertThat(context).hasBean("contexaBehaviorAnalysisRagAdvisor");
+                    assertThat(context.getBeanFactory().getBeanDefinition("contexaBehaviorAnalysisRagAdvisor").isPrimary()).isFalse();
                 });
     }
 }

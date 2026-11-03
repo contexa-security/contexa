@@ -32,37 +32,37 @@ import org.springframework.data.redis.core.RedisTemplate;
 @AutoConfiguration
 public class IamAiamInfrastructureAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaRiskAssessmentPostProcessor")
     @ConditionalOnMissingBean
     public RiskAssessmentPostProcessor riskAssessmentPostProcessor() {
         return new RiskAssessmentPostProcessor();
     }
 
-    @Bean
+    @Bean(name = "contexaResourceNamingResponseProcessor")
     @ConditionalOnMissingBean
     public ResourceNamingResponseProcessor resourceNamingResponseProcessor() {
         return new ResourceNamingResponseProcessor();
     }
 
-    @Bean
+    @Bean(name = "contexaConditionTemplateResponseProcessor")
     @ConditionalOnMissingBean
     public ConditionTemplateResponseProcessor conditionTemplateResponseProcessor() {
         return new ConditionTemplateResponseProcessor();
     }
 
-    @Bean
+    @Bean(name = "contexaStompEventListener")
     @ConditionalOnMissingBean
     public StompEventListener stompEventListener() {
         return new StompEventListener();
     }
 
-    @Bean
+    @Bean(name = "contexaStompConnectedEventListener")
     @ConditionalOnMissingBean
     public StompEventListener.StompConnectedEventListener stompConnectedEventListener() {
         return new StompEventListener.StompConnectedEventListener();
     }
 
-    @Bean
+    @Bean(name = "contexaStompDisconnectEventListener")
     @ConditionalOnMissingBean
     public StompEventListener.StompDisconnectEventListener stompDisconnectEventListener() {
         return new StompEventListener.StompDisconnectEventListener();

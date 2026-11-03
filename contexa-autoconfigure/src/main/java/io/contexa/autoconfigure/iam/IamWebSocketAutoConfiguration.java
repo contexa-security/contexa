@@ -29,7 +29,15 @@ import org.springframework.context.annotation.Import;
 @AutoConfiguration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @ConditionalOnBean(PlatformConfig.class)
-@ConditionalOnMissingBean(name = "clientInboundChannel")
+// An application that has any bean named like one of Spring's message broker beans runs a broker of its own, or uses the name for
+// something else; Contexa's broker, which would define them again, stands aside.
+@ConditionalOnMissingBean(name = {
+        "clientInboundChannel", "clientOutboundChannel", "brokerChannel", "clientInboundChannelExecutor",
+        "clientOutboundChannelExecutor", "brokerChannelExecutor", "messageBrokerTaskScheduler", "brokerMessagingTemplate",
+        "brokerMessageConverter", "simpAnnotationMethodMessageHandler", "simpleBrokerMessageHandler",
+        "stompBrokerRelayMessageHandler", "userDestinationMessageHandler", "userRegistryMessageHandler",
+        "userDestinationResolver", "userRegistry", "stompWebSocketHandlerMapping", "subProtocolWebSocketHandler",
+        "webSocketScopeConfigurer", "webSocketMessageBrokerStats"})
 @ConditionalOnProperty(prefix = "contexa.iam.websocket", name = "enabled",
         havingValue = "true", matchIfMissing = true)
 @Import(WebSocketConfig.class)

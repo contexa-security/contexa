@@ -27,7 +27,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 @ConditionalOnClass(name = "org.springframework.kafka.core.KafkaTemplate")
 public class KafkaTopicConfiguration {
 
-    @Bean
+    @Bean(name = "contexaAllSecurityTopics")
     public KafkaAdmin.NewTopics allSecurityTopics() {
         return new KafkaAdmin.NewTopics(
             

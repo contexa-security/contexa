@@ -47,6 +47,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.context.MessageSource;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 @AutoConfiguration
 public class IamAdminAuthAutoConfiguration {
@@ -55,7 +56,7 @@ public class IamAdminAuthAutoConfiguration {
      * Under HOST_OWNED the console signs its administrators in on its own chain (ownership design S-3), so the form
      * posts there; under CONTEXA_OWNED it posts to Contexa's sign-in chain as before.
      */
-    @Bean
+    @Bean(name = "contexaLoginController")
     @ConditionalOnMissingBean
     public LoginController loginController(Environment environment) {
         boolean hostOwned = "HOST_OWNED".equalsIgnoreCase(environment.getProperty("contexa.bridge.ownership"));
@@ -63,95 +64,95 @@ public class IamAdminAuthAutoConfiguration {
                 : LoginController.DEFAULT_LOGIN_PROCESSING_URL);
     }
 
-    @Bean
+    @Bean(name = "contexaUserManagementController")
     @ConditionalOnMissingBean
     public UserManagementController userManagementController(
-            UserManagementService userManagementService,
-            RoleService roleService,
-            GroupService groupService,
-            PasswordPolicyService passwordPolicyService,
+            UserManagementService contexaUserManagementService,
+            RoleService contexaRoleService,
+            GroupService contexaGroupService,
+            PasswordPolicyService contexaPasswordPolicyService,
             MessageSource messageSource) {
-        return new UserManagementController(userManagementService, roleService, groupService, passwordPolicyService, messageSource);
+        return new UserManagementController(contexaUserManagementService, contexaRoleService, contexaGroupService, contexaPasswordPolicyService, messageSource);
     }
 
-    @Bean
+    @Bean(name = "contexaRoleController")
     @ConditionalOnMissingBean
     public RoleController roleController(
-            RoleService roleService,
-            PermissionService permissionService,
-            ModelMapper modelMapper,
+            RoleService contexaRoleService,
+            PermissionService contexaPermissionService,
+            @Qualifier("contexaModelMapper") ModelMapper contexaModelMapper,
             MessageSource messageSource) {
-        return new RoleController(roleService, permissionService, modelMapper, messageSource);
+        return new RoleController(contexaRoleService, contexaPermissionService, contexaModelMapper, messageSource);
     }
 
-    @Bean
+    @Bean(name = "contexaRoleHierarchyController")
     @ConditionalOnMissingBean
     public RoleHierarchyController roleHierarchyController(
-            RoleHierarchyService roleHierarchyService,
-            ModelMapper modelMapper,
-            RoleService roleService,
-            GroupService groupService,
+            RoleHierarchyService contexaRoleHierarchyService,
+            @Qualifier("contexaModelMapper") ModelMapper contexaModelMapper,
+            RoleService contexaRoleService,
+            GroupService contexaGroupService,
             MessageSource messageSource) {
-        return new RoleHierarchyController(roleHierarchyService, modelMapper, roleService, groupService, messageSource);
+        return new RoleHierarchyController(contexaRoleHierarchyService, contexaModelMapper, contexaRoleService, contexaGroupService, messageSource);
     }
 
-    @Bean
+    @Bean(name = "contexaGroupController")
     @ConditionalOnMissingBean
     public GroupController groupController(
-            GroupService groupService,
-            RoleService roleService,
-            ModelMapper modelMapper,
+            GroupService contexaGroupService,
+            RoleService contexaRoleService,
+            @Qualifier("contexaModelMapper") ModelMapper contexaModelMapper,
             MessageSource messageSource) {
-        return new GroupController(groupService, roleService, modelMapper, messageSource);
+        return new GroupController(contexaGroupService, contexaRoleService, contexaModelMapper, messageSource);
     }
 
-    @Bean
+    @Bean(name = "contexaPermissionController")
     @ConditionalOnMissingBean
     public PermissionController permissionController(
-            PermissionService permissionService,
-            ModelMapper modelMapper,
-            FunctionCatalogService functionCatalogService,
+            PermissionService contexaPermissionService,
+            @Qualifier("contexaModelMapper") ModelMapper contexaModelMapper,
+            FunctionCatalogService contexaFunctionCatalogService,
             MessageSource messageSource) {
-        return new PermissionController(permissionService, modelMapper, functionCatalogService, messageSource);
+        return new PermissionController(contexaPermissionService, contexaModelMapper, contexaFunctionCatalogService, messageSource);
     }
 
-    @Bean("userManagementService")
+    @Bean("contexaUserManagementService")
     @ConditionalOnMissingBean
     public UserManagementService userManagementService(
             UserRepository userRepository,
             GroupRepository groupRepository,
             RoleRepository roleRepository,
             PasswordEncoder passwordEncoder,
-            ModelMapper modelMapper,
-            CentralAuditFacade centralAuditFacade,
-            PasswordPolicyService passwordPolicyService,
-            SystemSettingsService systemSettingsService,
+            @Qualifier("contexaModelMapper") ModelMapper contexaModelMapper,
+            CentralAuditFacade contexaCentralAuditFacade,
+            PasswordPolicyService contexaPasswordPolicyService,
+            SystemSettingsService contexaSystemSettingsService,
             MessageSource messageSource,
             UserRolePermissionRepository userRolePermissionRepository,
             BridgeUserProfileRepository bridgeUserProfileRepository,
             ApplicationEventPublisher eventPublisher) {
         return new UserManagementServiceImpl(
-                userRepository, groupRepository, roleRepository, passwordEncoder, modelMapper,
-                centralAuditFacade, passwordPolicyService, systemSettingsService, messageSource,
+                userRepository, groupRepository, roleRepository, passwordEncoder, contexaModelMapper,
+                contexaCentralAuditFacade, contexaPasswordPolicyService, contexaSystemSettingsService, messageSource,
                 userRolePermissionRepository, bridgeUserProfileRepository, eventPublisher);
     }
 
-    @Bean
+    @Bean(name = "contexaRoleService")
     @ConditionalOnMissingBean
     public RoleService roleService(
             RoleRepository roleRepository,
             PermissionRepository permissionRepository,
             IntegrationEventBus eventBus,
-            CentralAuditFacade centralAuditFacade,
+            CentralAuditFacade contexaCentralAuditFacade,
             RoleHierarchyRepository roleHierarchyRepository,
             PolicyRepository policyRepository,
-            PolicySynchronizationService policySynchronizationService,
+            PolicySynchronizationService contexaPolicySynchronizationService,
             MessageSource messageSource) {
-        return new RoleServiceImpl(roleRepository, permissionRepository, eventBus, centralAuditFacade,
-                roleHierarchyRepository, policyRepository, policySynchronizationService, messageSource);
+        return new RoleServiceImpl(roleRepository, permissionRepository, eventBus, contexaCentralAuditFacade,
+                roleHierarchyRepository, policyRepository, contexaPolicySynchronizationService, messageSource);
     }
 
-    @Bean
+    @Bean(name = "contexaGroupService")
     @ConditionalOnMissingBean
     public GroupService groupService(
             GroupRepository groupRepository,
@@ -161,7 +162,7 @@ public class IamAdminAuthAutoConfiguration {
         return new GroupServiceImpl(groupRepository, roleRepository, roleHierarchyRepository, messageSource);
     }
 
-    @Bean
+    @Bean(name = "contexaPermissionService")
     @ConditionalOnMissingBean
     public PermissionService permissionService(
             PermissionRepository permissionRepository,
@@ -172,15 +173,15 @@ public class IamAdminAuthAutoConfiguration {
                 permissionRepository, managedResourceRepository, policyRepository, messageSource);
     }
 
-    @Bean
+    @Bean(name = "contexaRoleHierarchyService")
     @ConditionalOnMissingBean
     public RoleHierarchyService roleHierarchyService(
             RoleHierarchyRepository roleHierarchyRepository,
             RoleRepository roleRepository,
-            RoleHierarchyImpl roleHierarchy,
+            RoleHierarchyImpl contexaRoleHierarchy,
             MessageSource messageSource) {
         return new RoleHierarchyService(
-                roleHierarchyRepository, roleRepository, roleHierarchy, messageSource);
+                roleHierarchyRepository, roleRepository, contexaRoleHierarchy, messageSource);
     }
 }
 

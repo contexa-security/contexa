@@ -76,17 +76,17 @@ public class AiSecurityConfiguration {
      * {@code GlobalConfigurer}, {@code ZeroTrustAccessControlConfigurer},
      * {@code ZeroTrustChallengeConfigurer}, and {@code SecurityFilterChainRegistrar}.
      */
-    @Bean
+    @Bean(name = "contexaPlatformDslConfig")
     @ConditionalOnMissingBean(PlatformConfig.class)
     public PlatformConfig platformDslConfig(ApplicationContext applicationContext,
-                                               CustomDynamicAuthorizationManager customDynamicAuthorizationManager) throws Exception {
+                                               CustomDynamicAuthorizationManager contexaCustomDynamicAuthorizationManager) throws Exception {
         IdentityDslRegistry<HttpSecurity> registry = new IdentityDslRegistry<>(applicationContext);
         SecurityMode securityMode = resolveSecurityMode();
         SafeHttpCustomizer<HttpSecurity> globalHttpCustomizer = http -> {
             http
                     .authorizeHttpRequests(authReq -> authReq
                             .requestMatchers("/contexa/css/**", "/contexa/js/**", "/images/**", "/favicon.ico").permitAll()
-                            .anyRequest().access(customDynamicAuthorizationManager)
+                            .anyRequest().access(contexaCustomDynamicAuthorizationManager)
                     )
             ;
         };
@@ -131,7 +131,7 @@ public class AiSecurityConfiguration {
                 .build();
     }
 
-    @Bean
+    @Bean(name = "contexaSessionSecurityContextRepositoryConfigurer")
     @ConditionalOnMissingBean
     public SessionSecurityContextRepositoryConfigurer sessionSecurityContextRepositoryConfigurer(
             ObjectProvider<AISessionSecurityContextRepository> aiSessionSecurityContextRepositoryProvider) {
@@ -139,14 +139,14 @@ public class AiSecurityConfiguration {
                 aiSessionSecurityContextRepositoryProvider.getIfAvailable());
     }
 
-    @Bean
+    @Bean(name = "contexaBridgeResolutionConfigurer")
     @ConditionalOnMissingBean
     public BridgeResolutionConfigurer bridgeResolutionConfigurer(
             ObjectProvider<BridgeResolutionFilter> bridgeResolutionFilterProvider) {
         return new BridgeResolutionConfigurer(bridgeResolutionFilterProvider.getIfAvailable());
     }
 
-    @Bean
+    @Bean(name = "contexaHostOwnedSecurityChainDiagnostics")
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "HOST_OWNED", matchIfMissing = true)
     public HostOwnedSecurityChainDiagnostics hostOwnedSecurityChainDiagnostics(ConfigurableListableBeanFactory beanFactory) {
@@ -154,7 +154,7 @@ public class AiSecurityConfiguration {
     }
 
     /** What an installation should know at start about its ownership (findings F-1, F-2, F-8). */
-    @Bean
+    @Bean(name = "contexaOwnershipStartupDiagnostics")
     @ConditionalOnMissingBean
     public OwnershipStartupDiagnostics ownershipStartupDiagnostics(ConfigurableListableBeanFactory beanFactory) {
         return new OwnershipStartupDiagnostics(beanFactory,

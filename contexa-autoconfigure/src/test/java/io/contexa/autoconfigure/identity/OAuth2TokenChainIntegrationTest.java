@@ -424,7 +424,7 @@ class OAuth2TokenChainIntegrationTest {
             return directory();
         }
 
-        @Bean
+        @Bean(name = "contexaObjectMapper")
         ObjectMapper objectMapper() {
             return new ObjectMapper();
         }

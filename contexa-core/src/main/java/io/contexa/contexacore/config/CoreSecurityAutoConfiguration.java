@@ -42,7 +42,7 @@ public class CoreSecurityAutoConfiguration {
 
     public CoreSecurityAutoConfiguration() {}
 
-    @Bean
+    @Bean(name = "contexaAuthorityResolver")
     @ConditionalOnMissingBean
     public AuthorityResolver authorityResolver(
             UserRolePermissionRepository userRolePermissionRepository,
@@ -53,7 +53,7 @@ public class CoreSecurityAutoConfiguration {
                 rolePermissionRepository, roleHierarchy);
     }
 
-    @Bean
+    @Bean(name = "contexaUnifiedUserDetailsService")
     @Primary
     @ConditionalOnProperty(
             prefix = "contexa.core.security.unified",
@@ -69,7 +69,7 @@ public class CoreSecurityAutoConfiguration {
     @ConditionalOnMissingBean(UserDetailsService.class)
         public UnifiedUserDetailsService unifiedUserDetailsService(
                 UserRepository userRepository,
-                AuthorityResolver authorityResolver) {
-            return new UnifiedUserDetailsService(userRepository, authorityResolver);
+                AuthorityResolver contexaAuthorityResolver) {
+            return new UnifiedUserDetailsService(userRepository, contexaAuthorityResolver);
         }
     }

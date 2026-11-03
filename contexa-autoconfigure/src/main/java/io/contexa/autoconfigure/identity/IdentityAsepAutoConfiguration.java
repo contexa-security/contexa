@@ -60,14 +60,14 @@ public class IdentityAsepAutoConfiguration {
         this.conversionService = conversionServiceProvider.getIfAvailable(FormattingConversionService::new);
     }
 
-    @Bean
+    @Bean(name = "contexaSecurityExceptionHandlerMethodRegistry")
     @ConditionalOnMissingBean
     public SecurityExceptionHandlerMethodRegistry securityExceptionHandlerMethodRegistry() {
         return new SecurityExceptionHandlerMethodRegistry();
     }
 
-    @Bean
-    @ConditionalOnMissingBean(name = "asepDefaultArgumentResolvers")
+    @Bean(name = "contexaAsepDefaultArgumentResolvers")
+    @ConditionalOnMissingBean(name = "contexaAsepDefaultArgumentResolvers")
     public List<SecurityHandlerMethodArgumentResolver> asepDefaultArgumentResolvers() {
         List<SecurityHandlerMethodArgumentResolver> resolvers = new ArrayList<>();
         resolvers.add(new CaughtExceptionArgumentResolver());
@@ -91,8 +91,8 @@ public class IdentityAsepAutoConfiguration {
         return Collections.unmodifiableList(resolvers);
     }
 
-    @Bean
-    @ConditionalOnMissingBean(name = "asepDefaultReturnValueHandlers")
+    @Bean(name = "contexaAsepDefaultReturnValueHandlers")
+    @ConditionalOnMissingBean(name = "contexaAsepDefaultReturnValueHandlers")
     public List<SecurityHandlerMethodReturnValueHandler> asepDefaultReturnValueHandlers() {
         List<SecurityHandlerMethodReturnValueHandler> handlers = new ArrayList<>();
         if (this.httpMessageConverters != null && !this.httpMessageConverters.getConverters().isEmpty()) {
@@ -109,8 +109,8 @@ public class IdentityAsepAutoConfiguration {
         return Collections.unmodifiableList(handlers);
     }
 
-    @Bean
-    @ConditionalOnMissingBean(name = "asepDslAttributesMapping")
+    @Bean(name = "contexaAsepDslAttributesMapping")
+    @ConditionalOnMissingBean(name = "contexaAsepDslAttributesMapping")
     public Map<String, Class<? extends BaseAsepAttributes>> asepDslAttributesMapping() {
         Map<String, Class<? extends BaseAsepAttributes>> mapping = new HashMap<>();
 
@@ -123,14 +123,14 @@ public class IdentityAsepAutoConfiguration {
         return Collections.unmodifiableMap(mapping);
     }
 
-    @Bean
+    @Bean(name = "contexaAsepConfigurer")
     @ConditionalOnMissingBean
     public AsepConfigurer asepConfigurer(
             SecurityExceptionHandlerMethodRegistry methodRegistry,
-            @Qualifier("asepDefaultArgumentResolvers") List<SecurityHandlerMethodArgumentResolver> defaultArgumentResolvers,
-            @Qualifier("asepDefaultReturnValueHandlers") List<SecurityHandlerMethodReturnValueHandler> defaultReturnValueHandlers,
+            @Qualifier("contexaAsepDefaultArgumentResolvers") List<SecurityHandlerMethodArgumentResolver> defaultArgumentResolvers,
+            @Qualifier("contexaAsepDefaultReturnValueHandlers") List<SecurityHandlerMethodReturnValueHandler> defaultReturnValueHandlers,
             HttpMessageConverters httpMessageConverters,
-            @Qualifier("asepDslAttributesMapping") Map<String, Class<? extends BaseAsepAttributes>> dslAttributesMapping) {
+            @Qualifier("contexaAsepDslAttributesMapping") Map<String, Class<? extends BaseAsepAttributes>> dslAttributesMapping) {
         AsepConfigurer configurer = new AsepConfigurer(
                 methodRegistry,
                 defaultArgumentResolvers,

@@ -61,7 +61,13 @@ class SecurityOwnershipBoundaryContractTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertThat(ownedConfiguration.getAnnotation(EnableMethodSecurity.class)).isNotNull();
+        assertThat(ownedConfiguration.getAnnotation(EnableMethodSecurity.class))
+                .as("not even Contexa-owned mode switches method security on for the whole application: the application's"
+                        + " dormant @PreAuthorize annotations stay dormant")
+                .isNull();
+        assertThat(findMethod(ownedConfiguration, "contexaPreAuthorizeAdvisor"))
+                .as("Contexa's @PreAuthorize is served by an advisor narrowed to Contexa's classes")
+                .isNotNull();
         assertContexaOwnedOnly(ownedConfiguration.getAnnotation(ConditionalOnProperty.class));
     }
 

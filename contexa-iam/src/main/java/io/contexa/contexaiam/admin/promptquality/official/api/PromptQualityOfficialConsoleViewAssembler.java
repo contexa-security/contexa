@@ -40,6 +40,7 @@ import java.util.Objects;
 import java.util.Map;
 import java.util.Properties;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 @Component
 public final class PromptQualityOfficialConsoleViewAssembler {
@@ -56,7 +57,7 @@ public final class PromptQualityOfficialConsoleViewAssembler {
             SealedEvidencePackageLookupPort evidenceLookupService,
             PromptQualityOfficialRunDetailService officialRunDetailService,
             OfficialVerificationRunStore runStore,
-            ObjectMapper objectMapper,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             RuntimeEvidencePromptConsistencyGate promptConsistencyGate,
             PromptQualityMessageResolver messageResolver) {
         this.evidenceLookupService = evidenceLookupService;

@@ -27,12 +27,12 @@ import java.util.Map;
 import java.util.UUID;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+import io.contexa.contexacommon.entity.ContexaAuditingEntityListener;
 
 
 @Entity
 @Table(name = "ctxa_soar_incidents")
-@EntityListeners(AuditingEntityListener.class)
+@EntityListeners(ContexaAuditingEntityListener.class)
 public class SoarIncident {
 
     @Id

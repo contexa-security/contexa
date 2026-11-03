@@ -23,21 +23,24 @@ import io.contexa.contexaiam.security.xacml.pdp.evaluation.method.CompositePermi
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.method.CustomMethodSecurityExpressionHandlerFactory;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
+import org.springframework.aop.Advisor;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
+import org.springframework.context.annotation.Role;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 
 /**
  * Provides Contexa's method-policy expression handler without publishing it as host
- * Spring Security infrastructure. Application-wide method security is enabled only
- * when Contexa owns authentication.
+ * Spring Security infrastructure. When Contexa owns authentication, {@code @PreAuthorize}
+ * is applied to Contexa's own classes only.
  */
 @AutoConfiguration
 @EnableConfigurationProperties(PolicyCombiningProperties.class)
@@ -48,11 +51,11 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 })
 public class IamSecurityAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaCustomMethodSecurityExpressionHandlerFactory")
     @ConditionalOnMissingBean
     public CustomMethodSecurityExpressionHandlerFactory customMethodSecurityExpressionHandlerFactory(
             SecurityZeroTrustProperties securityZeroTrustProperties,
-            CompositePermissionEvaluator compositePermissionEvaluator,
+            CompositePermissionEvaluator contexaCompositePermissionEvaluator,
             RoleHierarchy roleHierarchy,
             PolicyRetrievalPoint policyRetrievalPoint,
             ContextHandler contextHandler,
@@ -62,7 +65,7 @@ public class IamSecurityAutoConfiguration {
 
         return new CustomMethodSecurityExpressionHandlerFactory(
                 securityZeroTrustProperties,
-                compositePermissionEvaluator,
+                contexaCompositePermissionEvaluator,
                 roleHierarchy,
                 policyRetrievalPoint,
                 contextHandler,
@@ -71,19 +74,24 @@ public class IamSecurityAutoConfiguration {
                 policyCombiningProperties);
     }
 
+    /**
+     * {@code @PreAuthorize} for Contexa's own classes, with Contexa's handler. The application's own annotations are not touched, and
+     * when the application turned method security on itself, its interceptor (and its handler) already serves Contexa's classes.
+     */
     @Configuration(proxyBeanMethods = false)
-    @EnableMethodSecurity
     @ConditionalOnProperty(
             prefix = "contexa.bridge",
             name = "ownership",
             havingValue = "CONTEXA_OWNED")
     static class ContexaOwnedMethodSecurityConfiguration {
 
-        @Bean
-        @ConditionalOnMissingBean(MethodSecurityExpressionHandler.class)
-        MethodSecurityExpressionHandler methodSecurityExpressionHandler(
-                CustomMethodSecurityExpressionHandlerFactory factory) {
-            return factory.getHandler();
+        @Bean(name = "contexaPreAuthorizeAdvisor")
+        @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
+        @ConditionalOnMissingBean(name = "preAuthorizeAuthorizationMethodInterceptor")
+        static Advisor contexaPreAuthorizeAdvisor(
+                ObjectProvider<CustomMethodSecurityExpressionHandlerFactory> factory,
+                ApplicationContext applicationContext) {
+            return ContexaScopedMethodSecurity.preAuthorizeAdvisor(() -> factory.getObject().getHandler(), applicationContext);
         }
     }
 }

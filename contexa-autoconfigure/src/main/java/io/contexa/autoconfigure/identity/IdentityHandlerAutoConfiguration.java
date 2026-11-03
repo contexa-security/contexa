@@ -41,53 +41,53 @@ public class IdentityHandlerAutoConfiguration {
     public IdentityHandlerAutoConfiguration() {
     }
 
-    @Bean
+    @Bean(name = "contexaOneTimeTokenCreationSuccessHandler")
     @ConditionalOnMissingBean
     public OneTimeTokenCreationSuccessHandler oneTimeTokenCreationSuccessHandler(
-            MfaStateMachineIntegrator mfaStateMachineIntegrator,
-            AuthUrlProvider authUrlProvider,
-            MfaFlowUrlRegistry mfaFlowUrlRegistry,
+            MfaStateMachineIntegrator contexaMfaStateMachineIntegrator,
+            AuthUrlProvider contexaAuthUrlProvider,
+            MfaFlowUrlRegistry contexaMfaFlowUrlRegistry,
             MfaSessionRepository sessionRepository) {
         return new OneTimeTokenCreationSuccessHandler(
-                mfaStateMachineIntegrator,
-                authUrlProvider,
-                mfaFlowUrlRegistry,
+                contexaMfaStateMachineIntegrator,
+                contexaAuthUrlProvider,
+                contexaMfaFlowUrlRegistry,
                 sessionRepository);
     }
 
-    @Bean
+    @Bean(name = "contexaSessionSingleAuthFailureHandler")
     @ConditionalOnMissingBean
     public SessionSingleAuthFailureHandler sessionSingleAuthFailureHandler(
             AuthResponseWriter responseWriter,
             AuthContextProperties authContextProperties,
-            @Autowired(required = false) LoginPolicyHandler loginPolicyHandler) {
-        return new SessionSingleAuthFailureHandler(responseWriter, authContextProperties, loginPolicyHandler);
+            @Autowired(required = false) LoginPolicyHandler contexaLoginPolicyHandler) {
+        return new SessionSingleAuthFailureHandler(responseWriter, authContextProperties, contexaLoginPolicyHandler);
     }
 
-    @Bean
+    @Bean(name = "contexaSessionSingleAuthSuccessHandler")
     @ConditionalOnMissingBean
     public SessionSingleAuthSuccessHandler sessionSingleAuthSuccessHandler(
             AuthResponseWriter responseWriter,
             AuthContextProperties authContextProperties,
-            @Autowired(required = false) LoginPolicyHandler loginPolicyHandler) {
-        return new SessionSingleAuthSuccessHandler(responseWriter, authContextProperties, loginPolicyHandler);
+            @Autowired(required = false) LoginPolicyHandler contexaLoginPolicyHandler) {
+        return new SessionSingleAuthSuccessHandler(responseWriter, authContextProperties, contexaLoginPolicyHandler);
     }
 
-    @Bean
+    @Bean(name = "contexaOauth2SingleAuthSuccessHandler")
     @ConditionalOnMissingBean
     public OAuth2SingleAuthSuccessHandler oauth2SingleAuthSuccessHandler(
             TokenService tokenService,
             AuthResponseWriter responseWriter,
             AuthContextProperties authContextProperties,
-            @Autowired(required = false) LoginPolicyHandler loginPolicyHandler) {
-        return new OAuth2SingleAuthSuccessHandler(tokenService, responseWriter, authContextProperties, loginPolicyHandler);
+            @Autowired(required = false) LoginPolicyHandler contexaLoginPolicyHandler) {
+        return new OAuth2SingleAuthSuccessHandler(tokenService, responseWriter, authContextProperties, contexaLoginPolicyHandler);
     }
 
-    @Bean
+    @Bean(name = "contexaOauth2SingleAuthFailureHandler")
     @ConditionalOnMissingBean
     public OAuth2SingleAuthFailureHandler oauth2SingleAuthFailureHandler(
             AuthResponseWriter responseWriter,
-            @Autowired(required = false) LoginPolicyHandler loginPolicyHandler) {
-        return new OAuth2SingleAuthFailureHandler(responseWriter, loginPolicyHandler);
+            @Autowired(required = false) LoginPolicyHandler contexaLoginPolicyHandler) {
+        return new OAuth2SingleAuthFailureHandler(responseWriter, contexaLoginPolicyHandler);
     }
 }

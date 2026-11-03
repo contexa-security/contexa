@@ -43,53 +43,53 @@ public class IdentityServiceAutoConfiguration {
 
     public IdentityServiceAutoConfiguration() {
     }
-    @Bean
+    @Bean(name = "contexaAuthUrlProvider")
     @ConditionalOnMissingBean
     public AuthUrlProvider authUrlProvider(AuthContextProperties properties) {
         return new AuthUrlProvider(properties);
     }
 
-    @Bean
+    @Bean(name = "contexaMfaFlowUrlRegistry")
     @ConditionalOnMissingBean
     public MfaFlowUrlRegistry mfaFlowUrlRegistry(AuthContextProperties properties) {
         return new MfaFlowUrlRegistry(properties);
     }
 
-    @Bean
+    @Bean(name = "contexaEmailService")
     @ConditionalOnMissingBean
     public EmailService emailService(@Autowired(required = false) JavaMailSender mailSender) {
         return new EmailService(mailSender);
     }
 
-    @Bean
+    @Bean(name = "contexaOneTimeTokenService")
     @ConditionalOnMissingBean(OneTimeTokenService.class)
     public EmailOneTimeTokenService oneTimeTokenService(
-            EmailService emailService,
+            EmailService contexaEmailService,
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
             // ctxa_one_time_tokens is JDBC-owned; the shared Contexa transaction manager keeps the boundary explicit.
             @Qualifier("contexaTransactionTemplate") TransactionTemplate transactionTemplate,
             AuthContextProperties authContextProperties) {
         return new EmailOneTimeTokenService(
-                emailService,
+                contexaEmailService,
                 jdbcTemplate,
                 transactionTemplate,
                 authContextProperties,
                 authContextProperties.getOtt().isFailOnEmailError());
     }
 
-    @Bean
+    @Bean(name = "contexaMagicLinkHandler")
     @ConditionalOnMissingBean
     public MagicLinkHandler magicLinkHandler() {
         return new MagicLinkHandler();
     }
 
-    @Bean
+    @Bean(name = "contexaMfaConfigController")
     @ConditionalOnMissingBean
     @ConditionalOnBean(AuthUrlProvider.class)
-    public MfaConfigController mfaConfigController(AuthUrlProvider authUrlProvider,
-                                                     MfaFlowUrlRegistry mfaFlowUrlRegistry,
+    public MfaConfigController mfaConfigController(AuthUrlProvider contexaAuthUrlProvider,
+                                                     MfaFlowUrlRegistry contexaMfaFlowUrlRegistry,
                                                      MfaStateMachineIntegrator stateMachineIntegrator) {
-        return new MfaConfigController(authUrlProvider, mfaFlowUrlRegistry, stateMachineIntegrator);
+        return new MfaConfigController(contexaAuthUrlProvider, contexaMfaFlowUrlRegistry, stateMachineIntegrator);
     }
 }
 

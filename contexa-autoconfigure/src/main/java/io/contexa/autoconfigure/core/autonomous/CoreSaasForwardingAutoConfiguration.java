@@ -57,8 +57,8 @@ import java.util.concurrent.Executor;
 @EnableConfigurationProperties(ContexaProperties.class)
 public class CoreSaasForwardingAutoConfiguration {
 
-    @Bean(name = "saasClientRegistrationRepository")
-    @ConditionalOnMissingBean(name = "saasClientRegistrationRepository")
+    @Bean(name = "contexaSaasClientRegistrationRepository")
+    @ConditionalOnMissingBean(name = "contexaSaasClientRegistrationRepository")
     public ClientRegistrationRepository saasClientRegistrationRepository(ContexaProperties properties) {
         ContexaProperties.Saas.Oauth2 oauth2 = properties.getSaas().getOauth2();
         properties.getSaas().validate();
@@ -73,18 +73,18 @@ public class CoreSaasForwardingAutoConfiguration {
         return new InMemoryClientRegistrationRepository(registration);
     }
 
-    @Bean(name = "saasOAuth2AuthorizedClientService")
-    @ConditionalOnMissingBean(name = "saasOAuth2AuthorizedClientService")
+    @Bean(name = "contexaSaasOAuth2AuthorizedClientService")
+    @ConditionalOnMissingBean(name = "contexaSaasOAuth2AuthorizedClientService")
     public OAuth2AuthorizedClientService saasOAuth2AuthorizedClientService(
-            @Qualifier("saasClientRegistrationRepository") ClientRegistrationRepository registrationRepository) {
+            @Qualifier("contexaSaasClientRegistrationRepository") ClientRegistrationRepository registrationRepository) {
         return new InMemoryOAuth2AuthorizedClientService(registrationRepository);
     }
 
-    @Bean(name = "saasOAuth2AuthorizedClientManager")
-    @ConditionalOnMissingBean(name = "saasOAuth2AuthorizedClientManager")
+    @Bean(name = "contexaSaasOAuth2AuthorizedClientManager")
+    @ConditionalOnMissingBean(name = "contexaSaasOAuth2AuthorizedClientManager")
     public OAuth2AuthorizedClientManager saasOAuth2AuthorizedClientManager(
-            @Qualifier("saasClientRegistrationRepository") ClientRegistrationRepository registrationRepository,
-            @Qualifier("saasOAuth2AuthorizedClientService") OAuth2AuthorizedClientService authorizedClientService) {
+            @Qualifier("contexaSaasClientRegistrationRepository") ClientRegistrationRepository registrationRepository,
+            @Qualifier("contexaSaasOAuth2AuthorizedClientService") OAuth2AuthorizedClientService authorizedClientService) {
         AuthorizedClientServiceOAuth2AuthorizedClientManager manager =
                 new AuthorizedClientServiceOAuth2AuthorizedClientManager(registrationRepository, authorizedClientService);
         OAuth2AuthorizedClientProvider provider = OAuth2AuthorizedClientProviderBuilder.builder()
@@ -94,7 +94,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return manager;
     }
 
-    @Bean
+    @Bean(name = "contexaSaasForwardingProperties")
     @ConditionalOnMissingBean
     public SaasForwardingProperties saasForwardingProperties(ContexaProperties properties) {
         ContexaProperties.Saas source = properties.getSaas();
@@ -177,62 +177,62 @@ public class CoreSaasForwardingAutoConfiguration {
                 .build();
     }
 
-    @Bean
+    @Bean(name = "contexaSaasDecisionAccessTokenProvider")
     @ConditionalOnMissingBean
     public SaasDecisionAccessTokenProvider saasDecisionAccessTokenProvider(
             SaasForwardingProperties properties,
-            @Qualifier("saasOAuth2AuthorizedClientManager") OAuth2AuthorizedClientManager authorizedClientManager) {
-        return new SaasDecisionAccessTokenProvider(properties, authorizedClientManager);
+            @Qualifier("contexaSaasOAuth2AuthorizedClientManager") OAuth2AuthorizedClientManager contexaAuthorizedClientManager) {
+        return new SaasDecisionAccessTokenProvider(properties, contexaAuthorizedClientManager);
     }
 
-    @Bean
+    @Bean(name = "contexaTenantScopedPseudonymizationService")
     @ConditionalOnMissingBean
     public TenantScopedPseudonymizationService tenantScopedPseudonymizationService(SaasForwardingProperties properties) {
         return new TenantScopedPseudonymizationService(properties);
     }
 
-    @Bean
+    @Bean(name = "contexaThreatSignalNormalizationService")
     @ConditionalOnMissingBean
     public ThreatSignalNormalizationService threatSignalNormalizationService() {
         return new ThreatSignalNormalizationService();
     }
 
-    @Bean
+    @Bean(name = "contexaSecurityDecisionForwardingPayloadMapper")
     @ConditionalOnMissingBean
     public SecurityDecisionForwardingPayloadMapper securityDecisionForwardingPayloadMapper(
             TenantScopedPseudonymizationService pseudonymizationService,
-            ThreatSignalNormalizationService threatSignalNormalizationService,
+            ThreatSignalNormalizationService contexaThreatSignalNormalizationService,
             SaasForwardingProperties properties,
             ObjectProvider<CanonicalSecurityContextProvider> canonicalSecurityContextProvider) {
         return new SecurityDecisionForwardingPayloadMapper(
                 pseudonymizationService,
-                threatSignalNormalizationService,
+                contexaThreatSignalNormalizationService,
                 properties,
                 canonicalSecurityContextProvider.getIfAvailable());
     }
 
-    @Bean
+    @Bean(name = "contexaDecisionFeedbackPayloadMapper")
     @ConditionalOnMissingBean
     public DecisionFeedbackPayloadMapper decisionFeedbackPayloadMapper(
             TenantScopedPseudonymizationService pseudonymizationService) {
         return new DecisionFeedbackPayloadMapper(pseudonymizationService);
     }
 
-    @Bean
+    @Bean(name = "contexaThreatOutcomePayloadMapper")
     @ConditionalOnMissingBean
     public ThreatOutcomePayloadMapper threatOutcomePayloadMapper(
             TenantScopedPseudonymizationService pseudonymizationService) {
         return new ThreatOutcomePayloadMapper(pseudonymizationService);
     }
 
-    @Bean
+    @Bean(name = "contexaPromptContextAuditPayloadMapper")
     @ConditionalOnMissingBean
     public PromptContextAuditPayloadMapper promptContextAuditPayloadMapper(
             TenantScopedPseudonymizationService pseudonymizationService) {
         return new PromptContextAuditPayloadMapper(pseudonymizationService);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasDecisionHttpClient")
     @ConditionalOnMissingBean
     public SaasDecisionHttpClient saasDecisionHttpClient(
             SaasForwardingProperties properties,
@@ -240,7 +240,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasDecisionHttpClient(properties, accessTokenProvider);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasDecisionFeedbackHttpClient")
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.saas.decision-feedback", name = "enabled", havingValue = "true")
     public SaasDecisionFeedbackHttpClient saasDecisionFeedbackHttpClient(
@@ -249,7 +249,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasDecisionFeedbackHttpClient(properties, accessTokenProvider);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasBaselineSignalHttpClient")
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.saas.baseline-signal", name = "enabled", havingValue = "true")
     public SaasBaselineSignalHttpClient saasBaselineSignalHttpClient(
@@ -258,7 +258,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasBaselineSignalHttpClient(properties, accessTokenProvider);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasBaselineSeedHttpClient")
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.saas.baseline-signal", name = "enabled", havingValue = "true")
     public SaasBaselineSeedHttpClient saasBaselineSeedHttpClient(
@@ -267,21 +267,21 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasBaselineSeedHttpClient(properties, accessTokenProvider);
     }
 
-    @Bean
+    @Bean(name = "contexaBaselineSignalAggregationService")
     @ConditionalOnMissingBean
     @ConditionalOnBean({BaselineDataStore.class, BaselineSignalOutboxRepository.class})
     @ConditionalOnProperty(prefix = "contexa.saas.baseline-signal", name = "enabled", havingValue = "true")
     public BaselineSignalAggregationService baselineSignalAggregationService(
-            BaselineDataStore baselineDataStore,
+            BaselineDataStore contexaBaselineDataStore,
             BaselineSignalOutboxRepository baselineSignalOutboxRepository,
             SaasForwardingProperties properties) {
         return new BaselineSignalAggregationService(
-                baselineDataStore,
+                contexaBaselineDataStore,
                 baselineSignalOutboxRepository,
                 properties);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasBaselineSignalDispatcher")
     @ConditionalOnMissingBean
     @ConditionalOnBean({BaselineSignalOutboxRepository.class, SaasBaselineSignalHttpClient.class})
     public SaasBaselineSignalDispatcher saasBaselineSignalDispatcher(
@@ -291,7 +291,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasBaselineSignalDispatcher(repository, httpClient, properties);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasBaselineSeedService")
     @ConditionalOnMissingBean
     @ConditionalOnBean(SaasBaselineSeedHttpClient.class)
     public SaasBaselineSeedService saasBaselineSeedService(
@@ -300,7 +300,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasBaselineSeedService(properties, httpClient);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasBaselineSignalScheduler")
     @ConditionalOnMissingBean
     @ConditionalOnBean({BaselineSignalAggregationService.class, SaasBaselineSignalDispatcher.class})
     public SaasBaselineSignalScheduler saasBaselineSignalScheduler(
@@ -310,7 +310,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasBaselineSignalScheduler(aggregationService, dispatcher, properties);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasBaselineSeedPullScheduler")
     @ConditionalOnMissingBean
     @ConditionalOnBean(SaasBaselineSeedService.class)
     public SaasBaselineSeedPullScheduler saasBaselineSeedPullScheduler(
@@ -319,7 +319,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasBaselineSeedPullScheduler(baselineSeedService, properties);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasThreatIntelligenceHttpClient")
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.saas.threat-intelligence", name = "enabled", havingValue = "true")
     public SaasThreatIntelligenceHttpClient saasThreatIntelligenceHttpClient(
@@ -328,7 +328,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasThreatIntelligenceHttpClient(properties, accessTokenProvider);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasThreatOutcomeHttpClient")
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.saas.threat-outcome", name = "enabled", havingValue = "true")
     public SaasThreatOutcomeHttpClient saasThreatOutcomeHttpClient(
@@ -337,7 +337,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasThreatOutcomeHttpClient(properties, accessTokenProvider);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasThreatKnowledgePackHttpClient")
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.saas.threat-knowledge", name = "enabled", havingValue = "true")
     public SaasThreatKnowledgePackHttpClient saasThreatKnowledgePackHttpClient(
@@ -346,7 +346,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasThreatKnowledgePackHttpClient(properties, accessTokenProvider);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasThreatKnowledgeRuntimePolicyHttpClient")
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.saas.threat-knowledge", name = "enabled", havingValue = "true")
     public SaasThreatKnowledgeRuntimePolicyHttpClient saasThreatKnowledgeRuntimePolicyHttpClient(
@@ -355,7 +355,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasThreatKnowledgeRuntimePolicyHttpClient(properties, accessTokenProvider);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasDetectionStrategyPackHttpClient")
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.saas.detection-strategy", name = "enabled", havingValue = "true")
     public SaasDetectionStrategyPackHttpClient saasDetectionStrategyPackHttpClient(
@@ -364,7 +364,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasDetectionStrategyPackHttpClient(properties, accessTokenProvider);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasThreatIntelligenceService")
     @ConditionalOnMissingBean
     @ConditionalOnBean(SaasThreatIntelligenceHttpClient.class)
     public SaasThreatIntelligenceService saasThreatIntelligenceService(
@@ -373,7 +373,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasThreatIntelligenceService(properties, httpClient);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasThreatKnowledgePackService")
     @ConditionalOnMissingBean
     @ConditionalOnBean({SaasThreatKnowledgePackHttpClient.class, SaasThreatKnowledgeRuntimePolicyService.class})
     public SaasThreatKnowledgePackService saasThreatKnowledgePackService(
@@ -383,7 +383,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasThreatKnowledgePackService(properties, httpClient, runtimePolicyService);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasDetectionStrategyPackService")
     @ConditionalOnMissingBean
     @ConditionalOnBean(SaasDetectionStrategyPackHttpClient.class)
     public SaasDetectionStrategyPackService saasDetectionStrategyPackService(
@@ -393,7 +393,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasDetectionStrategyPackService(properties, httpClient, runtimeConflictService.getIfAvailable());
     }
 
-    @Bean
+    @Bean(name = "contexaSaasThreatKnowledgeRuntimePolicyService")
     @ConditionalOnMissingBean
     @ConditionalOnBean(SaasThreatKnowledgeRuntimePolicyHttpClient.class)
     public SaasThreatKnowledgeRuntimePolicyService saasThreatKnowledgeRuntimePolicyService(
@@ -401,7 +401,7 @@ public class CoreSaasForwardingAutoConfiguration {
             SaasThreatKnowledgeRuntimePolicyHttpClient httpClient) {
         return new SaasThreatKnowledgeRuntimePolicyService(properties, httpClient);
     }
-    @Bean
+    @Bean(name = "contexaSaasModelPerformanceTelemetryHttpClient")
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.saas.performance-telemetry", name = "enabled", havingValue = "true")
     public SaasModelPerformanceTelemetryHttpClient saasModelPerformanceTelemetryHttpClient(
@@ -410,7 +410,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasModelPerformanceTelemetryHttpClient(properties, accessTokenProvider);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasPromptContextAuditHttpClient")
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.saas.prompt-context-audit", name = "enabled", havingValue = "true")
     public SaasPromptContextAuditHttpClient saasPromptContextAuditHttpClient(
@@ -419,7 +419,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasPromptContextAuditHttpClient(properties, accessTokenProvider);
     }
 
-    @Bean
+    @Bean(name = "contexaModelPerformanceTelemetryCollector")
     @ConditionalOnMissingBean
     @ConditionalOnBean(ModelPerformanceTelemetryOutboxRepository.class)
     @ConditionalOnProperty(prefix = "contexa.saas.performance-telemetry", name = "enabled", havingValue = "true")
@@ -429,14 +429,14 @@ public class CoreSaasForwardingAutoConfiguration {
         return new ModelPerformanceTelemetryCollector(repository, properties);
     }
 
-    @Bean
-    @ConditionalOnMissingBean(name = "modelPerformanceTelemetryObserver")
+    @Bean(name = "contexaModelPerformanceTelemetryObserver")
+    @ConditionalOnMissingBean(name = "contexaModelPerformanceTelemetryObserver")
     @ConditionalOnBean(ModelPerformanceTelemetryCollector.class)
     public LlmAnalysisEventObserver modelPerformanceTelemetryObserver(ModelPerformanceTelemetryCollector collector) {
         return collector;
     }
 
-    @Bean
+    @Bean(name = "contexaSaasModelPerformanceTelemetryDispatcher")
     @ConditionalOnMissingBean
     @ConditionalOnBean({ModelPerformanceTelemetryOutboxRepository.class, SaasModelPerformanceTelemetryHttpClient.class})
     public SaasModelPerformanceTelemetryDispatcher saasModelPerformanceTelemetryDispatcher(
@@ -446,7 +446,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasModelPerformanceTelemetryDispatcher(repository, httpClient, properties);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasPromptContextAuditDispatcher")
     @ConditionalOnMissingBean
     @ConditionalOnBean({PromptContextAuditForwardingOutboxRepository.class, SaasPromptContextAuditHttpClient.class})
     public SaasPromptContextAuditDispatcher saasPromptContextAuditDispatcher(
@@ -456,7 +456,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasPromptContextAuditDispatcher(repository, httpClient, properties);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasModelPerformanceTelemetryScheduler")
     @ConditionalOnMissingBean
     @ConditionalOnBean(SaasModelPerformanceTelemetryDispatcher.class)
     public SaasModelPerformanceTelemetryScheduler saasModelPerformanceTelemetryScheduler(
@@ -465,7 +465,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasModelPerformanceTelemetryScheduler(dispatcher, properties);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasThreatSignalPullScheduler")
     @ConditionalOnMissingBean
     @ConditionalOnBean(SaasThreatIntelligenceService.class)
     public SaasThreatSignalPullScheduler saasThreatSignalPullScheduler(
@@ -474,7 +474,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasThreatSignalPullScheduler(threatIntelligenceService, properties);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasThreatKnowledgePackPullScheduler")
     @ConditionalOnMissingBean
     @ConditionalOnBean(SaasThreatKnowledgePackService.class)
     public SaasThreatKnowledgePackPullScheduler saasThreatKnowledgePackPullScheduler(
@@ -483,7 +483,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasThreatKnowledgePackPullScheduler(threatKnowledgePackService, properties);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasDetectionStrategyPackPullScheduler")
     @ConditionalOnMissingBean
     @ConditionalOnBean(SaasDetectionStrategyPackService.class)
     public SaasDetectionStrategyPackPullScheduler saasDetectionStrategyPackPullScheduler(
@@ -491,7 +491,7 @@ public class CoreSaasForwardingAutoConfiguration {
             SaasForwardingProperties properties) {
         return new SaasDetectionStrategyPackPullScheduler(detectionStrategyPackService, properties);
     }
-    @Bean
+    @Bean(name = "contexaSaasThreatKnowledgeRuntimePolicyPullScheduler")
     @ConditionalOnMissingBean
     @ConditionalOnBean(SaasThreatKnowledgeRuntimePolicyService.class)
     public SaasThreatKnowledgeRuntimePolicyPullScheduler saasThreatKnowledgeRuntimePolicyPullScheduler(
@@ -500,7 +500,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasThreatKnowledgeRuntimePolicyPullScheduler(runtimePolicyService, properties);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasDecisionDispatcher")
     @ConditionalOnMissingBean
     @ConditionalOnBean(SecurityDecisionForwardingOutboxRepository.class)
     public SaasDecisionDispatcher saasDecisionDispatcher(
@@ -510,7 +510,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasDecisionDispatcher(repository, httpClient, properties);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasDecisionFeedbackDispatcher")
     @ConditionalOnMissingBean
     @ConditionalOnBean({DecisionFeedbackForwardingOutboxRepository.class, SaasDecisionFeedbackHttpClient.class})
     public SaasDecisionFeedbackDispatcher saasDecisionFeedbackDispatcher(
@@ -520,7 +520,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasDecisionFeedbackDispatcher(repository, httpClient, properties);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasThreatOutcomeDispatcher")
     @ConditionalOnMissingBean
     @ConditionalOnBean({ThreatOutcomeForwardingOutboxRepository.class, SaasThreatOutcomeHttpClient.class})
     public SaasThreatOutcomeDispatcher saasThreatOutcomeDispatcher(
@@ -530,55 +530,55 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasThreatOutcomeDispatcher(repository, httpClient, properties);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasDecisionOutboxService")
     @ConditionalOnMissingBean
     @ConditionalOnBean({SecurityDecisionForwardingOutboxRepository.class, SaasDecisionDispatcher.class})
     public SaasDecisionOutboxService saasDecisionOutboxService(
             SecurityDecisionForwardingOutboxRepository repository,
             SecurityDecisionForwardingPayloadMapper payloadMapper,
-            ObjectMapper objectMapper,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             SaasDecisionDispatcher dispatcher,
-            @Qualifier("saasForwardingExecutor") Executor executor) {
+            @Qualifier("contexaSaasForwardingExecutor") Executor executor) {
         return new SaasDecisionOutboxService(repository, payloadMapper, objectMapper, dispatcher, executor);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasDecisionFeedbackOutboxService")
     @ConditionalOnMissingBean(DecisionFeedbackForwardingService.class)
     @ConditionalOnBean({DecisionFeedbackForwardingOutboxRepository.class, SaasDecisionFeedbackDispatcher.class})
     public DecisionFeedbackForwardingService saasDecisionFeedbackOutboxService(
             DecisionFeedbackForwardingOutboxRepository repository,
             DecisionFeedbackPayloadMapper payloadMapper,
-            ObjectMapper objectMapper,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             SaasDecisionFeedbackDispatcher dispatcher,
-            @Qualifier("saasForwardingExecutor") Executor executor) {
+            @Qualifier("contexaSaasForwardingExecutor") Executor executor) {
         return new SaasDecisionFeedbackOutboxService(repository, payloadMapper, objectMapper, dispatcher, executor);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasThreatOutcomeOutboxService")
     @ConditionalOnMissingBean(ThreatOutcomeForwardingService.class)
     @ConditionalOnBean({ThreatOutcomeForwardingOutboxRepository.class, SaasThreatOutcomeDispatcher.class})
     public SaasThreatOutcomeOutboxService saasThreatOutcomeOutboxService(
             ThreatOutcomeForwardingOutboxRepository repository,
             ThreatOutcomePayloadMapper payloadMapper,
-            ObjectMapper objectMapper,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             SaasThreatOutcomeDispatcher dispatcher,
-            @Qualifier("saasForwardingExecutor") Executor executor) {
+            @Qualifier("contexaSaasForwardingExecutor") Executor executor) {
         return new SaasThreatOutcomeOutboxService(repository, payloadMapper, objectMapper, dispatcher, executor);
     }
 
-    @Bean
+    @Bean(name = "contexaPromptContextAuditForwardingService")
     @ConditionalOnMissingBean
     @ConditionalOnBean({PromptContextAuditForwardingOutboxRepository.class, SaasPromptContextAuditDispatcher.class})
     public PromptContextAuditForwardingService promptContextAuditForwardingService(
             PromptContextAuditForwardingOutboxRepository repository,
             PromptContextAuditPayloadMapper payloadMapper,
-            ObjectMapper objectMapper,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             SaasPromptContextAuditDispatcher dispatcher,
-            @Qualifier("saasForwardingExecutor") Executor executor) {
+            @Qualifier("contexaSaasForwardingExecutor") Executor executor) {
         return new PromptContextAuditForwardingService(repository, payloadMapper, objectMapper, dispatcher, executor);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasOutboxRetryScheduler")
     @ConditionalOnMissingBean
     @ConditionalOnBean(SaasDecisionDispatcher.class)
     public SaasOutboxRetryScheduler saasOutboxRetryScheduler(
@@ -587,7 +587,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasOutboxRetryScheduler(dispatcher, properties);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasDecisionFeedbackRetryScheduler")
     @ConditionalOnMissingBean
     @ConditionalOnBean(SaasDecisionFeedbackDispatcher.class)
     public SaasDecisionFeedbackRetryScheduler saasDecisionFeedbackRetryScheduler(
@@ -596,7 +596,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasDecisionFeedbackRetryScheduler(dispatcher, properties);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasThreatOutcomeRetryScheduler")
     @ConditionalOnMissingBean
     @ConditionalOnBean(SaasThreatOutcomeDispatcher.class)
     public SaasThreatOutcomeRetryScheduler saasThreatOutcomeRetryScheduler(
@@ -605,7 +605,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasThreatOutcomeRetryScheduler(dispatcher, properties);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasPromptContextAuditRetryScheduler")
     @ConditionalOnMissingBean
     @ConditionalOnBean(SaasPromptContextAuditDispatcher.class)
     public SaasPromptContextAuditRetryScheduler saasPromptContextAuditRetryScheduler(
@@ -614,7 +614,7 @@ public class CoreSaasForwardingAutoConfiguration {
         return new SaasPromptContextAuditRetryScheduler(dispatcher, properties);
     }
 
-    @Bean
+    @Bean(name = "contexaSaasForwardingHandler")
     @ConditionalOnMissingBean
     @ConditionalOnBean(SaasDecisionOutboxService.class)
     public SaasForwardingHandler saasForwardingHandler(

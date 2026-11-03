@@ -16,6 +16,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 /**
  * W7-14: the version screens of the prompt quality console, one purpose each: the bundle list, one bundle's gate with
@@ -51,7 +52,7 @@ public class PromptReleasePageController {
     private final MessageSource messages;
     private final ObjectMapper objectMapper;
 
-    public PromptReleasePageController(MessageSource messages, ObjectMapper objectMapper) {
+    public PromptReleasePageController(MessageSource messages, @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         this.messages = Objects.requireNonNull(messages, "messages");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
     }

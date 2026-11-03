@@ -84,12 +84,12 @@ public class HostOwnedAdminConsoleAutoConfiguration {
     @ConditionalOnMissingBean(name = ADMIN_CHAIN)
     public SecurityFilterChain contexaAdminConsoleSecurityFilterChain(HttpSecurity http,
                                                                       UserRepository userRepository,
-                                                                      AuthorityResolver authorityResolver,
+                                                                      AuthorityResolver contexaAuthorityResolver,
                                                                       PasswordEncoder passwordEncoder,
                                                                       ObjectProvider<LoginPolicyHandler> loginPolicy)
             throws Exception {
         DaoAuthenticationProvider provider =
-                new DaoAuthenticationProvider(new UnifiedUserDetailsService(userRepository, authorityResolver));
+                new DaoAuthenticationProvider(new UnifiedUserDetailsService(userRepository, contexaAuthorityResolver));
         provider.setPasswordEncoder(passwordEncoder);
         // The console's sign-ins count against Contexa's accounts (failed attempts, lock, address throttle); the
         // application's own never do (the policy's event listener runs only when Contexa owns sign-in).
@@ -148,7 +148,7 @@ public class HostOwnedAdminConsoleAutoConfiguration {
                 new NegatedRequestMatcher(new OrRequestMatcher(userPaths)));
     }
 
-    @Bean
+    @Bean(name = "contexaHostOwnedConsoleModelAdvice")
     @ConditionalOnMissingBean
     public HostOwnedConsoleModelAdvice hostOwnedConsoleModelAdvice() {
         return new HostOwnedConsoleModelAdvice();

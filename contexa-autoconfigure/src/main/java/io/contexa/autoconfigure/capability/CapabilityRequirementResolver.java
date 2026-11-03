@@ -126,7 +126,7 @@ public class CapabilityRequirementResolver {
                     contexaOwnedApplication && enterpriseEnabled,
                     "prompt quality official inspection engine is available");
             case ENTERPRISE_SOAR -> activeWhen(capability,
-                    enterpriseEnabled && hasBeanName("soarContextRetriever"),
+                    enterpriseEnabled && hasBeanName("contexaSoarContextRetriever"),
                     contexaOwnedApplication && enterpriseEnabled,
                     "enterprise SOAR is available");
             case ENTERPRISE_MCP -> activeWhen(capability,
@@ -134,7 +134,7 @@ public class CapabilityRequirementResolver {
                     false,
                     "enterprise MCP module is available");
             case ENTERPRISE_DASHBOARD -> activeWhen(capability,
-                    enterpriseEnabled && hasBeanName("vectorStoreMetrics"),
+                    enterpriseEnabled && hasBeanName("contexaVectorStoreMetrics"),
                     contexaOwnedApplication && enterpriseEnabled,
                     "enterprise dashboard is available");
         };

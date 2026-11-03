@@ -51,9 +51,9 @@ class OAuth2StateModeIsolationTest {
     @BeforeEach
     void setUp() {
         when(platformContext.applicationContext()).thenReturn(applicationContext);
-        when(applicationContext.getBean(ObjectMapper.class)).thenReturn(objectMapper);
+        when(applicationContext.getBean("contexaObjectMapper", ObjectMapper.class)).thenReturn(objectMapper);
         when(applicationContext.getBean(JsonAuthResponseWriter.class)).thenReturn(responseWriter);
-        when(applicationContext.getBean(ObjectMapper.class)).thenReturn(objectMapper);
+        when(applicationContext.getBean("contexaObjectMapper", ObjectMapper.class)).thenReturn(objectMapper);
         when(applicationContext.getBean(JsonAuthResponseWriter.class)).thenReturn(responseWriter);
     }
 

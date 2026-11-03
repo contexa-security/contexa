@@ -21,7 +21,6 @@ import io.contexa.contexaiam.domain.dto.PermissionDto;
 import io.contexa.contexaiam.domain.entity.FunctionCatalog;
 import io.contexa.contexaiam.admin.web.metadata.service.FunctionCatalogService;
 import io.contexa.contexacommon.entity.Permission;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.context.MessageSource;
@@ -38,10 +37,10 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 @Controller
 @RequestMapping("/contexa/admin/permissions")
-@RequiredArgsConstructor
 @Slf4j
 @PreAuthorize("hasRole('ADMIN')")
 public class PermissionController {
@@ -50,6 +49,14 @@ public class PermissionController {
     private final ModelMapper modelMapper;
     private final FunctionCatalogService functionCatalogService;
     private final MessageSource messageSource;
+
+
+    public PermissionController(PermissionService permissionService, @Qualifier("contexaModelMapper") ModelMapper modelMapper, FunctionCatalogService functionCatalogService, MessageSource messageSource) {
+        this.permissionService = permissionService;
+        this.modelMapper = modelMapper;
+        this.functionCatalogService = functionCatalogService;
+        this.messageSource = messageSource;
+    }
 
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());

@@ -41,7 +41,7 @@ import org.springframework.context.annotation.Bean;
 @ConditionalOnProperty(prefix = "contexa.saas", name = "enabled", havingValue = "true")
 public class CoreSaasLearningAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaLearningArtifactRegistryStore")
     @ConditionalOnMissingBean
     public LearningArtifactRegistryStore learningArtifactRegistryStore(
             ObjectProvider<LearningArtifactRegistryRecordRepository> repositoryProvider) {
@@ -52,13 +52,13 @@ public class CoreSaasLearningAutoConfiguration {
         return new InMemoryLearningArtifactRegistryStore();
     }
 
-    @Bean
+    @Bean(name = "contexaLearningArtifactRegistryService")
     @ConditionalOnMissingBean
     public LearningArtifactRegistryService learningArtifactRegistryService(LearningArtifactRegistryStore store) {
         return new LearningArtifactRegistryService(store);
     }
 
-    @Bean
+    @Bean(name = "contexaLearningArtifactReleaseLedgerStore")
     @ConditionalOnMissingBean
     public LearningArtifactReleaseLedgerStore learningArtifactReleaseLedgerStore(
             ObjectProvider<LearningArtifactReleaseLedgerRecordRepository> repositoryProvider) {
@@ -69,7 +69,7 @@ public class CoreSaasLearningAutoConfiguration {
         return new InMemoryLearningArtifactReleaseLedgerStore();
     }
 
-    @Bean
+    @Bean(name = "contexaLearningArtifactReleaseLedgerService")
     @ConditionalOnMissingBean
     public LearningArtifactReleaseLedgerService learningArtifactReleaseLedgerService(
             LearningArtifactReleaseLedgerStore store,
@@ -77,19 +77,19 @@ public class CoreSaasLearningAutoConfiguration {
         return new LearningArtifactReleaseLedgerService(store, registryService);
     }
 
-    @Bean
+    @Bean(name = "contexaLearningArtifactReleaseService")
     @ConditionalOnMissingBean
     public LearningArtifactReleaseService learningArtifactReleaseService() {
         return new LearningArtifactReleaseService();
     }
 
-    @Bean
+    @Bean(name = "contexaLearningArtifactRuntimePolicyService")
     @ConditionalOnMissingBean
     public LearningArtifactRuntimePolicyService learningArtifactRuntimePolicyService() {
         return new LearningArtifactRuntimePolicyService();
     }
 
-    @Bean
+    @Bean(name = "contexaLearningArtifactRuntimeConflictService")
     @ConditionalOnMissingBean
     public LearningArtifactRuntimeConflictService learningArtifactRuntimeConflictService(
             LearningArtifactReleaseLedgerService ledgerService,
@@ -97,7 +97,7 @@ public class CoreSaasLearningAutoConfiguration {
         return new LearningArtifactRuntimeConflictService(ledgerService, registryService);
     }
 
-    @Bean
+    @Bean(name = "contexaLearningRoiScoreboardService")
     @ConditionalOnMissingBean
     public LearningRoiScoreboardService learningRoiScoreboardService(
             LearningArtifactReleaseLedgerService ledgerService) {

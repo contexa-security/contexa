@@ -72,7 +72,7 @@ class SessionStateAdapterTest {
     void setUp() {
         adapter = new SessionStateAdapter();
         when(platformContext.applicationContext()).thenReturn(applicationContext);
-        when(applicationContext.getBean("compositeLogoutHandler", LogoutHandler.class)).thenReturn(logoutHandler);
+        when(applicationContext.getBean("contexaCompositeLogoutHandler", LogoutHandler.class)).thenReturn(logoutHandler);
         when(applicationContext.getBean(AuthContextProperties.class)).thenReturn(authContextProperties);
     }
 

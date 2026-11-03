@@ -32,7 +32,7 @@ public class AuditPersistenceListener {
         this.centralAuditFacade = centralAuditFacade;
     }
 
-    @Async
+    @Async("contexaTaskExecutor")
     @EventListener
     public void onAuditRecordEvent(AuditRecordEvent event) {
         try {

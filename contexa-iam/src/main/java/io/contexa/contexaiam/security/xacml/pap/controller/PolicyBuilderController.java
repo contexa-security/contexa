@@ -29,7 +29,6 @@ import io.contexa.contexaiam.resource.service.ConditionCompatibilityService;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyBuilderDtos.PolicyBuilderConditionStatistics;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyBuilderDtos.PolicyBuilderResourceContext;
 import io.contexa.contexacommon.entity.ManagedResource;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -44,10 +43,10 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 @Controller
 @RequestMapping("/contexa/admin/policy-builder")
-@RequiredArgsConstructor
 @Slf4j
 @PreAuthorize("hasRole('ADMIN')")
 public class PolicyBuilderController {
@@ -59,6 +58,17 @@ public class PolicyBuilderController {
     private final ObjectMapper objectMapper;
     private final PermissionService permissionService;
     private final ConditionCompatibilityService conditionCompatibilityService;
+
+    public PolicyBuilderController(RoleService roleService, PermissionCatalogService permissionCatalogService, ConditionTemplateRepository conditionTemplateRepository, ManagedResourceRepository managedResourceRepository, @Qualifier("contexaObjectMapper") ObjectMapper objectMapper, PermissionService permissionService, ConditionCompatibilityService conditionCompatibilityService) {
+        this.roleService = roleService;
+        this.permissionCatalogService = permissionCatalogService;
+        this.conditionTemplateRepository = conditionTemplateRepository;
+        this.managedResourceRepository = managedResourceRepository;
+        this.objectMapper = objectMapper;
+        this.permissionService = permissionService;
+        this.conditionCompatibilityService = conditionCompatibilityService;
+    }
+
     private static final Pattern SPEL_VARIABLE_PATTERN = Pattern.compile("#(\\w+)");
 
     @GetMapping

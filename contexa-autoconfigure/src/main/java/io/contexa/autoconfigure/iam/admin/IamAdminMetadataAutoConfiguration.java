@@ -40,46 +40,47 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 @AutoConfiguration
 public class IamAdminMetadataAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaResourceAdminService")
     @ConditionalOnMissingBean
     public ResourceAdminService resourceAdminService(
-            ResourceRegistryService resourceRegistryService,
+            ResourceRegistryService contexaResourceRegistryService,
             ManagedResourceRepository managedResourceRepository,
             MessageSource messageSource) {
-        return new ResourceAdminService(resourceRegistryService, managedResourceRepository, messageSource);
+        return new ResourceAdminService(contexaResourceRegistryService, managedResourceRepository, messageSource);
     }
 
-    @Bean
+    @Bean(name = "contexaResourceAdminController")
     @ConditionalOnMissingBean
-    public ResourceAdminController resourceAdminController(ResourceAdminService resourceAdminService) {
-        return new ResourceAdminController(resourceAdminService);
+    public ResourceAdminController resourceAdminController(ResourceAdminService contexaResourceAdminService) {
+        return new ResourceAdminController(contexaResourceAdminService);
     }
 
-    @Bean
+    @Bean(name = "contexaFunctionCatalogService")
     @ConditionalOnMissingBean
     public FunctionCatalogService functionCatalogService(
             FunctionCatalogRepository functionCatalogRepository,
             FunctionGroupRepository functionGroupRepository,
-            ModelMapper modelMapper) {
+            @Qualifier("contexaModelMapper") ModelMapper contexaModelMapper) {
         return new FunctionCatalogService(
-                functionCatalogRepository, functionGroupRepository, modelMapper);
+                functionCatalogRepository, functionGroupRepository, contexaModelMapper);
     }
 
-    @Bean
+    @Bean(name = "contexaPermissionCatalogService")
     @ConditionalOnMissingBean
     public PermissionCatalogService permissionCatalogService(
             PermissionRepository permissionRepository,
-            ModelMapper modelMapper,
-            PolicyService policyService,
+            @Qualifier("contexaModelMapper") ModelMapper contexaModelMapper,
+            PolicyService contexaPolicyService,
             MessageSource messageSource) {
-        return new PermissionCatalogServiceImpl(permissionRepository, modelMapper, policyService, messageSource);
+        return new PermissionCatalogServiceImpl(permissionRepository, contexaModelMapper, contexaPolicyService, messageSource);
     }
 
-    @Bean
+    @Bean(name = "contexaBusinessMetadataService")
     @ConditionalOnMissingBean
     public BusinessMetadataService businessMetadataService(
             BusinessResourceRepository businessResourceRepository,
@@ -87,11 +88,11 @@ public class IamAdminMetadataAutoConfiguration {
             ConditionTemplateRepository conditionTemplateRepository,
             UserRepository userRepository,
             GroupRepository groupRepository,
-            RoleService roleService,
-            ModelMapper modelMapper) {
+            RoleService contexaRoleService,
+            @Qualifier("contexaModelMapper") ModelMapper contexaModelMapper) {
         return new BusinessMetadataServiceImpl(
                 businessResourceRepository, businessActionRepository, conditionTemplateRepository,
-                userRepository, groupRepository, roleService, modelMapper);
+                userRepository, groupRepository, contexaRoleService, contexaModelMapper);
     }
 }
 

@@ -41,7 +41,7 @@ import org.springframework.security.web.webauthn.registration.PublicKeyCredentia
 @ConditionalOnBean(PlatformConfig.class)
 public class IdentityWebAuthnAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaPublicKeyCredentialUserEntityRepository")
     @ConditionalOnMissingBean(PublicKeyCredentialUserEntityRepository.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public PublicKeyCredentialUserEntityRepository publicKeyCredentialUserEntityRepository(
@@ -50,7 +50,7 @@ public class IdentityWebAuthnAutoConfiguration {
         return new JdbcPublicKeyCredentialUserEntityRepository(LibraryTableNames.wrap(jdbcOperations));
     }
 
-    @Bean
+    @Bean(name = "contexaUserCredentialRepository")
     @ConditionalOnMissingBean(UserCredentialRepository.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public UserCredentialRepository userCredentialRepository(
@@ -59,7 +59,7 @@ public class IdentityWebAuthnAutoConfiguration {
         return new JdbcUserCredentialRepository(LibraryTableNames.wrap(jdbcOperations));
     }
 
-    @Bean
+    @Bean(name = "contexaPasskeyUserStatePurgeContributor")
     @ConditionalOnMissingBean
     public PasskeyUserStatePurgeContributor passkeyUserStatePurgeContributor(
             ObjectProvider<PublicKeyCredentialUserEntityRepository> userEntities,
@@ -67,14 +67,14 @@ public class IdentityWebAuthnAutoConfiguration {
         return new PasskeyUserStatePurgeContributor(userEntities, userCredentials);
     }
 
-    @Bean
+    @Bean(name = "contexaPasskeyCreationOptionsCodec")
     @ConditionalOnMissingBean(PasskeyCreationOptionsCodec.class)
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     public PasskeyCreationOptionsCodec passkeyCreationOptionsCodec() {
         return new DefaultPasskeyCreationOptionsCodec();
     }
 
-    @Bean
+    @Bean(name = "contexaPublicKeyCredentialCreationOptionsRepository")
     @ConditionalOnMissingBean(PublicKeyCredentialCreationOptionsRepository.class)
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     public PublicKeyCredentialCreationOptionsRepository publicKeyCredentialCreationOptionsRepository(

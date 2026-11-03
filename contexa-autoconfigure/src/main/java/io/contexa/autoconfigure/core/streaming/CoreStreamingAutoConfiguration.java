@@ -24,6 +24,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 /**
  * Auto-configuration for StandardStreamingService.
@@ -34,11 +35,11 @@ import org.springframework.context.annotation.Bean;
 @EnableConfigurationProperties(StreamingProperties.class)
 public class CoreStreamingAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaStandardStreamingService")
     @ConditionalOnMissingBean
     public StandardStreamingService standardStreamingService(
             StreamingProperties streamingProperties,
-            ObjectMapper objectMapper) {
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         return new DefaultStandardStreamingService(streamingProperties, objectMapper);
     }
 }

@@ -18,7 +18,6 @@ package io.contexa.autoconfigure.core;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import com.querydsl.jpa.impl.JPAQueryFactory;
-import io.contexa.contexacommon.config.JpaAuditingConfig;
 import io.contexa.contexaiam.testsupport.PostgresTestDatabase;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import jakarta.persistence.EntityManagerFactory;
@@ -39,12 +38,13 @@ import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration
 import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.env.MockEnvironment;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionManager;
-
+
 class CoreDataAutoConfigurationTest {
 
     private static PostgresTestDatabase applicationDatabase;
@@ -160,13 +160,11 @@ class CoreDataAutoConfigurationTest {
     }
 
     @Test
-    @DisplayName("Core data auto-configuration should activate JPA auditing for Contexa managed entities")
-    void coreDataAutoConfigurationActivatesJpaAuditing() throws Exception {
+    @DisplayName("Core data auto-configuration should not turn Spring Data JPA auditing on for the application")
+    void coreDataAutoConfigurationDoesNotActivateJpaAuditing() throws Exception {
         String imports = readAutoConfigurationImports();
 
-        assertThat(imports).contains("io.contexa.contexacommon.config.JpaAuditingConfig");
-        assertThat(imports.indexOf("io.contexa.contexacommon.config.JpaAuditingConfig"))
-                .isLessThan(imports.indexOf("io.contexa.autoconfigure.core.CoreDataAutoConfiguration"));
+        assertThat(imports).doesNotContain("JpaAuditingConfig");
     }
 
     @Test
@@ -248,12 +246,11 @@ class CoreDataAutoConfigurationTest {
     }
 
     @Test
-    @DisplayName("Core data auditing should coexist with the legacy common auditing configuration")
-    void coreDataAuditingCoexistsWithLegacyCommonAuditingConfiguration() {
+    @DisplayName("Core data configuration should coexist with the application's own JPA auditing")
+    void coreDataConfigurationCoexistsWithTheApplicationsOwnJpaAuditing() {
         new ApplicationContextRunner()
-                .withUserConfiguration(TestApplicationPackage.class, JpaAuditingConfig.class)
+                .withUserConfiguration(TestApplicationPackage.class, ApplicationAuditing.class)
                 .withConfiguration(AutoConfigurations.of(
-                        JpaAuditingConfig.class,
                         DataSourceAutoConfiguration.class,
                         HibernateJpaAutoConfiguration.class,
                         CoreDataAutoConfiguration.class))
@@ -319,5 +316,11 @@ class CoreDataAutoConfigurationTest {
     @Configuration(proxyBeanMethods = false)
     @AutoConfigurationPackage
     static class TestApplicationPackage {
+    }
+
+    /** The application's own Spring Data auditing, which Contexa must leave as it is. */
+    @Configuration(proxyBeanMethods = false)
+    @EnableJpaAuditing
+    static class ApplicationAuditing {
     }
 }

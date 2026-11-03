@@ -78,7 +78,7 @@ public class PromptInspectionAutoConfiguration {
      * docs/agent OC-4: the source truth check reads Contexa's own company records and delegations again, unless the
      * application declares its own verifier of its sources.
      */
-    @Bean
+    @Bean(name = "contexaCompanyRecordsFactSourceVerifier")
     @ConditionalOnMissingBean(PromptFactSourceVerifier.class)
     public PromptFactSourceVerifier companyRecordsFactSourceVerifier(
             ObjectProvider<CompanyRecordStore> companyRecordStore,
@@ -91,7 +91,7 @@ public class PromptInspectionAutoConfiguration {
      * docs/agent OC-5: the operator's replay of a sealed decision with a chosen bundle, through the engine's prompt
      * template and pipeline; without them the replay API answers that the replay is not available.
      */
-    @Bean
+    @Bean(name = "contexaSealedDecisionReplays")
     @ConditionalOnMissingBean
     @ConditionalOnBean(SealedEvidencePackageRepository.class)
     public SealedDecisionReplays sealedDecisionReplays(
@@ -106,7 +106,7 @@ public class PromptInspectionAutoConfiguration {
             ObjectProvider<CanonicalSecurityContextSerializer> serializers,
             ObjectProvider<BaselineDataStore> baselineDataStore,
             ObjectProvider<CentralAuditFacade> auditFacade,
-            ObjectMapper objectMapper) {
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         ObjectMapper tolerant = objectMapper.copy().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         Supplier<SealedDecisionReplayService> service = () -> {
             SecurityDecisionStandardPromptTemplate template = templates.getIfAvailable();
@@ -127,21 +127,21 @@ public class PromptInspectionAutoConfiguration {
                 auditFacade.getIfAvailable(), objectMapper);
     }
 
-    @Bean
+    @Bean(name = "contexaSealedDecisionReplayApiController")
     @ConditionalOnMissingBean
     @ConditionalOnBean(SealedDecisionReplays.class)
-    public SealedDecisionReplayApiController sealedDecisionReplayApiController(SealedDecisionReplays sealedDecisionReplays) {
-        return new SealedDecisionReplayApiController(sealedDecisionReplays);
+    public SealedDecisionReplayApiController sealedDecisionReplayApiController(SealedDecisionReplays contexaSealedDecisionReplays) {
+        return new SealedDecisionReplayApiController(contexaSealedDecisionReplays);
     }
 
     /**
      * The core checks with the bundle trace right after the seal integrity. The trace reads the release registry when
      * the prompt version management keeps one; otherwise it says the trace cannot be checked.
      */
-    @Bean
+    @Bean(name = "contexaPromptInspector")
     @ConditionalOnMissingBean
     public PromptInspector promptInspector(
-            ObjectMapper objectMapper,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             ObjectProvider<PromptGovernanceRegistryService> registryService,
             ObjectProvider<PromptFactSourceVerifier> sourceVerifier,
             @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperations,
@@ -162,46 +162,46 @@ public class PromptInspectionAutoConfiguration {
         return new PromptInspector(checks, objectMapper);
     }
 
-    @Bean
+    @Bean(name = "contexaPromptInspectionResultStore")
     @ConditionalOnMissingBean
     @ConditionalOnBean(name = {"contexaJdbcTemplate", "contexaTransactionManager"})
     public PromptInspectionResultStore promptInspectionResultStore(
             @Qualifier("contexaJdbcTemplate") JdbcOperations jdbcOperations,
             @Qualifier("contexaTransactionManager") PlatformTransactionManager transactionManager,
-            ObjectMapper objectMapper) {
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         return new JdbcPromptInspectionResultStore(jdbcOperations, new TransactionTemplate(transactionManager),
                 objectMapper);
     }
 
-    @Bean
+    @Bean(name = "contexaPromptInspectionService")
     @ConditionalOnMissingBean
     @ConditionalOnBean({SealedEvidencePackageRepository.class, PromptInspectionResultStore.class})
     public PromptInspectionService promptInspectionService(
-            PromptInspector promptInspector,
+            PromptInspector contexaPromptInspector,
             SealedEvidencePackageRepository sealedEvidencePackageRepository,
-            PromptInspectionResultStore promptInspectionResultStore) {
-        return new PromptInspectionService(promptInspector, sealedEvidencePackageRepository,
-                promptInspectionResultStore, Clock.systemUTC());
+            PromptInspectionResultStore contexaPromptInspectionResultStore) {
+        return new PromptInspectionService(contexaPromptInspector, sealedEvidencePackageRepository,
+                contexaPromptInspectionResultStore, Clock.systemUTC());
     }
 
-    @Bean
+    @Bean(name = "contexaPromptInspectionScheduler")
     @ConditionalOnMissingBean
     @ConditionalOnBean(PromptInspectionService.class)
     public PromptInspectionScheduler promptInspectionScheduler(
-            PromptInspectionService promptInspectionService,
+            PromptInspectionService contexaPromptInspectionService,
             PromptInspectionProperties properties) {
-        return new PromptInspectionScheduler(promptInspectionService, properties.getBatchSize(),
+        return new PromptInspectionScheduler(contexaPromptInspectionService, properties.getBatchSize(),
                 properties.getSamplePercent());
     }
 
-    @Bean
+    @Bean(name = "contexaPromptInspectionReinspection")
     @ConditionalOnMissingBean
     @ConditionalOnBean(PromptInspectionService.class)
     public PromptInspectionReinspection promptInspectionReinspection(
-            PromptInspectionService promptInspectionService,
-            PromptInspectionResultStore promptInspectionResultStore,
+            PromptInspectionService contexaPromptInspectionService,
+            PromptInspectionResultStore contexaPromptInspectionResultStore,
             PromptInspectionProperties properties) {
-        return new PromptInspectionReinspection(promptInspectionService, promptInspectionResultStore,
+        return new PromptInspectionReinspection(contexaPromptInspectionService, contexaPromptInspectionResultStore,
                 properties.getSamplePercent());
     }
 
@@ -209,19 +209,19 @@ public class PromptInspectionAutoConfiguration {
      * R4-S5: the short retention of the packages whose latest inspection found nothing wrong, on the sealed package
      * retention's schedule and switch.
      */
-    @Bean
+    @Bean(name = "contexaPromptInspectionCleanPackageRetentionScheduler")
     @ConditionalOnMissingBean
     @ConditionalOnBean({SealedEvidencePackageRepository.class, PromptInspectionResultStore.class})
     @ConditionalOnProperty(prefix = "contexa.pqa.oss.sealed-evidence.retention", name = "enabled",
             havingValue = "true", matchIfMissing = true)
     public PromptInspectionCleanPackageRetentionScheduler promptInspectionCleanPackageRetentionScheduler(
-            PromptInspectionResultStore promptInspectionResultStore,
+            PromptInspectionResultStore contexaPromptInspectionResultStore,
             PqaOssSealedEvidenceCaptureProperties sealedEvidenceProperties) {
-        return new PromptInspectionCleanPackageRetentionScheduler(promptInspectionResultStore,
+        return new PromptInspectionCleanPackageRetentionScheduler(contexaPromptInspectionResultStore,
                 sealedEvidenceProperties.getRetention().getCleanPeriod());
     }
 
-    @Bean
+    @Bean(name = "contexaPromptInspectionQueries")
     @ConditionalOnMissingBean
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public JdbcPromptInspectionQueries promptInspectionQueries(
@@ -229,35 +229,35 @@ public class PromptInspectionAutoConfiguration {
         return new JdbcPromptInspectionQueries(jdbcOperations);
     }
 
-    @Bean
+    @Bean(name = "contexaPromptInspectionConsole")
     @ConditionalOnMissingBean
     @ConditionalOnBean(PromptInspectionService.class)
     public PromptInspectionConsole promptInspectionConsole(
             SealedEvidencePackageRepository sealedEvidencePackageRepository,
-            PromptInspector promptInspector,
-            PromptInspectionResultStore promptInspectionResultStore,
-            ObjectMapper objectMapper) {
-        return new PromptInspectionConsole(sealedEvidencePackageRepository, promptInspector,
-                promptInspectionResultStore, objectMapper);
+            PromptInspector contexaPromptInspector,
+            PromptInspectionResultStore contexaPromptInspectionResultStore,
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
+        return new PromptInspectionConsole(sealedEvidencePackageRepository, contexaPromptInspector,
+                contexaPromptInspectionResultStore, objectMapper);
     }
 
-    @Bean
+    @Bean(name = "contexaPromptInspectionApiController")
     @ConditionalOnMissingBean
     @ConditionalOnBean({PromptInspectionConsole.class, JdbcPromptInspectionQueries.class})
     public PromptInspectionApiController promptInspectionApiController(
-            JdbcPromptInspectionQueries promptInspectionQueries,
-            PromptInspectionConsole promptInspectionConsole,
-            PromptInspectionReinspection promptInspectionReinspection) {
-        return new PromptInspectionApiController(promptInspectionQueries, promptInspectionConsole,
-                promptInspectionReinspection, Clock.systemUTC());
+            JdbcPromptInspectionQueries contexaPromptInspectionQueries,
+            PromptInspectionConsole contexaPromptInspectionConsole,
+            PromptInspectionReinspection contexaPromptInspectionReinspection) {
+        return new PromptInspectionApiController(contexaPromptInspectionQueries, contexaPromptInspectionConsole,
+                contexaPromptInspectionReinspection, Clock.systemUTC());
     }
 
-    @Bean
+    @Bean(name = "contexaPromptInspectionPageController")
     @ConditionalOnMissingBean
     @ConditionalOnBean(PromptInspectionConsole.class)
     public PromptInspectionPageController promptInspectionPageController(
             MessageSource messageSource,
-            ObjectMapper objectMapper) {
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         return new PromptInspectionPageController(messageSource, objectMapper);
     }
 }

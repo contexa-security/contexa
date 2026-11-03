@@ -73,7 +73,7 @@ public class SecurityFilterChainRegistrar {
             AuthenticationFlowConfig flowConfig = Objects.requireNonNull(fc.flow(), "AuthenticationFlowConfig in FlowContext cannot be null.");
             String flowTypeName = Objects.requireNonNull(flowConfig.getTypeName(), "Flow typeName cannot be null.");
 
-            String beanName = flowTypeName + "SecurityFilterChain" + idx.incrementAndGet();
+            String beanName = "contexa" + flowTypeName + "SecurityFilterChain" + idx.incrementAndGet();
             OrderedSecurityFilterChain chain = buildAndRegisterFilters(fc, context);
             built.add(new BuiltFlow(flowTypeName, chain.getOrder(), chain.getRequestMatcher()));
             BeanDefinition bd = BeanDefinitionBuilder

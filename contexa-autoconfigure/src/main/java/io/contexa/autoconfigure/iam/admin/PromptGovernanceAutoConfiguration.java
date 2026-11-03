@@ -64,7 +64,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @ConditionalOnProperty(prefix = "contexa.prompt.governance", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class PromptGovernanceAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaPromptGovernanceRuntimeCacheInvalidationService")
     @ConditionalOnMissingBean
     public PromptGovernanceRuntimeCacheInvalidationService promptGovernanceRuntimeCacheInvalidationService(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate
@@ -72,11 +72,11 @@ public class PromptGovernanceAutoConfiguration {
         return new JdbcPromptGovernanceRuntimeCacheInvalidationService(jdbcTemplate);
     }
 
-    @Bean
+    @Bean(name = "contexaPromptGovernanceDescriptorResolver")
     @ConditionalOnMissingBean
     public PromptGovernanceDescriptorResolver promptGovernanceDescriptorResolver(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
-            ObjectMapper objectMapper
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper
     ) {
         return new JdbcPromptGovernanceDescriptorResolver(jdbcTemplate, objectMapper);
     }
@@ -87,22 +87,22 @@ public class PromptGovernanceAutoConfiguration {
      * {@code registry}; otherwise it runs the configured bundle. It shares the resolver's cached releases when the
      * resolver is the JDBC resolver.
      */
-    @Bean
+    @Bean(name = "contexaPromptBundleSelector")
     @ConditionalOnMissingBean(PromptBundleSelector.class)
     @ConditionalOnProperty(prefix = "contexa.security.tiered.prompt-bundle", name = "selector", havingValue = "registry")
     public PromptBundleSelector promptBundleSelector(
-            PromptGovernanceDescriptorResolver promptGovernanceDescriptorResolver,
+            PromptGovernanceDescriptorResolver contexaPromptGovernanceDescriptorResolver,
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
-            ObjectMapper objectMapper
+            @Qualifier("contexaObjectMapper") ObjectMapper objectMapper
     ) {
         JdbcPromptGovernanceDescriptorResolver registry =
-                promptGovernanceDescriptorResolver instanceof JdbcPromptGovernanceDescriptorResolver jdbcResolver
+                contexaPromptGovernanceDescriptorResolver instanceof JdbcPromptGovernanceDescriptorResolver jdbcResolver
                         ? jdbcResolver
                         : new JdbcPromptGovernanceDescriptorResolver(jdbcTemplate, objectMapper);
         return registry.registrySelector();
     }
 
-    @Bean
+    @Bean(name = "contexaPromptGovernanceJpaLedgerWriter")
     @ConditionalOnMissingBean
     @ConditionalOnBean({PromptGovernanceRegistryRepository.class, PromptGovernanceChangeRecordRepository.class, PromptGovernanceEvaluationRecordRepository.class, PromptGovernanceReleaseApprovalRepository.class, PromptGovernanceReleaseWorkflowRepository.class, PromptGovernanceRollbackRecordRepository.class})
     public PromptGovernanceJpaLedgerWriter promptGovernanceJpaLedgerWriter(
@@ -122,7 +122,7 @@ public class PromptGovernanceAutoConfiguration {
                 rollbackRepository);
     }
 
-    @Bean
+    @Bean(name = "contexaPromptReleaseQueryService")
     @ConditionalOnMissingBean
     public JdbcPromptReleaseQueryService promptReleaseQueryService(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate
@@ -130,31 +130,31 @@ public class PromptGovernanceAutoConfiguration {
         return new JdbcPromptReleaseQueryService(jdbcTemplate);
     }
 
-    @Bean
+    @Bean(name = "contexaPromptReleaseApiController")
     @ConditionalOnMissingBean
-    public PromptReleaseApiController promptReleaseApiController(JdbcPromptReleaseQueryService promptReleaseQueryService) {
-        return new PromptReleaseApiController(promptReleaseQueryService);
+    public PromptReleaseApiController promptReleaseApiController(JdbcPromptReleaseQueryService contexaPromptReleaseQueryService) {
+        return new PromptReleaseApiController(contexaPromptReleaseQueryService);
     }
 
     /** W6-10: the bundle rollback, on this build's bundles; a host with policy sets gives a {@link PromptPolicySetLookup}. */
-    @Bean
+    @Bean(name = "contexaPromptBundleRollbackService")
     @ConditionalOnMissingBean
     public PromptBundleRollbackService promptBundleRollbackService(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
             PromptGovernanceRuntimeCacheInvalidationService runtimeCacheInvalidationService,
-            ObjectProvider<PromptPolicySetLookup> policySetLookup, ObjectMapper objectMapper) {
+            ObjectProvider<PromptPolicySetLookup> policySetLookup, @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         return new PromptBundleRollbackService(jdbcTemplate, PromptBundleCatalog.shared(), runtimeCacheInvalidationService,
                 policySetLookup.getIfAvailable(), objectMapper, Clock.systemUTC());
     }
 
-    @Bean
+    @Bean(name = "contexaPromptBundleRollbackApiController")
     @ConditionalOnMissingBean
     public PromptBundleRollbackApiController promptBundleRollbackApiController(
-            PromptBundleRollbackService promptBundleRollbackService) {
-        return new PromptBundleRollbackApiController(promptBundleRollbackService);
+            PromptBundleRollbackService contexaPromptBundleRollbackService) {
+        return new PromptBundleRollbackApiController(contexaPromptBundleRollbackService);
     }
 
-    @Bean
+    @Bean(name = "contexaPromptGovernanceRegistryService")
     @ConditionalOnMissingBean
     @ConditionalOnBean(PromptGovernanceRegistryRepository.class)
     public PromptGovernanceRegistryService promptGovernanceRegistryService(
@@ -162,41 +162,41 @@ public class PromptGovernanceAutoConfiguration {
         return new PromptGovernanceRegistryService(promptGovernanceRegistryRepository);
     }
 
-    @Bean
+    @Bean(name = "contexaPromptGovernanceModelCompatibilityRegistryService")
     @ConditionalOnMissingBean
     @ConditionalOnBean({PromptGovernanceRegistryService.class, PromptGovernanceModelCompatibilityRepository.class, PromptGovernanceBudgetProfileRepository.class})
     public PromptGovernanceModelCompatibilityRegistryService promptGovernanceModelCompatibilityRegistryService(
-            PromptGovernanceRegistryService promptGovernanceRegistryService,
+            PromptGovernanceRegistryService contexaPromptGovernanceRegistryService,
             PromptGovernanceModelCompatibilityRepository promptGovernanceModelCompatibilityRepository,
             PromptGovernanceBudgetProfileRepository promptGovernanceBudgetProfileRepository) {
         return new PromptGovernanceModelCompatibilityRegistryService(
-                promptGovernanceRegistryService,
+                contexaPromptGovernanceRegistryService,
                 promptGovernanceModelCompatibilityRepository,
                 promptGovernanceBudgetProfileRepository);
     }
 
-    @Bean
+    @Bean(name = "contexaPromptGovernanceLifecycleLedgerService")
     @ConditionalOnMissingBean
     @ConditionalOnBean({PromptGovernanceRegistryService.class, PromptGovernanceChangeRecordRepository.class, PromptGovernanceEvaluationRecordRepository.class, PromptGovernanceReleaseApprovalRepository.class, PromptGovernanceRollbackRecordRepository.class})
     public PromptGovernanceLifecycleLedgerService promptGovernanceLifecycleLedgerService(
-            PromptGovernanceRegistryService promptGovernanceRegistryService,
+            PromptGovernanceRegistryService contexaPromptGovernanceRegistryService,
             PromptGovernanceChangeRecordRepository promptGovernanceChangeRecordRepository,
             PromptGovernanceEvaluationRecordRepository promptGovernanceEvaluationRecordRepository,
             PromptGovernanceReleaseApprovalRepository promptGovernanceReleaseApprovalRepository,
             PromptGovernanceRollbackRecordRepository promptGovernanceRollbackRecordRepository) {
         return new PromptGovernanceLifecycleLedgerService(
-                promptGovernanceRegistryService,
+                contexaPromptGovernanceRegistryService,
                 promptGovernanceChangeRecordRepository,
                 promptGovernanceEvaluationRecordRepository,
                 promptGovernanceReleaseApprovalRepository,
                 promptGovernanceRollbackRecordRepository);
     }
 
-    @Bean
+    @Bean(name = "contexaPromptGovernanceReleaseGateService")
     @ConditionalOnMissingBean
     @ConditionalOnBean({PromptGovernanceLifecycleLedgerService.class, PromptGovernanceRegistryRepository.class, PromptGovernanceChangeRecordRepository.class, PromptGovernanceEvaluationRecordRepository.class, PromptGovernanceReleaseApprovalRepository.class, PromptGovernanceRollbackRecordRepository.class, PromptGovernanceReleaseWorkflowRepository.class, PromptGovernanceModelCompatibilityRepository.class, PromptGovernanceBudgetProfileRepository.class})
     public PromptGovernanceReleaseGateService promptGovernanceReleaseGateService(
-            PromptGovernanceLifecycleLedgerService promptGovernanceLifecycleLedgerService,
+            PromptGovernanceLifecycleLedgerService contexaPromptGovernanceLifecycleLedgerService,
             PromptGovernanceRegistryRepository promptGovernanceRegistryRepository,
             PromptGovernanceChangeRecordRepository promptGovernanceChangeRecordRepository,
             PromptGovernanceEvaluationRecordRepository promptGovernanceEvaluationRecordRepository,
@@ -206,7 +206,7 @@ public class PromptGovernanceAutoConfiguration {
             PromptGovernanceModelCompatibilityRepository promptGovernanceModelCompatibilityRepository,
             PromptGovernanceBudgetProfileRepository promptGovernanceBudgetProfileRepository) {
         return new PromptGovernanceReleaseGateService(
-                promptGovernanceLifecycleLedgerService,
+                contexaPromptGovernanceLifecycleLedgerService,
                 promptGovernanceRegistryRepository,
                 promptGovernanceChangeRecordRepository,
                 promptGovernanceEvaluationRecordRepository,
@@ -218,13 +218,13 @@ public class PromptGovernanceAutoConfiguration {
     }
 
     /** W6-8: the operator's registry transitions through the release gate. */
-    @Bean
+    @Bean(name = "contexaPromptReleaseTransitionApiController")
     @ConditionalOnMissingBean
     @ConditionalOnBean(PromptGovernanceReleaseGateService.class)
     public PromptReleaseTransitionApiController promptReleaseTransitionApiController(
-            PromptGovernanceReleaseGateService promptGovernanceReleaseGateService,
+            PromptGovernanceReleaseGateService contexaPromptGovernanceReleaseGateService,
             PromptGovernanceRuntimeCacheInvalidationService runtimeCacheInvalidationService) {
-        return new PromptReleaseTransitionApiController(promptGovernanceReleaseGateService,
+        return new PromptReleaseTransitionApiController(contexaPromptGovernanceReleaseGateService,
                 runtimeCacheInvalidationService);
     }
 
@@ -232,39 +232,39 @@ public class PromptGovernanceAutoConfiguration {
      * W7-14: what the version screens show, from the registry, the release gate, the rollbacks and the sealed
      * decisions. The sealed decisions are read with the inspection read model, also where the inspection is off.
      */
-    @Bean
+    @Bean(name = "contexaPromptReleaseConsole")
     @ConditionalOnMissingBean
     @ConditionalOnBean(PromptGovernanceReleaseGateService.class)
     public PromptReleaseConsole promptReleaseConsole(
-            JdbcPromptReleaseQueryService promptReleaseQueryService,
-            PromptGovernanceReleaseGateService promptGovernanceReleaseGateService,
-            PromptBundleRollbackService promptBundleRollbackService,
+            JdbcPromptReleaseQueryService contexaPromptReleaseQueryService,
+            PromptGovernanceReleaseGateService contexaPromptGovernanceReleaseGateService,
+            PromptBundleRollbackService contexaPromptBundleRollbackService,
             ObjectProvider<JdbcPromptInspectionQueries> promptInspectionQueries,
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate) {
-        return new PromptReleaseConsole(promptReleaseQueryService, promptGovernanceReleaseGateService,
-                promptBundleRollbackService, PromptBundleCatalog.shared(),
+        return new PromptReleaseConsole(contexaPromptReleaseQueryService, contexaPromptGovernanceReleaseGateService,
+                contexaPromptBundleRollbackService, PromptBundleCatalog.shared(),
                 promptInspectionQueries.getIfAvailable(() -> new JdbcPromptInspectionQueries(jdbcTemplate)));
     }
 
     /** W7-14: the read API of the version screens (bundles, gate, compare). */
-    @Bean
+    @Bean(name = "contexaPromptReleaseConsoleApiController")
     @ConditionalOnMissingBean
     @ConditionalOnBean(PromptReleaseConsole.class)
     public PromptReleaseConsoleApiController promptReleaseConsoleApiController(
-            PromptReleaseConsole promptReleaseConsole) {
-        return new PromptReleaseConsoleApiController(promptReleaseConsole, Clock.systemUTC());
+            PromptReleaseConsole contexaPromptReleaseConsole) {
+        return new PromptReleaseConsoleApiController(contexaPromptReleaseConsole, Clock.systemUTC());
     }
 
     /** W7-14: the version screens of the prompt quality console. */
-    @Bean
+    @Bean(name = "contexaPromptReleasePageController")
     @ConditionalOnMissingBean
     @ConditionalOnBean(PromptReleaseConsole.class)
     public PromptReleasePageController promptReleasePageController(MessageSource messageSource,
-                                                                   ObjectMapper objectMapper) {
+                                                                   @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         return new PromptReleasePageController(messageSource, objectMapper);
     }
 
-    @Bean
+    @Bean(name = "contexaPromptGovernanceEmpiricalEvalService")
     @ConditionalOnMissingBean
     @ConditionalOnBean({PromptGovernanceRegistryRepository.class, PromptGovernanceEvaluationRecordRepository.class})
     public PromptGovernanceEmpiricalEvalService promptGovernanceEmpiricalEvalService(
@@ -275,24 +275,24 @@ public class PromptGovernanceAutoConfiguration {
                 promptGovernanceEvaluationRecordRepository);
     }
 
-    @Bean
-    @ConditionalOnMissingBean(name = "promptGovernanceRegistryBootstrapRunner")
+    @Bean(name = "contexaPromptGovernanceRegistryBootstrapRunner")
+    @ConditionalOnMissingBean(name = "contexaPromptGovernanceRegistryBootstrapRunner")
     @ConditionalOnBean(PromptGovernanceRegistryService.class)
     public ApplicationRunner promptGovernanceRegistryBootstrapRunner(
-            PromptGovernanceRegistryService promptGovernanceRegistryService,
+            PromptGovernanceRegistryService contexaPromptGovernanceRegistryService,
             ObjectProvider<PromptGovernanceLifecycleLedgerService> promptGovernanceLifecycleLedgerService,
             ObjectProvider<PromptGovernanceModelCompatibilityRegistryService> promptGovernanceModelCompatibilityRegistryService) {
         // Registration of the platform prompts happens here only; the read paths no longer write. Each sync creates
         // missing rows and refreshes code-owned content, never the operational fields (version management PV-4).
         return args -> {
-            promptGovernanceRegistryService.syncPlatformRegistry();
+            contexaPromptGovernanceRegistryService.syncPlatformRegistry();
             promptGovernanceLifecycleLedgerService.ifAvailable(PromptGovernanceLifecycleLedgerService::syncPlatformLifecycleLedgers);
             promptGovernanceModelCompatibilityRegistryService.ifAvailable(PromptGovernanceModelCompatibilityRegistryService::syncPlatformRegistry);
         };
     }
 
     /** Only with the startup registration: the verifier requires an active registry release (PV-22). */
-    @Bean
+    @Bean(name = "contexaPromptRuntimeGovernanceDescriptorVerifier")
     @ConditionalOnMissingBean(PromptRuntimeGovernanceDescriptorVerifier.class)
     @ConditionalOnBean(PromptGovernanceRegistryService.class)
     public JdbcPromptRuntimeGovernanceDescriptorVerifier promptRuntimeGovernanceDescriptorVerifier(

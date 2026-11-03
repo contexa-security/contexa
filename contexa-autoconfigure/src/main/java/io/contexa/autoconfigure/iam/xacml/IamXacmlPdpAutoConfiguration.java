@@ -38,37 +38,37 @@ import java.util.List;
 public class IamXacmlPdpAutoConfiguration {
 
     
-    @Bean
+    @Bean(name = "contexaRoleFunctionTranslator")
     @ConditionalOnMissingBean
     public RoleFunctionTranslator roleFunctionTranslator() {
         return new RoleFunctionTranslator();
     }
 
-    @Bean
+    @Bean(name = "contexaAuthenticationFunctionTranslator")
     @ConditionalOnMissingBean
     public AuthenticationFunctionTranslator authenticationFunctionTranslator() {
         return new AuthenticationFunctionTranslator();
     }
 
-    @Bean
+    @Bean(name = "contexaAuthorityFunctionTranslator")
     @ConditionalOnMissingBean
     public AuthorityFunctionTranslator authorityFunctionTranslator() {
         return new AuthorityFunctionTranslator();
     }
 
-    @Bean
+    @Bean(name = "contexaIpAddressFunctionTranslator")
     @ConditionalOnMissingBean
     public IpAddressFunctionTranslator ipAddressFunctionTranslator() {
         return new IpAddressFunctionTranslator();
     }
 
-    @Bean
+    @Bean(name = "contexaDefaultFunctionTranslator")
     @ConditionalOnMissingBean
     public DefaultFunctionTranslator defaultFunctionTranslator() {
         return new DefaultFunctionTranslator();
     }
 
-    @Bean
+    @Bean(name = "contexaPolicyTranslator")
     @ConditionalOnMissingBean
     public PolicyTranslator policyTranslator(
             RoleRepository roleRepository,
@@ -79,25 +79,25 @@ public class IamXacmlPdpAutoConfiguration {
     }
 
     
-    @Bean
+    @Bean(name = "contexaWebSpelExpressionEvaluator")
     @ConditionalOnMissingBean
     public WebSpelExpressionEvaluator webSpelExpressionEvaluator() {
         return new WebSpelExpressionEvaluator();
     }
 
-    @Bean
+    @Bean(name = "contexaAuthenticatedExpressionEvaluator")
     @ConditionalOnMissingBean
     public AuthenticatedExpressionEvaluator authenticatedExpressionEvaluator() {
         return new AuthenticatedExpressionEvaluator();
     }
 
-    @Bean
+    @Bean(name = "contexaAuthorityExpressionEvaluator")
     @ConditionalOnMissingBean
     public AuthorityExpressionEvaluator authorityExpressionEvaluator() {
         return new AuthorityExpressionEvaluator();
     }
 
-    @Bean
+    @Bean(name = "contexaCustomWebSecurityExpressionHandler")
     @ConditionalOnMissingBean
     public CustomWebSecurityExpressionHandler customWebSecurityExpressionHandler(
             ContextHandler contextHandler,
@@ -108,37 +108,37 @@ public class IamXacmlPdpAutoConfiguration {
     }
 
 
-    @Bean
+    @Bean(name = "contexaGroupPermissionEvaluator")
     @ConditionalOnMissingBean
     public GroupPermissionEvaluator groupPermissionEvaluator(ApplicationContext ctx) {
         return new GroupPermissionEvaluator(ctx);
     }
 
-    @Bean
+    @Bean(name = "contexaUserPermissionEvaluator")
     @ConditionalOnMissingBean
     public UserPermissionEvaluator userPermissionEvaluator(ApplicationContext ctx) {
         return new UserPermissionEvaluator(ctx);
     }
 
-    @Bean
+    @Bean(name = "contexaPermissionTargetPermissionEvaluator")
     @ConditionalOnMissingBean
     public PermissionTargetPermissionEvaluator permissionTargetPermissionEvaluator(ApplicationContext ctx) {
         return new PermissionTargetPermissionEvaluator(ctx);
     }
 
-    @Bean
+    @Bean(name = "contexaRolePermissionEvaluator")
     @ConditionalOnMissingBean
     public RolePermissionEvaluator rolePermissionEvaluator(ApplicationContext ctx) {
         return new RolePermissionEvaluator(ctx);
     }
 
-    @Bean
+    @Bean(name = "contexaRoleHierarchyPermissionEvaluator")
     @ConditionalOnMissingBean
     public RoleHierarchyPermissionEvaluator roleHierarchyPermissionEvaluator(ApplicationContext ctx) {
         return new RoleHierarchyPermissionEvaluator(ctx);
     }
 
-    @Bean
+    @Bean(name = "contexaCompositePermissionEvaluator")
     @ConditionalOnMissingBean
     public CompositePermissionEvaluator compositePermissionEvaluator(
             List<DomainPermissionEvaluator> evaluators) {

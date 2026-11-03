@@ -50,7 +50,7 @@ public class IdentityMfaAutoConfiguration {
 
     }
 
-    @Bean
+    @Bean(name = "contexaDefaultMfaPolicyEvaluator")
     @ConditionalOnMissingBean
     public DefaultMfaPolicyEvaluator defaultMfaPolicyEvaluator(
             UserRepository userRepository,
@@ -59,7 +59,7 @@ public class IdentityMfaAutoConfiguration {
         return new DefaultMfaPolicyEvaluator(userRepository, applicationContext, actionRedisRepository);
     }
 
-    @Bean
+    @Bean(name = "contexaZeroTrustPolicyEvaluator")
     @ConditionalOnMissingBean
     public ZeroTrustPolicyEvaluator zeroTrustPolicyEvaluator(
             UserRepository userRepository,
@@ -71,7 +71,7 @@ public class IdentityMfaAutoConfiguration {
     }
 
     /** A1-13: an approved agent's own account signs in by Contexa's zero trust action alone, never with factors. */
-    @Bean
+    @Bean(name = "contexaAgentAccountMfaPolicyEvaluator")
     @ConditionalOnMissingBean
     public AgentAccountMfaPolicyEvaluator agentAccountMfaPolicyEvaluator(
             ZeroTrustActionRepository actionRedisRepository,
@@ -79,15 +79,15 @@ public class IdentityMfaAutoConfiguration {
         return new AgentAccountMfaPolicyEvaluator(actionRedisRepository, agentClientDirectory);
     }
 
-    @Bean
+    @Bean(name = "contexaCompositeMfaPolicyEvaluator")
     @ConditionalOnMissingBean
     public CompositeMfaPolicyEvaluator compositeMfaPolicyEvaluator(
             List<MfaPolicyEvaluator> evaluators) {
         return new CompositeMfaPolicyEvaluator(evaluators);
     }
 
-    @Bean
-    @ConditionalOnMissingBean(name = "defaultMfaPolicyProvider")
+    @Bean(name = "contexaDefaultMfaPolicyProvider")
+    @ConditionalOnMissingBean(name = "contexaDefaultMfaPolicyProvider")
     public DefaultMfaPolicyProvider defaultMfaPolicyProvider(
             UserRepository userRepository,
             ApplicationContext applicationContext,
@@ -102,9 +102,9 @@ public class IdentityMfaAutoConfiguration {
                 platformConfig);
     }
 
-    @Bean
+    @Bean(name = "contexaAiAdaptiveMfaPolicyProvider")
     @Primary
-    @ConditionalOnMissingBean(name = "aiAdaptiveMfaPolicyProvider")
+    @ConditionalOnMissingBean(name = "contexaAiAdaptiveMfaPolicyProvider")
     public AIAdaptiveMfaPolicyProvider aiAdaptiveMfaPolicyProvider(
             UserRepository userRepository,
             ApplicationContext applicationContext,
@@ -121,7 +121,7 @@ public class IdentityMfaAutoConfiguration {
                 aiCoreOperations);
     }
 
-    @Bean
+    @Bean(name = "contexaMfaPageGeneratingConfigurer")
     @ConditionalOnMissingBean
     public MfaPageGeneratingConfigurer mfaPageGeneratingConfigurer(ApplicationContext applicationContext) {
         return new MfaPageGeneratingConfigurer(applicationContext);

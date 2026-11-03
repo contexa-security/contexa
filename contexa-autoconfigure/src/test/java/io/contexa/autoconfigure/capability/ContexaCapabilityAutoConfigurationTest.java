@@ -222,7 +222,7 @@ class ContexaCapabilityAutoConfigurationTest {
                 .withClassLoader(new FilteredClassLoader("org.springframework.boot.actuate"))
                 .run(context -> {
                     assertThat(context).hasNotFailed();
-                    assertThat(context).doesNotHaveBean("capabilityDiagnosticsEndpoint");
+                    assertThat(context).doesNotHaveBean("contexaCapabilityDiagnosticsEndpoint");
                 });
     }
 

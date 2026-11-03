@@ -33,27 +33,27 @@ import org.springframework.context.annotation.Bean;
 @EnableConfigurationProperties(TieredStrategyProperties.class)
 public class IamAdminIpAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaIpAccessRuleService")
     @ConditionalOnMissingBean
     public IpAccessRuleService ipAccessRuleService(IpAccessRuleRepository ipAccessRuleRepository) {
         return new IpAccessRuleService(ipAccessRuleRepository);
     }
 
-    @Bean
+    @Bean(name = "contexaIpManagementController")
     @ConditionalOnMissingBean
-    public IpManagementController ipManagementController(IpAccessRuleService ipAccessRuleService,
+    public IpManagementController ipManagementController(IpAccessRuleService contexaIpAccessRuleService,
                                                           MessageSource messageSource,
-                                                          CsvExportService csvExportService) {
-        return new IpManagementController(ipAccessRuleService, messageSource, csvExportService);
+                                                          CsvExportService contexaCsvExportService) {
+        return new IpManagementController(contexaIpAccessRuleService, messageSource, contexaCsvExportService);
     }
 
-    @Bean
+    @Bean(name = "contexaIpAccessFilter")
     @ConditionalOnMissingBean(IpAccessFilter.class)
-    public FilterRegistrationBean<IpAccessFilter> ipAccessFilter(IpAccessRuleService ipAccessRuleService,
+    public FilterRegistrationBean<IpAccessFilter> ipAccessFilter(IpAccessRuleService contexaIpAccessRuleService,
                                                                  TieredStrategyProperties tieredStrategyProperties,
                                                                  BridgeProperties bridgeProperties) {
         FilterRegistrationBean<IpAccessFilter> reg = new FilterRegistrationBean<>();
-        reg.setFilter(new IpAccessFilter(ipAccessRuleService, tieredStrategyProperties.getSecurity()));
+        reg.setFilter(new IpAccessFilter(contexaIpAccessRuleService, tieredStrategyProperties.getSecurity()));
         reg.addUrlPatterns(bridgeProperties.isContexaOwned() ? "/*" : "/contexa/*");
         reg.setName("ipAccessFilter");
         reg.setOrder(50);

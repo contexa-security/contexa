@@ -304,9 +304,9 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
     }
 
     private boolean shouldSkip(String beanName) {
-        return "primaryChatModel".equals(beanName)
-                || "primaryEmbeddingModel".equals(beanName)
-                || "embeddingModel".equals(beanName);
+        return "contexaPrimaryChatModel".equals(beanName)
+                || "contexaPrimaryEmbeddingModel".equals(beanName)
+                || "contexaEmbeddingModel".equals(beanName);
     }
 
     private boolean isPrimaryBean(String beanName) {

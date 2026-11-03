@@ -30,7 +30,7 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration
 public class IamXacmlPipAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaDatabaseAttributePIP")
     @ConditionalOnMissingBean
     public DatabaseAttributePIP databaseAttributePIP(
             UserRepository userRepository,
@@ -40,7 +40,7 @@ public class IamXacmlPipAutoConfiguration {
         return new DatabaseAttributePIP(userRepository, auditLogRepository, resourceActionRepository, cacheService);
     }
 
-    @Bean
+    @Bean(name = "contexaDefaultContextHandler")
     @ConditionalOnMissingBean
     public DefaultContextHandler defaultContextHandler(
             UserRepository userRepository,

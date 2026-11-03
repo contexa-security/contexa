@@ -56,7 +56,7 @@ public class CoreSchedulerLockAutoConfiguration {
     /** ShedLock's default table name is {@code shedlock}; a table of the application may have it, so Contexa's has the prefix. */
     static final String LOCK_TABLE = "ctxa_shedlock";
 
-    @Bean
+    @Bean(name = "contexaShedLockProvider")
     @ConditionalOnMissingBean(LockProvider.class)
     public LockProvider shedLockProvider(
             @Qualifier("contexaDataSource") DataSource dataSource,

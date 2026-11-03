@@ -29,62 +29,62 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration
 public class IamAiamComponentsAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaPolicyGenerationTemplate")
     @ConditionalOnMissingBean
     public PolicyGenerationTemplate policyGenerationTemplate() {
         return new PolicyGenerationTemplate();
     }
 
-    @Bean
+    @Bean(name = "contexaPolicyGenerationStreamingTemplate")
     @ConditionalOnMissingBean
     public PolicyGenerationStreamingTemplate policyGenerationStreamingTemplate() {
         return new PolicyGenerationStreamingTemplate();
     }
 
-    @Bean
+    @Bean(name = "contexaResourceNamingTemplate")
     @ConditionalOnMissingBean
     public ResourceNamingTemplate resourceNamingTemplate() {
         return new ResourceNamingTemplate();
     }
 
-    @Bean
+    @Bean(name = "contexaConditionTemplatePromptTemplate")
     @ConditionalOnMissingBean
     public ConditionTemplatePromptTemplate conditionTemplatePromptTemplate() {
         return new ConditionTemplatePromptTemplate();
     }
 
-    @Bean
+    @Bean(name = "contexaPolicyGenerationContextRetriever")
     @ConditionalOnMissingBean
     @ConditionalOnBean({VectorStore.class, ContextRetrieverRegistry.class, PolicyGenerationVectorService.class, ContexaRagProperties.class})
     public PolicyGenerationContextRetriever policyGenerationContextRetriever(
             VectorStore vectorStore,
-            ContextRetrieverRegistry contextRetrieverRegistry,
-            PolicyGenerationVectorService policyGenerationVectorService,
+            ContextRetrieverRegistry contexaContextRetrieverRegistry,
+            PolicyGenerationVectorService contexaPolicyGenerationVectorService,
             ContexaRagProperties ragProperties) {
         return new PolicyGenerationContextRetriever(
-                vectorStore, contextRetrieverRegistry, policyGenerationVectorService, ragProperties);
+                vectorStore, contexaContextRetrieverRegistry, contexaPolicyGenerationVectorService, ragProperties);
     }
 
-    @Bean
+    @Bean(name = "contexaConditionTemplateContextRetriever")
     @ConditionalOnMissingBean
     @ConditionalOnBean({VectorStore.class, ContextRetrieverRegistry.class, ContexaRagProperties.class})
     public ConditionTemplateContextRetriever conditionTemplateContextRetriever(
             VectorStore vectorStore,
-            ContextRetrieverRegistry contextRetrieverRegistry,
+            ContextRetrieverRegistry contexaContextRetrieverRegistry,
             ContexaRagProperties ragProperties) {
         return new ConditionTemplateContextRetriever(
-                vectorStore, contextRetrieverRegistry, ragProperties);
+                vectorStore, contexaContextRetrieverRegistry, ragProperties);
     }
 
-    @Bean
+    @Bean(name = "contexaResourceNamingContextRetriever")
     @ConditionalOnMissingBean
     @ConditionalOnBean({VectorStore.class, ContextRetrieverRegistry.class, ContexaRagProperties.class})
     public ResourceNamingContextRetriever resourceNamingContextRetriever(
             VectorStore vectorStore,
-            ContextRetrieverRegistry contextRetrieverRegistry,
+            ContextRetrieverRegistry contexaContextRetrieverRegistry,
             ContexaRagProperties ragProperties) {
         return new ResourceNamingContextRetriever(
-                vectorStore, contextRetrieverRegistry, ragProperties);
+                vectorStore, contexaContextRetrieverRegistry, ragProperties);
     }
 }
 

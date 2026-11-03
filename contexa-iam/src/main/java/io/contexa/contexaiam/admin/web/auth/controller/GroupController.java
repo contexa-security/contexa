@@ -21,7 +21,6 @@ import io.contexa.contexaiam.domain.dto.GroupDto;
 import io.contexa.contexaiam.domain.dto.RoleMetadataDto;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.Role;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.context.MessageSource;
@@ -39,11 +38,11 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import java.util.HashSet;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 @Slf4j
 @Controller
 @RequestMapping("/contexa/admin/groups")
-@RequiredArgsConstructor
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 @PreAuthorize("hasRole('ADMIN')")
 public class GroupController {
@@ -52,6 +51,14 @@ public class GroupController {
     private final RoleService roleService;
     private final ModelMapper modelMapper;
     private final MessageSource messageSource;
+
+
+    public GroupController(GroupService groupService, RoleService roleService, @Qualifier("contexaModelMapper") ModelMapper modelMapper, MessageSource messageSource) {
+        this.groupService = groupService;
+        this.roleService = roleService;
+        this.modelMapper = modelMapper;
+        this.messageSource = messageSource;
+    }
 
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());

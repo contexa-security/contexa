@@ -56,7 +56,7 @@ public class CoreSessionAutoConfiguration {
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     static class RedisSessionConfiguration {
 
-        @Bean
+        @Bean(name = "contexaMfaSessionRepository")
         @Primary
         @ConditionalOnMissingBean(MfaSessionRepository.class)
         public MfaSessionRepository mfaSessionRepository(
@@ -95,7 +95,7 @@ public class CoreSessionAutoConfiguration {
     @Conditional(StandaloneSessionCondition.class)
     static class StandaloneSessionConfiguration {
 
-        @Bean
+        @Bean(name = "contexaMfaSessionRepository")
         @Primary
         @ConditionalOnMissingBean(MfaSessionRepository.class)
         public MfaSessionRepository mfaSessionRepository(AuthContextProperties properties) {
@@ -105,7 +105,7 @@ public class CoreSessionAutoConfiguration {
         }
     }
 
-    @Bean
+    @Bean(name = "contexaSessionIdGenerator")
     @ConditionalOnMissingBean
     public SessionIdGenerator sessionIdGenerator() {
         return new HttpSessionIdGenerator();

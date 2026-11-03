@@ -71,11 +71,11 @@ class PqaOfficialInspectionAutoConfigurationTest {
                 }))
                 .run(context -> {
                     assertThat(context).hasNotFailed();
-                    assertThat(context.containsBeanDefinition("pqaPromptQualityOfficialConsoleApiController"))
+                    assertThat(context.containsBeanDefinition("contexaPqaPromptQualityOfficialConsoleApiController"))
                             .isTrue();
-                    assertThat(context.containsBeanDefinition("promptQualityRouteModelAdvice"))
+                    assertThat(context.containsBeanDefinition("contexaPromptQualityRouteModelAdvice"))
                             .isTrue();
-                    assertThat(context.containsBeanDefinition("pqaOfficialVerificationExecutionLockService"))
+                    assertThat(context.containsBeanDefinition("contexaPqaOfficialVerificationExecutionLockService"))
                             .isTrue();
                 });
     }
@@ -113,9 +113,9 @@ class PqaOfficialInspectionAutoConfigurationTest {
                     context.getBean(OfficialVerificationPromptQualityIssueSynchronizer.class)
                             .synchronize("oss", "package", "run");
                     verifyNoInteractions(jdbcTemplate);
-                    assertThat(context.containsBeanDefinition("pqaPromptQualityOfficialConsoleApiController"))
+                    assertThat(context.containsBeanDefinition("contexaPqaPromptQualityOfficialConsoleApiController"))
                             .isTrue();
-                    assertThat(context.containsBeanDefinition("pqaOfficialVerificationExecutionLockService"))
+                    assertThat(context.containsBeanDefinition("contexaPqaOfficialVerificationExecutionLockService"))
                             .isTrue();
                 });
     }
@@ -128,12 +128,12 @@ class PqaOfficialInspectionAutoConfigurationTest {
                 OfficialMetricPurposeContractWriter.class);
 
         assertThat(method.getReturnType()).isEqualTo(OfficialMetricPurposeContractCatalogBootstrap.class);
-        assertThat(method.getAnnotation(DependsOn.class).value()).containsExactly("iamSeedDataInitializer");
+        assertThat(method.getAnnotation(DependsOn.class).value()).containsExactly("contexaIamSeedDataInitializer");
         assertThat(Arrays.asList(method.getAnnotation(ConditionalOnBean.class).name()))
-                .contains("iamSeedDataInitializer");
+                .contains("contexaIamSeedDataInitializer");
         assertThat(Arrays.asList(method.getAnnotation(ConditionalOnMissingBean.class).name()))
                 .contains("officialMetricPurposeContractCatalogBootstrap",
-                        "pqaOfficialMetricPurposeContractCatalogBootstrap");
+                        "contexaPqaOfficialMetricPurposeContractCatalogBootstrap");
     }
 
     @Test

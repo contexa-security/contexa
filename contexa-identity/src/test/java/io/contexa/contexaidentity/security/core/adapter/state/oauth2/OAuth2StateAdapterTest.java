@@ -137,7 +137,7 @@ class OAuth2StateAdapterTest {
     @Test
     @DisplayName("apply when ObjectMapper is missing should throw IllegalStateException")
     void applyWhenObjectMapperMissingThrowsException() {
-        when(applicationContext.getBean(ObjectMapper.class))
+        when(applicationContext.getBean("contexaObjectMapper", ObjectMapper.class))
                 .thenThrow(new NoSuchBeanDefinitionException(ObjectMapper.class));
 
         assertThatThrownBy(() -> adapter.apply(httpSecurity, platformContext))
@@ -148,7 +148,7 @@ class OAuth2StateAdapterTest {
     @Test
     @DisplayName("apply when JwtDecoder is missing should throw IllegalStateException")
     void applyWhenJwtDecoderMissingThrowsException() {
-        when(applicationContext.getBean(ObjectMapper.class)).thenReturn(objectMapper);
+        when(applicationContext.getBean("contexaObjectMapper", ObjectMapper.class)).thenReturn(objectMapper);
         when(applicationContext.getBean(JsonAuthResponseWriter.class)).thenReturn(jsonAuthResponseWriter);
         when(applicationContext.getBean(JwtDecoder.class))
                 .thenThrow(new NoSuchBeanDefinitionException(JwtDecoder.class));
@@ -161,7 +161,7 @@ class OAuth2StateAdapterTest {
     @Test
     @DisplayName("apply when Authorization Server beans are missing should throw IllegalStateException")
     void applyWhenAuthServerBeansMissingThrowsException() {
-        when(applicationContext.getBean(ObjectMapper.class)).thenReturn(objectMapper);
+        when(applicationContext.getBean("contexaObjectMapper", ObjectMapper.class)).thenReturn(objectMapper);
         when(applicationContext.getBean(JsonAuthResponseWriter.class)).thenReturn(jsonAuthResponseWriter);
         when(applicationContext.getBean(JwtDecoder.class)).thenReturn(jwtDecoder);
         when(applicationContext.getBean(JwtEncoder.class))
@@ -176,7 +176,7 @@ class OAuth2StateAdapterTest {
     @DisplayName("apply when all required beans are present should apply successfully")
     @SuppressWarnings("unchecked")
     void applyWithAllBeansSucceeds() throws Exception {
-        when(applicationContext.getBean(ObjectMapper.class)).thenReturn(objectMapper);
+        when(applicationContext.getBean("contexaObjectMapper", ObjectMapper.class)).thenReturn(objectMapper);
         when(applicationContext.getBean(JsonAuthResponseWriter.class)).thenReturn(jsonAuthResponseWriter);
         when(applicationContext.getBean(JwtDecoder.class)).thenReturn(jwtDecoder);
         when(applicationContext.getBean(JwtEncoder.class)).thenReturn(jwtEncoder);
@@ -188,7 +188,7 @@ class OAuth2StateAdapterTest {
         when(applicationContext.getBeanProvider(OAuth2TokenGenerator.class)).thenReturn(applicationGenerators);
         when(applicationContext.getBean(UserRepository.class)).thenReturn(userRepository);
         when(applicationContext.getBean(OAuth2TokenService.class)).thenReturn(tokenService);
-        when(applicationContext.getBean("compositeLogoutHandler", LogoutHandler.class)).thenReturn(logoutHandler);
+        when(applicationContext.getBean("contexaCompositeLogoutHandler", LogoutHandler.class)).thenReturn(logoutHandler);
         when(applicationContext.getBean(AuthResponseWriter.class)).thenReturn(responseWriter);
 
         LogoutConfigurer<HttpSecurity> mockLogoutConfigurer = mock(LogoutConfigurer.class);

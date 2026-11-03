@@ -21,7 +21,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Primary;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.concurrent.BlockingQueue;
@@ -38,8 +37,7 @@ public class AsyncConfig {
 
     private final SecurityPlaneProperties securityPlaneProperties;
 
-    @Bean(name = "taskExecutor")
-    @Primary
+    @Bean(name = "contexaTaskExecutor", defaultCandidate = false)
     public Executor taskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(5);
@@ -53,7 +51,7 @@ public class AsyncConfig {
         return executor;
     }
 
-    @Bean(name = "coldPathExecutor")
+    @Bean(name = "contexaColdPathExecutor", defaultCandidate = false)
     public Executor coldPathExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(5);
@@ -67,7 +65,7 @@ public class AsyncConfig {
         return executor;
     }
 
-    @Bean(name = "contextExecutor")
+    @Bean(name = "contexaContextExecutor", defaultCandidate = false)
     public Executor contextExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(8);
@@ -81,7 +79,7 @@ public class AsyncConfig {
         return executor;
     }
 
-    @Bean(name = "securityPlaneExecutor")
+    @Bean(name = "contexaSecurityPlaneExecutor", defaultCandidate = false)
     public Executor securityPlaneExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(3);
@@ -95,7 +93,7 @@ public class AsyncConfig {
         return executor;
     }
 
-    @Bean(name = "llmAnalysisExecutor")
+    @Bean(name = "contexaLlmAnalysisExecutor", defaultCandidate = false)
     public ThreadPoolTaskExecutor llmAnalysisExecutor() {
         SecurityPlaneProperties.LlmExecutorSettings settings = securityPlaneProperties.getLlmExecutor();
 
@@ -120,11 +118,11 @@ public class AsyncConfig {
     }
 
 
-    @Bean
+    @Bean(name = "contexaLlmAnalysisBackpressureMonitor")
     public LlmAnalysisBackpressureMonitor llmAnalysisBackpressureMonitor(
-            @Qualifier("llmAnalysisExecutor") ThreadPoolTaskExecutor llmAnalysisExecutor) {
+            @Qualifier("contexaLlmAnalysisExecutor") ThreadPoolTaskExecutor contexaLlmAnalysisExecutor) {
         return new LlmAnalysisBackpressureMonitor(
-                llmAnalysisExecutor,
+                contexaLlmAnalysisExecutor,
                 securityPlaneProperties);
     }
 
@@ -178,7 +176,7 @@ public class AsyncConfig {
             return super.offer(runnable);
         }
     }
-    @Bean(name = "saasForwardingExecutor")
+    @Bean(name = "contexaSaasForwardingExecutor", defaultCandidate = false)
     public Executor saasForwardingExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(2);

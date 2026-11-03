@@ -37,40 +37,40 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration
 public class IamAdminBlacklistAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaBlockedUserService")
     @ConditionalOnMissingBean
     public BlockedUserService blockedUserService(
             BlockedUserJpaRepository blockedUserJpaRepository,
-            AdminOverrideService adminOverrideService,
+            AdminOverrideService contexaAdminOverrideService,
             ZeroTrustActionRepository actionRedisRepository,
             ApplicationEventPublisher eventPublisher,
-            CentralAuditFacade centralAuditFacade,
-            BlockingSignalBroadcaster blockingDecisionRegistry,
+            CentralAuditFacade contexaCentralAuditFacade,
+            BlockingSignalBroadcaster contexaBlockingDecisionRegistry,
             MessageSource messageSource,
             ObjectProvider<VerificationLearningService> verificationLearningService) {
         BlockedUserService service = new BlockedUserService(
-                blockedUserJpaRepository, adminOverrideService, actionRedisRepository,
-                eventPublisher, centralAuditFacade, blockingDecisionRegistry, messageSource);
+                blockedUserJpaRepository, contexaAdminOverrideService, actionRedisRepository,
+                eventPublisher, contexaCentralAuditFacade, contexaBlockingDecisionRegistry, messageSource);
         service.setVerificationLearningService(verificationLearningService.getIfAvailable());
         return service;
     }
 
-    @Bean
+    @Bean(name = "contexaBlockedUserRecorder")
     @ConditionalOnMissingBean(IBlockedUserRecorder.class)
-    public IBlockedUserRecorder blockedUserRecorder(BlockedUserService blockedUserService) {
-        return blockedUserService;
+    public IBlockedUserRecorder blockedUserRecorder(BlockedUserService contexaBlockedUserService) {
+        return contexaBlockedUserService;
     }
 
-    @Bean
+    @Bean(name = "contexaBlacklistController")
     @ConditionalOnMissingBean
-    public BlacklistController blacklistController(BlockedUserService blockedUserService, MessageSource messageSource) {
-        return new BlacklistController(blockedUserService, messageSource);
+    public BlacklistController blacklistController(BlockedUserService contexaBlockedUserService, MessageSource messageSource) {
+        return new BlacklistController(contexaBlockedUserService, messageSource);
     }
 
-    @Bean
+    @Bean(name = "contexaBlacklistApiController")
     @ConditionalOnMissingBean
-    public BlacklistApiController blacklistApiController(BlockedUserService blockedUserService, MessageSource messageSource) {
-        return new BlacklistApiController(blockedUserService, messageSource);
+    public BlacklistApiController blacklistApiController(BlockedUserService contexaBlockedUserService, MessageSource messageSource) {
+        return new BlacklistApiController(contexaBlockedUserService, messageSource);
     }
 }
 

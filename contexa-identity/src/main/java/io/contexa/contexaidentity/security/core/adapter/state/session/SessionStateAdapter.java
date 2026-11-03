@@ -43,7 +43,7 @@ public class SessionStateAdapter implements StateAdapter {
     public void apply(HttpSecurity http, PlatformContext platformCtx, AuthenticationFlowConfig flowConfig) throws Exception {
 
         ApplicationContext appContext = Objects.requireNonNull(platformCtx.applicationContext(), "ApplicationContext from PlatformContext cannot be null");
-        LogoutHandler logoutHandler = appContext.getBean("compositeLogoutHandler", LogoutHandler.class);
+        LogoutHandler logoutHandler = appContext.getBean("contexaCompositeLogoutHandler", LogoutHandler.class);
 
         String urlPrefix = flowConfig != null ? flowConfig.getUrlPrefix() : null;
         String logoutUrl = urlPrefix != null ? urlPrefix + "/logout" : "/logout";

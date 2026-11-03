@@ -637,7 +637,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
     private void scheduleStateMachineCleanup(String sessionId) {
 
-        applicationContext.getBean("taskExecutor", Executor.class)
+        applicationContext.getBean("contexaTaskExecutor", Executor.class)
                 .execute(() -> {
                     try {
                         Thread.sleep(5000);

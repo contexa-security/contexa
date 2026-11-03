@@ -27,7 +27,6 @@ import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.*;
 import org.springframework.kafka.listener.ContainerProperties;
@@ -38,9 +37,9 @@ import org.springframework.util.backoff.FixedBackOff;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 @Configuration
-@EnableKafka
 @ConditionalOnClass(name = "org.springframework.kafka.core.KafkaTemplate")
 @EnableConfigurationProperties(KafkaProperties.class)
 @ConditionalOnProperty(prefix = "contexa.infrastructure", name = "mode", havingValue = "distributed")
@@ -49,7 +48,7 @@ public class KafkaConfiguration {
 
     private final KafkaProperties kafkaProperties;
 
-    @Bean
+    @Bean(name = "contexaConsumerConfigs")
     public Map<String, Object> consumerConfigs() {
         Map<String, Object> props = new HashMap<>();
         String bootstrapServers = String.join(",", kafkaProperties.getBootstrapServers());
@@ -72,7 +71,7 @@ public class KafkaConfiguration {
         return props;
     }
 
-    @Bean
+    @Bean(name = "contexaProducerConfigs")
     public Map<String, Object> producerConfigs() {
         Map<String, Object> props = new HashMap<>();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, String.join(",", kafkaProperties.getBootstrapServers()));
@@ -87,25 +86,25 @@ public class KafkaConfiguration {
         return props;
     }
 
-    @Bean
+    @Bean(name = "contexaConsumerFactory")
     public ConsumerFactory<String, String> consumerFactory() {
         return new DefaultKafkaConsumerFactory<>(consumerConfigs());
     }
 
-    @Bean
-    public ProducerFactory<String, Object> producerFactory(ObjectMapper objectMapper) {
+    @Bean(name = "contexaProducerFactory")
+    public ProducerFactory<String, Object> producerFactory(@Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         Map<String, Object> props = new HashMap<>(producerConfigs());
         JsonSerializer<Object> serializer = new JsonSerializer<>(objectMapper);
         serializer.setAddTypeInfo(false);
         return new DefaultKafkaProducerFactory<>(props, new StringSerializer(), serializer);
     }
 
-    @Bean
-    public KafkaTemplate<String, Object> kafkaTemplate(ProducerFactory<String, Object> producerFactory) {
-        return new KafkaTemplate<>(producerFactory);
+    @Bean(name = "contexaKafkaTemplate", defaultCandidate = false)
+    public KafkaTemplate<String, Object> kafkaTemplate(ProducerFactory<String, Object> contexaProducerFactory) {
+        return new KafkaTemplate<>(contexaProducerFactory);
     }
 
-    @Bean
+    @Bean(name = "contexaKafkaListenerContainerFactory", defaultCandidate = false)
     public ConcurrentKafkaListenerContainerFactory<String, String> kafkaListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, String> factory = 
             new ConcurrentKafkaListenerContainerFactory<>();
@@ -122,7 +121,7 @@ public class KafkaConfiguration {
         return factory;
     }
 
-    @Bean
+    @Bean(name = "contexaJsonKafkaListenerContainerFactory", defaultCandidate = false)
     public ConcurrentKafkaListenerContainerFactory<String, Object> jsonKafkaListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, Object> factory = 
             new ConcurrentKafkaListenerContainerFactory<>();

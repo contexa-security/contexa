@@ -29,7 +29,7 @@ import org.springframework.context.annotation.Bean;
 @AutoConfigureAfter(IamAdminAuthAutoConfiguration.class)
 public class IamAdminAccessCenterAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaAccessCenterService")
     @ConditionalOnMissingBean
     public AccessCenterService accessCenterService(
             UserRepository userRepository,
@@ -37,19 +37,19 @@ public class IamAdminAccessCenterAutoConfiguration {
             GroupRepository groupRepository,
             RoleRepository roleRepository,
             PermissionRepository permissionRepository,
-            RoleService roleService,
+            RoleService contexaRoleService,
             UserRolePermissionRepository userRolePermissionRepository,
             GroupRolePermissionRepository groupRolePermissionRepository) {
         return new AccessCenterService(
                 userRepository, userRoleRepository, groupRepository,
-                roleRepository, permissionRepository, roleService,
+                roleRepository, permissionRepository, contexaRoleService,
                 userRolePermissionRepository, groupRolePermissionRepository);
     }
 
-    @Bean
+    @Bean(name = "contexaAccessCenterController")
     @ConditionalOnMissingBean
-    public AccessCenterController accessCenterController(AccessCenterService accessCenterService) {
-        return new AccessCenterController(accessCenterService);
+    public AccessCenterController accessCenterController(AccessCenterService contexaAccessCenterService) {
+        return new AccessCenterController(contexaAccessCenterService);
     }
 }
 

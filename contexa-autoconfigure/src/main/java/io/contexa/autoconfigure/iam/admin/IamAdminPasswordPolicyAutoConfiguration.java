@@ -44,7 +44,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 @AutoConfiguration
 public class IamAdminPasswordPolicyAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaPasswordPolicyService")
     @ConditionalOnMissingBean
     public PasswordPolicyService passwordPolicyService(
             PasswordPolicyRepository passwordPolicyRepository,
@@ -53,48 +53,48 @@ public class IamAdminPasswordPolicyAutoConfiguration {
         return new PasswordPolicyService(passwordPolicyRepository, passwordHistoryRepository, passwordEncoder);
     }
 
-    @Bean
+    @Bean(name = "contexaPasswordPolicyController")
     @ConditionalOnMissingBean
-    public PasswordPolicyController passwordPolicyController(PasswordPolicyService passwordPolicyService, MessageSource messageSource) {
-        return new PasswordPolicyController(passwordPolicyService, messageSource);
+    public PasswordPolicyController passwordPolicyController(PasswordPolicyService contexaPasswordPolicyService, MessageSource messageSource) {
+        return new PasswordPolicyController(contexaPasswordPolicyService, messageSource);
     }
 
-    @Bean
+    @Bean(name = "contexaPasswordChangeService")
     @ConditionalOnMissingBean
     public PasswordChangeService passwordChangeService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            PasswordPolicyService passwordPolicyService) {
-        return new PasswordChangeService(userRepository, passwordEncoder, passwordPolicyService);
+            PasswordPolicyService contexaPasswordPolicyService) {
+        return new PasswordChangeService(userRepository, passwordEncoder, contexaPasswordPolicyService);
     }
 
-    @Bean
+    @Bean(name = "contexaPasswordChangeController")
     @ConditionalOnMissingBean
     public PasswordChangeController passwordChangeController(
-            PasswordChangeService passwordChangeService,
-            PasswordPolicyService passwordPolicyService,
+            PasswordChangeService contexaPasswordChangeService,
+            PasswordPolicyService contexaPasswordPolicyService,
             MessageSource messageSource) {
-        return new PasswordChangeController(passwordChangeService, passwordPolicyService, messageSource);
+        return new PasswordChangeController(contexaPasswordChangeService, contexaPasswordPolicyService, messageSource);
     }
 
-    @Bean
+    @Bean(name = "contexaSystemRuntimeSettingsService")
     @ConditionalOnMissingBean
     public SystemRuntimeSettingsService systemRuntimeSettingsService(SystemSettingsRepository systemSettingsRepository) {
         return new SystemRuntimeSettingsService(systemSettingsRepository);
     }
 
-    @Bean
+    @Bean(name = "contexaSystemSettingsRuntimeApplier")
     @ConditionalOnMissingBean
     public SystemSettingsRuntimeApplier systemSettingsRuntimeApplier(
-            SystemRuntimeSettingsService systemRuntimeSettingsService,
+            SystemRuntimeSettingsService contexaSystemRuntimeSettingsService,
             ObjectProvider<SecurityZeroTrustProperties> zeroTrustPropertiesProvider,
             ObjectProvider<PolicyCombiningProperties> policyCombiningPropertiesProvider,
             ObjectProvider<CustomDynamicAuthorizationManager> authorizationManagerProvider) {
-        return new SystemSettingsRuntimeApplier(systemRuntimeSettingsService, zeroTrustPropertiesProvider,
+        return new SystemSettingsRuntimeApplier(contexaSystemRuntimeSettingsService, zeroTrustPropertiesProvider,
                 policyCombiningPropertiesProvider, authorizationManagerProvider);
     }
 
-    @Bean
+    @Bean(name = "contexaSystemSettingsService")
     @ConditionalOnMissingBean
     public SystemSettingsService systemSettingsService(
             SystemSettingsRepository systemSettingsRepository,
@@ -102,17 +102,17 @@ public class IamAdminPasswordPolicyAutoConfiguration {
         return new SystemSettingsService(systemSettingsRepository, roleRepository);
     }
 
-    @Bean
+    @Bean(name = "contexaSystemSettingsController")
     @ConditionalOnMissingBean
     public SystemSettingsController systemSettingsController(
             PolicyCombiningProperties policyCombiningProperties,
-            SystemSettingsService systemSettingsService,
+            SystemSettingsService contexaSystemSettingsService,
             MessageSource messageSource,
             ObjectProvider<CustomDynamicAuthorizationManager> authManagerProvider,
             ObjectProvider<SystemSettingsRuntimeApplier> runtimeApplierProvider,
             ObjectProvider<PolicyReloadBroadcaster> policyReloadBroadcasterProvider,
             ObjectProvider<SecurityZeroTrustProperties> zeroTrustPropertiesProvider) {
-        SystemSettingsController controller = new SystemSettingsController(systemSettingsService,
+        SystemSettingsController controller = new SystemSettingsController(contexaSystemSettingsService,
                 policyCombiningProperties, messageSource, authManagerProvider.getIfAvailable(),
                 runtimeApplierProvider.getIfAvailable());
         policyReloadBroadcasterProvider.ifAvailable(controller::setPolicyReloadBroadcaster);
@@ -120,11 +120,11 @@ public class IamAdminPasswordPolicyAutoConfiguration {
         return controller;
     }
 
-    @Bean
+    @Bean(name = "contexaAuditLogRetentionScheduler")
     @ConditionalOnMissingBean
     public AuditLogRetentionScheduler auditLogRetentionScheduler(
             AuditLogRepository auditLogRepository,
-            SystemSettingsService systemSettingsService) {
-        return new AuditLogRetentionScheduler(auditLogRepository, systemSettingsService);
+            SystemSettingsService contexaSystemSettingsService) {
+        return new AuditLogRetentionScheduler(auditLogRepository, contexaSystemSettingsService);
     }
 }

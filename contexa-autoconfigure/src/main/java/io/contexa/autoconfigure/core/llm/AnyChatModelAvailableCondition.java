@@ -27,7 +27,7 @@ import org.springframework.util.StringUtils;
 
 public class AnyChatModelAvailableCondition implements Condition {
 
-    private static final String CONTEXA_PRIMARY_CHAT_MODEL_BEAN = "primaryChatModel";
+    private static final String CONTEXA_PRIMARY_CHAT_MODEL_BEAN = "contexaPrimaryChatModel";
     private static final String CONTEXA_OLLAMA_CHAT_BASE_URL_PROPERTY = "contexa.llm.chat.ollama.base-url";
     private static final String OLLAMA_CHAT_MODEL_CLASS = "org.springframework.ai.ollama.OllamaChatModel";
 

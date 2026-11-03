@@ -49,7 +49,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.repository.configuration.EnableRedisRepositories;
-import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.statemachine.config.StateMachineFactory;
 import org.springframework.statemachine.data.redis.RedisPersistingStateMachineInterceptor;
@@ -69,7 +68,6 @@ import java.util.concurrent.ThreadPoolExecutor;
         "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
         "io.contexa.contexacommon.config.redis.CommonRedisAutoConfiguration"
 })
-@EnableAsync
 @EnableConfigurationProperties(StateMachineProperties.class)
 @ConditionalOnBean(PlatformConfig.class)
 @ConditionalOnProperty(prefix = "contexa.identity.statemachine", name = "enabled", havingValue = "true", matchIfMissing = true)
@@ -81,83 +79,83 @@ public class IdentityStateMachineAutoConfiguration {
     public IdentityStateMachineAutoConfiguration() {
     }
 
-    @Bean
+    @Bean(name = "contexaInitializeMfaAction")
     @ConditionalOnMissingBean
     public InitializeMfaAction initializeMfaAction(PlatformConfig platformConfig) {
         return new InitializeMfaAction(platformConfig);
     }
 
-    @Bean
+    @Bean(name = "contexaSelectFactorAction")
     @ConditionalOnMissingBean
     public SelectFactorAction selectFactorAction() {
         return new SelectFactorAction();
     }
 
-    @Bean
+    @Bean(name = "contexaInitiateChallengeAction")
     @ConditionalOnMissingBean
     public InitiateChallengeAction initiateChallengeAction() {
         return new InitiateChallengeAction();
     }
 
-    @Bean
+    @Bean(name = "contexaVerifyFactorAction")
     @ConditionalOnMissingBean
     public VerifyFactorAction verifyFactorAction(PlatformConfig platformConfig) {
         return new VerifyFactorAction(platformConfig);
     }
 
-    @Bean
+    @Bean(name = "contexaDetermineNextFactorAction")
     @ConditionalOnMissingBean
     public DetermineNextFactorAction determineNextFactorAction(MfaPolicyProvider policyProvider) {
         return new DetermineNextFactorAction(policyProvider);
     }
 
-    @Bean
+    @Bean(name = "contexaHandleFailureAction")
     @ConditionalOnMissingBean
     public HandleFailureAction handleFailureAction(AuthContextProperties authContextProperties) {
         return new HandleFailureAction(authContextProperties.getMfa());
     }
 
-    @Bean
+    @Bean(name = "contexaCompleteMfaAction")
     @ConditionalOnMissingBean
     public CompleteMfaAction completeMfaAction() {
         return new CompleteMfaAction();
     }
 
-    @Bean
+    @Bean(name = "contexaAllFactorsCompletedGuard")
     @ConditionalOnMissingBean
     public AllFactorsCompletedGuard allFactorsCompletedGuard(MfaPolicyProvider policyProvider) {
         return new AllFactorsCompletedGuard(policyProvider);
     }
 
-    @Bean
+    @Bean(name = "contexaBlockedUserGuard")
     @ConditionalOnMissingBean
     public BlockedUserGuard blockedUserGuard() {
         return new BlockedUserGuard();
     }
 
-    @Bean
+    @Bean(name = "contexaRetryLimitGuard")
     @ConditionalOnMissingBean
     public RetryLimitGuard retryLimitGuard(AuthContextProperties authContextProperties) {
         return new RetryLimitGuard(authContextProperties.getMfa());
     }
 
-    @Bean
+    @Bean(name = "contexaFactorSelectionTimeoutGuard")
     @ConditionalOnMissingBean
     public FactorSelectionTimeoutGuard factorSelectionTimeoutGuard() {
         return new FactorSelectionTimeoutGuard();
     }
 
-    @Bean
+    @Bean(name = "contexaMfaStateMachineIntegrator")
     @ConditionalOnMissingBean
     public MfaStateMachineIntegrator mfaStateMachineIntegrator(
-            MfaStateMachineService mfaStateMachineService,
-            MfaSessionRepository mfaSessionRepository,
+            MfaStateMachineService contexaMfaStateMachineService,
+            MfaSessionRepository contexaMfaSessionRepository,
             AuthContextProperties authContextProperties) {
-        return new MfaStateMachineIntegrator(mfaStateMachineService, mfaSessionRepository, authContextProperties);
+        return new MfaStateMachineIntegrator(contexaMfaStateMachineService, contexaMfaSessionRepository, authContextProperties);
     }
 
     /** Z-16 (F6): a context lapses the persistence TTL after its last write, as in the Redis persist. */
-    @Bean
+    @Bean(name = "contexaInMemoryStateMachinePersist")
     @ConditionalOnMissingBean
     public InMemoryStateMachinePersist inMemoryStateMachinePersist(StateMachineProperties properties) {
         return new InMemoryStateMachinePersist(persistenceTtl(properties));
@@ -180,19 +178,19 @@ public class IdentityStateMachineAutoConfiguration {
     @EnableRedisRepositories(basePackages = "org.springframework.statemachine.data.redis")
     static class DistributedStateMachineConfig {
 
-        @Bean
+        @Bean(name = "contexaMfaStateMachineService")
         @ConditionalOnMissingBean
         public MfaStateMachineService mfaStateMachineService(
                 StateMachineFactory<MfaState, MfaEvent> stateMachineFactory,
                 StateMachinePersister<MfaState, MfaEvent, String> stateMachinePersister,
-                RedissonClient redissonClient,
+                RedissonClient contexaRedissonClient,
                 StateMachineProperties properties) {
             return new MfaStateMachineServiceImpl(
-                    stateMachineFactory, stateMachinePersister, redissonClient, properties);
+                    stateMachineFactory, stateMachinePersister, contexaRedissonClient, properties);
         }
 
         /** Z-16 (F6): a context lapses the persistence TTL after its last write, as in the in-memory persist. */
-        @Bean
+        @Bean(name = "contexaStateMachinePersist")
         @ConditionalOnMissingBean
         public RedisRepositoryStateMachinePersist<MfaState, MfaEvent> stateMachinePersist(
                 RedisStateMachineRepository redisStateMachineRepository,
@@ -201,13 +199,13 @@ public class IdentityStateMachineAutoConfiguration {
                     new MfaKryoStateMachineSerialisationService(), persistenceTtl(properties));
         }
 
-        @Bean
+        @Bean(name = "contexaStateMachineRuntimePersister")
         @ConditionalOnMissingBean
         @SuppressWarnings({"rawtypes"})
         public StateMachinePersister<MfaState, MfaEvent, String> stateMachineRuntimePersister(
-                RedisRepositoryStateMachinePersist<MfaState, MfaEvent> stateMachinePersist) {
+                RedisRepositoryStateMachinePersist<MfaState, MfaEvent> contexaStateMachinePersist) {
             return new DefaultStateMachinePersister(
-                    new RedisPersistingStateMachineInterceptor<>(stateMachinePersist));
+                    new RedisPersistingStateMachineInterceptor<>(contexaStateMachinePersist));
         }
     }
 
@@ -216,14 +214,14 @@ public class IdentityStateMachineAutoConfiguration {
     @ConditionalOnMissingBean(type = "org.redisson.api.RedissonClient")
     static class StandaloneStateMachineConfig {
 
-        @Bean
+        @Bean(name = "contexaStateMachineRuntimePersister")
         @ConditionalOnMissingBean
         public StateMachinePersister<MfaState, MfaEvent, String> stateMachineRuntimePersister(
                 InMemoryStateMachinePersist persist) {
             return new DefaultStateMachinePersister<>(persist);
         }
 
-        @Bean
+        @Bean(name = "contexaMfaStateMachineService")
         @ConditionalOnMissingBean
         public MfaStateMachineService mfaStateMachineService(
                 StateMachineFactory<MfaState, MfaEvent> stateMachineFactory,
@@ -235,15 +233,15 @@ public class IdentityStateMachineAutoConfiguration {
         }
     }
 
-    @Bean
+    @Bean(name = "contexaMfaStateChangeListener")
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.auth.mfa", name = "metrics-enabled", havingValue = "true", matchIfMissing = true)
     public MfaStateChangeListener mfaStateChangeListener() {
         return new MfaStateChangeListener();
     }
 
-    @Bean(name = "mfaEventExecutor")
-    @ConditionalOnMissingBean(name = "mfaEventExecutor")
+    @Bean(name = "contexaMfaEventExecutor", defaultCandidate = false)
+    @ConditionalOnMissingBean(name = "contexaMfaEventExecutor")
     public Executor mfaEventExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
 
@@ -262,8 +260,8 @@ public class IdentityStateMachineAutoConfiguration {
         return executor;
     }
 
-    @Bean(name = "monitoringExecutor")
-    @ConditionalOnMissingBean(name = "monitoringExecutor")
+    @Bean(name = "contexaMonitoringExecutor", defaultCandidate = false)
+    @ConditionalOnMissingBean(name = "contexaMonitoringExecutor")
     public Executor monitoringExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
 

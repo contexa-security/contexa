@@ -37,7 +37,7 @@ public class RedissonConfiguration {
 
     private final RedisProperties redisProperties;
 
-    @Bean
+    @Bean(name = "contexaRedissonClient")
     @ConditionalOnMissingBean(type = "org.redisson.api.RedissonClient")
     public RedissonClient redissonClient() {
         Config config = new Config();

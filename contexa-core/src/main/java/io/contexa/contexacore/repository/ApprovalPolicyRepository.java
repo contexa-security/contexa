@@ -17,8 +17,10 @@ package io.contexa.contexacore.repository;
 
 import io.contexa.contexacore.domain.ApprovalPolicy;
 import io.contexa.contexacore.domain.entity.ApprovalPolicyEntity;
+import org.springframework.cache.annotation.CacheConfig;
 import org.springframework.cache.annotation.Cacheable;
 
+@CacheConfig(cacheManager = "contexaCacheManager")
 public class ApprovalPolicyRepository {
 
     private final ApprovalPolicyJpaRepository jpaRepository;

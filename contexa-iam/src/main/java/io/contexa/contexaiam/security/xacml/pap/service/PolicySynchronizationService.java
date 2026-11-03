@@ -45,7 +45,7 @@ public class PolicySynchronizationService {
     private final RoleRepository roleRepository;
     private final PolicyService policyService;
 
-    @Async
+    @Async("contexaTaskExecutor")
     @EventListener
     @Transactional(transactionManager = "contexaTransactionManager")
     public void handleRolePermissionsChange(RolePermissionsChangedEvent event) {

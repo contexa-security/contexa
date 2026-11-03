@@ -41,7 +41,7 @@ import static org.mockito.Mockito.when;
 @DisplayName("IamAdminMonitoringAutoConfiguration")
 class IamAdminMonitoringAutoConfigurationTest {
 
-    private static final String IAM_SEED_DATA_INITIALIZER_BEAN = "iamSeedDataInitializer";
+    private static final String IAM_SEED_DATA_INITIALIZER_BEAN = "contexaIamSeedDataInitializer";
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(
@@ -67,7 +67,7 @@ class IamAdminMonitoringAutoConfigurationTest {
                     assertThat(context).doesNotHaveBean(IAM_SEED_DATA_INITIALIZER_BEAN);
                     assertThat(context).hasSingleBean(AdminMenuService.class);
                     String[] dependsOn = context.getBeanFactory()
-                            .getBeanDefinition("adminMenuService")
+                            .getBeanDefinition("contexaAdminMenuService")
                             .getDependsOn();
                     assertThat(dependsOn == null ? new String[0] : dependsOn)
                             .doesNotContain(IAM_SEED_DATA_INITIALIZER_BEAN);
@@ -84,7 +84,7 @@ class IamAdminMonitoringAutoConfigurationTest {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(AdminMenuService.class);
                     assertThat(context.getBeanFactory()
-                            .getBeanDefinition("adminMenuService")
+                            .getBeanDefinition("contexaAdminMenuService")
                             .getDependsOn())
                             .contains(IAM_SEED_DATA_INITIALIZER_BEAN);
                 });

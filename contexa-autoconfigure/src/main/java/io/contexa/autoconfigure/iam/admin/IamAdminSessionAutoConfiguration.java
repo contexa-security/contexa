@@ -31,30 +31,30 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration
 public class IamAdminSessionAutoConfiguration {
 
-    @Bean
+    @Bean(name = "contexaSessionManagementService")
     @ConditionalOnMissingBean
     public SessionManagementService sessionManagementService(
             ActiveSessionRepository activeSessionRepository) {
         return new SessionManagementService(activeSessionRepository);
     }
 
-    @Bean
+    @Bean(name = "contexaSessionManagementController")
     @ConditionalOnMissingBean
     public SessionManagementController sessionManagementController(
-            SessionManagementService sessionManagementService,
+            SessionManagementService contexaSessionManagementService,
             MessageSource messageSource,
-            CsvExportService csvExportService) {
-        return new SessionManagementController(sessionManagementService, messageSource, csvExportService);
+            CsvExportService contexaCsvExportService) {
+        return new SessionManagementController(contexaSessionManagementService, messageSource, contexaCsvExportService);
     }
 
-    @Bean
+    @Bean(name = "contexaSessionTrackingFilter")
     @ConditionalOnMissingBean(SessionTrackingFilter.class)
     @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
     public FilterRegistrationBean<SessionTrackingFilter> sessionTrackingFilter(
-            SessionManagementService sessionManagementService,
+            SessionManagementService contexaSessionManagementService,
             ActiveSessionRepository activeSessionRepository) {
         FilterRegistrationBean<SessionTrackingFilter> registration = new FilterRegistrationBean<>();
-        registration.setFilter(new SessionTrackingFilter(sessionManagementService, activeSessionRepository));
+        registration.setFilter(new SessionTrackingFilter(contexaSessionManagementService, activeSessionRepository));
         registration.addUrlPatterns("/*");
         registration.setName("sessionTrackingFilter");
         registration.setOrder(200);

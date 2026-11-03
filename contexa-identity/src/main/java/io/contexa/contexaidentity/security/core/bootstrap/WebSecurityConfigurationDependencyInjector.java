@@ -45,12 +45,12 @@ public class WebSecurityConfigurationDependencyInjector implements BeanFactoryPo
 
                 String[] newDependsOn;
                 if (existingDependsOn == null || existingDependsOn.length == 0) {
-                    newDependsOn = new String[]{"platformBootstrap"};
+                    newDependsOn = new String[]{"contexaPlatformBootstrap"};
                 } else {
                     
                     boolean alreadyExists = false;
                     for (String dep : existingDependsOn) {
-                        if ("platformBootstrap".equals(dep)) {
+                        if ("contexaPlatformBootstrap".equals(dep)) {
                             alreadyExists = true;
                             break;
                         }
@@ -59,7 +59,7 @@ public class WebSecurityConfigurationDependencyInjector implements BeanFactoryPo
                     if (!alreadyExists) {
                         newDependsOn = new String[existingDependsOn.length + 1];
                         System.arraycopy(existingDependsOn, 0, newDependsOn, 0, existingDependsOn.length);
-                        newDependsOn[existingDependsOn.length] = "platformBootstrap";
+                        newDependsOn[existingDependsOn.length] = "contexaPlatformBootstrap";
                     } else {
                         newDependsOn = existingDependsOn;
                     }

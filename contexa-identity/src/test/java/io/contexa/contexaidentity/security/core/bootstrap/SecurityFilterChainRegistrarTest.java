@@ -152,7 +152,7 @@ class SecurityFilterChainRegistrarTest {
             registrar.registerSecurityFilterChains(List.of(fc), applicationContext);
 
             verify(beanFactory).registerBeanDefinition(
-                    eq("FORMSecurityFilterChain1"),
+                    eq("contexaFORMSecurityFilterChain1"),
                     any(BeanDefinition.class));
         }
     }
@@ -353,7 +353,7 @@ class SecurityFilterChainRegistrarTest {
 
             registrar.registerSecurityFilterChains(List.of(fc), applicationContext);
 
-            verify(beanFactory).registerBeanDefinition(eq("FORMSecurityFilterChain1"), any(BeanDefinition.class));
+            verify(beanFactory).registerBeanDefinition(eq("contexaFORMSecurityFilterChain1"), any(BeanDefinition.class));
         }
     }
 

@@ -44,7 +44,7 @@ public class DataIngestionServiceImpl implements DataIngestionService {
     private final PolicyRepository policyRepository;
     private final ObjectMapper objectMapper;
 
-    @Async
+    @Async("contexaTaskExecutor")
     @EventListener
     @Override
     public void ingestEvent(DomainEvent event) {
@@ -66,7 +66,7 @@ public class DataIngestionServiceImpl implements DataIngestionService {
         }
     }
 
-    @Async
+    @Async("contexaTaskExecutor")
 //    @EventListener(ApplicationReadyEvent.class)
     @Override
     public void initialIndexing() {
