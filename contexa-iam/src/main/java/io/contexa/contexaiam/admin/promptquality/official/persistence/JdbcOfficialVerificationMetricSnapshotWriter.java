@@ -31,7 +31,7 @@ public final class JdbcOfficialVerificationMetricSnapshotWriter
         MetricAssessment assessment = Objects.requireNonNull(command.assessment(), "assessment");
         OperatorNarrative narrative = Objects.requireNonNull(command.narrative(), "narrative");
         jdbcTemplate.update("""
-                        insert into official_verification_metric_snapshot (
+                        insert into ctxa_official_verification_metric_snapshot (
                             aggregate_run_id, official_run_id, package_id, certificate_id, case_id,
                             metric_code, metric_name, metric_group, score, state, severity,
                             passed_checks, total_checks, failed_check_count, operator_title,

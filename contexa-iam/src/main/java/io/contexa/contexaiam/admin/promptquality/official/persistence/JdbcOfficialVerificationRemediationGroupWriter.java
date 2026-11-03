@@ -26,7 +26,7 @@ public final class JdbcOfficialVerificationRemediationGroupWriter
         GroupClassification classification = Objects.requireNonNull(command.classification(), "classification");
         GroupNarrative narrative = Objects.requireNonNull(command.narrative(), "narrative");
         jdbcTemplate.update("""
-                        insert into official_verification_operator_remediation_group (
+                        insert into ctxa_official_verification_operator_remediation_group (
                             group_id, aggregate_run_id, package_id, certificate_id, case_id,
                             root_cause_key, remediation_owner, operator_title, operator_reason,
                             next_action, reverify_criterion, affected_metric_codes,

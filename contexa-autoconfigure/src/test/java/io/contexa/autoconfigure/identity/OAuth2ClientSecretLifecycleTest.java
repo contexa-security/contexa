@@ -17,6 +17,7 @@ package io.contexa.autoconfigure.identity;
 
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
+import io.contexa.contexacommon.jdbc.LibraryTableNames;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.enums.OAuth2ServerMode;
 import io.contexa.contexacommon.enums.StateType;
@@ -115,7 +116,7 @@ class OAuth2ClientSecretLifecycleTest {
 
         assertThat(restartedClient.getClientSecret()).isEqualTo(firstClient.getClientSecret());
         assertThat(restartedRepository.findByClientId(firstClient.getClientId()).getId()).isEqualTo(stored.getId());
-        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM oauth2_registered_client", Integer.class))
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM ctxa_oauth2_registered_client", Integer.class))
                 .isEqualTo(1);
         assertRejectedSecret(restartedRepository, restartedClient.getClientId(), LEGACY_SECRET);
         assertUserTokenIssued(restarted, restartedRepository, restartedClient);
@@ -275,7 +276,7 @@ class OAuth2ClientSecretLifecycleTest {
     void restartWithChangedTokenValidityUpdatesOnlyTheStoredTokenSettings() {
         AuthContextProperties first = properties(true);
         configuration(first).registeredClientRepository(jdbcTemplate);
-        RegisteredClient stored = new JdbcRegisteredClientRepository(jdbcTemplate).findByClientId("default-client");
+        RegisteredClient stored = new JdbcRegisteredClientRepository(LibraryTableNames.wrap(jdbcTemplate)).findByClientId("default-client");
         assertThat(stored.getTokenSettings().getAccessTokenTimeToLive())
                 .isEqualTo(Duration.ofMillis(first.getAccessTokenValidity()));
 
@@ -292,7 +293,7 @@ class OAuth2ClientSecretLifecycleTest {
         assertThat(updated.getClientSecret()).isEqualTo(stored.getClientSecret());
         assertThat(updated.getAuthorizationGrantTypes()).isEqualTo(stored.getAuthorizationGrantTypes());
         assertThat(updated.getScopes()).isEqualTo(stored.getScopes());
-        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM oauth2_registered_client", Integer.class))
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM ctxa_oauth2_registered_client", Integer.class))
                 .isEqualTo(1);
     }
 
@@ -323,7 +324,7 @@ class OAuth2ClientSecretLifecycleTest {
     private RegisteredClientRepository seedClient(String secret) {
         new ResourceDatabasePopulator(new ClassPathResource("contexa-oauth2-authorization-schema.sql"))
                 .execute(jdbcTemplate.getDataSource());
-        RegisteredClientRepository repository = new JdbcRegisteredClientRepository(jdbcTemplate);
+        RegisteredClientRepository repository = new JdbcRegisteredClientRepository(LibraryTableNames.wrap(jdbcTemplate));
         repository.save(RegisteredClient.withId("existing-client-id")
                 .clientId("default-client")
                 .clientSecret(secret)

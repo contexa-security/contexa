@@ -37,9 +37,9 @@ import java.util.function.Supplier;
 public class DeviceAwareOAuth2AuthorizationService implements OAuth2AuthorizationService {
 
     private static final String FIND_IDS_BY_PRINCIPAL =
-            "SELECT id FROM oauth2_authorization WHERE principal_name = ? AND refresh_token_value IS NOT NULL";
+            "SELECT id FROM ctxa_oauth2_authorization WHERE principal_name = ? AND refresh_token_value IS NOT NULL";
     private static final String FIND_UNEXPIRED_IDS_BY_PRINCIPAL_AND_CLIENT =
-            "SELECT id FROM oauth2_authorization WHERE principal_name = ? AND registered_client_id = ?"
+            "SELECT id FROM ctxa_oauth2_authorization WHERE principal_name = ? AND registered_client_id = ?"
                     + " AND (access_token_expires_at > ? OR refresh_token_expires_at > ?)";
 
     private final OAuth2AuthorizationService delegate;
@@ -178,10 +178,10 @@ public class DeviceAwareOAuth2AuthorizationService implements OAuth2Authorizatio
         try {
             if (transactionTemplate != null) {
                 transactionTemplate.executeWithoutResult(status ->
-                        jdbcTemplate.update("DELETE FROM oauth2_authorization WHERE id = ?", id));
+                        jdbcTemplate.update("DELETE FROM ctxa_oauth2_authorization WHERE id = ?", id));
             }
             else {
-                jdbcTemplate.update("DELETE FROM oauth2_authorization WHERE id = ?", id);
+                jdbcTemplate.update("DELETE FROM ctxa_oauth2_authorization WHERE id = ?", id);
             }
         } catch (Exception e) {
             log.error("[OAuth2] Failed to cleanup corrupted authorization {}: {}", id, e.getMessage());

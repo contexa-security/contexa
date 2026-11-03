@@ -156,10 +156,10 @@ class JdbcCompanyRecordStoreTest {
 
     private static List<String> ddl() throws Exception {
         String schema = new ClassPathResource("db/schema.sql").getContentAsString(StandardCharsets.UTF_8);
-        Matcher table = Pattern.compile("(?is)create table if not exists company_record\\s*\\(.*?\\n\\);")
+        Matcher table = Pattern.compile("(?is)create table if not exists ctxa_company_record\\s*\\(.*?\\n\\);")
                 .matcher(schema.replace("\r\n", "\n"));
         assertThat(table.find()).isTrue();
-        Matcher indexes = Pattern.compile("(?is)create (?:unique )?index if not exists \\S+\\s+on company_record\\s[^;]*;")
+        Matcher indexes = Pattern.compile("(?is)create (?:unique )?index if not exists \\S+\\s+on ctxa_company_record\\s[^;]*;")
                 .matcher(schema.replace("\r\n", "\n"));
         List<String> statements = new ArrayList<>();
         statements.add(table.group().replace(";", ""));

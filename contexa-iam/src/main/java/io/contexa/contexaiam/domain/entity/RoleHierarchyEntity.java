@@ -23,7 +23,7 @@ import lombok.*;
 import java.io.Serializable;
 
 @Entity
-@Table(name = "ROLE_HIERARCHY_CONFIG") 
+@Table(name = "CTXA_ROLE_HIERARCHY_CONFIG") 
 @Getter
 @Setter
 @Builder

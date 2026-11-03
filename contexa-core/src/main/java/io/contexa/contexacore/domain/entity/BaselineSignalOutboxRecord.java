@@ -29,9 +29,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Entity
-@Table(name = "baseline_signal_outbox", indexes = {
-        @Index(name = "uk_baseline_signal_outbox_period", columnList = "period_start", unique = true),
-        @Index(name = "idx_baseline_signal_outbox_dispatch", columnList = "status,next_attempt_at,period_start")
+@Table(name = "ctxa_baseline_signal_outbox", indexes = {
+        @Index(name = "ctxa_uk_baseline_signal_outbox_period", columnList = "period_start", unique = true),
+        @Index(name = "ctxa_idx_baseline_signal_outbox_dispatch", columnList = "status,next_attempt_at,period_start")
 })
 @Getter
 @Setter

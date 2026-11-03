@@ -167,9 +167,9 @@ public class AiSecurityDecisionMonitoringService {
                 canonicalFailures,
                 canonicalFailures,
                 nonEmptyBreakdown("fallback_category", window.from(), window.to()),
-                breakdown("ai_security_decision_observation", "coalesce(model_provider, 'UNKNOWN')", window.from(), window.to()),
-                breakdown("ai_security_decision_observation", "coalesce(model_id, 'UNKNOWN')", window.from(), window.to()),
-                breakdown("ai_security_decision_observation", "coalesce(prompt_template_key, 'UNKNOWN')", window.from(), window.to()),
+                breakdown("ctxa_ai_security_decision_observation", "coalesce(model_provider, 'UNKNOWN')", window.from(), window.to()),
+                breakdown("ctxa_ai_security_decision_observation", "coalesce(model_id, 'UNKNOWN')", window.from(), window.to()),
+                breakdown("ctxa_ai_security_decision_observation", "coalesce(prompt_template_key, 'UNKNOWN')", window.from(), window.to()),
                 failureTrend(window.period(), window.from(), window.to()),
                 affectedRequests(window.from(), window.to()),
                 recentFailures(window.from(), window.to()),
@@ -279,7 +279,7 @@ public class AiSecurityDecisionMonitoringService {
                                    llm_decision_count,
                                    failure_rate, timeout_rate, parser_failure_rate, model_unavailable_rate,
                                    average_latency_ms, p95_latency_ms, top_blockers_json, recommendation
-                              from ai_security_monitoring_session_summary
+                              from ctxa_ai_security_monitoring_session_summary
                              where session_id = ?
                             """,
                     this::monitoringSessionSummary,
@@ -331,7 +331,7 @@ public class AiSecurityDecisionMonitoringService {
         insertSessionSummary(jdbcOperations, archived, summaryJson(data));
         long deletedAi = deleteTelemetryInBatches(
                 jdbcOperations,
-                "ai_security_decision_observation",
+                "ctxa_ai_security_decision_observation",
                 "observation_id");
         writeResetAudit(jdbcOperations, normalizedResetBy, reason, sessionId, deletedAi);
         MonitoringSessionCurrent newSession = new MonitoringSessionCurrent(
@@ -424,7 +424,7 @@ public class AiSecurityDecisionMonitoringService {
                                llm_decision_count,
                                failure_rate, timeout_rate, parser_failure_rate, model_unavailable_rate,
                                average_latency_ms, p95_latency_ms, top_blockers_json, recommendation
-                          from ai_security_monitoring_session_summary
+                          from ctxa_ai_security_monitoring_session_summary
                          order by ended_at desc
                          limit ?
                         """,
@@ -466,7 +466,7 @@ public class AiSecurityDecisionMonitoringService {
             String summaryJson) {
         jdbcOperations.update(
                 """
-                        insert into ai_security_monitoring_session_summary (
+                        insert into ctxa_ai_security_monitoring_session_summary (
                             session_id, started_at, ended_at, period, reset_by, reset_reason,
                             llm_mode, llm_provider, llm_model, prompt_template_version, policy_version,
                             llm_decision_count, failure_rate,
@@ -522,7 +522,7 @@ public class AiSecurityDecisionMonitoringService {
             return "UNKNOWN";
         }
         try {
-            Long version = jdbcOperations.queryForObject("select max(id) from policy_version", Long.class);
+            Long version = jdbcOperations.queryForObject("select max(id) from ctxa_policy_version", Long.class);
             return version == null ? "NONE" : Long.toString(version);
         } catch (RuntimeException ex) {
             return "UNKNOWN";
@@ -611,12 +611,12 @@ public class AiSecurityDecisionMonitoringService {
 
     private LocalDateTime currentSessionStart(LocalDateTime fallbackNow) {
         LocalDateTime lastArchivedEnd = queryDateTime(
-                "select max(ended_at) from ai_security_monitoring_session_summary");
+                "select max(ended_at) from ctxa_ai_security_monitoring_session_summary");
         if (lastArchivedEnd != null) {
             return lastArchivedEnd.withNano(0);
         }
         LocalDateTime earliestTelemetry = queryDateTime(
-                "select min(created_at) from ai_security_decision_observation");
+                "select min(created_at) from ctxa_ai_security_decision_observation");
         return earliestTelemetry == null ? fallbackNow : earliestTelemetry.withNano(0);
     }
 
@@ -642,7 +642,7 @@ public class AiSecurityDecisionMonitoringService {
                 + ", deletedAi=" + deletedAi;
         jdbcOperations.update(
                 """
-                        insert into audit_log (
+                        insert into ctxa_audit_log (
                             principal_name, resource_identifier, action, decision, reason, details,
                             outcome, event_category, event_source, request_uri
                         ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -840,7 +840,7 @@ public class AiSecurityDecisionMonitoringService {
                 select metric_key, count(*) as failure_count
                   from (
                         select %s as metric_key
-                          from ai_security_decision_observation
+                          from ctxa_ai_security_decision_observation
                          where created_at between ? and ?
                            and %s
                        ) failure_causes
@@ -865,7 +865,7 @@ public class AiSecurityDecisionMonitoringService {
         String expression = "coalesce(" + columnName + ", '')";
         String sql = """
                 select %1$s as metric_key, count(*) as count
-                 from ai_security_decision_observation
+                 from ctxa_ai_security_decision_observation
                  where created_at between ? and ?
                    and (%2$s)
                    and %1$s <> ''
@@ -890,7 +890,7 @@ public class AiSecurityDecisionMonitoringService {
         }
         List<LocalDateTime> createdTimes = jdbcOperations.query("""
                         select created_at
-                         from ai_security_decision_observation
+                         from ctxa_ai_security_decision_observation
                          where created_at between ? and ?
                            and (%s)
                            and %s
@@ -928,7 +928,7 @@ public class AiSecurityDecisionMonitoringService {
                         select coalesce(http_method, '') as method,
                                coalesce(request_path, '-') as path,
                                count(*) as count
-                          from ai_security_decision_observation
+                          from ctxa_ai_security_decision_observation
                          where created_at between ? and ?
                            and (%s)
                            and %s
@@ -962,7 +962,7 @@ public class AiSecurityDecisionMonitoringService {
                                final_action,
                                llm_latency_ms,
                                created_at
-                         from ai_security_decision_observation
+                         from ctxa_ai_security_decision_observation
                          where created_at between ? and ?
                            and (%2$s)
                            and %3$s
@@ -1004,7 +1004,7 @@ public class AiSecurityDecisionMonitoringService {
                                final_action,
                                llm_latency_ms,
                                created_at
-                         from ai_security_decision_observation
+                         from ctxa_ai_security_decision_observation
                         where created_at between ? and ?
                           and llm_latency_ms is not null
                           and %2$s
@@ -1080,12 +1080,12 @@ public class AiSecurityDecisionMonitoringService {
         return "KEEP_MONITORING";
     }
     private long countAi(String whereClause, Object... args) {
-        return count("ai_security_decision_observation", whereClause + " and " + monitorablePath("request_path"), args);
+        return count("ctxa_ai_security_decision_observation", whereClause + " and " + monitorablePath("request_path"), args);
     }
 
     private List<NamedCount> breakdownAi(String expression, LocalDateTime from, LocalDateTime to) {
         return breakdownWhere(
-                "ai_security_decision_observation",
+                "ctxa_ai_security_decision_observation",
                 expression,
                 "created_at between ? and ? and " + monitorablePath("request_path"),
                 from,
@@ -1191,7 +1191,7 @@ public class AiSecurityDecisionMonitoringService {
                 """.formatted(columnName);
         String sql = """
                 select %s as metric_key, count(*) as count
-                  from ai_security_decision_observation
+                  from ctxa_ai_security_decision_observation
                  where created_at between ? and ?
                    and %s
                  group by %s
@@ -1236,7 +1236,7 @@ public class AiSecurityDecisionMonitoringService {
             return 0.0d;
         }
         Double value = jdbcOperations.queryForObject(
-                "select avg(" + columnName + ") from ai_security_decision_observation"
+                "select avg(" + columnName + ") from ctxa_ai_security_decision_observation"
                         + " where created_at between ? and ? and " + columnName + " is not null"
                         + " and " + monitorablePath("request_path"),
                 Double.class,
@@ -1292,7 +1292,7 @@ public class AiSecurityDecisionMonitoringService {
         }
         Double value = jdbcOperations.queryForObject(
                 "select percentile_cont(" + percentile + ") within group (order by " + columnName + ") "
-                        + "from ai_security_decision_observation"
+                        + "from ctxa_ai_security_decision_observation"
                         + " where created_at between ? and ? and " + columnName + " is not null"
                         + " and " + monitorablePath("request_path"),
                 Double.class,
@@ -1326,7 +1326,7 @@ public class AiSecurityDecisionMonitoringService {
         Double value = jdbcOperations.queryForObject(
                 """
                         select percentile_cont(0.95) within group (order by llm_latency_ms)
-                          from ai_security_decision_observation
+                          from ctxa_ai_security_decision_observation
                          where created_at between ? and ?
                            and llm_latency_ms is not null
                            and %s

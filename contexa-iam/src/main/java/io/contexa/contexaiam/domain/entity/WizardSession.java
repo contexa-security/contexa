@@ -28,7 +28,7 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "WIZARD_SESSION")
+@Table(name = "CTXA_WIZARD_SESSION")
 @Getter
 @Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

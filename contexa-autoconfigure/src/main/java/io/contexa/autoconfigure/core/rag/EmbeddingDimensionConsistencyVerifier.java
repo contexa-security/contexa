@@ -185,7 +185,7 @@ public class EmbeddingDimensionConsistencyVerifier implements SmartInitializingS
                 return OptionalInt.empty();
             }
             String schema = environment.getProperty("spring.ai.vectorstore.pgvector.schema-name", "public");
-            String table = environment.getProperty("spring.ai.vectorstore.pgvector.table-name", "vector_store");
+            String table = environment.getProperty("spring.ai.vectorstore.pgvector.table-name", "ctxa_vector_store");
             String relation = quoteIdentifier(schema) + "." + quoteIdentifier(table);
             try (PreparedStatement statement = connection.prepareStatement("""
                     select format_type(a.atttypid, a.atttypmod)

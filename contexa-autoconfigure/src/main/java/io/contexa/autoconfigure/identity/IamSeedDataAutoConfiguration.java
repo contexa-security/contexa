@@ -80,20 +80,20 @@ public class IamSeedDataAutoConfiguration {
     };
 
     static final String[] SCHEMA_MARKER_TABLES = {
-            "users",
-            "admin_menu",
-            "sealed_evidence_package",
-            "official_metric_evaluation_contract",
-            "official_prompt_signal_contract",
-            "verification_run_ledger",
-            "official_verification_run_batch",
-            "official_verification_metric_snapshot",
-            "official_metric_purpose_contract",
-            "official_metric_purpose_evidence_ledger",
-            "official_actual_prompt_problem_ledger",
-            "official_verification_prompt_comparison",
-            "pqa_sealed_evidence_resource_status",
-            "ai_security_decision_observation"
+            "ctxa_users",
+            "ctxa_admin_menu",
+            "ctxa_sealed_evidence_package",
+            "ctxa_official_metric_evaluation_contract",
+            "ctxa_official_prompt_signal_contract",
+            "ctxa_verification_run_ledger",
+            "ctxa_official_verification_run_batch",
+            "ctxa_official_verification_metric_snapshot",
+            "ctxa_official_metric_purpose_contract",
+            "ctxa_official_metric_purpose_evidence_ledger",
+            "ctxa_official_actual_prompt_problem_ledger",
+            "ctxa_official_verification_prompt_comparison",
+            "ctxa_pqa_sealed_evidence_resource_status",
+            "ctxa_ai_security_decision_observation"
     };
 
     static final String[] SEED_LOCATIONS = {
@@ -299,22 +299,22 @@ public class IamSeedDataAutoConfiguration {
         String email = environment.getProperty(ADMIN_EMAIL_PROPERTY, DEFAULT_ADMIN_EMAIL).trim();
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
         Integer existing = jdbc.queryForObject(
-                "select count(*) from users where username = ? or email = ?", Integer.class, username, email);
+                "select count(*) from ctxa_users where username = ? or email = ?", Integer.class, username, email);
         if (existing != null && existing > 0) {
             log.info("[IamSeedData] A user named '{}' or with the e-mail {} exists; the administrator from {} is not created",
                     username, email, ADMIN_PASSWORD_PROPERTY);
             return AdministratorSeed.ALREADY_PRESENT;
         }
         String encoded = PasswordEncoderFactories.createDelegatingPasswordEncoder().encode(password);
-        jdbc.update("insert into users (username, email, password, name, enabled, account_locked, credentials_expired, "
+        jdbc.update("insert into ctxa_users (username, email, password, name, enabled, account_locked, credentials_expired, "
                         + "failed_login_attempts, mfa_enabled, bridge_managed, external_auth_only, created_at) "
                         + "values (?, ?, ?, ?, true, false, false, 0, true, false, false, current_timestamp)",
                 username, email, encoded, "Administrator");
-        Long userId = jdbc.queryForObject("select id from users where username = ?", Long.class, username);
+        Long userId = jdbc.queryForObject("select id from ctxa_users where username = ?", Long.class, username);
         Integer group = jdbc.queryForObject(
-                "select count(*) from app_group where group_id = ?", Integer.class, ADMIN_GROUP_ID);
+                "select count(*) from ctxa_app_group where group_id = ?", Integer.class, ADMIN_GROUP_ID);
         if (group != null && group > 0) {
-            jdbc.update("insert into user_groups (user_id, group_id, assigned_at) values (?, ?, current_timestamp)",
+            jdbc.update("insert into ctxa_user_groups (user_id, group_id, assigned_at) values (?, ?, current_timestamp)",
                     userId, ADMIN_GROUP_ID);
             log.info("[IamSeedData] Administrator '{}' created from {}", username, ADMIN_PASSWORD_PROPERTY);
         } else {
@@ -500,30 +500,30 @@ public class IamSeedDataAutoConfiguration {
     private PqaOfficialSeedState detectPqaOfficialSeedState(DataSource dataSource) throws SQLException {
         try (Connection connection = dataSource.getConnection()) {
             DatabaseMetaData metadata = connection.getMetaData();
-            if (!tableExists(connection, metadata, "official_metric_purpose_contract")
-                    || !tableExists(connection, metadata, "official_metric_evaluation_contract")
-                    || !tableExists(connection, metadata, "official_metric_customer_display_contract")
-                    || !tableExists(connection, metadata, "official_metric_customer_display_binding")
-                    || !tableExists(connection, metadata, "official_metric_input_contract")
-                    || !tableExists(connection, metadata, "official_metric_check_display_evidence_contract")
-                    || !tableExists(connection, metadata, "official_prompt_signal_contract")
-                    || !tableExists(connection, metadata, "official_verification_metric_definition")
-                    || !tableExists(connection, metadata, "official_verification_metric_check_definition")) {
+            if (!tableExists(connection, metadata, "ctxa_official_metric_purpose_contract")
+                    || !tableExists(connection, metadata, "ctxa_official_metric_evaluation_contract")
+                    || !tableExists(connection, metadata, "ctxa_official_metric_customer_display_contract")
+                    || !tableExists(connection, metadata, "ctxa_official_metric_customer_display_binding")
+                    || !tableExists(connection, metadata, "ctxa_official_metric_input_contract")
+                    || !tableExists(connection, metadata, "ctxa_official_metric_check_display_evidence_contract")
+                    || !tableExists(connection, metadata, "ctxa_official_prompt_signal_contract")
+                    || !tableExists(connection, metadata, "ctxa_official_verification_metric_definition")
+                    || !tableExists(connection, metadata, "ctxa_official_verification_metric_check_definition")) {
                 return PqaOfficialSeedState.ABSENT;
             }
-            return countRows(connection, "official_metric_evaluation_contract")
+            return countRows(connection, "ctxa_official_metric_evaluation_contract")
                     >= EXPECTED_OFFICIAL_METRIC_EVALUATION_CONTRACTS
-                    && countRows(connection, "official_prompt_signal_contract")
+                    && countRows(connection, "ctxa_official_prompt_signal_contract")
                     >= EXPECTED_OFFICIAL_PROMPT_SIGNAL_CONTRACTS
-                    && countRows(connection, "official_metric_purpose_contract")
+                    && countRows(connection, "ctxa_official_metric_purpose_contract")
                     >= EXPECTED_OFFICIAL_METRIC_PURPOSE_CONTRACTS
-                    && countRows(connection, "official_metric_input_contract")
+                    && countRows(connection, "ctxa_official_metric_input_contract")
                     >= EXPECTED_OFFICIAL_METRIC_INPUT_CONTRACTS
-                    && countRows(connection, "official_metric_check_display_evidence_contract")
+                    && countRows(connection, "ctxa_official_metric_check_display_evidence_contract")
                     >= EXPECTED_OFFICIAL_METRIC_CHECK_DISPLAY_EVIDENCE_CONTRACTS
-                    && countRows(connection, "official_metric_customer_display_contract")
+                    && countRows(connection, "ctxa_official_metric_customer_display_contract")
                     >= EXPECTED_OFFICIAL_METRIC_CUSTOMER_DISPLAY_CONTRACTS
-                    && countRows(connection, "official_metric_customer_display_binding")
+                    && countRows(connection, "ctxa_official_metric_customer_display_binding")
                     >= EXPECTED_OFFICIAL_METRIC_CUSTOMER_DISPLAY_BINDINGS
                     ? PqaOfficialSeedState.COMPLETE
                     : PqaOfficialSeedState.PARTIAL;

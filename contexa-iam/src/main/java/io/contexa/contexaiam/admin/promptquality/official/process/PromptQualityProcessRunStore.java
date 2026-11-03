@@ -43,7 +43,7 @@ final class PromptQualityProcessRunStore {
         long processId = processId(PromptQualityProcessCodes.MAIN);
         String businessKey = businessKey(scope);
         List<Long> existing = jdbcTemplate.query(
-                "select id from prompt_quality_process_run where process_id = ? and business_key = ?",
+                "select id from ctxa_prompt_quality_process_run where process_id = ? and business_key = ?",
                 (rs, rowNum) -> rs.getLong("id"),
                 processId,
                 businessKey);
@@ -54,7 +54,7 @@ final class PromptQualityProcessRunStore {
         }
         jdbcTemplate.update(
                 """
-                        insert into prompt_quality_process_run
+                        insert into ctxa_prompt_quality_process_run
                             (process_id, tenant_id, resource_id, resource_url, http_method, business_key,
                              state, started_at, started_by, payload_json, created_at, updated_at)
                         values (?, ?, ?, ?, ?, ?, ?, current_timestamp, ?, ?, current_timestamp, current_timestamp)
@@ -69,7 +69,7 @@ final class PromptQualityProcessRunStore {
                 boundedValue(actor, ACTOR_LIMIT),
                 json(payload(scope)));
         long runId = jdbcTemplate.query(
-                        "select id from prompt_quality_process_run where process_id = ? and business_key = ?",
+                        "select id from ctxa_prompt_quality_process_run where process_id = ? and business_key = ?",
                         (rs, rowNum) -> rs.getLong("id"),
                         processId,
                         businessKey)
@@ -91,7 +91,7 @@ final class PromptQualityProcessRunStore {
         for (String stepCode : PromptQualityProcessCodes.ORDERED_STEPS) {
             long stepProcessId = processId(stepCode);
             List<Long> existing = jdbcTemplate.query(
-                    "select id from prompt_quality_process_step_run where run_id = ? and step_process_id = ?",
+                    "select id from ctxa_prompt_quality_process_step_run where run_id = ? and step_process_id = ?",
                     (rs, rowNum) -> rs.getLong("id"),
                     runId,
                     stepProcessId);
@@ -100,7 +100,7 @@ final class PromptQualityProcessRunStore {
             }
             jdbcTemplate.update(
                     """
-                            insert into prompt_quality_process_step_run
+                            insert into ctxa_prompt_quality_process_step_run
                                 (run_id, step_process_id, sequence_no, state, executor, created_at, updated_at)
                             values (?, ?, ?, ?, ?, current_timestamp, current_timestamp)
                             """,
@@ -115,7 +115,7 @@ final class PromptQualityProcessRunStore {
     StepHandle ensureStepRun(long runId, String stepCode, String actor) {
         long stepProcessId = processId(stepCode);
         List<Long> existing = jdbcTemplate.query(
-                "select id from prompt_quality_process_step_run where run_id = ? and step_process_id = ?",
+                "select id from ctxa_prompt_quality_process_step_run where run_id = ? and step_process_id = ?",
                 (rs, rowNum) -> rs.getLong("id"),
                 runId,
                 stepProcessId);
@@ -125,7 +125,7 @@ final class PromptQualityProcessRunStore {
         int sequenceNo = sequenceNo(stepProcessId);
         jdbcTemplate.update(
                 """
-                        insert into prompt_quality_process_step_run
+                        insert into ctxa_prompt_quality_process_step_run
                             (run_id, step_process_id, sequence_no, state, started_at, executor, created_at, updated_at)
                         values (?, ?, ?, ?, current_timestamp, ?, current_timestamp, current_timestamp)
                         """,
@@ -135,7 +135,7 @@ final class PromptQualityProcessRunStore {
                 PromptQualityProcessCodes.RUNNING,
                 boundedValue(actor, ACTOR_LIMIT));
         Long id = jdbcTemplate.query(
-                        "select id from prompt_quality_process_step_run where run_id = ? and step_process_id = ?",
+                        "select id from ctxa_prompt_quality_process_step_run where run_id = ? and step_process_id = ?",
                         (rs, rowNum) -> rs.getLong("id"),
                         runId,
                         stepProcessId)
@@ -147,7 +147,7 @@ final class PromptQualityProcessRunStore {
 
     private long processId(String code) {
         return jdbcTemplate.query(
-                        "select id from prompt_quality_process_definition where code = ? and is_active = true",
+                        "select id from ctxa_prompt_quality_process_definition where code = ? and is_active = true",
                         (rs, rowNum) -> rs.getLong("id"),
                         code)
                 .stream()
@@ -157,7 +157,7 @@ final class PromptQualityProcessRunStore {
 
     private int sequenceNo(long processId) {
         return jdbcTemplate.query(
-                        "select sequence_no from prompt_quality_process_definition where id = ?",
+                        "select sequence_no from ctxa_prompt_quality_process_definition where id = ?",
                         (rs, rowNum) -> rs.getInt("sequence_no"),
                         processId)
                 .stream()
@@ -169,12 +169,12 @@ final class PromptQualityProcessRunStore {
         Integer count = jdbcTemplate.queryForObject(
                 """
                         select count(*)
-                          from prompt_quality_process_step_run current_step
-                          join prompt_quality_process_definition current_definition
+                          from ctxa_prompt_quality_process_step_run current_step
+                          join ctxa_prompt_quality_process_definition current_definition
                             on current_definition.id = current_step.step_process_id
-                          join prompt_quality_process_step_run previous_step
+                          join ctxa_prompt_quality_process_step_run previous_step
                             on previous_step.run_id = current_step.run_id
-                          join prompt_quality_process_definition previous_definition
+                          join ctxa_prompt_quality_process_definition previous_definition
                             on previous_definition.id = previous_step.step_process_id
                          where current_step.run_id = ?
                            and current_definition.code = ?
@@ -191,7 +191,7 @@ final class PromptQualityProcessRunStore {
         Integer count = jdbcTemplate.queryForObject(
                 """
                         select count(*)
-                          from prompt_quality_process_step_run
+                          from ctxa_prompt_quality_process_step_run
                          where run_id = ?
                            and state <> 'COMPLETED'
                         """,
@@ -215,12 +215,12 @@ final class PromptQualityProcessRunStore {
         return jdbcTemplate.query(
                         """
                                 select previous_definition.code
-                                  from prompt_quality_process_step_run current_step
-                                  join prompt_quality_process_definition current_definition
+                                  from ctxa_prompt_quality_process_step_run current_step
+                                  join ctxa_prompt_quality_process_definition current_definition
                                     on current_definition.id = current_step.step_process_id
-                                  join prompt_quality_process_step_run previous_step
+                                  join ctxa_prompt_quality_process_step_run previous_step
                                     on previous_step.run_id = current_step.run_id
-                                  join prompt_quality_process_definition previous_definition
+                                  join ctxa_prompt_quality_process_definition previous_definition
                                     on previous_definition.id = previous_step.step_process_id
                                  where current_step.run_id = ?
                                    and current_definition.code = ?
@@ -245,7 +245,7 @@ final class PromptQualityProcessRunStore {
             String errorMessage) {
         jdbcTemplate.update(
                 """
-                        update prompt_quality_process_run
+                        update ctxa_prompt_quality_process_run
                            set state = case
                                    when state = 'COMPLETED' and ? <> 'COMPLETED' then state
                                    else ?
@@ -288,7 +288,7 @@ final class PromptQualityProcessRunStore {
             String errorMessage) {
         jdbcTemplate.update(
                 """
-                        update prompt_quality_process_step_run
+                        update ctxa_prompt_quality_process_step_run
                            set state = ?,
                                domain_state_dimension = ?,
                                domain_state_code = ?,
@@ -335,7 +335,7 @@ final class PromptQualityProcessRunStore {
             String reason) {
         jdbcTemplate.update(
                 """
-                        insert into prompt_quality_process_state_history
+                        insert into ctxa_prompt_quality_process_state_history
                             (run_id, step_run_id, process_code, step_code,
                              from_state, to_state,
                              from_domain_state_dimension, from_domain_state_code,
@@ -361,7 +361,7 @@ final class PromptQualityProcessRunStore {
     void recordEvent(long runId, Long stepRunId, String type, Map<String, Object> payload) {
         jdbcTemplate.update(
                 """
-                        insert into prompt_quality_process_event
+                        insert into ctxa_prompt_quality_process_event
                             (run_id, step_run_id, type, payload_json, occurred_at)
                         values (?, ?, ?, ?, current_timestamp)
                         """,
@@ -375,7 +375,7 @@ final class PromptQualityProcessRunStore {
         return jdbcTemplate.query(
                         """
                                 select state, domain_state_dimension, domain_state_code
-                                  from prompt_quality_process_step_run
+                                  from ctxa_prompt_quality_process_step_run
                                  where id = ?
                                 """,
                         (rs, rowNum) -> new StepState(
@@ -392,7 +392,7 @@ final class PromptQualityProcessRunStore {
         return jdbcTemplate.query(
                         """
                                 select state, current_state_dimension, current_state_code
-                                  from prompt_quality_process_run
+                                  from ctxa_prompt_quality_process_run
                                  where id = ?
                                 """,
                         (rs, rowNum) -> new RunState(

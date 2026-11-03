@@ -33,7 +33,7 @@ public final class JdbcOfficialVerificationPurposeEvidenceRepository implements 
                                coalesce(evidence.runtime_facts_json, '[]') as runtime_facts_json,
                                coalesce(nullif(evidence.context_items_json, '[]'), (
                                    select payload.context_items_json
-                                     from official_metric_customer_display_payload payload
+                                     from ctxa_official_metric_customer_display_payload payload
                                     where payload.aggregate_run_id = evidence.aggregate_run_id
                                       and upper(payload.metric_code) = upper(evidence.metric_code)
                                       and payload.check_code = evidence.check_code
@@ -46,7 +46,7 @@ public final class JdbcOfficialVerificationPurposeEvidenceRepository implements 
                                     order by payload.id desc
                                     limit 1
                                ), '[]') as context_items_json
-                          from official_metric_purpose_evidence_ledger evidence
+                          from ctxa_official_metric_purpose_evidence_ledger evidence
                          where aggregate_run_id = ?
                          order by metric_code asc, check_code asc, evidence.id asc
                         """,
@@ -68,7 +68,7 @@ public final class JdbcOfficialVerificationPurposeEvidenceRepository implements 
                                coalesce(evidence.runtime_facts_json, '[]') as runtime_facts_json,
                                coalesce(nullif(evidence.context_items_json, '[]'), (
                                    select payload.context_items_json
-                                     from official_metric_customer_display_payload payload
+                                     from ctxa_official_metric_customer_display_payload payload
                                     where payload.aggregate_run_id = evidence.aggregate_run_id
                                       and upper(payload.metric_code) = upper(evidence.metric_code)
                                       and payload.check_code = evidence.check_code
@@ -81,7 +81,7 @@ public final class JdbcOfficialVerificationPurposeEvidenceRepository implements 
                                     order by payload.id desc
                                     limit 1
                                ), '[]') as context_items_json
-                          from official_metric_purpose_evidence_ledger evidence
+                          from ctxa_official_metric_purpose_evidence_ledger evidence
                          where aggregate_run_id in (%s)
                          order by aggregate_run_id asc, metric_code asc, check_code asc, evidence.id asc
                         """.formatted(placeholders(aggregateRunIds)),

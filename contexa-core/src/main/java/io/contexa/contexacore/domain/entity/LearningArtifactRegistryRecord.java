@@ -38,10 +38,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
-@Table(name = "learning_artifact_registry", indexes = {
-        @Index(name = "uk_learning_artifact_registry_identity", columnList = "tenant_id, artifact_type, artifact_key", unique = true),
-        @Index(name = "idx_learning_artifact_registry_tenant_updated", columnList = "tenant_id, updated_at"),
-        @Index(name = "idx_learning_artifact_registry_artifact_updated", columnList = "artifact_type, artifact_key, updated_at")
+@Table(name = "ctxa_learning_artifact_registry", indexes = {
+        @Index(name = "ctxa_uk_learning_artifact_registry_identity", columnList = "tenant_id, artifact_type, artifact_key", unique = true),
+        @Index(name = "ctxa_idx_learning_artifact_registry_tenant_updated", columnList = "tenant_id, updated_at"),
+        @Index(name = "ctxa_idx_learning_artifact_registry_artifact_updated", columnList = "artifact_type, artifact_key, updated_at")
 })
 @Getter
 @Setter

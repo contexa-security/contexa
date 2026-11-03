@@ -28,7 +28,7 @@ public final class JdbcOfficialVerificationAuditSnapshotRepository implements Of
                                certificate_issued, prompt_hash, context_hash, blocking_findings_json,
                                next_actions_json, payload_json, created_by,
                                diagnostic_catalog_version, created_at
-                          from official_verification_audit_snapshot
+                          from ctxa_official_verification_audit_snapshot
                          where aggregate_run_id = ?
                          order by created_at desc, id desc
                         """,
@@ -48,7 +48,7 @@ public final class JdbcOfficialVerificationAuditSnapshotRepository implements Of
                                certificate_issued, prompt_hash, context_hash, blocking_findings_json,
                                next_actions_json, payload_json, created_by,
                                diagnostic_catalog_version, created_at
-                          from official_verification_audit_snapshot
+                          from ctxa_official_verification_audit_snapshot
                          where aggregate_run_id in (%s)
                          order by aggregate_run_id asc, created_at desc, id desc
                         """.formatted(placeholders(aggregateRunIds)),

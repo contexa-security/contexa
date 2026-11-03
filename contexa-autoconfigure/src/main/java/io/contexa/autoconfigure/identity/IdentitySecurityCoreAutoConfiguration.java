@@ -71,6 +71,7 @@ import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmationService;
 import io.contexa.contexacore.autonomous.agent.AgentCallGuard;
 import io.contexa.contexacore.autonomous.agent.AgentScopeService;
+import io.contexa.contexacommon.jdbc.LibraryTableNames;
 import jakarta.servlet.Filter;
 import java.util.Collections;
 import java.util.List;
@@ -552,7 +553,7 @@ public class IdentitySecurityCoreAutoConfiguration {
     public PublicKeyCredentialUserEntityRepository publicKeyCredentialUserEntityRepository(
             @Qualifier("contexaJdbcTemplate")
             JdbcOperations jdbcOperations) {
-        return new JdbcPublicKeyCredentialUserEntityRepository(jdbcOperations);
+        return new JdbcPublicKeyCredentialUserEntityRepository(LibraryTableNames.wrap(jdbcOperations));
     }
 
     @Bean
@@ -561,7 +562,7 @@ public class IdentitySecurityCoreAutoConfiguration {
     public UserCredentialRepository userCredentialRepository(
             @Qualifier("contexaJdbcTemplate")
             JdbcOperations jdbcOperations) {
-        return new JdbcUserCredentialRepository(jdbcOperations);
+        return new JdbcUserCredentialRepository(LibraryTableNames.wrap(jdbcOperations));
     }
 
     @Bean

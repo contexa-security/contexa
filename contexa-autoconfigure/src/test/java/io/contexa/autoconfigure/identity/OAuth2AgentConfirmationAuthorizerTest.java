@@ -15,6 +15,7 @@
  */
 package io.contexa.autoconfigure.identity;
 
+import io.contexa.contexacommon.jdbc.LibraryTableNames;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmation;
 import io.contexa.contexacore.autonomous.agent.AgentRegistrationRequest;
 import io.contexa.contexacore.autonomous.agent.InMemoryAgentRegistry;
@@ -63,14 +64,14 @@ class OAuth2AgentConfirmationAuthorizerTest {
         jdbc = new JdbcTemplate(dataSource);
         new ResourceDatabasePopulator(new ClassPathResource("contexa-oauth2-authorization-schema.sql"))
                 .execute(dataSource);
-        JdbcRegisteredClientRepository clients = new JdbcRegisteredClientRepository(jdbc);
+        JdbcRegisteredClientRepository clients = new JdbcRegisteredClientRepository(LibraryTableNames.wrap(jdbc));
         clients.save(RegisteredClient.withId("report-client-id")
                 .clientId("report-client")
                 .clientSecret("{noop}report-secret")
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
                 .authorizationGrantType(AuthorizationGrantType.TOKEN_EXCHANGE)
                 .build());
-        store = new JdbcOAuth2AuthorizationService(jdbc, clients);
+        store = new JdbcOAuth2AuthorizationService(LibraryTableNames.wrap(jdbc), clients);
         InMemoryAgentRegistry registry = new InMemoryAgentRegistry();
         registry.register(new AgentRegistrationRequest(null, "report-agent", "Report", null, "report-client",
                 "carol", true));
@@ -117,7 +118,7 @@ class OAuth2AgentConfirmationAuthorizerTest {
 
         assertThat(authorization).startsWith(SignedAgentConfirmationAuthorizer.PREFIX);
         assertThat(authorizer.verify(approved("outside-agent", authorization))).isTrue();
-        assertThat(jdbc.queryForObject("select count(*) from oauth2_authorization", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from ctxa_oauth2_authorization", Integer.class)).isZero();
     }
 
     private static AgentConfirmation approved(String agentId, String authorization) {

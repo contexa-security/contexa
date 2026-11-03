@@ -62,8 +62,8 @@ public final class JdbcOfficialVerificationAuditSnapshotWriter
 
     private void deleteCurrent(AuditSnapshotCommand command) {
         jdbcTemplate.update("""
-                        delete from official_verification_audit_snapshot audit
-                        using sealed_evidence_package sealed
+                        delete from ctxa_official_verification_audit_snapshot audit
+                        using ctxa_sealed_evidence_package sealed
                          where audit.aggregate_run_id = ?
                            and audit.package_id = ?
                            and sealed.package_id = audit.package_id
@@ -80,7 +80,7 @@ public final class JdbcOfficialVerificationAuditSnapshotWriter
             List<String> actions,
             Map<String, Object> payload) {
         jdbcTemplate.update("""
-                        insert into official_verification_audit_snapshot (
+                        insert into ctxa_official_verification_audit_snapshot (
                             snapshot_id, aggregate_run_id, package_id, certificate_id, case_id,
                             state, state_label, total_metric_count, failed_metric_count,
                             certificate_issued, prompt_hash, context_hash, blocking_findings_json,

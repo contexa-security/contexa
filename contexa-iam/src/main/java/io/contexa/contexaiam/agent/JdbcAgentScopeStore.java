@@ -35,7 +35,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 /**
- * The narrowed scopes of agents kept in the Contexa database (table {@code agent_scope_restriction}, docs/agent A5-4).
+ * The narrowed scopes of agents kept in the Contexa database (table {@code ctxa_agent_scope_restriction}, docs/agent A5-4).
  * A narrowing is a compare-and-set on the row it read, so two decisions narrowing the same agent at once both apply
  * and neither widens the other.
  */
@@ -56,7 +56,7 @@ public class JdbcAgentScopeStore implements AgentScopeStore {
         if (subjectKey == null) {
             return Optional.empty();
         }
-        return jdbc.query("select " + COLUMNS + " from agent_scope_restriction where subject_key = ?",
+        return jdbc.query("select " + COLUMNS + " from ctxa_agent_scope_restriction where subject_key = ?",
                 JdbcAgentScopeStore::scope, subjectKey).stream().findFirst();
     }
 
@@ -67,7 +67,7 @@ public class JdbcAgentScopeStore implements AgentScopeStore {
             AgentScopeRestriction current = stored.filter(scope -> scope.activeAt(now)).orElse(null);
             AgentScopeRestriction next = narrowing.apply(current);
             if (stored.isEmpty()) {
-                if (jdbc.update("insert into agent_scope_restriction (" + COLUMNS + ") values (?, ?, ?, ?, ?, ?, ?, "
+                if (jdbc.update("insert into ctxa_agent_scope_restriction (" + COLUMNS + ") values (?, ?, ?, ?, ?, ?, ?, "
                         + "?, ?) on conflict (subject_key) do nothing", next.subjectKey(),
                         AgentRegistrations.tenantKey(next.tenantId()), next.userId(), next.agentId(),
                         names(next.allowed()), next.reason(), truncate(next.correlationId()),
@@ -77,7 +77,7 @@ public class JdbcAgentScopeStore implements AgentScopeStore {
                 continue;
             }
             AgentScopeRestriction read = stored.get();
-            if (jdbc.update("update agent_scope_restriction set allowed = ?, reason = ?, correlation_id = ?, "
+            if (jdbc.update("update ctxa_agent_scope_restriction set allowed = ?, reason = ?, correlation_id = ?, "
                             + "narrowed_at = ?, until_at = ? where subject_key = ? and allowed = ? and until_at = ?",
                     names(next.allowed()), next.reason(), truncate(next.correlationId()),
                     Timestamp.from(next.narrowedAt()), Timestamp.from(next.until()), subjectKey,
@@ -90,14 +90,14 @@ public class JdbcAgentScopeStore implements AgentScopeStore {
 
     @Override
     public List<AgentScopeRestriction> active(Instant now, int limit) {
-        return jdbc.query("select " + COLUMNS + " from agent_scope_restriction where until_at > ? "
+        return jdbc.query("select " + COLUMNS + " from ctxa_agent_scope_restriction where until_at > ? "
                 + "order by until_at limit ?", JdbcAgentScopeStore::scope, Timestamp.from(now), Math.max(0, limit));
     }
 
     @Override
     public void removeForUser(String userId) {
         if (userId != null) {
-            jdbc.update("delete from agent_scope_restriction where user_id = ?", userId);
+            jdbc.update("delete from ctxa_agent_scope_restriction where user_id = ?", userId);
         }
     }
 

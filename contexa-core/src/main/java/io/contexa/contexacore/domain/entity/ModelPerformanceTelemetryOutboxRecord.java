@@ -26,9 +26,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "model_performance_telemetry_outbox", indexes = {
-        @Index(name = "uk_model_performance_telemetry_outbox_period", columnList = "period", unique = true),
-        @Index(name = "idx_model_performance_telemetry_outbox_dispatch", columnList = "status,next_attempt_at,period")
+@Table(name = "ctxa_model_performance_telemetry_outbox", indexes = {
+        @Index(name = "ctxa_uk_model_performance_telemetry_outbox_period", columnList = "period", unique = true),
+        @Index(name = "ctxa_idx_model_performance_telemetry_outbox_dispatch", columnList = "status,next_attempt_at,period")
 })
 @Getter
 @Setter

@@ -20,7 +20,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "FUNCTION_CATALOG")
+@Table(name = "CTXA_FUNCTION_CATALOG")
 @Getter @Setter @Builder
 @NoArgsConstructor @AllArgsConstructor
 public class FunctionCatalog {

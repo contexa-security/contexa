@@ -41,10 +41,10 @@ public class JdbcPromptReleaseQueryService {
                    w.workflow_state,
                    w.gate_state,
                    w.blockers_json
-              from prompt_governance_registry r
+              from ctxa_prompt_governance_registry r
          left join lateral (
                    select approval_state, release_status
-                     from prompt_governance_release_ledger
+                     from ctxa_prompt_governance_release_ledger
                     where registry_scope = r.registry_scope
                       and prompt_key = r.prompt_key
                       and template_key is not distinct from r.template_key
@@ -55,7 +55,7 @@ public class JdbcPromptReleaseQueryService {
                    ) l on true
          left join lateral (
                    select rollback_target_prompt_version, rollback_state, rollback_readiness_state, rollback_reference
-                     from prompt_governance_rollback_ledger
+                     from ctxa_prompt_governance_rollback_ledger
                     where registry_scope = r.registry_scope
                       and prompt_key = r.prompt_key
                       and prompt_version = r.prompt_version
@@ -64,7 +64,7 @@ public class JdbcPromptReleaseQueryService {
                    ) rb on true
          left join lateral (
                    select workflow_state, gate_state, blockers_json
-                     from prompt_governance_release_workflow
+                     from ctxa_prompt_governance_release_workflow
                     where registry_scope = r.registry_scope
                       and prompt_key = r.prompt_key
                       and prompt_version = r.prompt_version

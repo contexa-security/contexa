@@ -75,13 +75,13 @@ class EmailOneTimeTokenServiceTest {
         PlatformTransactionManager txManager = new JdbcTransactionManager(database.dataSource());
         transactionTemplate = new TransactionTemplate(txManager);
 
-        jdbcTemplate.execute("CREATE TABLE one_time_tokens (" +
+        jdbcTemplate.execute("CREATE TABLE ctxa_one_time_tokens (" +
                 "token_value VARCHAR(256) NOT NULL, " +
                 "username VARCHAR(256) NOT NULL, " +
                 "expires_at TIMESTAMP NOT NULL, " +
                 "PRIMARY KEY (token_value))");
 
-        jdbcTemplate.execute("CREATE TABLE users (" +
+        jdbcTemplate.execute("CREATE TABLE ctxa_users (" +
                 "username VARCHAR(256) NOT NULL, " +
                 "email VARCHAR(256) NOT NULL, " +
                 "PRIMARY KEY (username))");
@@ -101,7 +101,7 @@ class EmailOneTimeTokenServiceTest {
     @DisplayName("generate should create a token, store it in PostgreSQL, and send HTML email successfully")
     void generateTokenSuccess() {
         when(emailService.isMailSenderConfigured()).thenReturn(true);
-        jdbcTemplate.update("INSERT INTO users(username, email) VALUES(?, ?)", "testuser", "user@contexa.io");
+        jdbcTemplate.update("INSERT INTO ctxa_users(username, email) VALUES(?, ?)", "testuser", "user@contexa.io");
 
         EmailOneTimeTokenService service = new EmailOneTimeTokenService(
                 emailService, jdbcTemplate, transactionTemplate, authContextProperties, true
@@ -116,7 +116,7 @@ class EmailOneTimeTokenServiceTest {
 
         // Verify it exists in PostgreSQL database
         Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM one_time_tokens WHERE token_value = ?", Integer.class, token.getTokenValue()
+                "SELECT COUNT(*) FROM ctxa_one_time_tokens WHERE token_value = ?", Integer.class, token.getTokenValue()
         );
         assertThat(count).isEqualTo(1);
 
@@ -151,7 +151,7 @@ class EmailOneTimeTokenServiceTest {
     @DisplayName("generate should allow requested email only when it matches the registered user email")
     void generateTokenAllowsMatchingRequestedEmail() {
         when(emailService.isMailSenderConfigured()).thenReturn(true);
-        jdbcTemplate.update("INSERT INTO users(username, email) VALUES(?, ?)", "testuser", "user@contexa.io");
+        jdbcTemplate.update("INSERT INTO ctxa_users(username, email) VALUES(?, ?)", "testuser", "user@contexa.io");
 
         EmailOneTimeTokenService service = new EmailOneTimeTokenService(
                 emailService, jdbcTemplate, transactionTemplate, authContextProperties, true
@@ -171,7 +171,7 @@ class EmailOneTimeTokenServiceTest {
     @DisplayName("generate should reject requested email that differs from the registered user email")
     void generateTokenRejectsMismatchedRequestedEmail() {
         when(emailService.isMailSenderConfigured()).thenReturn(true);
-        jdbcTemplate.update("INSERT INTO users(username, email) VALUES(?, ?)", "testuser", "user@contexa.io");
+        jdbcTemplate.update("INSERT INTO ctxa_users(username, email) VALUES(?, ?)", "testuser", "user@contexa.io");
 
         EmailOneTimeTokenService service = new EmailOneTimeTokenService(
                 emailService, jdbcTemplate, transactionTemplate, authContextProperties, true
@@ -181,7 +181,7 @@ class EmailOneTimeTokenServiceTest {
                 .isInstanceOf(BadCredentialsException.class)
                 .hasMessageContaining("Invalid one-time token delivery request");
 
-        Integer count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM one_time_tokens", Integer.class);
+        Integer count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM ctxa_one_time_tokens", Integer.class);
         assertThat(count).isZero();
         verify(emailService, never()).sendHtmlMessage(anyString(), anyString(), anyString());
     }
@@ -219,7 +219,7 @@ class EmailOneTimeTokenServiceTest {
         assertThat(token).isNotNull();
         // Should still be stored in PostgreSQL database
         Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM one_time_tokens WHERE token_value = ?", Integer.class, token.getTokenValue()
+                "SELECT COUNT(*) FROM ctxa_one_time_tokens WHERE token_value = ?", Integer.class, token.getTokenValue()
         );
         assertThat(count).isEqualTo(1);
     }
@@ -264,7 +264,7 @@ class EmailOneTimeTokenServiceTest {
     void consumeTokenDeletesFromStore() {
         // Insert a token manually
         jdbcTemplate.update(
-                "INSERT INTO one_time_tokens(token_value, username, expires_at) VALUES(?, ?, ?)",
+                "INSERT INTO ctxa_one_time_tokens(token_value, username, expires_at) VALUES(?, ?, ?)",
                 "token-123", "testuser", Timestamp.from(Instant.now().plusSeconds(300))
         );
 
@@ -281,7 +281,7 @@ class EmailOneTimeTokenServiceTest {
 
         // Verify it was deleted from PostgreSQL database (one-time usage check)
         Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM one_time_tokens WHERE token_value = ?", Integer.class, "token-123"
+                "SELECT COUNT(*) FROM ctxa_one_time_tokens WHERE token_value = ?", Integer.class, "token-123"
         );
         assertThat(count).isZero();
     }

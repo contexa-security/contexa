@@ -24,7 +24,7 @@ public final class JdbcOfficialVerificationContractLinkIntegrityRepository
     @Override
     public void assertActualPromptProblemLedgerReferences(String aggregateRunId) {
         int missingContract = count("""
-                select count(*) from official_actual_prompt_problem_ledger
+                select count(*) from ctxa_official_actual_prompt_problem_ledger
                  where aggregate_run_id = ? and severity = 'BLOCKING'
                    and (purpose_evaluation_id is null or contract_version_id is null)
                 """, aggregateRunId);
@@ -35,7 +35,7 @@ public final class JdbcOfficialVerificationContractLinkIntegrityRepository
         }
         int comparisonsWithoutProblem = count("""
                 select count(*) from (
-                    select distinct field_key from official_verification_prompt_comparison
+                    select distinct field_key from ctxa_official_verification_prompt_comparison
                      where aggregate_run_id = ? and nullif(trim(field_key), '') is not null
                        and (field_key like 'finalUserPrompt.%' or field_key like 'finalSystemPrompt.%')
                        and (
@@ -47,7 +47,7 @@ public final class JdbcOfficialVerificationContractLinkIntegrityRepository
                        )
                        and canonical_source <> 'OFFICIAL_FINDING'
                     except
-                    select distinct field_key from official_actual_prompt_problem_ledger
+                    select distinct field_key from ctxa_official_actual_prompt_problem_ledger
                      where aggregate_run_id = ? and severity = 'BLOCKING' and nullif(trim(field_key), '') is not null
                 ) missing_actual_prompt_problem
                 """, aggregateRunId, aggregateRunId);
@@ -57,10 +57,10 @@ public final class JdbcOfficialVerificationContractLinkIntegrityRepository
         }
         int findingsWithoutProblem = count("""
                 select count(*) from (
-                    select check_code from official_verification_operator_finding
+                    select check_code from ctxa_official_verification_operator_finding
                      where aggregate_run_id = ? and check_code is not null and trim(check_code) <> ''
                     except
-                    select problem_id from official_actual_prompt_problem_ledger
+                    select problem_id from ctxa_official_actual_prompt_problem_ledger
                      where aggregate_run_id = ? and severity = 'BLOCKING'
                 ) missing_actual_prompt_problem
                 """, aggregateRunId, aggregateRunId);
@@ -73,16 +73,16 @@ public final class JdbcOfficialVerificationContractLinkIntegrityRepository
     @Override
     public Set<String> registeredMetricCodes() {
         return normalizedSet(jdbcTemplate.queryForList("""
-                select p.metric_code from official_metric_purpose_contract p
-                join official_metric_contract_version v on v.contract_version = p.contract_version and v.active = true
+                select p.metric_code from ctxa_official_metric_purpose_contract p
+                join ctxa_official_metric_contract_version v on v.contract_version = p.contract_version and v.active = true
                 """, String.class));
     }
 
     @Override
     public Set<String> registeredMetricCheckCodes() {
         List<String> rows = jdbcTemplate.queryForList("""
-                select e.metric_code || '|' || e.check_code from official_metric_evaluation_contract e
-                join official_metric_contract_version v on v.contract_version = e.contract_version and v.active = true
+                select e.metric_code || '|' || e.check_code from ctxa_official_metric_evaluation_contract e
+                join ctxa_official_metric_contract_version v on v.contract_version = e.contract_version and v.active = true
                 """, String.class);
         Set<String> result = new LinkedHashSet<>();
         for (String row : rows == null ? List.<String>of() : rows) {
@@ -99,8 +99,8 @@ public final class JdbcOfficialVerificationContractLinkIntegrityRepository
         try {
             return jdbcTemplate.query("""
                     select e.issue_key, e.issue_key as prompt_location, e.readiness_scope
-                      from official_metric_evaluation_contract e
-                      join official_metric_contract_version v
+                      from ctxa_official_metric_evaluation_contract e
+                      join ctxa_official_metric_contract_version v
                         on v.contract_version = e.contract_version and v.active = true
                      where e.metric_code = ? and e.check_code = ?
                      order by e.created_at desc, e.id desc limit 1
@@ -119,7 +119,7 @@ public final class JdbcOfficialVerificationContractLinkIntegrityRepository
         try {
             return jdbcTemplate.query("""
                     select field_key, prompt_section, source_field_path
-                      from official_actual_prompt_problem_ledger
+                      from ctxa_official_actual_prompt_problem_ledger
                      where aggregate_run_id = ?
                        and (problem_id = ? or field_key = ? or field_key = ? or field_key = ?)
                      order by case when severity = 'BLOCKING' then 0 else 1 end, created_at desc limit 1
@@ -137,7 +137,7 @@ public final class JdbcOfficialVerificationContractLinkIntegrityRepository
     private String firstProblemWithoutPurposeContract(String aggregateRunId) {
         List<String> rows = jdbcTemplate.queryForList("""
                 select field_key || '|' || problem_type || '|metrics=' || affected_metric_codes
-                  from official_actual_prompt_problem_ledger
+                  from ctxa_official_actual_prompt_problem_ledger
                  where aggregate_run_id = ? and severity = 'BLOCKING'
                    and (purpose_evaluation_id is null or contract_version_id is null)
                  order by created_at desc, field_key asc limit 1

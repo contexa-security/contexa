@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS oauth2_registered_client (
+CREATE TABLE IF NOT EXISTS ctxa_oauth2_registered_client (
     id VARCHAR(100) PRIMARY KEY,
     client_id VARCHAR(100) NOT NULL,
     client_id_issued_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -14,10 +14,10 @@ CREATE TABLE IF NOT EXISTS oauth2_registered_client (
     token_settings VARCHAR(2000) NOT NULL
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_oauth2_registered_client_client_id
-    ON oauth2_registered_client (client_id);
+CREATE UNIQUE INDEX IF NOT EXISTS ctxa_idx_oauth2_registered_client_client_id
+    ON ctxa_oauth2_registered_client (client_id);
 
-CREATE TABLE IF NOT EXISTS oauth2_authorization (
+CREATE TABLE IF NOT EXISTS ctxa_oauth2_authorization (
     id VARCHAR(100) PRIMARY KEY,
     registered_client_id VARCHAR(100) NOT NULL,
     principal_name VARCHAR(200) NOT NULL,
@@ -51,19 +51,19 @@ CREATE TABLE IF NOT EXISTS oauth2_authorization (
     device_code_issued_at TIMESTAMP DEFAULT NULL,
     device_code_expires_at TIMESTAMP DEFAULT NULL,
     device_code_metadata TEXT DEFAULT NULL,
-    FOREIGN KEY (registered_client_id) REFERENCES oauth2_registered_client (id)
+    FOREIGN KEY (registered_client_id) REFERENCES ctxa_oauth2_registered_client (id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_oauth2_authorization_registered_client_id
-    ON oauth2_authorization (registered_client_id);
+CREATE INDEX IF NOT EXISTS ctxa_idx_oauth2_authorization_registered_client_id
+    ON ctxa_oauth2_authorization (registered_client_id);
 
-CREATE INDEX IF NOT EXISTS idx_oauth2_authorization_principal_name
-    ON oauth2_authorization (principal_name);
+CREATE INDEX IF NOT EXISTS ctxa_idx_oauth2_authorization_principal_name
+    ON ctxa_oauth2_authorization (principal_name);
 
-CREATE TABLE IF NOT EXISTS oauth2_authorization_consent (
+CREATE TABLE IF NOT EXISTS ctxa_oauth2_authorization_consent (
     registered_client_id VARCHAR(100) NOT NULL,
     principal_name VARCHAR(200) NOT NULL,
     authorities VARCHAR(1000) NOT NULL,
     PRIMARY KEY (registered_client_id, principal_name),
-    FOREIGN KEY (registered_client_id) REFERENCES oauth2_registered_client (id)
+    FOREIGN KEY (registered_client_id) REFERENCES ctxa_oauth2_registered_client (id)
 );

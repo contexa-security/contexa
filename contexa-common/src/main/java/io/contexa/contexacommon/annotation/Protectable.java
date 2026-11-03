@@ -25,7 +25,7 @@ import java.lang.annotation.Target;
  * <p>
  * At application startup {@code ProtectableResourceCatalogService} auto-scans
  * annotated beans and registers matching methods into
- * {@code protectable_resource_registry}. Registered resources can be evaluated
+ * {@code ctxa_protectable_resource_registry}. Registered resources can be evaluated
  * by the prompt quality inspection flow before they are used for LLM
  * zero-trust operation. Enterprise deployments may add certificate and
  * promotion gates on top of that inspection result.

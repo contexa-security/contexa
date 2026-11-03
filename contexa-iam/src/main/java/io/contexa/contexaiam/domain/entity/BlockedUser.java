@@ -21,7 +21,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "BLOCKED_USER")
+@Table(name = "CTXA_BLOCKED_USER")
 @Getter
 @Setter
 @Builder

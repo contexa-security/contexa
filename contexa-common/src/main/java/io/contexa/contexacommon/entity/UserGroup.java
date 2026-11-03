@@ -23,7 +23,7 @@ import java.time.LocalDateTime;
 import java.util.Objects;
 
 @Entity
-@Table(name = "user_groups")
+@Table(name = "ctxa_user_groups")
 @IdClass(UserGroupId.class)
 @Getter
 @Setter

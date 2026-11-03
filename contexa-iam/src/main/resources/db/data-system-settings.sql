@@ -2,7 +2,7 @@
 -- Loaded by IamSeedDataAutoConfiguration after data.sql / data-menu.sql.
 -- WHERE NOT EXISTS makes it idempotent across restarts and re-applies.
 -- Schema source-of-truth: db/schema.sql.
-INSERT INTO system_settings (
+INSERT INTO ctxa_system_settings (
     audit_log_retention_days,
     default_role,
     policy_combining_algorithm,
@@ -16,10 +16,10 @@ SELECT
     FALSE,
     'io.contexa.contexaiam.',
     CURRENT_TIMESTAMP
-WHERE NOT EXISTS (SELECT 1 FROM system_settings);
+WHERE NOT EXISTS (SELECT 1 FROM ctxa_system_settings);
 
 -- Keep future settings rows safe when manual data was loaded with explicit ids.
 -- Use a plain statement because Spring SQL initialization splits this file on
 -- semicolons and cannot safely execute procedural blocks.
-SELECT setval('system_settings_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM system_settings), 0), 1), COALESCE((SELECT MAX(id) FROM system_settings), 0) > 0)
-WHERE to_regclass('system_settings_id_seq') IS NOT NULL;
+SELECT setval('ctxa_system_settings_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM ctxa_system_settings), 0), 1), COALESCE((SELECT MAX(id) FROM ctxa_system_settings), 0) > 0)
+WHERE to_regclass('ctxa_system_settings_id_seq') IS NOT NULL;

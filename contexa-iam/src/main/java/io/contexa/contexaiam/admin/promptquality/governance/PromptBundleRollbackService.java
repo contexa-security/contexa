@@ -130,7 +130,7 @@ public class PromptBundleRollbackService {
     /** A second operator approves an emergency stop after it ran; the operator who ran it cannot. */
     public Result approve(String executionKey, String approver) {
         List<String[]> rows = jdbc.query(
-                "select status, actor from prompt_governance_rollback_execution where execution_key = ?",
+                "select status, actor from ctxa_prompt_governance_rollback_execution where execution_key = ?",
                 (rs, n) -> new String[] {rs.getString(1), rs.getString(2)}, executionKey);
         if (rows.isEmpty()) {
             return new Result(executionKey, REFUSED, null, List.of("EXECUTION_NOT_FOUND"));
@@ -141,7 +141,7 @@ public class PromptBundleRollbackService {
         if (Objects.equals(rows.get(0)[1], approver)) {
             return new Result(executionKey, REFUSED, null, List.of("APPROVER_IS_ACTOR"));
         }
-        jdbc.update("update prompt_governance_rollback_execution set status = ?, approved_by = ?, approved_at = ? "
+        jdbc.update("update ctxa_prompt_governance_rollback_execution set status = ?, approved_by = ?, approved_at = ? "
                 + "where execution_key = ?", APPROVED, approver, Timestamp.from(clock.instant()), executionKey);
         return new Result(executionKey, APPROVED, null, List.of());
     }
@@ -155,7 +155,7 @@ public class PromptBundleRollbackService {
     /** W7-14: the latest rollback executions from or to a bundle of a scope, newest first. */
     public List<Execution> executions(String registryScope, String promptKey, String bundleVersion) {
         return jdbc.query("select execution_key, from_version, to_version, actor, reason, emergency, status, "
-                        + "executed_at, approved_by, approved_at from prompt_governance_rollback_execution "
+                        + "executed_at, approved_by, approved_at from ctxa_prompt_governance_rollback_execution "
                         + "where registry_scope = ? and prompt_key = ? and (from_version = ? or to_version = ?) "
                         + "order by executed_at desc, execution_key desc limit " + EXECUTION_LIMIT,
                 (rs, n) -> new Execution(rs.getString("execution_key"), rs.getString("from_version"),
@@ -175,13 +175,13 @@ public class PromptBundleRollbackService {
      */
     public int correctRollbackReadiness() {
         List<String[]> rows = jdbc.query("select id, prompt_key, rollback_target_prompt_version, rollback_readiness_state "
-                        + "from prompt_governance_rollback_ledger",
+                        + "from ctxa_prompt_governance_rollback_ledger",
                 (rs, n) -> new String[] {rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4)});
         int changed = 0;
         for (String[] row : rows) {
             String readiness = catalog.find(row[1], row[2]).isPresent() ? "READY" : "TARGET_NOT_IN_BUILD";
             if (!readiness.equals(row[3])) {
-                changed += jdbc.update("update prompt_governance_rollback_ledger set rollback_readiness_state = ?, "
+                changed += jdbc.update("update ctxa_prompt_governance_rollback_ledger set rollback_readiness_state = ?, "
                         + "updated_at = ? where id = ?", readiness, Timestamp.from(clock.instant()), Long.parseLong(row[0]));
             }
         }
@@ -189,7 +189,7 @@ public class PromptBundleRollbackService {
     }
 
     private String registryStatus(String scope, String key, String version) {
-        List<String> statuses = jdbc.query("select release_status from prompt_governance_registry "
+        List<String> statuses = jdbc.query("select release_status from ctxa_prompt_governance_registry "
                         + "where registry_scope = ? and prompt_key = ? and prompt_version = ? order by updated_at desc",
                 (rs, n) -> rs.getString(1), scope, key, version);
         return statuses.isEmpty() ? null : statuses.get(0);
@@ -197,15 +197,15 @@ public class PromptBundleRollbackService {
 
     /** N-GOV-5: the other active releases of the target's scope, prompt key and template, by version. */
     private List<String> otherActiveVersions(String scope, String key, String fromVersion, String toVersion) {
-        return jdbc.queryForList("select prompt_version from prompt_governance_registry where registry_scope = ? "
+        return jdbc.queryForList("select prompt_version from ctxa_prompt_governance_registry where registry_scope = ? "
                         + "and prompt_key = ? and prompt_version not in (?, ?) and upper(release_status) in ("
-                        + ACTIVE_STATES + ") and template_key in (select template_key from prompt_governance_registry "
+                        + ACTIVE_STATES + ") and template_key in (select template_key from ctxa_prompt_governance_registry "
                         + "where registry_scope = ? and prompt_key = ? and prompt_version = ?) order by prompt_version",
                 String.class, scope, key, fromVersion, toVersion, scope, key, toVersion);
     }
 
     private void setStatus(String scope, String key, String version, String status, Timestamp now) {
-        jdbc.update("update prompt_governance_registry set release_status = ?, updated_at = ? "
+        jdbc.update("update ctxa_prompt_governance_registry set release_status = ?, updated_at = ? "
                 + "where registry_scope = ? and prompt_key = ? and prompt_version = ?", status, now, scope, key, version);
     }
 
@@ -222,7 +222,7 @@ public class PromptBundleRollbackService {
             log.error("Rollback conditions could not be written as JSON: executionKey={}", executionKey, e);
             json = String.valueOf(checked);
         }
-        jdbc.update("insert into prompt_governance_rollback_execution (execution_key, registry_scope, prompt_key, "
+        jdbc.update("insert into ctxa_prompt_governance_rollback_execution (execution_key, registry_scope, prompt_key, "
                         + "from_version, to_version, actor, reason, emergency, status, conditions_json, executed_at) "
                         + "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", executionKey, request.registryScope(),
                 request.promptKey(), request.fromVersion(), request.toVersion(), actor, request.reason(),

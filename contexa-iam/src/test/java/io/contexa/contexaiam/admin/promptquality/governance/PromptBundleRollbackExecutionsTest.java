@@ -72,7 +72,7 @@ class PromptBundleRollbackExecutionsTest {
 
     private void execution(String key, String scope, String from, String to, String status, boolean emergency,
                            String executedAt) {
-        jdbc.update("insert into prompt_governance_rollback_execution (execution_key, registry_scope, prompt_key, "
+        jdbc.update("insert into ctxa_prompt_governance_rollback_execution (execution_key, registry_scope, prompt_key, "
                         + "from_version, to_version, actor, reason, emergency, status, conditions_json, executed_at) "
                         + "values (?, ?, ?, ?, ?, 'operator-a', ?, ?, ?, '{}', cast(? as timestamp))", key, scope, KEY,
                 from, to, "reason " + key, emergency, status, executedAt);

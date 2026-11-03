@@ -11,8 +11,8 @@ import java.util.UUID;
 public final class JdbcOfficialVerificationReverificationWriter implements OfficialVerificationReverificationWriter {
 
     private static final String DELETE_SQL = """
-            delete from official_verification_reverify_result result
-            using sealed_evidence_package source_sealed, sealed_evidence_package fixed_sealed
+            delete from ctxa_official_verification_reverify_result result
+            using ctxa_sealed_evidence_package source_sealed, ctxa_sealed_evidence_package fixed_sealed
              where result.source_package_id = ?
                and result.fixed_package_id = ?
                and coalesce(result.fixed_aggregate_run_id, '') = coalesce(?, '')
@@ -22,7 +22,7 @@ public final class JdbcOfficialVerificationReverificationWriter implements Offic
                and fixed_sealed.tenant_id = ?
             """;
     private static final String INSERT_SQL = """
-            insert into official_verification_reverify_result (
+            insert into ctxa_official_verification_reverify_result (
                 result_id, source_package_id, source_aggregate_run_id,
                 fixed_package_id, fixed_aggregate_run_id, source_finding_id,
                 issue_id, metric_code, check_code, reverify_criterion,

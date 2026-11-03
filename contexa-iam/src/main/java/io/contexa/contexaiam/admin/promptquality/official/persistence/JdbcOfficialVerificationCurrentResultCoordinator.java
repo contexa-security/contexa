@@ -50,7 +50,7 @@ public final class JdbcOfficialVerificationCurrentResultCoordinator
             return;
         }
         jdbcTemplate.update("""
-                        update official_verification_run_batch run
+                        update ctxa_official_verification_run_batch run
                            set current_result = false
                          where run.current_result = true
                            and run.aggregate_run_id <> ?
@@ -72,12 +72,12 @@ public final class JdbcOfficialVerificationCurrentResultCoordinator
 
     private void deactivateMetricRows(String normalizedTenantId, String httpMethod, String resourceRef) {
         jdbcTemplate.update("""
-                        update official_verification_metric_snapshot metric
+                        update ctxa_official_verification_metric_snapshot metric
                            set current_result = false
                          where metric.current_result = true
                            and exists (
                                select 1
-                                 from official_verification_run_batch run
+                                 from ctxa_official_verification_run_batch run
                                 where run.package_id = metric.package_id
                                   and run.aggregate_run_id = metric.aggregate_run_id
                                   and run.current_result = false
@@ -96,12 +96,12 @@ public final class JdbcOfficialVerificationCurrentResultCoordinator
 
     private void deactivateFindingRows(String normalizedTenantId, String httpMethod, String resourceRef) {
         jdbcTemplate.update("""
-                        update official_verification_operator_finding finding
+                        update ctxa_official_verification_operator_finding finding
                            set current_result = false
                          where finding.current_result = true
                            and exists (
                                select 1
-                                 from official_verification_run_batch run
+                                 from ctxa_official_verification_run_batch run
                                 where run.package_id = finding.package_id
                                   and run.aggregate_run_id = finding.aggregate_run_id
                                   and run.current_result = false
@@ -120,12 +120,12 @@ public final class JdbcOfficialVerificationCurrentResultCoordinator
 
     private void deactivateProblemRows(String normalizedTenantId, String httpMethod, String resourceRef) {
         jdbcTemplate.update("""
-                        update official_actual_prompt_problem_ledger problem
+                        update ctxa_official_actual_prompt_problem_ledger problem
                            set current_result = false
                          where problem.current_result = true
                            and exists (
                                select 1
-                                 from official_verification_run_batch run
+                                 from ctxa_official_verification_run_batch run
                                 where run.package_id = problem.package_id
                                   and run.aggregate_run_id = problem.aggregate_run_id
                                   and run.current_result = false

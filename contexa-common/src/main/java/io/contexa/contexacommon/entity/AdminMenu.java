@@ -22,7 +22,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "admin_menu")
+@Table(name = "ctxa_admin_menu")
 @Getter
 @Setter
 @Builder

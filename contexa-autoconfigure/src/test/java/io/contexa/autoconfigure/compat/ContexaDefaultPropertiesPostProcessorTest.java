@@ -53,7 +53,7 @@ class ContexaDefaultPropertiesPostProcessorTest {
         assertThat(environment.getProperty("spring.ai.vectorstore.pgvector.dimensions")).isEqualTo("1024");
         assertThat(environment.getProperty("spring.ai.vectorstore.pgvector.initialize-schema")).isEqualTo("true");
         assertThat(environment.getProperty("spring.ai.vectorstore.pgvector.schema-name")).isEqualTo("public");
-        assertThat(environment.getProperty("spring.ai.vectorstore.pgvector.table-name")).isEqualTo("vector_store");
+        assertThat(environment.getProperty("spring.ai.vectorstore.pgvector.table-name")).isEqualTo("ctxa_vector_store");
         assertThat(environment.getProperty("spring.ai.openai.embedding.options.model")).isEqualTo("text-embedding-3-small");
         assertThat(environment.getProperty("spring.ai.openai.embedding.options.dimensions")).isEqualTo("1024");
         assertThat(environment.getProperty("contexa.llm.selection.embedding.mode")).isNull();

@@ -25,7 +25,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "app_group")
+@Table(name = "ctxa_app_group")
 @Getter
 @Setter
 @Builder

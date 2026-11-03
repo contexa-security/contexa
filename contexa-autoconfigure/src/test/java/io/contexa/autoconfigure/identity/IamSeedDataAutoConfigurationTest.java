@@ -58,8 +58,8 @@ class IamSeedDataAutoConfigurationTest {
         ClassPathResource accounts = new ClassPathResource(IamSeedDataAutoConfiguration.ACCOUNT_SEED_LOCATION);
         String accountRows = accounts.exists() ? accounts.getContentAsString(StandardCharsets.UTF_8) : "";
 
-        assertThat(data).doesNotContain("INSERT INTO USERS").doesNotContain("INSERT INTO USER_GROUPS");
-        assertThat(accountRows).contains("INSERT INTO USERS").contains("INSERT INTO USER_GROUPS");
+        assertThat(data).doesNotContain("INSERT INTO CTXA_USERS").doesNotContain("INSERT INTO CTXA_USER_GROUPS");
+        assertThat(accountRows).contains("INSERT INTO CTXA_USERS").contains("INSERT INTO CTXA_USER_GROUPS");
         assertThat(IamSeedDataAutoConfiguration.seedLocations(new MockEnvironment()))
                 .containsExactly(IamSeedDataAutoConfiguration.SEED_LOCATIONS);
         assertThat(IamSeedDataAutoConfiguration.seedLocations(new MockEnvironment()
@@ -87,8 +87,8 @@ class IamSeedDataAutoConfigurationTest {
                 .contains("V20260414_01__verification_benchmark_publication_ledger.sql")
                 .contains("V20260501_02__official_verification_jsonb_evidence_shadows.sql")
                 .contains("V20260504_02__verification_ledger_jsonb_shadows.sql");
-        assertThat(schema.indexOf("CREATE TABLE IF NOT EXISTS verification_run_ledger"))
-                .isLessThan(schema.indexOf("CREATE TABLE IF NOT EXISTS verification_run_round_ledger"));
+        assertThat(schema.indexOf("CREATE TABLE IF NOT EXISTS ctxa_verification_run_ledger"))
+                .isLessThan(schema.indexOf("CREATE TABLE IF NOT EXISTS ctxa_verification_run_round_ledger"));
     }
 
     @Test
@@ -127,23 +127,23 @@ class IamSeedDataAutoConfigurationTest {
     @DisplayName("IAM schema initialization should strip environment-specific owner statements")
     void iamSchemaInitializationStripsOwnerStatements() {
         String sql = """
-                create table one_time_tokens
+                create table ctxa_one_time_tokens
                 (
                     token_value varchar(36) not null
                         primary key
                 );
 
-                alter table one_time_tokens
+                alter table ctxa_one_time_tokens
                     owner to contexa_sim;
 
                 create index idx_one_time_tokens_username
-                    on one_time_tokens (token_value);
+                    on ctxa_one_time_tokens (token_value);
                 """;
 
         String sanitized = IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(sql);
 
         assertThat(sanitized)
-                .contains("create table if not exists one_time_tokens")
+                .contains("create table if not exists ctxa_one_time_tokens")
                 .contains("create index if not exists idx_one_time_tokens_username")
                 .doesNotContain("owner to contexa_sim");
     }
@@ -163,31 +163,31 @@ class IamSeedDataAutoConfigurationTest {
     @DisplayName("A1-6: an enterprise-managed database gets only the OSS tables it lacks, with their indexes")
     void enterpriseManagedSchemaGetsOnlyTheMissingOssTables() {
         String sql = """
-                create table users (id bigint primary key);
+                create table ctxa_users (id bigint primary key);
 
-                create table agent_registration (
+                create table ctxa_agent_registration (
                     id bigserial primary key,
                     agent_id varchar(255) not null
                 );
 
-                create unique index if not exists ux_agent_registration_tenant_agent
-                    on agent_registration (agent_id);
+                create unique index if not exists ctxa_ux_agent_registration_tenant_agent
+                    on ctxa_agent_registration (agent_id);
 
-                create index if not exists idx_users_id on users (id);
+                create index if not exists idx_users_id on ctxa_users (id);
 
-                alter table users add column if not exists locale varchar(10);
+                alter table ctxa_users add column if not exists locale varchar(10);
 
-                insert into admin_menu (id, label) values (1, 'skip');
+                insert into ctxa_admin_menu (id, label) values (1, 'skip');
                 """;
 
         String creation = IamSeedDataAutoConfiguration.extractMissingTableCreationSql(
-                IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(sql), Set.of("agent_registration"));
+                IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(sql), Set.of("ctxa_agent_registration"));
 
         assertThat(creation)
-                .contains("create table if not exists agent_registration")
-                .contains("ux_agent_registration_tenant_agent")
-                .doesNotContain("users")
-                .doesNotContain("admin_menu");
+                .contains("create table if not exists ctxa_agent_registration")
+                .contains("ctxa_ux_agent_registration_tenant_agent")
+                .doesNotContain("ctxa_users")
+                .doesNotContain("ctxa_admin_menu");
         assertThat(IamSeedDataAutoConfiguration.extractMissingTableCreationSql(sql, Set.of())).isEmpty();
     }
 
@@ -195,37 +195,37 @@ class IamSeedDataAutoConfigurationTest {
     @DisplayName("A1-6: a missing table also gets the columns the schema adds to it later, an existing table does not")
     void aMissingTableGetsTheColumnsTheSchemaAddsToItLater() {
         String sql = """
-                create table users (id bigint primary key);
+                create table ctxa_users (id bigint primary key);
 
-                create table prompt_inspection_result (
+                create table ctxa_prompt_inspection_result (
                     id bigserial primary key,
                     verdict varchar(32) not null
                 );
 
-                alter table users add column if not exists locale varchar(10);
+                alter table ctxa_users add column if not exists locale varchar(10);
 
-                alter table prompt_inspection_result
+                alter table ctxa_prompt_inspection_result
                     add column if not exists finding_kinds_json text,
                     add column if not exists inspected_by varchar(64);
 
-                create index if not exists idx_pir_kinds on prompt_inspection_result (finding_kinds_json);
+                create index if not exists idx_pir_kinds on ctxa_prompt_inspection_result (finding_kinds_json);
 
-                alter table prompt_inspection_result alter column verdict type varchar(64);
+                alter table ctxa_prompt_inspection_result alter column verdict type varchar(64);
                 """;
 
         String creation = IamSeedDataAutoConfiguration.extractMissingTableCreationSql(
                 IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(sql),
-                Set.of("prompt_inspection_result"));
+                Set.of("ctxa_prompt_inspection_result"));
 
         assertThat(creation)
-                .contains("create table if not exists prompt_inspection_result")
+                .contains("create table if not exists ctxa_prompt_inspection_result")
                 .contains("add column if not exists finding_kinds_json text")
                 .contains("add column if not exists inspected_by varchar(64)")
                 .contains("idx_pir_kinds")
                 .doesNotContain("locale")
                 .doesNotContain("alter column");
         // the statements keep the order of the schema: the table, its columns, then the index that needs them
-        assertThat(creation.indexOf("create table if not exists prompt_inspection_result"))
+        assertThat(creation.indexOf("create table if not exists ctxa_prompt_inspection_result"))
                 .isLessThan(creation.indexOf("finding_kinds_json text"));
         assertThat(creation.indexOf("finding_kinds_json text")).isLessThan(creation.indexOf("idx_pir_kinds"));
     }
@@ -236,52 +236,52 @@ class IamSeedDataAutoConfigurationTest {
         String schema = IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(
                 new ClassPathResource("db/schema.sql").getContentAsString(StandardCharsets.UTF_8));
 
-        String creation = IamSeedDataAutoConfiguration.extractMissingTableCreationSql(schema, Set.of("agent_registration"));
+        String creation = IamSeedDataAutoConfiguration.extractMissingTableCreationSql(schema, Set.of("ctxa_agent_registration"));
 
         assertThat(creation)
-                .contains("create table if not exists agent_registration")
-                .contains("ux_agent_registration_tenant_agent");
+                .contains("create table if not exists ctxa_agent_registration")
+                .contains("ctxa_ux_agent_registration_tenant_agent");
     }
 
     @Test
     @DisplayName("IAM schema maintenance should replay only idempotent schema evolution statements")
     void iamSchemaMaintenanceExtractsOnlyIdempotentSchemaEvolutionStatements() {
         String sql = """
-                create table users (id bigint primary key);
+                create table ctxa_users (id bigint primary key);
 
-                create table if not exists ai_security_monitoring_session_summary (
+                create table if not exists ctxa_ai_security_monitoring_session_summary (
                     session_id varchar(64) primary key
                 );
 
-                alter table ai_security_monitoring_session_summary
+                alter table ctxa_ai_security_monitoring_session_summary
                     add column if not exists reset_by varchar(160);
 
-                alter table ai_security_decision_observation
+                alter table ctxa_ai_security_decision_observation
                     add column if not exists actor_session_key varchar(128),
                     add column if not exists window_id varchar(64);
 
                 create index if not exists idx_ai_decision_observation_window
-                    on ai_security_decision_observation (window_id);
+                    on ctxa_ai_security_decision_observation (window_id);
 
-                insert into admin_menu (id, label) values (1, 'skip');
+                insert into ctxa_admin_menu (id, label) values (1, 'skip');
 
-                alter table users owner to contexa;
+                alter table ctxa_users owner to contexa;
                 """;
 
         String maintenanceSql = IamSeedDataAutoConfiguration.extractIdempotentSchemaMaintenanceSql(
                 IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(sql));
 
         assertThat(maintenanceSql)
-                .contains("create table if not exists users")
-                .contains("create table if not exists ai_security_monitoring_session_summary")
-                .contains("alter table ai_security_monitoring_session_summary")
-                .contains("alter table ai_security_decision_observation")
+                .contains("create table if not exists ctxa_users")
+                .contains("create table if not exists ctxa_ai_security_monitoring_session_summary")
+                .contains("alter table ctxa_ai_security_monitoring_session_summary")
+                .contains("alter table ctxa_ai_security_decision_observation")
                 .contains("add column if not exists actor_session_key")
                 .contains("create index if not exists idx_ai_decision_observation_window")
-                .doesNotContain("insert into admin_menu")
+                .doesNotContain("insert into ctxa_admin_menu")
                 .doesNotContain("owner to");
-        assertThat(maintenanceSql.indexOf("create table if not exists ai_security_monitoring_session_summary"))
-                .isLessThan(maintenanceSql.indexOf("alter table ai_security_monitoring_session_summary"));
+        assertThat(maintenanceSql.indexOf("create table if not exists ctxa_ai_security_monitoring_session_summary"))
+                .isLessThan(maintenanceSql.indexOf("alter table ctxa_ai_security_monitoring_session_summary"));
     }
 
     /** R4-S4: the daily retention delete reads expires_at, so new and existing databases index it. */
@@ -296,7 +296,7 @@ class IamSeedDataAutoConfigurationTest {
         assertThat(IamSeedDataAutoConfiguration.splitSqlStatements(maintenanceSql).stream()
                 .map(statement -> statement.replaceAll("(?m)--.*$", " ").replaceAll("\\s+", " ").trim()
                         .toLowerCase(Locale.ROOT)))
-                .contains("create index if not exists idx_sep_expires_at on sealed_evidence_package (expires_at)");
+                .contains("create index if not exists ctxa_idx_sep_expires_at on ctxa_sealed_evidence_package (expires_at)");
     }
 
     @Test
@@ -313,37 +313,37 @@ class IamSeedDataAutoConfigurationTest {
                 .filter(statement -> statement.contains("security_zerotrust_mode"))
                 .toList();
         assertThat(statements)
-                .filteredOn(statement -> statement.startsWith("create table if not exists system_settings "))
+                .filteredOn(statement -> statement.startsWith("create table if not exists ctxa_system_settings "))
                 .singleElement().asString()
                 .contains("security_zerotrust_mode varchar(20) )");
         assertThat(statements)
-                .filteredOn(statement -> statement.startsWith("alter table system_settings "))
+                .filteredOn(statement -> statement.startsWith("alter table ctxa_system_settings "))
                 .containsExactly(
-                        "alter table system_settings add column if not exists security_zerotrust_mode varchar(20)",
-                        "alter table system_settings alter column security_zerotrust_mode drop not null",
-                        "alter table system_settings alter column security_zerotrust_mode drop default");
+                        "alter table ctxa_system_settings add column if not exists security_zerotrust_mode varchar(20)",
+                        "alter table ctxa_system_settings alter column security_zerotrust_mode drop not null",
+                        "alter table ctxa_system_settings alter column security_zerotrust_mode drop default");
     }
 
     @Test
     @DisplayName("IAM schema maintenance should replay only nullability and default removal under ALTER COLUMN")
     void iamSchemaMaintenanceAcceptsOnlyDropNotNullAndDropDefaultColumnChanges() {
         String sql = """
-                alter table system_settings alter column security_zerotrust_mode drop not null;
+                alter table ctxa_system_settings alter column security_zerotrust_mode drop not null;
 
-                alter table system_settings
+                alter table ctxa_system_settings
                     alter column security_zerotrust_mode drop default;
 
-                alter table sealed_evidence_package alter column package_id set data type varchar(256);
+                alter table ctxa_sealed_evidence_package alter column package_id set data type varchar(256);
 
-                alter table official_prompt_field_definition alter column field_key type varchar(512);
+                alter table ctxa_official_prompt_field_definition alter column field_key type varchar(512);
 
-                alter table system_settings alter column security_zerotrust_mode set default 'SHADOW';
+                alter table ctxa_system_settings alter column security_zerotrust_mode set default 'SHADOW';
 
-                alter table system_settings alter column security_zerotrust_mode set not null;
+                alter table ctxa_system_settings alter column security_zerotrust_mode set not null;
 
-                alter table system_settings drop column security_zerotrust_mode;
+                alter table ctxa_system_settings drop column security_zerotrust_mode;
 
-                alter table system_settings alter column security_zerotrust_mode drop not null,
+                alter table ctxa_system_settings alter column security_zerotrust_mode drop not null,
                     alter column security_zerotrust_mode set default 'SHADOW';
                 """;
 
@@ -353,8 +353,8 @@ class IamSeedDataAutoConfigurationTest {
                 .toList();
 
         assertThat(maintenance).containsExactly(
-                "alter table system_settings alter column security_zerotrust_mode drop not null",
-                "alter table system_settings alter column security_zerotrust_mode drop default");
+                "alter table ctxa_system_settings alter column security_zerotrust_mode drop not null",
+                "alter table ctxa_system_settings alter column security_zerotrust_mode drop default");
     }
 
     @Test
@@ -441,8 +441,8 @@ class IamSeedDataAutoConfigurationTest {
                 "OSS", List.of(new ClassPathResource("db/schema.sql")));
 
         assertThat(inventory.tables()).contains(
-                "contexa_schema_provenance",
-                "contexa_schema_inventory_object");
+                "ctxa_schema_provenance",
+                "ctxa_schema_inventory_object");
         assertThat(inventory.version()).startsWith("oss-");
         assertThat(inventory.checksum()).matches("[a-f0-9]{64}");
     }

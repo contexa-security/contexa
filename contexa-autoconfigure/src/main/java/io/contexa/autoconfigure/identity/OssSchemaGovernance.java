@@ -186,7 +186,7 @@ public final class OssSchemaGovernance {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement("""
                      select object_type, object_name
-                       from contexa_schema_inventory_object
+                       from ctxa_schema_inventory_object
                       where product_owner = ?
                       order by object_type, object_name
                      """)) {
@@ -243,7 +243,7 @@ public final class OssSchemaGovernance {
             String migrationVersion) throws SQLException {
         int updated;
         try (PreparedStatement statement = connection.prepareStatement("""
-                update contexa_schema_provenance
+                update ctxa_schema_provenance
                    set schema_version = ?, inventory_checksum = ?, catalog_version = ?,
                        catalog_checksum = ?, migration_version = ?, recorded_at = current_timestamp
                  where product_owner = ?
@@ -253,7 +253,7 @@ public final class OssSchemaGovernance {
         }
         if (updated == 0) {
             try (PreparedStatement statement = connection.prepareStatement("""
-                    insert into contexa_schema_provenance
+                    insert into ctxa_schema_provenance
                         (product_owner, schema_version, inventory_checksum, catalog_version,
                          catalog_checksum, migration_version)
                     values (?, ?, ?, ?, ?, ?)
@@ -269,12 +269,12 @@ public final class OssSchemaGovernance {
             String owner,
             ContexaSchemaInventory.Snapshot inventory) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(
-                "delete from contexa_schema_inventory_object where product_owner = ?")) {
+                "delete from ctxa_schema_inventory_object where product_owner = ?")) {
             statement.setString(1, owner);
             statement.executeUpdate();
         }
         try (PreparedStatement statement = connection.prepareStatement("""
-                insert into contexa_schema_inventory_object
+                insert into ctxa_schema_inventory_object
                     (product_owner, inventory_version, object_type, object_name)
                 values (?, ?, ?, ?)
                 """)) {
@@ -329,7 +329,7 @@ public final class OssSchemaGovernance {
              PreparedStatement statement = connection.prepareStatement("""
                      select schema_version, inventory_checksum, catalog_version,
                             catalog_checksum, migration_version
-                       from contexa_schema_provenance
+                       from ctxa_schema_provenance
                       where product_owner = ?
                      """)) {
             statement.setString(1, owner);
@@ -350,7 +350,7 @@ public final class OssSchemaGovernance {
     private boolean provenanceTableExists() throws SQLException {
         try (Connection connection = dataSource.getConnection();
              ResultSet tables = connection.getMetaData().getTables(
-                     connection.getCatalog(), "public", "contexa_schema_provenance", new String[]{"TABLE"})) {
+                     connection.getCatalog(), "public", "ctxa_schema_provenance", new String[]{"TABLE"})) {
             return tables.next();
         }
     }

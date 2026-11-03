@@ -22,6 +22,7 @@ import lombok.*;
 import java.io.Serializable;
 
 @Entity
+@Table(name = "ctxa_policy_target")
 @Getter @Setter @Builder
 @NoArgsConstructor @AllArgsConstructor
 public class PolicyTarget implements Serializable {

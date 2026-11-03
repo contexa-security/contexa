@@ -24,7 +24,7 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "MANAGED_RESOURCE")
+@Table(name = "CTXA_MANAGED_RESOURCE")
 @Getter @Setter @Builder
 @NoArgsConstructor @AllArgsConstructor
 @EntityListeners(AuditingEntityListener.class)

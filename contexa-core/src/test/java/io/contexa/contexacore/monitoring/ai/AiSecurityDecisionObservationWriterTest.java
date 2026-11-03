@@ -305,7 +305,7 @@ class AiSecurityDecisionObservationWriterTest {
         List<String> sqlValues = sqlCaptor.getAllValues();
         List<Object[]> argValues = argsCaptor.getAllValues();
         for (int i = 0; i < sqlValues.size(); i++) {
-            if (sqlValues.get(i).contains("INSERT INTO ai_security_decision_observation")) {
+            if (sqlValues.get(i).contains("INSERT INTO ctxa_ai_security_decision_observation")) {
                 String sql = sqlValues.get(i);
                 String[] columns = sql.substring(sql.indexOf('(') + 1, sql.indexOf(')')).split(",");
                 Object[] values = argValues.get(i);

@@ -160,7 +160,7 @@ public class CoreRAGAutoConfiguration {
     public SmartInitializingSingleton pgVectorMetadataIndexInitializer(VectorStore vectorStore, Environment environment) {
         return () -> PgVectorMetadataIndex.ensureFor(vectorStore,
                 environment.getProperty("spring.ai.vectorstore.pgvector.schema-name", "public"),
-                environment.getProperty("spring.ai.vectorstore.pgvector.table-name", "vector_store"));
+                environment.getProperty("spring.ai.vectorstore.pgvector.table-name", "ctxa_vector_store"));
     }
 
     /**
@@ -176,7 +176,7 @@ public class CoreRAGAutoConfiguration {
                                                                                        Environment environment) {
         PgVectorVocabularyReindexer reindexer = new PgVectorVocabularyReindexer(vectorStore,
                 environment.getProperty("spring.ai.vectorstore.pgvector.schema-name", "public"),
-                environment.getProperty("spring.ai.vectorstore.pgvector.table-name", "vector_store"));
+                environment.getProperty("spring.ai.vectorstore.pgvector.table-name", "ctxa_vector_store"));
         return event -> {
             Thread reindex = new Thread(() -> {
                 try {
@@ -232,7 +232,7 @@ public class CoreRAGAutoConfiguration {
                 vectorOperationExecutor,
                 new PgVectorPastRecordQuery(vectorStore,
                         environment.getProperty("spring.ai.vectorstore.pgvector.schema-name", "public"),
-                        environment.getProperty("spring.ai.vectorstore.pgvector.table-name", "vector_store")),
+                        environment.getProperty("spring.ai.vectorstore.pgvector.table-name", "ctxa_vector_store")),
                 retryProperties, failedDocumentSink);
         // BR-S2: a stored document names the embedding model as the start-up dimension check resolves it (read at the
         // first store, not at start, so that the check's beans are not created early).

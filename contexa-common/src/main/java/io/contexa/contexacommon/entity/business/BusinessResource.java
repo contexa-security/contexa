@@ -26,7 +26,7 @@ import java.util.Set;
 
 
 @Entity
-@Table(name = "BUSINESS_RESOURCE")
+@Table(name = "CTXA_BUSINESS_RESOURCE")
 @Getter
 @Setter
 @Builder

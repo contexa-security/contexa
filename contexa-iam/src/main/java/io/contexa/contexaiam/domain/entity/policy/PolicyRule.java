@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
+@Table(name = "ctxa_policy_rule")
 @Getter @Setter @Builder
 @NoArgsConstructor @AllArgsConstructor
 public class PolicyRule implements Serializable {

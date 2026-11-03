@@ -73,7 +73,7 @@ import java.util.Locale;
  * for that copy, a one-time code when the copy has a real e-mail address and mail is configured, and a re-authentication
  * the application itself makes (its own MFA or identity provider), seen in the bridge's authentication stamp.
  * <p>
- * The one-time code is Spring Security's ({@code JdbcOneTimeTokenService} over Contexa's {@code one_time_tokens}),
+ * The one-time code is Spring Security's ({@code JdbcOneTimeTokenService} over Contexa's {@code ctxa_one_time_tokens}),
  * kept under a short key of the copy ({@code step-up:<id>}): the bridge's user names are longer than the table's
  * user name column. Contexa's mail sender delivers it to the copy's own address.
  */

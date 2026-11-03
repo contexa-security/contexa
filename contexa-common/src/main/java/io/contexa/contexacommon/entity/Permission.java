@@ -22,7 +22,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "permission")
+@Table(name = "ctxa_permission")
 @Getter
 @Setter
 @Builder

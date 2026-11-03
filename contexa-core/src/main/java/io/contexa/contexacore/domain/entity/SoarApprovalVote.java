@@ -26,18 +26,18 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(
-        name = "soar_approval_votes",
+        name = "ctxa_soar_approval_votes",
         uniqueConstraints = {
                 @UniqueConstraint(
-                        name = "uk_soar_approval_vote_request_approver_step",
+                        name = "ctxa_uk_soar_approval_vote_request_approver_step",
                         columnNames = {"request_id", "approver_id", "step_number"}
                 )
         },
         indexes = {
-                @Index(name = "idx_soar_approval_vote_request_id", columnList = "request_id"),
-                @Index(name = "idx_soar_approval_vote_decision", columnList = "decision"),
-                @Index(name = "idx_soar_approval_vote_created_at", columnList = "created_at"),
-                @Index(name = "idx_soar_approval_vote_request_step", columnList = "request_id,step_number")
+                @Index(name = "ctxa_idx_soar_approval_vote_request_id", columnList = "request_id"),
+                @Index(name = "ctxa_idx_soar_approval_vote_decision", columnList = "decision"),
+                @Index(name = "ctxa_idx_soar_approval_vote_created_at", columnList = "created_at"),
+                @Index(name = "ctxa_idx_soar_approval_vote_request_step", columnList = "request_id,step_number")
         }
 )
 @Getter

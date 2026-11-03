@@ -31,7 +31,7 @@ public final class JdbcOfficialVerificationFindingRepository implements Official
                                next_action, reverify_criterion, customer_visible_severity,
                                related_process_step, comparison_field_key, comparison_state,
                                prompt_location, diagnostic_catalog_version, created_at
-                          from official_verification_operator_finding
+                          from ctxa_official_verification_operator_finding
                          where aggregate_run_id = ?
                          order by metric_code asc, id asc
                         """,
@@ -53,7 +53,7 @@ public final class JdbcOfficialVerificationFindingRepository implements Official
                                next_action, reverify_criterion, customer_visible_severity,
                                related_process_step, comparison_field_key, comparison_state,
                                prompt_location, diagnostic_catalog_version, created_at
-                          from official_verification_operator_finding
+                          from ctxa_official_verification_operator_finding
                          where aggregate_run_id in (%s)
                          order by aggregate_run_id asc, metric_code asc, id asc
                         """.formatted(placeholders(aggregateRunIds)),

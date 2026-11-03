@@ -10,7 +10,7 @@ import java.util.Objects;
 public final class JdbcOfficialVerificationPromptSignalWriter implements OfficialVerificationPromptSignalWriter {
 
     private static final String INSERT_SQL = """
-            insert into official_prompt_signal_ledger (
+            insert into ctxa_official_prompt_signal_ledger (
                 package_id, aggregate_run_id, metric_code, check_code,
                 signal_key, prompt_location, section_name, label_name,
                 value_preview, value_hash, line_number, signal_role, created_at

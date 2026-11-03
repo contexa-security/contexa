@@ -223,7 +223,7 @@ final class OfficialRunOperatorSnapshotMapper {
                 metric.officialRunId(), normalize(metric.metricCode()) + "-" + state.toLowerCase(Locale.ROOT),
                 firstNonBlank(metric.operatorTitle(), metric.metricName(), metric.metricCode()),
                 message("enterprise.pqa.officialRun.metricFallback.expectedPassed"),
-                stateLabel + " (" + state + ")", "official_verification_metric_snapshot.state",
+                stateLabel + " (" + state + ")", "ctxa_official_verification_metric_snapshot.state",
                 firstNonBlank(metric.remediationOwner(), "PQA_RUNTIME"),
                 firstNonBlank(metric.operatorSummary(), metric.operatorTitle(), metric.metricName(),
                         message("enterprise.pqa.officialRun.metricFallback.problemReview")),

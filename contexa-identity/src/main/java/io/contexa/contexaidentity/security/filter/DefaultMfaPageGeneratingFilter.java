@@ -55,7 +55,8 @@ import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.servlet.i18n.SessionLocaleResolver;
-
+
+
 @Slf4j
 public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
@@ -1937,7 +1938,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String email = null;
         if (username != null && jdbcTemplate != null) {
             try {
-                email = jdbcTemplate.queryForObject("SELECT email FROM users WHERE username = ?", String.class, username);
+                email = jdbcTemplate.queryForObject("SELECT email FROM ctxa_users WHERE username = ?", String.class, username);
             } catch (Exception e) {
                 log.warn("Failed to find user email for username: {} in generating filter", username, e);
             }

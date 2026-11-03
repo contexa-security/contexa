@@ -89,7 +89,7 @@ class JdbcPromptInspectionShadowPairsTest {
     private void seal(String packageId, String correlationId, Instant capturedAt, String bundleVersion,
                       String decision) {
         jdbc.update("""
-                        insert into sealed_evidence_package (package_id, correlation_id, captured_at,
+                        insert into ctxa_sealed_evidence_package (package_id, correlation_id, captured_at,
                                prompt_execution_metadata_json, decision_json, package_hash)
                         values (?, ?, ?, ?, ?, ?)
                         """, packageId, correlationId, Timestamp.from(capturedAt),

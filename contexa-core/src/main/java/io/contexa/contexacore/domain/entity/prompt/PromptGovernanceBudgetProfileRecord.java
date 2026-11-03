@@ -22,9 +22,9 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "prompt_governance_budget_profile", indexes = {
-        @Index(name = "idx_prompt_budget_profile_identity", columnList = "registry_scope,prompt_key,prompt_version,budget_profile_key", unique = true),
-        @Index(name = "idx_prompt_budget_profile_current", columnList = "registry_scope,prompt_key,updated_at")
+@Table(name = "ctxa_prompt_governance_budget_profile", indexes = {
+        @Index(name = "ctxa_idx_prompt_budget_profile_identity", columnList = "registry_scope,prompt_key,prompt_version,budget_profile_key", unique = true),
+        @Index(name = "ctxa_idx_prompt_budget_profile_current", columnList = "registry_scope,prompt_key,updated_at")
 })
 @Getter
 @Setter

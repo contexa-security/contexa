@@ -30,7 +30,7 @@ public final class JdbcOfficialVerificationPromptComparisonRepository
                                related_metric_codes, related_check_codes, related_finding_ids,
                                related_issue_ids, related_remediation_group_ids, prompt_location,
                                evidence_source, recommended_owner, canonical_source
-                          from official_verification_prompt_comparison
+                          from ctxa_official_verification_prompt_comparison
                          where package_id = ?
                            and aggregate_run_id = ?
                            and canonical_source <> 'OFFICIAL_FINDING'

@@ -38,7 +38,7 @@ public record DashboardDto(
         long mfaFailedCount,
         long resolvedCount,
         List<BlockedUser> recentBlockedUsers,
-        // 24h security activity from audit_log
+        // 24h security activity from ctxa_audit_log
         long allowCount24h,
         long denyCount24h,
         long authSuccessCount24h,

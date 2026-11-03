@@ -34,8 +34,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class OssSchemaMaintenanceDeferralTest {
 
-    private static final String LEDGER = "prompt_governance_release_ledger";
-    private static final String IDENTITY_INDEX = "idx_prompt_governance_release_identity";
+    private static final String LEDGER = "ctxa_prompt_governance_release_ledger";
+    private static final String IDENTITY_INDEX = "ctxa_idx_prompt_governance_release_identity";
 
     @Test
     void onlyAMissingColumnOrTableIsPutOff() {
@@ -75,7 +75,7 @@ class OssSchemaMaintenanceDeferralTest {
         assertThat(backlog.pendingCount()).isEqualTo(1);
         assertThat(indexCount(jdbc)).isZero();
         assertThat(jdbc.queryForObject("select count(*) from pg_indexes where tablename = '" + LEDGER
-                + "' and indexname = 'idx_prompt_governance_release_current'", Integer.class)).isEqualTo(1);
+                + "' and indexname = 'ctxa_idx_prompt_governance_release_current'", Integer.class)).isEqualTo(1);
 
         // A statement that still fails once the migrations are done stops the start and names itself.
         assertThatThrownBy(backlog::complete)

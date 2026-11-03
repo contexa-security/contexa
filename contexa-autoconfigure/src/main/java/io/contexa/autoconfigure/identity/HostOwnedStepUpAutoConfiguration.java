@@ -40,6 +40,7 @@ import io.contexa.contexaidentity.security.zerotrust.stepup.HostOwnedStepUpServi
 import io.contexa.contexaidentity.security.zerotrust.stepup.InMemoryStepUpOptionsStore;
 import io.contexa.contexaidentity.security.zerotrust.stepup.RedisStepUpOptionsStore;
 import io.contexa.contexaidentity.security.zerotrust.stepup.StepUpOptionsStore;
+import io.contexa.contexacommon.jdbc.LibraryTableNames;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
@@ -124,9 +125,9 @@ public class HostOwnedStepUpAutoConfiguration {
                 securityContextDataStore::getIfAvailable, blockingSignalBroadcaster.getIfAvailable(),
                 blockedUserRecorder.getIfAvailable(), blockMfaStateStore.getIfAvailable());
 
-        // Spring Security's one-time token engine over Contexa's one_time_tokens; the service keys it short.
+        // Spring Security's one-time token engine over Contexa's ctxa_one_time_tokens; the service keys it short.
         JdbcTemplate jdbcTemplate = contexaJdbcTemplate.getIfAvailable();
-        OneTimeTokenService stepUpCodes = jdbcTemplate != null ? new JdbcOneTimeTokenService(jdbcTemplate) : null;
+        OneTimeTokenService stepUpCodes = jdbcTemplate != null ? new JdbcOneTimeTokenService(LibraryTableNames.wrap(jdbcTemplate)) : null;
 
         PublicKeyCredentialUserEntityRepository entities = userEntities.getIfAvailable();
         UserCredentialRepository credentials = userCredentials.getIfAvailable();

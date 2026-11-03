@@ -26,11 +26,11 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(
-        name = "soar_approval_assignments",
+        name = "ctxa_soar_approval_assignments",
         indexes = {
-                @Index(name = "idx_soar_approval_assignment_request_id", columnList = "request_id"),
-                @Index(name = "idx_soar_approval_assignment_status", columnList = "status"),
-                @Index(name = "idx_soar_approval_assignment_step", columnList = "request_id,step_number")
+                @Index(name = "ctxa_idx_soar_approval_assignment_request_id", columnList = "request_id"),
+                @Index(name = "ctxa_idx_soar_approval_assignment_status", columnList = "status"),
+                @Index(name = "ctxa_idx_soar_approval_assignment_step", columnList = "request_id,step_number")
         }
 )
 @Getter

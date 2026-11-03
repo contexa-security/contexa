@@ -28,7 +28,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 
-/** The notices kept in the {@code agent_notice} table (docs/agent A5-3, A5-2). */
+/** The notices kept in the {@code ctxa_agent_notice} table (docs/agent A5-3, A5-2). */
 public class JdbcAgentNoticeStore implements AgentNoticeStore {
 
     private static final String COLUMNS = "notice_id, kind, tenant_key, recipient_id, agent_id, delegation_id, "
@@ -48,7 +48,7 @@ public class JdbcAgentNoticeStore implements AgentNoticeStore {
 
     @Override
     public AgentNotice save(AgentNotice notice) {
-        jdbc.update("insert into agent_notice (" + COLUMNS + ") values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+        jdbc.update("insert into ctxa_agent_notice (" + COLUMNS + ") values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                         + "on conflict (notice_id) do update set delivered_by = excluded.delivered_by, "
                         + "read_at = excluded.read_at",
                 notice.noticeId(), notice.kind(), AgentRegistrations.tenantKey(notice.tenantId()),
@@ -60,17 +60,17 @@ public class JdbcAgentNoticeStore implements AgentNoticeStore {
 
     @Override
     public List<AgentNotice> forRecipient(String recipientId, int limit) {
-        return jdbc.query("select " + COLUMNS + " from agent_notice where recipient_id = ? "
+        return jdbc.query("select " + COLUMNS + " from ctxa_agent_notice where recipient_id = ? "
                 + "order by created_at desc limit ?", JdbcAgentNoticeStore::notice, recipientId, Math.max(0, limit));
     }
 
     @Override
     public List<AgentNotice> list(@Nullable String tenantId, int limit) {
         if (tenantId == null) {
-            return jdbc.query("select " + COLUMNS + " from agent_notice order by created_at desc limit ?",
+            return jdbc.query("select " + COLUMNS + " from ctxa_agent_notice order by created_at desc limit ?",
                     JdbcAgentNoticeStore::notice, Math.max(0, limit));
         }
-        return jdbc.query("select " + COLUMNS + " from agent_notice where tenant_key = ? "
+        return jdbc.query("select " + COLUMNS + " from ctxa_agent_notice where tenant_key = ? "
                         + "order by created_at desc limit ?", JdbcAgentNoticeStore::notice,
                 AgentRegistrations.tenantKey(tenantId), Math.max(0, limit));
     }
@@ -78,13 +78,13 @@ public class JdbcAgentNoticeStore implements AgentNoticeStore {
     @Override
     public void removeForRecipient(String recipientId) {
         if (recipientId != null) {
-            jdbc.update("delete from agent_notice where recipient_id = ?", recipientId);
+            jdbc.update("delete from ctxa_agent_notice where recipient_id = ?", recipientId);
         }
     }
 
     @Override
     public boolean markRead(String noticeId, String recipientId) {
-        return jdbc.update("update agent_notice set read_at = coalesce(read_at, ?) "
+        return jdbc.update("update ctxa_agent_notice set read_at = coalesce(read_at, ?) "
                 + "where notice_id = ? and recipient_id = ?", timestamp(clock.instant()), noticeId, recipientId) > 0;
     }
 

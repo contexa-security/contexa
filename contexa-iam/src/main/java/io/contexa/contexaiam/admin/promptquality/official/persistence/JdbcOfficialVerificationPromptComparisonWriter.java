@@ -25,7 +25,7 @@ public final class JdbcOfficialVerificationPromptComparisonWriter
         OfficialVerificationPromptComparison comparison = Objects.requireNonNull(
                 command.comparison(), "comparison");
         jdbcTemplate.update("""
-                        insert into official_verification_prompt_comparison (
+                        insert into ctxa_official_verification_prompt_comparison (
                             comparison_id, aggregate_run_id, package_id, field_key, field_label,
                             sealed_evidence_value, prompt_value, official_fact_value, state,
                             state_label, meaning, prompt_location, evidence_source,

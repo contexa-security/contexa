@@ -55,7 +55,7 @@ public interface ActiveSessionRepository extends JpaRepository<ActiveSession, St
 
     @Modifying
     @Query(value = """
-            INSERT INTO active_sessions (
+            INSERT INTO ctxa_active_sessions (
                 session_id,
                 user_id,
                 username,
@@ -81,11 +81,11 @@ public interface ActiveSessionRepository extends JpaRepository<ActiveSession, St
                 user_agent = EXCLUDED.user_agent,
                 expired = false,
                 last_accessed_at = CASE
-                    WHEN active_sessions.expired = true
-                      OR active_sessions.last_accessed_at IS NULL
-                      OR active_sessions.last_accessed_at < :updateThreshold
+                    WHEN ctxa_active_sessions.expired = true
+                      OR ctxa_active_sessions.last_accessed_at IS NULL
+                      OR ctxa_active_sessions.last_accessed_at < :updateThreshold
                     THEN EXCLUDED.last_accessed_at
-                    ELSE active_sessions.last_accessed_at
+                    ELSE ctxa_active_sessions.last_accessed_at
                 END
             """, nativeQuery = true)
     void upsertSession(

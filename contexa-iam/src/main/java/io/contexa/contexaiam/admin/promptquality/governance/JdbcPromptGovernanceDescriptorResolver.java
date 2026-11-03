@@ -199,7 +199,7 @@ public class JdbcPromptGovernanceDescriptorResolver implements PromptGovernanceD
                                    rollback_prompt_version, change_summary, template_class_name,
                                    supported_model_profiles_json, canary_percent, canary_tenants,
                                    canary_resource_families, updated_at
-                              from prompt_governance_registry
+                              from ctxa_prompt_governance_registry
                              where registry_scope in (?, ?)
                                and prompt_key = ?
                                and template_key = ?
@@ -281,7 +281,7 @@ public class JdbcPromptGovernanceDescriptorResolver implements PromptGovernanceD
                 List<InvalidationEvent> events = jdbcTemplate.query(
                         """
                                 select id, registry_scope, prompt_key, template_key
-                                  from prompt_governance_runtime_cache_invalidation
+                                  from ctxa_prompt_governance_runtime_cache_invalidation
                                  where id > ?
                                  order by id asc
                                  limit 200

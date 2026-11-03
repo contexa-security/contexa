@@ -27,11 +27,11 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 @Entity
-@Table(name = "approval_notifications", indexes = {
-    @Index(name = "idx_notification_request_id", columnList = "request_id"),
-    @Index(name = "idx_notification_user_id", columnList = "user_id"),
-    @Index(name = "idx_notification_is_read", columnList = "is_read"),
-    @Index(name = "idx_notification_created_at", columnList = "created_at")
+@Table(name = "ctxa_approval_notifications", indexes = {
+    @Index(name = "ctxa_idx_notification_request_id", columnList = "request_id"),
+    @Index(name = "ctxa_idx_notification_user_id", columnList = "user_id"),
+    @Index(name = "ctxa_idx_notification_is_read", columnList = "is_read"),
+    @Index(name = "ctxa_idx_notification_created_at", columnList = "created_at")
 })
 @Getter
 @Setter

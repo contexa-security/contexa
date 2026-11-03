@@ -23,7 +23,7 @@ import java.time.LocalDateTime;
 import java.util.Objects;
 
 @Entity
-@Table(name = "group_roles")
+@Table(name = "ctxa_group_roles")
 @IdClass(GroupRoleId.class)
 @Getter
 @Setter

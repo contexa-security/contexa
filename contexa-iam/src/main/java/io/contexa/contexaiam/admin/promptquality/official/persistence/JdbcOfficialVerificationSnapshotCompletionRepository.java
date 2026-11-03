@@ -17,7 +17,7 @@ public final class JdbcOfficialVerificationSnapshotCompletionRepository
     @Override
     public boolean sealedEvidencePackageExists(String packageId, String tenantId) {
         return count("""
-                select count(*) from sealed_evidence_package
+                select count(*) from ctxa_sealed_evidence_package
                  where package_id = ? and tenant_id = ?
                 """, packageId, tenantId) > 0;
     }
@@ -25,17 +25,17 @@ public final class JdbcOfficialVerificationSnapshotCompletionRepository
     @Override
     public boolean completeSnapshotExists(String aggregateRunId) {
         if (count("""
-                select count(*) from official_verification_run_batch b
-                join sealed_evidence_package sealed on sealed.package_id = b.package_id
+                select count(*) from ctxa_official_verification_run_batch b
+                join ctxa_sealed_evidence_package sealed on sealed.package_id = b.package_id
                  where b.aggregate_run_id = ?
                 """, aggregateRunId) <= 0) {
             return false;
         }
         Integer metricCount = nullableCount(
-                "select count(*) from official_verification_metric_snapshot where aggregate_run_id = ?",
+                "select count(*) from ctxa_official_verification_metric_snapshot where aggregate_run_id = ?",
                 aggregateRunId);
         Integer expectedMetricCount = nullableCount(
-                "select max(expected_metric_count) from official_verification_run_batch where aggregate_run_id = ?",
+                "select max(expected_metric_count) from ctxa_official_verification_run_batch where aggregate_run_id = ?",
                 aggregateRunId);
         return matchingMetricCounts(metricCount, expectedMetricCount)
                 && purposeEvaluationCountMatchesContract(aggregateRunId)
@@ -52,7 +52,7 @@ public final class JdbcOfficialVerificationSnapshotCompletionRepository
     public boolean publishableSnapshotExists(String aggregateRunId) {
         return completeSnapshotExists(aggregateRunId)
                 && count("""
-                        select count(*) from official_verification_execution_lock
+                        select count(*) from ctxa_official_verification_execution_lock
                          where aggregate_run_id = ?
                            and state = 'COMPLETED'
                            and progress_percent = 100
@@ -64,7 +64,7 @@ public final class JdbcOfficialVerificationSnapshotCompletionRepository
     @Override
     public boolean executionRecordExists(String aggregateRunId) {
         return count("""
-                select count(*) from official_verification_execution_lock
+                select count(*) from ctxa_official_verification_execution_lock
                  where aggregate_run_id = ?
                 """, aggregateRunId) > 0;
     }
@@ -72,7 +72,7 @@ public final class JdbcOfficialVerificationSnapshotCompletionRepository
     @Override
     public boolean actualPromptProblemExists(String packageId, String aggregateRunId, String problemId) {
         return count("""
-                select count(*) from official_actual_prompt_problem_ledger
+                select count(*) from ctxa_official_actual_prompt_problem_ledger
                  where package_id = ? and aggregate_run_id = ? and problem_id = ?
                 """, packageId, aggregateRunId, problemId) > 0;
     }
@@ -84,13 +84,13 @@ public final class JdbcOfficialVerificationSnapshotCompletionRepository
     private boolean customerDisplayPayloadComplete(String aggregateRunId) {
         int expected = count("""
                 select coalesce(sum(case when purpose_result = 'PURPOSE_FAILED' then 5 else 3 end), 0)
-                  from official_metric_purpose_evaluation_ledger
+                  from ctxa_official_metric_purpose_evaluation_ledger
                  where aggregate_run_id = ?
                    and customer_visible = true
                    and purpose_result <> 'INPUT_NOT_READY'
                 """, aggregateRunId);
         int actual = count("""
-                select count(*) from official_metric_customer_display_payload where aggregate_run_id = ?
+                select count(*) from ctxa_official_metric_customer_display_payload where aggregate_run_id = ?
                 """, aggregateRunId);
         return expected == actual;
     }
@@ -98,15 +98,15 @@ public final class JdbcOfficialVerificationSnapshotCompletionRepository
     private boolean purposeEvaluationCountMatchesContract(String aggregateRunId) {
         int actual = count("""
                 select count(*)
-                  from official_metric_purpose_evaluation_ledger purpose
-                  join official_metric_evaluation_contract evaluation
+                  from ctxa_official_metric_purpose_evaluation_ledger purpose
+                  join ctxa_official_metric_evaluation_contract evaluation
                     on evaluation.contract_version = purpose.contract_version
                    and upper(evaluation.metric_code) = upper(purpose.metric_code)
                    and upper(evaluation.check_code) = upper(purpose.check_code)
-                  join official_metric_purpose_contract metric
+                  join ctxa_official_metric_purpose_contract metric
                     on metric.contract_version = evaluation.contract_version
                    and upper(metric.metric_code) = upper(evaluation.metric_code)
-                  join official_metric_contract_version version
+                  join ctxa_official_metric_contract_version version
                     on version.contract_version = evaluation.contract_version
                    and version.active = true
                  where purpose.aggregate_run_id = ?
@@ -114,16 +114,16 @@ public final class JdbcOfficialVerificationSnapshotCompletionRepository
                 """, aggregateRunId);
         int expected = count("""
                 select count(*)
-                  from official_metric_evaluation_contract contract
-                  join official_metric_purpose_contract metric
+                  from ctxa_official_metric_evaluation_contract contract
+                  join ctxa_official_metric_purpose_contract metric
                     on metric.contract_version = contract.contract_version
                    and upper(metric.metric_code) = upper(contract.metric_code)
-                  join official_metric_contract_version version
+                  join ctxa_official_metric_contract_version version
                     on version.contract_version = contract.contract_version
                    and version.active = true
                  where upper(coalesce(metric.metric_role, '')) <> 'LLM_DECISION_QUALITY'
                    and exists (
-                       select 1 from official_verification_metric_snapshot metric
+                       select 1 from ctxa_official_verification_metric_snapshot metric
                         where metric.aggregate_run_id = ?
                           and upper(metric.metric_code) = upper(contract.metric_code)
                  )
@@ -134,29 +134,29 @@ public final class JdbcOfficialVerificationSnapshotCompletionRepository
     private int countFindingWithoutProblem(String aggregateRunId) {
         return count("""
                 select count(*) from (
-                    select check_code from official_verification_operator_finding
+                    select check_code from ctxa_official_verification_operator_finding
                      where aggregate_run_id = ? and check_code is not null and trim(check_code) <> ''
                     except
-                    select problem_id from official_actual_prompt_problem_ledger where aggregate_run_id = ?
+                    select problem_id from ctxa_official_actual_prompt_problem_ledger where aggregate_run_id = ?
                 ) missing_actual_prompt_problem
                 """, aggregateRunId, aggregateRunId);
     }
 
     private int countInputReadinessProblems(String aggregateRunId) {
         return count("""
-                select count(*) from official_actual_prompt_problem_ledger
+                select count(*) from ctxa_official_actual_prompt_problem_ledger
                  where aggregate_run_id = ? and upper(coalesce(problem_type, '')) = 'INPUT_NOT_READY'
                 """, aggregateRunId);
     }
 
     private int countInputReadinessDisplayPayloads(String aggregateRunId) {
         return count("""
-                select count(*) from official_metric_purpose_evaluation_ledger purpose
+                select count(*) from ctxa_official_metric_purpose_evaluation_ledger purpose
                  where purpose.aggregate_run_id = ?
                    and upper(coalesce(purpose.purpose_result, ''))
                        in ('NOT_EVALUATED_INPUT_NOT_READY', 'INPUT_NOT_READY')
                    and exists (
-                       select 1 from official_metric_customer_display_payload payload
+                       select 1 from ctxa_official_metric_customer_display_payload payload
                         where payload.aggregate_run_id = purpose.aggregate_run_id
                           and upper(payload.metric_code) = upper(purpose.metric_code)
                           and payload.check_code = purpose.check_code
@@ -167,11 +167,11 @@ public final class JdbcOfficialVerificationSnapshotCompletionRepository
     private int countMissingPromptComparisons(String aggregateRunId) {
         return count("""
                 select count(*) from (
-                    select distinct comparison_field_key from official_verification_operator_finding
+                    select distinct comparison_field_key from ctxa_official_verification_operator_finding
                      where aggregate_run_id = ?
                        and comparison_field_key is not null and trim(comparison_field_key) <> ''
                     except
-                    select distinct field_key from official_verification_prompt_comparison
+                    select distinct field_key from ctxa_official_verification_prompt_comparison
                      where aggregate_run_id = ? and field_key is not null and trim(field_key) <> ''
                 ) missing_prompt_comparison
                 """, aggregateRunId, aggregateRunId);
@@ -179,11 +179,11 @@ public final class JdbcOfficialVerificationSnapshotCompletionRepository
 
     private boolean actualProblemCountMatchesFindings(String aggregateRunId) {
         int problems = count("""
-                select count(*) from official_actual_prompt_problem_ledger
+                select count(*) from ctxa_official_actual_prompt_problem_ledger
                  where aggregate_run_id = ? and severity = 'BLOCKING'
                 """, aggregateRunId);
         int findings = count("""
-                select count(distinct check_code) from official_verification_operator_finding
+                select count(distinct check_code) from ctxa_official_verification_operator_finding
                  where aggregate_run_id = ? and check_code is not null and trim(check_code) <> ''
                 """, aggregateRunId);
         return problems == findings;
@@ -191,11 +191,11 @@ public final class JdbcOfficialVerificationSnapshotCompletionRepository
 
     private int countBlockedMetricsWithoutProblem(String aggregateRunId) {
         return count("""
-                select count(*) from official_verification_metric_snapshot m
+                select count(*) from ctxa_official_verification_metric_snapshot m
                  where m.aggregate_run_id = ? and m.state = 'BLOCKED'
                    and upper(m.metric_code) not in ('MTR', 'RPI', 'PRE')
                    and not exists (
-                       select 1 from official_verification_operator_finding f
+                       select 1 from ctxa_official_verification_operator_finding f
                         where f.aggregate_run_id = m.aggregate_run_id and f.metric_code = m.metric_code
                    )
                 """, aggregateRunId);

@@ -105,20 +105,20 @@ class JdbcOfficialVerificationRunStoreTest {
 
         store.saveDetailed("admin", record, view);
 
-        verify(jdbcOperations, atLeastOnce()).update(contains("insert into verification_run_ledger"), any(Object[].class));
-        verify(jdbcOperations).update(contains("insert into verification_run_round_ledger"), any(Object[].class));
+        verify(jdbcOperations, atLeastOnce()).update(contains("insert into ctxa_verification_run_ledger"), any(Object[].class));
+        verify(jdbcOperations).update(contains("insert into ctxa_verification_run_round_ledger"), any(Object[].class));
         ArgumentCaptor<Object[]> checkArguments = ArgumentCaptor.forClass(Object[].class);
         verify(jdbcOperations, times(3)).update(
-                contains("insert into verification_run_check_ledger"), checkArguments.capture());
+                contains("insert into ctxa_verification_run_check_ledger"), checkArguments.capture());
         assertThat(checkArguments.getAllValues()).extracting(arguments -> arguments[17])
                 .containsExactly("PASS", "NOT_APPLICABLE", "NOT_EVALUATED");
         assertThat(checkArguments.getAllValues()).extracting(arguments -> arguments[6])
                 .containsExactly(true, false, false);
         assertThat(checkArguments.getAllValues()).extracting(arguments -> arguments[15])
                 .containsExactly("PASS", "NOT_APPLICABLE", "NOT_EVALUATED");
-        verify(jdbcOperations, atLeastOnce()).update(contains("insert into verification_run_fact_ledger"), any(Object[].class));
-        verify(jdbcOperations).update(contains("insert into verification_run_event_ledger"), any(Object[].class));
-        verify(jdbcOperations).update(contains("insert into verification_raw_evidence_artifact_ledger"), any(Object[].class));
+        verify(jdbcOperations, atLeastOnce()).update(contains("insert into ctxa_verification_run_fact_ledger"), any(Object[].class));
+        verify(jdbcOperations).update(contains("insert into ctxa_verification_run_event_ledger"), any(Object[].class));
+        verify(jdbcOperations).update(contains("insert into ctxa_verification_raw_evidence_artifact_ledger"), any(Object[].class));
     }
     private OfficialVerificationRunView run(String runId, String metricCode, String packageId) {
         return new SealedEvidenceOfficialRunView(

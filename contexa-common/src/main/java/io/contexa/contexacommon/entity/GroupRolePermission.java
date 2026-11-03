@@ -22,7 +22,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "group_role_permissions")
+@Table(name = "ctxa_group_role_permissions")
 @IdClass(GroupRolePermissionId.class)
 @Getter
 @Setter

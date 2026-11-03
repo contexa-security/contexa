@@ -11,7 +11,7 @@ public final class JdbcOfficialVerificationPromptFieldStateWriter
         implements OfficialVerificationPromptFieldStateWriter {
 
     private static final String INSERT_SQL = """
-            insert into official_prompt_field_state_ledger (
+            insert into ctxa_official_prompt_field_state_ledger (
                 package_id, aggregate_run_id, official_run_id, field_key,
                 source_type, source_field_path, source_class, field_state,
                 value_type, value_hash, value_length, value_preview,
@@ -24,7 +24,7 @@ public final class JdbcOfficialVerificationPromptFieldStateWriter
             ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
     private static final String INSERT_MISSING_SQL = """
-            insert into official_prompt_field_state_ledger (
+            insert into ctxa_official_prompt_field_state_ledger (
                 package_id, aggregate_run_id, official_run_id, field_key,
                 source_type, source_field_path, source_class, field_state,
                 value_type, value_hash, value_length, value_preview,
@@ -44,10 +44,10 @@ public final class JdbcOfficialVerificationPromptFieldStateWriter
                    'Active field definition existed but the sealed runtime manifest did not emit a state row.',
                    left(coalesce(nullif(d.metric_codes, ''), 'AUDIT_ONLY'), 128),
                    'NON_BLOCKING_FIELD_COVERAGE_GAP', false, d.quality_relevance, false, false, ?
-              from official_prompt_field_definition d
+              from ctxa_official_prompt_field_definition d
              where d.is_active = true
                and not exists (
-                   select 1 from official_prompt_field_state_ledger s
+                   select 1 from ctxa_official_prompt_field_state_ledger s
                     where s.aggregate_run_id = ? and s.field_key = d.field_key
                )
             """;

@@ -49,7 +49,7 @@ class PromptGovernanceReleaseLedgerIdentityTest {
 
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 select template_key, contract_version, release_status, registration_source
-                  from prompt_governance_release_ledger
+                  from ctxa_prompt_governance_release_ledger
                 """);
 
         assertThat(rows).hasSize(1);
@@ -67,7 +67,7 @@ class PromptGovernanceReleaseLedgerIdentityTest {
 
         assertThat(jdbcTemplate.queryForList("""
                 select contract_version
-                  from prompt_governance_release_ledger
+                  from ctxa_prompt_governance_release_ledger
                  order by contract_version
                 """, String.class)).containsExactly("CORTEX_PROMPT_CONTRACT_V2", "CORTEX_PROMPT_CONTRACT_V3");
     }
@@ -79,14 +79,14 @@ class PromptGovernanceReleaseLedgerIdentityTest {
         String statusSeenByJdbc = jpa.transactionTemplate().execute(status -> {
             write("CORTEX_PROMPT_CONTRACT_V2", "ACTIVE_FOR_SCOPE", "PQA_RUNTIME_GOVERNANCE");
             String seen = jdbcTemplate.queryForObject(
-                    "select release_status from prompt_governance_release_ledger", String.class);
+                    "select release_status from ctxa_prompt_governance_release_ledger", String.class);
             status.setRollbackOnly();
             return seen;
         });
 
         assertThat(statusSeenByJdbc).isEqualTo("ACTIVE_FOR_SCOPE");
         assertThat(jdbcTemplate.queryForObject(
-                "select release_status from prompt_governance_release_ledger", String.class)).isEqualTo("PRODUCTION");
+                "select release_status from ctxa_prompt_governance_release_ledger", String.class)).isEqualTo("PRODUCTION");
     }
 
     private void write(String contractVersion, String releaseStatus, String registrationSource) {

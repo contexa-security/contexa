@@ -9,7 +9,7 @@
 -- credentials_expired, enabled, external_auth_only,
 -- failed_login_attempts, mfa_enabled, created_at, name, username, password.
 -- ----------------------------------------------------------------
-INSERT INTO USERS (id, username, password, name, email, mfa_enabled, enabled, account_locked, bridge_managed, credentials_expired, external_auth_only, failed_login_attempts, created_at) VALUES
+INSERT INTO CTXA_USERS (id, username, password, name, email, mfa_enabled, enabled, account_locked, bridge_managed, credentials_expired, external_auth_only, failed_login_attempts, created_at) VALUES
     (1, 'admin',     '{bcrypt}$2a$06$8zyaQFyvO1gn1gbPp.bjrumKfRFif3CiDgpqK4aB4n8Gl2cbTOxJy', '최고관리자', 'admin@gmail.com', TRUE,  TRUE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP),
     (2, 'manager',   '{bcrypt}$2a$06$8zyaQFyvO1gn1gbPp.bjrumKfRFif3CiDgpqK4aB4n8Gl2cbTOxJy', '김팀장',     'manager@gmail.com',TRUE,  TRUE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP),
     (3, 'developer', '{bcrypt}$2a$06$8zyaQFyvO1gn1gbPp.bjrumKfRFif3CiDgpqK4aB4n8Gl2cbTOxJy', '박개발',     'developer@gmail.com',FALSE, TRUE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP),
@@ -20,7 +20,7 @@ ON CONFLICT (id) DO NOTHING;
 -- ----------------------------------------------------------------
 -- USER_GROUPS — required NOT NULL: assigned_at, group_id, user_id.
 -- ----------------------------------------------------------------
-INSERT INTO USER_GROUPS (user_id, group_id, assigned_at) VALUES
+INSERT INTO CTXA_USER_GROUPS (user_id, group_id, assigned_at) VALUES
     (1, 1, CURRENT_TIMESTAMP),
     (2, 2, CURRENT_TIMESTAMP),
     (3, 2, CURRENT_TIMESTAMP),
@@ -32,5 +32,5 @@ ON CONFLICT (group_id, user_id) DO NOTHING;
 -- The sequence follows the ids set above (as db/data.sql does for its rows), so that the next user created,
 -- such as the bridge's mirror of a signed-in user, takes a free id.
 -- ----------------------------------------------------------------
-SELECT setval('users_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM users), 0), 1), COALESCE((SELECT MAX(id) FROM users), 0) > 0)
-WHERE to_regclass('users_id_seq') IS NOT NULL;
+SELECT setval('ctxa_users_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM ctxa_users), 0), 1), COALESCE((SELECT MAX(id) FROM ctxa_users), 0) > 0)
+WHERE to_regclass('ctxa_users_id_seq') IS NOT NULL;

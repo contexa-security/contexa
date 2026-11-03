@@ -853,7 +853,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         if (!writer.isStoreConfigured()) {
             return "the contexaJdbcTemplate decision observation store is not configured";
         }
-        return "writing to ai_security_decision_observation failed";
+        return "writing to ctxa_ai_security_decision_observation failed";
     }
 
     private Duration auditFailureCooldown() {

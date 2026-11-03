@@ -172,7 +172,7 @@ class JdbcPromptRuntimeGovernanceDescriptorVerifierTest {
     private void insertRelease(String promptVersion, String artifactHash, String releaseStatus, String approvalReference) {
         jdbcTemplate.update(
                 """
-                        insert into prompt_governance_registry (
+                        insert into ctxa_prompt_governance_registry (
                             registry_scope, prompt_key, template_key, prompt_version,
                             contract_version, prompt_artifact_hash_sha256, release_status,
                             owner_name, release_approval_reference, evaluation_baseline_reference,

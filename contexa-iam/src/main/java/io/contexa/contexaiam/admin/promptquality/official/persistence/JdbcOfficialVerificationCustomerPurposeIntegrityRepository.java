@@ -21,12 +21,12 @@ public final class JdbcOfficialVerificationCustomerPurposeIntegrityRepository
                         select count(*)
                           from (
                                 select purpose_result
-                                  from official_metric_purpose_evaluation_ledger
+                                  from ctxa_official_metric_purpose_evaluation_ledger
                                  where aggregate_run_id = ?
                                    and customer_visible = true
                                 union all
                                 select purpose_result
-                                  from official_metric_purpose_evidence_ledger
+                                  from ctxa_official_metric_purpose_evidence_ledger
                                  where aggregate_run_id = ?
                                    and customer_visible = true
                                ) purpose_rows
@@ -48,7 +48,7 @@ public final class JdbcOfficialVerificationCustomerPurposeIntegrityRepository
         Integer purposeActualTechnicalText = jdbcTemplate.queryForObject("""
                         /* customer_visible_purpose_actual_technical_text */
                         select count(*)
-                          from official_metric_purpose_evaluation_ledger
+                          from ctxa_official_metric_purpose_evaluation_ledger
                           where aggregate_run_id = ?
                             and customer_visible = true
                             and (
@@ -66,7 +66,7 @@ public final class JdbcOfficialVerificationCustomerPurposeIntegrityRepository
         Integer purposeNextActionTechnicalText = jdbcTemplate.queryForObject("""
                         /* customer_visible_purpose_next_action_technical_text */
                         select count(*)
-                          from official_metric_purpose_evaluation_ledger
+                          from ctxa_official_metric_purpose_evaluation_ledger
                          where aggregate_run_id = ?
                            and customer_visible = true
                            and (
@@ -81,7 +81,7 @@ public final class JdbcOfficialVerificationCustomerPurposeIntegrityRepository
         Integer purposeReverifyTechnicalText = jdbcTemplate.queryForObject("""
                         /* customer_visible_purpose_reverify_technical_text */
                         select count(*)
-                          from official_metric_purpose_evaluation_ledger
+                          from ctxa_official_metric_purpose_evaluation_ledger
                          where aggregate_run_id = ?
                            and customer_visible = true
                            and (
@@ -96,7 +96,7 @@ public final class JdbcOfficialVerificationCustomerPurposeIntegrityRepository
         Integer purposeEvidenceTechnicalText = jdbcTemplate.queryForObject("""
                         /* customer_visible_purpose_evidence_technical_text */
                         select count(*)
-                          from official_metric_purpose_evidence_ledger
+                          from ctxa_official_metric_purpose_evidence_ledger
                          where aggregate_run_id = ?
                            and customer_visible = true
                            and (
@@ -109,7 +109,7 @@ public final class JdbcOfficialVerificationCustomerPurposeIntegrityRepository
         Integer actualPromptProblemTechnicalText = jdbcTemplate.queryForObject("""
                         /* actual_prompt_problem_customer_technical_text */
                         select count(*)
-                          from official_actual_prompt_problem_ledger
+                          from ctxa_official_actual_prompt_problem_ledger
                          where aggregate_run_id = ?
                            and (
                                 prompt_value ilike '%Evidence:%'
@@ -131,7 +131,7 @@ public final class JdbcOfficialVerificationCustomerPurposeIntegrityRepository
         Integer promptComparisonTechnicalText = jdbcTemplate.queryForObject("""
                         /* prompt_comparison_customer_technical_text */
                         select count(*)
-                          from official_verification_prompt_comparison
+                          from ctxa_official_verification_prompt_comparison
                          where aggregate_run_id = ?
                             and (
                                  prompt_value ilike '%Evidence:%'
@@ -169,7 +169,7 @@ public final class JdbcOfficialVerificationCustomerPurposeIntegrityRepository
                                 select metric_code,
                                        lower(regexp_replace(trim(evidence_value), '[.!?]+$', '')) as evidence_key,
                                        count(*) as duplicate_count
-                                  from official_metric_purpose_evidence_ledger
+                                  from ctxa_official_metric_purpose_evidence_ledger
                                  where aggregate_run_id = ?
                                    and customer_visible = true
                                    and coalesce(trim(evidence_value), '') <> ''
@@ -191,7 +191,7 @@ public final class JdbcOfficialVerificationCustomerPurposeIntegrityRepository
                                 select metric_code,
                                        lower(trim(fact)) as fact_key,
                                        count(distinct check_code) as duplicate_count
-                                  from official_metric_purpose_evidence_ledger,
+                                  from ctxa_official_metric_purpose_evidence_ledger,
                                        jsonb_array_elements_text(runtime_facts_json::jsonb) as fact
                                  where aggregate_run_id = ?
                                    and customer_visible = true
@@ -216,7 +216,7 @@ public final class JdbcOfficialVerificationCustomerPurposeIntegrityRepository
                                 select metric_code,
                                        check_code,
                                        lower(regexp_replace(trim(evidence_value), '[.!?]+$', '')) as evidence_key
-                                  from official_metric_purpose_evidence_ledger
+                                  from ctxa_official_metric_purpose_evidence_ledger
                                  where aggregate_run_id = ?
                                    and customer_visible = true
                                    and coalesce(trim(evidence_value), '') <> ''
@@ -224,7 +224,7 @@ public final class JdbcOfficialVerificationCustomerPurposeIntegrityRepository
                          where (metric_code, evidence_key) in (
                                select metric_code,
                                       lower(regexp_replace(trim(evidence_value), '[.!?]+$', '')) as evidence_key
-                                 from official_metric_purpose_evidence_ledger
+                                 from ctxa_official_metric_purpose_evidence_ledger
                                 where aggregate_run_id = ?
                                   and customer_visible = true
                                   and coalesce(trim(evidence_value), '') <> ''
@@ -248,7 +248,7 @@ public final class JdbcOfficialVerificationCustomerPurposeIntegrityRepository
                                 select metric_code,
                                        check_code,
                                        lower(trim(fact)) as fact_key
-                                  from official_metric_purpose_evidence_ledger,
+                                  from ctxa_official_metric_purpose_evidence_ledger,
                                        jsonb_array_elements_text(runtime_facts_json::jsonb) as fact
                                  where aggregate_run_id = ?
                                    and customer_visible = true
@@ -257,7 +257,7 @@ public final class JdbcOfficialVerificationCustomerPurposeIntegrityRepository
                          where (metric_code, fact_key) in (
                                select metric_code,
                                       lower(trim(fact)) as fact_key
-                                 from official_metric_purpose_evidence_ledger,
+                                 from ctxa_official_metric_purpose_evidence_ledger,
                                       jsonb_array_elements_text(runtime_facts_json::jsonb) as fact
                                 where aggregate_run_id = ?
                                   and customer_visible = true
@@ -280,7 +280,7 @@ public final class JdbcOfficialVerificationCustomerPurposeIntegrityRepository
                         select location
                           from (
                                 select 'purpose:' || metric_code || '.' || check_code || '=' || coalesce(purpose_result, '') as location, created_at
-                                  from official_metric_purpose_evaluation_ledger
+                                  from ctxa_official_metric_purpose_evaluation_ledger
                                  where aggregate_run_id = ?
                                    and customer_visible = true
                                    and upper(coalesce(purpose_result, '')) not in (
@@ -291,7 +291,7 @@ public final class JdbcOfficialVerificationCustomerPurposeIntegrityRepository
                                    )
                                 union all
                                 select 'purpose_evidence:' || metric_code || '.' || check_code || '=' || coalesce(purpose_result, '') as location, created_at
-                                  from official_metric_purpose_evidence_ledger
+                                  from ctxa_official_metric_purpose_evidence_ledger
                                  where aggregate_run_id = ?
                                    and customer_visible = true
                                    and upper(coalesce(purpose_result, '')) not in (
@@ -316,7 +316,7 @@ public final class JdbcOfficialVerificationCustomerPurposeIntegrityRepository
                         select location
                           from (
                                 select 'purpose.actual_value:' || metric_code || '.' || check_code as location, created_at
-                                  from official_metric_purpose_evaluation_ledger
+                                  from ctxa_official_metric_purpose_evaluation_ledger
                                  where aggregate_run_id = ?
                                    and customer_visible = true
                                     and (
@@ -330,7 +330,7 @@ public final class JdbcOfficialVerificationCustomerPurposeIntegrityRepository
                                      )
                                   union all
                                  select 'purpose.next_action:' || metric_code || '.' || check_code as location, created_at
-                                   from official_metric_purpose_evaluation_ledger
+                                   from ctxa_official_metric_purpose_evaluation_ledger
                                   where aggregate_run_id = ?
                                     and customer_visible = true
                                     and (
@@ -341,7 +341,7 @@ public final class JdbcOfficialVerificationCustomerPurposeIntegrityRepository
                                      )
                                   union all
                                  select 'purpose.reverify_criterion:' || metric_code || '.' || check_code as location, created_at
-                                   from official_metric_purpose_evaluation_ledger
+                                   from ctxa_official_metric_purpose_evaluation_ledger
                                   where aggregate_run_id = ?
                                     and customer_visible = true
                                     and (
@@ -352,7 +352,7 @@ public final class JdbcOfficialVerificationCustomerPurposeIntegrityRepository
                                      )
                                   union all
                                  select 'purpose_evidence.evidence_value:' || metric_code || '.' || check_code as location, created_at
-                                  from official_metric_purpose_evidence_ledger
+                                  from ctxa_official_metric_purpose_evidence_ledger
                                  where aggregate_run_id = ?
                                    and customer_visible = true
                                    and (
@@ -361,7 +361,7 @@ public final class JdbcOfficialVerificationCustomerPurposeIntegrityRepository
                                    )
                                  union all
                                  select 'actual_prompt_problem:' || field_key as location, created_at
-                                   from official_actual_prompt_problem_ledger
+                                   from ctxa_official_actual_prompt_problem_ledger
                                   where aggregate_run_id = ?
                                     and (
                                          prompt_value ilike '%Evidence:%'
@@ -379,7 +379,7 @@ public final class JdbcOfficialVerificationCustomerPurposeIntegrityRepository
                                     )
                                  union all
                                  select 'prompt_comparison:' || field_key as location, created_at
-                                   from official_verification_prompt_comparison
+                                   from ctxa_official_verification_prompt_comparison
                                   where aggregate_run_id = ?
                                     and (
                                          prompt_value ilike '%Evidence:%'

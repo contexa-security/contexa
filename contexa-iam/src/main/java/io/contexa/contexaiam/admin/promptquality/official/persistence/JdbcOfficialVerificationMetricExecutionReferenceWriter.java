@@ -11,9 +11,9 @@ public final class JdbcOfficialVerificationMetricExecutionReferenceWriter
         implements OfficialVerificationMetricExecutionReferenceWriter {
 
     private static final String UPDATE_SQL = """
-            update official_verification_metric_execution_ledger execution
+            update ctxa_official_verification_metric_execution_ledger execution
                set issue_ids_json = ?, problem_ids_json = ?, updated_at = ?
-              from official_verification_run_batch batch
+              from ctxa_official_verification_run_batch batch
              where execution.aggregate_run_id = ?
                and upper(execution.metric_code) = ?
                and batch.aggregate_run_id = execution.aggregate_run_id

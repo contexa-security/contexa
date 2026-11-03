@@ -18,7 +18,7 @@ public final class JdbcOfficialVerificationReverificationResultRepository
                    source_operator_reason, source_expected_value, source_actual_value,
                    fixed_actual_value, resolved, resolution_state, operator_summary,
                    created_by, diagnostic_catalog_version, created_at
-              from official_verification_reverify_result
+              from ctxa_official_verification_reverify_result
             """;
 
     private final JdbcTemplate jdbcTemplate;

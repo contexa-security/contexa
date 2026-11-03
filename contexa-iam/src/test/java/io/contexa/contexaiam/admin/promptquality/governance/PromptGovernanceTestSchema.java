@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
 public final class PromptGovernanceTestSchema {
 
     private static final Pattern GOVERNANCE_DDL = Pattern.compile(
-            "(?is)^(create\\s+(unique\\s+)?(table|index)\\s+if\\s+not\\s+exists|alter\\s+table)\\s+.*\\bprompt_governance_.*");
+            "(?is)^(create\\s+(unique\\s+)?(table|index)\\s+if\\s+not\\s+exists|alter\\s+table)\\s+.*\\bctxa_prompt_governance_.*");
 
     private PromptGovernanceTestSchema() {
     }

@@ -28,16 +28,16 @@ import java.util.List;
 
 @Entity
 @Table(
-        name = "soar_approval_steps",
+        name = "ctxa_soar_approval_steps",
         uniqueConstraints = {
                 @UniqueConstraint(
-                        name = "uk_soar_approval_step_request_number",
+                        name = "ctxa_uk_soar_approval_step_request_number",
                         columnNames = {"request_id", "step_number"}
                 )
         },
         indexes = {
-                @Index(name = "idx_soar_approval_step_request_id", columnList = "request_id"),
-                @Index(name = "idx_soar_approval_step_status", columnList = "status")
+                @Index(name = "ctxa_idx_soar_approval_step_request_id", columnList = "request_id"),
+                @Index(name = "ctxa_idx_soar_approval_step_status", columnList = "status")
         }
 )
 @Getter

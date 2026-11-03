@@ -21,7 +21,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "security_spel")
+@Table(name = "ctxa_security_spel")
 @Getter @Setter @Builder
 @NoArgsConstructor @AllArgsConstructor
 public class SecuritySpel {

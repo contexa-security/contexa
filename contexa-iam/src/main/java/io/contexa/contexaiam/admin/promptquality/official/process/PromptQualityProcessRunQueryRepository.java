@@ -33,9 +33,9 @@ final class PromptQualityProcessRunQueryRepository {
                                s.next_action,
                                s.started_at,
                                s.ended_at
-                          from prompt_quality_process_run r
-                          join prompt_quality_process_step_run s on s.run_id = r.id
-                          join prompt_quality_process_definition p on p.id = s.step_process_id
+                          from ctxa_prompt_quality_process_run r
+                          join ctxa_prompt_quality_process_step_run s on s.run_id = r.id
+                          join ctxa_prompt_quality_process_definition p on p.id = s.step_process_id
                          where r.business_key = ?
                          order by s.sequence_no asc
                         """,
@@ -61,8 +61,8 @@ final class PromptQualityProcessRunQueryRepository {
                                h.changed_by,
                                h.reason,
                                h.changed_at
-                          from prompt_quality_process_run r
-                          join prompt_quality_process_state_history h on h.run_id = r.id
+                          from ctxa_prompt_quality_process_run r
+                          join ctxa_prompt_quality_process_state_history h on h.run_id = r.id
                          where r.business_key = ?
                          order by h.changed_at asc, h.id asc
                         """,
@@ -80,10 +80,10 @@ final class PromptQualityProcessRunQueryRepository {
                                e.type,
                                e.payload_json,
                                e.occurred_at
-                          from prompt_quality_process_run r
-                          join prompt_quality_process_event e on e.run_id = r.id
-                          left join prompt_quality_process_step_run s on s.id = e.step_run_id
-                          left join prompt_quality_process_definition p on p.id = s.step_process_id
+                          from ctxa_prompt_quality_process_run r
+                          join ctxa_prompt_quality_process_event e on e.run_id = r.id
+                          left join ctxa_prompt_quality_process_step_run s on s.id = e.step_run_id
+                          left join ctxa_prompt_quality_process_definition p on p.id = s.step_process_id
                          where r.business_key = ?
                          order by e.occurred_at asc, e.id asc
                         """,

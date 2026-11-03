@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-/** The releases of the {@code prompt_governance_registry} table of the OSS schema. */
+/** The releases of the {@code ctxa_prompt_governance_registry} table of the OSS schema. */
 public class JdbcPromptReleaseLookup implements PromptReleaseLookup {
 
     private final JdbcOperations jdbc;
@@ -21,7 +21,7 @@ public class JdbcPromptReleaseLookup implements PromptReleaseLookup {
         List<PromptRelease> releases = jdbc.query("""
                         select prompt_version, contract_version, prompt_artifact_hash_sha256, release_approval_reference,
                                release_status
-                          from prompt_governance_registry
+                          from ctxa_prompt_governance_registry
                          where registry_scope = ?
                            and prompt_key = ?
                            and template_key = ?

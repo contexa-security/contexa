@@ -71,7 +71,7 @@ class JdbcSealedEvidencePackageRepositoryTest {
         assertThat(pkg.getPreviousPackageHash()).isEqualTo("earlier-hash");
         assertThat(integrity.evaluate(pkg)).isEqualTo(SealedEvidencePackageIntegrity.Status.VERIFIED);
         ArgumentCaptor<Object[]> arguments = ArgumentCaptor.forClass(Object[].class);
-        verify(jdbc).queryForObject(contains("insert into sealed_evidence_package"), eq(Long.class), arguments.capture());
+        verify(jdbc).queryForObject(contains("insert into ctxa_sealed_evidence_package"), eq(Long.class), arguments.capture());
         assertThat(arguments.getValue()).hasSize(33).contains("earlier-hash", pkg.getPackageSignature(), "k1");
     }
 }

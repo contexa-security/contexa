@@ -97,7 +97,7 @@ public class ProtectableLlmSuppressionWriter {
 
         try {
             Runnable insert = () -> jdbcOperations.update("""
-                    INSERT INTO ai_security_llm_trigger_suppression (
+                    INSERT INTO ctxa_ai_security_llm_trigger_suppression (
                         suppression_id,
                         event_id,
                         request_id,

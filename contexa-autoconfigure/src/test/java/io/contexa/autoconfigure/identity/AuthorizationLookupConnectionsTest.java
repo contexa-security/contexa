@@ -141,7 +141,7 @@ class AuthorizationLookupConnectionsTest {
         assertThat(dataSource.mostHeldByOneThread()).isEqualTo(1);
         assertThat(dataSource.refusals()).isZero();
         assertThat(service.findByToken("token-rotated-7", OAuth2TokenType.ACCESS_TOKEN)).isNotNull();
-        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM oauth2_authorization", Integer.class))
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM ctxa_oauth2_authorization", Integer.class))
                 .isEqualTo(CALLERS + 1);
     }
 

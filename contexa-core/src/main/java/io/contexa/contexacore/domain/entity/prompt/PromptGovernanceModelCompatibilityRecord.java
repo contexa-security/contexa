@@ -22,9 +22,9 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "prompt_governance_model_compatibility", indexes = {
-        @Index(name = "idx_prompt_model_compatibility_identity", columnList = "registry_scope,prompt_key,prompt_version,model_profile_key", unique = true),
-        @Index(name = "idx_prompt_model_compatibility_current", columnList = "registry_scope,prompt_key,updated_at")
+@Table(name = "ctxa_prompt_governance_model_compatibility", indexes = {
+        @Index(name = "ctxa_idx_prompt_model_compatibility_identity", columnList = "registry_scope,prompt_key,prompt_version,model_profile_key", unique = true),
+        @Index(name = "ctxa_idx_prompt_model_compatibility_current", columnList = "registry_scope,prompt_key,updated_at")
 })
 @Getter
 @Setter

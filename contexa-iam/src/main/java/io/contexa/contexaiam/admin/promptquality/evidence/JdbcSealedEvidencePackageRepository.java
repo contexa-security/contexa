@@ -30,10 +30,10 @@ public final class JdbcSealedEvidencePackageRepository implements SealedEvidence
                    seal_state, seal_failure_reason, decision_json, package_hash,
                    schema_version, sealed, expires_at, created_at,
                    previous_package_hash, package_signature, signature_key_id
-              from sealed_evidence_package
+              from ctxa_sealed_evidence_package
             """;
     private static final String INSERT_SQL = """
-            insert into sealed_evidence_package (
+            insert into ctxa_sealed_evidence_package (
                 package_id, correlation_id, idempotency_key, tenant_id, user_id, captured_at,
                 request_facts_json, auth_state_json, canonical_context_json,
                 baseline_snapshot_json, rag_results_json,
@@ -54,7 +54,7 @@ public final class JdbcSealedEvidencePackageRepository implements SealedEvidence
             """;
     /** docs/agent A5-6: the latest linked package, the one a new package is sealed after. */
     private static final String LATEST_LINKED_HASH_SQL = """
-            select package_hash from sealed_evidence_package
+            select package_hash from ctxa_sealed_evidence_package
              where schema_version >= ? order by id desc limit 1
             """;
     private final JdbcOperations jdbcOperations;
@@ -122,7 +122,7 @@ public final class JdbcSealedEvidencePackageRepository implements SealedEvidence
     @Override
     public long countByTenantIdAndCapturedAtAfter(String tenantId, Instant after) {
         Long count = jdbcOperations.queryForObject(
-                "select count(*) from sealed_evidence_package where tenant_id = ? and captured_at > ?",
+                "select count(*) from ctxa_sealed_evidence_package where tenant_id = ? and captured_at > ?",
                 Long.class,
                 tenantId,
                 timestamp(after));
@@ -132,7 +132,7 @@ public final class JdbcSealedEvidencePackageRepository implements SealedEvidence
     @Override
     public long deleteByExpiresAtBefore(Instant now) {
         return jdbcOperations.update(
-                "delete from sealed_evidence_package where expires_at < ?",
+                "delete from ctxa_sealed_evidence_package where expires_at < ?",
                 timestamp(now));
     }
 
@@ -185,7 +185,7 @@ public final class JdbcSealedEvidencePackageRepository implements SealedEvidence
                 this::map,
                 queryArguments);
         Long total = jdbcOperations.queryForObject(
-                "select count(*) from sealed_evidence_package" + whereClause,
+                "select count(*) from ctxa_sealed_evidence_package" + whereClause,
                 Long.class,
                 parameters);
         return new PageImpl<>(content, pageable, total == null ? 0L : total);

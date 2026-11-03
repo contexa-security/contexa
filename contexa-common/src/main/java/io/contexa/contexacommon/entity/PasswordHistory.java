@@ -21,7 +21,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "password_history")
+@Table(name = "ctxa_password_history")
 @Getter
 @Setter
 @Builder

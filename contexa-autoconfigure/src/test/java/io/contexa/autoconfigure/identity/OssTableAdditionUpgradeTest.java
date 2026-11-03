@@ -48,12 +48,12 @@ class OssTableAdditionUpgradeTest {
         IamSeedDataAutoConfiguration.executeSchemaSql(dataSource, "db/schema.sql",
                 IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(
                         new ClassPathResource("db/schema.sql").getContentAsString(StandardCharsets.UTF_8)));
-        jdbc.execute("drop table agent_registration");
+        jdbc.execute("drop table ctxa_agent_registration");
         // prompt_inspection_result.finding_kinds_json is added by an alter statement of the schema, not by the create table
-        jdbc.execute("drop table prompt_inspection_result cascade");
+        jdbc.execute("drop table ctxa_prompt_inspection_result cascade");
         jdbc.execute("create table host_orders (id bigint primary key)");
         assertThat(ContexaSchemaInventory.diff(oss, ContexaSchemaInventory.readDatabase(dataSource)).missingTables())
-                .containsExactlyInAnyOrder("agent_registration", "prompt_inspection_result");
+                .containsExactlyInAnyOrder("ctxa_agent_registration", "ctxa_prompt_inspection_result");
 
         IamSeedDataAutoConfiguration.createMissingOssTables(dataSource);
         IamSeedDataAutoConfiguration.createMissingOssTables(dataSource);
@@ -62,10 +62,10 @@ class OssTableAdditionUpgradeTest {
         assertThat(after.missingTables()).isEmpty();
         assertThat(after.additionalTables()).containsExactly("host_orders");
         assertThat(jdbc.queryForObject("select count(*) from information_schema.columns "
-                + "where table_name = 'prompt_inspection_result' and column_name = 'finding_kinds_json'",
+                + "where table_name = 'ctxa_prompt_inspection_result' and column_name = 'finding_kinds_json'",
                 Integer.class)).as("the column an alter statement of the schema adds to the created table").isEqualTo(1);
-        assertThat(jdbc.queryForObject("select count(*) from pg_indexes where tablename = 'agent_registration' "
-                + "and indexname in ('ux_agent_registration_tenant_agent', 'idx_agent_registration_last_seen')",
+        assertThat(jdbc.queryForObject("select count(*) from pg_indexes where tablename = 'ctxa_agent_registration' "
+                + "and indexname in ('ctxa_ux_agent_registration_tenant_agent', 'ctxa_idx_agent_registration_last_seen')",
                 Integer.class)).isEqualTo(2);
     }
 }

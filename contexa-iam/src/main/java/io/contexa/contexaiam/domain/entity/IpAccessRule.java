@@ -23,10 +23,10 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "ip_access_rules", indexes = {
-        @Index(name = "idx_ip_rule_type", columnList = "rule_type"),
-        @Index(name = "idx_ip_rule_enabled", columnList = "enabled"),
-        @Index(name = "idx_ip_address", columnList = "ip_address")
+@Table(name = "ctxa_ip_access_rules", indexes = {
+        @Index(name = "ctxa_idx_ip_rule_type", columnList = "rule_type"),
+        @Index(name = "ctxa_idx_ip_rule_enabled", columnList = "enabled"),
+        @Index(name = "ctxa_idx_ip_address", columnList = "ip_address")
 })
 @Getter
 @Setter

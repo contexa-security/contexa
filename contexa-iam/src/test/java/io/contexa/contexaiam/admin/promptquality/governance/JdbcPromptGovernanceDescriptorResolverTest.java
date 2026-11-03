@@ -112,7 +112,7 @@ class JdbcPromptGovernanceDescriptorResolverTest {
 
         jdbcTemplate.update(
                 """
-                        update prompt_governance_registry
+                        update ctxa_prompt_governance_registry
                            set prompt_artifact_hash_sha256 = ?,
                                updated_at = ?
                          where registry_scope = ?
@@ -226,7 +226,7 @@ class JdbcPromptGovernanceDescriptorResolverTest {
         insertRelease("PLATFORM_GLOBAL", "AVAILABLE", V20, null, "2026-10-12 10:00:00");
         assertThat(selector().select(context("PLATFORM_GLOBAL"), "alice").bundleVersion()).isEqualTo(V19);
 
-        jdbcTemplate.update("update prompt_governance_registry set release_status = 'ACTIVE', updated_at = ? "
+        jdbcTemplate.update("update ctxa_prompt_governance_registry set release_status = 'ACTIVE', updated_at = ? "
                 + "where prompt_version = ?", Timestamp.valueOf("2026-10-12 11:00:00"), V20);
         insertInvalidation("event-other-key", "PLATFORM_GLOBAL", "other.prompt", null, "1", null);
         assertThat(selector().select(context("PLATFORM_GLOBAL"), "alice").bundleVersion())
@@ -251,8 +251,8 @@ class JdbcPromptGovernanceDescriptorResolverTest {
     /** PV-23: a registry or invalidation read that fails is logged as an error, and the build default runs. */
     @Test
     void aFailingRegistryReadIsLoggedAndTheBuildDefaultRuns(CapturedOutput output) {
-        jdbcTemplate.execute("drop table prompt_governance_registry");
-        jdbcTemplate.execute("drop table prompt_governance_runtime_cache_invalidation");
+        jdbcTemplate.execute("drop table ctxa_prompt_governance_registry");
+        jdbcTemplate.execute("drop table ctxa_prompt_governance_runtime_cache_invalidation");
 
         assertThat(selector().select(context("PLATFORM_GLOBAL"), "alice")).isEqualTo(PromptBundleSelection.none());
         assertThat(output.getOut() + output.getErr())
@@ -271,7 +271,7 @@ class JdbcPromptGovernanceDescriptorResolverTest {
     }
 
     private void setCanaryPercent(String version, int percent) {
-        jdbcTemplate.update("update prompt_governance_registry set canary_percent = ? where prompt_version = ?",
+        jdbcTemplate.update("update ctxa_prompt_governance_registry set canary_percent = ? where prompt_version = ?",
                 percent, version);
     }
 
@@ -284,7 +284,7 @@ class JdbcPromptGovernanceDescriptorResolverTest {
                                     String promptVersion, String contractVersion) {
         jdbcTemplate.update(
                 """
-                        insert into prompt_governance_runtime_cache_invalidation (
+                        insert into ctxa_prompt_governance_runtime_cache_invalidation (
                             event_id, registry_scope, prompt_key, template_key,
                             prompt_version, contract_version,
                             invalidation_reason, published_by, published_at, consumed
@@ -298,7 +298,7 @@ class JdbcPromptGovernanceDescriptorResolverTest {
                                String updatedAt) {
         jdbcTemplate.update(
                 """
-                        insert into prompt_governance_registry (
+                        insert into ctxa_prompt_governance_registry (
                             registry_scope, prompt_key, template_key, prompt_version,
                             contract_version, prompt_artifact_hash_sha256, release_status,
                             owner_name, release_approval_reference, evaluation_baseline_reference,
@@ -329,7 +329,7 @@ class JdbcPromptGovernanceDescriptorResolverTest {
     private void insertRegistryRelease(String releaseStatus, String promptVersion, String artifactHash) {
         jdbcTemplate.update(
                 """
-                        insert into prompt_governance_registry (
+                        insert into ctxa_prompt_governance_registry (
                             registry_scope, prompt_key, template_key, prompt_version,
                             contract_version, prompt_artifact_hash_sha256, release_status,
                             owner_name, release_approval_reference, evaluation_baseline_reference,

@@ -49,13 +49,13 @@ class IamSeedEncodingTest {
         DataSource dataSource = new DriverManagerDataSource(
                 "jdbc:h2:mem:seed-encoding-" + UUID.randomUUID() + ";MODE=PostgreSQL;DB_CLOSE_DELAY=-1", "sa", "");
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
-        jdbc.execute("create table app_group (group_id bigint primary key, group_name varchar(100) not null unique)");
-        byte[] script = "INSERT INTO app_group (group_id, group_name) VALUES (1, '시스템관리자'), (2, '개발본부');"
+        jdbc.execute("create table ctxa_app_group (group_id bigint primary key, group_name varchar(100) not null unique)");
+        byte[] script = "INSERT INTO ctxa_app_group (group_id, group_name) VALUES (1, '시스템관리자'), (2, '개발본부');"
                 .getBytes(StandardCharsets.UTF_8);
 
         IamSeedDataAutoConfiguration.seedPopulator(new ByteArrayResource(script)).execute(dataSource);
 
-        assertThat(jdbc.queryForList("select group_name from app_group order by group_id", String.class))
+        assertThat(jdbc.queryForList("select group_name from ctxa_app_group order by group_id", String.class))
                 .containsExactly("시스템관리자", "개발본부");
     }
 }

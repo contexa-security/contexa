@@ -51,7 +51,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Security Monitor - real-time security event viewer based on audit_log.
+ * Security Monitor - real-time security event viewer based on ctxa_audit_log.
  * All queries use DB-level pagination to handle millions of records.
  */
 @Controller

@@ -35,7 +35,7 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * The company records kept in the {@code company_record} table (docs/agent OC-2): one row per record, its body as
+ * The company records kept in the {@code ctxa_company_record} table (docs/agent OC-2): one row per record, its body as
  * JSON. Putting a record again replaces its body and keeps its place ({@code record_seq}), so records keep the order in
  * which the company first gave them.
  */
@@ -67,7 +67,7 @@ public class JdbcCompanyRecordStore implements CompanyRecordStore {
         if (rows.isEmpty()) {
             return;
         }
-        jdbc.batchUpdate("insert into company_record (" + COLUMNS + ") values (?, ?, ?, ?, ?, ?, ?, ?) "
+        jdbc.batchUpdate("insert into ctxa_company_record (" + COLUMNS + ") values (?, ?, ?, ?, ?, ?, ?, ?) "
                 + "on conflict (tenant_key, record_kind, record_key) do update set subject_id = excluded.subject_id, "
                 + "target_key = excluded.target_key, body = excluded.body, ingested_by = excluded.ingested_by, "
                 + "ingested_at = excluded.ingested_at", rows);
@@ -78,7 +78,7 @@ public class JdbcCompanyRecordStore implements CompanyRecordStore {
         int removed = 0;
         for (String key : keys) {
             if (key != null) {
-                removed += jdbc.update("delete from company_record where tenant_key = ? and record_kind = ? "
+                removed += jdbc.update("delete from ctxa_company_record where tenant_key = ? and record_kind = ? "
                         + "and record_key = ?", CompanyRecordRows.tenant(tenantId), kind.name(), key);
             }
         }
@@ -90,14 +90,14 @@ public class JdbcCompanyRecordStore implements CompanyRecordStore {
         if (subject == null) {
             return CompanyRecordSet.EMPTY;
         }
-        return CompanyRecordRows.set(jdbc.query("select " + COLUMNS + " from company_record where subject_id = ? "
+        return CompanyRecordRows.set(jdbc.query("select " + COLUMNS + " from ctxa_company_record where subject_id = ? "
                         + "and tenant_key = ? and record_kind not in ('POLICY', 'NETWORK', 'SOURCE') "
                         + "order by record_seq", this::row, subject, CompanyRecordRows.tenant(tenantId)));
     }
 
     @Override
     public CompanyRecordSet company(@Nullable String tenantId) {
-        return CompanyRecordRows.set(jdbc.query("select " + COLUMNS + " from company_record where tenant_key = ? "
+        return CompanyRecordRows.set(jdbc.query("select " + COLUMNS + " from ctxa_company_record where tenant_key = ? "
                 + "and record_kind in ('POLICY', 'NETWORK', 'SOURCE') order by record_seq", this::row,
                 CompanyRecordRows.tenant(tenantId)));
     }
@@ -105,7 +105,7 @@ public class JdbcCompanyRecordStore implements CompanyRecordStore {
     @Override
     public List<StoredCompanyRecord> list(@Nullable String tenantId, @Nullable CompanyRecordKind kind,
                                           @Nullable String subject, @Nullable String target, int limit) {
-        StringBuilder sql = new StringBuilder("select " + COLUMNS + " from company_record where tenant_key = ?");
+        StringBuilder sql = new StringBuilder("select " + COLUMNS + " from ctxa_company_record where tenant_key = ?");
         List<Object> arguments = new ArrayList<>();
         arguments.add(CompanyRecordRows.tenant(tenantId));
         if (kind != null) {
@@ -130,7 +130,7 @@ public class JdbcCompanyRecordStore implements CompanyRecordStore {
         if (subject == null) {
             return 0;
         }
-        return jdbc.update("delete from company_record where subject_id = ? "
+        return jdbc.update("delete from ctxa_company_record where subject_id = ? "
                 + "and record_kind not in ('POLICY', 'NETWORK', 'SOURCE')", subject);
     }
 

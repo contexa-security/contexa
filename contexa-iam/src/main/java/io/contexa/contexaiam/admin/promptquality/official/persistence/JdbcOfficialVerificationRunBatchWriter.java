@@ -24,7 +24,7 @@ public final class JdbcOfficialVerificationRunBatchWriter implements OfficialVer
         EvidenceIdentity evidence = Objects.requireNonNull(command.evidenceIdentity(), "evidenceIdentity");
         Timestamp occurredAt = Timestamp.from(Instant.now());
         jdbcTemplate.update("""
-                        insert into official_verification_run_batch (
+                        insert into ctxa_official_verification_run_batch (
                             aggregate_run_id, package_id, tenant_id, certificate_id, case_id, scope_type,
                             expected_metric_count, actual_metric_count, passed_metric_count,
                             failed_metric_count, insufficient_metric_count, not_applicable_metric_count,

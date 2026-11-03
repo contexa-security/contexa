@@ -21,7 +21,7 @@ import jakarta.persistence.*;
 import java.util.List;
 
 @Entity
-@Table(name = "soar_approval_policies")
+@Table(name = "ctxa_soar_approval_policies")
 public class ApprovalPolicyEntity {
 
     @Id

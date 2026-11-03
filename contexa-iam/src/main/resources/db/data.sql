@@ -7,7 +7,7 @@
 -- ----------------------------------------------------------------
 -- APP_GROUP — required NOT NULL: enabled, created_at, group_name.
 -- ----------------------------------------------------------------
-INSERT INTO APP_GROUP (group_id, group_name, description, enabled, created_at) VALUES
+INSERT INTO CTXA_APP_GROUP (group_id, group_name, description, enabled, created_at) VALUES
     (1, '시스템관리자',  '시스템 전체 관리 및 최고 권한 보유',  TRUE, CURRENT_TIMESTAMP),
     (2, '개발본부',      '소프트웨어 개발 및 연구 부서',        TRUE, CURRENT_TIMESTAMP),
     (3, '인프라보안팀',  '서버, 네트워크, 보안 인프라 관리팀',  TRUE, CURRENT_TIMESTAMP),
@@ -17,7 +17,7 @@ ON CONFLICT (group_id) DO NOTHING;
 -- ----------------------------------------------------------------
 -- ROLE — required NOT NULL: enabled, expression, created_at, role_name.
 -- ----------------------------------------------------------------
-INSERT INTO ROLE (role_id, role_name, role_desc, enabled, expression, created_at) VALUES
+INSERT INTO CTXA_ROLE (role_id, role_name, role_desc, enabled, expression, created_at) VALUES
     (1, 'ROLE_ADMIN',     '시스템 전체 관리자 역할',                                   TRUE, FALSE, CURRENT_TIMESTAMP),
     (2, 'ROLE_DEVELOPER', '개발팀 역할 - 소프트웨어 개발 및 고객 데이터 관리',         TRUE, FALSE, CURRENT_TIMESTAMP),
     (3, 'ROLE_INFRA',     '인프라팀 역할 - 시스템 운영 및 보안 관리',                  TRUE, FALSE, CURRENT_TIMESTAMP),
@@ -28,7 +28,7 @@ ON CONFLICT (role_id) DO NOTHING;
 -- ----------------------------------------------------------------
 -- GROUP_ROLES — required NOT NULL: assigned_at, group_id, role_id.
 -- ----------------------------------------------------------------
-INSERT INTO GROUP_ROLES (group_id, role_id, assigned_at) VALUES
+INSERT INTO CTXA_GROUP_ROLES (group_id, role_id, assigned_at) VALUES
     (1, 1, CURRENT_TIMESTAMP),
     (2, 2, CURRENT_TIMESTAMP),
     (3, 3, CURRENT_TIMESTAMP),
@@ -38,7 +38,7 @@ ON CONFLICT (group_id, role_id) DO NOTHING;
 -- ----------------------------------------------------------------
 -- ROLE_HIERARCHY_CONFIG — required NOT NULL: is_active, hierarchy_string.
 -- ----------------------------------------------------------------
-INSERT INTO ROLE_HIERARCHY_CONFIG (hierarchy_id, description, hierarchy_string, is_active) VALUES
+INSERT INTO CTXA_ROLE_HIERARCHY_CONFIG (hierarchy_id, description, hierarchy_string, is_active) VALUES
     (1, '표준 4단계 역할 계층', 'ROLE_ADMIN > ROLE_DEVELOPER\nROLE_DEVELOPER > ROLE_INFRA\nROLE_INFRA > ROLE_USER', TRUE)
 ON CONFLICT (hierarchy_id) DO NOTHING;
 
@@ -50,7 +50,7 @@ ON CONFLICT (hierarchy_id) DO NOTHING;
 -- The self-service paths a signed-in user needs under /contexa/admin are seeded by name at the end of this file.
 -- NOT NULL: is_active, priority, created_at, effect, name.
 -- ----------------------------------------------------------------
-INSERT INTO POLICY (
+INSERT INTO CTXA_POLICY (
     id, name, description, effect, priority, is_active,
     source, approval_status, friendly_description, created_at
 ) VALUES
@@ -92,7 +92,7 @@ ON CONFLICT (id) DO UPDATE SET
 -- ----------------------------------------------------------------
 -- POLICY_TARGET — canonical child rows of seed policies.
 -- ----------------------------------------------------------------
-INSERT INTO POLICY_TARGET (
+INSERT INTO CTXA_POLICY_TARGET (
     id, policy_id, target_type, target_identifier, http_method, target_order, source_type
 ) VALUES
     (1, 1, 'URL', '/contexa/admin/login', 'ANY', 1, 'MANUAL'),
@@ -108,7 +108,7 @@ ON CONFLICT (id) DO UPDATE SET
 -- ----------------------------------------------------------------
 -- POLICY_RULE — canonical child rows of seed policies.
 -- ----------------------------------------------------------------
-INSERT INTO POLICY_RULE (id, policy_id, description)
+INSERT INTO CTXA_POLICY_RULE (id, policy_id, description)
 VALUES
     (1, 1, '로그인 화면은 인증 전 접근을 허용합니다.'),
     (2, 2, '관리자 역할이 있는 사용자만 관리자 영역에 접근할 수 있습니다.')
@@ -119,7 +119,7 @@ ON CONFLICT (id) DO UPDATE SET
 -- ----------------------------------------------------------------
 -- POLICY_CONDITION — canonical child rows of seed policies.
 -- ----------------------------------------------------------------
-INSERT INTO POLICY_CONDITION (
+INSERT INTO CTXA_POLICY_CONDITION (
     id, rule_id, condition_expression, authorization_phase, description
 ) VALUES
     (
@@ -145,7 +145,7 @@ ON CONFLICT (id) DO UPDATE SET
 -- ----------------------------------------------------------------
 -- CONDITION_TEMPLATE — required NOT NULL: spel_template, name.
 -- ----------------------------------------------------------------
-INSERT INTO CONDITION_TEMPLATE (id, name, spel_template, category, parameter_count, description) VALUES
+INSERT INTO CTXA_CONDITION_TEMPLATE (id, name, spel_template, category, parameter_count, description) VALUES
     (1, '업무 시간 제약',     '#isBusinessHours()',                  '시간 기반', 0, '오전 9시부터 오후 6시 사이에만 접근을 허용합니다.'),
     (2, '사내 IP 대역 접근',  'hasIpAddress(''192.168.1.0/24'')',    '위치 기반', 0, '사내 네트워크 IP 주소에서의 접근만 허용합니다.')
 ON CONFLICT (id) DO NOTHING;
@@ -153,7 +153,7 @@ ON CONFLICT (id) DO NOTHING;
 -- ----------------------------------------------------------------
 -- SECURITY_SPEL — SpEL expression catalog.
 -- ----------------------------------------------------------------
-INSERT INTO SECURITY_SPEL (name, expression, description, category) VALUES
+INSERT INTO CTXA_SECURITY_SPEL (name, expression, description, category) VALUES
     ('AUTHENTICATED',        'isAuthenticated()',      'Authenticated user only',                'AUTH'),
     ('FULLY_AUTHENTICATED',  'isFullyAuthenticated()', 'Fully authenticated (not remember-me)',  'AUTH'),
     ('REMEMBER_ME',          'isRememberMe()',         'Remember-me authentication',             'AUTH'),
@@ -186,41 +186,41 @@ ON CONFLICT (name) DO UPDATE SET
 -- Use plain statements because Spring SQL initialization splits this file on
 -- semicolons and cannot safely execute procedural blocks.
 -- ----------------------------------------------------------------
-SELECT setval('users_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM users), 0), 1), COALESCE((SELECT MAX(id) FROM users), 0) > 0)
-WHERE to_regclass('users_id_seq') IS NOT NULL;
+SELECT setval('ctxa_users_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM ctxa_users), 0), 1), COALESCE((SELECT MAX(id) FROM ctxa_users), 0) > 0)
+WHERE to_regclass('ctxa_users_id_seq') IS NOT NULL;
 
-SELECT setval('app_group_group_id_seq', GREATEST(COALESCE((SELECT MAX(group_id) FROM app_group), 0), 1), COALESCE((SELECT MAX(group_id) FROM app_group), 0) > 0)
-WHERE to_regclass('app_group_group_id_seq') IS NOT NULL;
+SELECT setval('ctxa_app_group_group_id_seq', GREATEST(COALESCE((SELECT MAX(group_id) FROM ctxa_app_group), 0), 1), COALESCE((SELECT MAX(group_id) FROM ctxa_app_group), 0) > 0)
+WHERE to_regclass('ctxa_app_group_group_id_seq') IS NOT NULL;
 
-SELECT setval('role_role_id_seq', GREATEST(COALESCE((SELECT MAX(role_id) FROM role), 0), 1), COALESCE((SELECT MAX(role_id) FROM role), 0) > 0)
-WHERE to_regclass('role_role_id_seq') IS NOT NULL;
+SELECT setval('ctxa_role_role_id_seq', GREATEST(COALESCE((SELECT MAX(role_id) FROM ctxa_role), 0), 1), COALESCE((SELECT MAX(role_id) FROM ctxa_role), 0) > 0)
+WHERE to_regclass('ctxa_role_role_id_seq') IS NOT NULL;
 
-SELECT setval('role_hierarchy_config_hierarchy_id_seq', GREATEST(COALESCE((SELECT MAX(hierarchy_id) FROM role_hierarchy_config), 0), 1), COALESCE((SELECT MAX(hierarchy_id) FROM role_hierarchy_config), 0) > 0)
-WHERE to_regclass('role_hierarchy_config_hierarchy_id_seq') IS NOT NULL;
+SELECT setval('ctxa_role_hierarchy_config_hierarchy_id_seq', GREATEST(COALESCE((SELECT MAX(hierarchy_id) FROM ctxa_role_hierarchy_config), 0), 1), COALESCE((SELECT MAX(hierarchy_id) FROM ctxa_role_hierarchy_config), 0) > 0)
+WHERE to_regclass('ctxa_role_hierarchy_config_hierarchy_id_seq') IS NOT NULL;
 
-SELECT setval('policy_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM policy), 0), 1), COALESCE((SELECT MAX(id) FROM policy), 0) > 0)
-WHERE to_regclass('policy_id_seq') IS NOT NULL;
+SELECT setval('ctxa_policy_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM ctxa_policy), 0), 1), COALESCE((SELECT MAX(id) FROM ctxa_policy), 0) > 0)
+WHERE to_regclass('ctxa_policy_id_seq') IS NOT NULL;
 
-SELECT setval('policy_target_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM policy_target), 0), 1), COALESCE((SELECT MAX(id) FROM policy_target), 0) > 0)
-WHERE to_regclass('policy_target_id_seq') IS NOT NULL;
+SELECT setval('ctxa_policy_target_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM ctxa_policy_target), 0), 1), COALESCE((SELECT MAX(id) FROM ctxa_policy_target), 0) > 0)
+WHERE to_regclass('ctxa_policy_target_id_seq') IS NOT NULL;
 
-SELECT setval('policy_rule_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM policy_rule), 0), 1), COALESCE((SELECT MAX(id) FROM policy_rule), 0) > 0)
-WHERE to_regclass('policy_rule_id_seq') IS NOT NULL;
+SELECT setval('ctxa_policy_rule_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM ctxa_policy_rule), 0), 1), COALESCE((SELECT MAX(id) FROM ctxa_policy_rule), 0) > 0)
+WHERE to_regclass('ctxa_policy_rule_id_seq') IS NOT NULL;
 
-SELECT setval('policy_condition_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM policy_condition), 0), 1), COALESCE((SELECT MAX(id) FROM policy_condition), 0) > 0)
-WHERE to_regclass('policy_condition_id_seq') IS NOT NULL;
+SELECT setval('ctxa_policy_condition_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM ctxa_policy_condition), 0), 1), COALESCE((SELECT MAX(id) FROM ctxa_policy_condition), 0) > 0)
+WHERE to_regclass('ctxa_policy_condition_id_seq') IS NOT NULL;
 
-SELECT setval('condition_template_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM condition_template), 0), 1), COALESCE((SELECT MAX(id) FROM condition_template), 0) > 0)
-WHERE to_regclass('condition_template_id_seq') IS NOT NULL;
+SELECT setval('ctxa_condition_template_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM ctxa_condition_template), 0), 1), COALESCE((SELECT MAX(id) FROM ctxa_condition_template), 0) > 0)
+WHERE to_regclass('ctxa_condition_template_id_seq') IS NOT NULL;
 
-SELECT setval('security_spel_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM security_spel), 0), 1), COALESCE((SELECT MAX(id) FROM security_spel), 0) > 0)
-WHERE to_regclass('security_spel_id_seq') IS NOT NULL;
+SELECT setval('ctxa_security_spel_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM ctxa_security_spel), 0), 1), COALESCE((SELECT MAX(id) FROM ctxa_security_spel), 0) > 0)
+WHERE to_regclass('ctxa_security_spel_id_seq') IS NOT NULL;
 
-SELECT setval('official_metric_evaluation_contract_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM official_metric_evaluation_contract), 0), 1), COALESCE((SELECT MAX(id) FROM official_metric_evaluation_contract), 0) > 0)
-WHERE to_regclass('official_metric_evaluation_contract_id_seq') IS NOT NULL;
+SELECT setval('ctxa_official_metric_evaluation_contract_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM ctxa_official_metric_evaluation_contract), 0), 1), COALESCE((SELECT MAX(id) FROM ctxa_official_metric_evaluation_contract), 0) > 0)
+WHERE to_regclass('ctxa_official_metric_evaluation_contract_id_seq') IS NOT NULL;
 
-SELECT setval('official_prompt_signal_contract_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM official_prompt_signal_contract), 0), 1), COALESCE((SELECT MAX(id) FROM official_prompt_signal_contract), 0) > 0)
-WHERE to_regclass('official_prompt_signal_contract_id_seq') IS NOT NULL;
+SELECT setval('ctxa_official_prompt_signal_contract_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM ctxa_official_prompt_signal_contract), 0), 1), COALESCE((SELECT MAX(id) FROM ctxa_official_prompt_signal_contract), 0) > 0)
+WHERE to_regclass('ctxa_official_prompt_signal_contract_id_seq') IS NOT NULL;
 
 -- ----------------------------------------------------------------
 -- OSS PQA Official Inspection Contract Seed Data
@@ -233,10 +233,10 @@ WHERE to_regclass('official_prompt_signal_contract_id_seq') IS NOT NULL;
 -- Self-service paths under the admin area.
 -- A blocked user (whose only authority is ROLE_BLOCKED) asks for the release of the block, and a user whose request
 -- waits for the analysis follows it, through /contexa/admin/api/aiam/... These stay open to every signed-in user and
--- come before the administrators-only policy (priority 20 < 100).
+-- come before the administrators-only ctxa_policy (priority 20 < 100).
 -- Seeded by name with ids from the sequences, so rows an installation created never collide with them.
 -- ----------------------------------------------------------------
-INSERT INTO POLICY (
+INSERT INTO CTXA_POLICY (
     name, description, effect, priority, is_active,
     source, approval_status, friendly_description, created_at
 ) VALUES (
@@ -259,29 +259,29 @@ ON CONFLICT (name) DO UPDATE SET
                                approval_status = EXCLUDED.approval_status,
                                friendly_description = EXCLUDED.friendly_description;
 
-INSERT INTO POLICY_TARGET (policy_id, target_type, target_identifier, http_method, target_order, source_type)
+INSERT INTO CTXA_POLICY_TARGET (policy_id, target_type, target_identifier, http_method, target_order, source_type)
 SELECT p.id, 'URL', '/contexa/admin/api/aiam/zero-trust/**', 'ANY', 1, 'MANUAL'
-FROM POLICY p
+FROM CTXA_POLICY p
 WHERE p.name = 'ALLOW_CONTEXA_ZERO_TRUST_SELF_SERVICE'
-  AND NOT EXISTS (SELECT 1 FROM POLICY_TARGET t
+  AND NOT EXISTS (SELECT 1 FROM CTXA_POLICY_TARGET t
                   WHERE t.policy_id = p.id AND t.target_identifier = '/contexa/admin/api/aiam/zero-trust/**');
 
-INSERT INTO POLICY_TARGET (policy_id, target_type, target_identifier, http_method, target_order, source_type)
+INSERT INTO CTXA_POLICY_TARGET (policy_id, target_type, target_identifier, http_method, target_order, source_type)
 SELECT p.id, 'URL', '/contexa/admin/api/aiam/sse/zero-trust/**', 'ANY', 2, 'MANUAL'
-FROM POLICY p
+FROM CTXA_POLICY p
 WHERE p.name = 'ALLOW_CONTEXA_ZERO_TRUST_SELF_SERVICE'
-  AND NOT EXISTS (SELECT 1 FROM POLICY_TARGET t
+  AND NOT EXISTS (SELECT 1 FROM CTXA_POLICY_TARGET t
                   WHERE t.policy_id = p.id AND t.target_identifier = '/contexa/admin/api/aiam/sse/zero-trust/**');
 
-INSERT INTO POLICY_RULE (policy_id, description)
+INSERT INTO CTXA_POLICY_RULE (policy_id, description)
 SELECT p.id, '인증된 사용자는 자신의 차단 해제 요청과 분석 대기 알림을 쓸 수 있습니다.'
-FROM POLICY p
+FROM CTXA_POLICY p
 WHERE p.name = 'ALLOW_CONTEXA_ZERO_TRUST_SELF_SERVICE'
-  AND NOT EXISTS (SELECT 1 FROM POLICY_RULE r WHERE r.policy_id = p.id);
+  AND NOT EXISTS (SELECT 1 FROM CTXA_POLICY_RULE r WHERE r.policy_id = p.id);
 
-INSERT INTO POLICY_CONDITION (rule_id, condition_expression, authorization_phase, description)
+INSERT INTO CTXA_POLICY_CONDITION (rule_id, condition_expression, authorization_phase, description)
 SELECT r.id, 'isAuthenticated()', 'PRE_AUTHORIZE', '요청 사용자가 인증되어 있어야 합니다.'
-FROM POLICY_RULE r
-JOIN POLICY p ON p.id = r.policy_id
+FROM CTXA_POLICY_RULE r
+JOIN CTXA_POLICY p ON p.id = r.policy_id
 WHERE p.name = 'ALLOW_CONTEXA_ZERO_TRUST_SELF_SERVICE'
-  AND NOT EXISTS (SELECT 1 FROM POLICY_CONDITION c WHERE c.rule_id = r.id);
+  AND NOT EXISTS (SELECT 1 FROM CTXA_POLICY_CONDITION c WHERE c.rule_id = r.id);

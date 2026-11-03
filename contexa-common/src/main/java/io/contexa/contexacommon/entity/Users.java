@@ -24,7 +24,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Entity
-@Table(name = "users")
+@Table(name = "ctxa_users")
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder

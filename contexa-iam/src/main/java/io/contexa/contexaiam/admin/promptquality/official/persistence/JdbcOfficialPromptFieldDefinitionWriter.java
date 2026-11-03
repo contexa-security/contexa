@@ -101,7 +101,7 @@ public final class JdbcOfficialPromptFieldDefinitionWriter implements OfficialPr
 
     private void upsert(FieldDefinition field) {
         jdbcTemplate.update("""
-                        insert into official_prompt_field_definition (
+                        insert into ctxa_official_prompt_field_definition (
                             field_key, source_model, source_package, source_class, source_field_path,
                             prompt_section, prompt_label, value_type,
                             required_policy, projection_policy, applicability_rule, quality_relevance,
@@ -116,34 +116,34 @@ public final class JdbcOfficialPromptFieldDefinitionWriter implements OfficialPr
                             prompt_label = excluded.prompt_label,
                             value_type = excluded.value_type,
                             required_policy = case
-                                when official_prompt_field_definition.quality_relevance <> 'AUDIT_ONLY_SEALED_SOURCE'
+                                when ctxa_official_prompt_field_definition.quality_relevance <> 'AUDIT_ONLY_SEALED_SOURCE'
                                      and excluded.quality_relevance = 'AUDIT_ONLY_SEALED_SOURCE'
-                                then official_prompt_field_definition.required_policy
+                                then ctxa_official_prompt_field_definition.required_policy
                                 else excluded.required_policy
                             end,
                             projection_policy = case
-                                when official_prompt_field_definition.quality_relevance <> 'AUDIT_ONLY_SEALED_SOURCE'
+                                when ctxa_official_prompt_field_definition.quality_relevance <> 'AUDIT_ONLY_SEALED_SOURCE'
                                      and excluded.quality_relevance = 'AUDIT_ONLY_SEALED_SOURCE'
-                                then official_prompt_field_definition.projection_policy
+                                then ctxa_official_prompt_field_definition.projection_policy
                                 else excluded.projection_policy
                             end,
                             applicability_rule = excluded.applicability_rule,
                             quality_relevance = case
-                                when official_prompt_field_definition.quality_relevance <> 'AUDIT_ONLY_SEALED_SOURCE'
+                                when ctxa_official_prompt_field_definition.quality_relevance <> 'AUDIT_ONLY_SEALED_SOURCE'
                                      and excluded.quality_relevance = 'AUDIT_ONLY_SEALED_SOURCE'
-                                then official_prompt_field_definition.quality_relevance
+                                then ctxa_official_prompt_field_definition.quality_relevance
                                 else excluded.quality_relevance
                             end,
                             metric_codes = case
-                                when official_prompt_field_definition.quality_relevance <> 'AUDIT_ONLY_SEALED_SOURCE'
+                                when ctxa_official_prompt_field_definition.quality_relevance <> 'AUDIT_ONLY_SEALED_SOURCE'
                                      and excluded.quality_relevance = 'AUDIT_ONLY_SEALED_SOURCE'
-                                then official_prompt_field_definition.metric_codes
+                                then ctxa_official_prompt_field_definition.metric_codes
                                 else excluded.metric_codes
                             end,
                             remediation_owner = case
-                                when official_prompt_field_definition.quality_relevance <> 'AUDIT_ONLY_SEALED_SOURCE'
+                                when ctxa_official_prompt_field_definition.quality_relevance <> 'AUDIT_ONLY_SEALED_SOURCE'
                                      and excluded.quality_relevance = 'AUDIT_ONLY_SEALED_SOURCE'
-                                then official_prompt_field_definition.remediation_owner
+                                then ctxa_official_prompt_field_definition.remediation_owner
                                 else excluded.remediation_owner
                             end,
                             not_applicable_rule = excluded.not_applicable_rule,

@@ -23,6 +23,7 @@ import lombok.*;
 import java.io.Serializable;
 
 @Entity
+@Table(name = "ctxa_policy_condition")
 @Getter @Setter @Builder
 @NoArgsConstructor @AllArgsConstructor
 public class PolicyCondition implements Serializable {

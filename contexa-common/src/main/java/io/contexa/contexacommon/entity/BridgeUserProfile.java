@@ -21,7 +21,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "bridge_user_profile")
+@Table(name = "ctxa_bridge_user_profile")
 @Getter
 @Setter
 @Builder

@@ -49,7 +49,7 @@ class JdbcPromptReleaseLookupTest {
 
     private void register(String version, String hash, String approval) {
         jdbc.update("""
-                insert into prompt_governance_registry (registry_scope, prompt_key, template_key, prompt_version,
+                insert into ctxa_prompt_governance_registry (registry_scope, prompt_key, template_key, prompt_version,
                        contract_version, prompt_artifact_hash_sha256, release_status, owner_name,
                        release_approval_reference, template_class_name, registration_source)
                 values ('PLATFORM_GLOBAL', 'cortex.security-decision', 'SecurityDecisionStandard', ?,

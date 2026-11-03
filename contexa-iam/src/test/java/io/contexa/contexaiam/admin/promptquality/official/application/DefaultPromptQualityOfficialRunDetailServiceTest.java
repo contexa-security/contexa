@@ -1125,7 +1125,7 @@ class DefaultPromptQualityOfficialRunDetailServiceTest {
                         "RUNTIME_EVIDENCE",
                         "공식 검사 원장에 packageId와 aggregateRunId 연결 근거가 누락되었습니다.",
                         "packageId와 aggregateRunId 연결 근거를 공식 운영자 스냅샷에서 확인했습니다.",
-                        "official_verification_operator_finding.evidence_path",
+                        "ctxa_official_verification_operator_finding.evidence_path",
                         "packageId와 aggregateRunId가 함께 저장되어야 합니다.",
                         "aggregateRunId가 비어 있습니다.",
                         "연결 완료",

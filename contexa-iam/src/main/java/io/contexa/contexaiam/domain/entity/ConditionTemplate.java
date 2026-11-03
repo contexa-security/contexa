@@ -24,7 +24,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "CONDITION_TEMPLATE")
+@Table(name = "CTXA_CONDITION_TEMPLATE")
 @Getter
 @Setter
 @Builder

@@ -41,7 +41,7 @@ public class JdbcPromptGovernanceRuntimeCacheInvalidationService
         List<Map<String, Object>> release = jdbcTemplate.queryForList(
                 """
                         select template_key, contract_version
-                          from prompt_governance_registry
+                          from ctxa_prompt_governance_registry
                          where registry_scope = ?
                            and prompt_key = ?
                            and prompt_version = ?
@@ -53,7 +53,7 @@ public class JdbcPromptGovernanceRuntimeCacheInvalidationService
                 version);
         jdbcTemplate.update(
                 """
-                        insert into prompt_governance_runtime_cache_invalidation (
+                        insert into ctxa_prompt_governance_runtime_cache_invalidation (
                             event_id, registry_scope, prompt_key, template_key, prompt_version, contract_version,
                             invalidation_reason, published_by, published_at, consumed
                         ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -88,7 +88,7 @@ public class JdbcPromptGovernanceRuntimeCacheInvalidationService
                     """
                             select event_id, registry_scope, prompt_key, prompt_version,
                                    invalidation_reason, published_by, published_at, consumed
-                              from prompt_governance_runtime_cache_invalidation
+                              from ctxa_prompt_governance_runtime_cache_invalidation
                              order by published_at desc, id desc
                              limit ?
                             """,

@@ -35,9 +35,9 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "learning_governance_snapshot", indexes = {
-        @Index(name = "uk_learning_governance_snapshot_identity", columnList = "tenant_id, artifact_type", unique = true),
-        @Index(name = "idx_learning_governance_snapshot_tenant_updated", columnList = "tenant_id, updated_at")
+@Table(name = "ctxa_learning_governance_snapshot", indexes = {
+        @Index(name = "ctxa_uk_learning_governance_snapshot_identity", columnList = "tenant_id, artifact_type", unique = true),
+        @Index(name = "ctxa_idx_learning_governance_snapshot_tenant_updated", columnList = "tenant_id, updated_at")
 })
 @Getter
 @Setter

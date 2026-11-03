@@ -22,7 +22,7 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "user_behavior_profiles")
+@Table(name = "ctxa_user_behavior_profiles")
 @Getter
 @Setter
 public class UserBehaviorProfile {

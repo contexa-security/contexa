@@ -36,7 +36,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * The delegations kept in the {@code agent_delegation_record} table (docs/agent OC-1). The rules are the shared ones of
+ * The delegations kept in the {@code ctxa_agent_delegation_record} table (docs/agent OC-1). The rules are the shared ones of
  * {@link AgentDelegations}; a revocation is one conditional update, so two revocations keep the first.
  */
 public class JdbcDelegationRegistry implements DelegationRegistry {
@@ -69,7 +69,7 @@ public class JdbcDelegationRegistry implements DelegationRegistry {
     public AgentDelegation record(AgentDelegationRequest request) {
         AgentDelegation delegation = AgentDelegations.newDelegation(UUID.randomUUID().toString(), request,
                 maxValidity, clock.instant());
-        jdbc.update("insert into agent_delegation_record (" + COLUMNS + ") "
+        jdbc.update("insert into ctxa_agent_delegation_record (" + COLUMNS + ") "
                         + "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 delegation.delegationId(), AgentRegistrations.tenantKey(delegation.tenantId()),
                 delegation.delegatorId(), delegation.agentId(), delegation.objectiveId(),
@@ -87,7 +87,7 @@ public class JdbcDelegationRegistry implements DelegationRegistry {
         if (id == null) {
             return Optional.empty();
         }
-        return jdbc.query("select " + COLUMNS + " from agent_delegation_record where delegation_id = ?",
+        return jdbc.query("select " + COLUMNS + " from ctxa_agent_delegation_record where delegation_id = ?",
                 JdbcDelegationRegistry::delegation, id).stream().findFirst();
     }
 
@@ -101,7 +101,7 @@ public class JdbcDelegationRegistry implements DelegationRegistry {
         }
         Instant moment = at != null ? at : clock.instant();
         Timestamp when = timestamp(moment);
-        List<AgentDelegation> holding = jdbc.query("select " + COLUMNS + " from agent_delegation_record "
+        List<AgentDelegation> holding = jdbc.query("select " + COLUMNS + " from ctxa_agent_delegation_record "
                         + "where tenant_key = ? and delegator_id = ? and agent_id = ? and valid_from <= ? "
                         + "and expires_at > ? and (revoked_at is null or revoked_at > ?) "
                         + "order by valid_from desc, delegation_id desc limit 1",
@@ -110,7 +110,7 @@ public class JdbcDelegationRegistry implements DelegationRegistry {
         if (!holding.isEmpty()) {
             return Optional.of(holding.get(0));
         }
-        return jdbc.query("select " + COLUMNS + " from agent_delegation_record "
+        return jdbc.query("select " + COLUMNS + " from ctxa_agent_delegation_record "
                         + "where tenant_key = ? and delegator_id = ? and agent_id = ? "
                         + "order by valid_from desc, delegation_id desc limit 1",
                 JdbcDelegationRegistry::delegation, AgentRegistrations.tenantKey(tenantId), delegator, agent)
@@ -120,7 +120,7 @@ public class JdbcDelegationRegistry implements DelegationRegistry {
     @Override
     public List<AgentDelegation> list(@Nullable String tenantId, @Nullable String delegatorId,
                                       @Nullable String agentId, int limit) {
-        StringBuilder sql = new StringBuilder("select " + COLUMNS + " from agent_delegation_record where 1 = 1");
+        StringBuilder sql = new StringBuilder("select " + COLUMNS + " from ctxa_agent_delegation_record where 1 = 1");
         List<Object> arguments = new ArrayList<>();
         if (tenantId != null) {
             sql.append(" and tenant_key = ?");
@@ -148,7 +148,7 @@ public class JdbcDelegationRegistry implements DelegationRegistry {
         Instant now = clock.instant();
         AgentDelegation revoked = AgentDelegations.revoked(found.get(), revokedBy, reason, now);
         if (revoked != found.get()) {
-            jdbc.update("update agent_delegation_record set revoked_at = ?, revoked_by = ?, revoke_reason = ? "
+            jdbc.update("update ctxa_agent_delegation_record set revoked_at = ?, revoked_by = ?, revoke_reason = ? "
                             + "where delegation_id = ? and revoked_at is null and expires_at > ?",
                     timestamp(now), revoked.revokedBy(), revoked.revokeReason(), revoked.delegationId(),
                     timestamp(now));
@@ -162,7 +162,7 @@ public class JdbcDelegationRegistry implements DelegationRegistry {
         if (delegator == null) {
             return 0;
         }
-        return jdbc.update("delete from agent_delegation_record where delegator_id = ?", delegator);
+        return jdbc.update("delete from ctxa_agent_delegation_record where delegator_id = ?", delegator);
     }
 
     private static AgentDelegation delegation(ResultSet row, int index) throws SQLException {

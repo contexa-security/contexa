@@ -32,8 +32,8 @@ public final class JdbcOfficialVerificationSnapshotRepository implements Officia
                                b.context_hash_state, b.template_resource_id, b.actual_resource_id,
                                b.resource_url_template, b.actual_request_path, b.http_method,
                                b.diagnostic_catalog_version, b.created_at
-                          from official_verification_run_batch b
-                          join sealed_evidence_package sealed on sealed.package_id = b.package_id
+                          from ctxa_official_verification_run_batch b
+                          join ctxa_sealed_evidence_package sealed on sealed.package_id = b.package_id
                            and sealed.tenant_id = b.tenant_id
                          where b.package_id = ?
                            and b.diagnostic_catalog_version = ?
@@ -49,8 +49,8 @@ public final class JdbcOfficialVerificationSnapshotRepository implements Officia
                                b.context_hash_state, b.template_resource_id, b.actual_resource_id,
                                b.resource_url_template, b.actual_request_path, b.http_method,
                                b.diagnostic_catalog_version, b.created_at
-                          from official_verification_run_batch b
-                          join sealed_evidence_package sealed on sealed.package_id = b.package_id
+                          from ctxa_official_verification_run_batch b
+                          join ctxa_sealed_evidence_package sealed on sealed.package_id = b.package_id
                            and sealed.tenant_id = b.tenant_id
                          where b.package_id = ?
                            and b.aggregate_run_id = ?
@@ -72,8 +72,8 @@ public final class JdbcOfficialVerificationSnapshotRepository implements Officia
                                b.context_hash_state, b.template_resource_id, b.actual_resource_id,
                                b.resource_url_template, b.actual_request_path, b.http_method,
                                b.diagnostic_catalog_version, b.created_at
-                          from official_verification_run_batch b
-                          join sealed_evidence_package sealed on sealed.package_id = b.package_id
+                          from ctxa_official_verification_run_batch b
+                          join ctxa_sealed_evidence_package sealed on sealed.package_id = b.package_id
                            and sealed.tenant_id = b.tenant_id
                          where b.diagnostic_catalog_version = ?
                            and b.current_result = true

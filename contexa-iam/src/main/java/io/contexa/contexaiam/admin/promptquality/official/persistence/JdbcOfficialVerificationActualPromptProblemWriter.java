@@ -14,7 +14,7 @@ public final class JdbcOfficialVerificationActualPromptProblemWriter
         implements OfficialVerificationActualPromptProblemWriter {
 
     private static final String INSERT_SQL = """
-            insert into official_actual_prompt_problem_ledger (
+            insert into ctxa_official_actual_prompt_problem_ledger (
                 problem_id, package_id, aggregate_run_id, field_key, problem_type,
                 prompt_section, prompt_label, prompt_value, source_field_path,
                 sealed_evidence_path, expected_state, actual_state, severity,
@@ -24,7 +24,7 @@ public final class JdbcOfficialVerificationActualPromptProblemWriter
             ) values (
                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                 (
-                    select e.id from official_metric_purpose_evaluation_ledger e
+                    select e.id from ctxa_official_metric_purpose_evaluation_ledger e
                      where e.aggregate_run_id = ? and upper(e.metric_code) = ?
                        and e.customer_visible = true
                        and (e.issue_key = ? or e.check_code = ? or e.issue_key = ?)
@@ -32,8 +32,8 @@ public final class JdbcOfficialVerificationActualPromptProblemWriter
                 ),
                 (
                     select c.id
-                      from official_metric_evaluation_contract c
-                      join official_metric_purpose_evaluation_ledger e
+                      from ctxa_official_metric_evaluation_contract c
+                      join ctxa_official_metric_purpose_evaluation_ledger e
                         on e.contract_version = c.contract_version
                        and upper(e.metric_code) = upper(c.metric_code)
                        and (e.check_code = c.check_code or e.issue_key = c.issue_key or c.issue_key = ?)

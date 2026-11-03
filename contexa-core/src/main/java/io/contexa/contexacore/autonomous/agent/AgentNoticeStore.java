@@ -21,7 +21,7 @@ import java.util.List;
 
 /**
  * The notices kept for the people accountable for agents (docs/agent A5-3, A5-2). The Contexa database keeps them
- * ({@code agent_notice}); without it they are kept in memory.
+ * ({@code ctxa_agent_notice}); without it they are kept in memory.
  */
 public interface AgentNoticeStore {
 

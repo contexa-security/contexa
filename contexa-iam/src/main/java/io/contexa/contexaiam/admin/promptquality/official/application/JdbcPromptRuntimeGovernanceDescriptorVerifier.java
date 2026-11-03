@@ -131,7 +131,7 @@ public class JdbcPromptRuntimeGovernanceDescriptorVerifier
                         select registry_scope, prompt_key, template_key, prompt_version,
                                contract_version, prompt_artifact_hash_sha256, release_status,
                                release_approval_reference
-                          from prompt_governance_registry
+                          from ctxa_prompt_governance_registry
                          where registry_scope = ?
                            and prompt_key = ?
                            and template_key = ?

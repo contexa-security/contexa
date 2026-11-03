@@ -22,9 +22,9 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "prompt_governance_rollback_ledger", indexes = {
-        @Index(name = "idx_prompt_governance_rollback_identity", columnList = "registry_scope,prompt_key,prompt_version", unique = true),
-        @Index(name = "idx_prompt_governance_rollback_current", columnList = "registry_scope,prompt_key,updated_at")
+@Table(name = "ctxa_prompt_governance_rollback_ledger", indexes = {
+        @Index(name = "ctxa_idx_prompt_governance_rollback_identity", columnList = "registry_scope,prompt_key,prompt_version", unique = true),
+        @Index(name = "ctxa_idx_prompt_governance_rollback_current", columnList = "registry_scope,prompt_key,updated_at")
 })
 @Getter
 @Setter

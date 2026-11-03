@@ -26,9 +26,9 @@ import java.time.LocalDateTime;
  * Each create/update/delete operation creates a new version record.
  */
 @Entity
-@Table(name = "POLICY_VERSION", indexes = {
-        @Index(name = "idx_policy_version_policy_id", columnList = "policy_id"),
-        @Index(name = "idx_policy_version_changed_at", columnList = "changed_at")
+@Table(name = "CTXA_POLICY_VERSION", indexes = {
+        @Index(name = "ctxa_idx_policy_version_policy_id", columnList = "policy_id"),
+        @Index(name = "ctxa_idx_policy_version_changed_at", columnList = "changed_at")
 })
 @Getter @Setter @Builder
 @NoArgsConstructor @AllArgsConstructor

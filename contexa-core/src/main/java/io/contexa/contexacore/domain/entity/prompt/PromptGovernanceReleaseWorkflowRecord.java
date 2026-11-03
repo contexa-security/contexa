@@ -20,9 +20,9 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "prompt_governance_release_workflow", indexes = {
-        @Index(name = "idx_prompt_release_workflow_scope_created", columnList = "registry_scope, created_at"),
-        @Index(name = "idx_prompt_release_workflow_prompt_created", columnList = "registry_scope, prompt_key, created_at")
+@Table(name = "ctxa_prompt_governance_release_workflow", indexes = {
+        @Index(name = "ctxa_idx_prompt_release_workflow_scope_created", columnList = "registry_scope, created_at"),
+        @Index(name = "ctxa_idx_prompt_release_workflow_prompt_created", columnList = "registry_scope, prompt_key, created_at")
 })
 @Getter
 @Setter

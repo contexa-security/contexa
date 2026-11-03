@@ -22,7 +22,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "user_role_permissions")
+@Table(name = "ctxa_user_role_permissions")
 @IdClass(UserRolePermissionId.class)
 @Getter
 @Setter

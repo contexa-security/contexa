@@ -24,7 +24,7 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "shedlock")
+@Table(name = "ctxa_shedlock")
 @Getter
 @Setter
 public class Shedlock {

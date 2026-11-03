@@ -163,7 +163,7 @@ public class SystemRuntimeSettingsService {
     }
 
     /**
-     * Operator-controlled policy decision settings persisted in {@code system_settings}.
+     * Operator-controlled policy decision settings persisted in {@code ctxa_system_settings}.
      */
     public record PolicyDecisionSettings(
             CombiningAlgorithm combiningAlgorithm,

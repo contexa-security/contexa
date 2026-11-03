@@ -118,9 +118,9 @@ class JdbcAgentNoticeStoreTest {
     /** The table and its indexes exactly as the canonical schema creates them. */
     private static List<String> agentNoticeDdl() throws Exception {
         String schema = new ClassPathResource("db/schema.sql").getContentAsString(StandardCharsets.UTF_8);
-        Matcher table = Pattern.compile("(?is)create table if not exists agent_notice\\s*\\(.*?\\n\\);").matcher(schema);
+        Matcher table = Pattern.compile("(?is)create table if not exists ctxa_agent_notice\\s*\\(.*?\\n\\);").matcher(schema);
         assertThat(table.find()).isTrue();
-        Matcher indexes = Pattern.compile("(?is)create index if not exists \\S+\\s+on agent_notice\\s*\\([^;]*;")
+        Matcher indexes = Pattern.compile("(?is)create index if not exists \\S+\\s+on ctxa_agent_notice\\s*\\([^;]*;")
                 .matcher(schema);
         List<String> statements = new ArrayList<>();
         statements.add(table.group().replace(";", ""));

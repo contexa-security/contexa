@@ -10,14 +10,14 @@ import java.util.Objects;
 public final class JdbcOfficialVerificationMetricPurposeWriter implements OfficialVerificationMetricPurposeWriter {
 
     private static final String INSERT_READINESS_SQL = """
-            insert into official_metric_input_readiness_ledger (
+            insert into ctxa_official_metric_input_readiness_ledger (
                 package_id, aggregate_run_id, metric_code, check_code,
                 contract_version, readiness_state, detected_inputs_json,
                 missing_inputs_json, readiness_scope, customer_visible, created_at
             ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
     private static final String INSERT_PURPOSE_SQL = """
-            insert into official_metric_purpose_evaluation_ledger (
+            insert into ctxa_official_metric_purpose_evaluation_ledger (
                 package_id, aggregate_run_id, metric_code, check_code,
                 contract_version, purpose_statement, decision_utility,
                 purpose_result, issue_key, customer_visible, readiness_scope,
@@ -28,7 +28,7 @@ public final class JdbcOfficialVerificationMetricPurposeWriter implements Offici
             """;
 
     private static final String INSERT_CUSTOMER_DISPLAY_SQL = """
-            insert into official_metric_customer_display_payload (
+            insert into ctxa_official_metric_customer_display_payload (
                 package_id, aggregate_run_id, metric_code, check_code, contract_version,
                 display_role, title, summary, evidence_text, why_it_matters,
                 resolution_action, reverify_condition, context_items_json,

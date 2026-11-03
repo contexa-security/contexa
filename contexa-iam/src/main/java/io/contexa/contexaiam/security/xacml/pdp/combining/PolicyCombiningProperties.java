@@ -24,7 +24,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * Default: FIRST_APPLICABLE (priority-ordered, first matching policy decides).
  *
  * <p>The values are the startup defaults. The system settings screen stores operator overrides
- * in {@code system_settings}; they are applied to this bean at startup and immediately after
+ * in {@code ctxa_system_settings}; they are applied to this bean at startup and immediately after
  * every save, so the fields are volatile for safe publication to request threads.</p>
  */
 @Getter

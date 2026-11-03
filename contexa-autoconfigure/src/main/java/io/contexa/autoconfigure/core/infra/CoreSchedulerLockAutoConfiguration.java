@@ -53,6 +53,9 @@ import javax.sql.DataSource;
 @EnableSchedulerLock(defaultLockAtMostFor = "PT5M")
 public class CoreSchedulerLockAutoConfiguration {
 
+    /** ShedLock's default table name is {@code shedlock}; a table of the application may have it, so Contexa's has the prefix. */
+    static final String LOCK_TABLE = "ctxa_shedlock";
+
     @Bean
     @ConditionalOnMissingBean(LockProvider.class)
     public LockProvider shedLockProvider(
@@ -60,7 +63,8 @@ public class CoreSchedulerLockAutoConfiguration {
             ContexaSchedulerLockProperties properties) {
         JdbcTemplateLockProvider.Configuration.Builder builder =
                 JdbcTemplateLockProvider.Configuration.builder()
-                        .withJdbcTemplate(new JdbcTemplate(dataSource));
+                        .withJdbcTemplate(new JdbcTemplate(dataSource))
+                        .withTableName(LOCK_TABLE);
         if (properties.useDatabaseTime()) {
             builder.usingDbTime();
         }

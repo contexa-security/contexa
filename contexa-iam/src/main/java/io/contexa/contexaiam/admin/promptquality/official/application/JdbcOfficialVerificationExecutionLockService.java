@@ -159,7 +159,7 @@ public class JdbcOfficialVerificationExecutionLockService implements OfficialVer
 
     private void complete(ExecutionRecord record, String aggregateRunId, String resultJson) {
         int updated = jdbcTemplate.update("""
-                        update official_verification_execution_lock
+                        update ctxa_official_verification_execution_lock
                            set state = ?,
                                progress_percent = ?,
                                aggregate_run_id = ?,
@@ -211,7 +211,7 @@ public class JdbcOfficialVerificationExecutionLockService implements OfficialVer
         int failedProgress = OfficialVerificationProgressPolicy.failureProgress(latest.progressPercent());
         String reason = progressStore.failureMessage(failure);
         int updated = jdbcTemplate.update("""
-                        update official_verification_execution_lock
+                        update ctxa_official_verification_execution_lock
                            set state = ?,
                                progress_percent = ?,
                                failed_at = ?,
@@ -297,15 +297,15 @@ public class JdbcOfficialVerificationExecutionLockService implements OfficialVer
                 continue;
             }
             jdbcTemplate.update(
-                    "delete from official_verification_execution_state_history where package_id = ? and tenant_id = ?",
+                    "delete from ctxa_official_verification_execution_state_history where package_id = ? and tenant_id = ?",
                     packageId,
                     normalizedTenantId);
             jdbcTemplate.update(
-                    "delete from official_verification_metric_execution_ledger where package_id = ? and tenant_id = ?",
+                    "delete from ctxa_official_verification_metric_execution_ledger where package_id = ? and tenant_id = ?",
                     packageId,
                     normalizedTenantId);
             jdbcTemplate.update(
-                    "delete from official_verification_execution_lock where package_id = ? and tenant_id = ?",
+                    "delete from ctxa_official_verification_execution_lock where package_id = ? and tenant_id = ?",
                     packageId,
                     normalizedTenantId);
         }
@@ -334,7 +334,7 @@ public class JdbcOfficialVerificationExecutionLockService implements OfficialVer
         String retryInstruction = "Retry the same evidence package after confirming that the interrupted execution is no longer active.";
         String failureReason = "Official verification execution exceeded the configured stale timeout.";
         int updated = jdbcTemplate.update("""
-                        update official_verification_execution_lock
+                        update ctxa_official_verification_execution_lock
                            set state = ?,
                                failed_at = ?,
                                updated_at = ?,

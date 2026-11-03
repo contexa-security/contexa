@@ -25,7 +25,7 @@ public final class JdbcOfficialVerificationFindingWriter implements OfficialVeri
         FindingClassification classification = Objects.requireNonNull(command.classification(), "classification");
         FindingNarrative narrative = Objects.requireNonNull(command.narrative(), "narrative");
         jdbcTemplate.update("""
-                        insert into official_verification_operator_finding (
+                        insert into ctxa_official_verification_operator_finding (
                             finding_id, aggregate_run_id, official_run_id, package_id,
                             certificate_id, case_id, issue_id, metric_code,
                             check_code, severity, operator_title, operator_summary,

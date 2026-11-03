@@ -11,7 +11,7 @@ public final class JdbcOfficialVerificationMetricPurposeEvidenceWriter
         implements OfficialVerificationMetricPurposeEvidenceWriter {
 
     private static final String INSERT_SQL = """
-            insert into official_metric_purpose_evidence_ledger (
+            insert into ctxa_official_metric_purpose_evidence_ledger (
                 package_id, aggregate_run_id, purpose_evaluation_id,
                 metric_code, check_code, contract_version, signal_key,
                 prompt_location, evidence_value, evidence_hash, interpretation,
@@ -20,7 +20,7 @@ public final class JdbcOfficialVerificationMetricPurposeEvidenceWriter
             ) values (
                 ?, ?,
                 (
-                    select e.id from official_metric_purpose_evaluation_ledger e
+                    select e.id from ctxa_official_metric_purpose_evaluation_ledger e
                      where e.aggregate_run_id = ?
                        and upper(e.metric_code) = ?
                        and e.check_code = ?

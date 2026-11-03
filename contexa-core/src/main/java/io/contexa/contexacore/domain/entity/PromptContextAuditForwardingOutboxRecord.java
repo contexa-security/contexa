@@ -24,9 +24,9 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "prompt_context_audit_forwarding_outbox", indexes = {
-        @Index(name = "uk_prompt_context_audit_forwarding_outbox_audit_id", columnList = "audit_id", unique = true),
-        @Index(name = "idx_prompt_context_audit_forwarding_outbox_dispatch", columnList = "status,next_attempt_at,created_at")
+@Table(name = "ctxa_prompt_context_audit_forwarding_outbox", indexes = {
+        @Index(name = "ctxa_uk_prompt_context_audit_forwarding_outbox_audit_id", columnList = "audit_id", unique = true),
+        @Index(name = "ctxa_idx_prompt_context_audit_forwarding_outbox_dispatch", columnList = "status,next_attempt_at,created_at")
 })
 @Getter
 @Setter

@@ -93,7 +93,7 @@ class JdbcPromptReleaseQueryServiceTest {
     void theCanaryScopeOfARowIsRead() {
         // W7-14: the version list shows a bundle's scope with the canary share and targets of its registry row.
         registry("PLATFORM_GLOBAL", "2026.07.30-v19", "2026.07.26-v5", T0);
-        database.jdbcTemplate().update("update prompt_governance_registry set canary_percent = 10, "
+        database.jdbcTemplate().update("update ctxa_prompt_governance_registry set canary_percent = 10, "
                 + "canary_tenants = 'tenant-a', canary_resource_families = 'EXPORT' where prompt_version = ?",
                 "2026.07.30-v19");
 

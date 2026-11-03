@@ -37,8 +37,8 @@ public class JdbcPromptInspectionQueries {
     private static final String LATEST = """
             with latest as (
                 select distinct on (r.package_id) r.*
-                  from prompt_inspection_result r
-                  join sealed_evidence_package lp on lp.package_id = r.package_id
+                  from ctxa_prompt_inspection_result r
+                  join ctxa_sealed_evidence_package lp on lp.package_id = r.package_id
                  where lp.captured_at between ? and ?
                  order by r.package_id, r.inspected_at desc, r.id desc
             ),
@@ -47,11 +47,11 @@ public class JdbcPromptInspectionQueries {
                        nullif(k.entry_name, '') as entry_name, (e ->> 'lines')::bigint as lines
                   from latest l
                   cross join lateral json_array_elements(l.finding_kinds_json::json) e
-                  join prompt_inspection_finding_kind k on k.id = (e ->> 'kind')::bigint
+                  join ctxa_prompt_inspection_finding_kind k on k.id = (e ->> 'kind')::bigint
                  where l.finding_kinds_json is not null
                 union all
                 select f.result_id, f.check_code, f.outcome, f.block_name, f.entry_name, 1
-                  from prompt_inspection_finding f
+                  from ctxa_prompt_inspection_finding f
                   join latest l on l.id = f.result_id
                  where l.finding_kinds_json is null
             )
@@ -112,7 +112,7 @@ public class JdbcPromptInspectionQueries {
         String where = packageWhere(filter, arguments);
         Long total = jdbc.queryForObject(LATEST + """
                 select count(*)
-                  from sealed_evidence_package p
+                  from ctxa_sealed_evidence_package p
                   left join latest l on l.package_id = p.package_id
                 """ + where, Long.class, withPeriod(filter.from(), filter.to(), arguments));
         List<Object> pageArguments = new ArrayList<>(arguments);
@@ -124,7 +124,7 @@ public class JdbcPromptInspectionQueries {
                        p.request_facts_jsonb ->> 'requestPath' as request_path,
                        p.request_facts_jsonb ->> 'resourceId' as resource_id,
                        l.verdict, l.mismatch_count, l.unverifiable_count, l.inspector_version, l.inspected_at
-                  from sealed_evidence_package p
+                  from ctxa_sealed_evidence_package p
                   left join latest l on l.package_id = p.package_id
                 """ + where + """
                  order by p.captured_at desc, p.id desc
@@ -138,7 +138,7 @@ public class JdbcPromptInspectionQueries {
         Map<String, Long> verdicts = new LinkedHashMap<>();
         jdbc.query(LATEST + """
                 select coalesce(l.verdict, ?) as verdict, count(*) as packages
-                  from sealed_evidence_package p
+                  from ctxa_sealed_evidence_package p
                   left join latest l on l.package_id = p.package_id
                  where p.captured_at between ? and ?
                  group by 1
@@ -147,7 +147,7 @@ public class JdbcPromptInspectionQueries {
             verdicts.put(rs.getString("verdict"), rs.getLong("packages"));
         }, withPeriod(from, to, List.of(NOT_INSPECTED, Timestamp.from(from), Timestamp.from(to))));
         String findings = """
-                  from sealed_evidence_package p
+                  from ctxa_sealed_evidence_package p
                   join latest l on l.package_id = p.package_id
                   join finding_lines f on f.result_id = l.id
                  where p.captured_at between ? and ?
@@ -171,7 +171,7 @@ public class JdbcPromptInspectionQueries {
                 select p.request_facts_jsonb ->> 'resourceId' as resource_id,
                        count(distinct p.package_id) as packages,
                        coalesce(sum(f.lines) filter (where f.outcome = 'MISMATCH'), 0) as mismatch
-                  from sealed_evidence_package p
+                  from ctxa_sealed_evidence_package p
                   left join latest l on l.package_id = p.package_id
                   left join finding_lines f on f.result_id = l.id
                  where p.captured_at between ? and ?
@@ -191,7 +191,7 @@ public class JdbcPromptInspectionQueries {
                        count(*) filter (where l.verdict = 'PASS') as passed,
                        count(*) filter (where l.verdict = 'NOT_APPLICABLE') as not_applicable,
                        count(*) filter (where l.verdict = 'ERROR') as errors
-                  from sealed_evidence_package p
+                  from ctxa_sealed_evidence_package p
                   join latest l on l.package_id = p.package_id
                  where p.captured_at between ? and ?
                  group by 1, 2, 3
@@ -215,8 +215,8 @@ public class JdbcPromptInspectionQueries {
     private static final String BUNDLE_OUTCOMES = """
             with latest as (
                 select distinct on (r.package_id) r.package_id, r.verdict
-                  from prompt_inspection_result r
-                  join sealed_evidence_package lp on lp.package_id = r.package_id
+                  from ctxa_prompt_inspection_result r
+                  join ctxa_sealed_evidence_package lp on lp.package_id = r.package_id
                  where lp.captured_at between ? and ?
                  order by r.package_id, r.inspected_at desc, r.id desc
             ),
@@ -227,7 +227,7 @@ public class JdbcPromptInspectionQueries {
                        case when p.decision_jsonb ->> 'decisionAppliedStage' = 'SHADOW' then 'SHADOW'
                             else 'DECISION' end as stage,
                        coalesce(p.decision_jsonb ->> 'action', '') as action
-                  from sealed_evidence_package p
+                  from ctxa_sealed_evidence_package p
                  where p.captured_at between ? and ?
             )
             select s.bundle_version, s.stage, s.action, count(*) as packages,
@@ -279,7 +279,7 @@ public class JdbcPromptInspectionQueries {
                        contexa_safe_jsonb(p.prompt_execution_metadata_json) #>> '{%1$s,promptBundleVersion}'
                            as bundle_version,
                        coalesce(p.decision_jsonb ->> 'action', '') as action
-                  from sealed_evidence_package p
+                  from ctxa_sealed_evidence_package p
                  where p.captured_at between ? and ?
                    and p.decision_jsonb ->> 'decisionAppliedStage' = 'SHADOW'
             ),
@@ -291,7 +291,7 @@ public class JdbcPromptInspectionQueries {
                        contexa_safe_jsonb(d.prompt_execution_metadata_json) #>> '{%1$s,promptBundleVersion}'
                            as bundle_version,
                        coalesce(d.decision_jsonb ->> 'action', '') as action
-                  from sealed_evidence_package d
+                  from ctxa_sealed_evidence_package d
                  where d.correlation_id in (select original_request_id from shadows)
                    and coalesce(d.decision_jsonb ->> 'decisionAppliedStage', '') <> 'SHADOW'
                  order by d.correlation_id, d.captured_at desc, d.id desc

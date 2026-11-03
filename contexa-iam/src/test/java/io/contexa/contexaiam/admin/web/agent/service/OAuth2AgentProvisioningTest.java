@@ -165,8 +165,8 @@ class OAuth2AgentProvisioningTest {
         AgentRegistration deregistered = provisioning.deregister(null, "agent-1", "decommissioned", "admin-1");
 
         assertThat(deregistered.status()).isEqualTo(AgentStatus.DEREGISTERED);
-        verify(jdbc).update(eq("delete from oauth2_authorization where registered_client_id in "
-                + "(select id from oauth2_registered_client where client_id = ?)"), eq("agent-1-client"));
+        verify(jdbc).update(eq("delete from ctxa_oauth2_authorization where registered_client_id in "
+                + "(select id from ctxa_oauth2_registered_client where client_id = ?)"), eq("agent-1-client"));
         assertThat(encoder.matches(credentials.clientSecret(),
                 clients.findByClientId("agent-1-client").getClientSecret())).isFalse();
         assertThat(account.isEnabled()).isFalse();
@@ -181,7 +181,7 @@ class OAuth2AgentProvisioningTest {
         account.setId(11L);
         account.setUsername("agent-1");
         when(userRepository.findByUsername("agent-1")).thenReturn(Optional.of(account));
-        when(jdbc.update(eq("delete from oauth2_registered_client where client_id = ?"), anyString())).thenReturn(1);
+        when(jdbc.update(eq("delete from ctxa_oauth2_registered_client where client_id = ?"), anyString())).thenReturn(1);
 
         UserEngineStatePurger purger = mock(UserEngineStatePurger.class);
         when(purger.purge("agent-1-client")).thenReturn(new UserEngineStatePurgeResult("agent-1-client",
@@ -190,7 +190,7 @@ class OAuth2AgentProvisioningTest {
 
         provisioning.remove(null, "agent-1", "admin-1");
 
-        verify(jdbc).update("delete from oauth2_registered_client where client_id = ?", "agent-1-client");
+        verify(jdbc).update("delete from ctxa_oauth2_registered_client where client_id = ?", "agent-1-client");
         verify(users).deleteUser(11L);
         // CF-23: the engine state the agent kept under its client ID goes with it.
         verify(purger).purge("agent-1-client");

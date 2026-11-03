@@ -27,7 +27,7 @@ import java.util.Set;
 @Entity
 @Getter @Setter @Builder
 @NoArgsConstructor @AllArgsConstructor
-@Table(name = "POLICY")
+@Table(name = "CTXA_POLICY")
 public class Policy implements Serializable {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

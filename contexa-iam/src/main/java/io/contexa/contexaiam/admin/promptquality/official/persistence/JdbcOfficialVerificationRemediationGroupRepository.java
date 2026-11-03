@@ -28,7 +28,7 @@ public final class JdbcOfficialVerificationRemediationGroupRepository implements
                                next_action, reverify_criterion, affected_metric_codes,
                                affected_check_codes, finding_count, related_process_step,
                                comparison_field_keys, prompt_locations, diagnostic_catalog_version, created_at
-                          from official_verification_operator_remediation_group
+                          from ctxa_official_verification_operator_remediation_group
                          where aggregate_run_id = ?
                          order by finding_count desc, remediation_owner asc, id asc
                         """,
@@ -47,7 +47,7 @@ public final class JdbcOfficialVerificationRemediationGroupRepository implements
                                next_action, reverify_criterion, affected_metric_codes,
                                affected_check_codes, finding_count, related_process_step,
                                comparison_field_keys, prompt_locations, diagnostic_catalog_version, created_at
-                          from official_verification_operator_remediation_group
+                          from ctxa_official_verification_operator_remediation_group
                          where aggregate_run_id in (%s)
                          order by aggregate_run_id asc, finding_count desc, remediation_owner asc, id asc
                         """.formatted(placeholders(aggregateRunIds)),

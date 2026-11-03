@@ -16,7 +16,7 @@ import java.util.Set;
 public final class OfficialVerificationDefinitionCatalogWriter {
 
     private static final String UPSERT_METRIC = """
-            insert into official_verification_metric_definition
+            insert into ctxa_official_verification_metric_definition
                 (metric_code, definition_version, metric_name, metric_group, purpose,
                  evidence_contract, blocking_scope, is_active)
             values (?, ?, ?, ?, ?, ?, ?, true)
@@ -30,7 +30,7 @@ public final class OfficialVerificationDefinitionCatalogWriter {
             """;
 
     private static final String UPSERT_CHECK = """
-            insert into official_verification_metric_check_definition
+            insert into ctxa_official_verification_metric_check_definition
                 (metric_code, check_code, definition_version, check_label, expected_value,
                  evidence_source, severity, remediation_owner, is_active)
             values (?, ?, ?, ?, ?, ?, ?, ?, true)
@@ -118,11 +118,11 @@ public final class OfficialVerificationDefinitionCatalogWriter {
                 check -> expectedCheckKeys.add(check.metricCode() + "|" + check.checkCode()));
 
         Set<String> actualMetricKeys = queryKeys(connection,
-                "select metric_code from official_verification_metric_definition "
+                "select metric_code from ctxa_official_verification_metric_definition "
                         + "where definition_version = ? and is_active = true order by metric_code",
                 false);
         Set<String> actualCheckKeys = queryKeys(connection,
-                "select metric_code, check_code from official_verification_metric_check_definition "
+                "select metric_code, check_code from ctxa_official_verification_metric_check_definition "
                         + "where definition_version = ? and is_active = true order by metric_code, check_code",
                 true);
         assertExact("metric", expectedMetricKeys, actualMetricKeys);

@@ -223,7 +223,7 @@ public class CapabilityRequirementResolver {
                 }
                 if (!hasBeanName(CoreCapabilityContributor.DECISION_OBSERVATION_STORE_BEAN)) {
                     guidance.add("Configure the Contexa datasource so that contexaJdbcTemplate exists; final decisions "
-                            + "are enforced only after they are recorded in ai_security_decision_observation.");
+                            + "are enforced only after they are recorded in ctxa_ai_security_decision_observation.");
                 }
                 if (!customerFacing) {
                     guidance.add("Verify autonomous decision auto-configuration completed and required LLM/RAG dependencies are active.");

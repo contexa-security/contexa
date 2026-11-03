@@ -21,7 +21,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "system_settings")
+@Table(name = "ctxa_system_settings")
 @Getter
 @Setter
 @Builder

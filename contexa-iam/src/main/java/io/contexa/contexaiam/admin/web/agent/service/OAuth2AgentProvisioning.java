@@ -249,7 +249,7 @@ public class OAuth2AgentProvisioning implements AgentProvisioning {
         if (registration.clientId() != null) {
             revoked = revokeTokens(registration.clientId());
             requireDatabase();
-            clientRemoved = jdbc.update("delete from oauth2_registered_client where client_id = ?",
+            clientRemoved = jdbc.update("delete from ctxa_oauth2_registered_client where client_id = ?",
                     registration.clientId()) > 0;
         }
         boolean accountRemoved = false;
@@ -296,8 +296,8 @@ public class OAuth2AgentProvisioning implements AgentProvisioning {
         if (jdbc == null) {
             return 0;
         }
-        return jdbc.update("delete from oauth2_authorization where registered_client_id in "
-                + "(select id from oauth2_registered_client where client_id = ?)", clientId);
+        return jdbc.update("delete from ctxa_oauth2_authorization where registered_client_id in "
+                + "(select id from ctxa_oauth2_registered_client where client_id = ?)", clientId);
     }
 
     private List<Long> groupIds(@Nullable List<String> names) {

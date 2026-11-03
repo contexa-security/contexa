@@ -112,7 +112,7 @@ class PromptBundleRollbackServiceTest {
         assertThat(status("2026.10.11-v19.8")).isEqualTo("DEPRECATED");
         assertThat(status("2026.10.11-v19.7")).isEqualTo("ACTIVE");
         assertThat(status("2026.10.11-v19.5")).isEqualTo("ACTIVE");
-        assertThat(jdbc.queryForObject("select conditions_json from prompt_governance_rollback_execution "
+        assertThat(jdbc.queryForObject("select conditions_json from ctxa_prompt_governance_rollback_execution "
                 + "where execution_key = ?", String.class, result.executionKey()))
                 .contains("superseded", "2026.10.13-v19.9", "2026.10.11-v19.8")
                 .doesNotContain("2026.10.11-v19.7", "2026.10.11-v19.5");
@@ -165,13 +165,13 @@ class PromptBundleRollbackServiceTest {
         ledger("2026.10.15-v20.20", "2026.01.01-v1", "READY");
 
         assertThat(service.correctRollbackReadiness()).isEqualTo(1);
-        assertThat(jdbc.queryForList("select rollback_readiness_state from prompt_governance_rollback_ledger "
+        assertThat(jdbc.queryForList("select rollback_readiness_state from ctxa_prompt_governance_rollback_ledger "
                 + "order by prompt_version", String.class)).containsExactly("TARGET_NOT_IN_BUILD", "READY");
     }
 
     private void registry(String version, String status) {
         jdbc.update("""
-                        insert into prompt_governance_registry (registry_scope, prompt_key, template_key, prompt_version,
+                        insert into ctxa_prompt_governance_registry (registry_scope, prompt_key, template_key, prompt_version,
                             contract_version, prompt_artifact_hash_sha256, release_status, owner_name,
                             template_class_name, registration_source)
                         values (?, ?, 'SecurityDecisionStandard', ?, 'CORTEX_PROMPT_CONTRACT_V3', 'hash', ?, 'pqa',
@@ -181,7 +181,7 @@ class PromptBundleRollbackServiceTest {
 
     private void release(String scope, String templateKey, String version, String status) {
         jdbc.update("""
-                insert into prompt_governance_registry (registry_scope, prompt_key, template_key, prompt_version,
+                insert into ctxa_prompt_governance_registry (registry_scope, prompt_key, template_key, prompt_version,
                     contract_version, prompt_artifact_hash_sha256, release_status, owner_name,
                     template_class_name, registration_source)
                 values (?, ?, ?, ?, 'CORTEX_PROMPT_CONTRACT_V3', 'hash', ?, 'pqa',
@@ -191,7 +191,7 @@ class PromptBundleRollbackServiceTest {
 
     private void ledger(String version, String target, String readiness) {
         jdbc.update("""
-                        insert into prompt_governance_rollback_ledger (registry_scope, prompt_key, prompt_version,
+                        insert into ctxa_prompt_governance_rollback_ledger (registry_scope, prompt_key, prompt_version,
                             rollback_reference, rollback_target_prompt_version, rollback_state, rollback_readiness_state,
                             rollback_strategy, rollback_reason, prepared_by, registration_source)
                         values (?, ?, ?, 'ref', ?, 'TARGET_DECLARED', ?, 'BUNDLE', 'test', 'pqa', 'test')""",
@@ -199,13 +199,13 @@ class PromptBundleRollbackServiceTest {
     }
 
     private String status(String version) {
-        return jdbc.queryForObject("select release_status from prompt_governance_registry where prompt_version = ?",
+        return jdbc.queryForObject("select release_status from ctxa_prompt_governance_registry where prompt_version = ?",
                 String.class, version);
     }
 
     private List<String> execution(String executionKey) {
         return jdbc.queryForObject("select status, actor, from_version, to_version from "
-                        + "prompt_governance_rollback_execution where execution_key = ?",
+                        + "ctxa_prompt_governance_rollback_execution where execution_key = ?",
                 (rs, n) -> List.of(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4)), executionKey);
     }
 }

@@ -28,7 +28,7 @@ import org.springframework.context.ApplicationListener;
 import java.util.Optional;
 
 /**
- * Applies operator settings stored in {@code system_settings} to runtime components.
+ * Applies operator settings stored in {@code ctxa_system_settings} to runtime components.
  *
  * <p>Policy decision settings (combining algorithm, no-matching URL policy decision and missing
  * method policy decision) are applied once all singletons exist, before the web server accepts

@@ -126,23 +126,23 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
         for (FinalPromptMetricContractCatalog.PromptSignalContract signal : catalog.promptSignalContracts()) {
             expectedSignalRows.add("MTR|" + signal.checkCode() + "|" + signal.signalKey());
         }
-        assertCurrentContractKeys("official_metric_purpose_contract", "metric_code",
+        assertCurrentContractKeys("ctxa_official_metric_purpose_contract", "metric_code",
                 currentVersion, expectedMetricRows);
-        assertCurrentContractKeys("official_metric_evaluation_contract", "metric_code || '|' || check_code",
+        assertCurrentContractKeys("ctxa_official_metric_evaluation_contract", "metric_code || '|' || check_code",
                 currentVersion, expectedCheckRows);
-        assertCurrentContractKeys("official_prompt_signal_contract",
+        assertCurrentContractKeys("ctxa_official_prompt_signal_contract",
                 "metric_code || '|' || check_code || '|' || signal_key", currentVersion, expectedSignalRows);
-        assertCurrentContractKeys("official_metric_customer_message_contract", "metric_code || '|' || check_code",
+        assertCurrentContractKeys("ctxa_official_metric_customer_message_contract", "metric_code || '|' || check_code",
                 currentVersion, expectedCheckRows);
-        assertCurrentContractKeys("official_metric_check_display_evidence_contract",
+        assertCurrentContractKeys("ctxa_official_metric_check_display_evidence_contract",
                 "metric_code || '|' || check_code", currentVersion, expectedCheckRows);
-        assertCurrentContractKeys("official_metric_customer_display_contract",
+        assertCurrentContractKeys("ctxa_official_metric_customer_display_contract",
                 "metric_code || '|' || check_code || '|' || display_role",
                 currentVersion, expectedCustomerDisplayRows);
-        assertCurrentContractKeys("official_metric_customer_display_binding",
+        assertCurrentContractKeys("ctxa_official_metric_customer_display_binding",
                 "metric_code || '|' || check_code || '|' || display_role || '|' || binding_key",
                 currentVersion, expectedCustomerDisplayBindingRows);
-        assertCurrentContractKeys("official_metric_input_contract",
+        assertCurrentContractKeys("ctxa_official_metric_input_contract",
                 "metric_code || '|' || check_code || '|' || input_key", currentVersion, expectedInputRows);
     }
 
@@ -195,7 +195,7 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
         String failureMessage = firstNonBlank(
                 check.operatorReason(), check.actualValue(), "Official runtime check failed.");
         jdbcTemplate.update("""
-                        insert into official_metric_contract_version (
+                        insert into ctxa_official_metric_contract_version (
                             contract_version, source_artifact, active, created_at
                         ) values (?, ?, ?, ?)
                         on conflict (contract_version) do update
@@ -207,7 +207,7 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
                 true,
                 nowTimestamp());
         jdbcTemplate.update("""
-                        insert into official_metric_purpose_contract (
+                        insert into ctxa_official_metric_purpose_contract (
                             contract_version, metric_code, purpose_statement, decision_question,
                             customer_visible, metric_role, blocks_llm_submission, blocks_certificate, created_at
                         ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -229,7 +229,7 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
                 false,
                 nowTimestamp());
         jdbcTemplate.update("""
-                        insert into official_metric_evaluation_contract (
+                        insert into ctxa_official_metric_evaluation_contract (
                             contract_version, metric_code, check_code, purpose_question,
                             pass_condition, fail_condition, issue_key, customer_visible,
                             readiness_scope, problem_title, short_problem, expected_message,
@@ -264,7 +264,7 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
                 failureMessage,
                 nowTimestamp());
         jdbcTemplate.update("""
-                        insert into official_metric_customer_message_contract (
+                        insert into ctxa_official_metric_customer_message_contract (
                             contract_version, metric_code, check_code,
                             problem_title, short_problem, why_it_matters,
                             fix_action, reverify_criterion, metric_purpose,
@@ -368,25 +368,25 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
 
     private void removeFallbackContractRows() {
         String fallbackVersion = "runtime-contract-unknown";
-        jdbcTemplate.update("delete from official_metric_customer_message_contract where contract_version = ?",
+        jdbcTemplate.update("delete from ctxa_official_metric_customer_message_contract where contract_version = ?",
                 fallbackVersion);
-        jdbcTemplate.update("delete from official_metric_check_display_evidence_contract where contract_version = ?",
+        jdbcTemplate.update("delete from ctxa_official_metric_check_display_evidence_contract where contract_version = ?",
                 fallbackVersion);
-        jdbcTemplate.update("delete from official_metric_customer_display_binding where contract_version = ?",
+        jdbcTemplate.update("delete from ctxa_official_metric_customer_display_binding where contract_version = ?",
                 fallbackVersion);
-        jdbcTemplate.update("delete from official_metric_customer_display_contract where contract_version = ?",
+        jdbcTemplate.update("delete from ctxa_official_metric_customer_display_contract where contract_version = ?",
                 fallbackVersion);
-        jdbcTemplate.update("delete from official_metric_customer_display_payload where contract_version = ?",
+        jdbcTemplate.update("delete from ctxa_official_metric_customer_display_payload where contract_version = ?",
                 fallbackVersion);
-        jdbcTemplate.update("delete from official_prompt_signal_contract where contract_version = ?",
+        jdbcTemplate.update("delete from ctxa_official_prompt_signal_contract where contract_version = ?",
                 fallbackVersion);
-        jdbcTemplate.update("delete from official_metric_input_contract where contract_version = ?",
+        jdbcTemplate.update("delete from ctxa_official_metric_input_contract where contract_version = ?",
                 fallbackVersion);
-        jdbcTemplate.update("delete from official_metric_evaluation_contract where contract_version = ?",
+        jdbcTemplate.update("delete from ctxa_official_metric_evaluation_contract where contract_version = ?",
                 fallbackVersion);
-        jdbcTemplate.update("delete from official_metric_purpose_contract where contract_version = ?",
+        jdbcTemplate.update("delete from ctxa_official_metric_purpose_contract where contract_version = ?",
                 fallbackVersion);
-        jdbcTemplate.update("delete from official_metric_contract_version where contract_version = ?",
+        jdbcTemplate.update("delete from ctxa_official_metric_contract_version where contract_version = ?",
                 fallbackVersion);
     }
 
@@ -394,23 +394,23 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
         if (!StringUtils.hasText(contractVersion)) {
             throw new IllegalStateException("Final prompt metric contract version is required before pruning current rows.");
         }
-        jdbcTemplate.update("delete from official_metric_customer_message_contract where contract_version = ?",
+        jdbcTemplate.update("delete from ctxa_official_metric_customer_message_contract where contract_version = ?",
                 contractVersion);
-        jdbcTemplate.update("delete from official_metric_check_display_evidence_contract where contract_version = ?",
+        jdbcTemplate.update("delete from ctxa_official_metric_check_display_evidence_contract where contract_version = ?",
                 contractVersion);
-        jdbcTemplate.update("delete from official_metric_customer_display_binding where contract_version = ?",
+        jdbcTemplate.update("delete from ctxa_official_metric_customer_display_binding where contract_version = ?",
                 contractVersion);
-        jdbcTemplate.update("delete from official_metric_customer_display_contract where contract_version = ?",
+        jdbcTemplate.update("delete from ctxa_official_metric_customer_display_contract where contract_version = ?",
                 contractVersion);
-        jdbcTemplate.update("delete from official_prompt_signal_contract where contract_version = ?",
+        jdbcTemplate.update("delete from ctxa_official_prompt_signal_contract where contract_version = ?",
                 contractVersion);
-        jdbcTemplate.update("delete from official_metric_input_contract where contract_version = ?",
+        jdbcTemplate.update("delete from ctxa_official_metric_input_contract where contract_version = ?",
                 contractVersion);
-        jdbcTemplate.update("delete from official_metric_evaluation_contract where contract_version = ?",
+        jdbcTemplate.update("delete from ctxa_official_metric_evaluation_contract where contract_version = ?",
                 contractVersion);
-        jdbcTemplate.update("delete from official_metric_purpose_contract where contract_version = ?",
+        jdbcTemplate.update("delete from ctxa_official_metric_purpose_contract where contract_version = ?",
                 contractVersion);
-        jdbcTemplate.update("delete from official_metric_contract_version where contract_version = ?",
+        jdbcTemplate.update("delete from ctxa_official_metric_contract_version where contract_version = ?",
                 contractVersion);
     }
 
@@ -425,8 +425,8 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
                                    s.prompt_location,
                                    s.required_role,
                                    s.interpretation_role
-                              from official_prompt_signal_contract s
-                              join official_metric_evaluation_contract c
+                              from ctxa_official_prompt_signal_contract s
+                              join ctxa_official_metric_evaluation_contract c
                                 on c.contract_version = s.contract_version
                                and c.metric_code = s.metric_code
                                and c.check_code = s.check_code
@@ -493,7 +493,7 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
                                 interpretation_role
                             from signal_source
                         )
-                        insert into prompt_runtime_slot_contract (
+                        insert into ctxa_prompt_runtime_slot_contract (
                             contract_version, prompt_key, slot_key, prompt_location, section_key, label_key,
                             signal_key, canonical_context_path, source_producer, priority, truncation_policy,
                             required_role, interpretation_role, active, created_at, updated_at
@@ -527,8 +527,8 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
                                    s.prompt_location,
                                    s.required_role,
                                    s.interpretation_role
-                              from official_prompt_signal_contract s
-                              join official_metric_evaluation_contract c
+                              from ctxa_official_prompt_signal_contract s
+                              join ctxa_official_metric_evaluation_contract c
                                 on c.contract_version = s.contract_version
                                and c.metric_code = s.metric_code
                                and c.check_code = s.check_code
@@ -567,7 +567,7 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
                                 s.interpretation_role
                             from signal_source s
                         )
-                        insert into prompt_runtime_metric_check_slot_contract (
+                        insert into ctxa_prompt_runtime_metric_check_slot_contract (
                             contract_version, prompt_key, metric_code, check_code, slot_key, prompt_location,
                             required_role, interpretation_role, required, active, created_at, updated_at
                         )
@@ -584,20 +584,20 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
                                updated_at = current_timestamp
                         """);
         jdbcTemplate.update("""
-                        delete from prompt_runtime_metric_check_slot_contract m
+                        delete from ctxa_prompt_runtime_metric_check_slot_contract m
                          where not exists (
                                select 1
-                                 from official_metric_evaluation_contract c
+                                 from ctxa_official_metric_evaluation_contract c
                                 where c.contract_version = m.contract_version
                                   and c.metric_code = m.metric_code
                                   and c.check_code = m.check_code
                          )
                         """);
         jdbcTemplate.update("""
-                        delete from prompt_runtime_slot_contract s
+                        delete from ctxa_prompt_runtime_slot_contract s
                          where not exists (
                                select 1
-                                 from prompt_runtime_metric_check_slot_contract m
+                                 from ctxa_prompt_runtime_metric_check_slot_contract m
                                 where m.contract_version = s.contract_version
                                   and m.prompt_key = s.prompt_key
                                   and m.slot_key = s.slot_key
@@ -607,7 +607,7 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
 
     private void deactivateNonCurrentContractVersions(String currentVersion) {
         jdbcTemplate.update("""
-                        update official_metric_contract_version
+                        update ctxa_official_metric_contract_version
                            set active = false
                          where contract_version <> ?
                         """,
@@ -621,7 +621,7 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
             FinalPromptMetricCheckContract checkContract) {
         
             jdbcTemplate.update("""
-                            insert into official_metric_contract_version (
+                            insert into ctxa_official_metric_contract_version (
                                 contract_version, source_artifact, active, created_at
                             ) values (?, ?, ?, ?)
                             on conflict (contract_version) do update
@@ -633,7 +633,7 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
                     true,
                     nowTimestamp());
             jdbcTemplate.update("""
-                            insert into official_metric_purpose_contract (
+                            insert into ctxa_official_metric_purpose_contract (
                                 contract_version, metric_code, purpose_statement, decision_question,
                                 customer_visible, metric_role, blocks_llm_submission, blocks_certificate, created_at
                             ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -655,7 +655,7 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
                     metricContract.blocksCertificate(),
                     nowTimestamp());
             jdbcTemplate.update("""
-                            insert into official_metric_evaluation_contract (
+                            insert into ctxa_official_metric_evaluation_contract (
                                 contract_version, metric_code, check_code, purpose_question,
                                 pass_condition, fail_condition, issue_key, customer_visible,
                                 readiness_scope, problem_title, short_problem, expected_message,
@@ -724,7 +724,7 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
             String purposeScope) {
             
                 jdbcTemplate.update("""
-                            insert into official_metric_input_contract (
+                            insert into ctxa_official_metric_input_contract (
                                 contract_version, metric_code, check_code, input_key,
                                 required_policy, absence_policy, purpose_scope, created_at
                             ) values (?, ?, ?, ?, ?, ?, ?, ?)
@@ -790,7 +790,7 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
             String interpretationRole) {
             
                 jdbcTemplate.update("""
-                            insert into official_prompt_signal_contract (
+                            insert into ctxa_official_prompt_signal_contract (
                                 contract_version, metric_code, check_code, signal_key,
                                 prompt_location, required_role, interpretation_role, created_at
                             ) values (?, ?, ?, ?, ?, ?, ?, ?)
@@ -816,7 +816,7 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
         for (FinalPromptMetricContractCatalog.PromptSignalContract signal : catalog.promptSignalContracts()) {
             
                 jdbcTemplate.update("""
-                            insert into official_prompt_signal_contract (
+                            insert into ctxa_official_prompt_signal_contract (
                                 contract_version, metric_code, check_code, signal_key,
                                 prompt_location, required_role, interpretation_role, created_at
                             ) values (?, ?, ?, ?, ?, ?, ?, ?)
@@ -844,7 +844,7 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
             FinalPromptMetricCheckContract checkContract) {
         
             jdbcTemplate.update("""
-                        insert into official_metric_customer_message_contract (
+                        insert into ctxa_official_metric_customer_message_contract (
                             contract_version, metric_code, check_code,
                             problem_title, short_problem, why_it_matters,
                             fix_action, reverify_criterion, metric_purpose,
@@ -964,7 +964,7 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
         String runtimeBindingsJson = writeJson(runtimeFactBindings(checkContract));
         String contextBindingsJson = writeJson(contextItemBindings(checkContract));
         String sql = """
-                        insert into official_metric_check_display_evidence_contract (
+                        insert into ctxa_official_metric_check_display_evidence_contract (
                             contract_version, metric_code, check_code,
                             criterion_template, judgment_template, failure_judgment_template,
                             not_applicable_judgment_template, runtime_fact_bindings_json,
@@ -1014,7 +1014,7 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
         }
         
             jdbcTemplate.update("""
-                            insert into official_metric_customer_display_contract (
+                            insert into ctxa_official_metric_customer_display_contract (
                                 contract_version, metric_code, check_code, display_role,
                                 display_template, customer_visible, created_at
                             ) values (?, ?, ?, ?, ?, ?, ?)
@@ -1046,7 +1046,7 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
         }
         
             jdbcTemplate.update("""
-                            insert into official_metric_customer_display_binding (
+                            insert into ctxa_official_metric_customer_display_binding (
                                 contract_version, metric_code, check_code, display_role,
                                 binding_key, source_fact_key, required, created_at
                             ) values (?, ?, ?, ?, ?, ?, ?, ?)

@@ -55,7 +55,7 @@ public class ContexaDefaultPropertiesPostProcessor implements EnvironmentPostPro
         // the table and both indexes itself. The default stays true: changing it would change what a first start does.
         defaults.put("spring.ai.vectorstore.pgvector.initialize-schema", "true");
         defaults.put("spring.ai.vectorstore.pgvector.schema-name", "public");
-        defaults.put("spring.ai.vectorstore.pgvector.table-name", "vector_store");
+        defaults.put("spring.ai.vectorstore.pgvector.table-name", "ctxa_vector_store");
         defaults.put("spring.ai.openai.embedding.options.model", EmbeddingDimensionResolver.DEFAULT_OPENAI_EMBEDDING_MODEL);
         defaults.put("spring.ai.openai.embedding.options.dimensions", dimensionValue);
         addExplicitModelSelectionDefaults(environment, defaults);

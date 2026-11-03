@@ -26,12 +26,12 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * The inspection results in the {@code prompt_inspection_result} and {@code prompt_inspection_finding_kind} tables of
+ * The inspection results in the {@code ctxa_prompt_inspection_result} and {@code ctxa_prompt_inspection_finding_kind} tables of
  * the OSS schema (W3-20, storage design A). A finding kind is the inspector version, check, outcome, block, entry and
  * reason; the packages that show it share one row that counts them and keeps its latest examples. A result row lists
  * its kinds with the lines each showed. A result is written in one transaction, in place of the package's earlier
  * result of the same inspector version, and a package keeps the results of its latest and previous inspector versions.
- * Results stored before W3-20 keep their findings in {@code prompt_inspection_finding} and read from there.
+ * Results stored before W3-20 keep their findings in {@code ctxa_prompt_inspection_finding} and read from there.
  */
 public class JdbcPromptInspectionResultStore implements PromptInspectionResultStore {
 
@@ -44,7 +44,7 @@ public class JdbcPromptInspectionResultStore implements PromptInspectionResultSt
     private static final String SELECT_RESULT = """
             select id, package_id, inspector_version, dictionary_version, layout_version, verdict, check_counts_json,
                    finding_kinds_json, inspection_trigger, inspected_at, error_reason
-              from prompt_inspection_result
+              from ctxa_prompt_inspection_result
             """;
     private static final String KIND_KEY = "inspector_version = ? and check_code = ? and outcome = ? and block_name = ? "
             + "and entry_name = ? and reason = ?";
@@ -60,16 +60,16 @@ public class JdbcPromptInspectionResultStore implements PromptInspectionResultSt
      */
     private static final String CLEAN_PACKAGES = """
             select p.package_id
-              from sealed_evidence_package p
+              from ctxa_sealed_evidence_package p
              where p.captured_at < ?
                and (select latest.verdict
-                      from prompt_inspection_result latest
+                      from ctxa_prompt_inspection_result latest
                      where latest.package_id = p.package_id
                      order by latest.inspected_at desc, latest.id desc
                      limit 1) in ('PASS', 'NOT_APPLICABLE')
-               and not exists (select 1 from official_verification_run_batch batch
+               and not exists (select 1 from ctxa_official_verification_run_batch batch
                                 where batch.package_id = p.package_id)
-               and not exists (select 1 from verification_run_ledger ledger
+               and not exists (select 1 from ctxa_verification_run_ledger ledger
                                 where ledger.package_id = p.package_id)
              order by p.captured_at, p.id
              limit ?
@@ -91,8 +91,8 @@ public class JdbcPromptInspectionResultStore implements PromptInspectionResultSt
         boolean sampled = samplePercent < 100;
         String sql = """
                 select p.package_id
-                  from sealed_evidence_package p
-                 where not exists (select 1 from prompt_inspection_result r
+                  from ctxa_sealed_evidence_package p
+                 where not exists (select 1 from ctxa_prompt_inspection_result r
                                     where r.package_id = p.package_id and r.inspector_version = ?)
                 """ + (sampled ? "   and " + SAMPLE + "\n" : "") + """
                  order by p.captured_at, p.id
@@ -109,8 +109,8 @@ public class JdbcPromptInspectionResultStore implements PromptInspectionResultSt
         boolean sampled = samplePercent < 100;
         String sql = """
                 select r.id, r.finding_kinds_json
-                  from prompt_inspection_result r
-                  join sealed_evidence_package p on p.package_id = r.package_id
+                  from ctxa_prompt_inspection_result r
+                  join ctxa_sealed_evidence_package p on p.package_id = r.package_id
                  where r.inspector_version = ?
                    and p.captured_at between ? and ?
                 """ + (sampled ? "   and " + SAMPLE + "\n" : "");
@@ -134,9 +134,9 @@ public class JdbcPromptInspectionResultStore implements PromptInspectionResultSt
             String placeholders = String.join(", ", Collections.nCopies(packageIds.size(), "?"));
             Object[] arguments = packageIds.toArray();
             // The results go first so that their finding kinds lose them, as a period's removal does.
-            remove(jdbc.query("select id, finding_kinds_json from prompt_inspection_result where package_id in ("
+            remove(jdbc.query("select id, finding_kinds_json from ctxa_prompt_inspection_result where package_id in ("
                     + placeholders + ")", this::listedKinds, arguments));
-            return jdbc.update("delete from sealed_evidence_package where package_id in (" + placeholders + ")",
+            return jdbc.update("delete from ctxa_sealed_evidence_package where package_id in (" + placeholders + ")",
                     arguments);
         });
         return removed == null ? 0 : removed;
@@ -148,10 +148,10 @@ public class JdbcPromptInspectionResultStore implements PromptInspectionResultSt
         boolean sampled = samplePercent < 100;
         String sql = """
                 select count(*),
-                       count(*) filter (where not exists (select 1 from prompt_inspection_result r
+                       count(*) filter (where not exists (select 1 from ctxa_prompt_inspection_result r
                                                            where r.package_id = p.package_id
                                                              and r.inspector_version = ?))
-                  from sealed_evidence_package p
+                  from ctxa_sealed_evidence_package p
                  where p.captured_at between ? and ?
                 """ + (sampled ? "   and " + SAMPLE + "\n" : "");
         Object[] arguments = sampled
@@ -165,12 +165,12 @@ public class JdbcPromptInspectionResultStore implements PromptInspectionResultSt
     public void save(PromptInspectionResult result, PromptInspectionTrigger trigger, Instant inspectedAt) {
         String checkCounts = write(checkCounts(result));
         transactions.executeWithoutResult(status -> {
-            remove(jdbc.query("select id, finding_kinds_json from prompt_inspection_result "
+            remove(jdbc.query("select id, finding_kinds_json from ctxa_prompt_inspection_result "
                     + "where package_id = ? and inspector_version = ?", this::listedKinds, result.packageId(),
                     result.inspectorVersion()));
             String kinds = write(kinds(result, inspectedAt));
             jdbc.update("""
-                            insert into prompt_inspection_result (package_id, inspector_version, dictionary_version,
+                            insert into ctxa_prompt_inspection_result (package_id, inspector_version, dictionary_version,
                                    layout_version, verdict, checked_count, mismatch_count, unverifiable_count,
                                    check_counts_json, finding_kinds_json, inspection_trigger, inspected_at,
                                    error_reason)
@@ -183,9 +183,9 @@ public class JdbcPromptInspectionResultStore implements PromptInspectionResultSt
                     Timestamp.from(inspectedAt), result.errorReason());
             // W3-20 (A5): a package keeps the results of its latest and previous inspector versions.
             remove(jdbc.query("""
-                    select id, finding_kinds_json from prompt_inspection_result
+                    select id, finding_kinds_json from ctxa_prompt_inspection_result
                      where package_id = ?
-                       and id not in (select id from prompt_inspection_result where package_id = ?
+                       and id not in (select id from ctxa_prompt_inspection_result where package_id = ?
                                        order by inspected_at desc, id desc limit 2)
                     """, this::listedKinds, result.packageId(), result.packageId()));
         });
@@ -218,22 +218,22 @@ public class JdbcPromptInspectionResultStore implements PromptInspectionResultSt
         PromptInspectionFinding first = findings.get(0);
         Timestamp seen = Timestamp.from(at);
         jdbc.update("""
-                insert into prompt_inspection_finding_kind (inspector_version, check_code, outcome, block_name,
+                insert into ctxa_prompt_inspection_finding_kind (inspector_version, check_code, outcome, block_name,
                        entry_name, reason, first_package_id, first_seen_at, last_package_id, last_seen_at,
                        package_count, line_count, example_package_ids, example_expected, example_actual,
                        example_source_ref)
                 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, '[]', ?, ?, ?)
-                on conflict on constraint uq_prompt_inspection_finding_kind do nothing
+                on conflict on constraint ctxa_uq_prompt_inspection_finding_kind do nothing
                 """, key.get(0), key.get(1), key.get(2), key.get(3), key.get(4), key.get(5), packageId, seen, packageId,
                 seen, first.expected(), first.actual(), first.sourceRef());
-        Map<String, Object> row = jdbc.queryForMap("select id, example_package_ids from prompt_inspection_finding_kind "
+        Map<String, Object> row = jdbc.queryForMap("select id, example_package_ids from ctxa_prompt_inspection_finding_kind "
                 + "where " + KIND_KEY + " for update", key.toArray());
         long id = ((Number) row.get("id")).longValue();
         List<String> examples = new ArrayList<>(read((String) row.get("example_package_ids"), PACKAGE_IDS));
         examples.remove(packageId);
         examples.add(packageId);
         jdbc.update("""
-                update prompt_inspection_finding_kind
+                update ctxa_prompt_inspection_finding_kind
                    set last_package_id = ?, last_seen_at = ?, package_count = package_count + 1,
                        line_count = line_count + ?, example_package_ids = ?
                  where id = ?
@@ -249,12 +249,12 @@ public class JdbcPromptInspectionResultStore implements PromptInspectionResultSt
         }
         for (ListedKinds result : results) {
             for (KindLines kind : result.kinds()) {
-                jdbc.update("update prompt_inspection_finding_kind set package_count = package_count - 1, "
+                jdbc.update("update ctxa_prompt_inspection_finding_kind set package_count = package_count - 1, "
                         + "line_count = line_count - ? where id = ?", kind.lines(), kind.kind());
             }
-            jdbc.update("delete from prompt_inspection_result where id = ?", result.id());
+            jdbc.update("delete from ctxa_prompt_inspection_result where id = ?", result.id());
         }
-        jdbc.update("delete from prompt_inspection_finding_kind where package_count <= 0");
+        jdbc.update("delete from ctxa_prompt_inspection_finding_kind where package_count <= 0");
         return results.size();
     }
 
@@ -269,7 +269,7 @@ public class JdbcPromptInspectionResultStore implements PromptInspectionResultSt
             // Results stored before W3-20 keep a row for each finding.
             String placeholders = String.join(", ", Collections.nCopies(earlier.size(), "?"));
             jdbc.query("select result_id, check_code, outcome, block_name, entry_name, fact_id, line_number, "
-                    + "expected_value, actual_value, source_ref, reason from prompt_inspection_finding "
+                    + "expected_value, actual_value, source_ref, reason from ctxa_prompt_inspection_finding "
                     + "where result_id in (" + placeholders + ") order by id", rs -> {
                 findings.computeIfAbsent(rs.getLong("result_id"), id -> new ArrayList<>()).add(finding(rs));
             }, earlier.toArray());
@@ -304,7 +304,7 @@ public class JdbcPromptInspectionResultStore implements PromptInspectionResultSt
         }
         String placeholders = String.join(", ", Collections.nCopies(ids.size(), "?"));
         jdbc.query("select id, check_code, outcome, block_name, entry_name, reason, example_source_ref "
-                + "from prompt_inspection_finding_kind where id in (" + placeholders + ")", rs -> {
+                + "from ctxa_prompt_inspection_finding_kind where id in (" + placeholders + ")", rs -> {
             kinds.put(rs.getLong("id"), PromptInspectionFinding.builder(rs.getString("check_code"),
                             PromptInspectionOutcome.valueOf(rs.getString("outcome")))
                     .block(blank(rs.getString("block_name")))

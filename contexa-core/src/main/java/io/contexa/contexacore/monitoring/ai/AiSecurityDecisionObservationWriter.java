@@ -187,14 +187,14 @@ public class AiSecurityDecisionObservationWriter {
                 // Retain legacy failed observations while releasing their final-decision slot.
                 // Their event identity and attempt generation remain in the original metadata.
                 jdbcOperations.update("""
-                        UPDATE ai_security_decision_observation
+                        UPDATE ctxa_ai_security_decision_observation
                            SET idempotency_key = NULL
                          WHERE idempotency_key = ?
                            AND success = FALSE
                         """, idempotencyKey);
             }
             jdbcOperations.update("""
-                    INSERT INTO ai_security_decision_observation (
+                    INSERT INTO ctxa_ai_security_decision_observation (
                         observation_id,
                         tenant_id,
                         idempotency_key,
@@ -325,7 +325,7 @@ public class AiSecurityDecisionObservationWriter {
                            request_id,
                            decision_boundary_mode,
                            metadata_json
-                      FROM ai_security_decision_observation
+                      FROM ctxa_ai_security_decision_observation
                      WHERE idempotency_key = ?
                        AND success = TRUE
                        AND final_action IS NOT NULL

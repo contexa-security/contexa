@@ -37,7 +37,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * The agent registry kept in the {@code agent_registration} table (A1-6). A request's sighting is one atomic upsert,
+ * The agent registry kept in the {@code ctxa_agent_registration} table (A1-6). A request's sighting is one atomic upsert,
  * so concurrent requests of an agent never move its last seen time back; the rarer life cycle changes apply the shared
  * rules of {@link AgentRegistrations}. Lookups are cached briefly, since every agent request reads its sponsor.
  */
@@ -48,28 +48,28 @@ public class JdbcAgentRegistry implements AgentRegistry {
             + "deregistered_at, status_reason";
 
     private static final String OBSERVE_SQL = """
-            insert into agent_registration (tenant_key, agent_id, client_id, status, allowlisted, source,
+            insert into ctxa_agent_registration (tenant_key, agent_id, client_id, status, allowlisted, source,
                                             last_subject_kind, first_seen_at, last_seen_at, updated_at)
             values (?, ?, ?, 'ACTIVE', false, 'OBSERVED', ?, ?, ?, ?)
             on conflict (tenant_key, agent_id) do update set
-                client_id = coalesce(agent_registration.client_id, excluded.client_id),
+                client_id = coalesce(ctxa_agent_registration.client_id, excluded.client_id),
                 last_subject_kind = case
-                    when agent_registration.last_seen_at is null
-                         or excluded.last_seen_at >= agent_registration.last_seen_at
-                    then coalesce(excluded.last_subject_kind, agent_registration.last_subject_kind)
-                    else agent_registration.last_subject_kind end,
+                    when ctxa_agent_registration.last_seen_at is null
+                         or excluded.last_seen_at >= ctxa_agent_registration.last_seen_at
+                    then coalesce(excluded.last_subject_kind, ctxa_agent_registration.last_subject_kind)
+                    else ctxa_agent_registration.last_subject_kind end,
                 first_seen_at = case
-                    when agent_registration.first_seen_at is null
-                         or excluded.first_seen_at < agent_registration.first_seen_at
+                    when ctxa_agent_registration.first_seen_at is null
+                         or excluded.first_seen_at < ctxa_agent_registration.first_seen_at
                     then excluded.first_seen_at
-                    else agent_registration.first_seen_at end,
-                last_seen_at = greatest(coalesce(agent_registration.last_seen_at, excluded.last_seen_at),
+                    else ctxa_agent_registration.first_seen_at end,
+                last_seen_at = greatest(coalesce(ctxa_agent_registration.last_seen_at, excluded.last_seen_at),
                                         excluded.last_seen_at),
                 updated_at = excluded.updated_at
             """;
 
     private static final String SAVE_SQL = """
-            insert into agent_registration (tenant_key, agent_id, display_name, agent_type, client_id, sponsor_id,
+            insert into ctxa_agent_registration (tenant_key, agent_id, display_name, agent_type, client_id, sponsor_id,
                                             status, allowlisted, source, last_subject_kind, first_seen_at,
                                             last_seen_at, registered_at, deregistered_at, status_reason, updated_at)
             values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -128,7 +128,7 @@ public class JdbcAgentRegistry implements AgentRegistry {
         }
         String client = clientId.trim();
         return clientLookups.get(cacheKey(tenantId, client), key -> {
-            List<AgentRegistration> rows = jdbc.query("select " + COLUMNS + " from agent_registration "
+            List<AgentRegistration> rows = jdbc.query("select " + COLUMNS + " from ctxa_agent_registration "
                             + "where tenant_key = ? and (client_id = ? or agent_id = ?) "
                             + "order by case when client_id = ? then 0 else 1 end, agent_id limit 1",
                     ROW_MAPPER, AgentRegistrations.tenantKey(tenantId), client, client, client);
@@ -140,10 +140,10 @@ public class JdbcAgentRegistry implements AgentRegistry {
     public List<AgentRegistration> list(String tenantId, int limit) {
         int rows = Math.max(0, limit);
         if (tenantId == null) {
-            return jdbc.query("select " + COLUMNS + " from agent_registration "
+            return jdbc.query("select " + COLUMNS + " from ctxa_agent_registration "
                     + "order by last_seen_at desc nulls last, agent_id limit ?", ROW_MAPPER, rows);
         }
-        return jdbc.query("select " + COLUMNS + " from agent_registration where tenant_key = ? "
+        return jdbc.query("select " + COLUMNS + " from ctxa_agent_registration where tenant_key = ? "
                         + "order by last_seen_at desc nulls last, agent_id limit ?",
                 ROW_MAPPER, AgentRegistrations.tenantKey(tenantId), rows);
     }
@@ -210,7 +210,7 @@ public class JdbcAgentRegistry implements AgentRegistry {
         }
         Optional<AgentRegistration> current = read(tenantId, agentId.trim());
         current.ifPresent(registration -> {
-            jdbc.update("delete from agent_registration where tenant_key = ? and agent_id = ?",
+            jdbc.update("delete from ctxa_agent_registration where tenant_key = ? and agent_id = ?",
                     AgentRegistrations.tenantKey(tenantId), agentId.trim());
             lookups.invalidate(cacheKey(tenantId, agentId.trim()));
             clientLookups.invalidateAll();
@@ -242,7 +242,7 @@ public class JdbcAgentRegistry implements AgentRegistry {
     }
 
     private Optional<AgentRegistration> read(String tenantId, String agentId) {
-        List<AgentRegistration> rows = jdbc.query("select " + COLUMNS + " from agent_registration "
+        List<AgentRegistration> rows = jdbc.query("select " + COLUMNS + " from ctxa_agent_registration "
                 + "where tenant_key = ? and agent_id = ?", ROW_MAPPER, AgentRegistrations.tenantKey(tenantId), agentId.trim());
         return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
     }

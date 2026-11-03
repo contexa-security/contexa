@@ -15,6 +15,7 @@
  */
 package io.contexa.autoconfigure.identity;
 
+import io.contexa.contexacommon.jdbc.LibraryTableNames;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.agent.OAuth2AgentTokenRevoker;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.DeviceAwareOAuth2AuthorizationService;
@@ -59,12 +60,12 @@ class OAuth2AgentTokenRevokerTest {
         jdbc = new JdbcTemplate(dataSource);
         new ResourceDatabasePopulator(new ClassPathResource("contexa-oauth2-authorization-schema.sql"))
                 .execute(dataSource);
-        JdbcRegisteredClientRepository clients = new JdbcRegisteredClientRepository(jdbc);
+        JdbcRegisteredClientRepository clients = new JdbcRegisteredClientRepository(LibraryTableNames.wrap(jdbc));
         agentClient = client("report-client");
         portalClient = client("portal-client");
         clients.save(agentClient);
         clients.save(portalClient);
-        store = new JdbcOAuth2AuthorizationService(jdbc, clients);
+        store = new JdbcOAuth2AuthorizationService(LibraryTableNames.wrap(jdbc), clients);
         AuthContextProperties properties = new AuthContextProperties();
         properties.setAllowMultipleLogins(true);
         revoker = new OAuth2AgentTokenRevoker(new DeviceAwareOAuth2AuthorizationService(store, jdbc, properties),

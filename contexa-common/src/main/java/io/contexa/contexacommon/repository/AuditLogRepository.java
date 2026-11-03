@@ -116,7 +116,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
 
     @Query(value = """
     SELECT *
-      FROM audit_log a
+      FROM ctxa_audit_log a
      WHERE a.principal_name = :userId
        AND a.timestamp      >= :since
        AND (EXTRACT(hour  FROM a.timestamp) <  9
@@ -191,7 +191,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     @Query("SELECT AVG(a.riskScore) FROM AuditLog a WHERE a.riskScore IS NOT NULL AND a.timestamp >= :since")
     Double avgRiskScoreSince(@Param("since") LocalDateTime since);
 
-    @Query(value = "SELECT COUNT(*) FROM audit_log WHERE timestamp >= :since " +
+    @Query(value = "SELECT COUNT(*) FROM ctxa_audit_log WHERE timestamp >= :since " +
             "AND (EXTRACT(hour FROM timestamp) < 9 OR EXTRACT(hour FROM timestamp) >= 18 " +
             "OR EXTRACT(isodow FROM timestamp) IN (6, 7))", nativeQuery = true)
     long countAfterHoursAccessSince(@Param("since") LocalDateTime since);
@@ -232,22 +232,22 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     @Query("SELECT a FROM AuditLog a WHERE a.timestamp >= :since AND a.clientIp IS NOT NULL AND a.clientIp <> '' ORDER BY a.timestamp DESC")
     Page<AuditLog> findByTimestampAfterAndClientIpNotNull(@Param("since") LocalDateTime since, Pageable pageable);
 
-    @Query(value = "SELECT * FROM audit_log WHERE timestamp >= :since " +
+    @Query(value = "SELECT * FROM ctxa_audit_log WHERE timestamp >= :since " +
             "AND (EXTRACT(hour FROM timestamp) < 9 OR EXTRACT(hour FROM timestamp) >= 18 " +
             "OR EXTRACT(isodow FROM timestamp) IN (6, 7)) ORDER BY timestamp DESC",
-            countQuery = "SELECT COUNT(*) FROM audit_log WHERE timestamp >= :since " +
+            countQuery = "SELECT COUNT(*) FROM ctxa_audit_log WHERE timestamp >= :since " +
                     "AND (EXTRACT(hour FROM timestamp) < 9 OR EXTRACT(hour FROM timestamp) >= 18 " +
                     "OR EXTRACT(isodow FROM timestamp) IN (6, 7))",
             nativeQuery = true)
     Page<AuditLog> findAfterHoursAccess(@Param("since") LocalDateTime since, Pageable pageable);
 
     @Query(value = "SELECT client_ip AS ip, COUNT(*) AS cnt, MAX(timestamp) AS last_access " +
-            "FROM audit_log WHERE timestamp >= :since AND client_ip IS NOT NULL AND client_ip <> '' " +
+            "FROM ctxa_audit_log WHERE timestamp >= :since AND client_ip IS NOT NULL AND client_ip <> '' " +
             "GROUP BY client_ip ORDER BY cnt DESC LIMIT :limit OFFSET :offset",
             nativeQuery = true)
     List<Object[]> findIpGroupsSince(@Param("since") LocalDateTime since, @Param("limit") int limit, @Param("offset") int offset);
 
-    @Query(value = "SELECT COUNT(DISTINCT client_ip) FROM audit_log WHERE timestamp >= :since AND client_ip IS NOT NULL AND client_ip <> ''",
+    @Query(value = "SELECT COUNT(DISTINCT client_ip) FROM ctxa_audit_log WHERE timestamp >= :since AND client_ip IS NOT NULL AND client_ip <> ''",
             nativeQuery = true)
     long countDistinctIpGroupsSince(@Param("since") LocalDateTime since);
 

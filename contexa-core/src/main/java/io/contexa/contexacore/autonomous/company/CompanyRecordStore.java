@@ -27,7 +27,7 @@ import java.util.List;
  * keeps its place. Records keep the order in which the company first gave them; among records equally close to a
  * request, the one given first is weighed first.
  * <p>
- * Contexa keeps them in its database table {@code company_record} when it has one, in memory otherwise; an application
+ * Contexa keeps them in its database table {@code ctxa_company_record} when it has one, in memory otherwise; an application
  * whose records live elsewhere supplies its own store.
  */
 public interface CompanyRecordStore {

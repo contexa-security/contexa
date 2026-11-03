@@ -52,7 +52,7 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
             throw new IllegalArgumentException("record is required");
         }
         jdbcOperations.update("""
-                        insert into verification_run_ledger (
+                        insert into ctxa_verification_run_ledger (
                             run_id, user_id, metric_code, execution_path, state, requested_by,
                             request_id, package_id, message, evidence_references_json,
                             requested_at, started_at, completed_at, created_at
@@ -96,7 +96,7 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
         String packageId = evidence(record, "packageId");
         String aggregateRunId = aggregateRunId(detailedView);
         jdbcOperations.update("""
-                        insert into verification_run_ledger (
+                        insert into ctxa_verification_run_ledger (
                             run_id, user_id, metric_code, execution_path, state, state_tone,
                             requested_by, request_id, package_id, endpoint_key, endpoint_label,
                             round_number, score, passed_checks, total_checks, processing_time_ms,
@@ -169,14 +169,14 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
             OfficialVerificationRunView detailedView) {
         String runId = record.runId();
         int round = detailedView.round() > 0 ? detailedView.round() : 1;
-        jdbcOperations.update("delete from verification_raw_evidence_artifact_ledger where run_id = ?", runId);
-        jdbcOperations.update("delete from verification_run_event_ledger where run_id = ?", runId);
-        jdbcOperations.update("delete from verification_run_fact_ledger where run_id = ?", runId);
-        jdbcOperations.update("delete from verification_run_check_ledger where run_id = ?", runId);
-        jdbcOperations.update("delete from verification_run_round_ledger where run_id = ?", runId);
+        jdbcOperations.update("delete from ctxa_verification_raw_evidence_artifact_ledger where run_id = ?", runId);
+        jdbcOperations.update("delete from ctxa_verification_run_event_ledger where run_id = ?", runId);
+        jdbcOperations.update("delete from ctxa_verification_run_fact_ledger where run_id = ?", runId);
+        jdbcOperations.update("delete from ctxa_verification_run_check_ledger where run_id = ?", runId);
+        jdbcOperations.update("delete from ctxa_verification_run_round_ledger where run_id = ?", runId);
 
         jdbcOperations.update("""
-                        insert into verification_run_round_ledger (
+                        insert into ctxa_verification_run_round_ledger (
                             run_id, round_no, endpoint_key, endpoint_label, score,
                             passed_checks, total_checks, processing_time_ms, state, state_tone,
                             message, started_at, completed_at, created_at
@@ -218,7 +218,7 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
             }
             OfficialVerificationCheckState evaluationState = check.evaluationState();
             jdbcOperations.update("""
-                        insert into verification_run_check_ledger (
+                        insert into ctxa_verification_run_check_ledger (
                             run_id, round_no, sequence_no, label, expected_value, actual_value,
                             pass, source, check_code, severity, failure_type, remediation_owner,
                             operator_reason, next_action, reverify_criterion,
@@ -260,7 +260,7 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
                 return;
             }
             jdbcOperations.update("""
-                            insert into verification_run_fact_ledger (
+                            insert into ctxa_verification_run_fact_ledger (
                                 run_id, round_no, fact_type, fact_key, fact_value, created_at
                             ) values (?, ?, ?, ?, ?, current_timestamp)
                             """,
@@ -285,7 +285,7 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
                 continue;
             }
             jdbcOperations.update("""
-                            insert into verification_run_event_ledger (
+                            insert into ctxa_verification_run_event_ledger (
                                 run_id, round_no, sequence_no, event_type, layer,
                                 event_status, request_path, created_at
                             ) values (?, ?, ?, ?, ?, ?, ?, current_timestamp)
@@ -304,7 +304,7 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
         Map<String, Object> stored = storedObjectMap(rawEvidence);
         String body = write(stored);
         jdbcOperations.update("""
-                        insert into verification_raw_evidence_artifact_ledger (
+                        insert into ctxa_verification_raw_evidence_artifact_ledger (
                             run_id, artifact_type, content_type, artifact_body, sha256, created_at
                         ) values (?, 'RAW_EVIDENCE_JSON', 'application/json', ?, ?, current_timestamp)
                         """,
@@ -330,7 +330,7 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
         }
         return jdbcOperations.query("""
                         select *
-                          from verification_run_ledger
+                          from ctxa_verification_run_ledger
                          where user_id = ?
                       order by requested_at desc nulls last, created_at desc, metric_code asc
                         """,
@@ -346,7 +346,7 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
         try {
             return jdbcOperations.queryForObject("""
                             select *
-                              from verification_run_ledger
+                              from ctxa_verification_run_ledger
                              where run_id = ?
                             """,
                     (rs, rowNum) -> readRecord(rs),
@@ -365,7 +365,7 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
         try {
             return jdbcOperations.queryForObject("""
                             select *
-                              from verification_run_ledger
+                              from ctxa_verification_run_ledger
                              where request_id = ?
                           order by requested_at desc nulls last, created_at desc
                              limit 1
@@ -386,7 +386,7 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
         if (StringUtils.hasText(metricCode)) {
             return jdbcOperations.query("""
                             select *
-                              from verification_run_ledger
+                              from ctxa_verification_run_ledger
                              where user_id = ?
                                and upper(metric_code) = upper(?)
                           order by requested_at desc nulls last, created_at desc
@@ -397,7 +397,7 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
         }
         return jdbcOperations.query("""
                         select *
-                          from verification_run_ledger
+                          from ctxa_verification_run_ledger
                          where user_id = ?
                       order by requested_at desc nulls last, created_at desc, metric_code asc
                         """,
@@ -413,7 +413,7 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
         try {
             return jdbcOperations.queryForObject("""
                             select *
-                              from verification_run_ledger
+                              from ctxa_verification_run_ledger
                              where run_id = ?
                             """,
                     (rs, rowNum) -> readView(rs),
@@ -432,7 +432,7 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
         try {
             return jdbcOperations.queryForObject("""
                             select *
-                              from verification_run_ledger
+                              from ctxa_verification_run_ledger
                              where run_id = ?
                             """,
                     (rs, rowNum) -> readView(rs),
@@ -451,7 +451,7 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
         String normalizedPackageId = packageId.trim();
         List<OfficialVerificationRunView> directRows = jdbcOperations.query("""
                         select *
-                          from verification_run_ledger
+                          from ctxa_verification_run_ledger
                          where package_id = ?
                       order by requested_at desc nulls last, created_at desc, metric_code asc
                         """,
@@ -459,7 +459,7 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
                 normalizedPackageId);
         List<OfficialVerificationRunView> fallbackRows = jdbcOperations.query("""
                         select *
-                          from verification_run_ledger
+                          from ctxa_verification_run_ledger
                          where evidence_references_json like ?
                            and evidence_references_json like ?
                       order by requested_at desc nulls last, created_at desc, metric_code asc

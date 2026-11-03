@@ -20,7 +20,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "admin_menu_role", uniqueConstraints = @UniqueConstraint(columnNames = {"menu_id", "role_name"}))
+@Table(name = "ctxa_admin_menu_role", uniqueConstraints = @UniqueConstraint(columnNames = {"menu_id", "role_name"}))
 @Getter
 @Setter
 @Builder

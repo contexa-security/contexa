@@ -28,20 +28,20 @@ public final class JdbcOfficialVerificationCustomerDisplayIntegrityRepository
         }
         int expected = count("""
                 select coalesce(sum(case when purpose_result = 'PURPOSE_FAILED' then 5 else 3 end), 0)
-                  from official_metric_purpose_evaluation_ledger
+                  from ctxa_official_metric_purpose_evaluation_ledger
                  where aggregate_run_id = ?
                    and customer_visible = true
                    and purpose_result <> 'INPUT_NOT_READY'
                 """, aggregateRunId);
         int actual = count("""
-                select count(*) from official_metric_customer_display_payload where aggregate_run_id = ?
+                select count(*) from ctxa_official_metric_customer_display_payload where aggregate_run_id = ?
                 """, aggregateRunId);
         if (expected != actual) {
             throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Customer display payload row count mismatch."
                     + " aggregateRunId=" + aggregateRunId + ", expectedRows=" + expected + ", actualRows=" + actual);
         }
         int emptyContextItems = count("""
-                select count(*) from official_metric_customer_display_payload
+                select count(*) from ctxa_official_metric_customer_display_payload
                  where aggregate_run_id = ? and coalesce(context_items_json::text, '[]') = '[]'
                 """, aggregateRunId);
         if (emptyContextItems > 0) {
@@ -57,7 +57,7 @@ public final class JdbcOfficialVerificationCustomerDisplayIntegrityRepository
                     + " metric=" + safe(metricCode) + ", check=" + safe(checkCode) + ", displayRole=" + safe(displayRole));
         }
         int count = count("""
-                select count(*) from official_metric_customer_display_contract
+                select count(*) from ctxa_official_metric_customer_display_contract
                  where contract_version = ? and upper(metric_code) = ? and check_code = ? and display_role = ?
                 """, purposeVersion, normalize(metricCode), checkCode, displayRole);
         if (count < 1) {
@@ -74,7 +74,7 @@ public final class JdbcOfficialVerificationCustomerDisplayIntegrityRepository
         }
         try {
             return count("""
-                    select count(*) from official_prompt_signal_contract
+                    select count(*) from ctxa_official_prompt_signal_contract
                      where lower(signal_key) in (lower(?), lower(concat('label:', ?)), lower(concat('section:', ?)))
                        and coalesce(prompt_location, '') <> ''
                     """, item.trim(), item.trim(), item.trim()) > 0;

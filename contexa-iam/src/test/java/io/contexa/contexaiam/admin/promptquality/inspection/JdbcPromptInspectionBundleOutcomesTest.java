@@ -81,7 +81,7 @@ class JdbcPromptInspectionBundleOutcomesTest {
         String decision = "{\"action\":\"" + action + "\""
                 + (stage == null ? "" : ",\"decisionAppliedStage\":\"" + stage + "\"") + "}";
         jdbc.update("""
-                        insert into sealed_evidence_package (package_id, correlation_id, captured_at,
+                        insert into ctxa_sealed_evidence_package (package_id, correlation_id, captured_at,
                                prompt_execution_metadata_json, decision_json, package_hash)
                         values (?, ?, ?, ?, ?, ?)
                         """, packageId, "correlation-" + packageId, Timestamp.from(capturedAt),
@@ -90,7 +90,7 @@ class JdbcPromptInspectionBundleOutcomesTest {
 
     private void result(String packageId, String version, String verdict, Instant inspectedAt) {
         jdbc.update("""
-                insert into prompt_inspection_result (package_id, inspector_version, dictionary_version, layout_version,
+                insert into ctxa_prompt_inspection_result (package_id, inspector_version, dictionary_version, layout_version,
                        verdict, checked_count, mismatch_count, unverifiable_count, check_counts_json, inspection_trigger,
                        inspected_at)
                 values (?, ?, 'dictionary-v20', 'v20-dictionary-blocks', ?, 4, 0, 0, '[]', 'AUTO', ?)

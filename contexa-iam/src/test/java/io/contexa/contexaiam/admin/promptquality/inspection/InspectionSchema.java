@@ -30,15 +30,15 @@ final class InspectionSchema {
         for (String statement : split(read())) {
             String text = statement.replaceAll("(?m)^\\s*--.*$", "").trim();
             String lower = text.toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
-            if (lower.startsWith("create table if not exists sealed_evidence_package")
+            if (lower.startsWith("create table if not exists ctxa_sealed_evidence_package")
                     || lower.startsWith("create or replace function contexa_safe_jsonb")
-                    || lower.equals("alter table sealed_evidence_package add column if not exists request_facts_jsonb jsonb")
+                    || lower.equals("alter table ctxa_sealed_evidence_package add column if not exists request_facts_jsonb jsonb")
                     || lower.contains("prompt_inspection_")
-                    || lower.startsWith("create table if not exists prompt_governance_registry ")
-                    || lower.startsWith("create unique index if not exists idx_prompt_governance_registry_identity")
-                    || lower.startsWith("create table if not exists official_verification_run_batch ")
-                    || lower.startsWith("create table if not exists verification_run_ledger ")
-                    || lower.equals("alter table verification_run_ledger add column if not exists package_id varchar(160)")) {
+                    || lower.startsWith("create table if not exists ctxa_prompt_governance_registry ")
+                    || lower.startsWith("create unique index if not exists ctxa_idx_prompt_governance_registry_identity")
+                    || lower.startsWith("create table if not exists ctxa_official_verification_run_batch ")
+                    || lower.startsWith("create table if not exists ctxa_verification_run_ledger ")
+                    || lower.equals("alter table ctxa_verification_run_ledger add column if not exists package_id varchar(160)")) {
                 wanted.add(text);
             }
         }
@@ -54,7 +54,7 @@ final class InspectionSchema {
         for (String statement : split(read())) {
             String text = statement.replaceAll("(?m)^\\s*--.*$", "").trim();
             String lower = text.toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
-            if (lower.startsWith("create table if not exists sealed_evidence_package ")
+            if (lower.startsWith("create table if not exists ctxa_sealed_evidence_package ")
                     || lower.startsWith("create or replace function contexa_safe_jsonb")
                     || lower.startsWith("create or replace function contexa_sync_sealed_evidence_jsonb")
                     || (lower.contains("sealed_evidence_package") && lower.contains("_jsonb"))) {

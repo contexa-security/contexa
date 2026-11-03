@@ -16,6 +16,7 @@
 package io.contexa.contexaidentity.security.service.ott;
 
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.jdbc.LibraryTableNames;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -42,7 +43,7 @@ public class EmailOneTimeTokenService implements OneTimeTokenService {
                                     AuthContextProperties authContextProperties,
                                     boolean failOnEmailError) {
         this.emailService = emailService;
-        this.delegate = new JdbcOneTimeTokenService(primaryJdbcTemplate);
+        this.delegate = new JdbcOneTimeTokenService(LibraryTableNames.wrap(primaryJdbcTemplate));
         this.transactionTemplate = transactionTemplate;
         this.authContextProperties = authContextProperties;
         this.jdbcTemplate = primaryJdbcTemplate;
@@ -131,7 +132,7 @@ public class EmailOneTimeTokenService implements OneTimeTokenService {
 
     private String lookupRegisteredEmail(String username) {
         try {
-            return jdbcTemplate.queryForObject("SELECT email FROM users WHERE username = ?", String.class, username);
+            return jdbcTemplate.queryForObject("SELECT email FROM ctxa_users WHERE username = ?", String.class, username);
         } catch (Exception e) {
             log.warn("Failed to find user email for username: {}", username, e);
             return null;

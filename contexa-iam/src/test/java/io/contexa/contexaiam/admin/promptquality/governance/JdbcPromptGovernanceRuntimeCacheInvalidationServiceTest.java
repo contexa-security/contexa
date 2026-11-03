@@ -47,7 +47,7 @@ class JdbcPromptGovernanceRuntimeCacheInvalidationServiceTest {
                 service.publish("platform_global", PROMPT_KEY, "2026.10.12-v20", "canary started", "operator");
 
         Map<String, Object> row = jdbcTemplate.queryForMap(
-                "select registry_scope, template_key, contract_version from prompt_governance_runtime_cache_invalidation"
+                "select registry_scope, template_key, contract_version from ctxa_prompt_governance_runtime_cache_invalidation"
                         + " where event_id = ?", published.eventId());
         assertThat(row)
                 .containsEntry("registry_scope", "PLATFORM_GLOBAL")
@@ -61,7 +61,7 @@ class JdbcPromptGovernanceRuntimeCacheInvalidationServiceTest {
                 service.publish("PLATFORM_GLOBAL", PROMPT_KEY, "2099.01.01-v99", "unknown", "operator");
 
         Map<String, Object> row = jdbcTemplate.queryForMap(
-                "select template_key, contract_version from prompt_governance_runtime_cache_invalidation"
+                "select template_key, contract_version from ctxa_prompt_governance_runtime_cache_invalidation"
                         + " where event_id = ?", published.eventId());
         assertThat(row.get("template_key")).isNull();
         assertThat(row.get("contract_version")).isNull();
@@ -78,7 +78,7 @@ class JdbcPromptGovernanceRuntimeCacheInvalidationServiceTest {
                 TEMPLATE_KEY, null, null, null, null, Map.of());
         assertThat(selector.select(context, "alice").bundleVersion()).isEqualTo("2026.10.11-v19.8");
 
-        jdbcTemplate.update("update prompt_governance_registry set release_status = 'CANARY', canary_percent = 100,"
+        jdbcTemplate.update("update ctxa_prompt_governance_registry set release_status = 'CANARY', canary_percent = 100,"
                 + " updated_at = ? where prompt_version = ?", Timestamp.valueOf("2026-10-12 11:00:00"), "2026.10.12-v20");
         service.publish("PLATFORM_GLOBAL", PROMPT_KEY, "2026.10.12-v20", "canary started", "operator");
 
@@ -88,7 +88,7 @@ class JdbcPromptGovernanceRuntimeCacheInvalidationServiceTest {
     private void insertRelease(String promptVersion, String contractVersion, String releaseStatus, String updatedAt) {
         jdbcTemplate.update(
                 """
-                        insert into prompt_governance_registry (
+                        insert into ctxa_prompt_governance_registry (
                             registry_scope, prompt_key, template_key, prompt_version,
                             contract_version, prompt_artifact_hash_sha256, release_status,
                             owner_name, release_approval_reference, evaluation_baseline_reference,

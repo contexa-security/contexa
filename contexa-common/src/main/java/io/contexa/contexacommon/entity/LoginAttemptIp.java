@@ -26,10 +26,10 @@ import java.time.LocalDateTime;
  * read-modify-write race conditions under concurrent failed-login storms.</p>
  */
 @Entity
-@Table(name = "login_attempt_ip",
+@Table(name = "ctxa_login_attempt_ip",
         indexes = {
-                @Index(name = "idx_login_attempt_ip_address", columnList = "ip_address", unique = true),
-                @Index(name = "idx_login_attempt_ip_window", columnList = "window_start_at")
+                @Index(name = "ctxa_idx_login_attempt_ip_address", columnList = "ip_address", unique = true),
+                @Index(name = "ctxa_idx_login_attempt_ip_window", columnList = "window_start_at")
         })
 @Getter
 @Setter

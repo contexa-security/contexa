@@ -61,13 +61,13 @@ class JdbcPromptInspectionFindingKindTest {
         store.save(result("p1", VERSION, List.of(mismatch("Time", 3), mismatch("Time", 9), unverifiable("Network", 5))),
                 PromptInspectionTrigger.AUTO, T0.plusSeconds(10));
 
-        assertThat(count("prompt_inspection_finding")).isZero();
+        assertThat(count("ctxa_prompt_inspection_finding")).isZero();
         assertThat(jdbc.queryForList("select entry_name, outcome, package_count, line_count from "
-                + "prompt_inspection_finding_kind order by entry_name")).extracting(row -> List.of(row.get("entry_name"),
+                + "ctxa_prompt_inspection_finding_kind order by entry_name")).extracting(row -> List.of(row.get("entry_name"),
                 row.get("outcome"), ((Number) row.get("package_count")).longValue(),
                 ((Number) row.get("line_count")).longValue())).containsExactly(
                 List.of("Network", "UNVERIFIABLE", 1L, 1L), List.of("Time", "MISMATCH", 1L, 2L));
-        assertThat(jdbc.queryForObject("select finding_kinds_json from prompt_inspection_result", String.class))
+        assertThat(jdbc.queryForObject("select finding_kinds_json from ctxa_prompt_inspection_result", String.class))
                 .isNotBlank();
 
         PromptInspectionRecord record = store.findAll("p1").get(0);
@@ -87,7 +87,7 @@ class JdbcPromptInspectionFindingKindTest {
         store.save(result("p2", VERSION, List.of(mismatch("Time", 4), mismatch("Time", 8))), PromptInspectionTrigger.AUTO,
                 T0.plusSeconds(20));
 
-        Map<String, Object> kind = jdbc.queryForMap("select * from prompt_inspection_finding_kind");
+        Map<String, Object> kind = jdbc.queryForMap("select * from ctxa_prompt_inspection_finding_kind");
         assertThat(((Number) kind.get("package_count")).longValue()).isEqualTo(2);
         assertThat(((Number) kind.get("line_count")).longValue()).isEqualTo(3);
         assertThat(kind.get("first_package_id")).isEqualTo("p1");
@@ -104,7 +104,7 @@ class JdbcPromptInspectionFindingKindTest {
                     T0.plusSeconds(10L * number));
         }
 
-        Map<String, Object> kind = jdbc.queryForMap("select * from prompt_inspection_finding_kind");
+        Map<String, Object> kind = jdbc.queryForMap("select * from ctxa_prompt_inspection_finding_kind");
         assertThat(((Number) kind.get("package_count")).longValue()).isEqualTo(6);
         assertThat(kind.get("first_package_id")).isEqualTo("p1");
         assertThat(kind.get("last_package_id")).isEqualTo("p6");
@@ -120,8 +120,8 @@ class JdbcPromptInspectionFindingKindTest {
         assertThatThrownBy(() -> store.save(result("gone", VERSION, List.of(mismatch("Time", 3))),
                 PromptInspectionTrigger.AUTO, T0.plusSeconds(10))).isInstanceOf(DataAccessException.class);
 
-        assertThat(count("prompt_inspection_finding_kind")).isZero();
-        assertThat(count("prompt_inspection_result")).isZero();
+        assertThat(count("ctxa_prompt_inspection_finding_kind")).isZero();
+        assertThat(count("ctxa_prompt_inspection_result")).isZero();
     }
 
     @Test
@@ -133,13 +133,13 @@ class JdbcPromptInspectionFindingKindTest {
         store.save(result("p1", VERSION, List.of(mismatch("Time", 3), mismatch("Time", 7))),
                 PromptInspectionTrigger.OPERATOR, T0.plusSeconds(30));
 
-        assertThat(jdbc.queryForObject("select package_count from prompt_inspection_finding_kind", Long.class))
+        assertThat(jdbc.queryForObject("select package_count from ctxa_prompt_inspection_finding_kind", Long.class))
                 .isEqualTo(2);
-        assertThat(jdbc.queryForObject("select line_count from prompt_inspection_finding_kind", Long.class))
+        assertThat(jdbc.queryForObject("select line_count from ctxa_prompt_inspection_finding_kind", Long.class))
                 .isEqualTo(3);
 
         store.removeResults(VERSION, T0, T0.plusSeconds(1), 100);
-        assertThat(count("prompt_inspection_finding_kind")).isZero();
+        assertThat(count("ctxa_prompt_inspection_finding_kind")).isZero();
     }
 
     @Test
@@ -154,12 +154,12 @@ class JdbcPromptInspectionFindingKindTest {
 
         assertThat(store.findAll("p1")).extracting(record -> record.result().inspectorVersion())
                 .containsExactly(VERSION, "prompt-inspector/15");
-        assertThat(jdbc.queryForList("select inspector_version from prompt_inspection_finding_kind order by 1",
+        assertThat(jdbc.queryForList("select inspector_version from ctxa_prompt_inspection_finding_kind order by 1",
                 String.class)).containsExactly("prompt-inspector/15", VERSION);
     }
 
     private void seal(String packageId, Instant capturedAt) {
-        jdbc.update("insert into sealed_evidence_package (package_id, correlation_id, captured_at, package_hash) "
+        jdbc.update("insert into ctxa_sealed_evidence_package (package_id, correlation_id, captured_at, package_hash) "
                 + "values (?, ?, ?, ?)", packageId, "correlation-" + packageId, Timestamp.from(capturedAt), "hash");
     }
 

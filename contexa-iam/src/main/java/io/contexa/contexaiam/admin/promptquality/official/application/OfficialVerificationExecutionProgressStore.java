@@ -27,11 +27,11 @@ final class OfficialVerificationExecutionProgressStore {
 
     void deleteProgressForPackage(String tenantId, String packageId) {
         jdbcTemplate.update(
-                "delete from official_verification_execution_state_history where package_id = ? and tenant_id = ?",
+                "delete from ctxa_official_verification_execution_state_history where package_id = ? and tenant_id = ?",
                 packageId, tenantId
         );
         jdbcTemplate.update(
-                "delete from official_verification_metric_execution_ledger where package_id = ? and tenant_id = ?",
+                "delete from ctxa_official_verification_metric_execution_ledger where package_id = ? and tenant_id = ?",
                 packageId, tenantId
         );
     }
@@ -41,7 +41,7 @@ final class OfficialVerificationExecutionProgressStore {
         }
         int boundedProgress = OfficialVerificationProgressPolicy.bound(progressPercent);
         int updated = jdbcTemplate.update("""
-                        update official_verification_execution_lock
+                        update ctxa_official_verification_execution_lock
                            set state = ?,
                                progress_percent = ?,
                                updated_at = ?
@@ -91,7 +91,7 @@ final class OfficialVerificationExecutionProgressStore {
                     null);
             if (!inserted) {
                 jdbcTemplate.update("""
-                                update official_verification_metric_execution_ledger
+                                update ctxa_official_verification_metric_execution_ledger
                                    set state = ?,
                                        progress_percent = ?,
                                        aggregate_run_id = ?,
@@ -132,7 +132,7 @@ final class OfficialVerificationExecutionProgressStore {
         }
         int boundedProgress = OfficialVerificationProgressPolicy.bound(progressPercent);
         int updated = jdbcTemplate.update("""
-                        update official_verification_metric_execution_ledger
+                        update ctxa_official_verification_metric_execution_ledger
                            set state = ?,
                                progress_percent = ?,
                                aggregate_run_id = ?,
@@ -182,7 +182,7 @@ final class OfficialVerificationExecutionProgressStore {
         String reason = failureMessage(failure);
         int failedProgress = OfficialVerificationProgressPolicy.failureProgress(queryRepository.latestRecord(record).progressPercent());
         int updated = jdbcTemplate.update("""
-                        update official_verification_metric_execution_ledger
+                        update ctxa_official_verification_metric_execution_ledger
                            set state = ?,
                                progress_percent = ?,
                                aggregate_run_id = ?,
@@ -257,7 +257,7 @@ final class OfficialVerificationExecutionProgressStore {
             return false;
         }
         String sql = """
-                            insert into official_verification_metric_execution_ledger (
+                            insert into ctxa_official_verification_metric_execution_ledger (
                                 execution_lock_id, package_id, tenant_id, aggregate_run_id, attempt_no,
                                 metric_code, sequence_no, state, progress_percent,
                                 recoverable, failure_reason, retry_instruction,
@@ -299,7 +299,7 @@ final class OfficialVerificationExecutionProgressStore {
             int failedProgress) {
         String reason = failureMessage(failure);
         jdbcTemplate.update("""
-                        update official_verification_metric_execution_ledger
+                        update ctxa_official_verification_metric_execution_ledger
                            set state = ?,
                                progress_percent = ?,
                                aggregate_run_id = coalesce(aggregate_run_id, ?),
@@ -333,7 +333,7 @@ final class OfficialVerificationExecutionProgressStore {
         }
         int boundedProgress = OfficialVerificationProgressPolicy.bound(progressPercent);
         jdbcTemplate.update("""
-                        update official_verification_execution_lock
+                        update ctxa_official_verification_execution_lock
                            set progress_percent = case when progress_percent < ? then ? else progress_percent end,
                                aggregate_run_id = coalesce(aggregate_run_id, ?),
                                updated_at = ?
@@ -365,7 +365,7 @@ final class OfficialVerificationExecutionProgressStore {
             return;
         }
         jdbcTemplate.update("""
-                        insert into official_verification_execution_state_history (
+                        insert into ctxa_official_verification_execution_state_history (
                             execution_lock_id, package_id, tenant_id, aggregate_run_id, attempt_no,
                             state, progress_percent, recoverable, failure_stage,
                             failure_reason, retry_instruction, message, created_at

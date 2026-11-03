@@ -93,7 +93,7 @@ class JdbcPromptGovernanceDescriptorResolverShadowCanaryTest {
 
     private void registry(String version, String status, Integer percent, String tenants, String families) {
         jdbc.update("""
-                        insert into prompt_governance_registry (registry_scope, prompt_key, template_key, prompt_version,
+                        insert into ctxa_prompt_governance_registry (registry_scope, prompt_key, template_key, prompt_version,
                             contract_version, prompt_artifact_hash_sha256, release_status, owner_name,
                             template_class_name, registration_source, canary_percent, canary_tenants,
                             canary_resource_families)

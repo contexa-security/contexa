@@ -48,7 +48,7 @@ final class OfficialVerificationExecutionLockLifecycleStore {
     private int nextRevision(String tenantId, String baseIdempotencyKey) {
         Integer next = jdbcTemplate.queryForObject("""
                         select coalesce(max(revision_no), 0) + 1
-                          from official_verification_execution_lock
+                          from ctxa_official_verification_execution_lock
                          where tenant_id = ?
                            and base_idempotency_key = ?
                         """,
@@ -66,7 +66,7 @@ final class OfficialVerificationExecutionLockLifecycleStore {
             return queryRepository.acquired(record, false);
         }
         int updated = jdbcTemplate.update("""
-                        update official_verification_execution_lock
+                        update ctxa_official_verification_execution_lock
                            set attempt_no = attempt_no + 1,
                                state = ?,
                                progress_percent = ?,
@@ -106,11 +106,11 @@ final class OfficialVerificationExecutionLockLifecycleStore {
         }
         if (queryRepository.hasExecutionScope(record, SCOPE_OFFICIAL_VERIFICATION)) {
             jdbcTemplate.update(
-                    "delete from official_verification_execution_state_history where execution_lock_id = ? and tenant_id = ?",
+                    "delete from ctxa_official_verification_execution_state_history where execution_lock_id = ? and tenant_id = ?",
                     record.id(),
                     record.tenantId());
             jdbcTemplate.update(
-                    "delete from official_verification_metric_execution_ledger where execution_lock_id = ? and tenant_id = ?",
+                    "delete from ctxa_official_verification_metric_execution_ledger where execution_lock_id = ? and tenant_id = ?",
                     record.id(),
                     record.tenantId());
         }
@@ -131,7 +131,7 @@ final class OfficialVerificationExecutionLockLifecycleStore {
 
     boolean insertExecutionLock(ExecutionRequest request, String idempotencyKey, int revision) {
         String sql = """
-                        insert into official_verification_execution_lock (
+                        insert into ctxa_official_verification_execution_lock (
                             idempotency_key, base_idempotency_key, package_id, tenant_id, execution_scope, revision_no,
                             attempt_no, state, progress_percent, requested_by, reverification_reason,
                             request_fingerprint_json, started_at, created_at, updated_at

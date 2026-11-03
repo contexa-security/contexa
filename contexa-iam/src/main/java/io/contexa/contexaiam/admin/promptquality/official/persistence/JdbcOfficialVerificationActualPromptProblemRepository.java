@@ -33,7 +33,7 @@ public final class JdbcOfficialVerificationActualPromptProblemRepository impleme
                                why_it_matters, fix_action, reverify_criterion_detail,
                                coalesce((
                                    select evidence.runtime_facts_json
-                                     from official_metric_purpose_evidence_ledger evidence
+                                     from ctxa_official_metric_purpose_evidence_ledger evidence
                                     where evidence.aggregate_run_id = p.aggregate_run_id
                                       and evidence.purpose_evaluation_id = p.purpose_evaluation_id
                                       and evidence.customer_visible = true
@@ -42,14 +42,14 @@ public final class JdbcOfficialVerificationActualPromptProblemRepository impleme
                                ), '[]') as runtime_facts_json,
                                coalesce((
                                    select evidence.context_items_json
-                                     from official_metric_purpose_evidence_ledger evidence
+                                     from ctxa_official_metric_purpose_evidence_ledger evidence
                                     where evidence.aggregate_run_id = p.aggregate_run_id
                                       and evidence.purpose_evaluation_id = p.purpose_evaluation_id
                                       and evidence.customer_visible = true
                                     order by evidence.id desc
                                     limit 1
                                ), '[]') as context_items_json
-                          from official_actual_prompt_problem_ledger p
+                          from ctxa_official_actual_prompt_problem_ledger p
                          where aggregate_run_id = ?
                            and upper(coalesce(problem_type, '')) <> 'INPUT_NOT_READY'
                           order by case when severity = 'BLOCKING' then 0 else 1 end,
@@ -72,7 +72,7 @@ public final class JdbcOfficialVerificationActualPromptProblemRepository impleme
                                why_it_matters, fix_action, reverify_criterion_detail,
                                coalesce((
                                    select evidence.runtime_facts_json
-                                     from official_metric_purpose_evidence_ledger evidence
+                                     from ctxa_official_metric_purpose_evidence_ledger evidence
                                     where evidence.aggregate_run_id = p.aggregate_run_id
                                       and evidence.purpose_evaluation_id = p.purpose_evaluation_id
                                       and evidence.customer_visible = true
@@ -81,14 +81,14 @@ public final class JdbcOfficialVerificationActualPromptProblemRepository impleme
                                ), '[]') as runtime_facts_json,
                                coalesce((
                                    select evidence.context_items_json
-                                     from official_metric_purpose_evidence_ledger evidence
+                                     from ctxa_official_metric_purpose_evidence_ledger evidence
                                     where evidence.aggregate_run_id = p.aggregate_run_id
                                       and evidence.purpose_evaluation_id = p.purpose_evaluation_id
                                       and evidence.customer_visible = true
                                     order by evidence.id desc
                                     limit 1
                                ), '[]') as context_items_json
-                          from official_actual_prompt_problem_ledger p
+                          from ctxa_official_actual_prompt_problem_ledger p
                          where aggregate_run_id in (%s)
                            and upper(coalesce(problem_type, '')) <> 'INPUT_NOT_READY'
                           order by aggregate_run_id asc,

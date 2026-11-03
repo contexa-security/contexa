@@ -1,6 +1,6 @@
 create extension if not exists vector;
 
-create table users
+create table ctxa_users
 (
     id                    bigserial
         primary key,
@@ -32,7 +32,7 @@ create table users
     updated_at            timestamp(6),
     authentication_source varchar(100),
     bridge_subject_key    varchar(120)
-        constraint uk5rjvurnq36ksjjr71o1siari7
+        constraint ctxa_uk5rjvurnq36ksjjr71o1siari7
             unique,
     external_subject_id   varchar(255),
     last_bridged_at       timestamp(6),
@@ -43,16 +43,16 @@ create table users
 );
 
 
-create index idx_users_email
-    on users (email);
+create index ctxa_idx_users_email
+    on ctxa_users (email);
 
-create index idx_users_department
-    on users (department);
+create index ctxa_idx_users_department
+    on ctxa_users (department);
 
-create index idx_users_enabled
-    on users (enabled);
+create index ctxa_idx_users_enabled
+    on ctxa_users (enabled);
 
-create table app_group
+create table ctxa_app_group
 (
     group_id    bigserial
         primary key,
@@ -66,7 +66,7 @@ create table app_group
 );
 
 
-create table role
+create table ctxa_role
 (
     role_id       bigserial
         primary key,
@@ -82,7 +82,7 @@ create table role
 );
 
 
-create table managed_resource
+create table ctxa_managed_resource
 (
     id                          bigserial
         primary key,
@@ -104,7 +104,7 @@ create table managed_resource
 );
 
 
-create table permission
+create table ctxa_permission
 (
     permission_id        bigserial
         primary key,
@@ -117,7 +117,7 @@ create table permission
     condition_expression varchar(2048),
     managed_resource_id  bigint
         unique
-                                                                references managed_resource
+                                                                references ctxa_managed_resource
                                                                     on delete set null,
     auto_created         boolean      default false             not null,
     created_at           timestamp(6) default CURRENT_TIMESTAMP not null,
@@ -125,13 +125,13 @@ create table permission
 );
 
 
-create table user_groups
+create table ctxa_user_groups
 (
     user_id     bigint                                 not null
-        references users
+        references ctxa_users
             on delete cascade,
     group_id    bigint                                 not null
-        references app_group
+        references ctxa_app_group
             on delete cascade,
     assigned_at timestamp(6) default CURRENT_TIMESTAMP not null,
     assigned_by varchar(100),
@@ -139,13 +139,13 @@ create table user_groups
 );
 
 
-create table group_roles
+create table ctxa_group_roles
 (
     group_id    bigint                                 not null
-        references app_group
+        references ctxa_app_group
             on delete cascade,
     role_id     bigint                                 not null
-        references role
+        references ctxa_role
             on delete cascade,
     assigned_at timestamp(6) default CURRENT_TIMESTAMP not null,
     assigned_by varchar(100),
@@ -153,13 +153,13 @@ create table group_roles
 );
 
 
-create table role_permissions
+create table ctxa_role_permissions
 (
     role_id       bigint                                 not null
-        references role
+        references ctxa_role
             on delete cascade,
     permission_id bigint                                 not null
-        references permission
+        references ctxa_permission
             on delete cascade,
     assigned_at   timestamp(6) default CURRENT_TIMESTAMP not null,
     assigned_by   varchar(100),
@@ -167,7 +167,7 @@ create table role_permissions
 );
 
 
-create table policy
+create table ctxa_policy
 (
     id                   bigserial
         primary key,
@@ -179,14 +179,14 @@ create table policy
     friendly_description varchar(2048),
     ai_model             varchar(255),
     approval_status      varchar(50)
-        constraint policy_approval_status_check
+        constraint ctxa_policy_approval_status_check
             check ((approval_status)::text = ANY
                    (ARRAY [('PENDING'::character varying)::text, ('APPROVED'::character varying)::text, ('REJECTED'::character varying)::text, ('NOT_REQUIRED'::character varying)::text])),
     approved_at          timestamp(6),
     approved_by          varchar(255),
     confidence_score     double precision,
     source               varchar(50)
-        constraint policy_source_check
+        constraint ctxa_policy_source_check
             check ((source)::text = ANY
                    (ARRAY [('MANUAL'::character varying)::text, ('AI_GENERATED'::character varying)::text, ('AI_EVOLVED'::character varying)::text, ('IMPORTED'::character varying)::text])),
     updated_at           timestamp(6),
@@ -196,12 +196,12 @@ create table policy
 );
 
 
-create table policy_target
+create table ctxa_policy_target
 (
     id                bigserial
         primary key,
     policy_id         bigint                not null
-        references policy
+        references ctxa_policy
             on delete cascade,
     target_type       varchar(255)          not null,
     target_identifier varchar(255)          not null,
@@ -211,23 +211,23 @@ create table policy_target
 );
 
 
-create table policy_rule
+create table ctxa_policy_rule
 (
     id          bigserial
         primary key,
     policy_id   bigint not null
-        references policy
+        references ctxa_policy
             on delete cascade,
     description varchar(255)
 );
 
 
-create table policy_condition
+create table ctxa_policy_condition
 (
     id                   bigserial
         primary key,
     rule_id              bigint                                                  not null
-        references policy_rule
+        references ctxa_policy_rule
             on delete cascade,
     condition_expression varchar(2048)                                           not null,
     authorization_phase  varchar(255) default 'PRE_AUTHORIZE'::character varying not null,
@@ -235,7 +235,7 @@ create table policy_condition
 );
 
 
-create table role_hierarchy_config
+create table ctxa_role_hierarchy_config
 (
     hierarchy_id     bigserial
         primary key,
@@ -246,7 +246,7 @@ create table role_hierarchy_config
 );
 
 
-create table audit_log
+create table ctxa_audit_log
 (
     id                  bigserial
         primary key,
@@ -273,7 +273,7 @@ create table audit_log
 );
 
 
-create table business_resource
+create table ctxa_business_resource
 (
     id            bigserial
         primary key,
@@ -284,7 +284,7 @@ create table business_resource
 );
 
 
-create table business_action
+create table ctxa_business_action
 (
     id          bigserial
         primary key,
@@ -295,20 +295,20 @@ create table business_action
 );
 
 
-create table business_resource_action
+create table ctxa_business_resource_action
 (
     business_resource_id   bigint       not null
-        references business_resource
+        references ctxa_business_resource
             on delete cascade,
     business_action_id     bigint       not null
-        references business_action
+        references ctxa_business_action
             on delete cascade,
     mapped_permission_name varchar(255) not null,
     primary key (business_resource_id, business_action_id)
 );
 
 
-create table condition_template
+create table ctxa_condition_template
 (
     id                   bigserial
         primary key,
@@ -327,7 +327,7 @@ create table condition_template
     updated_at           timestamp(6),
     approval_required    boolean,
     classification       varchar(255)
-        constraint condition_template_classification_check
+        constraint ctxa_condition_template_classification_check
             check ((classification)::text = ANY
                    (ARRAY [('UNIVERSAL'::character varying)::text, ('CONTEXT_DEPENDENT'::character varying)::text, ('CUSTOM_COMPLEX'::character varying)::text])),
     complexity_score     integer,
@@ -335,7 +335,7 @@ create table condition_template
 );
 
 
-create table wizard_session
+create table ctxa_wizard_session
 (
     session_id    varchar(36)  not null
         primary key,
@@ -346,7 +346,7 @@ create table wizard_session
 );
 
 
-create table function_group
+create table ctxa_function_group
 (
     id   bigserial
         primary key,
@@ -355,25 +355,25 @@ create table function_group
 );
 
 
-create table function_catalog
+create table ctxa_function_catalog
 (
     id                  bigserial
         primary key,
     description         varchar(1024),
     friendly_name       varchar(255) not null,
     status              varchar(255) not null
-        constraint function_catalog_status_check
+        constraint ctxa_function_catalog_status_check
             check ((status)::text = ANY
                    (ARRAY [('UNCONFIRMED'::character varying)::text, ('ACTIVE'::character varying)::text, ('INACTIVE'::character varying)::text])),
     function_group_id   bigint
-        references function_group,
+        references ctxa_function_group,
     managed_resource_id bigint       not null
         unique
-        references managed_resource
+        references ctxa_managed_resource
 );
 
 
-create table policy_template
+create table ctxa_policy_template
 (
     id                bigserial
         primary key,
@@ -386,7 +386,7 @@ create table policy_template
 );
 
 
-create table vector_store
+create table ctxa_vector_store
 (
     id        uuid default gen_random_uuid() not null
         primary key,
@@ -396,13 +396,13 @@ create table vector_store
 );
 
 
-create index vector_store_embedding_idx
-    on vector_store using hnsw (embedding vector_cosine_ops);
+create index ctxa_vector_store_embedding_idx
+    on ctxa_vector_store using hnsw (embedding vector_cosine_ops);
 
-create index spring_ai_vector_index
-    on vector_store using hnsw (embedding vector_cosine_ops);
+create index ctxa_vector_store_index
+    on ctxa_vector_store using hnsw (embedding vector_cosine_ops);
 
-create table user_behavior_profiles
+create table ctxa_user_behavior_profiles
 (
     id                      bigserial
         primary key,
@@ -420,7 +420,7 @@ create table user_behavior_profiles
 );
 
 
-create table soar_incidents
+create table ctxa_soar_incidents
 (
     id          uuid         not null
         primary key,
@@ -428,7 +428,7 @@ create table soar_incidents
     history     text,
     severity    varchar(20),
     status      varchar(255) not null
-        constraint soar_incidents_status_check
+        constraint ctxa_soar_incidents_status_check
             check ((status)::text = ANY
                    (ARRAY [('NEW'::character varying)::text, ('TRIAGE'::character varying)::text, ('INVESTIGATION'::character varying)::text, ('PLANNING'::character varying)::text, ('PENDING_APPROVAL'::character varying)::text, ('EXECUTION'::character varying)::text, ('REPORTING'::character varying)::text, ('COMPLETED'::character varying)::text, ('AUTO_CLOSED'::character varying)::text, ('FAILED'::character varying)::text, ('CLOSED_BY_ADMIN'::character varying)::text])),
     title       varchar(255) not null,
@@ -440,7 +440,7 @@ create table soar_incidents
 );
 
 
-create table soar_approval_policies
+create table ctxa_soar_approval_policies
 (
     id                      bigserial
         primary key,
@@ -455,7 +455,7 @@ create table soar_approval_policies
 );
 
 
-create table soar_approval_requests
+create table ctxa_soar_approval_requests
 (
     id                       bigserial
         primary key,
@@ -496,7 +496,7 @@ create table soar_approval_requests
 );
 
 
-create table soar_approval_steps
+create table ctxa_soar_approval_steps
 (
     id                  bigserial
         primary key,
@@ -513,18 +513,18 @@ create table soar_approval_steps
     completed_at        timestamp(6),
     created_at          timestamp(6) not null,
     updated_at          timestamp(6) not null,
-    constraint uk_soar_approval_step_request_number
+    constraint ctxa_uk_soar_approval_step_request_number
         unique (request_id, step_number)
 );
 
 
-create index idx_soar_approval_step_request_id
-    on soar_approval_steps (request_id);
+create index ctxa_idx_soar_approval_step_request_id
+    on ctxa_soar_approval_steps (request_id);
 
-create index idx_soar_approval_step_status
-    on soar_approval_steps (status);
+create index ctxa_idx_soar_approval_step_status
+    on ctxa_soar_approval_steps (status);
 
-create table soar_approval_assignments
+create table ctxa_soar_approval_assignments
 (
     id                bigserial
         primary key,
@@ -543,16 +543,16 @@ create table soar_approval_assignments
 );
 
 
-create index idx_soar_approval_assignment_request_id
-    on soar_approval_assignments (request_id);
+create index ctxa_idx_soar_approval_assignment_request_id
+    on ctxa_soar_approval_assignments (request_id);
 
-create index idx_soar_approval_assignment_status
-    on soar_approval_assignments (status);
+create index ctxa_idx_soar_approval_assignment_status
+    on ctxa_soar_approval_assignments (status);
 
-create index idx_soar_approval_assignment_step
-    on soar_approval_assignments (request_id, step_number);
+create index ctxa_idx_soar_approval_assignment_step
+    on ctxa_soar_approval_assignments (request_id, step_number);
 
-create table soar_approval_votes
+create table ctxa_soar_approval_votes
 (
     id            bigserial
         primary key,
@@ -565,21 +565,21 @@ create table soar_approval_votes
     step_number   integer      not null,
     created_at    timestamp(6) not null,
     updated_at    timestamp(6) not null,
-    constraint uk_soar_approval_vote_request_approver_step
+    constraint ctxa_uk_soar_approval_vote_request_approver_step
         unique (request_id, approver_id, step_number)
 );
 
 
-create index idx_soar_approval_vote_request_id
-    on soar_approval_votes (request_id);
+create index ctxa_idx_soar_approval_vote_request_id
+    on ctxa_soar_approval_votes (request_id);
 
-create index idx_soar_approval_vote_created_at
-    on soar_approval_votes (created_at);
+create index ctxa_idx_soar_approval_vote_created_at
+    on ctxa_soar_approval_votes (created_at);
 
-create index idx_soar_approval_vote_request_step
-    on soar_approval_votes (request_id, step_number);
+create index ctxa_idx_soar_approval_vote_request_step
+    on ctxa_soar_approval_votes (request_id, step_number);
 
-create table approval_notifications
+create table ctxa_approval_notifications
 (
     id                bigserial
         primary key,
@@ -603,19 +603,19 @@ create table approval_notifications
 );
 
 
-create index idx_notification_request_id
-    on approval_notifications (request_id);
+create index ctxa_idx_notification_request_id
+    on ctxa_approval_notifications (request_id);
 
-create index idx_notification_user_id
-    on approval_notifications (user_id);
+create index ctxa_idx_notification_user_id
+    on ctxa_approval_notifications (user_id);
 
-create index idx_notification_is_read
-    on approval_notifications (is_read);
+create index ctxa_idx_notification_is_read
+    on ctxa_approval_notifications (is_read);
 
-create index idx_notification_created_at
-    on approval_notifications (created_at);
+create index ctxa_idx_notification_created_at
+    on ctxa_approval_notifications (created_at);
 
-create table threat_indicators
+create table ctxa_threat_indicators
 (
     indicator_id         varchar(100)  not null
         primary key,
@@ -638,19 +638,19 @@ create table threat_indicators
     mitre_technique      varchar(100),
     nist_csf_category    varchar(100),
     severity             varchar(255)  not null
-        constraint threat_indicators_severity_check
+        constraint ctxa_threat_indicators_severity_check
             check ((severity)::text = ANY
                    (ARRAY [('CRITICAL'::character varying)::text, ('HIGH'::character varying)::text, ('MEDIUM'::character varying)::text, ('LOW'::character varying)::text, ('INFO'::character varying)::text])),
     source               varchar(255),
     status               varchar(255)
-        constraint threat_indicators_status_check
+        constraint ctxa_threat_indicators_status_check
             check ((status)::text = ANY
                    (ARRAY [('ACTIVE'::character varying)::text, ('INACTIVE'::character varying)::text, ('EXPIRED'::character varying)::text, ('FALSE_POSITIVE'::character varying)::text, ('UNDER_REVIEW'::character varying)::text])),
     threat_actor         varchar(255),
     threat_actor_id      varchar(100),
     threat_score         double precision,
     indicator_type       varchar(255)  not null
-        constraint threat_indicators_indicator_type_check
+        constraint ctxa_threat_indicators_indicator_type_check
             check ((indicator_type)::text = ANY
                    (ARRAY [('IP_ADDRESS'::character varying)::text, ('DOMAIN'::character varying)::text, ('URL'::character varying)::text, ('FILE_HASH'::character varying)::text, ('FILE_PATH'::character varying)::text, ('REGISTRY_KEY'::character varying)::text, ('PROCESS_NAME'::character varying)::text, ('EMAIL_ADDRESS'::character varying)::text, ('USER_AGENT'::character varying)::text, ('CERTIFICATE'::character varying)::text, ('MUTEX'::character varying)::text, ('YARA_RULE'::character varying)::text, ('BEHAVIORAL'::character varying)::text, ('UNKNOWN'::character varying)::text, ('PATTERN'::character varying)::text, ('USER_ACCOUNT'::character varying)::text, ('COMPLIANCE'::character varying)::text, ('EVENT'::character varying)::text])),
     updated_at           timestamp(6),
@@ -658,35 +658,35 @@ create table threat_indicators
 );
 
 
-create table indicator_metadata
+create table ctxa_indicator_metadata
 (
     indicator_id varchar(100) not null
-        references threat_indicators,
+        references ctxa_threat_indicators,
     meta_value   varchar(255),
     meta_key     varchar(255) not null,
     primary key (indicator_id, meta_key)
 );
 
 
-create table indicator_tags
+create table ctxa_indicator_tags
 (
     indicator_id varchar(100) not null
-        references threat_indicators,
+        references ctxa_threat_indicators,
     tag          varchar(255)
 );
 
 
-create table related_indicators
+create table ctxa_related_indicators
 (
     indicator_id         varchar(100) not null
-        references threat_indicators,
+        references ctxa_threat_indicators,
     related_indicator_id varchar(100) not null
-        references threat_indicators,
+        references ctxa_threat_indicators,
     primary key (indicator_id, related_indicator_id)
 );
 
 
-create table blocked_user
+create table ctxa_blocked_user
 (
     id                   bigserial
         primary key,
@@ -703,7 +703,7 @@ create table blocked_user
     risk_score           double precision,
     source_ip            varchar(255),
     status               varchar(255) not null
-        constraint blocked_user_status_check
+        constraint ctxa_blocked_user_status_check
             check ((status)::text = ANY
                    (ARRAY [('BLOCKED'::character varying)::text, ('UNBLOCK_REQUESTED'::character varying)::text, ('RESOLVED'::character varying)::text, ('TIMEOUT_RESPONDED'::character varying)::text, ('MFA_FAILED'::character varying)::text])),
     user_agent           varchar(255),
@@ -717,7 +717,7 @@ create table blocked_user
 );
 
 -- Agents Contexa knows (A1-6): observed from requests and registered by identity providers.
-create table if not exists agent_registration
+create table if not exists ctxa_agent_registration
 (
     id                 bigserial
         primary key,
@@ -739,15 +739,15 @@ create table if not exists agent_registration
     updated_at         timestamp(6)            not null
 );
 
-create unique index if not exists ux_agent_registration_tenant_agent
-    on agent_registration (tenant_key, agent_id);
+create unique index if not exists ctxa_ux_agent_registration_tenant_agent
+    on ctxa_agent_registration (tenant_key, agent_id);
 
-create index if not exists idx_agent_registration_last_seen
-    on agent_registration (last_seen_at desc);
+create index if not exists ctxa_idx_agent_registration_last_seen
+    on ctxa_agent_registration (last_seen_at desc);
 
 -- Delegations people give agents (docs/agent OC-1): what work, which operations and resources, for how long. Ended
 -- and revoked delegations stay, since their end is a fact an agent request is decided with.
-create table if not exists agent_delegation_record
+create table if not exists ctxa_agent_delegation_record
 (
     delegation_id             varchar(64)             not null
         primary key,
@@ -774,18 +774,18 @@ create table if not exists agent_delegation_record
 );
 
 -- RL-6: the quantity limits a delegation states, for a table created before them.
-alter table agent_delegation_record add column if not exists max_items_per_request integer;
-alter table agent_delegation_record add column if not exists max_items_total integer;
+alter table ctxa_agent_delegation_record add column if not exists max_items_per_request integer;
+alter table ctxa_agent_delegation_record add column if not exists max_items_total integer;
 
-create index if not exists idx_agent_delegation_record_delegator_agent
-    on agent_delegation_record (tenant_key, delegator_id, agent_id, valid_from desc);
+create index if not exists ctxa_idx_agent_delegation_record_delegator_agent
+    on ctxa_agent_delegation_record (tenant_key, delegator_id, agent_id, valid_from desc);
 
-create index if not exists idx_agent_delegation_record_agent
-    on agent_delegation_record (tenant_key, agent_id, valid_from desc);
+create index if not exists ctxa_idx_agent_delegation_record_agent
+    on ctxa_agent_delegation_record (tenant_key, agent_id, valid_from desc);
 
 -- docs/agent A5-3, A5-2: the notices to the people accountable for agents (AgentNoticeStore): an agent stopped, a
 -- request waiting for confirmation, a confirmation expired. Every notice is kept for the console.
-create table if not exists agent_notice
+create table if not exists ctxa_agent_notice
 (
     notice_id      varchar(64)             not null
         primary key,
@@ -803,15 +803,15 @@ create table if not exists agent_notice
     read_at        timestamp(6)
 );
 
-create index if not exists idx_agent_notice_recipient
-    on agent_notice (recipient_id, created_at desc);
+create index if not exists ctxa_idx_agent_notice_recipient
+    on ctxa_agent_notice (recipient_id, created_at desc);
 
-create index if not exists idx_agent_notice_tenant
-    on agent_notice (tenant_key, created_at desc);
+create index if not exists ctxa_idx_agent_notice_tenant
+    on ctxa_agent_notice (tenant_key, created_at desc);
 
 -- docs/agent A5-2, A5-9: the confirmations of agents' requests by the people accountable for them
 -- (AgentConfirmationStore), one row per request asked; a decision and the use of an approval are made once.
-create table if not exists agent_confirmation
+create table if not exists ctxa_agent_confirmation
 (
     confirmation_id  varchar(64)             not null
         primary key,
@@ -838,18 +838,18 @@ create table if not exists agent_confirmation
     used_at          timestamp(6)
 );
 
-create index if not exists idx_agent_confirmation_request
-    on agent_confirmation (subject_key, request_hash, status);
+create index if not exists ctxa_idx_agent_confirmation_request
+    on ctxa_agent_confirmation (subject_key, request_hash, status);
 
-create index if not exists idx_agent_confirmation_recipient
-    on agent_confirmation (recipient_id, created_at desc);
+create index if not exists ctxa_idx_agent_confirmation_recipient
+    on ctxa_agent_confirmation (recipient_id, created_at desc);
 
-create index if not exists idx_agent_confirmation_due
-    on agent_confirmation (status, expires_at);
+create index if not exists ctxa_idx_agent_confirmation_due
+    on ctxa_agent_confirmation (status, expires_at);
 
 -- docs/agent A5-4: the narrowed scopes of agents' later requests (AgentScopeStore), one row per agent decision key;
 -- a narrowing only intersects the operations in force and ends at until_at.
-create table if not exists agent_scope_restriction
+create table if not exists ctxa_agent_scope_restriction
 (
     subject_key    varchar(600)            not null
         primary key,
@@ -863,14 +863,14 @@ create table if not exists agent_scope_restriction
     until_at       timestamp(6)            not null
 );
 
-create index if not exists idx_agent_scope_restriction_until
-    on agent_scope_restriction (until_at);
+create index if not exists ctxa_idx_agent_scope_restriction_until
+    on ctxa_agent_scope_restriction (until_at);
 
-create index if not exists idx_agent_scope_restriction_user
-    on agent_scope_restriction (user_id);
+create index if not exists ctxa_idx_agent_scope_restriction_user
+    on ctxa_agent_scope_restriction (user_id);
 
 -- docs/agent OC-2: the company's records a request is judged with (CompanyRecordStore), one row per record.
-create table if not exists company_record
+create table if not exists ctxa_company_record
 (
     record_seq  bigserial               not null,
     tenant_key  varchar(255) default '' not null,
@@ -884,14 +884,14 @@ create table if not exists company_record
     primary key (tenant_key, record_kind, record_key)
 );
 
-create index if not exists idx_company_record_subject
-    on company_record (subject_id, tenant_key, record_seq);
+create index if not exists ctxa_idx_company_record_subject
+    on ctxa_company_record (subject_id, tenant_key, record_seq);
 
-create index if not exists idx_company_record_kind
-    on company_record (tenant_key, record_kind, record_seq);
+create index if not exists ctxa_idx_company_record_kind
+    on ctxa_company_record (tenant_key, record_kind, record_seq);
 
 
-create table oauth2_authorization
+create table ctxa_oauth2_authorization
 (
     id                            varchar(100) not null
         primary key,
@@ -930,13 +930,13 @@ create table oauth2_authorization
 );
 
 
-create index idx_oauth2_authorization_registered_client_id
-    on oauth2_authorization (registered_client_id);
+create index ctxa_idx_oauth2_authorization_registered_client_id
+    on ctxa_oauth2_authorization (registered_client_id);
 
-create index idx_oauth2_authorization_principal_name
-    on oauth2_authorization (principal_name);
+create index ctxa_idx_oauth2_authorization_principal_name
+    on ctxa_oauth2_authorization (principal_name);
 
-create table oauth2_registered_client
+create table ctxa_oauth2_registered_client
 (
     id                            varchar(100)                        not null
         primary key,
@@ -955,10 +955,10 @@ create table oauth2_registered_client
 );
 
 
-create unique index idx_oauth2_registered_client_client_id
-    on oauth2_registered_client (client_id);
+create unique index ctxa_idx_oauth2_registered_client_client_id
+    on ctxa_oauth2_registered_client (client_id);
 
-create table user_credentials
+create table ctxa_user_credentials
 (
     credential_id                varchar(1000) not null
         primary key,
@@ -978,7 +978,7 @@ create table user_credentials
 );
 
 
-create table user_entities
+create table ctxa_user_entities
 (
     id           varchar(1000) not null
         primary key,
@@ -987,7 +987,7 @@ create table user_entities
 );
 
 
-create table one_time_tokens
+create table ctxa_one_time_tokens
 (
     token_value varchar(36) not null
         primary key,
@@ -996,17 +996,17 @@ create table one_time_tokens
 );
 
 
-create table oauth2_authorization_consent
+create table ctxa_oauth2_authorization_consent
 (
     registered_client_id varchar(100)  not null
-        references oauth2_registered_client,
+        references ctxa_oauth2_registered_client,
     principal_name       varchar(200)  not null,
     authorities          varchar(1000) not null,
     primary key (registered_client_id, principal_name)
 );
 
 
-create table baseline_signal_outbox
+create table ctxa_baseline_signal_outbox
 (
     id                                 bigint generated by default as identity
         primary key,
@@ -1022,7 +1022,7 @@ create table baseline_signal_outbox
     operating_system_distribution_json text,
     organization_baseline_count        bigint       not null,
     period_start                       date         not null
-        constraint uk_baseline_signal_outbox_period
+        constraint ctxa_uk_baseline_signal_outbox_period
             unique,
     signal_id                          varchar(64)  not null,
     status                             varchar(32)  not null,
@@ -1031,10 +1031,10 @@ create table baseline_signal_outbox
 );
 
 
-create index idx_baseline_signal_outbox_dispatch
-    on baseline_signal_outbox (status, next_attempt_at, period_start);
+create index ctxa_idx_baseline_signal_outbox_dispatch
+    on ctxa_baseline_signal_outbox (status, next_attempt_at, period_start);
 
-create table decision_feedback_forwarding_outbox
+create table ctxa_decision_feedback_forwarding_outbox
 (
     id                  bigint generated by default as identity
         primary key,
@@ -1044,7 +1044,7 @@ create table decision_feedback_forwarding_outbox
     created_at          timestamp(6) not null,
     delivered_at        timestamp(6),
     feedback_id         varchar(64)  not null
-        constraint uk_decision_feedback_forwarding_outbox_feedback_id
+        constraint ctxa_uk_decision_feedback_forwarding_outbox_feedback_id
             unique,
     last_error          varchar(2000),
     next_attempt_at     timestamp(6),
@@ -1055,10 +1055,10 @@ create table decision_feedback_forwarding_outbox
 );
 
 
-create index idx_decision_feedback_forwarding_outbox_dispatch
-    on decision_feedback_forwarding_outbox (status, next_attempt_at, created_at);
+create index ctxa_idx_decision_feedback_forwarding_outbox_dispatch
+    on ctxa_decision_feedback_forwarding_outbox (status, next_attempt_at, created_at);
 
-create table model_performance_telemetry_outbox
+create table ctxa_model_performance_telemetry_outbox
 (
     id                            bigint generated by default as identity
         primary key,
@@ -1076,7 +1076,7 @@ create table model_performance_telemetry_outbox
     layer2_sample_count           bigint       not null,
     next_attempt_at               timestamp(6),
     period                        date         not null
-        constraint uk_model_performance_telemetry_outbox_period
+        constraint ctxa_uk_model_performance_telemetry_outbox_period
             unique,
     status                        varchar(32)  not null,
     telemetry_id                  varchar(64)  not null,
@@ -1085,16 +1085,16 @@ create table model_performance_telemetry_outbox
 );
 
 
-create index idx_model_performance_telemetry_outbox_dispatch
-    on model_performance_telemetry_outbox (status, next_attempt_at, period);
+create index ctxa_idx_model_performance_telemetry_outbox_dispatch
+    on ctxa_model_performance_telemetry_outbox (status, next_attempt_at, period);
 
-create table prompt_context_audit_forwarding_outbox
+create table ctxa_prompt_context_audit_forwarding_outbox
 (
     id                  bigint generated by default as identity
         primary key,
     attempt_count       integer      not null,
     audit_id            varchar(64)  not null
-        constraint uk_prompt_context_audit_forwarding_outbox_audit_id
+        constraint ctxa_uk_prompt_context_audit_forwarding_outbox_audit_id
             unique,
     correlation_id      varchar(64)  not null,
     created_at          timestamp(6) not null,
@@ -1108,16 +1108,16 @@ create table prompt_context_audit_forwarding_outbox
 );
 
 
-create index idx_prompt_context_audit_forwarding_outbox_dispatch
-    on prompt_context_audit_forwarding_outbox (status, next_attempt_at, created_at);
+create index ctxa_idx_prompt_context_audit_forwarding_outbox_dispatch
+    on ctxa_prompt_context_audit_forwarding_outbox (status, next_attempt_at, created_at);
 
-create table security_decision_forwarding_outbox
+create table ctxa_security_decision_forwarding_outbox
 (
     id                  bigint generated by default as identity
         primary key,
     attempt_count       integer      not null,
     correlation_id      varchar(64)  not null
-        constraint uk_security_decision_forwarding_outbox_correlation_id
+        constraint ctxa_uk_security_decision_forwarding_outbox_correlation_id
             unique,
     created_at          timestamp(6) not null,
     delivered_at        timestamp(6),
@@ -1130,10 +1130,10 @@ create table security_decision_forwarding_outbox
 );
 
 
-create index idx_security_decision_forwarding_outbox_dispatch
-    on security_decision_forwarding_outbox (status, next_attempt_at, created_at);
+create index ctxa_idx_security_decision_forwarding_outbox_dispatch
+    on ctxa_security_decision_forwarding_outbox (status, next_attempt_at, created_at);
 
-create table threat_outcome_forwarding_outbox
+create table ctxa_threat_outcome_forwarding_outbox
 (
     id                  bigint generated by default as identity
         primary key,
@@ -1144,7 +1144,7 @@ create table threat_outcome_forwarding_outbox
     last_error          varchar(2000),
     next_attempt_at     timestamp(6),
     outcome_id          varchar(64)  not null
-        constraint uk_threat_outcome_forwarding_outbox_outcome_id
+        constraint ctxa_uk_threat_outcome_forwarding_outbox_outcome_id
             unique,
     payload_json        text         not null,
     status              varchar(32)  not null,
@@ -1153,24 +1153,24 @@ create table threat_outcome_forwarding_outbox
 );
 
 
-create index idx_threat_outcome_forwarding_outbox_dispatch
-    on threat_outcome_forwarding_outbox (status, next_attempt_at, created_at);
+create index ctxa_idx_threat_outcome_forwarding_outbox_dispatch
+    on ctxa_threat_outcome_forwarding_outbox (status, next_attempt_at, created_at);
 
-create table user_roles
+create table ctxa_user_roles
 (
     role_id     bigint       not null
-        constraint fkrhfovtciq1l558cw6udg0h0d3
-            references role,
+        constraint ctxa_fkrhfovtciq1l558cw6udg0h0d3
+            references ctxa_role,
     user_id     bigint       not null
-        constraint fkhfh9dx7w3ubf1co1vdev94g3f
-            references users,
+        constraint ctxa_fkhfh9dx7w3ubf1co1vdev94g3f
+            references ctxa_users,
     assigned_at timestamp(6) not null,
     assigned_by varchar(100),
     primary key (role_id, user_id)
 );
 
 
-create table password_policy
+create table ctxa_password_policy
 (
     id                       bigint generated by default as identity
         primary key,
@@ -1191,7 +1191,7 @@ create table password_policy
 );
 
 
-create table behavior_anomaly_events
+create table ctxa_behavior_anomaly_events
 (
     id                 bigint generated by default as identity
         primary key,
@@ -1214,7 +1214,7 @@ create table behavior_anomaly_events
 );
 
 
-create table behavior_based_permissions
+create table ctxa_behavior_based_permissions
 (
     id                    bigint generated by default as identity
         primary key,
@@ -1229,7 +1229,7 @@ create table behavior_based_permissions
 );
 
 
-create table behavior_realtime_cache
+create table ctxa_behavior_realtime_cache
 (
     user_id                 varchar(255) not null
         primary key,
@@ -1244,12 +1244,12 @@ create table behavior_realtime_cache
 );
 
 
-create table bridge_user_profile
+create table ctxa_bridge_user_profile
 (
     user_id                     bigint       not null
         primary key
-        constraint fk6ln576ijwr4i3kdbqmfjyedeo
-            references users,
+        constraint ctxa_fk6ln576ijwr4i3kdbqmfjyedeo
+            references ctxa_users,
     authentication_assurance    varchar(100),
     authentication_type         varchar(100),
     created_at                  timestamp(6) not null,
@@ -1264,7 +1264,7 @@ create table bridge_user_profile
 );
 
 
-create table active_sessions
+create table ctxa_active_sessions
 (
     session_id       varchar(128) not null
         primary key,
@@ -1278,13 +1278,13 @@ create table active_sessions
 );
 
 
-create index idx_session_user_id
-    on active_sessions (user_id);
+create index ctxa_idx_session_user_id
+    on ctxa_active_sessions (user_id);
 
-create index idx_session_expired
-    on active_sessions (expired);
+create index ctxa_idx_session_expired
+    on ctxa_active_sessions (expired);
 
-create table ip_access_rules
+create table ctxa_ip_access_rules
 (
     id          bigint generated by default as identity
         primary key,
@@ -1295,22 +1295,22 @@ create table ip_access_rules
     expires_at  timestamp(6),
     ip_address  varchar(45)  not null,
     rule_type   varchar(10)  not null
-        constraint ip_access_rules_rule_type_check
+        constraint ctxa_ip_access_rules_rule_type_check
             check ((rule_type)::text = ANY
                    (ARRAY [('ALLOW'::character varying)::text, ('DENY'::character varying)::text]))
 );
 
 
-create index idx_ip_rule_type
-    on ip_access_rules (rule_type);
+create index ctxa_idx_ip_rule_type
+    on ctxa_ip_access_rules (rule_type);
 
-create index idx_ip_rule_enabled
-    on ip_access_rules (enabled);
+create index ctxa_idx_ip_rule_enabled
+    on ctxa_ip_access_rules (enabled);
 
-create index idx_ip_address
-    on ip_access_rules (ip_address);
+create index ctxa_idx_ip_address
+    on ctxa_ip_access_rules (ip_address);
 
-create table security_spel
+create table ctxa_security_spel
 (
     id          bigserial
         primary key,
@@ -1323,7 +1323,7 @@ create table security_spel
 );
 
 
-create table admin_menu
+create table ctxa_admin_menu
 (
     id         bigserial
         primary key,
@@ -1338,50 +1338,50 @@ create table admin_menu
 );
 
 
-create unique index ux_admin_menu_data_page
-    on admin_menu (data_page)
+create unique index ctxa_ux_admin_menu_data_page
+    on ctxa_admin_menu (data_page)
     where (data_page IS NOT NULL);
 
-create table admin_menu_role
+create table ctxa_admin_menu_role
 (
     id        bigserial
         primary key,
     menu_id   bigint       not null
-        references admin_menu,
+        references ctxa_admin_menu,
     role_name varchar(100) not null,
     unique (menu_id, role_name)
 );
 
 
-create table group_role_permissions
+create table ctxa_group_role_permissions
 (
     group_id      bigint       not null
-        references app_group,
+        references ctxa_app_group,
     role_id       bigint       not null
-        references role,
+        references ctxa_role,
     permission_id bigint       not null
-        references permission,
+        references ctxa_permission,
     assigned_at   timestamp(6) not null,
     assigned_by   varchar(100),
     primary key (group_id, role_id, permission_id)
 );
 
 
-create table user_role_permissions
+create table ctxa_user_role_permissions
 (
     user_id       bigint       not null
-        references users,
+        references ctxa_users,
     role_id       bigint       not null
-        references role,
+        references ctxa_role,
     permission_id bigint       not null
-        references permission,
+        references ctxa_permission,
     assigned_at   timestamp(6) not null,
     assigned_by   varchar(100),
     primary key (user_id, role_id, permission_id)
 );
 
 
-create table password_history
+create table ctxa_password_history
 (
     id            bigserial
         primary key,
@@ -1391,14 +1391,14 @@ create table password_history
 );
 
 
-create table policy_version
+create table ctxa_policy_version
 (
     id             bigserial
         primary key,
     policy_id      bigint       not null,
     version_number integer      not null,
     change_type    varchar(20)  not null
-        constraint policy_version_change_type_check
+        constraint ctxa_policy_version_change_type_check
             check ((change_type)::text = ANY
                    (ARRAY [('CREATED'::character varying)::text, ('UPDATED'::character varying)::text, ('DELETED'::character varying)::text, ('ROLLBACK'::character varying)::text])),
     change_reason  varchar(1024),
@@ -1408,13 +1408,13 @@ create table policy_version
 );
 
 
-create index idx_policy_version_changed_at
-    on policy_version (changed_at);
+create index ctxa_idx_policy_version_changed_at
+    on ctxa_policy_version (changed_at);
 
-create index idx_policy_version_policy_id
-    on policy_version (policy_id);
+create index ctxa_idx_policy_version_policy_id
+    on ctxa_policy_version (policy_id);
 
-create table system_settings
+create table ctxa_system_settings
 (
     id                         bigserial
         primary key,
@@ -1430,18 +1430,18 @@ create table system_settings
 -- security_zerotrust_mode stays NULL until an operator saves a mode, so contexa.security.zerotrust.mode
 -- applies. Older databases created the column with a SHADOW default and a NOT NULL constraint; schema
 -- maintenance replays the two ALTER COLUMN statements and removes both. Stored values are kept.
-alter table system_settings add column if not exists security_zerotrust_mode varchar(20);
-alter table system_settings alter column security_zerotrust_mode drop not null;
-alter table system_settings alter column security_zerotrust_mode drop default;
-alter table system_settings add column if not exists mvc_resource_scanner_base_packages text default 'io.contexa.contexaiam.' not null;
-alter table system_settings add column if not exists no_matching_url_policy_decision varchar(20) default 'PERMIT' not null;
-alter table system_settings add column if not exists missing_method_policy_decision varchar(20) default 'PERMIT' not null;
+alter table ctxa_system_settings add column if not exists security_zerotrust_mode varchar(20);
+alter table ctxa_system_settings alter column security_zerotrust_mode drop not null;
+alter table ctxa_system_settings alter column security_zerotrust_mode drop default;
+alter table ctxa_system_settings add column if not exists mvc_resource_scanner_base_packages text default 'io.contexa.contexaiam.' not null;
+alter table ctxa_system_settings add column if not exists no_matching_url_policy_decision varchar(20) default 'PERMIT' not null;
+alter table ctxa_system_settings add column if not exists missing_method_policy_decision varchar(20) default 'PERMIT' not null;
 
 -- docs/agent A3-3 (R-01): the tenant of a blocked request, so that an administrator's release learns within it.
-alter table blocked_user add column if not exists tenant_id varchar(255);
+alter table ctxa_blocked_user add column if not exists tenant_id varchar(255);
 -- docs/agent A5-5: the decision record of an agent request (AG-8): who it acted as and for, the operation, the
 -- risk facts the decision cited, what was enforced and why, and the hash of the request context.
-alter table audit_log
+alter table ctxa_audit_log
     add column if not exists subject_kind varchar(32),
     add column if not exists agent_id varchar(255),
     add column if not exists delegator_id varchar(255),
@@ -1453,7 +1453,7 @@ alter table audit_log
     add column if not exists request_context_hash varchar(64);
 -- docs/agent A5-6: a decision record names its tenant, links the decision record written before it and
 -- carries a keyed signature of its hash.
-alter table audit_log
+alter table ctxa_audit_log
     add column if not exists tenant_id varchar(255),
     add column if not exists record_hash varchar(64),
     add column if not exists previous_record_hash varchar(64),
@@ -1461,7 +1461,7 @@ alter table audit_log
     add column if not exists signature_key_id varchar(64);
 
 
-create table learning_artifact_registry
+create table ctxa_learning_artifact_registry
 (
     kill_switch_active    boolean       not null,
     runtime_eligible      boolean       not null,
@@ -1484,18 +1484,18 @@ create table learning_artifact_registry
     reason                varchar(2000) not null,
     artifact_key          varchar(255)  not null,
     facts_json            text,
-    constraint uk_learning_artifact_registry_identity
+    constraint ctxa_uk_learning_artifact_registry_identity
         unique (tenant_id, artifact_type, artifact_key)
 );
 
 
-create index idx_learning_artifact_registry_tenant_updated
-    on learning_artifact_registry (tenant_id, updated_at);
+create index ctxa_idx_learning_artifact_registry_tenant_updated
+    on ctxa_learning_artifact_registry (tenant_id, updated_at);
 
-create index idx_learning_artifact_registry_artifact_updated
-    on learning_artifact_registry (artifact_type, artifact_key, updated_at);
+create index ctxa_idx_learning_artifact_registry_artifact_updated
+    on ctxa_learning_artifact_registry (artifact_type, artifact_key, updated_at);
 
-create table learning_artifact_release_ledger
+create table ctxa_learning_artifact_release_ledger
 (
     kill_switch_active    boolean       not null,
     created_at            timestamp(6)  not null,
@@ -1504,7 +1504,7 @@ create table learning_artifact_release_ledger
     artifact_type         varchar(64)   not null,
     event_type            varchar(64)   not null,
     ledger_id             varchar(64)   not null
-        constraint uk_learning_artifact_ledger_id
+        constraint ctxa_uk_learning_artifact_ledger_id
             unique,
     release_state         varchar(64)   not null,
     rollback_target_state varchar(64),
@@ -1519,13 +1519,13 @@ create table learning_artifact_release_ledger
 );
 
 
-create index idx_learning_artifact_ledger_identity
-    on learning_artifact_release_ledger (tenant_id, artifact_type, artifact_key, created_at);
+create index ctxa_idx_learning_artifact_ledger_identity
+    on ctxa_learning_artifact_release_ledger (tenant_id, artifact_type, artifact_key, created_at);
 
-create index idx_learning_artifact_ledger_artifact
-    on learning_artifact_release_ledger (artifact_type, artifact_key, created_at);
+create index ctxa_idx_learning_artifact_ledger_artifact
+    on ctxa_learning_artifact_release_ledger (artifact_type, artifact_key, created_at);
 
-create table learning_governance_snapshot
+create table ctxa_learning_governance_snapshot
 (
     created_at    timestamp(6) not null,
     generated_at  timestamp(6),
@@ -1535,15 +1535,15 @@ create table learning_governance_snapshot
     artifact_type varchar(64)  not null,
     tenant_id     varchar(120) not null,
     snapshot_json text         not null,
-    constraint uk_learning_governance_snapshot_identity
+    constraint ctxa_uk_learning_governance_snapshot_identity
         unique (tenant_id, artifact_type)
 );
 
 
-create index idx_learning_governance_snapshot_tenant_updated
-    on learning_governance_snapshot (tenant_id, updated_at);
+create index ctxa_idx_learning_governance_snapshot_tenant_updated
+    on ctxa_learning_governance_snapshot (tenant_id, updated_at);
 
-CREATE TABLE IF NOT EXISTS sealed_evidence_package (
+CREATE TABLE IF NOT EXISTS ctxa_sealed_evidence_package (
     id BIGSERIAL PRIMARY KEY,
     package_id VARCHAR(256) NOT NULL,
     correlation_id VARCHAR(160) NOT NULL,
@@ -1575,46 +1575,46 @@ CREATE TABLE IF NOT EXISTS sealed_evidence_package (
     sealed BOOLEAN NOT NULL DEFAULT TRUE,
     expires_at TIMESTAMP(6) WITH TIME ZONE,
     created_at TIMESTAMP(6) WITH TIME ZONE,
-    CONSTRAINT uq_sealed_evidence_package_package_id UNIQUE (package_id)
+    CONSTRAINT ctxa_uq_sealed_evidence_package_package_id UNIQUE (package_id)
 );
 
 
-alter table sealed_evidence_package
+alter table ctxa_sealed_evidence_package
     add column if not exists idempotency_key VARCHAR(128);
 
-drop index if exists idx_sep_correlation_id;
+drop index if exists ctxa_idx_sep_correlation_id;
 
-create index if not exists idx_sep_correlation_id
-    on sealed_evidence_package (correlation_id);
+create index if not exists ctxa_idx_sep_correlation_id
+    on ctxa_sealed_evidence_package (correlation_id);
 
-create unique index if not exists uq_sep_idempotency_key
-    on sealed_evidence_package (idempotency_key)
+create unique index if not exists ctxa_uq_sep_idempotency_key
+    on ctxa_sealed_evidence_package (idempotency_key)
     where idempotency_key is not null;
 
-create index if not exists idx_sep_user_id_captured_at
-    on sealed_evidence_package (user_id, captured_at);
+create index if not exists ctxa_idx_sep_user_id_captured_at
+    on ctxa_sealed_evidence_package (user_id, captured_at);
 
 -- docs/agent A5-6: a schema 3 package links the package sealed before it and carries a keyed signature.
-alter table sealed_evidence_package
+alter table ctxa_sealed_evidence_package
     add column if not exists previous_package_hash varchar(128),
     add column if not exists package_signature varchar(128),
     add column if not exists signature_key_id varchar(64);
 
-create index if not exists idx_sep_tenant_id_captured_at
-    on sealed_evidence_package (tenant_id, captured_at);
+create index if not exists ctxa_idx_sep_tenant_id_captured_at
+    on ctxa_sealed_evidence_package (tenant_id, captured_at);
 
-create index if not exists idx_sep_captured_at
-    on sealed_evidence_package (captured_at);
+create index if not exists ctxa_idx_sep_captured_at
+    on ctxa_sealed_evidence_package (captured_at);
 
 -- The daily retention delete reads the expiry (R4-S4).
-create index if not exists idx_sep_expires_at
-    on sealed_evidence_package (expires_at);
+create index if not exists ctxa_idx_sep_expires_at
+    on ctxa_sealed_evidence_package (expires_at);
 
 -- Prompt inspection: one result per sealed package and inspector version, removed with the package; matching items
 -- are kept as counts only (prompt inspector redesign, section 5).
-create table if not exists prompt_inspection_result (
+create table if not exists ctxa_prompt_inspection_result (
     id BIGSERIAL PRIMARY KEY,
-    package_id VARCHAR(256) NOT NULL REFERENCES sealed_evidence_package (package_id) ON DELETE CASCADE,
+    package_id VARCHAR(256) NOT NULL REFERENCES ctxa_sealed_evidence_package (package_id) ON DELETE CASCADE,
     inspector_version VARCHAR(64) NOT NULL,
     dictionary_version VARCHAR(64),
     layout_version VARCHAR(64),
@@ -1626,16 +1626,16 @@ create table if not exists prompt_inspection_result (
     inspection_trigger VARCHAR(16) NOT NULL,
     inspected_at TIMESTAMP(6) WITH TIME ZONE NOT NULL,
     error_reason TEXT,
-    CONSTRAINT uq_prompt_inspection_result_package_version UNIQUE (package_id, inspector_version)
+    CONSTRAINT ctxa_uq_prompt_inspection_result_package_version UNIQUE (package_id, inspector_version)
 );
 
-create index if not exists idx_prompt_inspection_result_inspected_at
-    on prompt_inspection_result (inspected_at);
+create index if not exists ctxa_idx_prompt_inspection_result_inspected_at
+    on ctxa_prompt_inspection_result (inspected_at);
 
 -- W3-20 (storage design A): a finding kind is the inspector version, check, outcome, block, entry and reason; the
 -- packages that show it share one row with its first and last package, its counts, its latest example packages and
 -- the values of its first example. A result row lists its kinds with their lines (finding_kinds_json).
-create table if not exists prompt_inspection_finding_kind (
+create table if not exists ctxa_prompt_inspection_finding_kind (
     id BIGSERIAL PRIMARY KEY,
     inspector_version VARCHAR(64) NOT NULL,
     check_code VARCHAR(64) NOT NULL,
@@ -1653,15 +1653,15 @@ create table if not exists prompt_inspection_finding_kind (
     example_expected TEXT,
     example_actual TEXT,
     example_source_ref VARCHAR(256),
-    CONSTRAINT uq_prompt_inspection_finding_kind
+    CONSTRAINT ctxa_uq_prompt_inspection_finding_kind
         UNIQUE (inspector_version, check_code, outcome, block_name, entry_name, reason)
 );
 
-alter table prompt_inspection_result add column if not exists finding_kinds_json TEXT;
+alter table ctxa_prompt_inspection_result add column if not exists finding_kinds_json TEXT;
 
-create table if not exists prompt_inspection_finding (
+create table if not exists ctxa_prompt_inspection_finding (
     id BIGSERIAL PRIMARY KEY,
-    result_id BIGINT NOT NULL REFERENCES prompt_inspection_result (id) ON DELETE CASCADE,
+    result_id BIGINT NOT NULL REFERENCES ctxa_prompt_inspection_result (id) ON DELETE CASCADE,
     check_code VARCHAR(64) NOT NULL,
     outcome VARCHAR(16) NOT NULL,
     block_name VARCHAR(64),
@@ -1674,17 +1674,17 @@ create table if not exists prompt_inspection_finding (
     reason TEXT
 );
 
-create index if not exists idx_prompt_inspection_finding_result
-    on prompt_inspection_finding (result_id);
+create index if not exists ctxa_idx_prompt_inspection_finding_result
+    on ctxa_prompt_inspection_finding (result_id);
 
-create table login_attempt_ip
+create table ctxa_login_attempt_ip
 (
     id              bigint generated by default as identity
         primary key,
     blocked_until   timestamp(6),
     failed_attempts integer      not null,
     ip_address      varchar(64)  not null
-        constraint idx_login_attempt_ip_address
+        constraint ctxa_idx_login_attempt_ip_address
             unique,
     last_failure_at timestamp(6),
     last_username   varchar(255),
@@ -1692,10 +1692,10 @@ create table login_attempt_ip
 );
 
 
-create index idx_login_attempt_ip_window
-    on login_attempt_ip (window_start_at);
+create index ctxa_idx_login_attempt_ip_window
+    on ctxa_login_attempt_ip (window_start_at);
 
-CREATE TABLE IF NOT EXISTS ai_security_decision_observation (
+CREATE TABLE IF NOT EXISTS ctxa_ai_security_decision_observation (
     observation_id VARCHAR(64) PRIMARY KEY,
     tenant_id VARCHAR(160),
     idempotency_key VARCHAR(128),
@@ -1751,7 +1751,7 @@ CREATE TABLE IF NOT EXISTS ai_security_decision_observation (
     decided_at TIMESTAMP(6)
 );
 
-ALTER TABLE ai_security_decision_observation
+ALTER TABLE ctxa_ai_security_decision_observation
     ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(160),
     ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(128),
     ADD COLUMN IF NOT EXISTS processing_generation VARCHAR(128),
@@ -1782,7 +1782,7 @@ ALTER TABLE ai_security_decision_observation
     ADD COLUMN IF NOT EXISTS persist_ms BIGINT,
     ADD COLUMN IF NOT EXISTS total_analysis_ms BIGINT;
 
-CREATE TABLE IF NOT EXISTS ai_security_llm_trigger_suppression (
+CREATE TABLE IF NOT EXISTS ctxa_ai_security_llm_trigger_suppression (
     suppression_id VARCHAR(64) PRIMARY KEY,
     event_id VARCHAR(128),
     request_id VARCHAR(160),
@@ -1803,7 +1803,7 @@ CREATE TABLE IF NOT EXISTS ai_security_llm_trigger_suppression (
     created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-ALTER TABLE ai_security_llm_trigger_suppression
+ALTER TABLE ctxa_ai_security_llm_trigger_suppression
     ADD COLUMN IF NOT EXISTS event_id VARCHAR(128),
     ADD COLUMN IF NOT EXISTS request_id VARCHAR(160),
     ADD COLUMN IF NOT EXISTS correlation_id VARCHAR(160),
@@ -1821,37 +1821,37 @@ ALTER TABLE ai_security_llm_trigger_suppression
     ADD COLUMN IF NOT EXISTS resource_id VARCHAR(512),
     ADD COLUMN IF NOT EXISTS metadata_json TEXT;
 
-CREATE INDEX IF NOT EXISTS idx_ai_sec_suppression_created
-    ON ai_security_llm_trigger_suppression (created_at);
+CREATE INDEX IF NOT EXISTS ctxa_idx_ai_sec_suppression_created
+    ON ctxa_ai_security_llm_trigger_suppression (created_at);
 
-CREATE INDEX IF NOT EXISTS idx_ai_sec_suppression_reason_created
-    ON ai_security_llm_trigger_suppression (suppression_reason, created_at);
+CREATE INDEX IF NOT EXISTS ctxa_idx_ai_sec_suppression_reason_created
+    ON ctxa_ai_security_llm_trigger_suppression (suppression_reason, created_at);
 
-CREATE INDEX IF NOT EXISTS idx_ai_sec_suppression_user_created
-    ON ai_security_llm_trigger_suppression (user_id, created_at);
-CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_sec_decision_idempotency
-    ON ai_security_decision_observation (idempotency_key)
+CREATE INDEX IF NOT EXISTS ctxa_idx_ai_sec_suppression_user_created
+    ON ctxa_ai_security_llm_trigger_suppression (user_id, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS ctxa_uq_ai_sec_decision_idempotency
+    ON ctxa_ai_security_decision_observation (idempotency_key)
     WHERE idempotency_key IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_ai_sec_decision_created
-    ON ai_security_decision_observation (created_at);
+CREATE INDEX IF NOT EXISTS ctxa_idx_ai_sec_decision_created
+    ON ctxa_ai_security_decision_observation (created_at);
 
-CREATE INDEX IF NOT EXISTS idx_ai_sec_decision_trigger_created
-    ON ai_security_decision_observation (trigger_source, created_at);
+CREATE INDEX IF NOT EXISTS ctxa_idx_ai_sec_decision_trigger_created
+    ON ctxa_ai_security_decision_observation (trigger_source, created_at);
 
-CREATE INDEX IF NOT EXISTS idx_ai_sec_decision_relation_created
-    ON ai_security_decision_observation (trigger_relation, created_at);
+CREATE INDEX IF NOT EXISTS ctxa_idx_ai_sec_decision_relation_created
+    ON ctxa_ai_security_decision_observation (trigger_relation, created_at);
 
-CREATE INDEX IF NOT EXISTS idx_ai_sec_decision_outcome_created
-    ON ai_security_decision_observation (outcome_class, created_at);
+CREATE INDEX IF NOT EXISTS ctxa_idx_ai_sec_decision_outcome_created
+    ON ctxa_ai_security_decision_observation (outcome_class, created_at);
 
-CREATE INDEX IF NOT EXISTS idx_ai_sec_decision_event
-    ON ai_security_decision_observation (event_id);
+CREATE INDEX IF NOT EXISTS ctxa_idx_ai_sec_decision_event
+    ON ctxa_ai_security_decision_observation (event_id);
 
-CREATE INDEX IF NOT EXISTS idx_ai_sec_decision_test_run
-    ON ai_security_decision_observation (test_run_id, created_at);
+CREATE INDEX IF NOT EXISTS ctxa_idx_ai_sec_decision_test_run
+    ON ctxa_ai_security_decision_observation (test_run_id, created_at);
 
-CREATE TABLE IF NOT EXISTS ai_security_monitoring_session_summary (
+CREATE TABLE IF NOT EXISTS ctxa_ai_security_monitoring_session_summary (
     session_id VARCHAR(64) PRIMARY KEY,
     started_at TIMESTAMP(6) NOT NULL,
     ended_at TIMESTAMP(6) NOT NULL,
@@ -1888,7 +1888,7 @@ CREATE TABLE IF NOT EXISTS ai_security_monitoring_session_summary (
     created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-ALTER TABLE ai_security_monitoring_session_summary
+ALTER TABLE ctxa_ai_security_monitoring_session_summary
     ADD COLUMN IF NOT EXISTS reset_by VARCHAR(160),
     ADD COLUMN IF NOT EXISTS reset_reason VARCHAR(1024),
     ADD COLUMN IF NOT EXISTS llm_mode VARCHAR(32),
@@ -1906,13 +1906,13 @@ ALTER TABLE ai_security_monitoring_session_summary
     ADD COLUMN IF NOT EXISTS top_blockers_json TEXT,
     ADD COLUMN IF NOT EXISTS summary_json TEXT;
 
-CREATE INDEX IF NOT EXISTS idx_ai_security_monitoring_session_ended
-    ON ai_security_monitoring_session_summary (ended_at DESC);
+CREATE INDEX IF NOT EXISTS ctxa_idx_ai_security_monitoring_session_ended
+    ON ctxa_ai_security_monitoring_session_summary (ended_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_ai_security_monitoring_session_reset_by
-    ON ai_security_monitoring_session_summary (reset_by, ended_at DESC);
+CREATE INDEX IF NOT EXISTS ctxa_idx_ai_security_monitoring_session_reset_by
+    ON ctxa_ai_security_monitoring_session_summary (reset_by, ended_at DESC);
 
-create table shedlock
+create table ctxa_shedlock
 (
     name       varchar(64)  not null
         primary key,
@@ -1939,7 +1939,7 @@ create table shedlock
 -- ------------------------------------------------------------
 -- Source migration: V20260414_01__verification_benchmark_publication_ledger.sql
 -- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS verification_run_ledger (
+CREATE TABLE IF NOT EXISTS ctxa_verification_run_ledger (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     run_id VARCHAR(128) NOT NULL UNIQUE,
     user_id VARCHAR(160) NOT NULL,
@@ -1971,16 +1971,16 @@ CREATE TABLE IF NOT EXISTS verification_run_ledger (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_verification_run_ledger_user_requested_at
-    ON verification_run_ledger(user_id, requested_at DESC);
+CREATE INDEX IF NOT EXISTS ctxa_idx_verification_run_ledger_user_requested_at
+    ON ctxa_verification_run_ledger(user_id, requested_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_verification_run_ledger_user_metric
-    ON verification_run_ledger(user_id, metric_code, requested_at DESC);
+CREATE INDEX IF NOT EXISTS ctxa_idx_verification_run_ledger_user_metric
+    ON ctxa_verification_run_ledger(user_id, metric_code, requested_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_verification_run_ledger_user_request
-    ON verification_run_ledger(user_id, request_id);
+CREATE INDEX IF NOT EXISTS ctxa_idx_verification_run_ledger_user_request
+    ON ctxa_verification_run_ledger(user_id, request_id);
 
-CREATE TABLE IF NOT EXISTS verification_execution_request_ledger (
+CREATE TABLE IF NOT EXISTS ctxa_verification_execution_request_ledger (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     execution_request_id VARCHAR(160) NOT NULL UNIQUE,
     user_id VARCHAR(160) NOT NULL,
@@ -2031,16 +2031,16 @@ CREATE TABLE IF NOT EXISTS verification_execution_request_ledger (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_ver_exec_req_metric_created
-    ON verification_execution_request_ledger(metric_code, created_at DESC);
+CREATE INDEX IF NOT EXISTS ctxa_idx_ver_exec_req_metric_created
+    ON ctxa_verification_execution_request_ledger(metric_code, created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_ver_exec_req_user_created
-    ON verification_execution_request_ledger(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS ctxa_idx_ver_exec_req_user_created
+    ON ctxa_verification_execution_request_ledger(user_id, created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_ver_exec_req_linked_run
-    ON verification_execution_request_ledger(linked_run_id);
+CREATE INDEX IF NOT EXISTS ctxa_idx_ver_exec_req_linked_run
+    ON ctxa_verification_execution_request_ledger(linked_run_id);
 
-CREATE TABLE IF NOT EXISTS verification_execution_preflight_ledger (
+CREATE TABLE IF NOT EXISTS ctxa_verification_execution_preflight_ledger (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     execution_request_id VARCHAR(160) NOT NULL UNIQUE,
     metric_code VARCHAR(32) NOT NULL,
@@ -2054,13 +2054,13 @@ CREATE TABLE IF NOT EXISTS verification_execution_preflight_ledger (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_ver_exec_pre_metric_created
-    ON verification_execution_preflight_ledger(metric_code, created_at DESC);
+CREATE INDEX IF NOT EXISTS ctxa_idx_ver_exec_pre_metric_created
+    ON ctxa_verification_execution_preflight_ledger(metric_code, created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_ver_exec_pre_ready_created
-    ON verification_execution_preflight_ledger(preflight_ready, created_at DESC);
+CREATE INDEX IF NOT EXISTS ctxa_idx_ver_exec_pre_ready_created
+    ON ctxa_verification_execution_preflight_ledger(preflight_ready, created_at DESC);
 
-CREATE TABLE IF NOT EXISTS verification_case_ledger (
+CREATE TABLE IF NOT EXISTS ctxa_verification_case_ledger (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     verification_case_id VARCHAR(160) NOT NULL UNIQUE,
     tenant_id VARCHAR(160),
@@ -2078,16 +2078,16 @@ CREATE TABLE IF NOT EXISTS verification_case_ledger (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_verification_case_ledger_run
-    ON verification_case_ledger(source_run_id);
+CREATE INDEX IF NOT EXISTS ctxa_idx_verification_case_ledger_run
+    ON ctxa_verification_case_ledger(source_run_id);
 
-CREATE INDEX IF NOT EXISTS idx_verification_case_ledger_request
-    ON verification_case_ledger(request_id);
+CREATE INDEX IF NOT EXISTS ctxa_idx_verification_case_ledger_request
+    ON ctxa_verification_case_ledger(request_id);
 
-CREATE INDEX IF NOT EXISTS idx_verification_case_ledger_metric
-    ON verification_case_ledger(metric_code, verified_at DESC);
+CREATE INDEX IF NOT EXISTS ctxa_idx_verification_case_ledger_metric
+    ON ctxa_verification_case_ledger(metric_code, verified_at DESC);
 
-CREATE TABLE IF NOT EXISTS evaluation_case_ledger (
+CREATE TABLE IF NOT EXISTS ctxa_evaluation_case_ledger (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     evaluation_case_id VARCHAR(160) NOT NULL UNIQUE,
     verification_case_id VARCHAR(160) NOT NULL,
@@ -2103,13 +2103,13 @@ CREATE TABLE IF NOT EXISTS evaluation_case_ledger (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_evaluation_case_ledger_verification
-    ON evaluation_case_ledger(verification_case_id);
+CREATE INDEX IF NOT EXISTS ctxa_idx_evaluation_case_ledger_verification
+    ON ctxa_evaluation_case_ledger(verification_case_id);
 
-CREATE INDEX IF NOT EXISTS idx_evaluation_case_ledger_metric
-    ON evaluation_case_ledger(metric_code, evaluated_at DESC);
+CREATE INDEX IF NOT EXISTS ctxa_idx_evaluation_case_ledger_metric
+    ON ctxa_evaluation_case_ledger(metric_code, evaluated_at DESC);
 
-CREATE TABLE IF NOT EXISTS unified_truth_audit_ledger (
+CREATE TABLE IF NOT EXISTS ctxa_unified_truth_audit_ledger (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     recorded_at TIMESTAMP NOT NULL,
     stage VARCHAR(80) NOT NULL,
@@ -2119,13 +2119,13 @@ CREATE TABLE IF NOT EXISTS unified_truth_audit_ledger (
     metadata_json TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_unified_truth_audit_subject
-    ON unified_truth_audit_ledger(subject_id, recorded_at DESC);
+CREATE INDEX IF NOT EXISTS ctxa_idx_unified_truth_audit_subject
+    ON ctxa_unified_truth_audit_ledger(subject_id, recorded_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_unified_truth_audit_stage
-    ON unified_truth_audit_ledger(stage, recorded_at DESC);
+CREATE INDEX IF NOT EXISTS ctxa_idx_unified_truth_audit_stage
+    ON ctxa_unified_truth_audit_ledger(stage, recorded_at DESC);
 
-CREATE TABLE IF NOT EXISTS published_benchmark_release (
+CREATE TABLE IF NOT EXISTS ctxa_published_benchmark_release (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     slug VARCHAR(200) NOT NULL,
     version_no INTEGER NOT NULL,
@@ -2144,19 +2144,19 @@ CREATE TABLE IF NOT EXISTS published_benchmark_release (
     html_report_text TEXT NOT NULL,
     pdf_base64_text TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT uq_published_benchmark_release_slug_version UNIQUE (slug, version_no)
+    CONSTRAINT ctxa_uq_published_benchmark_release_slug_version UNIQUE (slug, version_no)
 );
 
-CREATE INDEX IF NOT EXISTS idx_published_benchmark_release_slug_status
-    ON published_benchmark_release(slug, publication_status, created_at DESC);
+CREATE INDEX IF NOT EXISTS ctxa_idx_published_benchmark_release_slug_status
+    ON ctxa_published_benchmark_release(slug, publication_status, created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_published_benchmark_release_status_generated
-    ON published_benchmark_release(publication_status, generated_at DESC);
+CREATE INDEX IF NOT EXISTS ctxa_idx_published_benchmark_release_status_generated
+    ON ctxa_published_benchmark_release(publication_status, generated_at DESC);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260414_09__verification_run_detail_normalization.sql
 -- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS verification_run_round_ledger (
+CREATE TABLE IF NOT EXISTS ctxa_verification_run_round_ledger (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     run_id VARCHAR(128) NOT NULL,
     round_no INTEGER NOT NULL,
@@ -2172,15 +2172,15 @@ CREATE TABLE IF NOT EXISTS verification_run_round_ledger (
     started_at TIMESTAMP,
     completed_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT fk_verification_run_round_ledger_run
-        FOREIGN KEY (run_id) REFERENCES verification_run_ledger(run_id) ON DELETE CASCADE,
-    CONSTRAINT uq_verification_run_round_ledger UNIQUE (run_id, round_no)
+    CONSTRAINT ctxa_fk_verification_run_round_ledger_run
+        FOREIGN KEY (run_id) REFERENCES ctxa_verification_run_ledger(run_id) ON DELETE CASCADE,
+    CONSTRAINT ctxa_uq_verification_run_round_ledger UNIQUE (run_id, round_no)
 );
 
-CREATE INDEX IF NOT EXISTS idx_verification_run_round_ledger_run
-    ON verification_run_round_ledger(run_id, round_no);
+CREATE INDEX IF NOT EXISTS ctxa_idx_verification_run_round_ledger_run
+    ON ctxa_verification_run_round_ledger(run_id, round_no);
 
-CREATE TABLE IF NOT EXISTS verification_run_check_ledger (
+CREATE TABLE IF NOT EXISTS ctxa_verification_run_check_ledger (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     run_id VARCHAR(128) NOT NULL,
     round_no INTEGER,
@@ -2191,15 +2191,15 @@ CREATE TABLE IF NOT EXISTS verification_run_check_ledger (
     pass BOOLEAN NOT NULL,
     source VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT fk_verification_run_check_ledger_run
-        FOREIGN KEY (run_id) REFERENCES verification_run_ledger(run_id) ON DELETE CASCADE,
-    CONSTRAINT uq_verification_run_check_ledger UNIQUE (run_id, round_no, sequence_no)
+    CONSTRAINT ctxa_fk_verification_run_check_ledger_run
+        FOREIGN KEY (run_id) REFERENCES ctxa_verification_run_ledger(run_id) ON DELETE CASCADE,
+    CONSTRAINT ctxa_uq_verification_run_check_ledger UNIQUE (run_id, round_no, sequence_no)
 );
 
-CREATE INDEX IF NOT EXISTS idx_verification_run_check_ledger_run
-    ON verification_run_check_ledger(run_id, round_no, sequence_no);
+CREATE INDEX IF NOT EXISTS ctxa_idx_verification_run_check_ledger_run
+    ON ctxa_verification_run_check_ledger(run_id, round_no, sequence_no);
 
-CREATE TABLE IF NOT EXISTS verification_run_fact_ledger (
+CREATE TABLE IF NOT EXISTS ctxa_verification_run_fact_ledger (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     run_id VARCHAR(128) NOT NULL,
     round_no INTEGER,
@@ -2207,15 +2207,15 @@ CREATE TABLE IF NOT EXISTS verification_run_fact_ledger (
     fact_key VARCHAR(255) NOT NULL,
     fact_value TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT fk_verification_run_fact_ledger_run
-        FOREIGN KEY (run_id) REFERENCES verification_run_ledger(run_id) ON DELETE CASCADE,
-    CONSTRAINT uq_verification_run_fact_ledger UNIQUE (run_id, round_no, fact_type, fact_key)
+    CONSTRAINT ctxa_fk_verification_run_fact_ledger_run
+        FOREIGN KEY (run_id) REFERENCES ctxa_verification_run_ledger(run_id) ON DELETE CASCADE,
+    CONSTRAINT ctxa_uq_verification_run_fact_ledger UNIQUE (run_id, round_no, fact_type, fact_key)
 );
 
-CREATE INDEX IF NOT EXISTS idx_verification_run_fact_ledger_run
-    ON verification_run_fact_ledger(run_id, round_no, fact_type);
+CREATE INDEX IF NOT EXISTS ctxa_idx_verification_run_fact_ledger_run
+    ON ctxa_verification_run_fact_ledger(run_id, round_no, fact_type);
 
-CREATE TABLE IF NOT EXISTS verification_run_event_ledger (
+CREATE TABLE IF NOT EXISTS ctxa_verification_run_event_ledger (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     run_id VARCHAR(128) NOT NULL,
     round_no INTEGER,
@@ -2225,15 +2225,15 @@ CREATE TABLE IF NOT EXISTS verification_run_event_ledger (
     event_status VARCHAR(120),
     request_path TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT fk_verification_run_event_ledger_run
-        FOREIGN KEY (run_id) REFERENCES verification_run_ledger(run_id) ON DELETE CASCADE,
-    CONSTRAINT uq_verification_run_event_ledger UNIQUE (run_id, round_no, sequence_no)
+    CONSTRAINT ctxa_fk_verification_run_event_ledger_run
+        FOREIGN KEY (run_id) REFERENCES ctxa_verification_run_ledger(run_id) ON DELETE CASCADE,
+    CONSTRAINT ctxa_uq_verification_run_event_ledger UNIQUE (run_id, round_no, sequence_no)
 );
 
-CREATE INDEX IF NOT EXISTS idx_verification_run_event_ledger_run
-    ON verification_run_event_ledger(run_id, round_no, sequence_no);
+CREATE INDEX IF NOT EXISTS ctxa_idx_verification_run_event_ledger_run
+    ON ctxa_verification_run_event_ledger(run_id, round_no, sequence_no);
 
-CREATE TABLE IF NOT EXISTS verification_raw_evidence_artifact_ledger (
+CREATE TABLE IF NOT EXISTS ctxa_verification_raw_evidence_artifact_ledger (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     run_id VARCHAR(128) NOT NULL,
     artifact_type VARCHAR(64) NOT NULL,
@@ -2241,27 +2241,27 @@ CREATE TABLE IF NOT EXISTS verification_raw_evidence_artifact_ledger (
     artifact_body TEXT NOT NULL,
     sha256 VARCHAR(128),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT fk_verification_raw_evidence_artifact_ledger_run
-        FOREIGN KEY (run_id) REFERENCES verification_run_ledger(run_id) ON DELETE CASCADE,
-    CONSTRAINT uq_verification_raw_evidence_artifact_ledger UNIQUE (run_id, artifact_type)
+    CONSTRAINT ctxa_fk_verification_raw_evidence_artifact_ledger_run
+        FOREIGN KEY (run_id) REFERENCES ctxa_verification_run_ledger(run_id) ON DELETE CASCADE,
+    CONSTRAINT ctxa_uq_verification_raw_evidence_artifact_ledger UNIQUE (run_id, artifact_type)
 );
 
-CREATE INDEX IF NOT EXISTS idx_verification_raw_evidence_artifact_ledger_run
-    ON verification_raw_evidence_artifact_ledger(run_id, artifact_type);
+CREATE INDEX IF NOT EXISTS ctxa_idx_verification_raw_evidence_artifact_ledger_run
+    ON ctxa_verification_raw_evidence_artifact_ledger(run_id, artifact_type);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260428_02__verification_run_ledger_package_id.sql
 -- ------------------------------------------------------------
-ALTER TABLE verification_run_ledger
+ALTER TABLE ctxa_verification_run_ledger
     ADD COLUMN IF NOT EXISTS package_id VARCHAR(160);
 
-CREATE INDEX IF NOT EXISTS idx_verification_run_ledger_package_metric
-    ON verification_run_ledger(package_id, metric_code, requested_at DESC);
+CREATE INDEX IF NOT EXISTS ctxa_idx_verification_run_ledger_package_metric
+    ON ctxa_verification_run_ledger(package_id, metric_code, requested_at DESC);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260430_06__official_verification_operator_snapshot.sql
 -- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS verification_run_check_ledger (
+CREATE TABLE IF NOT EXISTS ctxa_verification_run_check_ledger (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     run_id VARCHAR(128) NOT NULL,
     round_no INTEGER,
@@ -2274,37 +2274,37 @@ CREATE TABLE IF NOT EXISTS verification_run_check_ledger (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_verification_run_check_ledger_run
-    ON verification_run_check_ledger(run_id, round_no, sequence_no);
+CREATE INDEX IF NOT EXISTS ctxa_idx_verification_run_check_ledger_run
+    ON ctxa_verification_run_check_ledger(run_id, round_no, sequence_no);
 
-ALTER TABLE verification_run_check_ledger
+ALTER TABLE ctxa_verification_run_check_ledger
     ADD COLUMN IF NOT EXISTS check_code VARCHAR(128);
 
-ALTER TABLE verification_run_check_ledger
+ALTER TABLE ctxa_verification_run_check_ledger
     ADD COLUMN IF NOT EXISTS severity VARCHAR(32);
 
-ALTER TABLE verification_run_check_ledger
+ALTER TABLE ctxa_verification_run_check_ledger
     ADD COLUMN IF NOT EXISTS failure_type VARCHAR(80);
 
-ALTER TABLE verification_run_check_ledger
+ALTER TABLE ctxa_verification_run_check_ledger
     ADD COLUMN IF NOT EXISTS remediation_owner VARCHAR(128);
 
-ALTER TABLE verification_run_check_ledger
+ALTER TABLE ctxa_verification_run_check_ledger
     ADD COLUMN IF NOT EXISTS operator_reason TEXT;
 
-ALTER TABLE verification_run_check_ledger
+ALTER TABLE ctxa_verification_run_check_ledger
     ADD COLUMN IF NOT EXISTS next_action TEXT;
 
-ALTER TABLE verification_run_check_ledger
+ALTER TABLE ctxa_verification_run_check_ledger
     ADD COLUMN IF NOT EXISTS reverify_criterion TEXT;
 
-ALTER TABLE verification_run_check_ledger
+ALTER TABLE ctxa_verification_run_check_ledger
     ADD COLUMN IF NOT EXISTS evaluation_state VARCHAR(32);
 
-CREATE INDEX IF NOT EXISTS idx_verification_run_check_ledger_code
-    ON verification_run_check_ledger(run_id, check_code);
+CREATE INDEX IF NOT EXISTS ctxa_idx_verification_run_check_ledger_code
+    ON ctxa_verification_run_check_ledger(run_id, check_code);
 
-CREATE TABLE IF NOT EXISTS official_verification_run_batch (
+CREATE TABLE IF NOT EXISTS ctxa_official_verification_run_batch (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     aggregate_run_id VARCHAR(256) NOT NULL UNIQUE,
     package_id VARCHAR(256) NOT NULL,
@@ -2334,22 +2334,22 @@ CREATE TABLE IF NOT EXISTS official_verification_run_batch (
 
 -- Existing installations created before tenant-scoped official verification
 -- retain their rows and recover the tenant from the sealed evidence owner.
-ALTER TABLE official_verification_run_batch
+ALTER TABLE ctxa_official_verification_run_batch
     ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(120);
 
-UPDATE official_verification_run_batch batch
+UPDATE ctxa_official_verification_run_batch batch
    SET tenant_id = sealed.tenant_id
-  FROM sealed_evidence_package sealed
+  FROM ctxa_sealed_evidence_package sealed
  WHERE batch.package_id = sealed.package_id
    AND batch.tenant_id IS NULL;
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_run_batch_package
-    ON official_verification_run_batch(package_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_run_batch_package
+    ON ctxa_official_verification_run_batch(package_id, created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_run_batch_tenant_package
-    ON official_verification_run_batch(tenant_id, package_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_run_batch_tenant_package
+    ON ctxa_official_verification_run_batch(tenant_id, package_id, created_at DESC);
 
-CREATE TABLE IF NOT EXISTS official_verification_metric_snapshot (
+CREATE TABLE IF NOT EXISTS ctxa_official_verification_metric_snapshot (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     aggregate_run_id VARCHAR(256) NOT NULL,
     official_run_id VARCHAR(256) NOT NULL,
@@ -2369,14 +2369,14 @@ CREATE TABLE IF NOT EXISTS official_verification_metric_snapshot (
     next_action TEXT,
     reverify_criterion TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT uq_official_verification_metric_snapshot
+    CONSTRAINT ctxa_uq_official_verification_metric_snapshot
         UNIQUE (aggregate_run_id, metric_code)
 );
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_metric_snapshot_package
-    ON official_verification_metric_snapshot(package_id, aggregate_run_id, metric_code);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_metric_snapshot_package
+    ON ctxa_official_verification_metric_snapshot(package_id, aggregate_run_id, metric_code);
 
-CREATE TABLE IF NOT EXISTS official_verification_operator_finding (
+CREATE TABLE IF NOT EXISTS ctxa_official_verification_operator_finding (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     finding_id VARCHAR(256) NOT NULL UNIQUE,
     aggregate_run_id VARCHAR(256) NOT NULL,
@@ -2399,46 +2399,46 @@ CREATE TABLE IF NOT EXISTS official_verification_operator_finding (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_operator_finding_package
-    ON official_verification_operator_finding(package_id, aggregate_run_id, metric_code);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_operator_finding_package
+    ON ctxa_official_verification_operator_finding(package_id, aggregate_run_id, metric_code);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260430_07__official_verification_operator_snapshot_links.sql
 -- ------------------------------------------------------------
-ALTER TABLE official_verification_run_batch
+ALTER TABLE ctxa_official_verification_run_batch
     ADD COLUMN IF NOT EXISTS certificate_id VARCHAR(256);
 
-ALTER TABLE official_verification_run_batch
+ALTER TABLE ctxa_official_verification_run_batch
     ADD COLUMN IF NOT EXISTS case_id VARCHAR(256);
 
-ALTER TABLE official_verification_metric_snapshot
+ALTER TABLE ctxa_official_verification_metric_snapshot
     ADD COLUMN IF NOT EXISTS certificate_id VARCHAR(256);
 
-ALTER TABLE official_verification_metric_snapshot
+ALTER TABLE ctxa_official_verification_metric_snapshot
     ADD COLUMN IF NOT EXISTS case_id VARCHAR(256);
 
-ALTER TABLE official_verification_metric_snapshot
+ALTER TABLE ctxa_official_verification_metric_snapshot
     ADD COLUMN IF NOT EXISTS failed_check_count INTEGER DEFAULT 0;
 
-ALTER TABLE official_verification_operator_finding
+ALTER TABLE ctxa_official_verification_operator_finding
     ADD COLUMN IF NOT EXISTS certificate_id VARCHAR(256);
 
-ALTER TABLE official_verification_operator_finding
+ALTER TABLE ctxa_official_verification_operator_finding
     ADD COLUMN IF NOT EXISTS case_id VARCHAR(256);
 
-ALTER TABLE official_verification_operator_finding
+ALTER TABLE ctxa_official_verification_operator_finding
     ADD COLUMN IF NOT EXISTS issue_id VARCHAR(256);
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_run_batch_certificate
-    ON official_verification_run_batch(certificate_id);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_run_batch_certificate
+    ON ctxa_official_verification_run_batch(certificate_id);
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_operator_finding_issue
-    ON official_verification_operator_finding(issue_id);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_operator_finding_issue
+    ON ctxa_official_verification_operator_finding(issue_id);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260501_01__official_verification_metric_contracts.sql
 -- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS official_verification_metric_definition (
+CREATE TABLE IF NOT EXISTS ctxa_official_verification_metric_definition (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     metric_code VARCHAR(32) NOT NULL,
     definition_version VARCHAR(40) NOT NULL,
@@ -2450,14 +2450,14 @@ CREATE TABLE IF NOT EXISTS official_verification_metric_definition (
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     effective_from TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT uq_official_verification_metric_definition
+    CONSTRAINT ctxa_uq_official_verification_metric_definition
         UNIQUE (metric_code, definition_version)
 );
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_metric_definition_active
-    ON official_verification_metric_definition(metric_code, is_active);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_metric_definition_active
+    ON ctxa_official_verification_metric_definition(metric_code, is_active);
 
-CREATE TABLE IF NOT EXISTS official_verification_metric_check_definition (
+CREATE TABLE IF NOT EXISTS ctxa_official_verification_metric_check_definition (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     metric_code VARCHAR(32) NOT NULL,
     check_code VARCHAR(128) NOT NULL,
@@ -2469,14 +2469,14 @@ CREATE TABLE IF NOT EXISTS official_verification_metric_check_definition (
     remediation_owner VARCHAR(128) NOT NULL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT uq_official_verification_metric_check_definition
+    CONSTRAINT ctxa_uq_official_verification_metric_check_definition
         UNIQUE (metric_code, check_code, definition_version)
 );
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_metric_check_definition_metric
-    ON official_verification_metric_check_definition(metric_code, is_active);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_metric_check_definition_metric
+    ON ctxa_official_verification_metric_check_definition(metric_code, is_active);
 
-CREATE TABLE IF NOT EXISTS official_verification_operator_remediation_group (
+CREATE TABLE IF NOT EXISTS ctxa_official_verification_operator_remediation_group (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     group_id VARCHAR(256) NOT NULL UNIQUE,
     aggregate_run_id VARCHAR(256) NOT NULL,
@@ -2496,13 +2496,13 @@ CREATE TABLE IF NOT EXISTS official_verification_operator_remediation_group (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_operator_remediation_group_run
-    ON official_verification_operator_remediation_group(package_id, aggregate_run_id);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_operator_remediation_group_run
+    ON ctxa_official_verification_operator_remediation_group(package_id, aggregate_run_id);
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_operator_remediation_group_owner
-    ON official_verification_operator_remediation_group(remediation_owner, created_at);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_operator_remediation_group_owner
+    ON ctxa_official_verification_operator_remediation_group(remediation_owner, created_at);
 
-CREATE TABLE IF NOT EXISTS official_verification_metric_regression_package (
+CREATE TABLE IF NOT EXISTS ctxa_official_verification_metric_regression_package (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     scenario_id VARCHAR(128) NOT NULL UNIQUE,
     scenario_name VARCHAR(255) NOT NULL,
@@ -2514,19 +2514,19 @@ CREATE TABLE IF NOT EXISTS official_verification_metric_regression_package (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS official_verification_metric_regression_expectation (
+CREATE TABLE IF NOT EXISTS ctxa_official_verification_metric_regression_expectation (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     scenario_id VARCHAR(128) NOT NULL,
     metric_code VARCHAR(32) NOT NULL,
     expected_state VARCHAR(80) NOT NULL,
     expected_failed_check_codes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT uq_official_verification_metric_regression_expectation
+    CONSTRAINT ctxa_uq_official_verification_metric_regression_expectation
         UNIQUE (scenario_id, metric_code)
 );
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_metric_regression_expectation_scenario
-    ON official_verification_metric_regression_expectation(scenario_id);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verif_metric_regress_expectation_scenario
+    ON ctxa_official_verification_metric_regression_expectation(scenario_id);
 
 -- Legacy official_verification_metric_* definition/check/regression seed rows are intentionally not installed.
 -- Runtime PQA contracts are loaded from classpath:pqa/final-prompt-metric-contracts.json by
@@ -2551,31 +2551,31 @@ EXCEPTION WHEN others THEN
 END;
 $function$;
 
-ALTER TABLE sealed_evidence_package
+ALTER TABLE ctxa_sealed_evidence_package
     ADD COLUMN IF NOT EXISTS request_facts_jsonb JSONB;
-ALTER TABLE sealed_evidence_package
+ALTER TABLE ctxa_sealed_evidence_package
     ADD COLUMN IF NOT EXISTS auth_state_jsonb JSONB;
-ALTER TABLE sealed_evidence_package
+ALTER TABLE ctxa_sealed_evidence_package
     ADD COLUMN IF NOT EXISTS canonical_context_jsonb JSONB;
-ALTER TABLE sealed_evidence_package
+ALTER TABLE ctxa_sealed_evidence_package
     ADD COLUMN IF NOT EXISTS baseline_snapshot_jsonb JSONB;
-ALTER TABLE sealed_evidence_package
+ALTER TABLE ctxa_sealed_evidence_package
     ADD COLUMN IF NOT EXISTS rag_results_jsonb JSONB;
-ALTER TABLE sealed_evidence_package
+ALTER TABLE ctxa_sealed_evidence_package
     ADD COLUMN IF NOT EXISTS decision_jsonb JSONB;
 
 -- R4-S3: queries read only the request facts and decision shadows, and only with ->> and #>>; the other four
 -- shadow columns stay but are no longer filled, and no GIN index is kept (no query uses @> or ?).
-UPDATE sealed_evidence_package
+UPDATE ctxa_sealed_evidence_package
    SET request_facts_jsonb = COALESCE(request_facts_jsonb, contexa_safe_jsonb(request_facts_json)),
        decision_jsonb = COALESCE(decision_jsonb, contexa_safe_jsonb(decision_json))
  WHERE (request_facts_jsonb IS NULL AND request_facts_json IS NOT NULL)
     OR (decision_jsonb IS NULL AND decision_json IS NOT NULL);
 
-DROP INDEX IF EXISTS idx_sep_request_facts_jsonb;
-DROP INDEX IF EXISTS idx_sep_canonical_context_jsonb;
-DROP INDEX IF EXISTS idx_sep_baseline_snapshot_jsonb;
-DROP INDEX IF EXISTS idx_sep_rag_results_jsonb;
+DROP INDEX IF EXISTS ctxa_idx_sep_request_facts_jsonb;
+DROP INDEX IF EXISTS ctxa_idx_sep_canonical_context_jsonb;
+DROP INDEX IF EXISTS ctxa_idx_sep_baseline_snapshot_jsonb;
+DROP INDEX IF EXISTS ctxa_idx_sep_rag_results_jsonb;
 
 CREATE OR REPLACE FUNCTION contexa_sync_sealed_evidence_jsonb()
 RETURNS TRIGGER
@@ -2588,22 +2588,22 @@ BEGIN
 END;
 $function$;
 
-DROP TRIGGER IF EXISTS trg_a_sync_sealed_evidence_jsonb ON sealed_evidence_package;
+DROP TRIGGER IF EXISTS trg_a_sync_sealed_evidence_jsonb ON ctxa_sealed_evidence_package;
 
 CREATE TRIGGER trg_a_sync_sealed_evidence_jsonb
-BEFORE INSERT OR UPDATE ON sealed_evidence_package
+BEFORE INSERT OR UPDATE ON ctxa_sealed_evidence_package
 FOR EACH ROW
 EXECUTE FUNCTION contexa_sync_sealed_evidence_jsonb();
 
-ALTER TABLE verification_run_fact_ledger
+ALTER TABLE ctxa_verification_run_fact_ledger
     ADD COLUMN IF NOT EXISTS fact_value_jsonb JSONB;
 
-UPDATE verification_run_fact_ledger
+UPDATE ctxa_verification_run_fact_ledger
    SET fact_value_jsonb = COALESCE(fact_value_jsonb, contexa_safe_jsonb(fact_value))
  WHERE fact_value_jsonb IS NULL AND fact_value IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_verification_run_fact_ledger_jsonb
-    ON verification_run_fact_ledger USING GIN (fact_value_jsonb);
+CREATE INDEX IF NOT EXISTS ctxa_idx_verification_run_fact_ledger_jsonb
+    ON ctxa_verification_run_fact_ledger USING GIN (fact_value_jsonb);
 
 CREATE OR REPLACE FUNCTION contexa_sync_verification_fact_jsonb()
 RETURNS TRIGGER
@@ -2615,17 +2615,17 @@ BEGIN
 END;
 $function$;
 
-DROP TRIGGER IF EXISTS trg_a_sync_verification_fact_jsonb ON verification_run_fact_ledger;
+DROP TRIGGER IF EXISTS trg_a_sync_verification_fact_jsonb ON ctxa_verification_run_fact_ledger;
 
 CREATE TRIGGER trg_a_sync_verification_fact_jsonb
-BEFORE INSERT OR UPDATE ON verification_run_fact_ledger
+BEFORE INSERT OR UPDATE ON ctxa_verification_run_fact_ledger
 FOR EACH ROW
 EXECUTE FUNCTION contexa_sync_verification_fact_jsonb();
 
 -- ------------------------------------------------------------
 -- Source migration: V20260503_01__official_verification_reverify_result.sql
 -- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS official_verification_reverify_result (
+CREATE TABLE IF NOT EXISTS ctxa_official_verification_reverify_result (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     result_id VARCHAR(256) NOT NULL UNIQUE,
     source_package_id VARCHAR(256) NOT NULL,
@@ -2648,19 +2648,19 @@ CREATE TABLE IF NOT EXISTS official_verification_reverify_result (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_reverify_source
-    ON official_verification_reverify_result(source_package_id, source_aggregate_run_id);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_reverify_source
+    ON ctxa_official_verification_reverify_result(source_package_id, source_aggregate_run_id);
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_reverify_fixed
-    ON official_verification_reverify_result(fixed_package_id, fixed_aggregate_run_id);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_reverify_fixed
+    ON ctxa_official_verification_reverify_result(fixed_package_id, fixed_aggregate_run_id);
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_reverify_finding
-    ON official_verification_reverify_result(source_finding_id, issue_id);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_reverify_finding
+    ON ctxa_official_verification_reverify_result(source_finding_id, issue_id);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260504_01__official_verification_audit_snapshot.sql
 -- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS official_verification_audit_snapshot (
+CREATE TABLE IF NOT EXISTS ctxa_official_verification_audit_snapshot (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     snapshot_id VARCHAR(256) NOT NULL UNIQUE,
     aggregate_run_id VARCHAR(256) NOT NULL,
@@ -2681,29 +2681,29 @@ CREATE TABLE IF NOT EXISTS official_verification_audit_snapshot (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_audit_snapshot_run
-    ON official_verification_audit_snapshot(package_id, aggregate_run_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_audit_snapshot_run
+    ON ctxa_official_verification_audit_snapshot(package_id, aggregate_run_id, created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_audit_snapshot_certificate
-    ON official_verification_audit_snapshot(certificate_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_audit_snapshot_certificate
+    ON ctxa_official_verification_audit_snapshot(certificate_id, created_at DESC);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260504_02__verification_ledger_jsonb_shadows.sql
 -- ------------------------------------------------------------
-ALTER TABLE verification_run_ledger
+ALTER TABLE ctxa_verification_run_ledger
     ADD COLUMN IF NOT EXISTS evidence_references_jsonb JSONB;
-ALTER TABLE verification_run_ledger
+ALTER TABLE ctxa_verification_run_ledger
     ADD COLUMN IF NOT EXISTS checks_jsonb JSONB;
-ALTER TABLE verification_run_ledger
+ALTER TABLE ctxa_verification_run_ledger
     ADD COLUMN IF NOT EXISTS request_facts_jsonb JSONB;
-ALTER TABLE verification_run_ledger
+ALTER TABLE ctxa_verification_run_ledger
     ADD COLUMN IF NOT EXISTS event_facts_jsonb JSONB;
-ALTER TABLE verification_run_ledger
+ALTER TABLE ctxa_verification_run_ledger
     ADD COLUMN IF NOT EXISTS analysis_facts_jsonb JSONB;
-ALTER TABLE verification_run_ledger
+ALTER TABLE ctxa_verification_run_ledger
     ADD COLUMN IF NOT EXISTS events_jsonb JSONB;
 
-UPDATE verification_run_ledger
+UPDATE ctxa_verification_run_ledger
    SET evidence_references_jsonb = COALESCE(evidence_references_jsonb, contexa_safe_jsonb(evidence_references_json)),
        checks_jsonb = COALESCE(checks_jsonb, contexa_safe_jsonb(checks_json)),
        request_facts_jsonb = COALESCE(request_facts_jsonb, contexa_safe_jsonb(request_facts_json)),
@@ -2717,10 +2717,10 @@ UPDATE verification_run_ledger
     OR (analysis_facts_jsonb IS NULL AND analysis_facts_json IS NOT NULL)
     OR (events_jsonb IS NULL AND events_json IS NOT NULL);
 
-CREATE INDEX IF NOT EXISTS idx_verification_run_ledger_request_facts_jsonb
-    ON verification_run_ledger USING GIN (request_facts_jsonb);
-CREATE INDEX IF NOT EXISTS idx_verification_run_ledger_analysis_facts_jsonb
-    ON verification_run_ledger USING GIN (analysis_facts_jsonb);
+CREATE INDEX IF NOT EXISTS ctxa_idx_verification_run_ledger_request_facts_jsonb
+    ON ctxa_verification_run_ledger USING GIN (request_facts_jsonb);
+CREATE INDEX IF NOT EXISTS ctxa_idx_verification_run_ledger_analysis_facts_jsonb
+    ON ctxa_verification_run_ledger USING GIN (analysis_facts_jsonb);
 
 CREATE OR REPLACE FUNCTION contexa_sync_verification_run_ledger_jsonb()
 RETURNS TRIGGER
@@ -2737,17 +2737,17 @@ BEGIN
 END;
 $function$;
 
-DROP TRIGGER IF EXISTS trg_a_sync_verification_run_ledger_jsonb ON verification_run_ledger;
+DROP TRIGGER IF EXISTS trg_a_sync_verification_run_ledger_jsonb ON ctxa_verification_run_ledger;
 
 CREATE TRIGGER trg_a_sync_verification_run_ledger_jsonb
-BEFORE INSERT OR UPDATE ON verification_run_ledger
+BEFORE INSERT OR UPDATE ON ctxa_verification_run_ledger
 FOR EACH ROW
 EXECUTE FUNCTION contexa_sync_verification_run_ledger_jsonb();
 
 -- ------------------------------------------------------------
 -- Source migration: V20260504_04__official_verification_execution_lock.sql
 -- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS official_verification_execution_lock (
+CREATE TABLE IF NOT EXISTS ctxa_official_verification_execution_lock (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     idempotency_key VARCHAR(256) NOT NULL,
     base_idempotency_key VARCHAR(256) NOT NULL,
@@ -2770,52 +2770,52 @@ CREATE TABLE IF NOT EXISTS official_verification_execution_lock (
     failed_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_official_verification_execution_lock_key UNIQUE (idempotency_key),
-    CONSTRAINT ck_official_verification_execution_lock_progress
+    CONSTRAINT ctxa_uq_official_verification_execution_lock_key UNIQUE (idempotency_key),
+    CONSTRAINT ctxa_ck_official_verification_execution_lock_progress
         CHECK (progress_percent >= 0 AND progress_percent <= 100)
 );
 
-ALTER TABLE official_verification_execution_lock
+ALTER TABLE ctxa_official_verification_execution_lock
     ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(120);
 
-ALTER TABLE official_verification_execution_lock
+ALTER TABLE ctxa_official_verification_execution_lock
     ADD COLUMN IF NOT EXISTS execution_scope VARCHAR(128) NOT NULL DEFAULT 'OFFICIAL_VERIFICATION';
 
-UPDATE official_verification_execution_lock
+UPDATE ctxa_official_verification_execution_lock
    SET execution_scope = 'OFFICIAL_VERIFICATION'
  WHERE execution_scope IS NULL OR BTRIM(execution_scope) = '';
 
-UPDATE official_verification_execution_lock execution
+UPDATE ctxa_official_verification_execution_lock execution
    SET tenant_id = sealed.tenant_id
-  FROM sealed_evidence_package sealed
+  FROM ctxa_sealed_evidence_package sealed
  WHERE execution.package_id = sealed.package_id
    AND execution.tenant_id IS NULL;
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_execution_lock_package
-    ON official_verification_execution_lock(package_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_execution_lock_package
+    ON ctxa_official_verification_execution_lock(package_id, created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_execution_lock_tenant_package
-    ON official_verification_execution_lock(tenant_id, package_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_execution_lock_tenant_package
+    ON ctxa_official_verification_execution_lock(tenant_id, package_id, created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_execution_lock_scope
-    ON official_verification_execution_lock(tenant_id, package_id, execution_scope, state, updated_at);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_execution_lock_scope
+    ON ctxa_official_verification_execution_lock(tenant_id, package_id, execution_scope, state, updated_at);
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_execution_lock_state
-    ON official_verification_execution_lock(state, updated_at);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_execution_lock_state
+    ON ctxa_official_verification_execution_lock(state, updated_at);
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_execution_lock_base
-    ON official_verification_execution_lock(base_idempotency_key, revision_no);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_execution_lock_base
+    ON ctxa_official_verification_execution_lock(base_idempotency_key, revision_no);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260504_05__official_verification_failure_recovery_ledger.sql
 -- ------------------------------------------------------------
-ALTER TABLE official_verification_execution_lock
+ALTER TABLE ctxa_official_verification_execution_lock
     ADD COLUMN IF NOT EXISTS attempt_no INTEGER NOT NULL DEFAULT 1;
 
-ALTER TABLE official_verification_execution_lock
+ALTER TABLE ctxa_official_verification_execution_lock
     ADD COLUMN IF NOT EXISTS failure_stage VARCHAR(64);
 
-CREATE TABLE IF NOT EXISTS official_verification_execution_state_history (
+CREATE TABLE IF NOT EXISTS ctxa_official_verification_execution_state_history (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     execution_lock_id BIGINT NOT NULL,
     package_id VARCHAR(256) NOT NULL,
@@ -2830,26 +2830,26 @@ CREATE TABLE IF NOT EXISTS official_verification_execution_state_history (
     retry_instruction TEXT,
     message TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT ck_official_verification_state_history_progress
+    CONSTRAINT ctxa_ck_official_verification_state_history_progress
         CHECK (progress_percent >= 0 AND progress_percent <= 100)
 );
 
-ALTER TABLE official_verification_execution_state_history
+ALTER TABLE ctxa_official_verification_execution_state_history
     ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(120);
 
-UPDATE official_verification_execution_state_history history
+UPDATE ctxa_official_verification_execution_state_history history
    SET tenant_id = sealed.tenant_id
-  FROM sealed_evidence_package sealed
+  FROM ctxa_sealed_evidence_package sealed
  WHERE history.package_id = sealed.package_id
    AND history.tenant_id IS NULL;
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_state_history_lock
-    ON official_verification_execution_state_history(execution_lock_id, attempt_no, created_at);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_state_history_lock
+    ON ctxa_official_verification_execution_state_history(execution_lock_id, attempt_no, created_at);
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_state_history_package
-    ON official_verification_execution_state_history(package_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_state_history_package
+    ON ctxa_official_verification_execution_state_history(package_id, created_at DESC);
 
-CREATE TABLE IF NOT EXISTS official_verification_metric_execution_ledger (
+CREATE TABLE IF NOT EXISTS ctxa_official_verification_metric_execution_ledger (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     execution_lock_id BIGINT NOT NULL,
     package_id VARCHAR(256) NOT NULL,
@@ -2867,89 +2867,89 @@ CREATE TABLE IF NOT EXISTS official_verification_metric_execution_ledger (
     completed_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT ck_official_verification_metric_progress
+    CONSTRAINT ctxa_ck_official_verification_metric_progress
         CHECK (progress_percent >= 0 AND progress_percent <= 100),
-    CONSTRAINT uq_official_verification_metric_execution_attempt
+    CONSTRAINT ctxa_uq_official_verification_metric_execution_attempt
         UNIQUE (execution_lock_id, attempt_no, metric_code)
 );
 
-ALTER TABLE official_verification_metric_execution_ledger
+ALTER TABLE ctxa_official_verification_metric_execution_ledger
     ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(120);
 
-UPDATE official_verification_metric_execution_ledger metric
+UPDATE ctxa_official_verification_metric_execution_ledger metric
    SET tenant_id = sealed.tenant_id
-  FROM sealed_evidence_package sealed
+  FROM ctxa_sealed_evidence_package sealed
  WHERE metric.package_id = sealed.package_id
    AND metric.tenant_id IS NULL;
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_metric_execution_package
-    ON official_verification_metric_execution_ledger(package_id, aggregate_run_id, metric_code);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_metric_execution_package
+    ON ctxa_official_verification_metric_execution_ledger(package_id, aggregate_run_id, metric_code);
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_metric_execution_lock
-    ON official_verification_metric_execution_ledger(execution_lock_id, attempt_no, sequence_no);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_metric_execution_lock
+    ON ctxa_official_verification_metric_execution_ledger(execution_lock_id, attempt_no, sequence_no);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260504_06__official_verification_metric_regression_samples.sql
 -- ------------------------------------------------------------
-ALTER TABLE official_verification_metric_regression_package
+ALTER TABLE ctxa_official_verification_metric_regression_package
     ADD COLUMN IF NOT EXISTS sample_kind VARCHAR(16);
 
-ALTER TABLE official_verification_metric_regression_package
+ALTER TABLE ctxa_official_verification_metric_regression_package
     ADD COLUMN IF NOT EXISTS prompt_hash VARCHAR(160);
 
-ALTER TABLE official_verification_metric_regression_package
+ALTER TABLE ctxa_official_verification_metric_regression_package
     ADD COLUMN IF NOT EXISTS context_hash VARCHAR(160);
 
-ALTER TABLE official_verification_metric_regression_package
+ALTER TABLE ctxa_official_verification_metric_regression_package
     ADD COLUMN IF NOT EXISTS resource_template_id VARCHAR(256);
 
-ALTER TABLE official_verification_metric_regression_package
+ALTER TABLE ctxa_official_verification_metric_regression_package
     ADD COLUMN IF NOT EXISTS actual_resource_id VARCHAR(256);
 
-ALTER TABLE official_verification_metric_regression_package
+ALTER TABLE ctxa_official_verification_metric_regression_package
     ADD COLUMN IF NOT EXISTS sample_package_json TEXT;
 
-ALTER TABLE official_verification_metric_regression_package
+ALTER TABLE ctxa_official_verification_metric_regression_package
     ADD COLUMN IF NOT EXISTS expected_finding_snapshot TEXT;
 
-ALTER TABLE official_verification_metric_regression_package
+ALTER TABLE ctxa_official_verification_metric_regression_package
     ADD COLUMN IF NOT EXISTS expected_remediation_group TEXT;
 
-ALTER TABLE official_verification_metric_regression_package
+ALTER TABLE ctxa_official_verification_metric_regression_package
     ADD COLUMN IF NOT EXISTS expected_reverify_criterion TEXT;
 
-ALTER TABLE official_verification_metric_regression_package
+ALTER TABLE ctxa_official_verification_metric_regression_package
     ADD COLUMN IF NOT EXISTS expected_audit_payload_json TEXT;
 
-ALTER TABLE official_verification_metric_regression_package
+ALTER TABLE ctxa_official_verification_metric_regression_package
     ADD COLUMN IF NOT EXISTS customer_sentence_contract_json TEXT;
 
-ALTER TABLE official_verification_metric_regression_expectation
+ALTER TABLE ctxa_official_verification_metric_regression_expectation
     ADD COLUMN IF NOT EXISTS expected_score NUMERIC(7,2);
 
-ALTER TABLE official_verification_metric_regression_expectation
+ALTER TABLE ctxa_official_verification_metric_regression_expectation
     ADD COLUMN IF NOT EXISTS expected_passed_check_count INTEGER;
 
-ALTER TABLE official_verification_metric_regression_expectation
+ALTER TABLE ctxa_official_verification_metric_regression_expectation
     ADD COLUMN IF NOT EXISTS expected_failed_check_count INTEGER;
 
-ALTER TABLE official_verification_metric_regression_expectation
+ALTER TABLE ctxa_official_verification_metric_regression_expectation
     ADD COLUMN IF NOT EXISTS expected_finding_snapshot TEXT;
 
-ALTER TABLE official_verification_metric_regression_expectation
+ALTER TABLE ctxa_official_verification_metric_regression_expectation
     ADD COLUMN IF NOT EXISTS expected_remediation_group TEXT;
 
-ALTER TABLE official_verification_metric_regression_expectation
+ALTER TABLE ctxa_official_verification_metric_regression_expectation
     ADD COLUMN IF NOT EXISTS expected_reverify_criterion TEXT;
 
-ALTER TABLE official_verification_metric_regression_expectation
+ALTER TABLE ctxa_official_verification_metric_regression_expectation
     ADD COLUMN IF NOT EXISTS expected_audit_payload_json TEXT;
 
-CREATE INDEX IF NOT EXISTS idx_official_metric_regression_package_kind
-    ON official_verification_metric_regression_package(sample_kind, target_metric_codes);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_metric_regression_package_kind
+    ON ctxa_official_verification_metric_regression_package(sample_kind, target_metric_codes);
 
-CREATE INDEX IF NOT EXISTS idx_official_metric_regression_expectation_metric
-    ON official_verification_metric_regression_expectation(metric_code, expected_state);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_metric_regression_expectation_metric
+    ON ctxa_official_verification_metric_regression_expectation(metric_code, expected_state);
 
 -- Legacy pqa12-* regression sample payload updates/inserts are intentionally omitted.
 -- These fixed samples used synthetic resource ids/templates and must not be installed as runtime defaults.
@@ -2957,37 +2957,37 @@ CREATE INDEX IF NOT EXISTS idx_official_metric_regression_expectation_metric
 -- ------------------------------------------------------------
 -- Source migration: V20260504_07__official_verification_result_sentence_contract.sql
 -- ------------------------------------------------------------
-ALTER TABLE verification_run_check_ledger
+ALTER TABLE ctxa_verification_run_check_ledger
     ADD COLUMN IF NOT EXISTS operator_title VARCHAR(255);
 
-ALTER TABLE verification_run_check_ledger
+ALTER TABLE ctxa_verification_run_check_ledger
     ADD COLUMN IF NOT EXISTS operator_summary TEXT;
 
-ALTER TABLE verification_run_check_ledger
+ALTER TABLE ctxa_verification_run_check_ledger
     ADD COLUMN IF NOT EXISTS problem_statement TEXT;
 
-ALTER TABLE verification_run_check_ledger
+ALTER TABLE ctxa_verification_run_check_ledger
     ADD COLUMN IF NOT EXISTS root_cause TEXT;
 
-ALTER TABLE verification_run_check_ledger
+ALTER TABLE ctxa_verification_run_check_ledger
     ADD COLUMN IF NOT EXISTS affected_target VARCHAR(256);
 
-ALTER TABLE verification_run_check_ledger
+ALTER TABLE ctxa_verification_run_check_ledger
     ADD COLUMN IF NOT EXISTS evidence_summary TEXT;
 
-ALTER TABLE verification_run_check_ledger
+ALTER TABLE ctxa_verification_run_check_ledger
     ADD COLUMN IF NOT EXISTS expected_result TEXT;
 
-ALTER TABLE verification_run_check_ledger
+ALTER TABLE ctxa_verification_run_check_ledger
     ADD COLUMN IF NOT EXISTS actual_result TEXT;
 
-ALTER TABLE verification_run_check_ledger
+ALTER TABLE ctxa_verification_run_check_ledger
     ADD COLUMN IF NOT EXISTS impact TEXT;
 
-ALTER TABLE verification_run_check_ledger
+ALTER TABLE ctxa_verification_run_check_ledger
     ADD COLUMN IF NOT EXISTS customer_visible_severity VARCHAR(64);
 
-ALTER TABLE verification_run_check_ledger
+ALTER TABLE ctxa_verification_run_check_ledger
     ADD COLUMN IF NOT EXISTS related_process_step VARCHAR(128);
 
 WITH restored_check_states AS (
@@ -3010,11 +3010,11 @@ WITH restored_check_states AS (
                    THEN 'PASS'
                ELSE 'FAIL'
            END AS evaluation_state
-      FROM verification_run_ledger r
+      FROM ctxa_verification_run_ledger r
       CROSS JOIN LATERAL jsonb_array_elements(COALESCE(r.checks_jsonb, '[]'::jsonb))
            WITH ORDINALITY AS check_item(value, ordinality)
 )
-UPDATE verification_run_check_ledger target
+UPDATE ctxa_verification_run_check_ledger target
    SET evaluation_state = restored.evaluation_state,
        pass = restored.evaluation_state = 'PASS',
        customer_visible_severity = CASE restored.evaluation_state
@@ -3034,101 +3034,101 @@ BEGIN
         SELECT 1 FROM pg_constraint
          WHERE conname = 'ck_verification_run_check_evaluation_state'
     ) THEN
-        ALTER TABLE verification_run_check_ledger
-            ADD CONSTRAINT ck_verification_run_check_evaluation_state
+        ALTER TABLE ctxa_verification_run_check_ledger
+            ADD CONSTRAINT ctxa_ck_verification_run_check_evaluation_state
             CHECK (evaluation_state IS NULL OR evaluation_state IN (
                 'PASS', 'FAIL', 'NOT_APPLICABLE', 'NOT_EVALUATED'));
     END IF;
 END $$;
 
-ALTER TABLE official_verification_operator_finding
+ALTER TABLE ctxa_official_verification_operator_finding
     ADD COLUMN IF NOT EXISTS operator_summary TEXT;
 
-ALTER TABLE official_verification_operator_finding
+ALTER TABLE ctxa_official_verification_operator_finding
     ADD COLUMN IF NOT EXISTS problem_statement TEXT;
 
-ALTER TABLE official_verification_operator_finding
+ALTER TABLE ctxa_official_verification_operator_finding
     ADD COLUMN IF NOT EXISTS root_cause TEXT;
 
-ALTER TABLE official_verification_operator_finding
+ALTER TABLE ctxa_official_verification_operator_finding
     ADD COLUMN IF NOT EXISTS affected_target VARCHAR(256);
 
-ALTER TABLE official_verification_operator_finding
+ALTER TABLE ctxa_official_verification_operator_finding
     ADD COLUMN IF NOT EXISTS expected_result TEXT;
 
-ALTER TABLE official_verification_operator_finding
+ALTER TABLE ctxa_official_verification_operator_finding
     ADD COLUMN IF NOT EXISTS actual_result TEXT;
 
-ALTER TABLE official_verification_operator_finding
+ALTER TABLE ctxa_official_verification_operator_finding
     ADD COLUMN IF NOT EXISTS customer_visible_severity VARCHAR(64);
 
-CREATE INDEX IF NOT EXISTS idx_verification_run_check_ledger_customer_severity
-    ON verification_run_check_ledger(run_id, customer_visible_severity);
+CREATE INDEX IF NOT EXISTS ctxa_idx_verification_run_check_ledger_customer_severity
+    ON ctxa_verification_run_check_ledger(run_id, customer_visible_severity);
 
-CREATE INDEX IF NOT EXISTS idx_official_operator_finding_customer_severity
-    ON official_verification_operator_finding(package_id, customer_visible_severity, created_at);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_operator_finding_customer_severity
+    ON ctxa_official_verification_operator_finding(package_id, customer_visible_severity, created_at);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260504_09__official_verification_diagnostic_catalog_version.sql
 -- ------------------------------------------------------------
-ALTER TABLE official_verification_run_batch
+ALTER TABLE ctxa_official_verification_run_batch
     ADD COLUMN IF NOT EXISTS diagnostic_catalog_version VARCHAR(128);
 
-ALTER TABLE official_verification_metric_snapshot
+ALTER TABLE ctxa_official_verification_metric_snapshot
     ADD COLUMN IF NOT EXISTS diagnostic_catalog_version VARCHAR(128);
 
-ALTER TABLE official_verification_operator_finding
+ALTER TABLE ctxa_official_verification_operator_finding
     ADD COLUMN IF NOT EXISTS diagnostic_catalog_version VARCHAR(128);
 
-ALTER TABLE official_verification_operator_remediation_group
+ALTER TABLE ctxa_official_verification_operator_remediation_group
     ADD COLUMN IF NOT EXISTS diagnostic_catalog_version VARCHAR(128);
 
-ALTER TABLE official_verification_audit_snapshot
+ALTER TABLE ctxa_official_verification_audit_snapshot
     ADD COLUMN IF NOT EXISTS diagnostic_catalog_version VARCHAR(128);
 
-ALTER TABLE official_verification_reverify_result
+ALTER TABLE ctxa_official_verification_reverify_result
     ADD COLUMN IF NOT EXISTS diagnostic_catalog_version VARCHAR(128);
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_run_batch_catalog_version
-    ON official_verification_run_batch(diagnostic_catalog_version, created_at);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_run_batch_catalog_version
+    ON ctxa_official_verification_run_batch(diagnostic_catalog_version, created_at);
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_finding_catalog_version
-    ON official_verification_operator_finding(diagnostic_catalog_version, created_at);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_finding_catalog_version
+    ON ctxa_official_verification_operator_finding(diagnostic_catalog_version, created_at);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260504_10__sealed_evidence_package_identifier_width.sql
 -- ------------------------------------------------------------
-alter table sealed_evidence_package
+alter table ctxa_sealed_evidence_package
     alter column package_id set data type varchar(256);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260510_01__official_verification_prompt_comparison_linkage.sql
 -- ------------------------------------------------------------
-ALTER TABLE official_verification_metric_check_definition
+ALTER TABLE ctxa_official_verification_metric_check_definition
     ADD COLUMN IF NOT EXISTS comparison_field_key VARCHAR(128);
 
-ALTER TABLE official_verification_metric_check_definition
+ALTER TABLE ctxa_official_verification_metric_check_definition
     ADD COLUMN IF NOT EXISTS prompt_location VARCHAR(256);
 
-ALTER TABLE official_verification_metric_check_definition
+ALTER TABLE ctxa_official_verification_metric_check_definition
     ADD COLUMN IF NOT EXISTS related_process_step VARCHAR(128);
 
-ALTER TABLE official_verification_operator_finding
+ALTER TABLE ctxa_official_verification_operator_finding
     ADD COLUMN IF NOT EXISTS comparison_field_key VARCHAR(128);
 
-ALTER TABLE official_verification_operator_finding
+ALTER TABLE ctxa_official_verification_operator_finding
     ADD COLUMN IF NOT EXISTS comparison_state VARCHAR(64);
 
-ALTER TABLE official_verification_operator_finding
+ALTER TABLE ctxa_official_verification_operator_finding
     ADD COLUMN IF NOT EXISTS prompt_location VARCHAR(256);
 
-ALTER TABLE official_verification_operator_remediation_group
+ALTER TABLE ctxa_official_verification_operator_remediation_group
     ADD COLUMN IF NOT EXISTS comparison_field_keys TEXT;
 
-ALTER TABLE official_verification_operator_remediation_group
+ALTER TABLE ctxa_official_verification_operator_remediation_group
     ADD COLUMN IF NOT EXISTS prompt_locations TEXT;
 
-CREATE TABLE IF NOT EXISTS official_verification_prompt_comparison (
+CREATE TABLE IF NOT EXISTS ctxa_official_verification_prompt_comparison (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     comparison_id VARCHAR(256) NOT NULL UNIQUE,
     aggregate_run_id VARCHAR(256) NOT NULL,
@@ -3153,23 +3153,23 @@ CREATE TABLE IF NOT EXISTS official_verification_prompt_comparison (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_prompt_comparison_run
-    ON official_verification_prompt_comparison(package_id, aggregate_run_id);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_prompt_comparison_run
+    ON ctxa_official_verification_prompt_comparison(package_id, aggregate_run_id);
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_prompt_comparison_field
-    ON official_verification_prompt_comparison(field_key, state);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_prompt_comparison_field
+    ON ctxa_official_verification_prompt_comparison(field_key, state);
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_finding_comparison_field
-    ON official_verification_operator_finding(package_id, aggregate_run_id, comparison_field_key);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_finding_comparison_field
+    ON ctxa_official_verification_operator_finding(package_id, aggregate_run_id, comparison_field_key);
 
-UPDATE official_verification_metric_check_definition
+UPDATE ctxa_official_verification_metric_check_definition
    SET comparison_field_key = lower(metric_code || '.official_contract'),
        prompt_location = 'officialVerification.contract',
        related_process_step = 'OFFICIAL_VERIFICATION'
  WHERE comparison_field_key IS NULL
    AND check_code = metric_code || '_OFFICIAL_CONTRACT';
 
-UPDATE official_verification_metric_check_definition
+UPDATE ctxa_official_verification_metric_check_definition
    SET comparison_field_key = v.comparison_field_key,
        prompt_location = v.prompt_location,
        related_process_step = v.related_process_step
@@ -3190,10 +3190,10 @@ UPDATE official_verification_metric_check_definition
           ('BSR_PROMPT_EXPLAINS_BEHAVIOR', 'canonicalContext.behavior', 'userPrompt.context', 'PROMPT_GOVERNANCE'),
           ('PRE_RESOURCE_ID_BOUND_TO_ACTUAL', 'resourceId', 'userPrompt.requestContext', 'PROTECTABLE_RESOURCES')
   ) AS v(check_code, comparison_field_key, prompt_location, related_process_step)
- WHERE official_verification_metric_check_definition.check_code = v.check_code
-   AND official_verification_metric_check_definition.comparison_field_key IS NULL;
+ WHERE ctxa_official_verification_metric_check_definition.check_code = v.check_code
+   AND ctxa_official_verification_metric_check_definition.comparison_field_key IS NULL;
 
-UPDATE official_verification_metric_check_definition
+UPDATE ctxa_official_verification_metric_check_definition
    SET comparison_field_key = lower(metric_code || '.' || check_code),
        prompt_location = 'officialVerification.check',
        related_process_step = 'OFFICIAL_VERIFICATION'
@@ -3202,7 +3202,7 @@ UPDATE official_verification_metric_check_definition
 -- ------------------------------------------------------------
 -- Source migration: V20260511_02__official_verification_prompt_field_mapping_contract.sql
 -- ------------------------------------------------------------
-UPDATE official_verification_metric_check_definition
+UPDATE ctxa_official_verification_metric_check_definition
    SET comparison_field_key = v.comparison_field_key,
        prompt_location = v.prompt_location,
        related_process_step = v.related_process_step
@@ -3265,28 +3265,28 @@ UPDATE official_verification_metric_check_definition
           ('RAP_AUTHORIZED_DOCUMENT_COUNT_TRACKED', 'ragResults.authorizedDocumentCount', 'userPrompt.rag', 'RAG_AUTHORIZATION'),
           ('RPI_RELATED_DOCUMENTS_NON_REGRESSIVE', 'ragResults.relatedDocuments', 'userPrompt.rag', 'RAG_CONTEXT')
   ) AS v(check_code, comparison_field_key, prompt_location, related_process_step)
- WHERE official_verification_metric_check_definition.check_code = v.check_code;
+ WHERE ctxa_official_verification_metric_check_definition.check_code = v.check_code;
 
-UPDATE official_verification_metric_check_definition
+UPDATE ctxa_official_verification_metric_check_definition
    SET comparison_field_key = 'ragResults.relatedDocuments',
        prompt_location = 'userPrompt.rag',
        related_process_step = 'RAG_AUTHORIZATION'
  WHERE check_code LIKE 'RAP_DOC_%';
 
-UPDATE official_verification_metric_check_definition
+UPDATE ctxa_official_verification_metric_check_definition
    SET comparison_field_key = 'ragResults.relatedDocuments',
        prompt_location = 'userPrompt.rag',
        related_process_step = 'RAG_CONTEXT'
  WHERE check_code LIKE 'COR_DOC_%';
 
-UPDATE official_verification_metric_check_definition
+UPDATE ctxa_official_verification_metric_check_definition
    SET prompt_location = 'evidenceSource.unmapped'
  WHERE prompt_location = 'officialVerification.check';
 
 -- ------------------------------------------------------------
 -- Source migration: V20260511_03__official_prompt_field_state_ledger.sql
 -- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS official_prompt_field_definition (
+CREATE TABLE IF NOT EXISTS ctxa_official_prompt_field_definition (
     id BIGSERIAL PRIMARY KEY,
     field_key VARCHAR(256) NOT NULL UNIQUE,
     source_model VARCHAR(256) NOT NULL,
@@ -3300,7 +3300,7 @@ CREATE TABLE IF NOT EXISTS official_prompt_field_definition (
     created_at TIMESTAMP(6) NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS official_prompt_field_state_ledger (
+CREATE TABLE IF NOT EXISTS ctxa_official_prompt_field_state_ledger (
     id BIGSERIAL PRIMARY KEY,
     package_id VARCHAR(128) NOT NULL,
     aggregate_run_id VARCHAR(256),
@@ -3329,19 +3329,19 @@ CREATE TABLE IF NOT EXISTS official_prompt_field_state_ledger (
     created_at TIMESTAMP(6) NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_official_prompt_field_state_package
-    ON official_prompt_field_state_ledger (package_id, created_at);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_prompt_field_state_package
+    ON ctxa_official_prompt_field_state_ledger (package_id, created_at);
 
-CREATE INDEX IF NOT EXISTS idx_official_prompt_field_state_run
-    ON official_prompt_field_state_ledger (aggregate_run_id, official_run_id);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_prompt_field_state_run
+    ON ctxa_official_prompt_field_state_ledger (aggregate_run_id, official_run_id);
 
-CREATE INDEX IF NOT EXISTS idx_official_prompt_field_state_key
-    ON official_prompt_field_state_ledger (field_key);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_prompt_field_state_key
+    ON ctxa_official_prompt_field_state_ledger (field_key);
 
-CREATE INDEX IF NOT EXISTS idx_official_prompt_field_state_blocking
-    ON official_prompt_field_state_ledger (package_id, blocking_candidate, field_state);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_prompt_field_state_blocking
+    ON ctxa_official_prompt_field_state_ledger (package_id, blocking_candidate, field_state);
 
-CREATE TABLE IF NOT EXISTS official_prompt_projection_ledger (
+CREATE TABLE IF NOT EXISTS ctxa_official_prompt_projection_ledger (
     id BIGSERIAL PRIMARY KEY,
     package_id VARCHAR(128) NOT NULL,
     aggregate_run_id VARCHAR(256),
@@ -3359,28 +3359,28 @@ CREATE TABLE IF NOT EXISTS official_prompt_projection_ledger (
     created_at TIMESTAMP(6) NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_official_prompt_projection_package
-    ON official_prompt_projection_ledger (package_id, created_at);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_prompt_projection_package
+    ON ctxa_official_prompt_projection_ledger (package_id, created_at);
 
-CREATE INDEX IF NOT EXISTS idx_official_prompt_projection_run
-    ON official_prompt_projection_ledger (aggregate_run_id, official_run_id);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_prompt_projection_run
+    ON ctxa_official_prompt_projection_ledger (aggregate_run_id, official_run_id);
 
-CREATE INDEX IF NOT EXISTS idx_official_prompt_projection_blocking
-    ON official_prompt_projection_ledger (package_id, blocking_candidate, projection_state);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_prompt_projection_blocking
+    ON ctxa_official_prompt_projection_ledger (package_id, blocking_candidate, projection_state);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260511_04__official_actual_prompt_problem_ledger.sql
 -- ------------------------------------------------------------
-ALTER TABLE official_verification_prompt_comparison
+ALTER TABLE ctxa_official_verification_prompt_comparison
     ALTER COLUMN field_key SET DATA TYPE VARCHAR(512);
 
-ALTER TABLE official_verification_operator_finding
+ALTER TABLE ctxa_official_verification_operator_finding
     ALTER COLUMN comparison_field_key SET DATA TYPE VARCHAR(512);
 
-ALTER TABLE official_verification_metric_check_definition
+ALTER TABLE ctxa_official_verification_metric_check_definition
     ALTER COLUMN comparison_field_key SET DATA TYPE VARCHAR(512);
 
-CREATE TABLE IF NOT EXISTS official_actual_prompt_problem_ledger (
+CREATE TABLE IF NOT EXISTS ctxa_official_actual_prompt_problem_ledger (
     id BIGSERIAL PRIMARY KEY,
     problem_id VARCHAR(256) NOT NULL UNIQUE,
     package_id VARCHAR(128) NOT NULL,
@@ -3400,58 +3400,58 @@ CREATE TABLE IF NOT EXISTS official_actual_prompt_problem_ledger (
     created_at TIMESTAMP(6) NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_official_actual_prompt_problem_run
-    ON official_actual_prompt_problem_ledger (package_id, aggregate_run_id);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_actual_prompt_problem_run
+    ON ctxa_official_actual_prompt_problem_ledger (package_id, aggregate_run_id);
 
-CREATE INDEX IF NOT EXISTS idx_official_actual_prompt_problem_field
-    ON official_actual_prompt_problem_ledger (field_key, problem_type);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_actual_prompt_problem_field
+    ON ctxa_official_actual_prompt_problem_ledger (field_key, problem_type);
 
-CREATE INDEX IF NOT EXISTS idx_official_actual_prompt_problem_metric
-    ON official_actual_prompt_problem_ledger (affected_metric_codes);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_actual_prompt_problem_metric
+    ON ctxa_official_actual_prompt_problem_ledger (affected_metric_codes);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260511_05__official_prompt_field_contract_scope.sql
 -- ------------------------------------------------------------
-ALTER TABLE official_prompt_field_definition
+ALTER TABLE ctxa_official_prompt_field_definition
     ADD COLUMN IF NOT EXISTS quality_relevance VARCHAR(64) NOT NULL DEFAULT 'AUDIT_ONLY_SEALED_SOURCE';
 
-ALTER TABLE official_prompt_field_definition
+ALTER TABLE ctxa_official_prompt_field_definition
     ADD COLUMN IF NOT EXISTS metric_codes VARCHAR(256);
 
-ALTER TABLE official_prompt_field_definition
+ALTER TABLE ctxa_official_prompt_field_definition
     ADD COLUMN IF NOT EXISTS remediation_owner VARCHAR(128);
 
-ALTER TABLE official_prompt_field_definition
+ALTER TABLE ctxa_official_prompt_field_definition
     ADD COLUMN IF NOT EXISTS not_applicable_rule TEXT;
 
-ALTER TABLE official_prompt_field_state_ledger
+ALTER TABLE ctxa_official_prompt_field_state_ledger
     ADD COLUMN IF NOT EXISTS quality_relevance VARCHAR(64) NOT NULL DEFAULT 'AUDIT_ONLY_SEALED_SOURCE';
 
-ALTER TABLE official_prompt_field_state_ledger
+ALTER TABLE ctxa_official_prompt_field_state_ledger
     ADD COLUMN IF NOT EXISTS raw_blocking_candidate BOOLEAN NOT NULL DEFAULT FALSE;
 
-ALTER TABLE official_prompt_field_state_ledger
+ALTER TABLE ctxa_official_prompt_field_state_ledger
     ADD COLUMN IF NOT EXISTS official_blocking_candidate BOOLEAN NOT NULL DEFAULT FALSE;
 
-ALTER TABLE official_prompt_projection_ledger
+ALTER TABLE ctxa_official_prompt_projection_ledger
     ADD COLUMN IF NOT EXISTS quality_relevance VARCHAR(64) NOT NULL DEFAULT 'AUDIT_ONLY_SEALED_SOURCE';
 
-ALTER TABLE official_prompt_projection_ledger
+ALTER TABLE ctxa_official_prompt_projection_ledger
     ADD COLUMN IF NOT EXISTS raw_blocking_candidate BOOLEAN NOT NULL DEFAULT FALSE;
 
-ALTER TABLE official_prompt_projection_ledger
+ALTER TABLE ctxa_official_prompt_projection_ledger
     ADD COLUMN IF NOT EXISTS official_blocking_candidate BOOLEAN NOT NULL DEFAULT FALSE;
 
-CREATE INDEX IF NOT EXISTS idx_official_prompt_field_state_relevance
-    ON official_prompt_field_state_ledger (package_id, quality_relevance, official_blocking_candidate);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_prompt_field_state_relevance
+    ON ctxa_official_prompt_field_state_ledger (package_id, quality_relevance, official_blocking_candidate);
 
-CREATE INDEX IF NOT EXISTS idx_official_prompt_projection_relevance
-    ON official_prompt_projection_ledger (package_id, quality_relevance, official_blocking_candidate);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_prompt_projection_relevance
+    ON ctxa_official_prompt_projection_ledger (package_id, quality_relevance, official_blocking_candidate);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260512_01__official_prompt_value_lineage_diff_ledgers.sql
 -- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS official_prompt_generation_lineage (
+CREATE TABLE IF NOT EXISTS ctxa_official_prompt_generation_lineage (
     id BIGSERIAL PRIMARY KEY,
     package_id VARCHAR(128) NOT NULL,
     aggregate_run_id VARCHAR(256) NOT NULL,
@@ -3478,12 +3478,12 @@ CREATE TABLE IF NOT EXISTS official_prompt_generation_lineage (
     created_at TIMESTAMP(6) NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_official_prompt_generation_lineage_run
-    ON official_prompt_generation_lineage (aggregate_run_id);
-CREATE INDEX IF NOT EXISTS idx_official_prompt_generation_lineage_package
-    ON official_prompt_generation_lineage (package_id);
+CREATE UNIQUE INDEX IF NOT EXISTS ctxa_uq_official_prompt_generation_lineage_run
+    ON ctxa_official_prompt_generation_lineage (aggregate_run_id);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_prompt_generation_lineage_package
+    ON ctxa_official_prompt_generation_lineage (package_id);
 
-CREATE TABLE IF NOT EXISTS official_prompt_field_value_ledger (
+CREATE TABLE IF NOT EXISTS ctxa_official_prompt_field_value_ledger (
     id BIGSERIAL PRIMARY KEY,
     package_id VARCHAR(128) NOT NULL,
     aggregate_run_id VARCHAR(256) NOT NULL,
@@ -3501,16 +3501,16 @@ CREATE TABLE IF NOT EXISTS official_prompt_field_value_ledger (
     quality_relevance VARCHAR(64),
     blocking_candidate BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP(6) NOT NULL DEFAULT now(),
-    CONSTRAINT uq_official_prompt_field_value_ledger
+    CONSTRAINT ctxa_uq_official_prompt_field_value_ledger
         UNIQUE (package_id, aggregate_run_id, prompt_stage, field_key, line_number)
 );
 
-CREATE INDEX IF NOT EXISTS idx_official_prompt_field_value_ledger_run
-    ON official_prompt_field_value_ledger (aggregate_run_id, prompt_stage);
-CREATE INDEX IF NOT EXISTS idx_official_prompt_field_value_ledger_field
-    ON official_prompt_field_value_ledger (aggregate_run_id, field_key);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_prompt_field_value_ledger_run
+    ON ctxa_official_prompt_field_value_ledger (aggregate_run_id, prompt_stage);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_prompt_field_value_ledger_field
+    ON ctxa_official_prompt_field_value_ledger (aggregate_run_id, field_key);
 
-CREATE TABLE IF NOT EXISTS official_prompt_field_diff_ledger (
+CREATE TABLE IF NOT EXISTS ctxa_official_prompt_field_diff_ledger (
     id BIGSERIAL PRIMARY KEY,
     package_id VARCHAR(128) NOT NULL,
     aggregate_run_id VARCHAR(256) NOT NULL,
@@ -3531,72 +3531,72 @@ CREATE TABLE IF NOT EXISTS official_prompt_field_diff_ledger (
     created_at TIMESTAMP(6) NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_official_prompt_field_diff_ledger_run
-    ON official_prompt_field_diff_ledger (aggregate_run_id, diff_type);
-CREATE INDEX IF NOT EXISTS idx_official_prompt_field_diff_ledger_field
-    ON official_prompt_field_diff_ledger (aggregate_run_id, field_key);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_prompt_field_diff_ledger_run
+    ON ctxa_official_prompt_field_diff_ledger (aggregate_run_id, diff_type);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_prompt_field_diff_ledger_field
+    ON ctxa_official_prompt_field_diff_ledger (aggregate_run_id, field_key);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260512_02__official_prompt_field_definition_width.sql
 -- ------------------------------------------------------------
-ALTER TABLE official_prompt_field_definition
+ALTER TABLE ctxa_official_prompt_field_definition
     ALTER COLUMN field_key TYPE VARCHAR(512);
 
-ALTER TABLE official_prompt_field_definition
+ALTER TABLE ctxa_official_prompt_field_definition
     ALTER COLUMN source_field_path TYPE VARCHAR(1024);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260512_03__official_prompt_field_definition_source_contract.sql
 -- ------------------------------------------------------------
-ALTER TABLE official_prompt_field_definition
+ALTER TABLE ctxa_official_prompt_field_definition
     ADD COLUMN IF NOT EXISTS source_package VARCHAR(512);
 
-ALTER TABLE official_prompt_field_definition
+ALTER TABLE ctxa_official_prompt_field_definition
     ADD COLUMN IF NOT EXISTS source_class VARCHAR(512);
 
-ALTER TABLE official_prompt_field_definition
+ALTER TABLE ctxa_official_prompt_field_definition
     ADD COLUMN IF NOT EXISTS value_type VARCHAR(256);
 
-CREATE INDEX IF NOT EXISTS idx_official_prompt_field_definition_source
-    ON official_prompt_field_definition (source_model, source_package, source_class);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_prompt_field_definition_source
+    ON ctxa_official_prompt_field_definition (source_model, source_package, source_class);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260514_01__official_metric_issue_current_contract.sql
 -- ------------------------------------------------------------
-ALTER TABLE official_verification_metric_snapshot
+ALTER TABLE ctxa_official_verification_metric_snapshot
     ADD COLUMN IF NOT EXISTS issue_ids_json TEXT;
 
-ALTER TABLE official_verification_metric_snapshot
+ALTER TABLE ctxa_official_verification_metric_snapshot
     ADD COLUMN IF NOT EXISTS problem_ids_json TEXT;
 
-ALTER TABLE official_verification_metric_snapshot
+ALTER TABLE ctxa_official_verification_metric_snapshot
     ADD COLUMN IF NOT EXISTS current_result BOOLEAN NOT NULL DEFAULT TRUE;
 
-ALTER TABLE official_verification_metric_execution_ledger
+ALTER TABLE ctxa_official_verification_metric_execution_ledger
     ADD COLUMN IF NOT EXISTS issue_ids_json TEXT;
 
-ALTER TABLE official_verification_metric_execution_ledger
+ALTER TABLE ctxa_official_verification_metric_execution_ledger
     ADD COLUMN IF NOT EXISTS problem_ids_json TEXT;
 
-ALTER TABLE official_verification_run_batch
+ALTER TABLE ctxa_official_verification_run_batch
     ADD COLUMN IF NOT EXISTS current_result BOOLEAN NOT NULL DEFAULT TRUE;
 
-ALTER TABLE official_verification_operator_finding
+ALTER TABLE ctxa_official_verification_operator_finding
     ADD COLUMN IF NOT EXISTS current_result BOOLEAN NOT NULL DEFAULT TRUE;
 
-ALTER TABLE official_actual_prompt_problem_ledger
+ALTER TABLE ctxa_official_actual_prompt_problem_ledger
     ADD COLUMN IF NOT EXISTS current_result BOOLEAN NOT NULL DEFAULT TRUE;
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_metric_snapshot_current
-    ON official_verification_metric_snapshot(package_id, current_result, aggregate_run_id);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_metric_snapshot_current
+    ON ctxa_official_verification_metric_snapshot(package_id, current_result, aggregate_run_id);
 
-CREATE INDEX IF NOT EXISTS idx_official_verification_run_batch_current
-    ON official_verification_run_batch(package_id, current_result, aggregate_run_id);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_verification_run_batch_current
+    ON ctxa_official_verification_run_batch(package_id, current_result, aggregate_run_id);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260515_01__official_metric_purpose_contract_ledgers.sql
 -- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS official_metric_contract_version (
+CREATE TABLE IF NOT EXISTS ctxa_official_metric_contract_version (
     id BIGSERIAL PRIMARY KEY,
     contract_version VARCHAR(128) NOT NULL UNIQUE,
     source_artifact VARCHAR(512) NOT NULL,
@@ -3604,7 +3604,7 @@ CREATE TABLE IF NOT EXISTS official_metric_contract_version (
     created_at TIMESTAMP(6) NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS official_metric_purpose_contract (
+CREATE TABLE IF NOT EXISTS ctxa_official_metric_purpose_contract (
     id BIGSERIAL PRIMARY KEY,
     contract_version VARCHAR(128) NOT NULL,
     metric_code VARCHAR(32) NOT NULL,
@@ -3615,7 +3615,7 @@ CREATE TABLE IF NOT EXISTS official_metric_purpose_contract (
     UNIQUE (contract_version, metric_code)
 );
 
-CREATE TABLE IF NOT EXISTS official_metric_signal_contract (
+CREATE TABLE IF NOT EXISTS ctxa_official_metric_signal_contract (
     id BIGSERIAL PRIMARY KEY,
     contract_version VARCHAR(128) NOT NULL,
     metric_code VARCHAR(32) NOT NULL,
@@ -3627,7 +3627,7 @@ CREATE TABLE IF NOT EXISTS official_metric_signal_contract (
     created_at TIMESTAMP(6) NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS official_metric_input_contract (
+CREATE TABLE IF NOT EXISTS ctxa_official_metric_input_contract (
     id BIGSERIAL PRIMARY KEY,
     contract_version VARCHAR(128) NOT NULL,
     metric_code VARCHAR(32) NOT NULL,
@@ -3639,7 +3639,7 @@ CREATE TABLE IF NOT EXISTS official_metric_input_contract (
     created_at TIMESTAMP(6) NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS official_metric_evaluation_contract (
+CREATE TABLE IF NOT EXISTS ctxa_official_metric_evaluation_contract (
     id BIGSERIAL PRIMARY KEY,
     contract_version VARCHAR(128) NOT NULL,
     metric_code VARCHAR(32) NOT NULL,
@@ -3653,7 +3653,7 @@ CREATE TABLE IF NOT EXISTS official_metric_evaluation_contract (
     created_at TIMESTAMP(6) NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS official_prompt_signal_ledger (
+CREATE TABLE IF NOT EXISTS ctxa_official_prompt_signal_ledger (
     id BIGSERIAL PRIMARY KEY,
     package_id VARCHAR(128) NOT NULL,
     aggregate_run_id VARCHAR(256) NOT NULL,
@@ -3670,7 +3670,7 @@ CREATE TABLE IF NOT EXISTS official_prompt_signal_ledger (
     created_at TIMESTAMP(6) NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS official_metric_input_readiness_ledger (
+CREATE TABLE IF NOT EXISTS ctxa_official_metric_input_readiness_ledger (
     id BIGSERIAL PRIMARY KEY,
     package_id VARCHAR(128) NOT NULL,
     aggregate_run_id VARCHAR(256) NOT NULL,
@@ -3685,7 +3685,7 @@ CREATE TABLE IF NOT EXISTS official_metric_input_readiness_ledger (
     created_at TIMESTAMP(6) NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS official_metric_purpose_evaluation_ledger (
+CREATE TABLE IF NOT EXISTS ctxa_official_metric_purpose_evaluation_ledger (
     id BIGSERIAL PRIMARY KEY,
     package_id VARCHAR(128) NOT NULL,
     aggregate_run_id VARCHAR(256) NOT NULL,
@@ -3708,64 +3708,64 @@ CREATE TABLE IF NOT EXISTS official_metric_purpose_evaluation_ledger (
     created_at TIMESTAMP(6) NOT NULL DEFAULT now()
 );
 
-ALTER TABLE official_actual_prompt_problem_ledger
+ALTER TABLE ctxa_official_actual_prompt_problem_ledger
     ADD COLUMN IF NOT EXISTS purpose_evaluation_id BIGINT;
 
-ALTER TABLE official_actual_prompt_problem_ledger
+ALTER TABLE ctxa_official_actual_prompt_problem_ledger
     ADD COLUMN IF NOT EXISTS quality_question TEXT;
 
-ALTER TABLE official_actual_prompt_problem_ledger
+ALTER TABLE ctxa_official_actual_prompt_problem_ledger
     ADD COLUMN IF NOT EXISTS why_it_matters TEXT;
 
-ALTER TABLE official_actual_prompt_problem_ledger
+ALTER TABLE ctxa_official_actual_prompt_problem_ledger
     ADD COLUMN IF NOT EXISTS fix_action TEXT;
 
-ALTER TABLE official_actual_prompt_problem_ledger
+ALTER TABLE ctxa_official_actual_prompt_problem_ledger
     ADD COLUMN IF NOT EXISTS reverify_criterion_detail TEXT;
 
-ALTER TABLE official_actual_prompt_problem_ledger
+ALTER TABLE ctxa_official_actual_prompt_problem_ledger
     ADD COLUMN IF NOT EXISTS contract_version_id BIGINT;
 
-CREATE INDEX IF NOT EXISTS idx_official_prompt_signal_ledger_run
-    ON official_prompt_signal_ledger (package_id, aggregate_run_id, metric_code, check_code);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_prompt_signal_ledger_run
+    ON ctxa_official_prompt_signal_ledger (package_id, aggregate_run_id, metric_code, check_code);
 
-CREATE INDEX IF NOT EXISTS idx_official_metric_input_readiness_run
-    ON official_metric_input_readiness_ledger (package_id, aggregate_run_id, metric_code, check_code);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_metric_input_readiness_run
+    ON ctxa_official_metric_input_readiness_ledger (package_id, aggregate_run_id, metric_code, check_code);
 
-CREATE INDEX IF NOT EXISTS idx_official_metric_purpose_evaluation_run
-    ON official_metric_purpose_evaluation_ledger (package_id, aggregate_run_id, metric_code, check_code);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_metric_purpose_evaluation_run
+    ON ctxa_official_metric_purpose_evaluation_ledger (package_id, aggregate_run_id, metric_code, check_code);
 
-CREATE INDEX IF NOT EXISTS idx_official_metric_purpose_evaluation_issue
-    ON official_metric_purpose_evaluation_ledger (package_id, aggregate_run_id, issue_key);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_metric_purpose_evaluation_issue
+    ON ctxa_official_metric_purpose_evaluation_ledger (package_id, aggregate_run_id, issue_key);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260517_01__official_metric_contract_completion.sql
 -- ------------------------------------------------------------
-ALTER TABLE official_metric_purpose_contract
+ALTER TABLE ctxa_official_metric_purpose_contract
     ADD COLUMN IF NOT EXISTS metric_role VARCHAR(128);
 
-ALTER TABLE official_metric_purpose_contract
+ALTER TABLE ctxa_official_metric_purpose_contract
     ADD COLUMN IF NOT EXISTS blocks_llm_submission BOOLEAN NOT NULL DEFAULT FALSE;
 
-ALTER TABLE official_metric_purpose_contract
+ALTER TABLE ctxa_official_metric_purpose_contract
     ADD COLUMN IF NOT EXISTS blocks_certificate BOOLEAN NOT NULL DEFAULT FALSE;
 
-ALTER TABLE official_metric_evaluation_contract
+ALTER TABLE ctxa_official_metric_evaluation_contract
     ADD COLUMN IF NOT EXISTS problem_title TEXT;
 
-ALTER TABLE official_metric_evaluation_contract
+ALTER TABLE ctxa_official_metric_evaluation_contract
     ADD COLUMN IF NOT EXISTS short_problem TEXT;
 
-ALTER TABLE official_metric_evaluation_contract
+ALTER TABLE ctxa_official_metric_evaluation_contract
     ADD COLUMN IF NOT EXISTS expected_message TEXT;
 
-ALTER TABLE official_metric_evaluation_contract
+ALTER TABLE ctxa_official_metric_evaluation_contract
     ADD COLUMN IF NOT EXISTS pass_message TEXT;
 
-ALTER TABLE official_metric_evaluation_contract
+ALTER TABLE ctxa_official_metric_evaluation_contract
     ADD COLUMN IF NOT EXISTS failure_message TEXT;
 
-CREATE TABLE IF NOT EXISTS official_prompt_signal_contract (
+CREATE TABLE IF NOT EXISTS ctxa_official_prompt_signal_contract (
     id BIGSERIAL PRIMARY KEY,
     contract_version VARCHAR(128) NOT NULL,
     metric_code VARCHAR(32) NOT NULL,
@@ -3778,7 +3778,7 @@ CREATE TABLE IF NOT EXISTS official_prompt_signal_contract (
     UNIQUE (contract_version, metric_code, check_code, signal_key)
 );
 
-CREATE TABLE IF NOT EXISTS official_metric_customer_message_contract (
+CREATE TABLE IF NOT EXISTS ctxa_official_metric_customer_message_contract (
     id BIGSERIAL PRIMARY KEY,
     contract_version VARCHAR(128) NOT NULL,
     metric_code VARCHAR(32) NOT NULL,
@@ -3794,19 +3794,19 @@ CREATE TABLE IF NOT EXISTS official_metric_customer_message_contract (
     UNIQUE (contract_version, metric_code, check_code)
 );
 
-CREATE INDEX IF NOT EXISTS idx_official_prompt_signal_contract_lookup
-    ON official_prompt_signal_contract (contract_version, metric_code, check_code);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_prompt_signal_contract_lookup
+    ON ctxa_official_prompt_signal_contract (contract_version, metric_code, check_code);
 
-CREATE INDEX IF NOT EXISTS idx_official_metric_customer_message_contract_lookup
-    ON official_metric_customer_message_contract (contract_version, metric_code, check_code);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_metric_customer_message_contract_lookup
+    ON ctxa_official_metric_customer_message_contract (contract_version, metric_code, check_code);
 
-CREATE UNIQUE INDEX IF NOT EXISTS ux_official_metric_input_contract_lookup
-    ON official_metric_input_contract (contract_version, metric_code, check_code, input_key);
+CREATE UNIQUE INDEX IF NOT EXISTS ctxa_ux_official_metric_input_contract_lookup
+    ON ctxa_official_metric_input_contract (contract_version, metric_code, check_code, input_key);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260517_02__official_metric_purpose_evidence_ledger.sql
 -- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS official_metric_purpose_evidence_ledger (
+CREATE TABLE IF NOT EXISTS ctxa_official_metric_purpose_evidence_ledger (
     id BIGSERIAL PRIMARY KEY,
     package_id VARCHAR(128) NOT NULL,
     aggregate_run_id VARCHAR(256) NOT NULL,
@@ -3825,22 +3825,22 @@ CREATE TABLE IF NOT EXISTS official_metric_purpose_evidence_ledger (
     created_at TIMESTAMP(6) NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_official_metric_purpose_evidence_run
-    ON official_metric_purpose_evidence_ledger (package_id, aggregate_run_id, metric_code, check_code);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_metric_purpose_evidence_run
+    ON ctxa_official_metric_purpose_evidence_ledger (package_id, aggregate_run_id, metric_code, check_code);
 
-CREATE INDEX IF NOT EXISTS idx_official_metric_purpose_evidence_eval
-    ON official_metric_purpose_evidence_ledger (purpose_evaluation_id);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_metric_purpose_evidence_eval
+    ON ctxa_official_metric_purpose_evidence_ledger (purpose_evaluation_id);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260517_03__official_metric_evaluation_contract_lookup.sql
 -- ------------------------------------------------------------
-CREATE UNIQUE INDEX IF NOT EXISTS ux_official_metric_evaluation_contract_lookup
-    ON official_metric_evaluation_contract (contract_version, metric_code, check_code);
+CREATE UNIQUE INDEX IF NOT EXISTS ctxa_ux_official_metric_evaluation_contract_lookup
+    ON ctxa_official_metric_evaluation_contract (contract_version, metric_code, check_code);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260521_01__official_metric_customer_display_contract.sql
 -- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS official_metric_customer_display_contract (
+CREATE TABLE IF NOT EXISTS ctxa_official_metric_customer_display_contract (
     id BIGSERIAL PRIMARY KEY,
     contract_version VARCHAR(128) NOT NULL,
     metric_code VARCHAR(32) NOT NULL,
@@ -3852,7 +3852,7 @@ CREATE TABLE IF NOT EXISTS official_metric_customer_display_contract (
     UNIQUE (contract_version, metric_code, check_code, display_role)
 );
 
-CREATE TABLE IF NOT EXISTS official_metric_customer_display_binding (
+CREATE TABLE IF NOT EXISTS ctxa_official_metric_customer_display_binding (
     id BIGSERIAL PRIMARY KEY,
     contract_version VARCHAR(128) NOT NULL,
     metric_code VARCHAR(32) NOT NULL,
@@ -3865,7 +3865,7 @@ CREATE TABLE IF NOT EXISTS official_metric_customer_display_binding (
     UNIQUE (contract_version, metric_code, check_code, display_role, binding_key)
 );
 
-CREATE TABLE IF NOT EXISTS official_metric_customer_display_payload (
+CREATE TABLE IF NOT EXISTS ctxa_official_metric_customer_display_payload (
     id BIGSERIAL PRIMARY KEY,
     package_id VARCHAR(128) NOT NULL,
     aggregate_run_id VARCHAR(256) NOT NULL,
@@ -3885,19 +3885,19 @@ CREATE TABLE IF NOT EXISTS official_metric_customer_display_payload (
     created_at TIMESTAMP(6) NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_official_metric_customer_display_contract_lookup
-    ON official_metric_customer_display_contract (contract_version, metric_code, check_code, display_role);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_metric_customer_display_contract_lookup
+    ON ctxa_official_metric_customer_display_contract (contract_version, metric_code, check_code, display_role);
 
-CREATE INDEX IF NOT EXISTS idx_official_metric_customer_display_binding_lookup
-    ON official_metric_customer_display_binding (contract_version, metric_code, check_code, display_role);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_metric_customer_display_binding_lookup
+    ON ctxa_official_metric_customer_display_binding (contract_version, metric_code, check_code, display_role);
 
-CREATE INDEX IF NOT EXISTS idx_official_metric_customer_display_payload_run
-    ON official_metric_customer_display_payload (package_id, aggregate_run_id, metric_code, check_code);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_metric_customer_display_payload_run
+    ON ctxa_official_metric_customer_display_payload (package_id, aggregate_run_id, metric_code, check_code);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260523_02__pqa_prompt_runtime_slot_contract.sql
 -- ------------------------------------------------------------
-create table if not exists prompt_runtime_slot_contract (
+create table if not exists ctxa_prompt_runtime_slot_contract (
     id bigserial primary key,
     contract_version varchar(128) not null,
     prompt_key varchar(128) not null default 'SECURITY_DECISION',
@@ -3915,17 +3915,17 @@ create table if not exists prompt_runtime_slot_contract (
     active boolean not null default true,
     created_at timestamp not null default current_timestamp,
     updated_at timestamp not null default current_timestamp,
-    constraint uq_prompt_runtime_slot_contract
+    constraint ctxa_uq_prompt_runtime_slot_contract
         unique (contract_version, prompt_key, slot_key)
 );
 
-create index if not exists idx_prompt_runtime_slot_contract_location
-    on prompt_runtime_slot_contract (contract_version, prompt_location, active);
+create index if not exists ctxa_idx_prompt_runtime_slot_contract_location
+    on ctxa_prompt_runtime_slot_contract (contract_version, prompt_location, active);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260504_03__prompt_governance_jpa_schema.sql
 -- ------------------------------------------------------------
-create table if not exists prompt_governance_registry (
+create table if not exists ctxa_prompt_governance_registry (
     id bigserial primary key,
     registry_scope varchar(128) not null,
     prompt_key varchar(128) not null,
@@ -3948,24 +3948,24 @@ create table if not exists prompt_governance_registry (
 );
 
 -- W3-16: the share of a scope's requests a CANARY release runs for; null is the whole scope.
-alter table prompt_governance_registry add column if not exists canary_percent integer check (canary_percent between 0 and 100);
+alter table ctxa_prompt_governance_registry add column if not exists canary_percent integer check (canary_percent between 0 and 100);
 -- W6-9 (P6-CHANGE-6): a canary release's target tenants and resource families (comma separated, none is every one).
-alter table prompt_governance_registry add column if not exists canary_tenants varchar(2000);
-alter table prompt_governance_registry add column if not exists canary_resource_families varchar(2000);
+alter table ctxa_prompt_governance_registry add column if not exists canary_tenants varchar(2000);
+alter table ctxa_prompt_governance_registry add column if not exists canary_resource_families varchar(2000);
 
-create unique index if not exists idx_prompt_governance_registry_identity
-    on prompt_governance_registry (registry_scope, prompt_key, prompt_version);
+create unique index if not exists ctxa_idx_prompt_governance_registry_identity
+    on ctxa_prompt_governance_registry (registry_scope, prompt_key, prompt_version);
 
-create index if not exists idx_prompt_governance_registry_current
-    on prompt_governance_registry (registry_scope, prompt_key, updated_at);
+create index if not exists ctxa_idx_prompt_governance_registry_current
+    on ctxa_prompt_governance_registry (registry_scope, prompt_key, updated_at);
 
-create index if not exists idx_prompt_governance_registry_release
-    on prompt_governance_registry (registry_scope, release_status, updated_at);
+create index if not exists ctxa_idx_prompt_governance_registry_release
+    on ctxa_prompt_governance_registry (registry_scope, release_status, updated_at);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260504_03__prompt_governance_jpa_schema.sql, V20260723_01__prompt_runtime_governance_descriptor_integrity.sql
 -- ------------------------------------------------------------
-create table if not exists prompt_governance_release_ledger (
+create table if not exists ctxa_prompt_governance_release_ledger (
     id bigserial primary key,
     registry_scope varchar(128) not null,
     prompt_key varchar(128) not null,
@@ -3983,18 +3983,18 @@ create table if not exists prompt_governance_release_ledger (
     contract_version varchar(128)
 );
 
-create unique index if not exists idx_prompt_governance_release_identity
-    on prompt_governance_release_ledger (
+create unique index if not exists ctxa_idx_prompt_governance_release_identity
+    on ctxa_prompt_governance_release_ledger (
         registry_scope, prompt_key, template_key, prompt_version, contract_version
     );
 
-create index if not exists idx_prompt_governance_release_current
-    on prompt_governance_release_ledger (registry_scope, prompt_key, updated_at);
+create index if not exists ctxa_idx_prompt_governance_release_current
+    on ctxa_prompt_governance_release_ledger (registry_scope, prompt_key, updated_at);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260504_03__prompt_governance_jpa_schema.sql
 -- ------------------------------------------------------------
-create table if not exists prompt_governance_release_workflow (
+create table if not exists ctxa_prompt_governance_release_workflow (
     id bigserial primary key,
     registry_scope varchar(128) not null,
     prompt_key varchar(128) not null,
@@ -4010,16 +4010,16 @@ create table if not exists prompt_governance_release_workflow (
     created_at timestamp(6) not null default current_timestamp
 );
 
-create index if not exists idx_prompt_release_workflow_scope_created
-    on prompt_governance_release_workflow (registry_scope, created_at);
+create index if not exists ctxa_idx_prompt_release_workflow_scope_created
+    on ctxa_prompt_governance_release_workflow (registry_scope, created_at);
 
-create index if not exists idx_prompt_release_workflow_prompt_created
-    on prompt_governance_release_workflow (registry_scope, prompt_key, created_at);
+create index if not exists ctxa_idx_prompt_release_workflow_prompt_created
+    on ctxa_prompt_governance_release_workflow (registry_scope, prompt_key, created_at);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260504_03__prompt_governance_jpa_schema.sql, V20260724_02__remove_obsolete_prompt_budget_fields.sql
 -- ------------------------------------------------------------
-create table if not exists prompt_governance_budget_profile (
+create table if not exists ctxa_prompt_governance_budget_profile (
     id bigserial primary key,
     registry_scope varchar(128) not null,
     prompt_key varchar(128) not null,
@@ -4037,16 +4037,16 @@ create table if not exists prompt_governance_budget_profile (
     updated_at timestamp(6) not null default current_timestamp
 );
 
-create unique index if not exists idx_prompt_budget_profile_identity
-    on prompt_governance_budget_profile (registry_scope, prompt_key, prompt_version, budget_profile_key);
+create unique index if not exists ctxa_idx_prompt_budget_profile_identity
+    on ctxa_prompt_governance_budget_profile (registry_scope, prompt_key, prompt_version, budget_profile_key);
 
-create index if not exists idx_prompt_budget_profile_current
-    on prompt_governance_budget_profile (registry_scope, prompt_key, updated_at);
+create index if not exists ctxa_idx_prompt_budget_profile_current
+    on ctxa_prompt_governance_budget_profile (registry_scope, prompt_key, updated_at);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260504_03__prompt_governance_jpa_schema.sql
 -- ------------------------------------------------------------
-create table if not exists prompt_governance_model_compatibility (
+create table if not exists ctxa_prompt_governance_model_compatibility (
     id bigserial primary key,
     registry_scope varchar(128) not null,
     prompt_key varchar(128) not null,
@@ -4063,16 +4063,16 @@ create table if not exists prompt_governance_model_compatibility (
     updated_at timestamp(6) not null default current_timestamp
 );
 
-create unique index if not exists idx_prompt_model_compatibility_identity
-    on prompt_governance_model_compatibility (registry_scope, prompt_key, prompt_version, model_profile_key);
+create unique index if not exists ctxa_idx_prompt_model_compatibility_identity
+    on ctxa_prompt_governance_model_compatibility (registry_scope, prompt_key, prompt_version, model_profile_key);
 
-create index if not exists idx_prompt_model_compatibility_current
-    on prompt_governance_model_compatibility (registry_scope, prompt_key, updated_at);
+create index if not exists ctxa_idx_prompt_model_compatibility_current
+    on ctxa_prompt_governance_model_compatibility (registry_scope, prompt_key, updated_at);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260504_03__prompt_governance_jpa_schema.sql
 -- ------------------------------------------------------------
-create table if not exists prompt_governance_change_ledger (
+create table if not exists ctxa_prompt_governance_change_ledger (
     id bigserial primary key,
     registry_scope varchar(128) not null,
     prompt_key varchar(128) not null,
@@ -4088,16 +4088,16 @@ create table if not exists prompt_governance_change_ledger (
     updated_at timestamp(6) not null default current_timestamp
 );
 
-create unique index if not exists idx_prompt_governance_change_identity
-    on prompt_governance_change_ledger (registry_scope, prompt_key, prompt_version);
+create unique index if not exists ctxa_idx_prompt_governance_change_identity
+    on ctxa_prompt_governance_change_ledger (registry_scope, prompt_key, prompt_version);
 
-create index if not exists idx_prompt_governance_change_current
-    on prompt_governance_change_ledger (registry_scope, prompt_key, updated_at);
+create index if not exists ctxa_idx_prompt_governance_change_current
+    on ctxa_prompt_governance_change_ledger (registry_scope, prompt_key, updated_at);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260504_03__prompt_governance_jpa_schema.sql
 -- ------------------------------------------------------------
-create table if not exists prompt_governance_eval_ledger (
+create table if not exists ctxa_prompt_governance_eval_ledger (
     id bigserial primary key,
     registry_scope varchar(128) not null,
     prompt_key varchar(128) not null,
@@ -4122,20 +4122,20 @@ create table if not exists prompt_governance_eval_ledger (
     updated_at timestamp(6) not null default current_timestamp
 );
 
-create unique index if not exists idx_prompt_governance_eval_identity
-    on prompt_governance_eval_ledger (registry_scope, prompt_key, prompt_version);
+create unique index if not exists ctxa_idx_prompt_governance_eval_identity
+    on ctxa_prompt_governance_eval_ledger (registry_scope, prompt_key, prompt_version);
 
-create index if not exists idx_prompt_governance_eval_current
-    on prompt_governance_eval_ledger (registry_scope, prompt_key, updated_at);
+create index if not exists ctxa_idx_prompt_governance_eval_current
+    on ctxa_prompt_governance_eval_ledger (registry_scope, prompt_key, updated_at);
 
 -- W6-8 (PV-5, PV-6): an evaluation names the bundle hash it ran and the runs it counted.
-alter table prompt_governance_eval_ledger add column if not exists bundle_hash varchar(64);
-alter table prompt_governance_eval_ledger add column if not exists run_reference varchar(256);
+alter table ctxa_prompt_governance_eval_ledger add column if not exists bundle_hash varchar(64);
+alter table ctxa_prompt_governance_eval_ledger add column if not exists run_reference varchar(256);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260504_03__prompt_governance_jpa_schema.sql
 -- ------------------------------------------------------------
-create table if not exists prompt_governance_rollback_ledger (
+create table if not exists ctxa_prompt_governance_rollback_ledger (
     id bigserial primary key,
     registry_scope varchar(128) not null,
     prompt_key varchar(128) not null,
@@ -4152,12 +4152,12 @@ create table if not exists prompt_governance_rollback_ledger (
     updated_at timestamp(6) not null default current_timestamp
 );
 
-create unique index if not exists idx_prompt_governance_rollback_identity
-    on prompt_governance_rollback_ledger (registry_scope, prompt_key, prompt_version);
+create unique index if not exists ctxa_idx_prompt_governance_rollback_identity
+    on ctxa_prompt_governance_rollback_ledger (registry_scope, prompt_key, prompt_version);
 
 -- W6-10 (P6-CHANGE-7): every rollback execution, refused ones included, with the conditions it was checked against.
 -- The rollback ledger keeps one row per bundle, and an execution is a new row here.
-create table if not exists prompt_governance_rollback_execution (
+create table if not exists ctxa_prompt_governance_rollback_execution (
     execution_key varchar(64) primary key,
     registry_scope varchar(128) not null,
     prompt_key varchar(128) not null,
@@ -4173,16 +4173,16 @@ create table if not exists prompt_governance_rollback_execution (
     approved_at timestamp(6)
 );
 
-create index if not exists idx_prompt_governance_rollback_execution_bundle
-    on prompt_governance_rollback_execution (registry_scope, prompt_key, executed_at);
+create index if not exists ctxa_idx_prompt_governance_rollback_execution_bundle
+    on ctxa_prompt_governance_rollback_execution (registry_scope, prompt_key, executed_at);
 
-create index if not exists idx_prompt_governance_rollback_current
-    on prompt_governance_rollback_ledger (registry_scope, prompt_key, updated_at);
+create index if not exists ctxa_idx_prompt_governance_rollback_current
+    on ctxa_prompt_governance_rollback_ledger (registry_scope, prompt_key, updated_at);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260427_06__prompt_governance_runtime_cache_invalidation.sql, V20260723_01__prompt_runtime_governance_descriptor_integrity.sql
 -- ------------------------------------------------------------
-create table if not exists prompt_governance_runtime_cache_invalidation (
+create table if not exists ctxa_prompt_governance_runtime_cache_invalidation (
     id bigserial primary key,
     event_id varchar(160) not null unique,
     registry_scope varchar(128) not null,
@@ -4197,16 +4197,16 @@ create table if not exists prompt_governance_runtime_cache_invalidation (
     contract_version varchar(128)
 );
 
-create index if not exists idx_prompt_governance_cache_invalidation_prompt
-    on prompt_governance_runtime_cache_invalidation (registry_scope, prompt_key, prompt_version, published_at desc);
+create index if not exists ctxa_idx_prompt_governance_cache_invalidation_prompt
+    on ctxa_prompt_governance_runtime_cache_invalidation (registry_scope, prompt_key, prompt_version, published_at desc);
 
-create index if not exists idx_prompt_governance_cache_invalidation_pending
-    on prompt_governance_runtime_cache_invalidation (consumed, published_at desc);
+create index if not exists ctxa_idx_prompt_governance_cache_invalidation_pending
+    on ctxa_prompt_governance_runtime_cache_invalidation (consumed, published_at desc);
 
-create index if not exists idx_prompt_runtime_slot_contract_label
-    on prompt_runtime_slot_contract (contract_version, label_key, active);
+create index if not exists ctxa_idx_prompt_runtime_slot_contract_label
+    on ctxa_prompt_runtime_slot_contract (contract_version, label_key, active);
 
-create table if not exists prompt_runtime_metric_check_slot_contract (
+create table if not exists ctxa_prompt_runtime_metric_check_slot_contract (
     id bigserial primary key,
     contract_version varchar(128) not null,
     prompt_key varchar(128) not null default 'SECURITY_DECISION',
@@ -4220,15 +4220,15 @@ create table if not exists prompt_runtime_metric_check_slot_contract (
     active boolean not null default true,
     created_at timestamp not null default current_timestamp,
     updated_at timestamp not null default current_timestamp,
-    constraint uq_prompt_runtime_metric_check_slot_contract
+    constraint ctxa_uq_prompt_runtime_metric_check_slot_contract
         unique (contract_version, prompt_key, metric_code, check_code, slot_key),
-    constraint fk_prompt_runtime_metric_check_slot_contract_slot
+    constraint ctxa_fk_prompt_runtime_metric_check_slot_contract_slot
         foreign key (contract_version, prompt_key, slot_key)
-        references prompt_runtime_slot_contract (contract_version, prompt_key, slot_key)
+        references ctxa_prompt_runtime_slot_contract (contract_version, prompt_key, slot_key)
 );
 
-create index if not exists idx_prompt_runtime_metric_check_slot_contract_check
-    on prompt_runtime_metric_check_slot_contract (contract_version, metric_code, check_code, active);
+create index if not exists ctxa_idx_prompt_runtime_metric_check_slot_contract_check
+    on ctxa_prompt_runtime_metric_check_slot_contract (contract_version, metric_code, check_code, active);
 
 with signal_source as (
     select distinct
@@ -4239,8 +4239,8 @@ with signal_source as (
            s.prompt_location,
            s.required_role,
            s.interpretation_role
-      from official_prompt_signal_contract s
-      join official_metric_evaluation_contract c
+      from ctxa_official_prompt_signal_contract s
+      join ctxa_official_metric_evaluation_contract c
         on c.contract_version = s.contract_version
        and c.metric_code = s.metric_code
        and c.check_code = s.check_code
@@ -4307,7 +4307,7 @@ slot_source as (
         interpretation_role
     from signal_source
 )
-insert into prompt_runtime_slot_contract (
+insert into ctxa_prompt_runtime_slot_contract (
     contract_version, prompt_key, slot_key, prompt_location, section_key, label_key,
     signal_key, canonical_context_path, source_producer, priority, truncation_policy,
     required_role, interpretation_role, active, created_at, updated_at
@@ -4340,8 +4340,8 @@ with signal_source as (
            s.prompt_location,
            s.required_role,
            s.interpretation_role
-      from official_prompt_signal_contract s
-      join official_metric_evaluation_contract c
+      from ctxa_official_prompt_signal_contract s
+      join ctxa_official_metric_evaluation_contract c
         on c.contract_version = s.contract_version
        and c.metric_code = s.metric_code
        and c.check_code = s.check_code
@@ -4380,7 +4380,7 @@ slot_source as (
         s.interpretation_role
     from signal_source s
 )
-insert into prompt_runtime_metric_check_slot_contract (
+insert into ctxa_prompt_runtime_metric_check_slot_contract (
     contract_version, prompt_key, metric_code, check_code, slot_key, prompt_location,
     required_role, interpretation_role, required, active, created_at, updated_at
 )
@@ -4396,19 +4396,19 @@ on conflict (contract_version, prompt_key, metric_code, check_code, slot_key) do
        active = true,
        updated_at = current_timestamp;
 
-delete from prompt_runtime_metric_check_slot_contract m
+delete from ctxa_prompt_runtime_metric_check_slot_contract m
  where not exists (
        select 1
-         from official_metric_evaluation_contract c
+         from ctxa_official_metric_evaluation_contract c
         where c.contract_version = m.contract_version
           and c.metric_code = m.metric_code
           and c.check_code = m.check_code
  );
 
-delete from prompt_runtime_slot_contract s
+delete from ctxa_prompt_runtime_slot_contract s
  where not exists (
        select 1
-         from prompt_runtime_metric_check_slot_contract m
+         from ctxa_prompt_runtime_metric_check_slot_contract m
         where m.contract_version = s.contract_version
           and m.prompt_key = s.prompt_key
           and m.slot_key = s.slot_key
@@ -4417,7 +4417,7 @@ delete from prompt_runtime_slot_contract s
 -- ------------------------------------------------------------
 -- Source migration: V20260526_01__pqa_sealed_evidence_resource_status.sql
 -- ------------------------------------------------------------
-create table if not exists pqa_sealed_evidence_resource_status (
+create table if not exists ctxa_pqa_sealed_evidence_resource_status (
     id bigserial primary key,
     tenant_id varchar(128) not null default 'default',
     resource_id varchar(255) not null,
@@ -4436,9 +4436,9 @@ create table if not exists pqa_sealed_evidence_resource_status (
     last_failure_reason varchar(2000),
     created_at timestamp not null default current_timestamp,
     updated_at timestamp not null default current_timestamp,
-    constraint uq_pqa_sealed_evidence_resource_status
+    constraint ctxa_uq_pqa_sealed_evidence_resource_status
         unique (tenant_id, resource_id, http_method),
-    constraint ck_pqa_sealed_evidence_resource_status_state
+    constraint ctxa_ck_pqa_sealed_evidence_resource_status_state
         check (evidence_status in (
             'NO_EVIDENCE',
             'BASELINE_REQUIRED',
@@ -4450,16 +4450,16 @@ create table if not exists pqa_sealed_evidence_resource_status (
         ))
 );
 
-create index if not exists idx_pqa_sealed_evidence_resource_status_url
-    on pqa_sealed_evidence_resource_status (tenant_id, resource_url, http_method);
+create index if not exists ctxa_idx_pqa_sealed_evidence_resource_status_url
+    on ctxa_pqa_sealed_evidence_resource_status (tenant_id, resource_url, http_method);
 
-create index if not exists idx_pqa_sealed_evidence_resource_status_state
-    on pqa_sealed_evidence_resource_status (tenant_id, evidence_status, updated_at);
+create index if not exists ctxa_idx_pqa_sealed_evidence_resource_status_state
+    on ctxa_pqa_sealed_evidence_resource_status (tenant_id, evidence_status, updated_at);
 
-create index if not exists idx_pqa_sealed_evidence_resource_status_package
-    on pqa_sealed_evidence_resource_status (latest_package_id);
+create index if not exists ctxa_idx_pqa_sealed_evidence_resource_status_package
+    on ctxa_pqa_sealed_evidence_resource_status (latest_package_id);
 
-create table if not exists pqa_sealed_evidence_issuance_audit (
+create table if not exists ctxa_pqa_sealed_evidence_issuance_audit (
     id bigserial primary key,
     audit_id varchar(128) not null unique,
     tenant_id varchar(128) not null default 'default',
@@ -4477,16 +4477,16 @@ create table if not exists pqa_sealed_evidence_issuance_audit (
     created_at timestamp not null default current_timestamp
 );
 
-create index if not exists idx_pqa_sealed_evidence_issuance_audit_resource
-    on pqa_sealed_evidence_issuance_audit (tenant_id, resource_id, http_method, created_at);
+create index if not exists ctxa_idx_pqa_sealed_evidence_issuance_audit_resource
+    on ctxa_pqa_sealed_evidence_issuance_audit (tenant_id, resource_id, http_method, created_at);
 
-create index if not exists idx_pqa_sealed_evidence_issuance_audit_package
-    on pqa_sealed_evidence_issuance_audit (package_id, created_at);
+create index if not exists ctxa_idx_pqa_sealed_evidence_issuance_audit_package
+    on ctxa_pqa_sealed_evidence_issuance_audit (package_id, created_at);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260526_02__pqa_sealed_evidence_readiness.sql
 -- ------------------------------------------------------------
-create table if not exists pqa_sealed_evidence_baseline_requirement_contract (
+create table if not exists ctxa_pqa_sealed_evidence_baseline_requirement_contract (
     id bigserial primary key,
     requirement_code varchar(96) not null unique,
     display_label varchar(200) not null,
@@ -4499,7 +4499,7 @@ create table if not exists pqa_sealed_evidence_baseline_requirement_contract (
     updated_at timestamp not null default current_timestamp
 );
 
-insert into pqa_sealed_evidence_baseline_requirement_contract
+insert into ctxa_pqa_sealed_evidence_baseline_requirement_contract
     (requirement_code, display_label, source_field_path, metric_codes, is_required, sort_order, is_active)
 values
     ('OBSERVED_HOURS', 'Observed hours', 'finalUserPrompt.personalWorkProfile.observedHours', 'BMA,USNS,RPI', true, 10, true),
@@ -4521,7 +4521,7 @@ on conflict (requirement_code) do update
        is_active = excluded.is_active,
        updated_at = current_timestamp;
 
-create table if not exists pqa_sealed_evidence_baseline_seed_ledger (
+create table if not exists ctxa_pqa_sealed_evidence_baseline_seed_ledger (
     id bigserial primary key,
     seed_id varchar(96) not null unique,
     tenant_id varchar(120) not null,
@@ -4535,14 +4535,14 @@ create table if not exists pqa_sealed_evidence_baseline_seed_ledger (
     seed_summary text not null,
     created_at timestamp not null default current_timestamp,
     updated_at timestamp not null default current_timestamp,
-    constraint pqa_sealed_evidence_baseline_seed_state_ck
+    constraint ctxa_pqa_sealed_evidence_baseline_seed_state_ck
         check (approval_state in ('APPROVED', 'REVOKED'))
 );
 
-create index if not exists idx_pqa_sealed_baseline_seed_scope
-    on pqa_sealed_evidence_baseline_seed_ledger (tenant_id, resource_id, http_method, user_id, action_family);
+create index if not exists ctxa_idx_pqa_sealed_baseline_seed_scope
+    on ctxa_pqa_sealed_evidence_baseline_seed_ledger (tenant_id, resource_id, http_method, user_id, action_family);
 
-create table if not exists pqa_sealed_evidence_baseline_readiness_ledger (
+create table if not exists ctxa_pqa_sealed_evidence_baseline_readiness_ledger (
     id bigserial primary key,
     readiness_id varchar(96) not null unique,
     tenant_id varchar(120) not null,
@@ -4557,23 +4557,23 @@ create table if not exists pqa_sealed_evidence_baseline_readiness_ledger (
     package_id varchar(120),
     created_at timestamp not null default current_timestamp,
     updated_at timestamp not null default current_timestamp,
-    constraint pqa_sealed_evidence_baseline_readiness_state_ck
+    constraint ctxa_pqa_sealed_evidence_baseline_readiness_state_ck
         check (readiness_state in ('READY', 'MISSING', 'NOT_APPLICABLE', 'UNKNOWN')),
-    constraint pqa_sealed_evidence_baseline_readiness_req_fk
+    constraint ctxa_pqa_sealed_evidence_baseline_readiness_req_fk
         foreign key (requirement_code)
-        references pqa_sealed_evidence_baseline_requirement_contract (requirement_code)
+        references ctxa_pqa_sealed_evidence_baseline_requirement_contract (requirement_code)
 );
 
-create unique index if not exists uq_pqa_sealed_baseline_readiness_scope
-    on pqa_sealed_evidence_baseline_readiness_ledger (
+create unique index if not exists ctxa_uq_pqa_sealed_baseline_readiness_scope
+    on ctxa_pqa_sealed_evidence_baseline_readiness_ledger (
         tenant_id, resource_id, http_method,
         coalesce(user_id, ''), coalesce(action_family, ''), requirement_code
     );
 
-create index if not exists idx_pqa_sealed_baseline_readiness_state
-    on pqa_sealed_evidence_baseline_readiness_ledger (tenant_id, resource_id, http_method, readiness_state);
+create index if not exists ctxa_idx_pqa_sealed_baseline_readiness_state
+    on ctxa_pqa_sealed_evidence_baseline_readiness_ledger (tenant_id, resource_id, http_method, readiness_state);
 
-create table if not exists pqa_sealed_evidence_rag_readiness_ledger (
+create table if not exists ctxa_pqa_sealed_evidence_rag_readiness_ledger (
     id bigserial primary key,
     readiness_id varchar(96) not null unique,
     tenant_id varchar(120) not null,
@@ -4587,25 +4587,25 @@ create table if not exists pqa_sealed_evidence_rag_readiness_ledger (
     package_id varchar(120),
     created_at timestamp not null default current_timestamp,
     updated_at timestamp not null default current_timestamp,
-    constraint pqa_sealed_evidence_rag_state_ck
+    constraint ctxa_pqa_sealed_evidence_rag_state_ck
         check (rag_state in ('DOCUMENTS_AVAILABLE', 'NO_DOCUMENTS', 'NOT_APPLICABLE', 'UNKNOWN')),
-    constraint pqa_sealed_evidence_rag_document_count_ck
+    constraint ctxa_pqa_sealed_evidence_rag_document_count_ck
         check (document_count >= 0)
 );
 
-create unique index if not exists uq_pqa_sealed_rag_readiness_scope
-    on pqa_sealed_evidence_rag_readiness_ledger (
+create unique index if not exists ctxa_uq_pqa_sealed_rag_readiness_scope
+    on ctxa_pqa_sealed_evidence_rag_readiness_ledger (
         tenant_id, resource_id, http_method,
         coalesce(user_id, ''), coalesce(action_family, '')
     );
 
-create index if not exists idx_pqa_sealed_rag_readiness_state
-    on pqa_sealed_evidence_rag_readiness_ledger (tenant_id, resource_id, http_method, rag_state);
+create index if not exists ctxa_idx_pqa_sealed_rag_readiness_state
+    on ctxa_pqa_sealed_evidence_rag_readiness_ledger (tenant_id, resource_id, http_method, rag_state);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260526_04__pqa_sealed_evidence_issuance_batch.sql
 -- ------------------------------------------------------------
-create table if not exists pqa_sealed_evidence_issuance_batch (
+create table if not exists ctxa_pqa_sealed_evidence_issuance_batch (
     batch_id varchar(128) primary key,
     tenant_id varchar(128) not null,
     actor varchar(255) not null,
@@ -4615,13 +4615,13 @@ create table if not exists pqa_sealed_evidence_issuance_batch (
     batch_state varchar(32) not null,
     created_at timestamp not null,
     updated_at timestamp not null,
-    constraint pqa_sealed_evidence_issuance_batch_state_ck
+    constraint ctxa_pqa_sealed_evidence_issuance_batch_state_ck
         check (batch_state in ('ISSUING', 'ISSUED', 'PARTIAL_FAILED', 'FAILED'))
 );
 
-create table if not exists pqa_sealed_evidence_issuance_batch_item (
+create table if not exists ctxa_pqa_sealed_evidence_issuance_batch_item (
     item_id varchar(128) primary key,
-    batch_id varchar(128) not null references pqa_sealed_evidence_issuance_batch(batch_id) on delete cascade,
+    batch_id varchar(128) not null references ctxa_pqa_sealed_evidence_issuance_batch(batch_id) on delete cascade,
     tenant_id varchar(128) not null,
     resource_id varchar(255) not null,
     resource_url varchar(1000) not null,
@@ -4633,23 +4633,23 @@ create table if not exists pqa_sealed_evidence_issuance_batch_item (
     failure_reason text,
     created_at timestamp not null,
     updated_at timestamp not null,
-    constraint pqa_sealed_evidence_issuance_batch_item_status_ck
+    constraint ctxa_pqa_sealed_evidence_issuance_batch_item_status_ck
         check (evidence_status in ('ISSUING', 'ISSUED', 'FAILED'))
 );
 
-create index if not exists idx_pqa_sealed_evidence_issuance_batch_tenant
-    on pqa_sealed_evidence_issuance_batch (tenant_id, created_at desc);
+create index if not exists ctxa_idx_pqa_sealed_evidence_issuance_batch_tenant
+    on ctxa_pqa_sealed_evidence_issuance_batch (tenant_id, created_at desc);
 
-create index if not exists idx_pqa_sealed_evidence_issuance_batch_item_batch
-    on pqa_sealed_evidence_issuance_batch_item (batch_id, created_at);
+create index if not exists ctxa_idx_pqa_sealed_evidence_issuance_batch_item_batch
+    on ctxa_pqa_sealed_evidence_issuance_batch_item (batch_id, created_at);
 
-create index if not exists idx_pqa_sealed_evidence_issuance_batch_item_resource
-    on pqa_sealed_evidence_issuance_batch_item (tenant_id, resource_id, http_method, created_at desc);
+create index if not exists ctxa_idx_pqa_sealed_evidence_issuance_batch_item_resource
+    on ctxa_pqa_sealed_evidence_issuance_batch_item (tenant_id, resource_id, http_method, created_at desc);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260529_02__official_metric_check_display_evidence_contract.sql
 -- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS official_metric_check_display_evidence_contract (
+CREATE TABLE IF NOT EXISTS ctxa_official_metric_check_display_evidence_contract (
     id BIGSERIAL PRIMARY KEY,
     contract_version VARCHAR(128) NOT NULL,
     metric_code VARCHAR(32) NOT NULL,
@@ -4666,25 +4666,25 @@ CREATE TABLE IF NOT EXISTS official_metric_check_display_evidence_contract (
     UNIQUE (contract_version, metric_code, check_code)
 );
 
-CREATE INDEX IF NOT EXISTS idx_official_metric_check_display_evidence_contract_lookup
-    ON official_metric_check_display_evidence_contract (contract_version, metric_code, check_code);
+CREATE INDEX IF NOT EXISTS ctxa_idx_official_metric_check_display_evidence_contract_lookup
+    ON ctxa_official_metric_check_display_evidence_contract (contract_version, metric_code, check_code);
 
 -- ------------------------------------------------------------
 -- Source migration: V20260529_03__official_metric_purpose_evidence_display_payload.sql
 -- ------------------------------------------------------------
-ALTER TABLE official_metric_purpose_evidence_ledger
+ALTER TABLE ctxa_official_metric_purpose_evidence_ledger
     ADD COLUMN IF NOT EXISTS context_items_json TEXT NOT NULL DEFAULT '[]',
     ADD COLUMN IF NOT EXISTS runtime_facts_json TEXT NOT NULL DEFAULT '[]';
 
 -- ------------------------------------------------------------
 -- Source migration: V20260529_04__official_metric_purpose_evidence_display_payload_backfill.sql
 -- ------------------------------------------------------------
-UPDATE official_metric_purpose_evidence_ledger evidence
+UPDATE ctxa_official_metric_purpose_evidence_ledger evidence
    SET runtime_facts_json = COALESCE(
            NULLIF(evidence.runtime_facts_json, '[]'),
            (
                SELECT payload.bound_facts_json
-                 FROM official_metric_customer_display_payload payload
+                 FROM ctxa_official_metric_customer_display_payload payload
                 WHERE payload.aggregate_run_id = evidence.aggregate_run_id
                   AND UPPER(payload.metric_code) = UPPER(evidence.metric_code)
                   AND payload.check_code = evidence.check_code
@@ -4703,7 +4703,7 @@ UPDATE official_metric_purpose_evidence_ledger evidence
            NULLIF(evidence.context_items_json, '[]'),
            (
                SELECT payload.context_items_json
-                 FROM official_metric_customer_display_payload payload
+                 FROM ctxa_official_metric_customer_display_payload payload
                 WHERE payload.aggregate_run_id = evidence.aggregate_run_id
                   AND UPPER(payload.metric_code) = UPPER(evidence.metric_code)
                   AND payload.check_code = evidence.check_code
@@ -4727,7 +4727,7 @@ UPDATE official_metric_purpose_evidence_ledger evidence
 WITH structured_runtime AS (
     SELECT e.id,
            jsonb_agg(to_jsonb(trim(value_text)) ORDER BY value_ord)::text AS runtime_facts_json
-      FROM official_metric_purpose_evidence_ledger e
+      FROM ctxa_official_metric_purpose_evidence_ledger e
       CROSS JOIN LATERAL jsonb_array_elements(e.runtime_facts_json::jsonb) WITH ORDINALITY item(payload, item_ord)
       CROSS JOIN LATERAL regexp_split_to_table(coalesce(item.payload ->> 'runtimeFacts', ''), E'[,\\n]') WITH ORDINALITY split(value_text, split_ord)
       CROSS JOIN LATERAL (SELECT item.item_ord * 1000 + split.split_ord AS value_ord) ords
@@ -4740,8 +4740,8 @@ WITH structured_runtime AS (
 binding_runtime AS (
     SELECT e.id,
            jsonb_agg(to_jsonb(fact_text) ORDER BY fact_ord)::text AS runtime_facts_json
-      FROM official_metric_purpose_evidence_ledger e
-      JOIN official_metric_check_display_evidence_contract c
+      FROM ctxa_official_metric_purpose_evidence_ledger e
+      JOIN ctxa_official_metric_check_display_evidence_contract c
         ON c.contract_version = e.contract_version
        AND upper(c.metric_code) = upper(e.metric_code)
        AND c.check_code = e.check_code
@@ -4756,7 +4756,7 @@ binding_runtime AS (
       JOIN LATERAL (
           SELECT concat(source_fact.source_fact_key, ' value ', v.value_preview) AS fact_text,
                  binding.binding_ord AS fact_ord
-            FROM official_prompt_field_value_ledger v
+            FROM ctxa_official_prompt_field_value_ledger v
            WHERE v.aggregate_run_id = e.aggregate_run_id
              AND source_fact.source_fact_key IS NOT NULL
              AND coalesce(v.value_preview, '') <> ''
@@ -4784,7 +4784,7 @@ binding_runtime AS (
 fallback_runtime AS (
     SELECT e.id,
            jsonb_build_array(e.evidence_value)::text AS runtime_facts_json
-      FROM official_metric_purpose_evidence_ledger e
+      FROM ctxa_official_metric_purpose_evidence_ledger e
      WHERE e.customer_visible = true
        AND (
              coalesce(e.runtime_facts_json, '[]') = '[]'
@@ -4793,7 +4793,7 @@ fallback_runtime AS (
        )
        AND coalesce(e.evidence_value, '') <> ''
 )
-UPDATE official_metric_purpose_evidence_ledger e
+UPDATE ctxa_official_metric_purpose_evidence_ledger e
    SET runtime_facts_json = coalesce(
            structured_runtime.runtime_facts_json,
            binding_runtime.runtime_facts_json,
@@ -4808,7 +4808,7 @@ UPDATE official_metric_purpose_evidence_ledger e
 -- ------------------------------------------------------------
 -- Source migration: V20260605_01__pqa_resource_action_family_prompt_field_contract.sql
 -- ------------------------------------------------------------
-insert into official_prompt_field_definition (
+insert into ctxa_official_prompt_field_definition (
     field_key,
     source_model,
     source_field_path,
@@ -4923,7 +4923,7 @@ on conflict (field_key) do update
 -- ------------------------------------------------------------
 -- Source migration: V20260605_02__pqa_rag_reason_prompt_field_contract.sql
 -- ------------------------------------------------------------
-insert into official_prompt_field_definition (
+insert into ctxa_official_prompt_field_definition (
     field_key,
     source_model,
     source_field_path,
@@ -5038,7 +5038,7 @@ on conflict (field_key) do update
 -- ------------------------------------------------------------
 -- Source migration: V20260606_01__pqa_rag_reason_contract_repair.sql
 -- ------------------------------------------------------------
-update official_prompt_field_definition
+update ctxa_official_prompt_field_definition
    set required_policy = case field_key
            when 'final_user_prompt_field:RAG_EVIDENCE.RAG_SCOPE_REASON' then 'RAG_SCOPE_REASON_REQUIRED'
            when 'final_user_prompt_field:RAG_EVIDENCE.RAG_AUTHORIZATION_REASON' then 'RAG_AUTH_REASON_REQUIRED'
@@ -5063,7 +5063,7 @@ update official_prompt_field_definition
        'final_user_prompt_field:RAG_EVIDENCE.RAG_DOCUMENT_AUTHORIZATION_REASON'
  );
 
-update official_prompt_field_definition
+update ctxa_official_prompt_field_definition
    set required_policy = case field_key
            when 'raw_user_prompt_field:RAG_EVIDENCE.RAG_SCOPE_REASON' then 'RAG_SCOPE_REASON_REQUIRED'
            when 'raw_user_prompt_field:RAG_EVIDENCE.RAG_AUTHORIZATION_REASON' then 'RAG_AUTH_REASON_REQUIRED'
@@ -5088,13 +5088,13 @@ update official_prompt_field_definition
        'raw_user_prompt_field:RAG_EVIDENCE.RAG_DOCUMENT_AUTHORIZATION_REASON'
  );
 
-create index idx_soar_approval_vote_decision
-    on soar_approval_votes (decision);
+create index ctxa_idx_soar_approval_vote_decision
+    on ctxa_soar_approval_votes (decision);
 
 
 
 -- Versioned ownership provenance used by the verified OSS -> Enterprise handoff.
-CREATE TABLE IF NOT EXISTS contexa_schema_provenance (
+CREATE TABLE IF NOT EXISTS ctxa_schema_provenance (
     product_owner VARCHAR(32) PRIMARY KEY,
     schema_version VARCHAR(160) NOT NULL,
     inventory_checksum VARCHAR(64) NOT NULL,
@@ -5104,22 +5104,22 @@ CREATE TABLE IF NOT EXISTS contexa_schema_provenance (
     recorded_at TIMESTAMP(6) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS contexa_schema_inventory_object (
+CREATE TABLE IF NOT EXISTS ctxa_schema_inventory_object (
     product_owner VARCHAR(32) NOT NULL,
     inventory_version VARCHAR(160) NOT NULL,
     object_type VARCHAR(16) NOT NULL,
     object_name VARCHAR(255) NOT NULL,
     recorded_at TIMESTAMP(6) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT pk_contexa_schema_inventory_object
+    CONSTRAINT ctxa_pk_contexa_schema_inventory_object
         PRIMARY KEY (product_owner, object_type, object_name),
-    CONSTRAINT fk_contexa_schema_inventory_object_owner
-        FOREIGN KEY (product_owner) REFERENCES contexa_schema_provenance(product_owner) ON DELETE CASCADE,
-    CONSTRAINT ck_contexa_schema_inventory_object_type
+    CONSTRAINT ctxa_fk_contexa_schema_inventory_object_owner
+        FOREIGN KEY (product_owner) REFERENCES ctxa_schema_provenance(product_owner) ON DELETE CASCADE,
+    CONSTRAINT ctxa_ck_contexa_schema_inventory_object_type
         CHECK (object_type IN ('TABLE', 'VIEW', 'MIGRATION'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_contexa_schema_inventory_object_version
-    ON contexa_schema_inventory_object(product_owner, inventory_version);
+CREATE INDEX IF NOT EXISTS ctxa_idx_contexa_schema_inventory_object_version
+    ON ctxa_schema_inventory_object(product_owner, inventory_version);
 
 -- Preserve the canonical check visibility in runtime ledgers.  Internal
 -- execution gates remain available to operators without becoming customer
@@ -5129,8 +5129,8 @@ WITH raw_visibility AS (
     SELECT DISTINCT ON (target.id)
            target.id,
            (check_json ->> 'customerVisible')::BOOLEAN AS customer_visible
-      FROM official_metric_input_readiness_ledger target
-      JOIN verification_run_ledger run
+      FROM ctxa_official_metric_input_readiness_ledger target
+      JOIN ctxa_verification_run_ledger run
         ON run.package_id = target.package_id
        AND run.run_id LIKE target.aggregate_run_id || '-%'
        AND run.endpoint_key = target.metric_code
@@ -5140,7 +5140,7 @@ WITH raw_visibility AS (
             OR check_json ->> 'checkCode' = target.metric_code || '_' || target.check_code)
      ORDER BY target.id, run.created_at DESC
 )
-UPDATE official_metric_input_readiness_ledger target
+UPDATE ctxa_official_metric_input_readiness_ledger target
    SET customer_visible = source.customer_visible
   FROM raw_visibility source
  WHERE target.id = source.id
@@ -5150,8 +5150,8 @@ WITH raw_visibility AS (
     SELECT DISTINCT ON (target.id)
            target.id,
            (check_json ->> 'customerVisible')::BOOLEAN AS customer_visible
-      FROM official_metric_purpose_evaluation_ledger target
-      JOIN verification_run_ledger run
+      FROM ctxa_official_metric_purpose_evaluation_ledger target
+      JOIN ctxa_verification_run_ledger run
         ON run.package_id = target.package_id
        AND run.run_id LIKE target.aggregate_run_id || '-%'
        AND run.endpoint_key = target.metric_code
@@ -5161,7 +5161,7 @@ WITH raw_visibility AS (
             OR check_json ->> 'checkCode' = target.metric_code || '_' || target.check_code)
      ORDER BY target.id, run.created_at DESC
 )
-UPDATE official_metric_purpose_evaluation_ledger target
+UPDATE ctxa_official_metric_purpose_evaluation_ledger target
    SET customer_visible = source.customer_visible
   FROM raw_visibility source
  WHERE target.id = source.id
@@ -5171,8 +5171,8 @@ WITH raw_visibility AS (
     SELECT DISTINCT ON (target.id)
            target.id,
            (check_json ->> 'customerVisible')::BOOLEAN AS customer_visible
-      FROM official_metric_purpose_evidence_ledger target
-      JOIN verification_run_ledger run
+      FROM ctxa_official_metric_purpose_evidence_ledger target
+      JOIN ctxa_verification_run_ledger run
         ON run.package_id = target.package_id
        AND run.run_id LIKE target.aggregate_run_id || '-%'
        AND run.endpoint_key = target.metric_code
@@ -5182,7 +5182,7 @@ WITH raw_visibility AS (
             OR check_json ->> 'checkCode' = target.metric_code || '_' || target.check_code)
      ORDER BY target.id, run.created_at DESC
 )
-UPDATE official_metric_purpose_evidence_ledger target
+UPDATE ctxa_official_metric_purpose_evidence_ledger target
    SET customer_visible = source.customer_visible
   FROM raw_visibility source
  WHERE target.id = source.id

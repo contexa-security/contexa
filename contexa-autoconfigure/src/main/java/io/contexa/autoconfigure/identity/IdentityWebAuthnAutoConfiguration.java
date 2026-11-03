@@ -20,6 +20,7 @@ import io.contexa.contexaidentity.security.service.PasskeyUserStatePurgeContribu
 import io.contexa.contexaidentity.security.webauthn.codec.DefaultPasskeyCreationOptionsCodec;
 import io.contexa.contexaidentity.security.webauthn.codec.PasskeyCreationOptionsCodec;
 import io.contexa.contexaidentity.security.webauthn.repository.SerializablePasskeyCreationOptionsRepository;
+import io.contexa.contexacommon.jdbc.LibraryTableNames;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -46,7 +47,7 @@ public class IdentityWebAuthnAutoConfiguration {
     public PublicKeyCredentialUserEntityRepository publicKeyCredentialUserEntityRepository(
             @Qualifier("contexaJdbcTemplate")
             JdbcOperations jdbcOperations) {
-        return new JdbcPublicKeyCredentialUserEntityRepository(jdbcOperations);
+        return new JdbcPublicKeyCredentialUserEntityRepository(LibraryTableNames.wrap(jdbcOperations));
     }
 
     @Bean
@@ -55,7 +56,7 @@ public class IdentityWebAuthnAutoConfiguration {
     public UserCredentialRepository userCredentialRepository(
             @Qualifier("contexaJdbcTemplate")
             JdbcOperations jdbcOperations) {
-        return new JdbcUserCredentialRepository(jdbcOperations);
+        return new JdbcUserCredentialRepository(LibraryTableNames.wrap(jdbcOperations));
     }
 
     @Bean

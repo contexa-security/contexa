@@ -10,12 +10,12 @@ public final class JdbcOfficialVerificationActualPromptProblemLinker
         implements OfficialVerificationActualPromptProblemLinker {
 
     private static final String LINK_PURPOSE_SQL = """
-            update official_actual_prompt_problem_ledger p
+            update ctxa_official_actual_prompt_problem_ledger p
                set purpose_evaluation_id = e.id,
                    contract_version_id = coalesce(
                        p.contract_version_id, c.id,
                        (
-                           select c2.id from official_metric_evaluation_contract c2
+                           select c2.id from ctxa_official_metric_evaluation_contract c2
                             where c2.contract_version = e.contract_version
                               and upper(c2.metric_code) = upper(e.metric_code)
                               and (c2.check_code = e.check_code or c2.issue_key = e.issue_key or c2.issue_key = p.field_key)
@@ -27,15 +27,15 @@ public final class JdbcOfficialVerificationActualPromptProblemLinker
                    fix_action = coalesce(nullif(trim(p.fix_action), ''), e.next_action),
                    reverify_criterion_detail = coalesce(
                        nullif(trim(p.reverify_criterion_detail), ''), e.reverify_criterion)
-              from official_metric_purpose_evaluation_ledger e
-              left join official_metric_evaluation_contract c
+              from ctxa_official_metric_purpose_evaluation_ledger e
+              left join ctxa_official_metric_evaluation_contract c
                 on c.contract_version = e.contract_version
                and upper(c.metric_code) = upper(e.metric_code)
                and (c.check_code = e.check_code or c.issue_key = e.issue_key)
              where p.aggregate_run_id = ?
                and p.package_id = ?
                and exists (
-                   select 1 from sealed_evidence_package sealed
+                   select 1 from ctxa_sealed_evidence_package sealed
                     where sealed.package_id = p.package_id and sealed.tenant_id = ?
                )
                and e.aggregate_run_id = p.aggregate_run_id
@@ -44,15 +44,15 @@ public final class JdbcOfficialVerificationActualPromptProblemLinker
                and (p.purpose_evaluation_id is null or p.contract_version_id is null)
             """;
     private static final String MARK_BLOCKING_FIELDS_SQL = """
-            update official_prompt_field_value_ledger v
+            update ctxa_official_prompt_field_value_ledger v
                set blocking_candidate = true
-              from official_actual_prompt_problem_ledger p
+              from ctxa_official_actual_prompt_problem_ledger p
              where p.aggregate_run_id = ?
                and p.package_id = ?
                and v.aggregate_run_id = p.aggregate_run_id
                and v.package_id = p.package_id
                and exists (
-                   select 1 from sealed_evidence_package sealed
+                   select 1 from ctxa_sealed_evidence_package sealed
                     where sealed.package_id = p.package_id and sealed.tenant_id = ?
                )
                and upper(v.prompt_stage) = 'FINAL_USER'

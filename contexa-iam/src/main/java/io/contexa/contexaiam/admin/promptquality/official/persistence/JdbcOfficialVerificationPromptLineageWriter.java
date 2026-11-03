@@ -10,7 +10,7 @@ import java.util.Objects;
 public final class JdbcOfficialVerificationPromptLineageWriter implements OfficialVerificationPromptLineageWriter {
 
     private static final String INSERT_SQL = """
-            insert into official_prompt_generation_lineage (
+            insert into ctxa_official_prompt_generation_lineage (
                 package_id, aggregate_run_id, prompt_hash, context_hash,
                 system_prompt_hash, user_prompt_hash, raw_prompt_hash,
                 raw_system_prompt_hash, raw_user_prompt_hash,

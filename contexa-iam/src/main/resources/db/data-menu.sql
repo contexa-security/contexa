@@ -8,22 +8,22 @@
 -- ----------------------------------------------------------------
 WITH duplicate_menu AS (
     SELECT id, MIN(id) OVER (PARTITION BY data_page) AS keep_id
-      FROM admin_menu
+      FROM ctxa_admin_menu
      WHERE data_page IS NOT NULL
 )
-INSERT INTO admin_menu_role (menu_id, role_name)
+INSERT INTO ctxa_admin_menu_role (menu_id, role_name)
 SELECT DISTINCT d.keep_id, r.role_name
   FROM duplicate_menu d
-  JOIN admin_menu_role r ON r.menu_id = d.id
+  JOIN ctxa_admin_menu_role r ON r.menu_id = d.id
  WHERE d.id <> d.keep_id
 ON CONFLICT (menu_id, role_name) DO NOTHING;
 
 WITH duplicate_menu AS (
     SELECT id, MIN(id) OVER (PARTITION BY data_page) AS keep_id
-      FROM admin_menu
+      FROM ctxa_admin_menu
      WHERE data_page IS NOT NULL
 )
-UPDATE admin_menu child
+UPDATE ctxa_admin_menu child
    SET parent_id = d.keep_id
   FROM duplicate_menu d
  WHERE child.parent_id = d.id
@@ -31,46 +31,46 @@ UPDATE admin_menu child
 
 WITH duplicate_menu AS (
     SELECT id, MIN(id) OVER (PARTITION BY data_page) AS keep_id
-      FROM admin_menu
+      FROM ctxa_admin_menu
      WHERE data_page IS NOT NULL
 )
-DELETE FROM admin_menu_role r
+DELETE FROM ctxa_admin_menu_role r
  USING duplicate_menu d
  WHERE r.menu_id = d.id
    AND d.id <> d.keep_id;
 
 WITH duplicate_menu AS (
     SELECT id, MIN(id) OVER (PARTITION BY data_page) AS keep_id
-      FROM admin_menu
+      FROM ctxa_admin_menu
      WHERE data_page IS NOT NULL
 )
-DELETE FROM admin_menu m
+DELETE FROM ctxa_admin_menu m
  USING duplicate_menu d
  WHERE m.id = d.id
    AND d.id <> d.keep_id;
 
-DELETE FROM admin_menu_role r
- USING admin_menu m
+DELETE FROM ctxa_admin_menu_role r
+ USING ctxa_admin_menu m
  WHERE r.menu_id = m.id
    AND m.data_page = 'ai-monitor-operations';
 
-DELETE FROM admin_menu
+DELETE FROM ctxa_admin_menu
  WHERE data_page = 'ai-monitor-operations';
-DELETE FROM admin_menu_role r
- USING admin_menu m
+DELETE FROM ctxa_admin_menu_role r
+ USING ctxa_admin_menu m
  WHERE r.menu_id = m.id
    AND m.data_page IN ('prompt-quality-official', 'prompt-quality-enterprise-official');
 
-DELETE FROM admin_menu
+DELETE FROM ctxa_admin_menu
  WHERE data_page IN ('prompt-quality-official', 'prompt-quality-enterprise-official');
 
-UPDATE admin_menu
+UPDATE ctxa_admin_menu
    SET name = 'menu.nav.aiMonitor'
  WHERE data_page = 'ai-monitor'
    AND name IN ('AI 보안 모니터', 'AI Security Monitor', 'AI Monitor', 'AI 모니터');
 
-CREATE UNIQUE INDEX IF NOT EXISTS ux_admin_menu_data_page
-    ON admin_menu (data_page)
+CREATE UNIQUE INDEX IF NOT EXISTS ctxa_ux_admin_menu_data_page
+    ON ctxa_admin_menu (data_page)
  WHERE data_page IS NOT NULL;
 
 -- ----------------------------------------------------------------
@@ -88,7 +88,7 @@ WITH seed(name, url, icon, parent_id, menu_order, enabled, menu_type, data_page)
     ('menu.nav.pqa',        NULL,               '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 3h6m2.25 5.25h-10.5A2.25 2.25 0 014.5 18V6A2.25 2.25 0 016.75 3.75h6.879c.597 0 1.169.237 1.591.659l3.621 3.621c.422.422.659.994.659 1.591V18a2.25 2.25 0 01-2.25 2.25z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.5 3.75V8.25c0 .621.504 1.125 1.125 1.125H19.5"/></svg>',                                                                                                                                                                          NULL::BIGINT, 8, TRUE, 'CORE',       'prompt-quality')
 ),
 updated AS (
-    UPDATE admin_menu m
+    UPDATE ctxa_admin_menu m
        SET name = s.name,
            url = s.url,
            icon = s.icon,
@@ -100,11 +100,11 @@ updated AS (
      WHERE m.data_page = s.data_page
  RETURNING m.data_page
 )
-INSERT INTO admin_menu (name, url, icon, parent_id, menu_order, enabled, menu_type, data_page)
+INSERT INTO ctxa_admin_menu (name, url, icon, parent_id, menu_order, enabled, menu_type, data_page)
 SELECT s.name, s.url, s.icon, s.parent_id, s.menu_order, s.enabled, s.menu_type, s.data_page
   FROM seed s
  WHERE NOT EXISTS (SELECT 1 FROM updated u WHERE u.data_page = s.data_page)
-   AND NOT EXISTS (SELECT 1 FROM admin_menu m WHERE m.data_page = s.data_page);
+   AND NOT EXISTS (SELECT 1 FROM ctxa_admin_menu m WHERE m.data_page = s.data_page);
 
 -- ----------------------------------------------------------------
 -- Submenu items (parent_id resolved by data_page for stability under regenerated IDs)
@@ -140,10 +140,10 @@ WITH seed(name, url, icon, parent_data_page, menu_order, enabled, menu_type, dat
 resolved AS (
     SELECT s.name, s.url, s.icon, p.id AS parent_id, s.menu_order, s.enabled, s.menu_type, s.data_page
       FROM seed s
-      JOIN admin_menu p ON p.data_page = s.parent_data_page AND p.parent_id IS NULL
+      JOIN ctxa_admin_menu p ON p.data_page = s.parent_data_page AND p.parent_id IS NULL
 ),
 updated AS (
-    UPDATE admin_menu m
+    UPDATE ctxa_admin_menu m
        SET name = r.name,
            url = r.url,
            icon = r.icon,
@@ -155,11 +155,11 @@ updated AS (
      WHERE m.data_page = r.data_page
  RETURNING m.data_page
 )
-INSERT INTO admin_menu (name, url, icon, parent_id, menu_order, enabled, menu_type, data_page)
+INSERT INTO ctxa_admin_menu (name, url, icon, parent_id, menu_order, enabled, menu_type, data_page)
 SELECT r.name, r.url, r.icon, r.parent_id, r.menu_order, r.enabled, r.menu_type, r.data_page
   FROM resolved r
  WHERE NOT EXISTS (SELECT 1 FROM updated u WHERE u.data_page = r.data_page)
-   AND NOT EXISTS (SELECT 1 FROM admin_menu m WHERE m.data_page = r.data_page);
+   AND NOT EXISTS (SELECT 1 FROM ctxa_admin_menu m WHERE m.data_page = r.data_page);
 
 -- ----------------------------------------------------------------
 -- Sequence sync.
@@ -168,8 +168,8 @@ SELECT r.name, r.url, r.icon, r.parent_id, r.menu_order, r.enabled, r.menu_type,
 -- Use plain statements because Spring SQL initialization splits this file on
 -- semicolons and cannot safely execute procedural blocks.
 -- ----------------------------------------------------------------
-SELECT setval('admin_menu_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM admin_menu), 0), 1), COALESCE((SELECT MAX(id) FROM admin_menu), 0) > 0)
-WHERE to_regclass('admin_menu_id_seq') IS NOT NULL;
+SELECT setval('ctxa_admin_menu_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM ctxa_admin_menu), 0), 1), COALESCE((SELECT MAX(id) FROM ctxa_admin_menu), 0) > 0)
+WHERE to_regclass('ctxa_admin_menu_id_seq') IS NOT NULL;
 
-SELECT setval('admin_menu_role_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM admin_menu_role), 0), 1), COALESCE((SELECT MAX(id) FROM admin_menu_role), 0) > 0)
-WHERE to_regclass('admin_menu_role_id_seq') IS NOT NULL;
+SELECT setval('ctxa_admin_menu_role_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM ctxa_admin_menu_role), 0), 1), COALESCE((SELECT MAX(id) FROM ctxa_admin_menu_role), 0) > 0)
+WHERE to_regclass('ctxa_admin_menu_role_id_seq') IS NOT NULL;

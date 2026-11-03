@@ -53,7 +53,7 @@ public final class OfficialRunLightweightEvidenceReader {
                    sealed,
                    expires_at,
                    created_at
-              FROM sealed_evidence_package
+              FROM ctxa_sealed_evidence_package
              WHERE package_id = ?
             """;
     private final JdbcOperations jdbcOperations;

@@ -25,7 +25,7 @@ public class DefaultSealedEvidencePackageQueryService implements SealedEvidenceP
             + "system_prompt_text, user_prompt_text, prompt_hash, system_prompt_hash, user_prompt_hash, "
             + "raw_system_prompt_hash, raw_user_prompt_hash, seal_state, seal_failure_reason, "
             + "decision_json, package_hash, schema_version, sealed, expires_at, created_at "
-            + "from sealed_evidence_package";
+            + "from ctxa_sealed_evidence_package";
 
     private final SealedEvidencePackageLookupPort lookupService;
     private final JdbcTemplate jdbcTemplate;

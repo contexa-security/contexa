@@ -24,9 +24,9 @@ import java.time.LocalDateTime;
  * Tracks active HTTP sessions for admin monitoring and forced invalidation.
  */
 @Entity
-@Table(name = "active_sessions", indexes = {
-        @Index(name = "idx_session_user_id", columnList = "user_id"),
-        @Index(name = "idx_session_expired", columnList = "expired")
+@Table(name = "ctxa_active_sessions", indexes = {
+        @Index(name = "ctxa_idx_session_user_id", columnList = "user_id"),
+        @Index(name = "ctxa_idx_session_expired", columnList = "expired")
 })
 @Getter
 @Setter

@@ -28,7 +28,7 @@ public final class JdbcOfficialVerificationMetricSnapshotRepository implements O
                                passed_checks, total_checks, failed_check_count, operator_title,
                                operator_summary, primary_failure_reason, remediation_owner,
                                next_action, reverify_criterion, diagnostic_catalog_version, created_at
-                          from official_verification_metric_snapshot
+                          from ctxa_official_verification_metric_snapshot
                          where aggregate_run_id = ?
                          order by metric_code asc
                         """,
@@ -47,7 +47,7 @@ public final class JdbcOfficialVerificationMetricSnapshotRepository implements O
                                passed_checks, total_checks, failed_check_count, operator_title,
                                operator_summary, primary_failure_reason, remediation_owner,
                                next_action, reverify_criterion, diagnostic_catalog_version, created_at
-                          from official_verification_metric_snapshot
+                          from ctxa_official_verification_metric_snapshot
                          where aggregate_run_id in (%s)
                          order by aggregate_run_id asc, metric_code asc
                         """.formatted(placeholders(aggregateRunIds)),

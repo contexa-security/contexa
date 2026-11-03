@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Map;
 
 @Entity
-@Table(name = "soar_approval_requests")
+@Table(name = "ctxa_soar_approval_requests")
 @Getter
 @Setter
 @EntityListeners(AuditingEntityListener.class)

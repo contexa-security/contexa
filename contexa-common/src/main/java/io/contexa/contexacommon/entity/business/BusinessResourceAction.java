@@ -25,7 +25,7 @@ import java.io.Serializable;
 import java.util.Objects;
 
 @Entity
-@Table(name = "BUSINESS_RESOURCE_ACTION")
+@Table(name = "CTXA_BUSINESS_RESOURCE_ACTION")
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor

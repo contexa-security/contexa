@@ -179,7 +179,7 @@ class JdbcAgentRegistryTest {
             pool.shutdownNow();
         }
 
-        assertThat(jdbc.queryForObject("select count(*) from agent_registration", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from ctxa_agent_registration", Integer.class)).isEqualTo(1);
         AgentRegistration agent = registry.find(null, "agent-7").orElseThrow();
         assertThat(agent.firstSeenAt()).isEqualTo(Instant.parse("2026-10-22T04:00:00Z"));
         assertThat(agent.lastSeenAt()).isEqualTo(Instant.parse("2026-10-22T04:02:00Z"));
@@ -238,9 +238,9 @@ class JdbcAgentRegistryTest {
 
     private static List<String> agentRegistrationDdl() throws Exception {
         String schema = new ClassPathResource("db/schema.sql").getContentAsString(StandardCharsets.UTF_8);
-        Matcher table = Pattern.compile("(?is)create table if not exists agent_registration\\s*\\(.*?\\n\\);").matcher(schema);
+        Matcher table = Pattern.compile("(?is)create table if not exists ctxa_agent_registration\\s*\\(.*?\\n\\);").matcher(schema);
         assertThat(table.find()).isTrue();
-        Matcher indexes = Pattern.compile("(?is)create (?:unique )?index if not exists \\S+\\s+on agent_registration[^;]*;")
+        Matcher indexes = Pattern.compile("(?is)create (?:unique )?index if not exists \\S+\\s+on ctxa_agent_registration[^;]*;")
                 .matcher(schema);
         List<String> statements = new ArrayList<>();
         statements.add(table.group().replace(";", ""));

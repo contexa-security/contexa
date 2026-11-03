@@ -138,14 +138,14 @@ class JdbcPromptInspectionQueriesTest {
                 PromptInspectionTrigger.AUTO, T0.plusSeconds(3700));
         seal("p4", T0.plusSeconds(10800), "user-b", "GET", "/api/documents/D-2", "readDocument", "2026.10.11-v19.8");
         Long earlier = jdbc.queryForObject("""
-                insert into prompt_inspection_result (package_id, inspector_version, dictionary_version, layout_version,
+                insert into ctxa_prompt_inspection_result (package_id, inspector_version, dictionary_version, layout_version,
                        verdict, checked_count, mismatch_count, unverifiable_count, check_counts_json, inspection_trigger,
                        inspected_at)
                 values ('p4', 'prompt-inspector/1', 'dictionary-v20', 'v20-dictionary-blocks', 'FAIL', 4, 1, 0,
                         '[{"checkCode":"FACT_ACCURACY","matched":3,"mismatched":1,"unverifiable":0}]', 'AUTO', ?)
                 returning id
                 """, Long.class, Timestamp.from(T0.plusSeconds(10900)));
-        jdbc.update("insert into prompt_inspection_finding (result_id, check_code, outcome, block_name, entry_name, "
+        jdbc.update("insert into ctxa_prompt_inspection_finding (result_id, check_code, outcome, block_name, entry_name, "
                 + "line_number, reason) values (?, 'FACT_ACCURACY', 'MISMATCH', 'REQUEST', 'Time', 4, 'mismatch')",
                 earlier);
 
@@ -161,7 +161,7 @@ class JdbcPromptInspectionQueriesTest {
     private void seal(String packageId, Instant capturedAt, String userId, String method, String path, String resourceId,
                       String bundleVersion) {
         jdbc.update("""
-                        insert into sealed_evidence_package (package_id, correlation_id, captured_at, user_id,
+                        insert into ctxa_sealed_evidence_package (package_id, correlation_id, captured_at, user_id,
                                request_facts_json, request_facts_jsonb, prompt_execution_metadata_json, package_hash)
                         values (?, ?, ?, ?, ?, ?::jsonb, ?, ?)
                         """, packageId, "correlation-" + packageId, Timestamp.from(capturedAt), userId,

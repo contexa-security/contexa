@@ -83,12 +83,23 @@ public final class ContexaSchemaInventory {
                 }
             }
         }
+        // scripts that were applied under the former names lead to the tables under their present ones
+        tables = renamedToPresent(tables);
+        views = renamedToPresent(views);
         if (!migrations.isEmpty()) {
             tables.add("flyway_schema_history");
         }
         String checksum = HexFormat.of().formatHex(digest.digest());
         String version = owner.toLowerCase(Locale.ROOT) + "-" + checksum.substring(0, 16);
         return new Snapshot(owner, version, checksum, tables, views, migrations);
+    }
+
+    private static Set<String> renamedToPresent(Set<String> names) {
+        Set<String> present = new TreeSet<>();
+        for (String name : names) {
+            present.add(FormerTableNames.current(name));
+        }
+        return present;
     }
 
     private static String resourceIdentity(Resource resource) {

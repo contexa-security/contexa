@@ -27,7 +27,7 @@ import java.util.Map;
 import java.util.Set;
 
 @Entity
-@Table(name = "threat_indicators")
+@Table(name = "ctxa_threat_indicators")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -90,7 +90,7 @@ public class ThreatIndicator {
     private LocalDateTime expiresAt;
     
     @ElementCollection
-    @CollectionTable(name = "indicator_metadata", 
+    @CollectionTable(name = "ctxa_indicator_metadata", 
                      joinColumns = @JoinColumn(name = "indicator_id"))
     @MapKeyColumn(name = "meta_key")
     @Column(name = "meta_value")
@@ -98,7 +98,7 @@ public class ThreatIndicator {
     private Map<String, String> metadata = new HashMap<>();
     
     @ElementCollection
-    @CollectionTable(name = "indicator_tags", 
+    @CollectionTable(name = "ctxa_indicator_tags", 
                      joinColumns = @JoinColumn(name = "indicator_id"))
     @Column(name = "tag")
     @Builder.Default
@@ -149,7 +149,7 @@ public class ThreatIndicator {
     
     @ManyToMany
     @JoinTable(
-        name = "related_indicators",
+        name = "ctxa_related_indicators",
         joinColumns = @JoinColumn(name = "indicator_id"),
         inverseJoinColumns = @JoinColumn(name = "related_indicator_id")
     )

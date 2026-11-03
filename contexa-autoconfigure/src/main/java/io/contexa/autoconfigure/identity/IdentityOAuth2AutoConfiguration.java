@@ -140,6 +140,7 @@ import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexacommon.jdbc.LibraryTableNames;
 
 @Slf4j
 @AutoConfiguration
@@ -303,7 +304,7 @@ public class IdentityOAuth2AutoConfiguration {
             RegisteredClientRepository registeredClientRepository) {
 
         JdbcOAuth2AuthorizationService jdbcService =
-                new JdbcOAuth2AuthorizationService(jdbcTemplate, registeredClientRepository);
+                new JdbcOAuth2AuthorizationService(LibraryTableNames.wrap(jdbcTemplate), registeredClientRepository);
 
         ObjectMapper authorizationObjectMapper = authorizationObjectMapper();
 
@@ -345,7 +346,7 @@ public class IdentityOAuth2AutoConfiguration {
 
         initializeAuthorizationServerSchema(jdbcTemplate.getDataSource());
 
-        JdbcRegisteredClientRepository repository = new JdbcRegisteredClientRepository(jdbcTemplate);
+        JdbcRegisteredClientRepository repository = new JdbcRegisteredClientRepository(LibraryTableNames.wrap(jdbcTemplate));
 
         RegisteredClient existingClient = repository.findByClientId(clientId);
         if (existingClient != null) {

@@ -22,7 +22,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "FUNCTION_GROUP")
+@Table(name = "CTXA_FUNCTION_GROUP")
 @Getter @Setter @Builder
 @NoArgsConstructor @AllArgsConstructor
 public class FunctionGroup {

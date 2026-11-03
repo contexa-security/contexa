@@ -36,7 +36,7 @@ final class OfficialVerificationExecutionLockQueryRepository {
         }
         try {
             return jdbcTemplate.query(
-                    "select " + EXECUTION_COLUMNS + " from official_verification_execution_lock"
+                    "select " + EXECUTION_COLUMNS + " from ctxa_official_verification_execution_lock"
                             + " where tenant_id = ? and package_id = ? and execution_scope = ?"
                             + " order by updated_at desc, id desc limit 1",
                     this::record,
@@ -58,7 +58,7 @@ final class OfficialVerificationExecutionLockQueryRepository {
         }
         try {
             return jdbcTemplate.query(
-                    "select " + EXECUTION_COLUMNS + " from official_verification_execution_lock"
+                    "select " + EXECUTION_COLUMNS + " from ctxa_official_verification_execution_lock"
                             + " where tenant_id = ? and package_id = ? and aggregate_run_id = ?"
                             + " and execution_scope = ?"
                             + " order by updated_at desc, id desc limit 1",
@@ -81,7 +81,7 @@ final class OfficialVerificationExecutionLockQueryRepository {
             return jdbcTemplate.query("""
                             select metric_code, sequence_no, state, progress_percent, recoverable,
                                    failure_reason, retry_instruction, started_at, completed_at
-                              from official_verification_metric_execution_ledger
+                              from ctxa_official_verification_metric_execution_ledger
                              where execution_lock_id = ?
                                and tenant_id = ?
                                and attempt_no = ?
@@ -108,7 +108,7 @@ final class OfficialVerificationExecutionLockQueryRepository {
 
     Optional<ExecutionRecord> queryByKey(String tenantId, String idempotencyKey) {
         return jdbcTemplate.query(
-                "select " + EXECUTION_COLUMNS + " from official_verification_execution_lock"
+                "select " + EXECUTION_COLUMNS + " from ctxa_official_verification_execution_lock"
                         + " where tenant_id = ? and idempotency_key = ?",
                 this::record,
                 trim(tenantId),
@@ -121,7 +121,7 @@ final class OfficialVerificationExecutionLockQueryRepository {
             return Optional.empty();
         }
         return jdbcTemplate.query(
-                "select " + EXECUTION_COLUMNS + " from official_verification_execution_lock"
+                "select " + EXECUTION_COLUMNS + " from ctxa_official_verification_execution_lock"
                         + " where tenant_id = ? and package_id = ?"
                         + " and state in (?, ?, ?, ?, ?, ?, ?) order by created_at desc, id desc limit 1",
                 this::record,
@@ -143,7 +143,7 @@ final class OfficialVerificationExecutionLockQueryRepository {
             return Optional.empty();
         }
         return jdbcTemplate.query(
-                "select " + EXECUTION_COLUMNS + " from official_verification_execution_lock"
+                "select " + EXECUTION_COLUMNS + " from ctxa_official_verification_execution_lock"
                         + " where tenant_id = ? and package_id = ? and execution_scope = ?"
                         + " and state in (?, ?, ?, ?, ?, ?, ?) order by created_at desc, id desc limit 1",
                 this::record,
@@ -167,7 +167,7 @@ final class OfficialVerificationExecutionLockQueryRepository {
         }
         Integer count = jdbcTemplate.queryForObject("""
                         select count(*)
-                          from official_verification_execution_lock
+                          from ctxa_official_verification_execution_lock
                          where id = ?
                            and tenant_id = ?
                            and attempt_no = ?
@@ -185,7 +185,7 @@ final class OfficialVerificationExecutionLockQueryRepository {
         }
         Integer count = jdbcTemplate.queryForObject("""
                         select count(*)
-                          from official_verification_execution_lock
+                          from ctxa_official_verification_execution_lock
                          where id = ?
                            and tenant_id = ?
                            and execution_scope = ?

@@ -21,7 +21,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "password_policy")
+@Table(name = "ctxa_password_policy")
 @Getter
 @Setter
 @Builder

@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * The confirmations of agents' requests kept in the Contexa database (table {@code agent_confirmation}, docs/agent
+ * The confirmations of agents' requests kept in the Contexa database (table {@code ctxa_agent_confirmation}, docs/agent
  * A5-2). A decision and the use of an approval are each one conditional update, so that two of them never both
  * succeed.
  */
@@ -48,7 +48,7 @@ public class JdbcAgentConfirmationStore implements AgentConfirmationStore {
 
     @Override
     public AgentConfirmation save(AgentConfirmation confirmation) {
-        jdbc.update("insert into agent_confirmation (" + COLUMNS + ") values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
+        jdbc.update("insert into ctxa_agent_confirmation (" + COLUMNS + ") values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
                         + "?, ?, ?, ?, ?, ?, ?, ?, ?) on conflict (confirmation_id) do update set "
                         + "status = excluded.status, expires_at = excluded.expires_at, "
                         + "decided_at = excluded.decided_at, decided_by = excluded.decided_by, "
@@ -70,20 +70,20 @@ public class JdbcAgentConfirmationStore implements AgentConfirmationStore {
         if (confirmationId == null) {
             return Optional.empty();
         }
-        return jdbc.query("select " + COLUMNS + " from agent_confirmation where confirmation_id = ?",
+        return jdbc.query("select " + COLUMNS + " from ctxa_agent_confirmation where confirmation_id = ?",
                 JdbcAgentConfirmationStore::confirmation, confirmationId).stream().findFirst();
     }
 
     @Override
     public Optional<AgentConfirmation> latest(String subjectKey, String requestHash, AgentConfirmation.Status status) {
-        return jdbc.query("select " + COLUMNS + " from agent_confirmation where subject_key = ? and request_hash = ? "
+        return jdbc.query("select " + COLUMNS + " from ctxa_agent_confirmation where subject_key = ? and request_hash = ? "
                         + "and status = ? order by created_at desc limit 1", JdbcAgentConfirmationStore::confirmation,
                 subjectKey, requestHash, status.name()).stream().findFirst();
     }
 
     @Override
     public boolean transition(AgentConfirmation next, AgentConfirmation.Status expected) {
-        return jdbc.update("update agent_confirmation set status = ?, expires_at = ?, decided_at = ?, decided_by = ?, "
+        return jdbc.update("update ctxa_agent_confirmation set status = ?, expires_at = ?, decided_at = ?, decided_by = ?, "
                         + "decision_note = ?, authorization_id = ?, used_at = ? where confirmation_id = ? "
                         + "and status = ?", next.status().name(), timestamp(next.expiresAt()),
                 timestamp(next.decidedAt()), next.decidedBy(), next.decisionNote(), next.authorizationId(),
@@ -92,21 +92,21 @@ public class JdbcAgentConfirmationStore implements AgentConfirmationStore {
 
     @Override
     public boolean markUsed(String confirmationId, String requestHash, Instant usedAt) {
-        return jdbc.update("update agent_confirmation set status = ?, used_at = ? where confirmation_id = ? "
+        return jdbc.update("update ctxa_agent_confirmation set status = ?, used_at = ? where confirmation_id = ? "
                         + "and request_hash = ? and status = ?", AgentConfirmation.Status.USED.name(),
                 timestamp(usedAt), confirmationId, requestHash, AgentConfirmation.Status.APPROVED.name()) == 1;
     }
 
     @Override
     public List<AgentConfirmation> forRecipient(String recipientId, int limit) {
-        return jdbc.query("select " + COLUMNS + " from agent_confirmation where recipient_id = ? "
+        return jdbc.query("select " + COLUMNS + " from ctxa_agent_confirmation where recipient_id = ? "
                         + "order by created_at desc limit ?", JdbcAgentConfirmationStore::confirmation, recipientId,
                 Math.max(0, limit));
     }
 
     @Override
     public List<AgentConfirmation> overdue(Instant now, int limit) {
-        return jdbc.query("select " + COLUMNS + " from agent_confirmation where status in (?, ?) and expires_at <= ? "
+        return jdbc.query("select " + COLUMNS + " from ctxa_agent_confirmation where status in (?, ?) and expires_at <= ? "
                         + "order by expires_at limit ?", JdbcAgentConfirmationStore::confirmation,
                 AgentConfirmation.Status.PENDING.name(), AgentConfirmation.Status.APPROVED.name(), timestamp(now),
                 Math.max(0, limit));
@@ -115,17 +115,17 @@ public class JdbcAgentConfirmationStore implements AgentConfirmationStore {
     @Override
     public void removeForUser(String userId) {
         if (userId != null) {
-            jdbc.update("delete from agent_confirmation where user_id = ? or recipient_id = ?", userId, userId);
+            jdbc.update("delete from ctxa_agent_confirmation where user_id = ? or recipient_id = ?", userId, userId);
         }
     }
 
     @Override
     public List<AgentConfirmation> list(@Nullable String tenantId, int limit) {
         if (tenantId == null) {
-            return jdbc.query("select " + COLUMNS + " from agent_confirmation order by created_at desc limit ?",
+            return jdbc.query("select " + COLUMNS + " from ctxa_agent_confirmation order by created_at desc limit ?",
                     JdbcAgentConfirmationStore::confirmation, Math.max(0, limit));
         }
-        return jdbc.query("select " + COLUMNS + " from agent_confirmation where tenant_key = ? "
+        return jdbc.query("select " + COLUMNS + " from ctxa_agent_confirmation where tenant_key = ? "
                         + "order by created_at desc limit ?", JdbcAgentConfirmationStore::confirmation,
                 AgentRegistrations.tenantKey(tenantId), Math.max(0, limit));
     }

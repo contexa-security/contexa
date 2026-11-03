@@ -16,11 +16,11 @@ public final class JdbcOfficialVerificationSnapshotRelationIntegrityRepository
     @Override
     public void assertMetricSnapshotComplete(String aggregateRunId) {
         Integer count = jdbcTemplate.queryForObject(
-                "select count(*) from official_verification_metric_snapshot where aggregate_run_id = ?",
+                "select count(*) from ctxa_official_verification_metric_snapshot where aggregate_run_id = ?",
                 Integer.class,
                 aggregateRunId);
         Integer expectedMetricCount = jdbcTemplate.queryForObject(
-                "select max(expected_metric_count) from official_verification_run_batch where aggregate_run_id = ?",
+                "select max(expected_metric_count) from ctxa_official_verification_run_batch where aggregate_run_id = ?",
                 Integer.class,
                 aggregateRunId);
         if (count == null || expectedMetricCount == null || expectedMetricCount <= 0
@@ -36,13 +36,13 @@ public final class JdbcOfficialVerificationSnapshotRelationIntegrityRepository
                         select count(*)
                           from (
                                 select distinct comparison_field_key
-                                  from official_verification_operator_finding
+                                  from ctxa_official_verification_operator_finding
                                  where aggregate_run_id = ?
                                    and comparison_field_key is not null
                                    and trim(comparison_field_key) <> ''
                                 except
                                 select distinct field_key
-                                  from official_verification_prompt_comparison
+                                  from ctxa_official_verification_prompt_comparison
                                  where aggregate_run_id = ?
                                    and field_key is not null
                                    and trim(field_key) <> ''
@@ -61,7 +61,7 @@ public final class JdbcOfficialVerificationSnapshotRelationIntegrityRepository
     public void assertActualPromptProblemLedgerAligned(String aggregateRunId) {
         Integer actualProblemCount = jdbcTemplate.queryForObject("""
                         select count(*)
-                          from official_actual_prompt_problem_ledger
+                          from ctxa_official_actual_prompt_problem_ledger
                          where aggregate_run_id = ?
                            and severity = 'BLOCKING'
                         """,
@@ -69,7 +69,7 @@ public final class JdbcOfficialVerificationSnapshotRelationIntegrityRepository
                 aggregateRunId);
         Integer findingCount = jdbcTemplate.queryForObject("""
                         select count(distinct check_code)
-                           from official_verification_operator_finding
+                           from ctxa_official_verification_operator_finding
                           where aggregate_run_id = ?
                             and check_code is not null
                             and trim(check_code) <> ''
@@ -84,13 +84,13 @@ public final class JdbcOfficialVerificationSnapshotRelationIntegrityRepository
         Integer blockedMetricWithoutProblem = jdbcTemplate.queryForObject("""
                         /* blocked_metric_without_problem */
                         select count(*)
-                          from official_verification_metric_snapshot m
+                          from ctxa_official_verification_metric_snapshot m
                          where m.aggregate_run_id = ?
                            and m.state = 'BLOCKED'
                            and upper(m.metric_code) not in ('MTR', 'RPI', 'PRE')
                            and not exists (
                                 select 1
-                                  from official_verification_operator_finding f
+                                  from ctxa_official_verification_operator_finding f
                                  where f.aggregate_run_id = m.aggregate_run_id
                                    and f.metric_code = m.metric_code
                            )
@@ -109,29 +109,29 @@ public final class JdbcOfficialVerificationSnapshotRelationIntegrityRepository
                         select count(*)
                           from (
                                 select distinct field_key
-                                  from official_prompt_field_state_ledger
+                                  from ctxa_official_prompt_field_state_ledger
                                  where aggregate_run_id = ?
                                    and field_key is not null
                                    and trim(field_key) <> ''
                                 except
                                 select distinct field_key
-                                  from official_prompt_field_definition
+                                  from ctxa_official_prompt_field_definition
                                  where is_active = true
                                 ) missing_field_definitions
                         """,
                 Integer.class,
                 aggregateRunId);
         if (undefinedStateRows != null && undefinedStateRows > 0) {
-            throw new IllegalStateException("Prompt field state ledger contains fields that are not registered in official_prompt_field_definition. aggregateRunId="
+            throw new IllegalStateException("Prompt field state ledger contains fields that are not registered in ctxa_official_prompt_field_definition. aggregateRunId="
                     + aggregateRunId + ", missingDefinitionCount=" + undefinedStateRows);
         }
         Integer missingStateRows = jdbcTemplate.queryForObject("""
                         select count(*)
-                          from official_prompt_field_definition d
+                          from ctxa_official_prompt_field_definition d
                          where d.is_active = true
                            and not exists (
                                 select 1
-                                  from official_prompt_field_state_ledger s
+                                  from ctxa_official_prompt_field_state_ledger s
                                  where s.aggregate_run_id = ?
                                    and s.field_key = d.field_key
                            )

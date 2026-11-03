@@ -10,6 +10,7 @@ io.contexa.autoconfigure.core.infra.CoreSchedulerLockAutoConfiguration
 io.contexa.contexacommon.config.JpaAuditingConfig
 io.contexa.autoconfigure.core.ContexaOwnedDataSourceAutoConfiguration
 io.contexa.autoconfigure.core.CoreDataAutoConfiguration
+io.contexa.autoconfigure.identity.ContexaSchemaPrefixAutoConfiguration
 
 # AI Bridge (repository-backed bridge beans)
 io.contexa.autoconfigure.ai.AiBridgeUserMirrorSyncAutoConfiguration

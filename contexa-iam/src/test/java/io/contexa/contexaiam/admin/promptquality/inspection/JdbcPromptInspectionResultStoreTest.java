@@ -101,7 +101,7 @@ class JdbcPromptInspectionResultStoreTest {
                 .containsExactly(tuple("REQUEST", "Action", "the line says another action", null),
                         tuple(null, null, "the request time is not sealed", null),
                         tuple("SESSION", "LoginMethod", "a line without a fact id keeps its line number", null));
-        assertThat(jdbc.queryForObject("select checked_count from prompt_inspection_result", Integer.class))
+        assertThat(jdbc.queryForObject("select checked_count from ctxa_prompt_inspection_result", Integer.class))
                 .isEqualTo(given.matchedCount() + given.mismatchCount() + given.unverifiableCount());
     }
 
@@ -114,8 +114,8 @@ class JdbcPromptInspectionResultStoreTest {
 
         store.save(again, PromptInspectionTrigger.OPERATOR, T0.plusSeconds(2));
 
-        assertThat(count("prompt_inspection_result")).isEqualTo(1);
-        assertThat(count("prompt_inspection_finding")).isZero();
+        assertThat(count("ctxa_prompt_inspection_result")).isEqualTo(1);
+        assertThat(count("ctxa_prompt_inspection_finding")).isZero();
         assertThat(store.findAll("p1").get(0).result()).isEqualTo(again);
     }
 
@@ -125,7 +125,7 @@ class JdbcPromptInspectionResultStoreTest {
         store.save(result("p1", "prompt-inspector/0", List.of()), PromptInspectionTrigger.AUTO, T0.plusSeconds(1));
         store.save(result("p1", VERSION, List.of()), PromptInspectionTrigger.AUTO, T0.plusSeconds(2));
 
-        assertThat(count("prompt_inspection_result")).isEqualTo(2);
+        assertThat(count("ctxa_prompt_inspection_result")).isEqualTo(2);
         assertThat(store.findAll("p1").get(0).result().inspectorVersion()).isEqualTo(VERSION);
     }
 
@@ -153,10 +153,10 @@ class JdbcPromptInspectionResultStoreTest {
         seal("p1", T0);
         store.save(result("p1", VERSION, List.of(finding("one"))), PromptInspectionTrigger.AUTO, T0.plusSeconds(1));
 
-        jdbc.update("delete from sealed_evidence_package where package_id = ?", "p1");
+        jdbc.update("delete from ctxa_sealed_evidence_package where package_id = ?", "p1");
 
-        assertThat(count("prompt_inspection_result")).isZero();
-        assertThat(count("prompt_inspection_finding")).isZero();
+        assertThat(count("ctxa_prompt_inspection_result")).isZero();
+        assertThat(count("ctxa_prompt_inspection_finding")).isZero();
         assertThat(store.findAll("p1")).isEmpty();
     }
 
@@ -169,7 +169,7 @@ class JdbcPromptInspectionResultStoreTest {
         assertThatThrownBy(() -> store.save(result("p1", VERSION, List.of(tooLong)), PromptInspectionTrigger.AUTO,
                 T0.plusSeconds(1))).isInstanceOf(RuntimeException.class);
 
-        assertThat(count("prompt_inspection_result")).isZero();
+        assertThat(count("ctxa_prompt_inspection_result")).isZero();
         assertThat(store.findUninspectedPackageIds(VERSION, 10, 100)).containsExactly("p1");
     }
 
@@ -195,7 +195,7 @@ class JdbcPromptInspectionResultStoreTest {
         assertThat(store.findAll("p2")).extracting(record -> record.result().inspectorVersion())
                 .containsExactly("prompt-inspector/0");
         // W3-20: the kind the removed results showed is left with the one package that still shows it.
-        assertThat(jdbc.queryForObject("select package_count from prompt_inspection_finding_kind", Long.class))
+        assertThat(jdbc.queryForObject("select package_count from ctxa_prompt_inspection_finding_kind", Long.class))
                 .isEqualTo(1);
     }
 
@@ -266,21 +266,21 @@ class JdbcPromptInspectionResultStoreTest {
                 PromptInspectionTrigger.AUTO, T0.plusSeconds(200));
         store.save(verdict("fail-then-pass", VERSION, PromptInspectionVerdict.PASS), PromptInspectionTrigger.AUTO,
                 T0.plusSeconds(300));
-        jdbc.update("insert into official_verification_run_batch (aggregate_run_id, package_id, tenant_id, scope_type, "
+        jdbc.update("insert into ctxa_official_verification_run_batch (aggregate_run_id, package_id, tenant_id, scope_type, "
                 + "expected_metric_count, final_decision) values ('run-1', 'pass-in-official-run', 'tenant-1', "
                 + "'PACKAGE', 12, 'PASSED')");
-        jdbc.update("insert into verification_run_ledger (run_id, user_id, metric_code, execution_path, package_id) "
+        jdbc.update("insert into ctxa_verification_run_ledger (run_id, user_id, metric_code, execution_path, package_id) "
                 + "values ('ledger-1', 'user-1', 'M01', 'official', 'pass-in-run-ledger')");
 
         assertThat(store.removeCleanPackagesCapturedBefore(before, 100)).isEqualTo(3);
 
-        assertThat(jdbc.queryForList("select package_id from sealed_evidence_package order by captured_at",
+        assertThat(jdbc.queryForList("select package_id from ctxa_sealed_evidence_package order by captured_at",
                 String.class)).containsExactly("fail", "incomplete", "error", "uninspected", "pass-then-fail",
                 "pass-in-official-run", "pass-in-run-ledger", "pass-recent");
-        assertThat(jdbc.queryForObject("select count(*) from prompt_inspection_result where package_id in "
+        assertThat(jdbc.queryForObject("select count(*) from ctxa_prompt_inspection_result where package_id in "
                 + "('pass', 'not-applicable', 'fail-then-pass')", Integer.class)).isZero();
         // fail, incomplete, error, the two of pass-then-fail, and the three that keep the default retention.
-        assertThat(count("prompt_inspection_result")).isEqualTo(8);
+        assertThat(count("ctxa_prompt_inspection_result")).isEqualTo(8);
     }
 
     /** R4-S5: one call removes at most the limit, oldest capture first. */
@@ -295,10 +295,10 @@ class JdbcPromptInspectionResultStoreTest {
         }
 
         assertThat(store.removeCleanPackagesCapturedBefore(T0.plusSeconds(100), 2)).isEqualTo(2);
-        assertThat(jdbc.queryForList("select package_id from sealed_evidence_package", String.class))
+        assertThat(jdbc.queryForList("select package_id from ctxa_sealed_evidence_package", String.class))
                 .containsExactly("c");
         assertThat(store.removeCleanPackagesCapturedBefore(T0.plusSeconds(100), 2)).isEqualTo(1);
-        assertThat(count("sealed_evidence_package")).isZero();
+        assertThat(count("ctxa_sealed_evidence_package")).isZero();
     }
 
     /**
@@ -320,14 +320,14 @@ class JdbcPromptInspectionResultStoreTest {
 
         assertThat(store.removeCleanPackagesCapturedBefore(T0.plusSeconds(100), 100)).isEqualTo(1);
 
-        assertThat(jdbc.queryForObject("select package_count from prompt_inspection_finding_kind", Long.class))
+        assertThat(jdbc.queryForObject("select package_count from ctxa_prompt_inspection_finding_kind", Long.class))
                 .isEqualTo(1);
-        assertThat(jdbc.queryForObject("select line_count from prompt_inspection_finding_kind", Long.class))
+        assertThat(jdbc.queryForObject("select line_count from ctxa_prompt_inspection_finding_kind", Long.class))
                 .isEqualTo(1);
     }
 
     private void seal(String packageId, Instant capturedAt) {
-        jdbc.update("insert into sealed_evidence_package (package_id, correlation_id, captured_at, package_hash) "
+        jdbc.update("insert into ctxa_sealed_evidence_package (package_id, correlation_id, captured_at, package_hash) "
                 + "values (?, ?, ?, ?)", packageId, "correlation-" + packageId, Timestamp.from(capturedAt), "hash");
     }
 
