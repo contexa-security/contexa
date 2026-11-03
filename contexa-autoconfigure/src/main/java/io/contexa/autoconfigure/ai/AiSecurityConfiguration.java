@@ -153,6 +153,14 @@ public class AiSecurityConfiguration {
         return new HostOwnedSecurityChainDiagnostics(beanFactory);
     }
 
+    /** What an installation should know at start about its ownership (findings F-1, F-2, F-8). */
+    @Bean
+    @ConditionalOnMissingBean
+    public OwnershipStartupDiagnostics ownershipStartupDiagnostics(ConfigurableListableBeanFactory beanFactory) {
+        return new OwnershipStartupDiagnostics(beanFactory,
+                "CONTEXA_OWNED".equalsIgnoreCase(environment.getProperty("contexa.bridge.ownership")));
+    }
+
     private SecurityMode resolveSecurityMode() {
         String configuredMode = environment.getProperty(AiSecurityImportSelector.PROP_MODE);
         if (configuredMode == null || configuredMode.isBlank()) {

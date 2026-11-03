@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{zerotrust.stepup.page.title})}"></head>
+<body class="flex flex-col min-h-screen font-sans" style="background: #050810;">
+<!--
+  The verification-only step-up when the application owns sign-in (HOST_OWNED). The application's sign-in, session
+  and cookies stay as they are; a passed verification is recorded as a decision and the user goes back.
+-->
+<meta th:if="${_csrf != null}" name="_csrf" th:content="${_csrf.token}">
+<meta th:if="${_csrf != null}" name="_csrf_header" th:content="${_csrf.headerName}">
+<meta th:if="${_csrf != null}" name="_csrf_parameter" th:content="${_csrf.parameterName}">
+
+<div class="flex items-center justify-center min-h-screen p-4">
+    <div class="w-full max-w-lg p-8 rounded-xl"
+         style="background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(71, 85, 105, 0.3);">
+
+        <h1 class="text-2xl font-bold mb-3 text-center" style="color: #e2e8f0;"
+            th:text="${purpose == 'BLOCK'} ? #{zerotrust.stepup.title.block}
+                     : (${purpose == 'CHALLENGE'} ? #{zerotrust.stepup.title.challenge} : #{zerotrust.stepup.title.none})">
+            Verify it is you</h1>
+
+        <th:block th:if="${purpose != null}">
+            <p class="mb-6 text-center" style="color: #94a3b8;" th:text="#{zerotrust.stepup.desc}">You stay signed in.</p>
+
+            <div class="space-y-3">
+                <button th:if="${situation.passkey}" id="step-up-passkey" type="button"
+                        class="w-full py-3 px-6 rounded-lg text-sm font-semibold"
+                        style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);"
+                        th:text="#{zerotrust.stepup.passkey}">Verify with a passkey</button>
+
+                <div th:if="${situation.oneTimeCode}" class="space-y-2">
+                    <button id="step-up-code-send" type="button"
+                            class="w-full py-3 px-6 rounded-lg text-sm font-semibold"
+                            style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);"
+                            th:text="#{zerotrust.stepup.code.send}">Email me a code</button>
+                    <div class="flex gap-2">
+                        <input id="step-up-code" type="text" inputmode="numeric" autocomplete="one-time-code"
+                               class="flex-1 py-3 px-4 rounded-lg text-sm"
+                               style="background: #0f172a; color: #e2e8f0; border: 1px solid rgba(71, 85, 105, 0.5);"
+                               th:placeholder="#{zerotrust.stepup.code.placeholder}">
+                        <button id="step-up-code-verify" type="button"
+                                class="py-3 px-4 rounded-lg text-sm font-semibold"
+                                style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);"
+                                th:text="#{zerotrust.stepup.code.verify}">Verify</button>
+                    </div>
+                </div>
+
+                <a th:if="${situation.reauthenticationUrl != null}" th:href="${situation.reauthenticationUrl}"
+                   class="block w-full py-3 px-6 rounded-lg text-sm font-semibold text-center"
+                   style="background: rgba(71, 85, 105, 0.2); color: #cbd5e1; border: 1px solid rgba(71, 85, 105, 0.4);"
+                   th:text="#{zerotrust.stepup.reauth}">Sign in again</a>
+
+                <p th:if="${!situation.passkey and !situation.oneTimeCode and situation.reauthenticationUrl == null}"
+                   class="text-center text-sm" style="color: #fca5a5;" th:text="#{zerotrust.stepup.none}">
+                    No way to verify is available.</p>
+            </div>
+        </th:block>
+
+        <th:block th:if="${situation != null and situation.passkeyRegistrable}">
+            <p class="mt-6 mb-3 text-center text-sm" style="color: #94a3b8;" th:text="#{zerotrust.stepup.register.desc}">
+                Register a passkey for the next verification.</p>
+            <button id="step-up-register" type="button" class="w-full py-3 px-6 rounded-lg text-sm font-semibold"
+                    style="background: rgba(16, 185, 129, 0.15); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3);"
+                    th:text="#{zerotrust.stepup.register}">Register a passkey</button>
+        </th:block>
+
+        <p id="step-up-message" class="mt-4 text-center text-sm" style="color: #94a3b8;"></p>
+        <a th:href="${returnUrl}" class="block mt-6 text-center text-sm" style="color: #64748b;"
+           th:text="#{zerotrust.stepup.back}">Back</a>
+    </div>
+</div>
+
+<div id="step-up-texts" hidden
+     th:attr="data-sent=#{zerotrust.stepup.code.sent},data-wait=#{zerotrust.stepup.code.wait},data-failed=#{zerotrust.stepup.failed},data-registered=#{zerotrust.stepup.registered}"></div>
+
+<script th:inline="javascript">
+(function () {
+    'use strict';
+    const base = /*[[${stepUpBase}]]*/ '/contexa/step-up';
+    const texts = document.getElementById('step-up-texts').dataset;
+    const message = document.getElementById('step-up-message');
+
+    function csrfHeaders(headers) {
+        const token = document.querySelector('meta[name="_csrf"]');
+        const header = document.querySelector('meta[name="_csrf_header"]');
+        if (token && header) {
+            headers[header.content] = token.content;
+        }
+        return headers;
+    }
+
+    function toBuffer(value) {
+        const base64 = value.replace(/-/g, '+').replace(/_/g, '/');
+        const padded = base64 + '='.repeat((4 - base64.length % 4) % 4);
+        return Uint8Array.from(atob(padded), c => c.charCodeAt(0)).buffer;
+    }
+
+    function toBase64Url(buffer) {
+        const bytes = new Uint8Array(buffer);
+        let text = '';
+        bytes.forEach(b => { text += String.fromCharCode(b); });
+        return btoa(text).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    async function post(path, body, contentType) {
+        const headers = csrfHeaders({'Accept': 'application/json'});
+        if (contentType) {
+            headers['Content-Type'] = contentType;
+        }
+        return fetch(base + path, {method: 'POST', headers: headers, body: body, credentials: 'same-origin'});
+    }
+
+    async function finish(response) {
+        const result = await response.json().catch(() => ({}));
+        if (response.ok && result.verified) {
+            window.location.href = result.redirectUrl || '/';
+        } else {
+            message.textContent = texts.failed;
+        }
+    }
+
+    const passkey = document.getElementById('step-up-passkey');
+    if (passkey) {
+        passkey.addEventListener('click', async () => {
+            try {
+                const options = await (await post('/passkey/options')).json();
+                options.challenge = toBuffer(options.challenge);
+                (options.allowCredentials || []).forEach(c => { c.id = toBuffer(c.id); });
+                const credential = await navigator.credentials.get({publicKey: options});
+                const body = {
+                    id: credential.id,
+                    rawId: toBase64Url(credential.rawId),
+                    type: credential.type,
+                    authenticatorAttachment: credential.authenticatorAttachment,
+                    clientExtensionResults: credential.getClientExtensionResults(),
+                    response: {
+                        authenticatorData: toBase64Url(credential.response.authenticatorData),
+                        clientDataJSON: toBase64Url(credential.response.clientDataJSON),
+                        signature: toBase64Url(credential.response.signature),
+                        userHandle: credential.response.userHandle ? toBase64Url(credential.response.userHandle) : null
+                    }
+                };
+                await finish(await post('/passkey/verify', JSON.stringify(body), 'application/json'));
+            } catch (e) {
+                message.textContent = texts.failed;
+            }
+        });
+    }
+
+    const send = document.getElementById('step-up-code-send');
+    if (send) {
+        send.addEventListener('click', async () => {
+            const result = await (await post('/code')).json().catch(() => ({}));
+            message.textContent = result.sent ? texts.sent : (result.wait ? texts.wait : texts.failed);
+        });
+        document.getElementById('step-up-code-verify').addEventListener('click', async () => {
+            const code = document.getElementById('step-up-code').value;
+            await finish(await post('/code/verify', new URLSearchParams({code: code}),
+                'application/x-www-form-urlencoded'));
+        });
+    }
+
+    const register = document.getElementById('step-up-register');
+    if (register) {
+        register.addEventListener('click', async () => {
+            try {
+                const options = await (await post('/passkey/register/options')).json();
+                options.challenge = toBuffer(options.challenge);
+                options.user.id = toBuffer(options.user.id);
+                (options.excludeCredentials || []).forEach(c => { c.id = toBuffer(c.id); });
+                const credential = await navigator.credentials.create({publicKey: options});
+                const body = {
+                    label: 'passkey',
+                    credential: {
+                        id: credential.id,
+                        rawId: toBase64Url(credential.rawId),
+                        type: credential.type,
+                        authenticatorAttachment: credential.authenticatorAttachment,
+                        clientExtensionResults: credential.getClientExtensionResults(),
+                        response: {
+                            attestationObject: toBase64Url(credential.response.attestationObject),
+                            clientDataJSON: toBase64Url(credential.response.clientDataJSON),
+                            transports: credential.response.getTransports ? credential.response.getTransports() : []
+                        }
+                    }
+                };
+                const result = await (await post('/passkey/register', JSON.stringify(body), 'application/json'))
+                    .json().catch(() => ({}));
+                message.textContent = result.registered ? texts.registered : texts.failed;
+                if (result.registered) {
+                    register.disabled = true;
+                }
+            } catch (e) {
+                message.textContent = texts.failed;
+            }
+        });
+    }
+})();
+</script>
+</body>
+</html>

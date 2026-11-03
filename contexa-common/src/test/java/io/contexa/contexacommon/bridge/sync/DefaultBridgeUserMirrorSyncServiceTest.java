@@ -304,6 +304,106 @@ class DefaultBridgeUserMirrorSyncServiceTest {
         return (String) syncHash.invoke(syncSnapshot);
     }
 
+    /**
+     * Exception tests 2026-11-03 (ownership harness): a value from the host longer than its column (a distinguished
+     * name as the department, a phone number with an extension, a signed avatar URL, a long subject as the name)
+     * failed the whole copy of the user on every request, with an error and a stack trace each time, and the user
+     * stayed without a copy (no step-up factor, no identity-bound feature). The copy keeps the user; each value is cut
+     * to its column.
+     */
+    @Test
+    void valuesLongerThanTheirColumnsAreCutNotFailed() {
+        UserRepository userRepository = mock(UserRepository.class);
+        BridgeUserProfileRepository bridgeUserProfileRepository = mock(BridgeUserProfileRepository.class);
+        DefaultBridgeUserMirrorSyncService service = new DefaultBridgeUserMirrorSyncService(
+                userRepository, bridgeUserProfileRepository, new BridgeProperties(), new ObjectMapper(), null);
+        when(userRepository.findByBridgeSubjectKey(anyString())).thenReturn(Optional.empty());
+        when(userRepository.findByExternalSubjectIdAndAuthenticationSourceAndOrganizationIdIsNull(anyString(), anyString()))
+                .thenReturn(Optional.empty());
+        when(bridgeUserProfileRepository.findById(anyLong())).thenReturn(Optional.empty());
+        when(userRepository.save(any(Users.class))).thenAnswer(invocation -> {
+            Users user = invocation.getArgument(0);
+            user.setId(7L);
+            return user;
+        });
+        when(bridgeUserProfileRepository.save(any(BridgeUserProfile.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        String subject = "cn=" + "a".repeat(150) + ",dc=corp";
+        AuthenticationStamp stamp = new AuthenticationStamp(subject, null, "U".repeat(80), true, "S".repeat(120),
+                "SESSION", "HIGH", true, Instant.parse("2026-03-24T01:00:00Z"), "session-1", List.of("ROLE_USER"),
+                Map.of("department", "OU=" + "d".repeat(200), "position", "p".repeat(200),
+                        "phone", "+82-2-1234-5678 ext. 99999", "avatarUrl", "https://cdn.example/" + "x".repeat(600),
+                        "locale", "ko-KR-u-ca-hanja", "timezone", "Asia/" + "z".repeat(80),
+                        "email", "e".repeat(300) + "@corp.example"));
+
+        BridgeUserMirrorSyncResult result = service.sync(stamp, authorizationStamp(), requestContext());
+
+        ArgumentCaptor<Users> saved = ArgumentCaptor.forClass(Users.class);
+        verify(userRepository).save(saved.capture());
+        Users user = saved.getValue();
+        assertThat(result).as("the user is mirrored").isNotNull();
+        assertThat(user.getName()).hasSizeLessThanOrEqualTo(100).startsWith("cn=");
+        assertThat(user.getDepartment()).hasSize(100);
+        assertThat(user.getPosition()).hasSize(100);
+        assertThat(user.getPhone()).hasSizeLessThanOrEqualTo(20);
+        assertThat(user.getProfileImageUrl()).hasSizeLessThanOrEqualTo(500);
+        assertThat(user.getLocale()).hasSizeLessThanOrEqualTo(10);
+        assertThat(user.getTimezone()).hasSizeLessThanOrEqualTo(50);
+        assertThat(user.getAuthenticationSource()).hasSizeLessThanOrEqualTo(100);
+        assertThat(user.getPrincipalType()).hasSizeLessThanOrEqualTo(50);
+        assertThat(user.getEmail()).as("an address longer than the column is not kept, a made-up one stands in")
+                .hasSizeLessThanOrEqualTo(255).endsWith("@shadow.contexa.local");
+        assertThat(user.getExternalSubjectId()).isEqualTo(subject);
+    }
+
+    @Test
+    void aCutValueDoesNotMakeEveryRequestAnUpdate() throws Exception {
+        UserRepository userRepository = mock(UserRepository.class);
+        BridgeUserProfileRepository bridgeUserProfileRepository = mock(BridgeUserProfileRepository.class);
+        BridgeProperties properties = new BridgeProperties();
+        properties.getSync().setMinRefreshIntervalSeconds(3600);
+        DefaultBridgeUserMirrorSyncService service = new DefaultBridgeUserMirrorSyncService(
+                userRepository, bridgeUserProfileRepository, properties, new ObjectMapper(), null);
+        AtomicReference<Users> stored = new AtomicReference<>();
+        AtomicReference<BridgeUserProfile> storedProfile = new AtomicReference<>();
+        when(userRepository.findByBridgeSubjectKey(anyString())).thenAnswer(invocation -> Optional.ofNullable(stored.get()));
+        when(userRepository.findByExternalSubjectIdAndAuthenticationSourceAndOrganizationIdIsNull(anyString(), anyString()))
+                .thenAnswer(invocation -> Optional.ofNullable(stored.get()));
+        when(bridgeUserProfileRepository.findById(anyLong())).thenAnswer(invocation -> Optional.ofNullable(storedProfile.get()));
+        when(userRepository.save(any(Users.class))).thenAnswer(invocation -> {
+            Users user = invocation.getArgument(0);
+            user.setId(7L);
+            stored.set(user);
+            return user;
+        });
+        when(bridgeUserProfileRepository.save(any(BridgeUserProfile.class))).thenAnswer(invocation -> {
+            BridgeUserProfile profile = invocation.getArgument(0);
+            storedProfile.set(profile);
+            return profile;
+        });
+        AuthenticationStamp stamp = new AuthenticationStamp("USR009", "Alice", "USER", true, "SESSION", "SESSION", "HIGH",
+                true, Instant.parse("2026-03-24T01:00:00Z"), "session-1", List.of("ROLE_USER"),
+                Map.of("department", "OU=" + "d".repeat(200)));
+
+        service.sync(stamp, authorizationStamp(), requestContext());
+        service.sync(stamp, authorizationStamp(), requestContext());
+
+        verify(userRepository, times(1)).save(any(Users.class));
+    }
+
+    @Test
+    void aSubjectLongerThanItsColumnIsNotMirroredAndDoesNotFail() {
+        UserRepository userRepository = mock(UserRepository.class);
+        DefaultBridgeUserMirrorSyncService service = new DefaultBridgeUserMirrorSyncService(
+                userRepository, mock(BridgeUserProfileRepository.class), new BridgeProperties(), new ObjectMapper(), null);
+        AuthenticationStamp stamp = new AuthenticationStamp("s".repeat(300), "Alice", "USER", true, "SESSION", "SESSION",
+                "HIGH", true, Instant.parse("2026-03-24T01:00:00Z"), "session-1", List.of("ROLE_USER"), Map.of());
+
+        BridgeUserMirrorSyncResult result = service.sync(stamp, authorizationStamp(), requestContext());
+
+        assertThat(result).isNull();
+        verify(userRepository, never()).save(any(Users.class));
+    }
+
     private AuthenticationStamp authenticationStamp() {
         return new AuthenticationStamp(
                 "USR001",

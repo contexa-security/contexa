@@ -22,6 +22,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.Ordered;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -163,5 +164,65 @@ class ZeroTrustExceptionHandlerTest {
         assertThat(answers.get()).isEqualTo(1);
         assertThat(new ZeroTrustExceptionHandler(starter(Optional.empty())).handleZeroTrustDenied(
                 ZeroTrustAccessDeniedException.challengeRequired("Export"), request, response)).isNotNull();
+    }
+
+    /**
+     * Finding F-7 (ownership harness 2026-11-03): an application's own advice for AccessDeniedException answered
+     * Contexa's decisions with its own 403 because this advice came last. It handles Contexa's exceptions only, so it
+     * goes first.
+     */
+    @Test
+    @DisplayName("the advice goes before the application's own advice")
+    void theAdviceGoesFirst() {
+        assertThat(new ZeroTrustExceptionHandler()).isInstanceOf(Ordered.class);
+        assertThat(new ZeroTrustExceptionHandler().getOrder())
+                .isEqualTo(Ordered.HIGHEST_PRECEDENCE);
+    }
+
+    /**
+     * Finding F-17: a browser that met a decision made inside a protected method got the error page 403 for every
+     * decision. It goes to the screen of the decision, as the request filters send it.
+     */
+    @Test
+    @DisplayName("a browser goes to the screen of the decision; an API client keeps the JSON answer")
+    void aBrowserGoesToTheScreenOfTheDecision() {
+        MockHttpServletRequest page = new MockHttpServletRequest("GET", "/app/orders");
+        page.setContextPath("/app");
+        page.addHeader("Accept", "text/html,application/xhtml+xml");
+        ZeroTrustExceptionHandler handler = new ZeroTrustExceptionHandler(starter(Optional.of("/contexa/step-up")));
+
+        ResponseEntity<ZeroTrustErrorResponse> blocked = handler.handleZeroTrustDenied(
+                ZeroTrustAccessDeniedException.blocked("OrderService.list"), page, new MockHttpServletResponse());
+        ResponseEntity<ZeroTrustErrorResponse> challenged = handler.handleZeroTrustDenied(
+                ZeroTrustAccessDeniedException.challengeRequired("OrderService.list"), page,
+                new MockHttpServletResponse());
+        ResponseEntity<ZeroTrustErrorResponse> escalated = handler.handleZeroTrustDenied(
+                ZeroTrustAccessDeniedException.pendingReview("OrderService.list"), page, new MockHttpServletResponse());
+
+        assertThat(blocked.getStatusCode().value()).isEqualTo(302);
+        assertThat(blocked.getHeaders().getLocation()).hasToString("/app/contexa/zero-trust/blocked");
+        assertThat(challenged.getStatusCode().value()).isEqualTo(302);
+        assertThat(challenged.getHeaders().getLocation())
+                .hasToString("/app/contexa/zero-trust/challenge-required?mfaUrl=%2Fcontexa%2Fstep-up");
+        assertThat(escalated.getStatusCode().value()).isEqualTo(302);
+        assertThat(escalated.getHeaders().getLocation())
+                .hasToString("/app/contexa/zero-trust/analysis-pending?returnUrl=%2Fapp%2Forders");
+
+        MockHttpServletRequest api = new MockHttpServletRequest("GET", "/app/orders");
+        api.setContextPath("/app");
+        api.addHeader("Accept", "application/json");
+        ResponseEntity<ZeroTrustErrorResponse> apiChallenge = handler.handleZeroTrustDenied(
+                ZeroTrustAccessDeniedException.challengeRequired("OrderService.list"), api,
+                new MockHttpServletResponse());
+        assertThat(apiChallenge.getStatusCode().value()).isEqualTo(401);
+        assertThat(apiChallenge.getBody().getMfaUrl()).isEqualTo("/contexa/step-up");
+
+        // A client that does not ask for HTML (curl, an SDK without an Accept header) keeps the status and the body.
+        MockHttpServletRequest plain = new MockHttpServletRequest("GET", "/app/orders");
+        plain.setContextPath("/app");
+        ResponseEntity<ZeroTrustErrorResponse> plainBlock = handler.handleZeroTrustDenied(
+                ZeroTrustAccessDeniedException.blocked("OrderService.list"), plain, new MockHttpServletResponse());
+        assertThat(plainBlock.getStatusCode().value()).isEqualTo(403);
+        assertThat(plainBlock.getBody().getCode()).isEqualTo("ZERO_TRUST_BLOCK");
     }
 }

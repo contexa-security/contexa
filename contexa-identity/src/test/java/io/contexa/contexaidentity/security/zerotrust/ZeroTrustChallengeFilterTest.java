@@ -152,6 +152,25 @@ class ZeroTrustChallengeFilterTest {
         verify(filterChain).doFilter(request, response);
     }
 
+    /**
+     * Q-5 (ownership design, 2026-11-03): under SHADOW a CHALLENGE stored earlier is not enforced; no step-up starts
+     * and the request goes on.
+     */
+    @Test
+    @DisplayName("집행이 꺼져 있으면(SHADOW) 저장된 CHALLENGE에도 요청을 통과시킨다")
+    void shadow() throws Exception {
+        when(request.getRequestURI()).thenReturn("/dashboard");
+        when(authentication.isAuthenticated()).thenReturn(true);
+        when(actionRepository.getCurrentAction(eq("testUser"), any())).thenReturn(ZeroTrustAction.CHALLENGE);
+        setUpAuthentication();
+        filter.setEnforcing(() -> false);
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(filterChain).doFilter(request, response);
+        verifyNoInteractions(challengeMfaInitializer);
+    }
+
     @Test
     @DisplayName("미인증 상태면 요청을 그대로 통과시킨다")
     void anon() throws Exception {
@@ -350,6 +369,80 @@ class ZeroTrustChallengeFilterTest {
         assertThat(filter.start(request, response)).isEmpty();
     }
 
+    /**
+     * Ownership design S-1/S-2 (HOST_OWNED): the application owns sign-in, so a CHALLENGE starts no Contexa MFA flow
+     * (no flow state, no session) and a browser goes to the notice that leads to the verification-only step-up.
+     */
+    @Test
+    @DisplayName("Contexa's step-up pages are not held by a CHALLENGE")
+    void stepUpPathPasses() throws Exception {
+        when(request.getRequestURI()).thenReturn("/contexa/step-up/passkey/options");
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(filterChain).doFilter(request, response);
+        verifyNoInteractions(actionRepository);
+    }
+
+    @Test
+    @DisplayName("HOST_OWNED: a browser goes to the notice of Contexa's step-up and no MFA flow starts")
+    void hostOwnedBrowserGoesToTheStepUpNotice() throws Exception {
+        filter.setHostOwnedStepUp((req, auth, key) -> false);
+        when(request.getRequestURI()).thenReturn("/dashboard");
+        setUpChallengeAuthentication();
+        when(actionRepository.getCurrentAction(eq("testUser"), any())).thenReturn(ZeroTrustAction.CHALLENGE);
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(response).sendRedirect("/contexa/zero-trust/challenge-required?mfaUrl=%2Fcontexa%2Fstep-up");
+        verify(filterChain, never()).doFilter(request, response);
+        verifyNoInteractions(challengeMfaInitializer, sessionRepository, lockService);
+    }
+
+    @Test
+    @DisplayName("HOST_OWNED: an API client gets 401 with the notice and the step-up, as under FULL")
+    void hostOwnedApiClientGets401WithTheStepUp() throws Exception {
+        filter.setHostOwnedStepUp((req, auth, key) -> false);
+        when(request.getRequestURI()).thenReturn("/api/reports/export");
+        setUpChallengeAuthentication();
+        when(actionRepository.getCurrentAction(eq("testUser"), any())).thenReturn(ZeroTrustAction.CHALLENGE);
+
+        filter.doFilter(request, response, filterChain);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> body = ArgumentCaptor.forClass(Map.class);
+        verify(responseWriter).writeErrorResponse(eq(response), eq(401), eq("MFA_CHALLENGE_REQUIRED"),
+                anyString(), any(), body.capture());
+        assertThat(body.getValue()).containsEntry("mfaUrl", "/contexa/step-up")
+                .containsEntry("challengeNoticeUrl",
+                        "/contexa/zero-trust/challenge-required?mfaUrl=%2Fcontexa%2Fstep-up");
+        verifyNoInteractions(challengeMfaInitializer, sessionRepository, lockService);
+    }
+
+    @Test
+    @DisplayName("HOST_OWNED: the application's own re-authentication after the CHALLENGE lets the request on")
+    void hostOwnedReauthenticationResolvesTheChallenge() throws Exception {
+        filter.setHostOwnedStepUp((req, auth, key) -> "testUser".equals(key));
+        when(request.getRequestURI()).thenReturn("/dashboard");
+        setUpChallengeAuthentication();
+        when(actionRepository.getCurrentAction(eq("testUser"), any())).thenReturn(ZeroTrustAction.CHALLENGE);
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(filterChain).doFilter(request, response);
+        verify(response, never()).sendRedirect(anyString());
+    }
+
+    @Test
+    @DisplayName("HOST_OWNED: a CHALLENGE decided in the request is answered with the step-up, without a flow")
+    void hostOwnedStartAnswersWithTheStepUp() {
+        filter.setHostOwnedStepUp((req, auth, key) -> false);
+        setUpChallengeAuthentication();
+
+        assertThat(filter.start(request, response)).contains("/contexa/step-up");
+        verifyNoInteractions(challengeMfaInitializer, sessionRepository, lockService);
+    }
+
     @Test
     @DisplayName("Logout is never held by a CHALLENGE (W1-5)")
     void logoutPasses() throws Exception {
@@ -527,6 +620,18 @@ class ZeroTrustChallengeFilterTest {
         when(request.getContextPath()).thenReturn("");
 
         assertThat(filter.shouldNotFilter(request)).isTrue();
+    }
+
+    @Test
+    @DisplayName("the notice of a CHALLENGE loads its own scripts and styles without meeting the CHALLENGE")
+    void theScreensOwnFilesAreNotHeldByTheChallenge() {
+        when(request.getContextPath()).thenReturn("");
+        when(request.getRequestURI()).thenReturn("/contexa/css/main.css");
+        assertThat(filter.shouldNotFilter(request)).isTrue();
+        when(request.getRequestURI()).thenReturn("/contexa/js/toast.js");
+        assertThat(filter.shouldNotFilter(request)).isTrue();
+        when(request.getRequestURI()).thenReturn("/contexa/admin/dashboard");
+        assertThat(filter.shouldNotFilter(request)).isFalse();
     }
 
     private static DelegationStamp agentStamp() {

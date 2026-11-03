@@ -56,6 +56,7 @@ import io.contexa.contexaidentity.security.token.dto.TokenPair;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportResult;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
+import io.contexa.contexaidentity.security.zerotrust.ChallengeResolution;
 import io.contexa.contexaidentity.security.zerotrust.ZeroTrustAccessControlFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -705,22 +706,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
     private void handleBlockMfaSuccess(String userId, HttpServletRequest request,
                                          HttpServletResponse response) throws IOException {
-        try {
-            if (blockedUserRecorder != null) {
-                blockedUserRecorder.markMfaVerified(userId);
-            }
-
-            if (blockMfaStateStore != null) {
-                blockMfaStateStore.setVerified(userId);
-                blockMfaStateStore.clearPending(userId);
-            }
-
-            if (blockingSignalBroadcaster != null) {
-                blockingSignalBroadcaster.registerUnblock(userId);
-            }
-        } catch (Exception e) {
-            safeLogError("[MFA] Failed to process block MFA success for user: {}", e, userId);
-        }
+        challengeResolution().releaseBlockByMfa(userId);
 
         String redirectUrl = request.getContextPath() + "/contexa/zero-trust/blocked";
 
@@ -742,12 +728,14 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     }
 
     private void markMfaVerifiedOnChallengeSuccess(String userId, HttpServletRequest request) {
-        try {
-            SecurityContextDataStore dataStore = applicationContext.getBean(SecurityContextDataStore.class);
-            dataStore.markMfaVerified(userId, RequestInfoExtractor.extractObservedAt(request));
-        } catch (Exception e) {
-            safeLogError("[MFA] Failed to mark MFA verified on challenge success: userId={}", e, userId);
-        }
+        challengeResolution().markMfaVerified(userId, RequestInfoExtractor.extractObservedAt(request));
+    }
+
+    /** The decision part of a completed step-up, shared with the verification-only step-up of HOST_OWNED. */
+    private ChallengeResolution challengeResolution() {
+        return new ChallengeResolution(actionRedisRepository, securityLearningService,
+                this::verificationLearningService, () -> applicationContext.getBean(SecurityContextDataStore.class),
+                blockingSignalBroadcaster, blockedUserRecorder, blockMfaStateStore);
     }
 
     private void resetActionOnMfaSuccess(String userId, HttpServletRequest request,
@@ -755,31 +743,14 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         if (userId == null || userId.isBlank() || actionRedisRepository == null) {
             return;
         }
-
-        try {
-            ZeroTrustAction currentAction = actionRedisRepository.getActionFromHash(userId);
-            if (currentAction == ZeroTrustAction.ESCALATE) {
-                // Q-87 (N-P3-1): an ESCALATE waits for a review (an approved override, or BLOCK when it lapses); a
-                // verification of the user neither lifts it nor releases the user.
-                return;
-            }
-            if (currentAction == ZeroTrustAction.CHALLENGE) {
-                // The request the challenge stopped, read before the ALLOW replaces the decision that names it (W5-2).
-                String challengedRequestId = challengedRequestId(userId);
-                // Bind to the session the client uses next: MFA success has already rotated the session id.
-                String contextBindingHash = SessionFingerprintUtil.generateNextRequestContextBindingHash(request);
-                actionRedisRepository.saveActionWithPrevious(userId, ZeroTrustAction.ALLOW, contextBindingHash);
-                learnOnLlmChallengedMfaSuccess(userId, request, factorContext, challengedRequestId);
-            }
-
-            if (blockingSignalBroadcaster != null) {
-                blockingSignalBroadcaster.registerUnblock(userId);
-            }
-
+        String originalIp = factorContext != null
+                ? (String) factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.CLIENT_IP) : null;
+        // Bind to the session the client uses next: MFA success has already rotated the session id.
+        String contextBindingHash = SessionFingerprintUtil.generateNextRequestContextBindingHash(request);
+        // Q-87 (N-P3-1): an ESCALATE waits for a review (an approved override, or BLOCK when it lapses); a
+        // verification of the user neither lifts it nor releases the user.
+        if (challengeResolution().releaseChallenge(userId, contextBindingHash, request, originalIp)) {
             updateSecurityContextAction(ZeroTrustAction.ALLOW);
-
-        } catch (Exception e) {
-            safeLogError("[MFA] Failed to set action to ALLOW for user: {}", e, userId);
         }
     }
 
@@ -838,17 +809,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     }
 
     @Nullable
-    private String challengedRequestId(String userId) {
-        try {
-            ZeroTrustActionRepository.ZeroTrustAnalysisData analysis = actionRedisRepository.getAnalysisData(userId);
-            return analysis != null ? analysis.requestId() : null;
-        } catch (Exception e) {
-            safeLogError("[MFA] Failed to read the challenged request of user: {}", e, userId);
-            return null;
-        }
-    }
-
-    @Nullable
     private VerificationLearningService verificationLearningService() {
         try {
             ObjectProvider<VerificationLearningService> provider =
@@ -857,57 +817,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         } catch (Exception e) {
             safeLogError("[MFA] Failed to look up the verification learning service", e);
             return null;
-        }
-    }
-
-    /**
-     * Learns the request the challenge stopped from its own facts at a reduced weight (W5-2). Without kept facts the
-     * step-up is learned as before, from the step-up request.
-     */
-    private void learnOnLlmChallengedMfaSuccess(String userId, HttpServletRequest request,
-                                                  @Nullable FactorContext factorContext,
-                                                  @Nullable String challengedRequestId) {
-        VerificationLearningService verificationLearning = verificationLearningService();
-        if (verificationLearning != null && verificationLearning.learnStepUp(userId, challengedRequestId)) {
-            return;
-        }
-        try {
-            String originalIp = null;
-            if (factorContext != null) {
-                originalIp = (String) factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.CLIENT_IP);
-            }
-            String effectiveIp = (originalIp != null && !originalIp.isBlank())
-                    ? originalIp : extractClientIp(request);
-
-            SecurityDecision decision = SecurityDecision.builder()
-                    .action(ZeroTrustAction.ALLOW)
-                    .confidence(0.95)
-                    .riskScore(0.05)
-                    .reasoning("LLM-challenged MFA completed - verified as normal behavior")
-                    .analysisTime(System.currentTimeMillis())
-                    .build();
-
-            SecurityEvent event = SecurityEvent.builder()
-                    .eventId(UUID.randomUUID().toString())
-                    .source(SecurityEvent.EventSource.IAM)
-                    .userId(userId)
-                    .sourceIp(effectiveIp)
-                    .sessionId(request.getSession(false) != null ?
-                            request.getSession(false).getId() : null)
-                    .userAgent(request.getHeader("User-Agent"))
-                    .timestamp(observedTimeOrNow(request))
-                    .description("LLM-challenged MFA success - learning")
-                    .build();
-            // The baseline is kept under the request's tenant (W5-10 D9).
-            String tenantId = RequestInfoExtractor.extractTenantId(request);
-            if (tenantId != null) {
-                event.addMetadata("tenantId", tenantId);
-            }
-
-            securityLearningService.learnAndStore(userId, decision, event);
-
-        } catch (Exception e) {
-            safeLogError("[MFA] Failed to learn on LLM-challenged MFA success: userId={}", e, userId);
         }
     }
 }

@@ -48,6 +48,9 @@ public class BridgeProperties {
     @NestedConfigurationProperty
     private Network network = new Network();
 
+    @NestedConfigurationProperty
+    private StepUp stepUp = new StepUp();
+
     public boolean isEnabled() {
         return enabled;
     }
@@ -335,6 +338,20 @@ public class BridgeProperties {
         private String privilegedExportAllowed = "X-Contexa-Privileged-Export-Allowed";
         private String containmentOnly = "X-Contexa-Containment-Only";
         private String expiresAt = "X-Contexa-Delegation-Expires-At";
+    }
+
+    /**
+     * The step-up of a CHALLENGE when the application owns sign-in (HOST_OWNED). Besides Contexa's verification-only
+     * factors, the application's own re-authentication answers a CHALLENGE when the bridge sees a completed MFA newer
+     * than the CHALLENGE; this is where the step-up page sends the user for it.
+     */
+    @Data
+    public static class StepUp {
+        /**
+         * Where the application re-authenticates the signed-in user with its own MFA or identity provider (for example
+         * an OIDC authorization request with {@code prompt=login} or {@code max_age=0}); not offered when empty.
+         */
+        private String reauthenticationUrl;
     }
 
     @Data

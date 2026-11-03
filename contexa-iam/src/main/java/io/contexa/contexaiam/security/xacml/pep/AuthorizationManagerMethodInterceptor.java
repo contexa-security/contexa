@@ -24,6 +24,7 @@ import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedExceptio
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
 import io.contexa.contexacore.metrics.AuthorizationMetrics;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexacommon.security.HostOwnedIdentityNotice;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.aop.Advice;
@@ -114,6 +115,8 @@ public class AuthorizationManagerMethodInterceptor
     public Object invoke(MethodInvocation mi) throws Throwable {
         resolveCollaborators();
         Authentication authentication = getAuthentication();
+        // Ownership design S-7: report once an application that signs users in after Contexa's request filters.
+        HostOwnedIdentityNotice.reportAtProtectedMethod(currentRequest(), authentication);
         boolean granted = false;
         boolean publishEvent = true;
         String denialReason = null;

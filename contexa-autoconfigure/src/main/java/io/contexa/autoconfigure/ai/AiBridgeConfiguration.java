@@ -33,6 +33,8 @@ import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.security.SecurityProperties;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -244,6 +246,23 @@ public class AiBridgeConfiguration {
                 bridgeRuntimeSupport,
                 null
         );
+    }
+
+    /**
+     * The bridge's servlet registration. Under HOST_OWNED it runs right after the application's Spring Security chain,
+     * before Contexa's enforcement filters, which read the delegation it stamps; under CONTEXA_OWNED it keeps the order
+     * it always had (it also runs first inside Contexa's chain).
+     */
+    @Bean
+    @ConditionalOnMissingBean(name = "bridgeResolutionFilterRegistration")
+    public FilterRegistrationBean<BridgeResolutionFilter> bridgeResolutionFilterRegistration(
+            BridgeResolutionFilter bridgeResolutionFilter,
+            BridgeProperties properties,
+            ObjectProvider<SecurityProperties> securityProperties) {
+        FilterRegistrationBean<BridgeResolutionFilter> registration = new FilterRegistrationBean<>(bridgeResolutionFilter);
+        registration.setName("bridgeResolutionFilter");
+        return HostOwnedEnforcementOrder.bridge(registration, !properties.isContexaOwned(),
+                HostOwnedEnforcementOrder.securityFilterOrder(securityProperties));
     }
 
     private void applyAuthObjectHints(

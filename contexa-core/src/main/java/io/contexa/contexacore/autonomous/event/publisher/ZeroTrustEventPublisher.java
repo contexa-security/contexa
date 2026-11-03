@@ -439,17 +439,29 @@ public class ZeroTrustEventPublisher {
      * A call without origins (none given, or none with a value) adds no key.
      */
     private void putArgumentOrigins(Object[] arguments, Map<String, Object> payload) {
-        ArgumentOrigins origins = ArgumentOrigins.in(arguments);
+        List<Map<String, Object>> stated = originsPayload(ArgumentOrigins.in(arguments));
+        if (!stated.isEmpty()) {
+            payload.put(ARGUMENT_ORIGINS, stated);
+        }
+    }
+
+    /**
+     * CQ-1 for a caller that states the origins as plain maps (the {@code argument_origins} of an access evaluation of a
+     * tool call, in the shape {@link ArgumentOrigins#toPayload} writes): the payload value a protected method's call
+     * would have carried, bounded by the same settings. Empty when no origin has a value.
+     */
+    public List<Map<String, Object>> statedArgumentOrigins(Object plainOrigins) {
+        return originsPayload(ArgumentOrigins.fromPayload(plainOrigins));
+    }
+
+    private List<Map<String, Object>> originsPayload(ArgumentOrigins origins) {
         if (origins == null) {
-            return;
+            return List.of();
         }
         TieredStrategyProperties.ArgumentOrigin settings = properties != null ? properties.getArgumentOrigin() : null;
         boolean quote = settings == null || settings.isQuoteExcerpt();
         int maxExcerpt = settings != null ? settings.getMaxExcerptChars() : ArgumentOrigins.MAX_EXCERPT_CHARS;
-        List<Map<String, Object>> stated = origins.toPayload(quote, maxExcerpt);
-        if (!stated.isEmpty()) {
-            payload.put(ARGUMENT_ORIGINS, stated);
-        }
+        return origins.toPayload(quote, maxExcerpt);
     }
 
     private String currentResourceUrlTemplate() {

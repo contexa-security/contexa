@@ -2,6 +2,9 @@
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{zerotrust.blocked.page.title})}"></head>
 <body class="flex flex-col min-h-screen font-sans" style="background: #050810;">
+<!-- The token of the chain the page is served behind (the application's when it owns sign-in), for blocked.js. -->
+<meta th:if="${_csrf != null}" name="_csrf" th:content="${_csrf.token}">
+<meta th:if="${_csrf != null}" name="_csrf_header" th:content="${_csrf.headerName}">
 
 <div class="flex items-center justify-center min-h-screen p-4">
     <div class="w-full max-w-lg p-8 rounded-xl text-center"

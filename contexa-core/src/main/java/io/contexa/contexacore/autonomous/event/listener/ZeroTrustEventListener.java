@@ -88,7 +88,7 @@ public class ZeroTrustEventListener {
             return false;
         }
         if (event.getCategory() != null && event.getCategory().name().equals("AUTHORIZATION")) {
-            return !shouldSkipPublishing(decisionKey(event), generateAuthorizationContextBindingHash(event));
+            return !shouldSkipPublishing(event, generateAuthorizationContextBindingHash(event), true);
         }
         return true;
     }
@@ -106,7 +106,7 @@ public class ZeroTrustEventListener {
             return false;
         }
         if (event.getCategory() != null && event.getCategory().name().equals("AUTHORIZATION")) {
-            return !shouldSkipPublishing(decisionKey(event), generateAuthorizationContextBindingHash(event), false);
+            return !shouldSkipPublishing(event, generateAuthorizationContextBindingHash(event), false);
         }
         return true;
     }
@@ -173,27 +173,34 @@ public class ZeroTrustEventListener {
         securityEventPublisher.publishGenericSecurityEvent(event);
     }
 
-    private boolean shouldSkipPublishing(String userId, String contextBindingHash) {
-        return shouldSkipPublishing(userId, contextBindingHash, true);
-    }
-
-    /** @param allowAnswers whether an ALLOW in force answers the request without analysis */
-    private boolean shouldSkipPublishing(String userId, String contextBindingHash, boolean allowAnswers) {
-        if (userId == null || userId.isBlank()) {
+    /**
+     * Whether the request is answered by the decision in force instead of an analysis.
+     *
+     * @param allowAnswers whether an ALLOW in force answers the request without analysis
+     */
+    private boolean shouldSkipPublishing(ZeroTrustSpringEvent event, String contextBindingHash, boolean allowAnswers) {
+        String key = decisionKey(event);
+        if (key == null || key.isBlank()) {
             return false;
         }
 
         try {
-            ZeroTrustAction currentAction = actionRepository.getCurrentAction(userId, contextBindingHash);
+            // docs/agent A5-1: read through the request's subject, so that an agent acting for a person is also
+            // answered by the person's BLOCK (finding F-5: a synchronous request of the agent was analysed in place
+            // and let through while the person was blocked).
+            ZeroTrustSubject subject = ZeroTrustSubject.ofFacts(event.getUserId(), event.getPayload());
+            ZeroTrustAction currentAction = subject != null
+                    ? subject.currentAction(actionRepository, contextBindingHash)
+                    : actionRepository.getCurrentAction(key, contextBindingHash);
             if (currentAction != ZeroTrustAction.PENDING_ANALYSIS
                     && (allowAnswers || currentAction != ZeroTrustAction.ALLOW)) {
                 return true;
             }
             // A decision for this actor context is waiting for its audit record; a new analysis
             // would only repeat the LLM call while the observation store keeps rejecting writes.
-            return actionRepository.isDecisionAuditPending(userId, contextBindingHash);
+            return actionRepository.isDecisionAuditPending(key, contextBindingHash);
         } catch (Exception e) {
-            log.error("[ZeroTrustEventListener] Failed to check skip condition: userId={}", userId, e);
+            log.error("[ZeroTrustEventListener] Failed to check skip condition: userId={}", key, e);
             return false;
         }
     }

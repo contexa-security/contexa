@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -74,6 +75,34 @@ class InvocationArgumentsTest {
         assertThat(summary).isEqualTo(name(send, 0, "recipient") + "=Recipient(email=ext@partner.example, copies=2); "
                 + name(send, 1, "documentKeys") + "=[2 items: HX-310-DWG-1, HX-310-DWG-2]; "
                 + name(send, 2, "options") + "={format=zip}");
+    }
+
+    /**
+     * Python / TypeScript expansion: a caller outside the JVM states its arguments by name (an access evaluation of a
+     * tool call) and gets the very summary a method call of the same values gets; a text is taken as it is, bounded.
+     */
+    @Test
+    void argumentsStatedByNameAreSummarizedExactlyAsAMethodCallOfTheSameValuesIs() throws Exception {
+        Method send = method("send", Recipient.class, List.class, Map.class);
+        Object[] values = {new Recipient("ext@partner.example", 2), List.of("HX-310-DWG-1", "HX-310-DWG-2"),
+                Map.of("format", "zip")};
+        Map<String, Object> byName = new LinkedHashMap<>();
+        byName.put(name(send, 0, "recipient"), values[0]);
+        byName.put(name(send, 1, "documentKeys"), values[1]);
+        byName.put(name(send, 2, "options"), values[2]);
+
+        assertThat(InvocationArguments.summarize(byName)).isEqualTo(InvocationArguments.summarize(send, values));
+
+        Map<String, Object> secret = new LinkedHashMap<>();
+        secret.put("projectKey", "HX-310");
+        secret.put("apiToken", "tok-123");
+        assertThat(InvocationArguments.summarize(secret)).isEqualTo("projectKey=HX-310; apiToken=<hidden>");
+
+        assertThat(InvocationArguments.summarize(Map.<String, Object>of())).isNull();
+        assertThat(InvocationArguments.summarize((Map<String, Object>) null)).isNull();
+        assertThat(InvocationArguments.summarize("   ")).isNull();
+        assertThat(InvocationArguments.summarize("  export 400 items  ")).isEqualTo("export 400 items");
+        assertThat(InvocationArguments.summarize("z".repeat(3000))).hasSize(InvocationArguments.MAX_LENGTH + 1);
     }
 
     @Test

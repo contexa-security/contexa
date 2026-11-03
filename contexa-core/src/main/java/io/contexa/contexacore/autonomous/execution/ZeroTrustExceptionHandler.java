@@ -17,21 +17,32 @@ package io.contexa.contexacore.autonomous.execution;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.security.ZeroTrustScreens;
 import io.contexa.contexacore.autonomous.blocking.BlockableResponseWrapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
+import java.net.URI;
 import java.time.Instant;
 
+/**
+ * Answers the zero-trust decisions made at a protected method. It goes before every other advice: it handles Contexa's
+ * own exceptions only, and an application's advice for {@code AccessDeniedException} (a subtype) would otherwise turn
+ * every decision into the application's own 403 (finding F-7, ownership harness 2026-11-03). A browser is sent to the
+ * screen of the decision, as the request filters send it; an API client gets the status and the JSON body.
+ */
 @ControllerAdvice
+@Order(Ordered.HIGHEST_PRECEDENCE)
 @Slf4j
-public class ZeroTrustExceptionHandler {
+public class ZeroTrustExceptionHandler implements Ordered {
 
     private final ZeroTrustChallengeFlowStarter challengeFlowStarter;
 
@@ -45,6 +56,11 @@ public class ZeroTrustExceptionHandler {
      */
     public ZeroTrustExceptionHandler(ZeroTrustChallengeFlowStarter challengeFlowStarter) {
         this.challengeFlowStarter = challengeFlowStarter;
+    }
+
+    @Override
+    public int getOrder() {
+        return Ordered.HIGHEST_PRECEDENCE;
     }
 
     @ExceptionHandler(ZeroTrustAccessDeniedException.class)
@@ -65,6 +81,12 @@ public class ZeroTrustExceptionHandler {
             servletResponse.setHeader("Retry-After", Integer.toString(ex.getBusyRetryAfterSeconds()));
         }
 
+        String mfaUrl = startChallengeFlow(ex, request, servletResponse);
+        String screen = screenFor(ex, mfaUrl, request);
+        if (screen != null) {
+            return ResponseEntity.status(302).location(URI.create(screen)).build();
+        }
+
         ZeroTrustErrorResponse response = ZeroTrustErrorResponse.builder()
             .status(ex.getHttpStatus())
             .code(ex.getErrorCode())
@@ -74,7 +96,7 @@ public class ZeroTrustExceptionHandler {
             .riskScore(ex.getRiskScore())
             .analysisTimeout(ex.isAnalysisTimeout())
             .timestamp(Instant.now())
-            .mfaUrl(startChallengeFlow(ex, request, servletResponse))
+            .mfaUrl(mfaUrl)
             .build();
 
         return ResponseEntity
@@ -129,6 +151,26 @@ public class ZeroTrustExceptionHandler {
             .status(response.getStatus())
             .body(response);
     }
+    /**
+     * The screen a browser goes to for a BLOCK, a CHALLENGE (when its step-up started) or an ESCALATE, or null for an
+     * API client and for the other answers (busy, timeout, analysis required), which keep the status and the body.
+     */
+    private static String screenFor(ZeroTrustAccessDeniedException ex, String mfaUrl, HttpServletRequest request) {
+        if (request == null || !ZeroTrustScreens.isBrowserNavigation(request) || ex.getBusyRetryAfterSeconds() > 0) {
+            return null;
+        }
+        if (ZeroTrustAction.BLOCK.name().equals(ex.getAction())) {
+            return ZeroTrustScreens.blocked(request);
+        }
+        if (ZeroTrustAction.CHALLENGE.name().equals(ex.getAction()) && mfaUrl != null) {
+            return ZeroTrustScreens.challengeRequired(request, mfaUrl);
+        }
+        if (ZeroTrustAction.ESCALATE.name().equals(ex.getAction())) {
+            return ZeroTrustScreens.analysisPending(request);
+        }
+        return null;
+    }
+
     /**
      * docs/agent A5-2: an agent's request a CHALLENGE decided in the request stopped asks its accountable person to
      * confirm it; the answer is written there, so this handler writes none (a null entity leaves it as it is).

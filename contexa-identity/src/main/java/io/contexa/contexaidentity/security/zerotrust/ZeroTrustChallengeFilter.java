@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaidentity.security.zerotrust;
 
+import io.contexa.contexacommon.security.HostOwnedIdentityNotice;
+import io.contexa.contexacommon.security.ZeroTrustScreens;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.enums.AuthType;
@@ -56,6 +58,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BooleanSupplier;
 
 @Slf4j
 public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements ZeroTrustChallengeFlowStarter {
@@ -78,6 +81,8 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
     private final ZeroTrustActionRepository actionRepository;
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
     private UnanalysedRequestRecorder unanalysedRequestRecorder;
+    private BooleanSupplier enforcing = () -> true;
+    private HostOwnedStepUp hostOwnedStepUp;
     private AgentConfirmationGate agentConfirmationGate;
     private volatile boolean challengeProcedureAvailable = true;
 
@@ -126,6 +131,19 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
         this.agentConfirmationGate = agentConfirmationGate;
     }
 
+    /**
+     * Ownership HOST_OWNED: the application owns sign-in, so a CHALLENGE is answered by Contexa's verification-only
+     * step-up and no Contexa MFA flow (flow state, session) is started. Null under CONTEXA_OWNED.
+     */
+    public void setHostOwnedStepUp(HostOwnedStepUp hostOwnedStepUp) {
+        this.hostOwnedStepUp = hostOwnedStepUp;
+    }
+
+    /** Whether decisions are enforced (the zero-trust mode is ENFORCE); see {@link #doFilterInternal}. */
+    public void setEnforcing(BooleanSupplier enforcing) {
+        this.enforcing = enforcing != null ? enforcing : () -> true;
+    }
+
     public void setChallengeProcedureAvailable(boolean challengeProcedureAvailable) {
         this.challengeProcedureAvailable = challengeProcedureAvailable;
     }
@@ -168,7 +186,12 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
             return true;
         }
 
-        if (requestUri.startsWith("/contexa/zero-trust")) {
+        if (requestUri.startsWith("/contexa/zero-trust") || requestUri.startsWith(HostOwnedStepUp.STEP_UP_PATH)) {
+            return true;
+        }
+
+        // The scripts and styles of the screens of a decision (a request for them would be answered with the screen).
+        if (ZeroTrustScreens.isScreenResource(requestUri)) {
             return true;
         }
 
@@ -202,6 +225,10 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
                                     FilterChain filterChain) throws ServletException, IOException {
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (hostOwnedStepUp != null) {
+            // Ownership design S-7: an application that signs the user in after these filters is reported once.
+            HostOwnedIdentityNotice.markWhenNoUser(request, auth);
+        }
 
         if (auth == null || !auth.isAuthenticated()) {
             filterChain.doFilter(request, response);
@@ -226,7 +253,17 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
             return;
         }
 
-        if (currentAction != ZeroTrustAction.CHALLENGE) {
+        // Ownership design Q-5: under SHADOW, OBSERVE or DISABLED a stored CHALLENGE stops nothing (the agent gate above
+        // records and lets agents on by itself).
+        if (currentAction != ZeroTrustAction.CHALLENGE || !enforcing.getAsBoolean()) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        // HOST_OWNED: a re-authentication the application made after the CHALLENGE answers it; the request goes on.
+        String decisionKey = subject != null ? subject.storageKey() : userId;
+        if (hostOwnedStepUp != null && !isAgentRequest(request)
+                && hostOwnedStepUp.resolvedByHostReauthentication(request, auth, decisionKey)) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -238,6 +275,11 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
 
         if (isAgentRequest(request)) {
             writeAgentConfirmationRequired(response, request);
+            return;
+        }
+
+        if (hostOwnedStepUp != null) {
+            writeHostOwnedStepUp(request, response);
             return;
         }
 
@@ -309,7 +351,14 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
     @Override
     public Optional<String> start(HttpServletRequest request, HttpServletResponse response) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || !challengeProcedureAvailable || isAgentRequest(request)) {
+        if (auth == null || !auth.isAuthenticated() || isAgentRequest(request)) {
+            return Optional.empty();
+        }
+        if (hostOwnedStepUp != null) {
+            // HOST_OWNED: no flow is started (no flow state, no session); the answer names the step-up.
+            return Optional.of(hostOwnedStepUp.stepUpUrl(request));
+        }
+        if (!challengeProcedureAvailable) {
             return Optional.empty();
         }
         FactorContext started = startedChallengeContext(request);
@@ -490,6 +539,32 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
                 HttpServletResponse.SC_FORBIDDEN,
                 AGENT_CONFIRMATION_REQUIRED,
                 "The agent's accountable party must confirm this request",
+                request.getRequestURI(),
+                responseBody
+        );
+    }
+
+    /**
+     * HOST_OWNED: a browser goes to the notice that leads to Contexa's step-up; an API client gets 401 with the same
+     * code and links as under CONTEXA_OWNED, without the flow fields (no flow is started).
+     */
+    private void writeHostOwnedStepUp(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        String stepUpUrl = hostOwnedStepUp.stepUpUrl(request);
+        String challengeNoticeUrl = ZeroTrustScreens.challengeRequired(request, stepUpUrl);
+        if (!WebUtil.isApiOrAjaxRequest(request)) {
+            response.sendRedirect(challengeNoticeUrl);
+            return;
+        }
+        Map<String, Object> responseBody = new HashMap<>();
+        responseBody.put("error", "MFA_CHALLENGE_REQUIRED");
+        responseBody.put("message", "MFA verification required");
+        responseBody.put("mfaUrl", stepUpUrl);
+        responseBody.put("challengeNoticeUrl", challengeNoticeUrl);
+        responseWriter.writeErrorResponse(
+                response,
+                HttpServletResponse.SC_UNAUTHORIZED,
+                "MFA_CHALLENGE_REQUIRED",
+                "MFA verification required",
                 request.getRequestURI(),
                 responseBody
         );

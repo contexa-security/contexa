@@ -22,8 +22,25 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class LoginController {
 
+    /** Where the console's sign-in form posts: Contexa's sign-in chain under CONTEXA_OWNED. */
+    public static final String DEFAULT_LOGIN_PROCESSING_URL = "/login";
+
+    /** Where it posts when the application owns sign-in (HOST_OWNED): the console's own chain. */
+    public static final String HOST_OWNED_LOGIN_PROCESSING_URL = "/contexa/admin/login";
+
+    private final String loginProcessingUrl;
+
+    public LoginController() {
+        this(DEFAULT_LOGIN_PROCESSING_URL);
+    }
+
+    public LoginController(String loginProcessingUrl) {
+        this.loginProcessingUrl = loginProcessingUrl;
+    }
+
     @GetMapping("/contexa/admin/login")
     public String registerPage(Model model) {
+        model.addAttribute("adminLoginProcessingUrl", loginProcessingUrl);
         return "contexa/admin/login";
     }
 

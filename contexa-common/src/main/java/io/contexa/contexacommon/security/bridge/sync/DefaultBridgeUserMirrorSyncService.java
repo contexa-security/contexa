@@ -44,7 +44,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 @Slf4j
@@ -63,6 +65,17 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
     @Nullable
     private final CacheManager cacheManager;
 
+    // The columns of users (db/schema.sql).
+    private static final int TEXT_MAX = 100;
+    private static final int LONG_TEXT_MAX = 255;
+    private static final int PHONE_MAX = 20;
+    private static final int PROFILE_IMAGE_MAX = 500;
+    private static final int LOCALE_MAX = 10;
+    private static final int TIMEZONE_MAX = 50;
+    private static final int PRINCIPAL_TYPE_MAX = 50;
+
+    private final Set<String> tooLongSubjects = ConcurrentHashMap.newKeySet();
+
     @Override
     @Transactional(transactionManager = "contexaTransactionManager")
     public BridgeUserMirrorSyncResult sync(
@@ -78,13 +91,22 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
         if (externalSubjectId == null) {
             return null;
         }
+        if (externalSubjectId.length() > LONG_TEXT_MAX) {
+            // The subject is the key the copy is found by: cut, it would be another user's. No copy is made (the
+            // user has no step-up factor of its own then); said once, not on every request.
+            if (tooLongSubjects.size() < 1000 && tooLongSubjects.add(Integer.toHexString(externalSubjectId.hashCode()))) {
+                log.warn("[Bridge] No user copy for a subject longer than {} characters ({} characters)", LONG_TEXT_MAX,
+                        externalSubjectId.length());
+            }
+            return null;
+        }
 
-        String authenticationSource = firstText(
+        String authenticationSource = fit(firstText(
                 authenticationStamp.authenticationSource(),
                 attribute(authenticationStamp.attributes(), "authenticationSource", "authSource", "sourceSystem"),
                 "BRIDGE"
-        );
-        String organizationId = attribute(authenticationStamp.attributes(), "organizationId", "orgId");
+        ), TEXT_MAX);
+        String organizationId = fit(attribute(authenticationStamp.attributes(), "organizationId", "orgId"), LONG_TEXT_MAX);
         String bridgeSubjectKey = generateBridgeSubjectKey(authenticationSource, organizationId, externalSubjectId);
         LocalDateTime now = LocalDateTime.now();
 
@@ -203,7 +225,7 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
         if (!equalsNormalized(user.getAuthenticationSource(), authenticationSource)) {
             return true;
         }
-        if (wouldChangeString(user.getPrincipalType(), normalize(authenticationStamp.principalType()))) {
+        if (wouldChangeString(user.getPrincipalType(), fit(normalize(authenticationStamp.principalType()), PRINCIPAL_TYPE_MAX))) {
             return true;
         }
         if (wouldChangeString(user.getOrganizationId(), organizationId)) {
@@ -212,25 +234,25 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
         if (wouldChangeString(user.getEmail(), resolveEmail(user, authenticationStamp, bridgeSubjectKey))) {
             return true;
         }
-        if (wouldChangeString(user.getName(), firstText(authenticationStamp.displayName(), externalSubjectId))) {
+        if (wouldChangeString(user.getName(), fit(firstText(authenticationStamp.displayName(), externalSubjectId), TEXT_MAX))) {
             return true;
         }
-        if (wouldChangeString(user.getPhone(), attribute(authenticationStamp.attributes(), "phone", "mobile", "mobileNumber"))) {
+        if (wouldChangeString(user.getPhone(), fit(attribute(authenticationStamp.attributes(), "phone", "mobile", "mobileNumber"), PHONE_MAX))) {
             return true;
         }
-        if (wouldChangeString(user.getDepartment(), attribute(authenticationStamp.attributes(), "department", "team", "division"))) {
+        if (wouldChangeString(user.getDepartment(), fit(attribute(authenticationStamp.attributes(), "department", "team", "division"), TEXT_MAX))) {
             return true;
         }
-        if (wouldChangeString(user.getPosition(), attribute(authenticationStamp.attributes(), "position", "jobTitle", "title"))) {
+        if (wouldChangeString(user.getPosition(), fit(attribute(authenticationStamp.attributes(), "position", "jobTitle", "title"), TEXT_MAX))) {
             return true;
         }
-        if (wouldChangeString(user.getProfileImageUrl(), attribute(authenticationStamp.attributes(), "profileImageUrl", "profile_image_url", "avatarUrl"))) {
+        if (wouldChangeString(user.getProfileImageUrl(), fit(attribute(authenticationStamp.attributes(), "profileImageUrl", "profile_image_url", "avatarUrl"), PROFILE_IMAGE_MAX))) {
             return true;
         }
-        if (wouldChangeString(user.getLocale(), attribute(authenticationStamp.attributes(), "locale", "language", "lang"))) {
+        if (wouldChangeString(user.getLocale(), fit(attribute(authenticationStamp.attributes(), "locale", "language", "lang"), LOCALE_MAX))) {
             return true;
         }
-        if (wouldChangeString(user.getTimezone(), attribute(authenticationStamp.attributes(), "timezone", "timeZone"))) {
+        if (wouldChangeString(user.getTimezone(), fit(attribute(authenticationStamp.attributes(), "timezone", "timeZone"), TIMEZONE_MAX))) {
             return true;
         }
         if (wouldChangeString(user.getLastLoginIp(), requestContext != null ? requestContext.clientIp() : null)) {
@@ -260,16 +282,16 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
         }
 
         changed |= setIfChanged(user.getEmail(), resolveEmail(user, authenticationStamp, bridgeSubjectKey), user::setEmail);
-        changed |= setIfChanged(user.getName(), firstText(authenticationStamp.displayName(), externalSubjectId), user::setName);
-        changed |= setIfChanged(user.getPhone(), attribute(authenticationStamp.attributes(), "phone", "mobile", "mobileNumber"), user::setPhone);
-        changed |= setIfChanged(user.getDepartment(), attribute(authenticationStamp.attributes(), "department", "team", "division"), user::setDepartment);
-        changed |= setIfChanged(user.getPosition(), attribute(authenticationStamp.attributes(), "position", "jobTitle", "title"), user::setPosition);
-        changed |= setIfChanged(user.getProfileImageUrl(), attribute(authenticationStamp.attributes(), "profileImageUrl", "profile_image_url", "avatarUrl"), user::setProfileImageUrl);
-        changed |= setIfChanged(user.getLocale(), attribute(authenticationStamp.attributes(), "locale", "language", "lang"), user::setLocale);
-        changed |= setIfChanged(user.getTimezone(), attribute(authenticationStamp.attributes(), "timezone", "timeZone"), user::setTimezone);
+        changed |= setIfChanged(user.getName(), fit(firstText(authenticationStamp.displayName(), externalSubjectId), TEXT_MAX), user::setName);
+        changed |= setIfChanged(user.getPhone(), fit(attribute(authenticationStamp.attributes(), "phone", "mobile", "mobileNumber"), PHONE_MAX), user::setPhone);
+        changed |= setIfChanged(user.getDepartment(), fit(attribute(authenticationStamp.attributes(), "department", "team", "division"), TEXT_MAX), user::setDepartment);
+        changed |= setIfChanged(user.getPosition(), fit(attribute(authenticationStamp.attributes(), "position", "jobTitle", "title"), TEXT_MAX), user::setPosition);
+        changed |= setIfChanged(user.getProfileImageUrl(), fit(attribute(authenticationStamp.attributes(), "profileImageUrl", "profile_image_url", "avatarUrl"), PROFILE_IMAGE_MAX), user::setProfileImageUrl);
+        changed |= setIfChanged(user.getLocale(), fit(attribute(authenticationStamp.attributes(), "locale", "language", "lang"), LOCALE_MAX), user::setLocale);
+        changed |= setIfChanged(user.getTimezone(), fit(attribute(authenticationStamp.attributes(), "timezone", "timeZone"), TIMEZONE_MAX), user::setTimezone);
         changed |= setIfChanged(user.getExternalSubjectId(), externalSubjectId, user::setExternalSubjectId);
         changed |= setIfChanged(user.getAuthenticationSource(), authenticationSource, user::setAuthenticationSource);
-        changed |= setIfChanged(user.getPrincipalType(), normalize(authenticationStamp.principalType()), user::setPrincipalType);
+        changed |= setIfChanged(user.getPrincipalType(), fit(normalize(authenticationStamp.principalType()), PRINCIPAL_TYPE_MAX), user::setPrincipalType);
         changed |= setIfChanged(user.getOrganizationId(), organizationId, user::setOrganizationId);
         changed |= setIfChanged(user.getBridgeSubjectKey(), bridgeSubjectKey, user::setBridgeSubjectKey);
 
@@ -368,7 +390,7 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
 
     private String resolveEmail(Users user, AuthenticationStamp authenticationStamp, String bridgeSubjectKey) {
         String email = normalize(attribute(authenticationStamp.attributes(), "email", "mail", "userEmail"));
-        if (email == null) {
+        if (email == null || email.length() > LONG_TEXT_MAX) {
             return firstText(user.getEmail(), syntheticEmail(bridgeSubjectKey));
         }
         return email.toLowerCase(Locale.ROOT);
@@ -427,6 +449,14 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
             }
         }
         return null;
+    }
+
+    /** The value cut to the length of its column (db/schema.sql, users), so that one long value of the host cannot fail the copy. */
+    private static String fit(@Nullable String value, int max) {
+        if (value == null || value.length() <= max) {
+            return value;
+        }
+        return value.substring(0, max).trim();
     }
 
     private String normalize(String value) {

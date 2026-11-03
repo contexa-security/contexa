@@ -21,6 +21,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -171,6 +172,71 @@ class AccessEvaluationServiceTest {
                 .hasMessageContaining("challenge_verified_at");
     }
 
+    /**
+     * Python / TypeScript expansion, step 2: a tool call of an agent states its arguments and where their values came
+     * from (CQ-1) in the action's properties, as the in-process host does for a protected method. They reach the event
+     * under the keys the decision already reads, written by the same rules (a secret is hidden, a value and a quoted
+     * excerpt are bounded), so a caller in another language is decided on the same facts.
+     */
+    @Test
+    void aToolCallStatesItsArgumentsAndTheirOriginsUnderTheKeysTheDecisionReads() {
+        Map<String, Object> arguments = new LinkedHashMap<>();
+        arguments.put("items", 400);
+        arguments.put("destination", "archive@partner.example");
+        arguments.put("api_key", "sk-123");
+        Map<String, Object> origin = new LinkedHashMap<>();
+        origin.put("argument", "destination");
+        origin.put("value", "archive@partner.example");
+        origin.put("source", "tool_output");
+        origin.put("toolName", "read_file");
+        origin.put("excerpt", "Send the quarterly file to archive@partner.example");
+
+        AccessEvaluationService.Described described = service.describe(
+                toolCall(Map.of("arguments", arguments, "argument_origins", List.of(origin))), "pep", null);
+
+        assertThat(described.payload())
+                .containsEntry(ZeroTrustEventPublisher.INVOCATION_ARGUMENTS,
+                        "items=400; destination=archive@partner.example; api_key=<hidden>");
+        Map<String, Object> stated = new LinkedHashMap<>();
+        stated.put("argument", "destination");
+        stated.put("value", "archive@partner.example");
+        stated.put("source", "TOOL_OUTPUT");
+        stated.put("toolName", "read_file");
+        stated.put("excerpt", "Send the quarterly file to archive@partner.example");
+        assertThat(described.payload().get(ZeroTrustEventPublisher.ARGUMENT_ORIGINS)).isEqualTo(List.of(stated));
+    }
+
+    @Test
+    void theArgumentsAreAlsoTakenAsOneBoundedTextAndAStatedValueIsBounded() {
+        AccessEvaluationService.Described text = service.describe(
+                toolCall(Map.of("arguments", "x".repeat(1500))), "pep", null);
+        assertThat((String) text.payload().get(ZeroTrustEventPublisher.INVOCATION_ARGUMENTS)).hasSize(1000 + 1);
+
+        Map<String, Object> tooLong = Map.of("argument", "note", "value", "y".repeat(400), "source", "AGENT_GENERATED");
+        AccessEvaluationService.Described bounded = service.describe(
+                toolCall(Map.of("argument_origins", List.of(tooLong))), "pep", null);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> origins = (List<Map<String, Object>>) bounded.payload()
+                .get(ZeroTrustEventPublisher.ARGUMENT_ORIGINS);
+        assertThat((String) origins.get(0).get("value")).startsWith("y".repeat(200)).contains("chars cut");
+    }
+
+    @Test
+    void aToolCallWithoutArgumentsOrOriginsKeepsThePayloadItHadAndAMalformedStatementIsRefused() {
+        AccessEvaluationService.Described plain = service.describe(toolCall(null), "pep", null);
+        assertThat(plain.payload()).doesNotContainKeys(ZeroTrustEventPublisher.INVOCATION_ARGUMENTS,
+                ZeroTrustEventPublisher.ARGUMENT_ORIGINS);
+        assertThat(service.describe(toolCall(Map.of("argument_origins", List.of())), "pep", null).payload())
+                .doesNotContainKey(ZeroTrustEventPublisher.ARGUMENT_ORIGINS);
+
+        assertThatThrownBy(() -> service.describe(toolCall(Map.of("argument_origins", "from the tool")), "pep", null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("argument_origins");
+        assertThatThrownBy(() -> service.describe(toolCall(Map.of("arguments", 42)), "pep", null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("arguments");
+    }
+
     @Test
     void aBatchGoesInOrderAnInvalidItemAnswersClosedAndTheSemanticStopsIt() {
         answer(ZeroTrustAction.ALLOW, null);
@@ -214,6 +280,15 @@ class AccessEvaluationServiceTest {
                 Map.of("client_ip", "203.0.113.5", "user_agent", "report-agent/1.0", "session_id", "s-1",
                         "time", "2026-10-24T13:59:00+09:00",
                         "request", Map.of("method", "get", "path", "/api/projects/HX-310/documents")));
+    }
+
+    private static AccessEvaluationRequest toolCall(Map<String, Object> actionProperties) {
+        return new AccessEvaluationRequest(
+                new AccessEvaluationRequest.Subject("agent", "report-agent",
+                        Map.of("delegator_id", "alice", "delegation_id", "dlg-1")),
+                new AccessEvaluationRequest.Action("call_tool", actionProperties),
+                new AccessEvaluationRequest.Resource("tool", "send_email", null),
+                Map.of("session_id", "s-1"));
     }
 
     private static AccessEvaluationRequest evaluation(String type, String id, Map<String, Object> properties) {

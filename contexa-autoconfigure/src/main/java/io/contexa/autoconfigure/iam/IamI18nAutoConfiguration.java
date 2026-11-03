@@ -16,47 +16,151 @@
 package io.contexa.autoconfigure.iam;
 
 import java.util.Locale;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.web.WebProperties;
 import org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration;
-import org.springframework.context.annotation.Bean;
+import org.springframework.context.HierarchicalMessageSource;
 import org.springframework.context.MessageSource;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.context.support.ResourceBundleMessageSource;
+import org.springframework.web.servlet.LocaleResolver;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-import org.springframework.web.servlet.i18n.LocaleChangeInterceptor;
+import org.springframework.web.servlet.i18n.AcceptHeaderLocaleResolver;
+import org.springframework.web.servlet.i18n.FixedLocaleResolver;
 import org.springframework.web.servlet.i18n.SessionLocaleResolver;
-import org.springframework.web.servlet.LocaleResolver;
-
+
+/**
+ * The language of Contexa's screens and their texts.
+ * <p>
+ * When Contexa owns sign-in (CONTEXA_OWNED) it resolves the language of the whole application. When the application
+ * owns sign-in (HOST_OWNED) it does not touch how the application resolves its own language: Contexa's resolver and
+ * its {@code ?lang=} switch serve only the screens under {@code /contexa/}. In both, the texts of Contexa's screens
+ * are found even when the application has a message bundle of its own (the application's source keeps its texts first,
+ * Contexa's bundle stands behind it).
+ */
 @AutoConfiguration(before = WebMvcAutoConfiguration.class)
-public class IamI18nAutoConfiguration implements WebMvcConfigurer {
+public class IamI18nAutoConfiguration {
+
+    static final String BUNDLE = "i18n/messages";
+
+    /** The message source Contexa creates when the application has none: its own bundle only. */
+    static final class ContexaMessageSource extends ResourceBundleMessageSource {
+
+        ContexaMessageSource() {
+            setBasenames(BUNDLE);
+            setDefaultEncoding("UTF-8");
+            setFallbackToSystemLocale(false);
+            setUseCodeAsDefaultMessage(true);
+            setCacheSeconds(3600);
+        }
+    }
 
     @Bean
     @ConditionalOnMissingBean
     public MessageSource messageSource() {
-        ResourceBundleMessageSource source = new ResourceBundleMessageSource();
-        source.setBasenames("i18n/messages");
-        source.setDefaultEncoding("UTF-8");
-        source.setFallbackToSystemLocale(false);
-        source.setUseCodeAsDefaultMessage(true);
-        source.setCacheSeconds(3600);
-        return source;
+        return new ContexaMessageSource();
     }
 
+    /**
+     * Puts Contexa's bundle behind the message source of an application that has one of its own (Spring Boot makes
+     * one as soon as the application has a {@code messages.properties}, and Contexa's then stands aside), so that the
+     * texts of Contexa's screens do not show as missing keys.
+     */
     @Bean
-    @ConditionalOnMissingBean
-    public LocaleResolver localeResolver() {
+    static BeanPostProcessor contexaMessagesBehindTheApplications() {
+        return new ContexaMessagesBehindTheApplications();
+    }
+
+    static final class ContexaMessagesBehindTheApplications implements BeanPostProcessor {
+
+        private final MessageSource contexa = new ContexaMessageSource();
+
+        @Override
+        public Object postProcessAfterInitialization(Object bean, String beanName) {
+            if (!"messageSource".equals(beanName) || !(bean instanceof HierarchicalMessageSource source)) {
+                return bean;
+            }
+            HierarchicalMessageSource last = source;
+            for (MessageSource next = source; next instanceof HierarchicalMessageSource hierarchical; ) {
+                if (next instanceof ContexaMessageSource) {
+                    return bean;
+                }
+                last = hierarchical;
+                next = hierarchical.getParentMessageSource();
+                if (next != null && !(next instanceof HierarchicalMessageSource)) {
+                    return bean;
+                }
+            }
+            last.setParentMessageSource(contexa);
+            return bean;
+        }
+    }
+
+    /** CONTEXA_OWNED: Contexa resolves the language of the whole application, as it always did. */
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED",
+            matchIfMissing = true)
+    static class ContexaOwned {
+
+        @Bean
+        @ConditionalOnMissingBean
+        LocaleResolver localeResolver() {
+            return screensResolver();
+        }
+
+        @Bean
+        WebMvcConfigurer contexaLanguageSwitch() {
+            return new WebMvcConfigurer() {
+                @Override
+                public void addInterceptors(InterceptorRegistry registry) {
+                    registry.addInterceptor(new ScreensLocaleChangeInterceptor());
+                }
+            };
+        }
+    }
+
+    /** HOST_OWNED: the application's own language resolution stays; Contexa serves its screens only. */
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "HOST_OWNED")
+    static class HostOwned {
+
+        @Bean
+        @ConditionalOnMissingBean
+        LocaleResolver localeResolver(ObjectProvider<WebProperties> web) {
+            return new ScreensLocaleResolver(screensResolver(), applicationResolver(web.getIfAvailable(WebProperties::new)));
+        }
+
+        @Bean
+        WebMvcConfigurer contexaScreensLanguageSwitch() {
+            return new WebMvcConfigurer() {
+                @Override
+                public void addInterceptors(InterceptorRegistry registry) {
+                    registry.addInterceptor(new ScreensLocaleChangeInterceptor())
+                            .addPathPatterns(ScreensLocaleResolver.SCREENS + "**");
+                }
+            };
+        }
+
+        /** What Spring Boot gives the application when nothing else is defined (spring.web.locale and its resolver). */
+        private static LocaleResolver applicationResolver(WebProperties web) {
+            if (web.getLocaleResolver() == WebProperties.LocaleResolver.FIXED) {
+                return new FixedLocaleResolver(web.getLocale());
+            }
+            AcceptHeaderLocaleResolver resolver = new AcceptHeaderLocaleResolver();
+            resolver.setDefaultLocale(web.getLocale());
+            return resolver;
+        }
+    }
+
+    private static LocaleResolver screensResolver() {
         SessionLocaleResolver resolver = new SessionLocaleResolver();
         resolver.setDefaultLocale(Locale.KOREAN);
         return resolver;
     }
-
-    @Override
-    public void addInterceptors(InterceptorRegistry registry) {
-        LocaleChangeInterceptor interceptor = new LocaleChangeInterceptor();
-        interceptor.setParamName("lang");
-        registry.addInterceptor(interceptor);
-    }
 }
-

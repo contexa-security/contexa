@@ -16,6 +16,7 @@
 package io.contexa.contexaidentity.security.utils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.security.ZeroTrustScreens;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -24,14 +25,9 @@ import java.util.Map;
 
 public class WebUtil {
 
+    /** The one rule for a browser against an API client, shared with the answer to protected-method decisions. */
     public static boolean isApiOrAjaxRequest(HttpServletRequest request) {
-        String accept     = request.getHeader("Accept");
-        String xRequested = request.getHeader("X-Requested-With");
-        String uri        = request.getRequestURI();
-
-        return (accept != null && accept.contains("application/json"))
-                || "XMLHttpRequest".equalsIgnoreCase(xRequested)
-                || uri.startsWith("/api/");
+        return ZeroTrustScreens.isApiOrAjaxRequest(request);
     }
 
     public static void writeError(HttpServletResponse res, int status, String code, String message) throws IOException {

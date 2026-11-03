@@ -135,6 +135,35 @@ class ZeroTrustEventListenerTest {
         assertThat(listener.shouldPublishAuthorizationEvent(event)).isFalse();
     }
 
+    /**
+     * docs/agent A5-1 (ZeroTrustSubject): the person's BLOCK stops an agent acting for the person. A synchronous request
+     * of the agent with no decision of its own was analysed in place and let through by the analysis while the person
+     * was blocked (ownership harness 2026-11-03, finding F-5); the BLOCK in force answers it instead, as it does an
+     * asynchronous one.
+     */
+    @Test
+    @DisplayName("the person's BLOCK answers an agent's synchronous and asynchronous requests without analysis")
+    void thePersonsBlockAnswersTheAgentsRequests() {
+        ZeroTrustSpringEvent event = ZeroTrustSpringEvent.builder("test")
+                .category(ZeroTrustEventCategory.AUTHORIZATION)
+                .eventType("METHOD")
+                .userId("alice")
+                .sessionId("agent:delegation:abc")
+                .clientIp("10.60.1.43")
+                .userAgent("report-agent/1.0")
+                .payload(new HashMap<>(Map.of("executionSubjectKind", "DELEGATED_AGENT", "agentId", "report-agent",
+                        "contextBindingHash", "ctx-agent")))
+                .build();
+        when(actionRepository.getCurrentAction("alice::agent::report-agent", "ctx-agent"))
+                .thenReturn(ZeroTrustAction.PENDING_ANALYSIS);
+        when(actionRepository.getCurrentAction("alice")).thenReturn(ZeroTrustAction.BLOCK);
+
+        assertThat(listener.shouldPublishSynchronousAuthorizationEvent(event))
+                .as("a synchronous request of the agent is answered by the person's BLOCK").isFalse();
+        assertThat(listener.shouldPublishAuthorizationEvent(event))
+                .as("an asynchronous request of the agent is answered by the person's BLOCK").isFalse();
+    }
+
     @Test
     void anAuthorizationEventNamingTheProbePathIsFilteredLikeAnyOther() {
         ZeroTrustSpringEvent event = ZeroTrustSpringEvent.builder("test")

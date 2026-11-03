@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.access;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
+import io.contexa.contexacore.autonomous.event.support.InvocationArguments;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
@@ -30,7 +31,9 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -217,9 +220,41 @@ public class AccessEvaluationService {
             payload.put("requestUri", path);
             payload.put("httpUri", path);
         }
+        putToolCall(payload, request.action().properties());
         String resource = path != null ? path : resourceType + "/" + resourceId;
         return new Described(eventId, userId, sessionId, clientIp, userAgent, resource, payload,
                 time(AccessEvaluationRequest.text(context, "time")));
+    }
+
+    /**
+     * The facts of a tool call that a caller outside the JVM states in the action's properties: {@code arguments} (an
+     * object by argument name, or one text) and {@code argument_origins} (a list of objects in the shape of
+     * {@code ArgumentOrigins}: argument, value, source, toolName, excerpt). They go under the payload keys a protected
+     * method's call writes, by the same rules, so the decision reads the same lines. A statement of another shape is
+     * refused, not guessed at.
+     */
+    private void putToolCall(Map<String, Object> payload, Map<String, Object> action) {
+        Object arguments = action.get("arguments");
+        if (arguments instanceof Map<?, ?> named) {
+            Map<String, Object> ordered = new LinkedHashMap<>();
+            named.forEach((name, value) -> ordered.put(String.valueOf(name), value));
+            put(payload, ZeroTrustEventPublisher.INVOCATION_ARGUMENTS, InvocationArguments.summarize(ordered));
+        } else if (arguments instanceof CharSequence text) {
+            put(payload, ZeroTrustEventPublisher.INVOCATION_ARGUMENTS, InvocationArguments.summarize(text));
+        } else if (arguments != null) {
+            throw new IllegalArgumentException("action.properties.arguments must be an object by argument name or a text");
+        }
+        Object origins = action.get("argument_origins");
+        if (origins == null) {
+            return;
+        }
+        if (!(origins instanceof Collection<?> items) || items.stream().anyMatch(item -> !(item instanceof Map<?, ?>))) {
+            throw new IllegalArgumentException("action.properties.argument_origins must be a list of objects");
+        }
+        List<Map<String, Object>> stated = events.statedArgumentOrigins(origins);
+        if (!stated.isEmpty()) {
+            payload.put(ZeroTrustEventPublisher.ARGUMENT_ORIGINS, stated);
+        }
     }
 
     private Instant time(@Nullable String value) {

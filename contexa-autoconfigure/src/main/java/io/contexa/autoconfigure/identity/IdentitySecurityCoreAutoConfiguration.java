@@ -19,6 +19,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
+import io.contexa.autoconfigure.ai.HostOwnedEnforcementOrder;
+import io.contexa.contexaidentity.security.zerotrust.HostOwnedStepUp;
+import org.springframework.boot.autoconfigure.security.SecurityProperties;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
@@ -396,13 +399,21 @@ public class IdentitySecurityCoreAutoConfiguration {
             ObjectProvider<AgentConfirmationService> agentConfirmations,
             ObjectProvider<DelegationRegistry> delegationRegistry,
             ObjectProvider<AgentScopeService> agentScopes,
-            ObjectProvider<AgentCallGuard> agentCallGuard) {
+            ObjectProvider<AgentCallGuard> agentCallGuard,
+            ObjectProvider<BridgeProperties> bridgeProperties,
+            ObjectProvider<HostOwnedStepUp> hostOwnedStepUp) {
 
         ZeroTrustChallengeFilter filter = new ZeroTrustChallengeFilter(
                 challengeMfaInitializer, responseWriter, authUrlProvider,
                 sessionRepository, stateMachineIntegrator, lockService, mfaFlowUrlRegistry, actionRepository,
                 securityZeroTrustProperties);
         filter.setUnanalysedRequestRecorder(unanalysedRequestRecorder.getIfAvailable());
+        // Ownership design Q-5: a stored CHALLENGE is enforced under ENFORCE only.
+        filter.setEnforcing(securityZeroTrustProperties::isEnforcementEnabled);
+        // Ownership design S-1/S-2: when the application owns sign-in, a CHALLENGE goes to Contexa's step-up.
+        if (hostOwned(bridgeProperties)) {
+            filter.setHostOwnedStepUp(hostOwnedStepUp.getIfAvailable());
+        }
         // docs/agent A5-2, A5-9, F-2: agents' requests meet their accountable person's confirmation.
         AgentConfirmationService confirmations = agentConfirmations.getIfAvailable();
         if (confirmations != null) {
@@ -421,13 +432,27 @@ public class IdentitySecurityCoreAutoConfiguration {
         return filter;
     }
 
+    /**
+     * Under CONTEXA_OWNED the filter runs inside Contexa's chain only. Under HOST_OWNED Contexa builds no chain, so it
+     * runs as a servlet filter right after the application's Spring Security chain (ownership design S-1).
+     */
     @Bean
     @ConditionalOnBean(ZeroTrustChallengeFilter.class)
-    public FilterRegistrationBean zeroTrustChallengeFilterRegistrationBean(ZeroTrustChallengeFilter zeroTrustChallengeFilter){
-        FilterRegistrationBean filterRegistrationBean = new FilterRegistrationBean();
-        filterRegistrationBean.setFilter(zeroTrustChallengeFilter);
-        filterRegistrationBean.setEnabled(false);
-        return filterRegistrationBean;
+    public FilterRegistrationBean<ZeroTrustChallengeFilter> zeroTrustChallengeFilterRegistrationBean(
+            ZeroTrustChallengeFilter zeroTrustChallengeFilter,
+            ObjectProvider<BridgeProperties> bridgeProperties,
+            ObjectProvider<SecurityProperties> securityProperties) {
+        FilterRegistrationBean<ZeroTrustChallengeFilter> registrationBean =
+                new FilterRegistrationBean<>(zeroTrustChallengeFilter);
+        registrationBean.setName("zeroTrustChallengeFilter");
+        return HostOwnedEnforcementOrder.enforcement(registrationBean, hostOwned(bridgeProperties),
+                HostOwnedEnforcementOrder.securityFilterOrder(securityProperties), HostOwnedEnforcementOrder.CHALLENGE);
+    }
+
+    /** Whether the application owns sign-in (HOST_OWNED); Contexa then builds no chain. */
+    private static boolean hostOwned(ObjectProvider<BridgeProperties> bridgeProperties) {
+        BridgeProperties properties = bridgeProperties != null ? bridgeProperties.getIfAvailable() : null;
+        return properties != null && !properties.isContexaOwned();
     }
 
     @Bean
@@ -449,24 +474,36 @@ public class IdentitySecurityCoreAutoConfiguration {
             SecurityZeroTrustProperties securityZeroTrustProperties,
             MfaFlowUrlRegistry mfaFlowUrlRegistry,
             ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder,
-            ObjectProvider<AgentContainmentService> agentContainment) {
+            ObjectProvider<AgentContainmentService> agentContainment,
+            ObjectProvider<BridgeProperties> bridgeProperties,
+            ObjectProvider<HostOwnedStepUp> hostOwnedStepUp) {
         ZeroTrustAccessControlFilter filter = new ZeroTrustAccessControlFilter(actionRedisRepository, responseWriter,
                 blockedUserRecorder, challengeMfaInitializer, authUrlProvider, blockingDecisionRegistry,
                 securityZeroTrustProperties.getMaxBlockMfaAttempts(), mfaFlowUrlRegistry);
         filter.setUnanalysedRequestRecorder(unanalysedRequestRecorder.getIfAvailable());
+        // Ownership design Q-5: a stored BLOCK or ESCALATE is enforced under ENFORCE only.
+        filter.setEnforcing(securityZeroTrustProperties::isEnforcementEnabled);
         // docs/agent A5-3: an agent whose escalation turns into a block is stopped.
         agentContainment.ifAvailable(filter::setAgentContainment);
+        // Ownership design S-1/S-2: when the application owns sign-in, a BLOCK's release by MFA goes to the step-up.
+        if (hostOwned(bridgeProperties)) {
+            filter.setHostOwnedStepUp(hostOwnedStepUp.getIfAvailable());
+        }
         return filter;
     }
 
     @Bean
     @ConditionalOnBean(ZeroTrustAccessControlFilter.class)
     public FilterRegistrationBean<ZeroTrustAccessControlFilter> zeroTrustAccessControlFilterRegistrationBean(
-            ZeroTrustAccessControlFilter zeroTrustAccessControlFilter) {
-        FilterRegistrationBean<ZeroTrustAccessControlFilter> registrationBean = new FilterRegistrationBean<>();
-        registrationBean.setFilter(zeroTrustAccessControlFilter);
-        registrationBean.setEnabled(false);
-        return registrationBean;
+            ZeroTrustAccessControlFilter zeroTrustAccessControlFilter,
+            ObjectProvider<BridgeProperties> bridgeProperties,
+            ObjectProvider<SecurityProperties> securityProperties) {
+        FilterRegistrationBean<ZeroTrustAccessControlFilter> registrationBean =
+                new FilterRegistrationBean<>(zeroTrustAccessControlFilter);
+        registrationBean.setName("zeroTrustAccessControlFilter");
+        return HostOwnedEnforcementOrder.enforcement(registrationBean, hostOwned(bridgeProperties),
+                HostOwnedEnforcementOrder.securityFilterOrder(securityProperties),
+                HostOwnedEnforcementOrder.ACCESS_CONTROL);
     }
 
     @Bean

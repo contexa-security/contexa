@@ -75,6 +75,36 @@ public final class InvocationArguments {
         return parts.isEmpty() ? null : cut(String.join("; ", parts), MAX_LENGTH);
     }
 
+    /**
+     * The summary of the arguments a caller outside the JVM states by name (an access evaluation of a tool call, in the
+     * order the caller gave them), written by the same rules as a method call's: a secret name is hidden, a value is
+     * shallow and short, the whole is cut. Null for none.
+     */
+    @Nullable
+    public static String summarize(@Nullable Map<String, ?> arguments) {
+        if (arguments == null || arguments.isEmpty()) {
+            return null;
+        }
+        List<String> parts = new ArrayList<>();
+        for (Map.Entry<String, ?> argument : arguments.entrySet()) {
+            String name = cut(String.valueOf(argument.getKey()), MAX_VALUE_LENGTH);
+            parts.add(name + "=" + (secretName(name) ? HIDDEN : value(argument.getValue(), 0)));
+        }
+        return cut(String.join("; ", parts), MAX_LENGTH);
+    }
+
+    /**
+     * The summary of a caller that states its arguments as one text: the text, cut to the summary's length. A text
+     * cannot name a secret, so a caller that has secrets states its arguments by name instead. Null for a blank text.
+     */
+    @Nullable
+    public static String summarize(@Nullable CharSequence text) {
+        if (text == null || text.toString().isBlank()) {
+            return null;
+        }
+        return cut(text.toString().strip(), MAX_LENGTH);
+    }
+
     /** Whether the parameter is the one the host passes the argument origins in (by its type, or by the value it holds). */
     private static boolean isArgumentOrigins(@Nullable Parameter parameter, @Nullable Object argument) {
         return argument instanceof ArgumentOrigins

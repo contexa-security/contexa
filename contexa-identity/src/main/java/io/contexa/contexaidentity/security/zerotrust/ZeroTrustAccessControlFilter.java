@@ -16,6 +16,7 @@
 package io.contexa.contexaidentity.security.zerotrust;
 
 import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexacommon.security.ZeroTrustScreens;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
@@ -56,6 +57,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BooleanSupplier;
 
 @Slf4j
 public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
@@ -79,6 +81,8 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     private final int maxBlockMfaAttempts;
     private final MfaFlowUrlRegistry mfaFlowUrlRegistry;
     private UnanalysedRequestRecorder unanalysedRequestRecorder;
+    private BooleanSupplier enforcing = () -> true;
+    private HostOwnedStepUp hostOwnedStepUp;
 
     public ZeroTrustAccessControlFilter(
             ZeroTrustActionRepository actionRedisRepository,
@@ -116,6 +120,22 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         this.unanalysedRequestRecorder = unanalysedRequestRecorder;
     }
 
+    /**
+     * Whether decisions are enforced (the zero-trust mode is ENFORCE). Under SHADOW, OBSERVE or DISABLED nothing is
+     * stopped: a restriction stored earlier stays stored and applies again under ENFORCE (ownership design Q-5).
+     */
+    public void setEnforcing(BooleanSupplier enforcing) {
+        this.enforcing = enforcing != null ? enforcing : () -> true;
+    }
+
+    /**
+     * Ownership HOST_OWNED: a BLOCK an administrator lets the user release by MFA goes to Contexa's verification-only
+     * step-up instead of a Contexa MFA flow. Null under CONTEXA_OWNED.
+     */
+    public void setHostOwnedStepUp(HostOwnedStepUp hostOwnedStepUp) {
+        this.hostOwnedStepUp = hostOwnedStepUp;
+    }
+
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String requestUri = request.getRequestURI();
@@ -125,7 +145,9 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         }
 
         return requestUri.startsWith("/logout")
+                || ZeroTrustScreens.isScreenResource(requestUri)
                 || requestUri.startsWith("/contexa/zero-trust")
+                || requestUri.startsWith(HostOwnedStepUp.STEP_UP_PATH)
                 || requestUri.startsWith("/contexa/api/aiam/sse/zero-trust")
                 || requestUri.startsWith("/contexa/api/aiam/zero-trust")
                 || requestUri.startsWith("/contexa/admin/api/aiam/sse/zero-trust")
@@ -140,7 +162,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
-        if (auth == null || !auth.isAuthenticated()) {
+        if (auth == null || !auth.isAuthenticated() || !enforcing.getAsBoolean()) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -207,6 +229,12 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                 return;
             }
 
+            if (hostOwnedStepUp != null) {
+                recordStopped(auth, ZeroTrustAction.BLOCK);
+                sendToHostOwnedStepUp(request, response);
+                return;
+            }
+
             if (challengeMfaInitializer != null) {
                 recordStopped(auth, ZeroTrustAction.BLOCK);
                 initializeBlockMfa(request, response, auth, userId);
@@ -260,6 +288,26 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
             }
         }
         return false;
+    }
+
+    /** HOST_OWNED: the release of a BLOCK by MFA continues on Contexa's step-up, with its purpose. */
+    private void sendToHostOwnedStepUp(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        String stepUpUrl = hostOwnedStepUp.stepUpUrl(request) + "?purpose=block";
+        if (WebUtil.isApiOrAjaxRequest(request)) {
+            Map<String, Object> body = new HashMap<>();
+            body.put("error", "BLOCK_MFA_REQUIRED");
+            body.put("message", "MFA verification required for block resolution");
+            body.put("mfaUrl", stepUpUrl);
+            responseWriter.writeErrorResponse(
+                    response,
+                    HttpServletResponse.SC_UNAUTHORIZED,
+                    "BLOCK_MFA_REQUIRED",
+                    "MFA verification required for block resolution",
+                    request.getRequestURI(),
+                    body);
+        } else {
+            response.sendRedirect(stepUpUrl);
+        }
     }
 
     private void initializeBlockMfa(HttpServletRequest request,

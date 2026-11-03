@@ -152,6 +152,85 @@ class ZeroTrustAccessControlFilterTest {
         }
     }
 
+    /**
+     * Q-5 (ownership design, 2026-11-03): under SHADOW nothing is stopped, in either ownership. A restriction stored
+     * earlier (an ENFORCE period, an administrator's block) stays stored but is not enforced; the request goes on and
+     * the decision store is not read.
+     */
+    @Test
+    void shouldPassThrough_whenEnforcementIsOff() throws Exception {
+        when(request.getRequestURI()).thenReturn("/some/path");
+        setUpAuthentication();
+        filter.setEnforcing(() -> false);
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(filterChain).doFilter(request, response);
+        verify(response, never()).sendRedirect(any());
+        verifyNoInteractions(actionRedisRepository);
+    }
+
+    /**
+     * Ownership browser check 2026-11-03: a signed-in user under a BLOCK got the screen's own script answered with the
+     * redirect to the screen, so the release request of the block screen never ran (FULL and HOST_OWNED alike).
+     */
+    @Test
+    void shouldNotFilter_theScreensOwnFiles() throws Exception {
+        setUpAuthentication();
+        try (MockedStatic<SessionFingerprintUtil> fingerprintMock = mockStatic(SessionFingerprintUtil.class)) {
+            fingerprintMock.when(() -> SessionFingerprintUtil.generateContextBindingHash(any(HttpServletRequest.class)))
+                    .thenReturn(TEST_CONTEXT_BINDING_HASH);
+            when(actionRedisRepository.getCurrentAction("testUser", TEST_CONTEXT_BINDING_HASH))
+                    .thenReturn(ZeroTrustAction.BLOCK);
+            for (String path : new String[] {"/contexa/js/zero-trust/blocked.js", "/contexa/css/main.css",
+                    "/contexa/img/logo.png"}) {
+                when(request.getRequestURI()).thenReturn(path);
+
+                filter.doFilter(request, response, filterChain);
+            }
+
+            verify(filterChain, times(3)).doFilter(request, response);
+            verify(response, never()).sendRedirect(anyString());
+            verify(response, never()).setStatus(anyInt());
+        }
+    }
+
+    @Test
+    void shouldNotFilter_stepUpPath() throws Exception {
+        when(request.getRequestURI()).thenReturn("/contexa/step-up");
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(filterChain).doFilter(request, response);
+        verifyNoInteractions(actionRedisRepository);
+    }
+
+    /**
+     * Ownership design S-1/S-2 (HOST_OWNED): a BLOCK an administrator let the user release by MFA goes to Contexa's
+     * verification-only step-up; no Contexa MFA flow starts.
+     */
+    @Test
+    void hostOwnedBlockReleasedByMfaGoesToTheStepUp() throws Exception {
+        when(request.getRequestURI()).thenReturn("/some/path");
+        setUpAuthentication();
+        filter.setHostOwnedStepUp((req, auth, key) -> false);
+
+        try (MockedStatic<SessionFingerprintUtil> fingerprintMock = mockStatic(SessionFingerprintUtil.class)) {
+            fingerprintMock.when(() -> SessionFingerprintUtil.generateContextBindingHash(any(HttpServletRequest.class)))
+                    .thenReturn(TEST_CONTEXT_BINDING_HASH);
+            when(actionRedisRepository.getCurrentAction("testUser", TEST_CONTEXT_BINDING_HASH))
+                    .thenReturn(ZeroTrustAction.BLOCK);
+            when(actionRedisRepository.isBlockMfaPending("testUser")).thenReturn(true);
+            when(actionRedisRepository.getBlockMfaFailCount("testUser")).thenReturn(0L);
+
+            filter.doFilter(request, response, filterChain);
+
+            verify(filterChain, never()).doFilter(eq(request), eq(response));
+            verify(response).sendRedirect("/contexa/step-up?purpose=block");
+            verifyNoInteractions(challengeMfaInitializer);
+        }
+    }
+
     @Test
     void shouldHandleBlock_whenBlockAction() throws Exception {
         when(request.getRequestURI()).thenReturn("/some/path");

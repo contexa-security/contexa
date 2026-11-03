@@ -21,6 +21,7 @@ import org.springframework.beans.factory.annotation.AnnotatedBeanDefinition;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.core.type.MethodMetadata;
+import io.contexa.autoconfigure.iam.admin.HostOwnedAdminConsoleAutoConfiguration;
 import org.springframework.security.web.SecurityFilterChain;
 
 import java.util.Arrays;
@@ -58,7 +59,10 @@ public class HostOwnedSecurityChainDiagnostics implements SmartInitializingSingl
     }
 
     boolean onlySpringBootDefaultChains() {
-        String[] chainNames = beanFactory.getBeanNamesForType(SecurityFilterChain.class, true, false);
+        // Contexa's own console chain (HOST_OWNED) is not one of the application's chains.
+        String[] chainNames = Arrays.stream(beanFactory.getBeanNamesForType(SecurityFilterChain.class, true, false))
+                .filter(name -> !HostOwnedAdminConsoleAutoConfiguration.ADMIN_CHAIN.equals(name))
+                .toArray(String[]::new);
         return chainNames.length > 0 && Arrays.stream(chainNames).allMatch(this::isSpringBootDefaultChain);
     }
 

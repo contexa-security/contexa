@@ -43,6 +43,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.env.Environment;
 import org.springframework.context.MessageSource;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -50,10 +51,16 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 @AutoConfiguration
 public class IamAdminAuthAutoConfiguration {
 
+    /**
+     * Under HOST_OWNED the console signs its administrators in on its own chain (ownership design S-3), so the form
+     * posts there; under CONTEXA_OWNED it posts to Contexa's sign-in chain as before.
+     */
     @Bean
     @ConditionalOnMissingBean
-    public LoginController loginController() {
-        return new LoginController();
+    public LoginController loginController(Environment environment) {
+        boolean hostOwned = "HOST_OWNED".equalsIgnoreCase(environment.getProperty("contexa.bridge.ownership"));
+        return new LoginController(hostOwned ? LoginController.HOST_OWNED_LOGIN_PROCESSING_URL
+                : LoginController.DEFAULT_LOGIN_PROCESSING_URL);
     }
 
     @Bean

@@ -5,7 +5,8 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.ui.Model;
 
-@ControllerAdvice
+// Contexa's screens only: the host's controllers do not get these attributes (ownership harness 2026-11-03).
+@ControllerAdvice(basePackages = "io.contexa")
 @ConditionalOnBean(PromptQualityRouteProperties.class)
 public final class PromptQualityRouteModelAdvice {
 
