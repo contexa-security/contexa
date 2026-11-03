@@ -17,7 +17,9 @@ package io.contexa.contexacommon.jdbc;
 
 import org.springframework.jdbc.core.JdbcOperations;
 
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.Locale;
 import java.util.Map;
@@ -78,10 +80,10 @@ public final class LibraryTableNames {
                 new Class<?>[]{JdbcOperations.class}, new Renaming(target));
     }
 
-    private record Renaming(JdbcOperations target) implements java.lang.reflect.InvocationHandler {
+    private record Renaming(JdbcOperations target) implements InvocationHandler {
 
         @Override
-        public Object invoke(Object proxy, java.lang.reflect.Method method, Object[] args) throws Throwable {
+        public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
             Object[] forwarded = args;
             if (args != null && args.length > 0) {
                 if (args[0] instanceof String sql) {
