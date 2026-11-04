@@ -171,4 +171,21 @@ class ContexaOperatingProfileTest {
         assertThat(ContexaOperatingProfile.of(SecurityMode.SANDBOX, environment().withProperty(PROP_APPLICATION_DATA, "true")).contexaOwnsApplicationData()).isTrue();
         assertThat(ContexaOperatingProfile.of(SecurityMode.FULL, environment().withProperty(PROP_APPLICATION_DATA, "false")).contexaOwnsApplicationData()).isFalse();
     }
+
+    @Test
+    void theDistributedModeWithoutTheRedisClientSaysWhatToDo() {
+        MockEnvironment environment = new MockEnvironment().withProperty("contexa.infrastructure.mode", "distributed");
+        ClassLoader withoutRedis = new ClassLoader(null) {
+        };
+
+        assertThatThrownBy(() -> ContexaOperatingProfile.refuseDistributedWithoutRedis(environment, withoutRedis))
+                .isInstanceOfSatisfying(ContexaOperatingProfileException.class,
+                        e -> assertThat(e.action()).contains("spring-boot-starter-data-redis"));
+    }
+
+    @Test
+    void theStandaloneModeNeedsNoRedisClient() {
+        ContexaOperatingProfile.refuseDistributedWithoutRedis(new MockEnvironment(), new ClassLoader(null) {
+        });
+    }
 }

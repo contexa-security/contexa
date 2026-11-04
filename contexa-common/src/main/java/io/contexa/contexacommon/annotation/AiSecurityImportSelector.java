@@ -31,6 +31,7 @@ public class AiSecurityImportSelector implements ImportSelector, EnvironmentAwar
             ContexaOperatingProfile.PROP_APPLICATION_DATA;
     private static final String AI_SECURITY_CONFIGURATION = "io.contexa.autoconfigure.ai.AiSecurityConfiguration";
     private final Function<Environment, String> databaseProblem;
+    private final Function<Environment, String> redisProblem;
     private ConfigurableEnvironment environment;
 
     public AiSecurityImportSelector() {
@@ -38,7 +39,12 @@ public class AiSecurityImportSelector implements ImportSelector, EnvironmentAwar
     }
 
     AiSecurityImportSelector(Function<Environment, String> databaseProblem) {
+        this(databaseProblem, new ContexaRedisProbe()::problem);
+    }
+
+    AiSecurityImportSelector(Function<Environment, String> databaseProblem, Function<Environment, String> redisProblem) {
         this.databaseProblem = databaseProblem;
+        this.redisProblem = redisProblem;
     }
 
     @Override
@@ -79,6 +85,7 @@ public class AiSecurityImportSelector implements ImportSelector, EnvironmentAwar
             return new String[]{AI_SECURITY_CONFIGURATION};
         }
         ContexaOperatingProfile.refuseReactive(environment);
+        ContexaOperatingProfile.refuseDistributedWithoutRedis(environment, getClass().getClassLoader());
         ContexaOperatingProfile profile = ContexaOperatingProfile.of(ContexaOperatingProfile.modeSet(environment, mode), environment);
         if (staysOffWithoutItsDatabase(profile)) {
             return new String[0];
@@ -105,6 +112,13 @@ public class AiSecurityImportSelector implements ImportSelector, EnvironmentAwar
     private boolean staysOffWithoutItsDatabase(ContexaOperatingProfile profile) {
         if (profile.ownership() != SecurityOwnershipMode.HOST_OWNED) {
             return false;
+        }
+        String redis = redisProblem.apply(environment);
+        if (redis != null) {
+            LoggerFactory.getLogger(AiSecurityImportSelector.class).error(
+                    "Contexa's Redis cannot be reached ({}): the application starts without Contexa, and nothing of it is active. "
+                            + "Restart the application once Redis is back.", redis);
+            return true;
         }
         String problem = databaseProblem.apply(environment);
         if (problem == null) {

@@ -58,6 +58,23 @@ class AiSecurityImportSelectorTest {
                 .hasMessageContaining("reactive");
     }
 
+    /** A bean of the distributed mode subscribes to Redis at start, so that a Redis that was down stopped the application. */
+    @Test
+    void anApplicationThatKeepsItsSignInStartsWithContexaOffWhenRedisIsDown() {
+        AiSecurityImportSelector selector = new AiSecurityImportSelector(environment -> null, environment -> "127.0.0.1:1 refused");
+        selector.setEnvironment(new StandardEnvironment());
+
+        assertThat(selector.selectImports(AnnotationMetadata.introspect(DefaultSandboxApplication.class))).isEmpty();
+    }
+
+    @Test
+    void anApplicationWhoseSignInContexaOwnsDoesNotAskRedisAndFailsAsItAlwaysDid() {
+        AiSecurityImportSelector selector = new AiSecurityImportSelector(environment -> null, environment -> "127.0.0.1:1 refused");
+        selector.setEnvironment(new StandardEnvironment());
+
+        assertThat(selector.selectImports(AnnotationMetadata.introspect(FullModeApplication.class))).isNotEmpty();
+    }
+
     @Test
     void shouldPropagateFullModeWhenDeclared() {
         StandardEnvironment environment = select(FullModeApplication.class);

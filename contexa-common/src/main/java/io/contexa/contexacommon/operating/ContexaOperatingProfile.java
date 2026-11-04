@@ -19,12 +19,16 @@ import io.contexa.contexacommon.security.bridge.SecurityMode;
 import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import org.springframework.core.env.Environment;
 import org.springframework.lang.Nullable;
+import org.springframework.util.ClassUtils;
 import org.springframework.util.StringUtils;
 
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 /**
  * How an application runs Contexa, read once and in one place. There are two ways: SANDBOX, where an existing application
  * keeps its sign-in (HOST_OWNED), and FULL, where Contexa owns the sign-in of a new one (CONTEXA_OWNED). The two settings
@@ -42,6 +46,16 @@ public record ContexaOperatingProfile(SecurityMode mode, SecurityOwnershipMode o
     public static final String PROP_OWNERSHIP = "contexa.bridge.ownership";
     public static final String PROP_APPLICATION_DATA = "contexa.datasource.isolation.contexa-owned-application";
     private static final String PROP_WEB_APPLICATION_TYPE = "spring.main.web-application-type";
+    private static final String PROP_INFRASTRUCTURE_MODE = "contexa.infrastructure.mode";
+    private static final Map<String, String> DISTRIBUTED_LIBRARIES = distributedLibraries();
+
+    private static Map<String, String> distributedLibraries() {
+        Map<String, String> libraries = new LinkedHashMap<>();
+        libraries.put("org.springframework.data.redis.core.RedisTemplate", "spring-boot-starter-data-redis");
+        libraries.put("org.redisson.api.RedissonClient", "org.redisson:redisson");
+        libraries.put("org.springframework.statemachine.data.redis.RedisStateMachineRepository", "spring-statemachine-data-redis");
+        return libraries;
+    }
 
     /** The profile of a running application: the mode as the annotation published it. */
     public static ContexaOperatingProfile resolve(Environment environment) {
@@ -66,6 +80,25 @@ public record ContexaOperatingProfile(SecurityMode mode, SecurityOwnershipMode o
             throw new ContexaOperatingProfileException(
                     "Contexa runs on a servlet stack, and spring.main.web-application-type is reactive.",
                     "Run this application on the servlet stack, or remove @EnableAISecurity.");
+        }
+    }
+
+    /**
+     * The distributed mode keeps its state in Redis, through libraries the application declares. Without one of them the
+     * start ended on a missing bean of Contexa's, which says nothing about what to do.
+     */
+    public static void refuseDistributedWithoutRedis(Environment environment, ClassLoader classLoader) {
+        if (!"distributed".equalsIgnoreCase(environment.getProperty(PROP_INFRASTRUCTURE_MODE))) {
+            return;
+        }
+        List<String> missing = DISTRIBUTED_LIBRARIES.entrySet().stream()
+                .filter(library -> !ClassUtils.isPresent(library.getKey(), classLoader))
+                .map(Map.Entry::getValue)
+                .toList();
+        if (!missing.isEmpty()) {
+            throw new ContexaOperatingProfileException(
+                    PROP_INFRASTRUCTURE_MODE + " is distributed, and the Redis client is not on the class path: " + missing + ".",
+                    "Add " + String.join(", ", missing) + " to this application, or set " + PROP_INFRASTRUCTURE_MODE + "=standalone.");
         }
     }
 
