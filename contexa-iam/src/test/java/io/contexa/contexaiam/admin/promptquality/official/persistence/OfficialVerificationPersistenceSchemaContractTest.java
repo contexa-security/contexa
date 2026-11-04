@@ -22,7 +22,7 @@ class OfficialVerificationPersistenceSchemaContractTest {
     @Test
     void runBatchOwnsTenantAndRepairsExistingRowsFromSealedEvidence() throws IOException {
         String schema;
-        try (InputStream input = getClass().getResourceAsStream("/db/schema.sql")) {
+        try (InputStream input = getClass().getResourceAsStream("/META-INF/contexa/db/schema.sql")) {
             assertThat(input).isNotNull();
             schema = new String(input.readAllBytes(), StandardCharsets.UTF_8)
                     .replaceAll("\\s+", " ");
@@ -44,7 +44,7 @@ class OfficialVerificationPersistenceSchemaContractTest {
     @Test
     void normalizedCheckLedgerPreservesFourEvaluationStatesWithoutInferringLegacyPass() throws IOException {
         String schema;
-        try (InputStream input = getClass().getResourceAsStream("/db/schema.sql")) {
+        try (InputStream input = getClass().getResourceAsStream("/META-INF/contexa/db/schema.sql")) {
             assertThat(input).isNotNull();
             schema = new String(input.readAllBytes(), StandardCharsets.UTF_8)
                     .replaceAll("\\s+", " ");
@@ -60,7 +60,7 @@ class OfficialVerificationPersistenceSchemaContractTest {
     @Test
     void purposeLedgersRestoreCustomerVisibilityOnlyFromRawCheckEvidence() throws IOException {
         String schema;
-        try (InputStream input = getClass().getResourceAsStream("/db/schema.sql")) {
+        try (InputStream input = getClass().getResourceAsStream("/META-INF/contexa/db/schema.sql")) {
             assertThat(input).isNotNull();
             schema = new String(input.readAllBytes(), StandardCharsets.UTF_8)
                     .replaceAll("\\s+", " ");

@@ -78,9 +78,10 @@ class DependencyOnlyEnvironmentIsolationIntegrationTest {
             assertThat(environment.getProperty("contexa.vectorstore.pgvector.initialize-schema")).isEqualTo("true");
             assertThat(environment.getProperty("spring.ai.openai.embedding.options.model"))
                     .isEqualTo("text-embedding-3-small");
+            // the application's metrics stay the application's, also once Contexa is active
             assertThat(Binder.get(environment)
                     .bind("management.metrics.enable", Bindable.mapOf(String.class, Boolean.class))
-                    .get()).containsEntry("lettuce", false);
+                    .isBound()).isFalse();
         }
     }
 

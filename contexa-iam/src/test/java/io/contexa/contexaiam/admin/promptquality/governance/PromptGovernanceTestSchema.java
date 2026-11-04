@@ -33,7 +33,7 @@ public final class PromptGovernanceTestSchema {
     }
 
     private static String schema() {
-        try (InputStream stream = PromptGovernanceTestSchema.class.getResourceAsStream("/db/schema.sql")) {
+        try (InputStream stream = PromptGovernanceTestSchema.class.getResourceAsStream("/META-INF/contexa/db/schema.sql")) {
             if (stream == null) {
                 throw new IllegalStateException("META-INF/contexa/db/schema.sql is not on the test classpath");
             }

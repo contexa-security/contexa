@@ -39,7 +39,7 @@ class ContexaResourcesTest {
 
     @Test
     void contexasSchemaIsChosenWhenTheApplicationHasAFileOfTheSameNameInFront(@TempDir Path application) throws Exception {
-        Files.createDirectories(application.resolve("db"));
+        Files.createDirectories(application.resolve("META-INF/contexa/db"));
         Files.writeString(application.resolve("META-INF/contexa/db/schema.sql"), "create table orders (id bigint);");
         try (HostFirst loader = new HostFirst(new URL[] {application.toUri().toURL()}, getClass().getClassLoader())) {
             Resource hosts = new UrlResource(loader.getResource("META-INF/contexa/db/schema.sql"));

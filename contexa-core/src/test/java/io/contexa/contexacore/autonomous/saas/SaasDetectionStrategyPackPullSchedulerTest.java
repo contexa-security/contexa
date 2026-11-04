@@ -17,6 +17,9 @@ package io.contexa.contexacore.autonomous.saas;
 
 import io.contexa.contexacore.properties.SaasForwardingProperties;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.Bean;
+import org.springframework.scheduling.concurrent.ConcurrentTaskScheduler;
+import org.springframework.scheduling.TaskScheduler;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.MapPropertySource;
@@ -80,8 +83,14 @@ class SaasDetectionStrategyPackPullSchedulerTest {
                 .orElseThrow(() -> new AssertionError("No fixed-delay task was registered"));
     }
 
+    /** Contexa's schedules name its scheduler, which the auto-configuration provides in an application. */
     @Configuration(proxyBeanMethods = false)
     @EnableScheduling
     static class SchedulingEnabledConfiguration {
+
+        @Bean(name = "contexaTaskScheduler", defaultCandidate = false)
+        TaskScheduler contexaTaskScheduler() {
+            return new ConcurrentTaskScheduler();
+        }
     }
 }
