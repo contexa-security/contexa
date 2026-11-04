@@ -39,7 +39,7 @@ import java.util.NoSuchElementException;
 
 @RestController
 @RequestMapping("/contexa/admin/api/prompt-quality/verification")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class PromptQualityOfficialVerificationRunApiController {
 
     private static final Logger log = LoggerFactory.getLogger(PromptQualityOfficialVerificationRunApiController.class);

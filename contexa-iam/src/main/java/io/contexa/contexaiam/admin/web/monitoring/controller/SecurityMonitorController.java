@@ -58,7 +58,7 @@ import java.util.Map;
 @Controller
 @RequestMapping("/contexa/admin/security-monitor")
 @Slf4j
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class SecurityMonitorController {
 
     /** docs/agent A5-5: the subject chips the list filters by (A1-3 subject kinds). */

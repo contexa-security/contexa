@@ -39,7 +39,7 @@ import java.util.List;
 @RequestMapping("/contexa/admin/policy-center")
 @RequiredArgsConstructor
 @Slf4j
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class PolicyCenterOperationsController {
 
     private final MessageSource messageSource;

@@ -1,6 +1,5 @@
 org.springframework.boot.env.EnvironmentPostProcessor=\
 io.contexa.autoconfigure.core.infra.StandaloneInfrastructurePostProcessor,\
-io.contexa.autoconfigure.compat.LegacyPrefixMigrator,\
 io.contexa.autoconfigure.compat.ContexaDefaultPropertiesPostProcessor
 org.springframework.context.ApplicationContextInitializer=\
 io.contexa.autoconfigure.compat.PlatformActivationGatedPropertySourceBinder

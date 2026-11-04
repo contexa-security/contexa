@@ -20,6 +20,7 @@ import io.contexa.contexacommon.operating.ConditionalOnOwnership;
 import org.springframework.beans.factory.BeanFactory;
 import io.contexa.autoconfigure.core.ContexaOwnBeans;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.security.ContexaConsolePaths;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacommon.security.authority.AuthorityResolver;
 import io.contexa.contexacore.security.UnifiedUserDetailsService;
@@ -118,7 +119,8 @@ public class HostOwnedAdminConsoleAutoConfiguration {
                 .requestCache(cache -> cache.requestCache(requestCache))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(login).permitAll()
-                        .anyRequest().hasRole("ADMIN"))
+                        .requestMatchers(beforeSignIn()).permitAll()
+                        .anyRequest().hasAuthority("ROLE_ADMIN"))
                 .formLogin(form -> form
                         .loginPage(login)
                         .loginProcessingUrl(login)
@@ -139,16 +141,32 @@ public class HostOwnedAdminConsoleAutoConfiguration {
 
     /**
      * The console's requests: /contexa/admin and below, except the user's own paths there (the release of a block, the
-     * pending analysis), which stay behind the application's chain for its signed-in user ({@link HostOwnedUserPathGuard}).
+     * pending analysis), which stay behind the application's chain for its signed-in user ({@link HostOwnedUserPathGuard}),
+     * and what the console needs before sign-in.
      */
     static RequestMatcher consoleRequests() {
         PathPatternRequestMatcher.Builder paths = PathPatternRequestMatcher.withDefaults();
         List<RequestMatcher> userPaths = HostOwnedUserPathGuard.ADMIN_SELF_SERVICE_PREFIXES.stream()
                 .<RequestMatcher>map(prefix -> paths.matcher(prefix + "/**"))
                 .toList();
-        return new AndRequestMatcher(
-                new OrRequestMatcher(paths.matcher("/contexa/admin"), paths.matcher("/contexa/admin/**")),
-                new NegatedRequestMatcher(new OrRequestMatcher(userPaths)));
+        return new OrRequestMatcher(
+                new AndRequestMatcher(
+                        new OrRequestMatcher(paths.matcher("/contexa/admin"), paths.matcher("/contexa/admin/**")),
+                        new NegatedRequestMatcher(new OrRequestMatcher(userPaths))),
+                beforeSignIn());
+    }
+
+    /**
+     * The look of the sign-in page, and the password change an expired account is sent to: left to the application's
+     * chain, they answer with the application's login page, or stand open without the console's CSRF protection.
+     */
+    static RequestMatcher beforeSignIn() {
+        PathPatternRequestMatcher.Builder paths = PathPatternRequestMatcher.withDefaults();
+        return new OrRequestMatcher(
+                paths.matcher("/contexa/css/**"),
+                paths.matcher("/contexa/js/**"),
+                paths.matcher("/contexa/img/**"),
+                paths.matcher(ContexaConsolePaths.PASSWORD_CHANGE));
     }
 
     @Bean(name = "contexaHostOwnedConsoleModelAdvice")

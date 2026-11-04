@@ -44,7 +44,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 @Controller
 @RequestMapping("/contexa/admin/groups")
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class GroupController {
 
     private final GroupService groupService;

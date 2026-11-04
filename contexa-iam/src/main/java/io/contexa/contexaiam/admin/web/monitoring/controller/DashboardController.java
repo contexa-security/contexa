@@ -28,7 +28,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 @RequestMapping("/contexa/admin")
 @RequiredArgsConstructor
 @Controller
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class DashboardController {
 
     private final DashboardService dashboardService;

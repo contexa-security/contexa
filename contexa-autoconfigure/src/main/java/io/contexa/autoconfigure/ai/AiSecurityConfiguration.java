@@ -15,6 +15,7 @@
  */
 package io.contexa.autoconfigure.ai;
 
+import io.contexa.contexacommon.security.ContexaConsolePaths;
 import io.contexa.contexacommon.operating.ContexaOperatingProfile;
 import io.contexa.contexacommon.security.bridge.SecurityMode;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
@@ -84,7 +85,8 @@ public class AiSecurityConfiguration {
         SafeHttpCustomizer<HttpSecurity> globalHttpCustomizer = http -> {
             http
                     .authorizeHttpRequests(authReq -> authReq
-                            .requestMatchers("/contexa/css/**", "/contexa/js/**", "/images/**", "/favicon.ico").permitAll()
+                            .requestMatchers("/contexa/css/**", "/contexa/js/**", "/contexa/img/**", "/images/**", "/favicon.ico",
+                                    ContexaConsolePaths.PASSWORD_CHANGE).permitAll()
                             .anyRequest().access(contexaCustomDynamicAuthorizationManager)
                     )
             ;
@@ -102,7 +104,7 @@ public class AiSecurityConfiguration {
                                 .requestMatchers("/contexa/admin/login").permitAll()
                                 .requestMatchers("/contexa/admin/api/aiam/zero-trust/**",
                                         "/contexa/admin/api/aiam/sse/zero-trust/**").authenticated()
-                                .requestMatchers("/contexa/admin/**").hasRole("ADMIN")
+                                .requestMatchers("/contexa/admin/**").hasAuthority("ROLE_ADMIN")
                                 .anyRequest().permitAll());
 
                     })

@@ -27,7 +27,7 @@ import java.util.Objects;
  */
 @RestController
 @RequestMapping("/contexa/admin/api/prompt-inspection")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class PromptInspectionApiController {
 
 

@@ -35,7 +35,7 @@ import java.util.List;
 @Controller
 @RequestMapping("/contexa/admin/blacklist")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class BlacklistController {
 
     private final BlockedUserService blockedUserService;

@@ -23,6 +23,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -37,6 +38,8 @@ class ContexaOperatingProfileContractTest {
     private static final Pattern READS_THE_SETTING = Pattern.compile("getProperty\\(\\s*\"contexa\\.(bridge\\.ownership|ai\\.security\\.mode)\"");
     private static final Pattern COMPARES_THE_TEXT = Pattern.compile("\"(HOST|CONTEXA)_OWNED\"\\s*\\.\\s*equals");
     private static final Pattern PROPERTY_CONDITION = Pattern.compile("@ConditionalOnProperty\\([^)]*\"ownership\"", Pattern.DOTALL);
+
+    private static final Pattern ASYNC_CALL = Pattern.compile("CompletableFuture\\.(?:supply|run)Async\\(");
 
     private static List<Path> mainSources() throws IOException {
         List<Path> sources = new ArrayList<>();
@@ -126,6 +129,46 @@ class ContexaOperatingProfileContractTest {
             }
         }
         assertThat(byType).isEmpty();
+    }
+
+    /** These pools belong to the JVM: a call to a slow model held a thread of the application's own parallel streams. */
+    @Test
+    void contexasBlockingWorkStaysOffThePoolsOfTheJvm() throws IOException {
+        List<String> shared = new ArrayList<>();
+        for (Path source : mainSources()) {
+            if (source.endsWith("ContexaBackgroundExecution.java")) {
+                continue;
+            }
+            String text = read(source);
+            if (text.contains("Schedulers.boundedElastic()") || text.contains("ForkJoinPool.commonPool()")
+                    || hasAsyncCallWithoutExecutor(text)) {
+                shared.add(source.getFileName().toString());
+            }
+        }
+        assertThat(shared).isEmpty();
+    }
+
+    /** With a single argument, supplyAsync and runAsync use ForkJoinPool.commonPool(). */
+    private static boolean hasAsyncCallWithoutExecutor(String text) {
+        Matcher call = ASYNC_CALL.matcher(text);
+        while (call.find()) {
+            int depth = 1;
+            boolean executor = false;
+            for (int i = call.end(); i < text.length() && depth > 0; i++) {
+                char character = text.charAt(i);
+                if (character == '(' || character == '{') {
+                    depth++;
+                } else if (character == ')' || character == '}') {
+                    depth--;
+                } else if (character == ',' && depth == 1) {
+                    executor = true;
+                }
+            }
+            if (!executor) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** G-24. */

@@ -260,9 +260,16 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     }
 
     private boolean isMfaRelatedPath(String requestUri) {
+        if (requestUri.startsWith("/contexa/admin/api/mfa/")) {
+            return true;
+        }
+        // Under HOST_OWNED Contexa's sign-in does not run and the release goes through the step-up: the paths below are
+        // the application's, and a user under a BLOCK does not reach them.
+        if (hostOwnedStepUp != null) {
+            return false;
+        }
         if (requestUri.startsWith("/mfa/")
                 || requestUri.startsWith("/api/mfa/")
-                || requestUri.startsWith("/contexa/admin/api/mfa/")
                 || requestUri.startsWith("/webauthn/")
                 || requestUri.startsWith("/login/mfa-")) {
             return true;

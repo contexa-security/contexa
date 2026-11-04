@@ -32,6 +32,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.authentication.CredentialsExpiredException;
 import org.springframework.security.authentication.BadCredentialsException;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -84,6 +85,19 @@ class UnifiedAuthenticationFailureHandlerTest {
                 loginPolicyHandler,
                 securityContextDataStore
         );
+    }
+
+    /** Sent to /password-change, which nothing answers: an expired account could never change its password. */
+    @Test
+    void anExpiredPasswordIsSentToWhereThePasswordIsChanged() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/login");
+        request.setParameter("username", "admin");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        when(stateMachineIntegrator.loadFactorContextFromRequest(request)).thenReturn(null);
+
+        handler.onAuthenticationFailure(request, response, new CredentialsExpiredException("expired"));
+
+        assertThat(response.getRedirectedUrl()).isEqualTo("/contexa/password-change?username=admin&expired=true");
     }
 
     @Test

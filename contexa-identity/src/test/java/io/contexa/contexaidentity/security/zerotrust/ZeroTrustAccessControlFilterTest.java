@@ -219,6 +219,27 @@ class ZeroTrustAccessControlFilterTest {
         verifyNoInteractions(actionRedisRepository);
     }
 
+    /** "/api/mfa/" let a user under a BLOCK through to the application's own path of that name. */
+    @Test
+    void hostOwnedApplicationPathThatLooksLikeMfaStaysBlocked() throws Exception {
+        when(request.getRequestURI()).thenReturn("/api/mfa/transfer");
+        setUpAuthentication();
+        filter.setHostOwnedStepUp((req, auth, key) -> false);
+
+        try (MockedStatic<SessionFingerprintUtil> fingerprintMock = mockStatic(SessionFingerprintUtil.class)) {
+            fingerprintMock.when(() -> SessionFingerprintUtil.generateContextBindingHash(any(HttpServletRequest.class)))
+                    .thenReturn(TEST_CONTEXT_BINDING_HASH);
+            when(actionRedisRepository.getCurrentAction("testUser", TEST_CONTEXT_BINDING_HASH))
+                    .thenReturn(ZeroTrustAction.BLOCK);
+            when(actionRedisRepository.isBlockMfaPending("testUser")).thenReturn(true);
+            when(actionRedisRepository.getBlockMfaFailCount("testUser")).thenReturn(0L);
+
+            filter.doFilter(request, response, filterChain);
+
+            verify(filterChain, never()).doFilter(eq(request), eq(response));
+        }
+    }
+
     /**
      * Ownership design S-1/S-2 (HOST_OWNED): a BLOCK an administrator let the user release by MFA goes to Contexa's
      * verification-only step-up; no Contexa MFA flow starts.

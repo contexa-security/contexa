@@ -166,7 +166,7 @@ class AgentDelegationApiControllerTest {
         assertThat(AgentDelegationApiController.class.getAnnotation(PreAuthorize.class).value())
                 .isEqualTo("isAuthenticated()");
         assertThat(AgentDelegationAdminApiController.class.getAnnotation(PreAuthorize.class).value())
-                .isEqualTo("hasRole('ADMIN')");
+                .isEqualTo("hasAuthority('ROLE_ADMIN')");
     }
 
     private static DelegationBody body(String delegator, String agent) {

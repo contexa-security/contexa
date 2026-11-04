@@ -16,7 +16,7 @@ import io.contexa.contexaiam.admin.promptquality.official.web.model.PromptQualit
 
 @Controller
 @RequestMapping("/contexa/admin/prompt-quality")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class PromptQualityAssurancePageController {
 
     private final PromptQualityMessageResolver messageResolver;

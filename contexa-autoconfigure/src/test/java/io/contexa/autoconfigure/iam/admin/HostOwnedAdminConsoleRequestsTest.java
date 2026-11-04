@@ -49,4 +49,18 @@ class HostOwnedAdminConsoleRequestsTest {
         assertThat(takes("GET", "/contexa/admin/api/aiam/sse/zero-trust/subscribe")).isFalse();
         assertThat(takes("GET", "/page")).isFalse();
     }
+
+    /** Left to the application's chain, a sign-in page lost its look and the password change stood without the console's CSRF. */
+    @Test
+    @DisplayName("the console chain also takes what the console needs before sign-in, and nothing of the application's")
+    void takesWhatTheConsoleNeedsBeforeSignIn() {
+        assertThat(takes("GET", "/contexa/css/console.css")).isTrue();
+        assertThat(takes("GET", "/contexa/js/contexa-mfa-sdk.js")).isTrue();
+        assertThat(takes("GET", "/contexa/img/logo.svg")).isTrue();
+        assertThat(takes("GET", "/contexa/password-change")).isTrue();
+        assertThat(takes("POST", "/contexa/password-change")).isTrue();
+
+        assertThat(takes("GET", "/css/site.css")).isFalse();
+        assertThat(takes("GET", "/password-change")).isFalse();
+    }
 }

@@ -12,7 +12,7 @@ public class ContexaSecuredSample {
         return "reached";
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public String adminOnly() {
         return "admin";
     }

@@ -28,16 +28,29 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * A1-6: an enterprise-managed database installed before an OSS table existed gains that table before the OSS
- * completeness check, and nothing else changes. It runs only against the empty database named by
- * {@code CONTEXA_TEST_UPGRADE_DB_URL} (PostgreSQL with pgvector) and refuses any database that is not empty.
+ * completeness check, and nothing else changes. It runs on the server of {@code CONTEXA_TEST_UPGRADE_DB_URL} (PostgreSQL
+ * with pgvector), in an empty database of its own: the other upgrade tests leave their tables in the one that names.
  */
 @EnabledIfEnvironmentVariable(named = "CONTEXA_TEST_UPGRADE_DB_URL", matches = ".+")
 class OssTableAdditionUpgradeTest {
 
     @Test
     void anEnterpriseManagedDatabaseGainsTheOssTablesItLacks() throws Exception {
-        DriverManagerDataSource dataSource = new DriverManagerDataSource(System.getenv("CONTEXA_TEST_UPGRADE_DB_URL"),
-                System.getenv("CONTEXA_TEST_DB_USERNAME"), System.getenv("CONTEXA_TEST_DB_PASSWORD"));
+        String url = System.getenv("CONTEXA_TEST_UPGRADE_DB_URL");
+        String username = System.getenv("CONTEXA_TEST_DB_USERNAME");
+        String password = System.getenv("CONTEXA_TEST_DB_PASSWORD");
+        String database = "ctxa_table_addition_" + Long.toUnsignedString(System.nanoTime());
+        JdbcTemplate server = new JdbcTemplate(new DriverManagerDataSource(url, username, password));
+        server.execute("create database " + database);
+        try {
+            gainsTheOssTablesItLacks(new DriverManagerDataSource(
+                    url.substring(0, url.lastIndexOf('/') + 1) + database, username, password));
+        } finally {
+            server.execute("drop database if exists " + database + " with (force)");
+        }
+    }
+
+    private void gainsTheOssTablesItLacks(DriverManagerDataSource dataSource) throws Exception {
         assertThat(ContexaSchemaInventory.readDatabase(dataSource).tables())
                 .as("this test only runs on an empty database").isEmpty();
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);

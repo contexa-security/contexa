@@ -48,7 +48,7 @@ import java.util.Locale;
 
 @Controller
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AiMonitorController {
 
     private final AiSecurityDecisionMonitoringService aiSecurityDecisionMonitoringService;

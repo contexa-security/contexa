@@ -49,7 +49,7 @@ import java.util.stream.Collectors;
  */
 @Controller
 @RequestMapping("/contexa/admin/company-records")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class CompanyRecordsAdminController {
 
     static final int PAGE = 200;

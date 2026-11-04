@@ -132,11 +132,11 @@ class CompanyRecordsAdminTest {
     @Test
     void onlyAdministratorsReachTheApiAndTheConsole() {
         assertThat(CompanyRecordsApiController.class.getAnnotation(PreAuthorize.class).value())
-                .isEqualTo("hasRole('ADMIN')");
+                .isEqualTo("hasAuthority('ROLE_ADMIN')");
         assertThat(CompanyRecordsApiController.class.getAnnotation(RequestMapping.class).value())
                 .containsExactly("/contexa/admin/api/company-records");
         assertThat(CompanyRecordsAdminController.class.getAnnotation(PreAuthorize.class).value())
-                .isEqualTo("hasRole('ADMIN')");
+                .isEqualTo("hasAuthority('ROLE_ADMIN')");
     }
 
     @Test

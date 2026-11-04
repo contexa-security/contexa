@@ -29,6 +29,8 @@ import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.aop.PointcutAdvisor;
+import org.springframework.beans.factory.support.DefaultListableBeanFactory;
+import org.springframework.beans.factory.support.RootBeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.aop.AopAutoConfiguration;
@@ -36,6 +38,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
+import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.authentication.TestingAuthenticationToken;
@@ -61,6 +64,35 @@ class ContexaScopedMethodSecurityTest {
                 .withUserConfiguration(application, ContexaSecuredSample.Definition.class, HandlerFactory.class)
                 .withConfiguration(AutoConfigurations.of(AopAutoConfiguration.class, ContexaProxyModeAutoConfiguration.class,
                         IamSecurityAutoConfiguration.ContexaOwnedMethodSecurityConfiguration.class));
+    }
+
+    /** With prePostEnabled the application's interceptor evaluates Contexa's annotations too; a second evaluation only repeats it. */
+    @Test
+    void legacyMethodSecurityThatReadsPreAuthorizeIsNotDoubled() {
+        assertThat(ContexaScopedMethodSecurity.servesPrePostTheLegacyWay(beansWith(LegacyPrePost.class))).isTrue();
+    }
+
+    /** securedEnabled alone reads no @PreAuthorize: Contexa's own would stand unguarded if the advisor stepped back. */
+    @Test
+    void legacyMethodSecurityThatDoesNotReadPreAuthorizeLeavesContexasOwnGuarded() {
+        assertThat(ContexaScopedMethodSecurity.servesPrePostTheLegacyWay(beansWith(LegacySecuredOnly.class))).isFalse();
+        assertThat(ContexaScopedMethodSecurity.servesPrePostTheLegacyWay(beansWith(Object.class))).isFalse();
+    }
+
+    private static DefaultListableBeanFactory beansWith(Class<?> application) {
+        DefaultListableBeanFactory beans = new DefaultListableBeanFactory();
+        beans.registerBeanDefinition("application", new RootBeanDefinition(application));
+        return beans;
+    }
+
+    @SuppressWarnings("deprecation")
+    @EnableGlobalMethodSecurity(prePostEnabled = true)
+    static class LegacyPrePost {
+    }
+
+    @SuppressWarnings("deprecation")
+    @EnableGlobalMethodSecurity(securedEnabled = true)
+    static class LegacySecuredOnly {
     }
 
     @AfterEach

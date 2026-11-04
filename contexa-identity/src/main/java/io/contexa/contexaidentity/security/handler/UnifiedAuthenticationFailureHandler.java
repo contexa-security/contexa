@@ -19,6 +19,7 @@ import java.util.Locale;
 import io.contexa.contexacore.autonomous.store.LoginFailureRecording;
 import java.time.Instant;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
+import io.contexa.contexacommon.security.ContexaConsolePaths;
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.properties.MfaSettings;
@@ -190,7 +191,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         }
 
         if (exception instanceof CredentialsExpiredException) {
-            String passwordChangeUrl = request.getContextPath() + "/password-change?username="
+            String passwordChangeUrl = request.getContextPath() + ContexaConsolePaths.PASSWORD_CHANGE + "?username="
                     + URLEncoder.encode(usernameForLog, StandardCharsets.UTF_8) + "&expired=true";
             response.sendRedirect(passwordChangeUrl);
             return;

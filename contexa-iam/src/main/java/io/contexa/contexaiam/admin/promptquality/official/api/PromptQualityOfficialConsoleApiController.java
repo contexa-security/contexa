@@ -14,7 +14,7 @@ import java.util.Properties;
 
 @RestController
 @RequestMapping("/contexa/admin/api/prompt-quality")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class PromptQualityOfficialConsoleApiController {
 
     private final PromptQualityOfficialConsoleViewAssembler views;

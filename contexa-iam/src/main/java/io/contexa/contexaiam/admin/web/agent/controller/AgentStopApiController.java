@@ -36,7 +36,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/contexa/admin/api/agents/stops")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AgentStopApiController {
 
     /** The stopped agents and delegations. */

@@ -48,7 +48,7 @@ import java.util.List;
 @RequestMapping("/contexa/admin/workbench/resources")
 @RequiredArgsConstructor
 @Slf4j
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class ResourceAdminController {
 
     private final ResourceAdminService resourceAdminService;

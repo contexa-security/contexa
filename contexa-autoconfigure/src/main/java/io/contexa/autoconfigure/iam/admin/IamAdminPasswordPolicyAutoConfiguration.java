@@ -23,6 +23,7 @@ import io.contexa.contexacommon.repository.PasswordPolicyRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.SystemSettingsRepository;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacore.infra.redis.PolicyReloadBroadcaster;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.controller.PasswordChangeController;
@@ -66,8 +67,9 @@ public class IamAdminPasswordPolicyAutoConfiguration {
     public PasswordChangeService passwordChangeService(
             UserRepository userRepository,
             BeanFactory beanFactory,
-            PasswordPolicyService contexaPasswordPolicyService) {
-        return new PasswordChangeService(userRepository, ContexaOwnBeans.passwordEncoder(beanFactory), contexaPasswordPolicyService);
+            PasswordPolicyService contexaPasswordPolicyService,
+            ObjectProvider<LoginPolicyHandler> loginPolicy) {
+        return new PasswordChangeService(userRepository, ContexaOwnBeans.passwordEncoder(beanFactory), contexaPasswordPolicyService, loginPolicy);
     }
 
     @Bean(name = "contexaPasswordChangeController")

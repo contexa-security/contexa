@@ -55,8 +55,7 @@ public class ContexaPgVectorStoreAutoConfiguration {
 
     /**
      * Spring AI's settings type, bound from Contexa's keys. Not a default candidate: Spring AI's auto-configuration takes this type for the application's own
-     * store and must find its own bean, bound from its own keys. A value an application wrote under Spring AI's keys for Contexa still arrives here through
-     * the legacy alias of {@code LegacyPrefixMigrator}.
+     * store and must find its own bean, bound from its own keys.
      */
     @Bean(name = "contexaVectorStoreSettings", defaultCandidate = false)
     @ConfigurationProperties(prefix = "contexa.vectorstore.pgvector")

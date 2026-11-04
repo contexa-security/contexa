@@ -42,7 +42,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 @RequestMapping("/contexa/admin/policies")
 @Slf4j
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class PolicyController {
 
     private final PolicyService policyService;

@@ -43,7 +43,7 @@ import java.util.function.Supplier;
  */
 @RestController
 @RequestMapping("/contexa/admin/api/agents")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AgentRegistrationApiController {
 
     /** An agent to register. {@code tokenLifetimeMinutes} is optional. */

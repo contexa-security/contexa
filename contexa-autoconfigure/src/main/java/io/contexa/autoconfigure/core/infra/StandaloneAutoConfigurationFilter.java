@@ -102,10 +102,8 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
                     result[i] = hasContexaOwnedDataSource();
                 } else if (isContexaAutoConfiguration(autoConfigurationClass)) {
                     result[i] = false;
-                } else if ("org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration".equals(autoConfigurationClass) ||
-                           "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration".equals(autoConfigurationClass) ||
-                           "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration".equals(autoConfigurationClass) ||
-                           "org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration".equals(autoConfigurationClass)) {
+                } else if ("org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration".equals(autoConfigurationClass)
+                           || "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration".equals(autoConfigurationClass)) {
                     // Contexa's own dependencies put JDBC and JPA on the class path of an application that has no database; Spring Boot's
                     // database auto-configuration then fails there. It is left out only for an application that says nothing about a
                     // database: no url, no jndi name, no data source, JPA, Flyway, Liquibase or SQL initialization property, no embedded database.

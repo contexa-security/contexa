@@ -17,8 +17,6 @@ package io.contexa.contexacore.verification.capture;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
 import lombok.extern.slf4j.Slf4j;
-import org.aspectj.lang.annotation.AfterReturning;
-import org.aspectj.lang.annotation.Aspect;
 
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -28,7 +26,6 @@ import java.util.function.Consumer;
  * first pass without a model verdict) left it pending; completing it makes the seal hold the applied stage's prompt.
  * A Layer2 that asked no model left nothing pending, and the Layer1 snapshot stays.
  */
-@Aspect
 @Slf4j
 public class SealedEvidenceLayer2CompletionAspect {
 
@@ -42,8 +39,6 @@ public class SealedEvidenceLayer2CompletionAspect {
         this.traceCompleter = Objects.requireNonNull(traceCompleter, "traceCompleter must not be null");
     }
 
-    @AfterReturning(
-            pointcut = "execution(* io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy.evaluate(..)) && args(event)")
     public void completeAfterLayer2(SecurityEvent event) {
         if (event == null) {
             return;

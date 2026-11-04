@@ -41,7 +41,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/contexa/admin/api/company-records")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class CompanyRecordsApiController {
 
     private final CompanyRecordsAdminService records;

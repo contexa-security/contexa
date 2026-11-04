@@ -45,7 +45,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 @Controller
 @RequestMapping("/contexa/admin/roles")
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class RoleController {
 
 	private final RoleService roleService;

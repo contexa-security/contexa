@@ -15,13 +15,18 @@
  */
 package io.contexa.autoconfigure.core;
 
+import org.springframework.aop.config.AopConfigUtils;
 import org.springframework.aop.framework.autoproxy.AutoProxyUtils;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.beans.factory.annotation.AnnotatedBeanDefinition;
+import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.ImportBeanDefinitionRegistrar;
 import org.springframework.context.annotation.Role;
+import org.springframework.core.type.AnnotationMetadata;
 
 /**
  * Contexa's beans are proxied by class; the application's beans are proxied the way the application chose.
@@ -33,6 +38,7 @@ import org.springframework.context.annotation.Role;
  * {@code @EnableAspectJAutoProxy}.
  */
 @AutoConfiguration
+@Import(ContexaProxyModeAutoConfiguration.InfrastructureProxying.class)
 public class ContexaProxyModeAutoConfiguration {
 
     /** The packages of the Contexa libraries (the applications that use them, and the applications of Contexa's own, are others). */
@@ -49,6 +55,18 @@ public class ContexaProxyModeAutoConfiguration {
                 }
             }
         };
+    }
+
+    /**
+     * Contexa's advisors are of the infrastructure role. This creator applies those and none of the application's aspects:
+     * it does not depend on {@code spring.aop.auto}, and it does not override that setting either.
+     */
+    static final class InfrastructureProxying implements ImportBeanDefinitionRegistrar {
+
+        @Override
+        public void registerBeanDefinitions(AnnotationMetadata metadata, BeanDefinitionRegistry registry) {
+            AopConfigUtils.registerAutoProxyCreatorIfNecessary(registry);
+        }
     }
 
     static boolean definedByContexa(BeanDefinition definition) {

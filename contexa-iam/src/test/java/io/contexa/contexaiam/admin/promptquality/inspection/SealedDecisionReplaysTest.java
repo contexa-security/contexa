@@ -136,7 +136,7 @@ class SealedDecisionReplaysTest {
         assertThat(withoutPipeline.replayRequest("req-1", new ReplayRequest(BUNDLE, null, null, null), operator)
                 .getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
         assertThat(SealedDecisionReplayApiController.class.getAnnotation(PreAuthorize.class).value())
-                .isEqualTo("hasRole('ADMIN')");
+                .isEqualTo("hasAuthority('ROLE_ADMIN')");
         assertThat(SealedDecisionReplayApiController.class.getAnnotation(RequestMapping.class).value())
                 .containsExactly("/contexa/admin/api/sealed-decisions");
     }

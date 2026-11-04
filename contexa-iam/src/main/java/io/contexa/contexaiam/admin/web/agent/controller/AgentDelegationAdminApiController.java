@@ -41,7 +41,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/contexa/admin/api/agent-delegations")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AgentDelegationAdminApiController {
 
     private final AgentDelegationService delegations;

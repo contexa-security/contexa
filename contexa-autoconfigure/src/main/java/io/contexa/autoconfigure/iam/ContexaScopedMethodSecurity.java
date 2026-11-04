@@ -21,6 +21,7 @@ import org.springframework.aop.ClassFilter;
 import org.springframework.aop.Pointcut;
 import org.springframework.aop.support.ComposablePointcut;
 import org.springframework.aop.support.DefaultPointcutAdvisor;
+import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.Expression;
@@ -28,6 +29,7 @@ import org.springframework.expression.ExpressionParser;
 import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
 import org.springframework.security.authorization.method.AuthorizationManagerBeforeMethodInterceptor;
+import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.authorization.method.PreAuthorizeAuthorizationManager;
 import org.springframework.security.core.Authentication;
 import org.springframework.util.function.SingletonSupplier;
@@ -66,12 +68,31 @@ final class ContexaScopedMethodSecurity {
         manager.setApplicationContext(applicationContext);
         AuthorizationManagerBeforeMethodInterceptor interceptor = AuthorizationManagerBeforeMethodInterceptor.preAuthorize(manager);
         // Asked at the time a bean is proxied: method security the application (or a later auto-configuration) switched on serves Contexa's classes
+        SingletonSupplier<Boolean> legacyPrePost = SingletonSupplier.of(() -> servesPrePostTheLegacyWay(applicationContext));
         ClassFilter contexaOnly = type -> ContexaPackages.owns(type)
-                && !ContexaPackages.contextHas(applicationContext, APPLICATION_INTERCEPTOR);
+                && !ContexaPackages.contextHas(applicationContext, APPLICATION_INTERCEPTOR)
+                && !legacyPrePost.obtain();
         Pointcut pointcut = new ComposablePointcut(interceptor.getPointcut()).intersection(contexaOnly);
         DefaultPointcutAdvisor advisor = new DefaultPointcutAdvisor(pointcut, interceptor);
         advisor.setOrder(interceptor.getOrder());
         return advisor;
+    }
+
+    /**
+     * Legacy method security has no interceptor of that name, but with {@code prePostEnabled} it evaluates every
+     * {@code @PreAuthorize}, Contexa's included: a second evaluation here would only repeat it. With {@code securedEnabled}
+     * alone nothing of the application reads {@code @PreAuthorize}, and Contexa's own still needs this advisor. Read from
+     * the bean definitions: no bean is created for the answer.
+     */
+    @SuppressWarnings("deprecation")
+    static boolean servesPrePostTheLegacyWay(ListableBeanFactory beans) {
+        for (String name : beans.getBeanNamesForAnnotation(EnableGlobalMethodSecurity.class)) {
+            EnableGlobalMethodSecurity legacy = beans.findAnnotationOnBean(name, EnableGlobalMethodSecurity.class, false);
+            if (legacy != null && legacy.prePostEnabled()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Hands every call to the handler once it exists. */

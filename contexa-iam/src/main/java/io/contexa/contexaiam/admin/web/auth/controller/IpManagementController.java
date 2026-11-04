@@ -44,7 +44,7 @@ import java.util.List;
 @Controller
 @RequestMapping("/contexa/admin/ip-management")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class IpManagementController {
 
     private static final int PAGE_SIZE = 20;

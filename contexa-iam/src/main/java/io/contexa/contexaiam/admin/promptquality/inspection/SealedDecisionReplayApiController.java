@@ -41,7 +41,7 @@ import java.util.function.Supplier;
  */
 @RestController
 @RequestMapping("/contexa/admin/api/sealed-decisions")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class SealedDecisionReplayApiController {
 
     private final SealedDecisionReplays replays;

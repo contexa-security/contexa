@@ -15,8 +15,11 @@
  */
 package io.contexa.contexaiam.admin.web.auth.controller;
 
+import io.contexa.contexacommon.security.ClientIpResolver;
+import io.contexa.contexacommon.security.ContexaConsolePaths;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordChangeService;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
@@ -39,28 +42,31 @@ public class PasswordChangeController {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
     }
 
-    @GetMapping("/contexa/password-change")
+    @GetMapping(ContexaConsolePaths.PASSWORD_CHANGE)
     public String showPasswordChangeForm(@RequestParam String username, Model model) {
         model.addAttribute("username", username);
         model.addAttribute("policy", passwordPolicyService.getCurrentPolicy());
         return "contexa/password-change";
     }
 
-    @PostMapping("/contexa/password-change")
+    @PostMapping(ContexaConsolePaths.PASSWORD_CHANGE)
     public String processPasswordChange(
             @RequestParam String username,
             @RequestParam String currentPassword,
             @RequestParam String newPassword,
             @RequestParam String confirmPassword,
+            HttpServletRequest request,
             RedirectAttributes ra) {
         try {
-            passwordChangeService.changePassword(username, currentPassword, newPassword, confirmPassword);
+            passwordChangeService.changePassword(username, currentPassword, newPassword, confirmPassword,
+                    ClientIpResolver.resolve(request));
         } catch (PasswordChangeService.PasswordChangeException e) {
             ra.addFlashAttribute("errorMessage", msg(e.getMessageKey(), e.getMessageArgs()));
-            return "redirect:/contexa/password-change?username=" + username;
+            ra.addAttribute("username", username);
+            return "redirect:" + ContexaConsolePaths.PASSWORD_CHANGE;
         }
 
         ra.addFlashAttribute("message", msg("msg.password.change.success"));
-        return "redirect:/contexa/admin/mfa/login";
+        return "redirect:/contexa/admin/login";
     }
 }

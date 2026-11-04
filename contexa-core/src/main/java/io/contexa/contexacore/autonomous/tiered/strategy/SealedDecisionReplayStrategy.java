@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacore.infra.ContexaBackgroundExecution;
 import io.contexa.contexacore.ThreatAssessment;
 import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
@@ -27,7 +28,6 @@ import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelectionSource;
 import io.contexa.contexacore.verification.replay.SealedDecisionReplayInputs;
-import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
 import java.util.List;
@@ -74,7 +74,7 @@ public class SealedDecisionReplayStrategy extends AbstractTieredStrategy {
         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis analysis = prepare(inputs, bundleVersion);
         return executeSecurityDecisionPipeline(pipelineOrchestrator, inputs.event(), inputs.session(), analysis,
                 inputs.documents())
-                .subscribeOn(Schedulers.boundedElastic())
+                .subscribeOn(ContexaBackgroundExecution.scheduler())
                 .block(timeout);
     }
 
@@ -99,7 +99,7 @@ public class SealedDecisionReplayStrategy extends AbstractTieredStrategy {
         request.withParameter("layer2FirstPassPastRecordsState", firstPastRecordsState);
         return pipelineOrchestrator.execute(request, SECURITY_DECISION_PIPELINE_CONFIGURATION,
                         SecurityDecisionResponse.class)
-                .subscribeOn(Schedulers.boundedElastic())
+                .subscribeOn(ContexaBackgroundExecution.scheduler())
                 .block(timeout);
     }
 

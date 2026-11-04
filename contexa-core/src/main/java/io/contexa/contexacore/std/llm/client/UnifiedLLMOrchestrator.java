@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.std.llm.client;
 
+import io.contexa.contexacore.infra.ContexaBackgroundExecution;
 import io.contexa.contexacore.util.SensitiveValueSanitizer;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
 import io.contexa.contexacore.config.TieredLLMProperties;
@@ -72,7 +73,6 @@ import org.springframework.ai.tool.ToolCallback;
 import reactor.core.publisher.Flux;
 import reactor.core.Exceptions;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 import reactor.util.retry.Retry;
 
 
@@ -239,7 +239,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                             return stream.doOnError(error -> signalServerLoad(permit, error));
                         },
                         ModelServerGate.Permit::close)
-                .subscribeOn(Schedulers.boundedElastic());
+                .subscribeOn(ContexaBackgroundExecution.scheduler());
     }
 
     @Override
@@ -1627,7 +1627,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             }
             long backoffMs = Math.min(PROVIDER_RETRY_MAX_BACKOFF.toMillis(),
                     PROVIDER_RETRY_FIRST_BACKOFF.toMillis() << Math.min(10, retrySignal.totalRetries()));
-            return Mono.delay(Duration.ofMillis(backoffMs), Schedulers.boundedElastic());
+            return Mono.delay(Duration.ofMillis(backoffMs), ContexaBackgroundExecution.scheduler());
         }));
     }
 

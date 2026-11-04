@@ -17,6 +17,7 @@ package io.contexa.contexacore.infra.session.impl;
 
 import java.util.Locale;
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacore.infra.ContexaBackgroundExecution;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.infra.session.SessionIdGenerationException;
 import io.contexa.contexacore.infra.session.generator.SessionIdGenerator;
@@ -303,7 +304,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
             } catch (Exception e) {
                 log.error("Failed to update session stats in Redis asynchronously", e);
             }
-        }).exceptionally(e -> {
+        }, ContexaBackgroundExecution.executor()).exceptionally(e -> {
             log.error("Async session stat update failed: {}", e.getMessage());
             return null;
         });

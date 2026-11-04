@@ -91,11 +91,27 @@ class PasswordChangeControllerTest {
     class ProcessChange {
 
         @Test
+        @DisplayName("a name with characters of its own stays one parameter of the address it is sent back to")
+        void nameInTheAddressIsEncoded() throws Exception {
+            doThrow(new PasswordChangeService.PasswordChangeException("msg.password.change.current.incorrect"))
+                    .when(passwordChangeService)
+                    .changePassword("a b&admin=1", "wrong", "newpass", "newpass", "127.0.0.1");
+
+            mockMvc.perform(post("/contexa/password-change")
+                            .param("username", "a b&admin=1")
+                            .param("currentPassword", "wrong")
+                            .param("newPassword", "newpass")
+                            .param("confirmPassword", "newpass"))
+                    .andExpect(status().is3xxRedirection())
+                    .andExpect(redirectedUrl("/contexa/password-change?username=a+b%26admin%3D1"));
+        }
+
+        @Test
         @DisplayName("should redirect with error when user does not exist")
         void userNotFound() throws Exception {
             doThrow(new PasswordChangeService.PasswordChangeException("msg.password.change.user.not.found"))
                     .when(passwordChangeService)
-                    .changePassword("none", "pass", "newpass", "newpass");
+                    .changePassword("none", "pass", "newpass", "newpass", "127.0.0.1");
 
             mockMvc.perform(post("/contexa/password-change")
                             .param("username", "none")
@@ -112,7 +128,7 @@ class PasswordChangeControllerTest {
         void incorrectCurrentPassword() throws Exception {
             doThrow(new PasswordChangeService.PasswordChangeException("msg.password.change.current.incorrect"))
                     .when(passwordChangeService)
-                    .changePassword("testuser", "wrong", "newpass", "newpass");
+                    .changePassword("testuser", "wrong", "newpass", "newpass", "127.0.0.1");
 
             mockMvc.perform(post("/contexa/password-change")
                             .param("username", "testuser")
@@ -129,7 +145,7 @@ class PasswordChangeControllerTest {
         void newPasswordMismatch() throws Exception {
             doThrow(new PasswordChangeService.PasswordChangeException("msg.password.change.mismatch"))
                     .when(passwordChangeService)
-                    .changePassword("testuser", "correct", "newpass", "diffpass");
+                    .changePassword("testuser", "correct", "newpass", "diffpass", "127.0.0.1");
 
             mockMvc.perform(post("/contexa/password-change")
                             .param("username", "testuser")
@@ -146,7 +162,7 @@ class PasswordChangeControllerTest {
         void policyViolation() throws Exception {
             doThrow(new PasswordChangeService.PasswordChangeException("msg.password.change.policy.violation", "Too short"))
                     .when(passwordChangeService)
-                    .changePassword("testuser", "correct", "weak", "weak");
+                    .changePassword("testuser", "correct", "weak", "weak", "127.0.0.1");
 
             mockMvc.perform(post("/contexa/password-change")
                             .param("username", "testuser")
@@ -163,7 +179,7 @@ class PasswordChangeControllerTest {
         void passwordReused() throws Exception {
             doThrow(new PasswordChangeService.PasswordChangeException("msg.password.change.reused"))
                     .when(passwordChangeService)
-                    .changePassword("testuser", "correct", "validpass", "validpass");
+                    .changePassword("testuser", "correct", "validpass", "validpass", "127.0.0.1");
 
             mockMvc.perform(post("/contexa/password-change")
                             .param("username", "testuser")
@@ -184,9 +200,9 @@ class PasswordChangeControllerTest {
                             .param("newPassword", "validpass")
                             .param("confirmPassword", "validpass"))
                     .andExpect(status().is3xxRedirection())
-                    .andExpect(redirectedUrl("/contexa/admin/mfa/login"))
+                    .andExpect(redirectedUrl("/contexa/admin/login"))
                     .andExpect(flash().attribute("message", "msg.password.change.success"));
 
-            verify(passwordChangeService).changePassword("testuser", "correct", "validpass", "validpass");
+            verify(passwordChangeService).changePassword("testuser", "correct", "validpass", "validpass", "127.0.0.1");
         }    }
 }

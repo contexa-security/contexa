@@ -4,8 +4,6 @@ import io.contexa.contexacommon.domain.SecurityEvent;
 import java.util.Objects;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
-import org.aspectj.lang.annotation.AfterReturning;
-import org.aspectj.lang.annotation.Aspect;
 
 /**
  * Enterprise AOP aspect that marks a prompt trace snapshot as completed
@@ -16,7 +14,6 @@ import org.aspectj.lang.annotation.Aspect;
  *
  * Production-grade equivalent of TDD's OfficialVerificationLayer1CompletionAspect.
  */
-@Aspect
 @Slf4j
 public class SealedEvidenceLayer1CompletionAspect {
 
@@ -30,8 +27,6 @@ public class SealedEvidenceLayer1CompletionAspect {
         this.traceCompleter = Objects.requireNonNull(traceCompleter, "traceCompleter must not be null");
     }
 
-    @AfterReturning(
-            pointcut = "execution(* io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy.evaluate(..)) && args(event)")
     public void completeAfterLayer1(SecurityEvent event) {
         if (event == null) {
             return;

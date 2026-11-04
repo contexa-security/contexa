@@ -52,7 +52,7 @@ import java.util.List;
 @RequestMapping("/contexa/admin/access-center")
 @RequiredArgsConstructor
 @Slf4j
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AccessCenterController {
 
     private final AccessCenterService accessCenterService;

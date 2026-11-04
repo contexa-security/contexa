@@ -17,7 +17,7 @@ import java.util.Objects;
  */
 @RestController
 @RequestMapping("/contexa/admin/api/prompt-quality/releases")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class PromptBundleRollbackApiController {
 
     private final PromptBundleRollbackService rollbackService;

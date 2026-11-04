@@ -38,7 +38,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Slf4j
 @RestController
 @RequestMapping("/contexa/admin/api/agents/learning")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AgentLearningApiController {
 
     /** The learning state of an agent or of one of its delegations. */

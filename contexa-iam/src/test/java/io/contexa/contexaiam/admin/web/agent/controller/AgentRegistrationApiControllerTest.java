@@ -86,7 +86,7 @@ class AgentRegistrationApiControllerTest {
     @Test
     void onlyAdministratorsReachTheApi() {
         assertThat(AgentRegistrationApiController.class.getAnnotation(PreAuthorize.class).value())
-                .isEqualTo("hasRole('ADMIN')");
+                .isEqualTo("hasAuthority('ROLE_ADMIN')");
         assertThat(AgentRegistrationApiController.class.getAnnotation(RequestMapping.class).value())
                 .containsExactly("/contexa/admin/api/agents");
     }

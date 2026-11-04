@@ -398,6 +398,27 @@ class ZeroTrustChallengeFilterTest {
         verifyNoInteractions(actionRepository);
     }
 
+    /** These prefixes let a signed-in user under a CHALLENGE through to the application's own paths of the same name. */
+    @Test
+    @DisplayName("HOST_OWNED: an application's path that only looks like Contexa's sign-in meets the decision")
+    void hostOwnedApplicationPathsMeetTheDecision() {
+        for (String path : List.of("/api/mfa/transfer", "/webauthn/devices", "/mfa/challenge/1", "/login/webauthn-help")) {
+            when(request.getRequestURI()).thenReturn(path);
+            assertThat(filter.shouldNotFilter(request)).as("CONTEXA_OWNED, %s", path).isTrue();
+        }
+
+        filter.setHostOwnedStepUp((req, auth, key) -> false);
+
+        for (String path : List.of("/api/mfa/transfer", "/webauthn/devices", "/mfa/challenge/1", "/login/webauthn-help")) {
+            when(request.getRequestURI()).thenReturn(path);
+            assertThat(filter.shouldNotFilter(request)).as("HOST_OWNED, %s", path).isFalse();
+        }
+        for (String path : List.of("/contexa/step-up/passkey/options", "/contexa/zero-trust/blocked", "/logout")) {
+            when(request.getRequestURI()).thenReturn(path);
+            assertThat(filter.shouldNotFilter(request)).as("HOST_OWNED, %s", path).isTrue();
+        }
+    }
+
     @Test
     @DisplayName("HOST_OWNED: a browser goes to the notice of Contexa's step-up and no MFA flow starts")
     void hostOwnedBrowserGoesToTheStepUpNotice() throws Exception {

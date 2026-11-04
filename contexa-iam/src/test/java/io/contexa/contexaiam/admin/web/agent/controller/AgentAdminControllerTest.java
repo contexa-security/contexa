@@ -248,7 +248,7 @@ class AgentAdminControllerTest {
 
     @Test
     void onlyAdministratorsSeeTheAgents() {
-        assertThat(AgentAdminController.class.getAnnotation(PreAuthorize.class).value()).isEqualTo("hasRole('ADMIN')");
+        assertThat(AgentAdminController.class.getAnnotation(PreAuthorize.class).value()).isEqualTo("hasAuthority('ROLE_ADMIN')");
     }
 
     private static StaticMessageSource messages() {

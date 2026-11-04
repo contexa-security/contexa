@@ -35,7 +35,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/contexa/admin/api/blacklist")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class BlacklistApiController {
 
     private final BlockedUserService blockedUserService;
@@ -46,7 +46,7 @@ public class BlacklistApiController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<List<BlockedUserResponse>> listBlockedUsers(
             @RequestParam(value = "status", required = false) String status) {
         if ("BLOCKED".equalsIgnoreCase(status)) {
@@ -60,7 +60,7 @@ public class BlacklistApiController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<BlockedUserResponse> getBlockDetail(@PathVariable Long id) {
         return blockedUserService.getBlockDetail(id)
                 .map(BlockedUserResponse::from)
@@ -69,7 +69,7 @@ public class BlacklistApiController {
     }
 
     @PostMapping("/{id}/resolve")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<BlacklistActionResponse> resolveBlock(
             @PathVariable Long id,
             @RequestBody(required = false) ResolveBlockRequest request) {
@@ -99,7 +99,7 @@ public class BlacklistApiController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<BlacklistActionResponse> deleteBlockRecord(@PathVariable Long id) {
         try {
             blockedUserService.deleteBlockRecord(id);

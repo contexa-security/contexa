@@ -19,7 +19,7 @@ import java.util.Optional;
  */
 @RestController
 @RequestMapping("/contexa/admin/api/prompt-quality/releases")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class PromptReleaseTransitionApiController {
 
     private final PromptGovernanceReleaseGateService gate;

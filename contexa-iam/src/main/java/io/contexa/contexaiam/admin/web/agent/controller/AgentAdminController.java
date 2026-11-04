@@ -61,7 +61,7 @@ import java.util.Map;
 @Slf4j
 @Controller
 @RequestMapping("/contexa/admin/agents")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AgentAdminController {
 
     /** The most agents one list shows; the latest seen come first. */

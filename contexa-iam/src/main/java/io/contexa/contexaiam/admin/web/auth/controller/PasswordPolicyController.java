@@ -35,7 +35,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 @Controller
 @RequestMapping("/contexa/admin/password-policy")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class PasswordPolicyController {
 
     private final PasswordPolicyService passwordPolicyService;

@@ -41,7 +41,7 @@ import reactor.core.publisher.Mono;
 @RequestMapping("/contexa/admin/api/ai/policies")
 @RequiredArgsConstructor
 @Slf4j
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AiApiController {
 
     private final AICoreOperations<PolicyContext> aiNativeProcessor;

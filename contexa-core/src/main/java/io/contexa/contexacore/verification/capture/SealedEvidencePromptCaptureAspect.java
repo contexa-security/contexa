@@ -6,11 +6,9 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.aspectj.lang.annotation.AfterReturning;
-import org.aspectj.lang.annotation.Aspect;
 
 /**
- * Enterprise AOP aspect that captures PromptGenerationResult at the exact moment
+ * Captures PromptGenerationResult, through {@link SealedEvidenceAdvisors}, at the exact moment
  * PromptGenerator.generatePrompt() completes, along with the full SecurityDecisionContext.
  *
  * This is the production-grade equivalent of the TDD's OfficialVerificationPromptTraceTestConfiguration
@@ -20,16 +18,12 @@ import org.aspectj.lang.annotation.Aspect;
  * Capture occurs only for security decision requests (SecurityDecisionContext).
  * Non-security requests are ignored.
  */
-@Aspect
 @Slf4j
 @RequiredArgsConstructor
 public class SealedEvidencePromptCaptureAspect {
 
     private final SealedEvidencePromptTraceStore traceStore;
 
-    @AfterReturning(
-            pointcut = "execution(* io.contexa.contexacore.std.components.prompt.PromptGenerator.generatePrompt(..)) && args(request, contextInfo, systemMetadata)",
-            returning = "result", argNames = "request,contextInfo,systemMetadata,result")
     public void capturePromptGenerationResult(
             AIRequest<? extends DomainContext> request,
             String contextInfo,

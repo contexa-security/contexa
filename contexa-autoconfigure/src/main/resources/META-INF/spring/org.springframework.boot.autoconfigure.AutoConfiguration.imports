@@ -8,6 +8,7 @@ io.contexa.autoconfigure.core.infra.CoreSchedulerLockAutoConfiguration
 
 # Core JPA (Repository & Entity)
 io.contexa.autoconfigure.core.ContexaProxyModeAutoConfiguration
+io.contexa.autoconfigure.core.ContexaScopedTransactionAutoConfiguration
 io.contexa.autoconfigure.core.scope.ContexaScopedAnnotationAutoConfiguration
 io.contexa.autoconfigure.core.scope.ContexaScopedKafkaAutoConfiguration
 io.contexa.autoconfigure.core.scope.ContexaLazyInitializationAutoConfiguration
@@ -124,6 +125,7 @@ io.contexa.autoconfigure.iam.admin.PromptGovernanceAutoConfiguration
 io.contexa.autoconfigure.iam.admin.PqaOfficialInspectionAutoConfiguration
 io.contexa.autoconfigure.iam.admin.SealedEvidenceStoreAutoConfiguration
 io.contexa.autoconfigure.iam.admin.PqaSealedEvidenceAutoConfiguration
+io.contexa.autoconfigure.iam.admin.SealedEvidenceAdvisorAutoConfiguration
 io.contexa.autoconfigure.iam.admin.PromptInspectionAutoConfiguration
 
 # IAM Security Core

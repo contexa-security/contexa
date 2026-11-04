@@ -25,7 +25,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
  */
 @Controller
 @RequestMapping("/contexa/admin/prompt-quality/releases")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class PromptReleasePageController {
 
     /** The message keys the version scripts draw. */

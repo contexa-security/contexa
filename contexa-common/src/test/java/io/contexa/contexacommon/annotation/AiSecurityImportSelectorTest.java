@@ -27,6 +27,23 @@ class AiSecurityImportSelectorTest {
         assertThat(System.getProperty(AiSecurityImportSelector.PROP_MODE)).isNull();
     }
 
+    /** Contexa's values were added first, so an operator's environment could not change what the code declared. */
+    @Test
+    void whatAnOperatorSetsOutranksWhatTheCodeDeclares() {
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(new MapPropertySource("operator", Map.of(
+                AiSecurityImportSelector.PROP_MODE, "full",
+                AiSecurityImportSelector.PROP_AUTH_OBJECT_ATTRIBUTE, "operatorUser")));
+        AiSecurityImportSelector selector = new AiSecurityImportSelector();
+        selector.setEnvironment(environment);
+
+        selector.selectImports(AnnotationMetadata.introspect(DefaultSandboxApplication.class));
+
+        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_BRIDGE_OWNERSHIP))
+                .as("the ownership follows the mode the operator set").isEqualTo(SecurityOwnershipMode.CONTEXA_OWNED.name());
+        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_AUTH_OBJECT_ATTRIBUTE)).isEqualTo("operatorUser");
+    }
+
     @Test
     void shouldPropagateFullModeWhenDeclared() {
         StandardEnvironment environment = select(FullModeApplication.class);

@@ -58,8 +58,6 @@ public class ContexaDefaultPropertiesPostProcessor implements EnvironmentPostPro
         defaults.put("spring.ai.openai.embedding.options.model", EmbeddingDimensionResolver.DEFAULT_OPENAI_EMBEDDING_MODEL);
         defaults.put("spring.ai.openai.embedding.options.dimensions", dimensionValue);
         addExplicitModelSelectionDefaults(environment, defaults);
-        defaults.put("management.prometheus.metrics.export.exemplars.enabled", "false");
-        defaults.put("management.metrics.enable.lettuce", "false");
         return defaults;
     }
 
@@ -76,12 +74,6 @@ public class ContexaDefaultPropertiesPostProcessor implements EnvironmentPostPro
         if (!embeddingProviders.isEmpty()
                 && Set.of("openai", "ollama").contains(embeddingProviders.get(0))) {
             defaults.put("spring.ai.model.embedding", embeddingProviders.get(0));
-        }
-        if (!chatProviders.isEmpty() || !embeddingProviders.isEmpty()) {
-            defaults.put("spring.ai.model.image", "none");
-            defaults.put("spring.ai.model.moderation", "none");
-            defaults.put("spring.ai.model.audio.speech", "none");
-            defaults.put("spring.ai.model.audio.transcription", "none");
         }
     }
 

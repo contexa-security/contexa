@@ -38,7 +38,7 @@ import java.util.List;
  * <p>Defence-in-depth: a method-level {@code @PreAuthorize} guard runs in addition to the
  * URL-pattern protection on {@code /contexa/admin/**}.</p>
  */
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 @RequiredArgsConstructor
 public class SystemSettingsService {
 

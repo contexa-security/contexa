@@ -116,7 +116,7 @@ class AgentLearningApiControllerTest {
     @Test
     void onlyAdministratorsReachTheApi() {
         assertThat(AgentLearningApiController.class.getAnnotation(PreAuthorize.class).value())
-                .isEqualTo("hasRole('ADMIN')");
+                .isEqualTo("hasAuthority('ROLE_ADMIN')");
         assertThat(AgentLearningApiController.class.getAnnotation(RequestMapping.class).value())
                 .containsExactly("/contexa/admin/api/agents/learning");
     }

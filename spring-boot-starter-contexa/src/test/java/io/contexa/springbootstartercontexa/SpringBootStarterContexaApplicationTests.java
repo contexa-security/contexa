@@ -26,6 +26,7 @@ import io.contexa.contexacore.std.pipeline.streaming.JsonStreamingProcessor;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.model.ChatModel;
+import io.contexa.contexacore.std.llm.gate.GatedEmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -59,7 +60,8 @@ class SpringBootStarterContexaApplicationTests {
             assertThat(context.getBean(ChatModel.class)).isSameAs(context.getBean("standardChatModel"));
             assertThat(context.getBean(ChatModel.class)).isSameAs(context.getBean("contexaPrimaryChatModel"));
             assertThat(context.getBean(EmbeddingModel.class)).isSameAs(context.getBean("standardEmbeddingModel"));
-            assertThat(context.getBean(EmbeddingModel.class)).isSameAs(context.getBean("contexaPrimaryEmbeddingModel"));
+            assertThat(context.getBean("contexaPrimaryEmbeddingModel")).isInstanceOfSatisfying(GatedEmbeddingModel.class,
+                    gated -> assertThat(gated.delegate()).isSameAs(context.getBean("standardEmbeddingModel")));
             assertThat(context.getBean(LlmRuntimeCatalog.class).getChatBindings()).hasSize(1);
             assertThat(context.getBean(LlmRuntimeCatalog.class).getEmbeddingBindings()).hasSize(1);
         });

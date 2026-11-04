@@ -38,7 +38,7 @@ import java.util.function.Supplier;
 @Slf4j
 @Controller
 @RequestMapping("/contexa/admin/blacklist/agents")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AgentStopController {
 
     private static final String REDIRECT = "redirect:/contexa/admin/blacklist/agents";

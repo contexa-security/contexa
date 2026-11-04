@@ -24,7 +24,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
  */
 @Controller
 @RequestMapping("/contexa/admin/prompt-inspection")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class PromptInspectionPageController {
 
     /** The message keys the inspection scripts draw. */

@@ -102,10 +102,10 @@ class ContexaDefaultPropertiesPostProcessorTest {
         assertThat(environment.getProperty("spring.ai.openai.embedding.options.dimensions")).isEqualTo("1024");
         assertThat(environment.getProperty("spring.ai.model.chat")).isEqualTo("ollama");
         assertThat(environment.getProperty("spring.ai.model.embedding")).isEqualTo("ollama");
-        assertThat(environment.getProperty("spring.ai.model.image")).isEqualTo("none");
-        assertThat(environment.getProperty("spring.ai.model.moderation")).isEqualTo("none");
-        assertThat(environment.getProperty("spring.ai.model.audio.speech")).isEqualTo("none");
-        assertThat(environment.getProperty("spring.ai.model.audio.transcription")).isEqualTo("none");
+        assertThat(environment.getProperty("spring.ai.model.image")).isNull();
+        assertThat(environment.getProperty("spring.ai.model.moderation")).isNull();
+        assertThat(environment.getProperty("spring.ai.model.audio.speech")).isNull();
+        assertThat(environment.getProperty("spring.ai.model.audio.transcription")).isNull();
     }
 
     @Test
@@ -160,7 +160,7 @@ class ContexaDefaultPropertiesPostProcessorTest {
 
         assertThat(environment.getProperty("contexa.vectorstore.pgvector.initialize-schema")).isEqualTo("true");
         assertThat(environment.getProperty("spring.ai.model.chat")).isEqualTo("ollama");
-        assertThat(environment.getProperty("management.metrics.enable.lettuce")).isEqualTo("false");
+        assertThat(environment.getProperty("management.metrics.enable.lettuce")).isNull();
     }
 
     private MockEnvironment activeEnvironment() {

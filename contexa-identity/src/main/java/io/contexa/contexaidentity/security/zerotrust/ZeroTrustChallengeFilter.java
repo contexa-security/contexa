@@ -161,29 +161,11 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
             return true;
         }
 
-        if (authUrlProvider != null && matchesAnyMfaUrl(requestUri, authUrlProvider.getAllMfaRelatedUrls())) {
+        if (hostOwnedStepUp == null && isContexaSignInPath(requestUri)) {
             return true;
         }
 
-        if (mfaFlowUrlRegistry != null) {
-            if (matchesAnyMfaUrl(requestUri, mfaFlowUrlRegistry.getAllMfaRelatedUrls())) {
-                return true;
-            }
-        }
-
-        if (requestUri.startsWith("/mfa/challenge/")) {
-            return true;
-        }
-
-        if (requestUri.startsWith("/api/mfa/") || requestUri.startsWith("/contexa/admin/api/mfa/")) {
-            return true;
-        }
-
-        if (requestUri.startsWith("/webauthn/")) {
-            return true;
-        }
-
-        if (requestUri.startsWith("/login/webauthn")) {
+        if (requestUri.startsWith("/contexa/admin/api/mfa/")) {
             return true;
         }
 
@@ -206,6 +188,20 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
         }
 
         return false;
+    }
+
+    /**
+     * The paths of Contexa's own sign-in, which runs only where Contexa owns it. Under HOST_OWNED nothing of Contexa
+     * answers there (its step-up lives under {@link HostOwnedStepUp#STEP_UP_PATH}): they are the application's paths, and
+     * a stored decision applies to them as to any other.
+     */
+    private boolean isContexaSignInPath(String requestUri) {
+        return (authUrlProvider != null && matchesAnyMfaUrl(requestUri, authUrlProvider.getAllMfaRelatedUrls()))
+                || (mfaFlowUrlRegistry != null && matchesAnyMfaUrl(requestUri, mfaFlowUrlRegistry.getAllMfaRelatedUrls()))
+                || requestUri.startsWith("/mfa/challenge/")
+                || requestUri.startsWith("/api/mfa/")
+                || requestUri.startsWith("/webauthn/")
+                || requestUri.startsWith("/login/webauthn");
     }
 
     private boolean matchesAnyMfaUrl(String requestUri, Set<String> mfaUrls) {

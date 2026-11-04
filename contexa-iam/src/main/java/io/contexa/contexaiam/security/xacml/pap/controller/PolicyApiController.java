@@ -32,7 +32,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 @Slf4j
 @RestController
 @RequestMapping("/contexa/admin/api/policies")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class PolicyApiController {
 
     private final BusinessPolicyService businessPolicyService;

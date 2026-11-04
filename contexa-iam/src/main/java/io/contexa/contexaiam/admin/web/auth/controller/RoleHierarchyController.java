@@ -52,7 +52,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 @RequestMapping("/contexa/admin/role-hierarchies")
 @Slf4j
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class RoleHierarchyController {
 
     private final RoleHierarchyService roleHierarchyService;

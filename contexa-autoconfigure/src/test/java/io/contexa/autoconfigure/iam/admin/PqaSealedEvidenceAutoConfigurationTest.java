@@ -64,7 +64,8 @@ class PqaSealedEvidenceAutoConfigurationTest {
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(
                     AopAutoConfiguration.class,
-                    PqaSealedEvidenceAutoConfiguration.class))
+                    PqaSealedEvidenceAutoConfiguration.class,
+                    SealedEvidenceAdvisorAutoConfiguration.class))
             .withBean("contexaObjectMapper", ObjectMapper.class, ObjectMapper::new)
             .withBean(CanonicalSecurityContextSerializer.class,
                     () -> new CanonicalSecurityContextSerializer(new ObjectMapper()))

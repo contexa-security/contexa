@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.aiam.labs.data;
 
+import io.contexa.contexacore.infra.ContexaBackgroundExecution;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.auth.service.impl.RoleHierarchyService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
@@ -32,7 +33,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -57,7 +57,7 @@ public class PolicyGenerationCollectionService {
                 conditionTemplateRepository,
                 policyRepository,
                 roleHierarchyService,
-                ForkJoinPool.commonPool());
+                ContexaBackgroundExecution.executor());
     }
 
     public PolicyGenerationCollectionService(
@@ -72,7 +72,7 @@ public class PolicyGenerationCollectionService {
         this.conditionTemplateRepository = conditionTemplateRepository;
         this.policyRepository = policyRepository;
         this.roleHierarchyService = roleHierarchyService;
-        this.collectionExecutor = collectionExecutor != null ? collectionExecutor : ForkJoinPool.commonPool();
+        this.collectionExecutor = collectionExecutor != null ? collectionExecutor : ContexaBackgroundExecution.executor();
     }
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)

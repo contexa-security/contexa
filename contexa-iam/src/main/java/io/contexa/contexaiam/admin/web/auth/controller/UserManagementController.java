@@ -45,7 +45,7 @@ import java.util.List;
 @RequestMapping("/contexa/admin/users")
 @RequiredArgsConstructor
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class UserManagementController {
 
 	private final UserManagementService userManagementService;

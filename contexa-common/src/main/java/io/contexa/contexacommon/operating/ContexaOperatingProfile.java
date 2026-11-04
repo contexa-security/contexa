@@ -59,6 +59,13 @@ public record ContexaOperatingProfile(SecurityMode mode, SecurityOwnershipMode o
         return new ContexaOperatingProfile(mode, ownership, applicationData, applicationData && !sameDatabaseOrNone(environment));
     }
 
+    /** The mode an operator set, which outranks what the code declares, as with any Spring setting. */
+    @Nullable
+    public static SecurityMode modeSet(Environment environment, @Nullable SecurityMode declaredInCode) {
+        SecurityMode set = read(environment, PROP_MODE, SecurityMode.class);
+        return set != null ? set : declaredInCode;
+    }
+
     /** Whether this application declares the ownership at all; an application with Contexa dormant does not. */
     public static boolean ownershipUndeclared(Environment environment) {
         return !StringUtils.hasText(environment.getProperty(PROP_OWNERSHIP));

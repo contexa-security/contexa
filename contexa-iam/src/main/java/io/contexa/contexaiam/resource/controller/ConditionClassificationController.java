@@ -44,7 +44,7 @@ import java.util.List;
 @RequestMapping("/contexa/admin/api/conditions")
 @RequiredArgsConstructor
 @Slf4j
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class ConditionClassificationController {
 
     private final ConditionTemplateRepository conditionTemplateRepository;

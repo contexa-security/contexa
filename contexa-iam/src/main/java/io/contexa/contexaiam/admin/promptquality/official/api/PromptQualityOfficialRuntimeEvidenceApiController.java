@@ -18,7 +18,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/contexa/admin/api/prompt-quality/runtime-evidence")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class PromptQualityOfficialRuntimeEvidenceApiController {
 
     private final PromptQualityRuntimeEvidenceService runtimeEvidenceService;

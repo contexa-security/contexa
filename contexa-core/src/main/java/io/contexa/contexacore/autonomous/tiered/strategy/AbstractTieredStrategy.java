@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
+import io.contexa.contexacore.infra.ContexaBackgroundExecution;
 import io.contexa.contexacore.autonomous.SecurityEventProcessor;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import io.contexa.contexacore.autonomous.context.support.PastRecordScope;
@@ -110,7 +111,6 @@ import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.util.StringUtils;
 import reactor.core.Exceptions;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 
 @Slf4j
@@ -381,7 +381,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         ModelCallTimer timer = ModelCallTimer.start(limitMs).withDeadline(processingDeadline(event));
         Callable<T> work = pipeline::block;
         CompletableFuture<T> future = Mono.fromCallable(timer.bind(work))
-                .subscribeOn(Schedulers.boundedElastic())
+                .subscribeOn(ContexaBackgroundExecution.scheduler())
                 .toFuture();
         try {
             return timer.await(future);

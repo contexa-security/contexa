@@ -22,7 +22,7 @@ import java.util.Objects;
  */
 @RestController
 @RequestMapping("/contexa/admin/api/prompt-quality/releases")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class PromptReleaseConsoleApiController {
 
     private final PromptReleaseConsole console;

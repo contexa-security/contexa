@@ -48,7 +48,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 @Controller
 @RequestMapping("/contexa/admin/policy-builder")
 @Slf4j
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class PolicyBuilderController {
 
     private final RoleService roleService;

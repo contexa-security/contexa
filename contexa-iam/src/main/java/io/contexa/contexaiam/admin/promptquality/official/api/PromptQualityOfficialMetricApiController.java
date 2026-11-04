@@ -20,7 +20,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/contexa/admin/api/prompt-quality/verification/runtime-runs/package")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class PromptQualityOfficialMetricApiController {
 
     private final PromptQualityOfficialRunDetailService runDetailService;

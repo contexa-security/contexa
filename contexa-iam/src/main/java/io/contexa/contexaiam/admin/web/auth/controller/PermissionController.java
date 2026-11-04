@@ -42,7 +42,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 @Controller
 @RequestMapping("/contexa/admin/permissions")
 @Slf4j
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class PermissionController {
 
     private final PermissionService permissionService;

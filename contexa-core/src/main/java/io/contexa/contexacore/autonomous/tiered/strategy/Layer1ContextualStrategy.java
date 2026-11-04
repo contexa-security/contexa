@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
+import io.contexa.contexacore.infra.ContexaBackgroundExecution;
 import io.contexa.contexacore.autonomous.context.support.SessionStart;
 import java.time.Instant;
 import com.github.benmanes.caffeine.cache.Cache;
@@ -48,7 +49,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -60,7 +60,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -177,7 +176,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 pipelineOrchestrator,
                 tieredStrategyProperties,
                 structuredOutputCapabilityRegistry,
-                ForkJoinPool.commonPool());
+                ContexaBackgroundExecution.executor());
     }
 
     public Layer1ContextualStrategy(UnifiedVectorService unifiedVectorService,
@@ -208,7 +207,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         this.threatKnowledgePackService = threatKnowledgePackService;
         this.detectionStrategyPackService = detectionStrategyPackService;
         this.pipelineOrchestrator = pipelineOrchestrator;
-        this.ragRetrievalExecutor = ragRetrievalExecutor != null ? ragRetrievalExecutor : ForkJoinPool.commonPool();
+        this.ragRetrievalExecutor = ragRetrievalExecutor != null ? ragRetrievalExecutor : ContexaBackgroundExecution.executor();
 
         TieredStrategyProperties.Layer1.Cache cacheConfig = tieredStrategyProperties.getLayer1().getCache();
         this.sessionContextCache = Caffeine.newBuilder()
@@ -428,7 +427,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         long startTime = System.currentTimeMillis();
         return Mono.fromCallable(() -> analyzeWithContext(event))
                 // N-OUT-1 (G1-7): on a thread of its own, so the total budget holds for a synchronous analysis.
-                .subscribeOn(Schedulers.boundedElastic())
+                .subscribeOn(ContexaBackgroundExecution.scheduler())
                 .timeout(Duration.ofMillis(totalTimeoutMs))
                 .onErrorResume(throwable -> {
                     log.error("[Layer1][AI Native v4.3.0] Async analysis failed or timed out ({}ms)",

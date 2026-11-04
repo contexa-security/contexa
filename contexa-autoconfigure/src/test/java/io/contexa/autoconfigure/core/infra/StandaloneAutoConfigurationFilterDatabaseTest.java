@@ -56,7 +56,8 @@ class StandaloneAutoConfigurationFilterDatabaseTest {
 
     @Test
     void anApplicationThatSaysNothingAboutADatabaseAndHasNoEmbeddedOneStillLosesThemSoThatItDoesNotFailOnContexasDependencies() {
-        assertThat(decide(new MockEnvironment())).containsExactly(false, false);
+        // JPA keeps out by its own condition without a DataSource bean, and an application that builds one in code keeps JPA.
+        assertThat(decide(new MockEnvironment())).containsExactly(false, true);
     }
 
     @Test

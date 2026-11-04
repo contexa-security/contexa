@@ -26,12 +26,10 @@ import org.modelmapper.ModelMapper;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.EnableAspectJAutoProxy;
 
 @Slf4j
 @EnableConfigurationProperties({TieredLLMProperties.class, SecurityMappingProperties.class})
 @Configuration
-@EnableAspectJAutoProxy
 public class ApplicationConfig {
 
     @Bean(name = "contexaObjectMapper", defaultCandidate = false)

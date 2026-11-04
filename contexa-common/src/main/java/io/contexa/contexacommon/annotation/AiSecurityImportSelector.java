@@ -78,19 +78,20 @@ public class AiSecurityImportSelector implements ImportSelector, EnvironmentAwar
         if (environment == null) {
             return new String[]{AI_SECURITY_CONFIGURATION};
         }
-        ContexaOperatingProfile profile = ContexaOperatingProfile.of(mode, environment);
+        ContexaOperatingProfile profile = ContexaOperatingProfile.of(ContexaOperatingProfile.modeSet(environment, mode), environment);
         if (staysOffWithoutItsDatabase(profile)) {
             return new String[0];
         }
 
         Map<String, Object> activation = new LinkedHashMap<>();
-        activation.put(PROP_MODE, mode.name());
-        activation.put(PROP_AUTH_OBJECT_LOCATION, location.name());
-        activation.put(PROP_AUTH_OBJECT_ATTRIBUTE, attribute != null ? attribute : "");
-        activation.put(PROP_AUTH_OBJECT_TYPE, type != null ? type : Object.class.getName());
+        activation.put(PROP_MODE, profile.mode().name());
+        activation.put(PROP_AUTH_OBJECT_LOCATION, environment.getProperty(PROP_AUTH_OBJECT_LOCATION, location.name()));
+        activation.put(PROP_AUTH_OBJECT_ATTRIBUTE, environment.getProperty(PROP_AUTH_OBJECT_ATTRIBUTE, attribute != null ? attribute : ""));
+        activation.put(PROP_AUTH_OBJECT_TYPE, environment.getProperty(PROP_AUTH_OBJECT_TYPE, type != null ? type : Object.class.getName()));
         // what is published is the one spelling, so whatever reads these settings later reads the same value
         activation.put(PROP_BRIDGE_OWNERSHIP, profile.ownership().name());
         activation.put(PROP_CONTEXA_OWNED_APPLICATION, profile.contexaOwnsApplicationData());
+        // First, for the one spelling. Every value above already gave way to what an operator set, as with any Spring setting.
         environment.getPropertySources().addFirst(new MapPropertySource("contexaAiSecurityAnnotation", activation));
         return new String[]{AI_SECURITY_CONFIGURATION};
     }

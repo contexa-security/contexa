@@ -41,7 +41,7 @@ import java.util.List;
 @Controller
 @RequestMapping("/contexa/admin/menu-management")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class AdminMenuController {
 
     private final AdminMenuManagementService adminMenuManagementService;

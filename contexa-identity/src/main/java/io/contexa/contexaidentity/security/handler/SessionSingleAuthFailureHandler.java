@@ -16,6 +16,7 @@
 package io.contexa.contexaidentity.security.handler;
 
 import java.util.Locale;
+import io.contexa.contexacommon.security.ContexaConsolePaths;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
@@ -77,7 +78,7 @@ public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler 
 
         if (exception instanceof CredentialsExpiredException) {
             String expiredUsername = request.getParameter("username");
-            String passwordChangeUrl = request.getContextPath() + "/password-change?username="
+            String passwordChangeUrl = request.getContextPath() + ContexaConsolePaths.PASSWORD_CHANGE + "?username="
                     + URLEncoder.encode(expiredUsername != null ? expiredUsername : "", StandardCharsets.UTF_8) + "&expired=true";
             if (isApiRequest(request)) {
                 Map<String, Object> responseData = new HashMap<>();

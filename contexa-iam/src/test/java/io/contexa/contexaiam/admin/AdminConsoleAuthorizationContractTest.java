@@ -42,8 +42,8 @@ class AdminConsoleAuthorizationContractTest {
                 continue;
             }
             PreAuthorize guard = AnnotatedElementUtils.findMergedAnnotation(controller, PreAuthorize.class);
-            if (guard == null || !(guard.value().contains("hasRole('ADMIN')")
-                    || guard.value().contains("hasAnyRole('ADMIN')"))) {
+            if (guard == null || !(guard.value().contains("hasAuthority('ROLE_ADMIN')")
+                    || guard.value().contains("hasAuthority('ROLE_ADMIN')"))) {
                 unguarded.add(controller.getName());
             }
         }
