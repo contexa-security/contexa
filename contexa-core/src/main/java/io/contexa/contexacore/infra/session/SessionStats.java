@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.infra.session;
 
+import java.util.Locale;
+
 public class SessionStats {
     private final long activeSessions;
     private final long totalSessionsCreated;
@@ -40,7 +42,7 @@ public class SessionStats {
 
     @Override
     public String toString() {
-        return String.format("SessionStats{type=%s, active=%d, total=%d, collisions=%d, avgDuration=%.2fs}",
+        return String.format(Locale.ROOT, "SessionStats{type=%s, active=%d, total=%d, collisions=%d, avgDuration=%.2fs}",
                 repositoryType, activeSessions, totalSessionsCreated, sessionCollisions, averageSessionDuration);
     }
 }

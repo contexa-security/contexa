@@ -15,6 +15,8 @@
  */
 package io.contexa.autoconfigure.iam.admin;
 
+import org.springframework.beans.factory.BeanFactory;
+import io.contexa.autoconfigure.core.ContexaOwnBeans;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.repository.PasswordHistoryRepository;
 import io.contexa.contexacommon.repository.PasswordPolicyRepository;
@@ -49,8 +51,8 @@ public class IamAdminPasswordPolicyAutoConfiguration {
     public PasswordPolicyService passwordPolicyService(
             PasswordPolicyRepository passwordPolicyRepository,
             PasswordHistoryRepository passwordHistoryRepository,
-            PasswordEncoder passwordEncoder) {
-        return new PasswordPolicyService(passwordPolicyRepository, passwordHistoryRepository, passwordEncoder);
+            BeanFactory beanFactory) {
+        return new PasswordPolicyService(passwordPolicyRepository, passwordHistoryRepository, ContexaOwnBeans.passwordEncoder(beanFactory));
     }
 
     @Bean(name = "contexaPasswordPolicyController")
@@ -63,9 +65,9 @@ public class IamAdminPasswordPolicyAutoConfiguration {
     @ConditionalOnMissingBean
     public PasswordChangeService passwordChangeService(
             UserRepository userRepository,
-            PasswordEncoder passwordEncoder,
+            BeanFactory beanFactory,
             PasswordPolicyService contexaPasswordPolicyService) {
-        return new PasswordChangeService(userRepository, passwordEncoder, contexaPasswordPolicyService);
+        return new PasswordChangeService(userRepository, ContexaOwnBeans.passwordEncoder(beanFactory), contexaPasswordPolicyService);
     }
 
     @Bean(name = "contexaPasswordChangeController")

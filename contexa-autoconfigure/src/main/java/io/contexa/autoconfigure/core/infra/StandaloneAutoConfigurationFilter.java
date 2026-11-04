@@ -19,7 +19,10 @@ import org.springframework.boot.autoconfigure.AutoConfigurationImportFilter;
 import org.springframework.boot.autoconfigure.AutoConfigurationMetadata;
 import org.springframework.boot.jdbc.EmbeddedDatabaseConnection;
 import org.springframework.context.EnvironmentAware;
+import org.springframework.core.env.ConfigurableEnvironment;
+import org.springframework.core.env.EnumerablePropertySource;
 import org.springframework.core.env.Environment;
+import org.springframework.core.env.PropertySource;
 
 import java.util.List;
 import java.util.Locale;
@@ -74,6 +77,10 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
             "spring.kafka.admin.bootstrap-servers",
             "spring.kafka.streams.bootstrap-servers");
 
+    /** Property name prefixes with which an application says it has a database (the host's own, not Contexa's). */
+    private static final List<String> DATABASE_PROPERTY_PREFIXES = List.of(
+            "spring.datasource.", "spring.jpa.", "spring.data.jpa.", "spring.flyway.", "spring.liquibase.", "spring.sql.init.");
+
     private Environment environment;
 
     @Override
@@ -99,9 +106,11 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
                            "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration".equals(autoConfigurationClass) ||
                            "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration".equals(autoConfigurationClass) ||
                            "org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration".equals(autoConfigurationClass)) {
-                    boolean hasUrl = environment.containsProperty("spring.datasource.url") || hasContexaOwnedDataSource();
-                    boolean hasEmbedded = EmbeddedDatabaseConnection.get(getClass().getClassLoader()) != EmbeddedDatabaseConnection.NONE;
-                    result[i] = hasUrl || hasEmbedded;
+                    // Contexa's own dependencies put JDBC and JPA on the class path of an application that has no database; Spring Boot's
+                    // database auto-configuration then fails there. It is left out only for an application that says nothing about a
+                    // database: no url, no jndi name, no data source, JPA, Flyway, Liquibase or SQL initialization property, no embedded database.
+                    boolean says = hasContexaOwnedDataSource() || hasAnyPropertyStartingWith(DATABASE_PROPERTY_PREFIXES);
+                    result[i] = says || embeddedDatabasePresent();
                 } else {
                     result[i] = true;
                 }
@@ -127,6 +136,29 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
             return true;
         }
         return kafkaRelated && !hasAnyApplicationProperty(APPLICATION_KAFKA_PROPERTIES);
+    }
+
+    boolean embeddedDatabasePresent() {
+        return EmbeddedDatabaseConnection.get(getClass().getClassLoader()) != EmbeddedDatabaseConnection.NONE;
+    }
+
+    /** Whether any property source of the environment has a property whose name starts with one of the prefixes. */
+    private boolean hasAnyPropertyStartingWith(List<String> prefixes) {
+        if (environment instanceof ConfigurableEnvironment configurable) {
+            for (PropertySource<?> source : configurable.getPropertySources()) {
+                if (source instanceof EnumerablePropertySource<?> enumerable) {
+                    for (String name : enumerable.getPropertyNames()) {
+                        for (String prefix : prefixes) {
+                            if (name.startsWith(prefix)) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+        return prefixes.stream().anyMatch(prefix -> environment.containsProperty(prefix + "url"));
     }
 
     private boolean hasAnyApplicationProperty(List<String> propertyNames) {

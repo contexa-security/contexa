@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
+import java.util.Locale;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.dsl.configurer.impl.RestAuthenticationConfigurer;
@@ -33,7 +34,7 @@ public final class RestAuthenticationAdapter extends BaseRestAuthenticationAdapt
 
     @Override
     public String getId() {
-        return AuthType.REST.name().toLowerCase();
+        return AuthType.REST.name().toLowerCase(Locale.ROOT);
     }
 
     @Override

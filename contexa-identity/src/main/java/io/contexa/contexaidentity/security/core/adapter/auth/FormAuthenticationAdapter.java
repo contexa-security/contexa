@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
+import java.util.Locale;
 import io.contexa.contexaidentity.security.core.dsl.common.SafeHttpFormLoginCustomizer;
 import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
 import io.contexa.contexacommon.enums.AuthType;
@@ -32,7 +33,7 @@ public final class FormAuthenticationAdapter extends BaseFormAuthenticationAdapt
 
     @Override
     public String getId() {
-        return AuthType.FORM.name().toLowerCase();
+        return AuthType.FORM.name().toLowerCase(Locale.ROOT);
     }
 
     @Override

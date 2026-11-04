@@ -15,7 +15,10 @@
  */
 package io.contexa.contexacore.config;
 
+import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
+import org.springframework.beans.factory.BeanFactory;
 import io.contexa.contexacommon.repository.GroupRolePermissionRepository;
+import io.contexa.contexacommon.security.HeldBean;
 import io.contexa.contexacommon.repository.RolePermissionRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.repository.UserRolePermissionRepository;
@@ -48,7 +51,13 @@ public class CoreSecurityAutoConfiguration {
             UserRolePermissionRepository userRolePermissionRepository,
             GroupRolePermissionRepository groupRolePermissionRepository,
             RolePermissionRepository rolePermissionRepository,
-            RoleHierarchy roleHierarchy) {
+            BeanFactory beanFactory) {
+        // Contexa's own hierarchy (hidden from lookups by type); an application's own RoleHierarchy is neither used nor made ambiguous
+        RoleHierarchy roleHierarchy = beanFactory.containsBean("contexaRoleHierarchy")
+                && beanFactory.getBean("contexaRoleHierarchy") instanceof HeldBean<?> held
+                && held.get() instanceof RoleHierarchy contexaOwn
+                ? contexaOwn
+                : new RoleHierarchyImpl();
         return new AuthorityResolver(userRolePermissionRepository, groupRolePermissionRepository,
                 rolePermissionRepository, roleHierarchy);
     }

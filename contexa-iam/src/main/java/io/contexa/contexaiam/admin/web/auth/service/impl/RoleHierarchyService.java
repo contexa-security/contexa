@@ -65,7 +65,7 @@ public class RoleHierarchyService {
     @Protectable(verificationRequired = false)
     public Page<RoleHierarchyEntity> searchRoleHierarchies(String keyword, Pageable pageable) {
         if (StringUtils.hasText(keyword)) {
-            String likePattern = "%" + keyword.trim().toLowerCase() + "%";
+            String likePattern = "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%";
             return roleHierarchyRepository.searchByKeyword(likePattern, pageable);
         }
         return roleHierarchyRepository.findAll(pageable);
@@ -225,11 +225,11 @@ public class RoleHierarchyService {
                 .collect(Collectors.toSet());
 
         Set<String> existingRoleNames = roleRepository.findAll().stream()
-                .map(role -> role.getRoleName().toUpperCase())
+                .map(role -> role.getRoleName().toUpperCase(Locale.ROOT))
                 .collect(Collectors.toSet());
 
         for (String roleName : referencedRoleNames) {
-            if (!existingRoleNames.contains(roleName.toUpperCase())) {
+            if (!existingRoleNames.contains(roleName.toUpperCase(Locale.ROOT))) {
                 throw new IllegalArgumentException(msg("msg.role.hierarchy.role.missing", roleName));
             }
         }

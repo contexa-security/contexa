@@ -42,7 +42,7 @@ public class LoginProcessingUrlUniquenessValidator implements Validator<List<Aut
         }
 
         String getContext() {
-            return String.format("Flow '%s', Step '%s'(order:%d)", flowId, stepType, stepOrder);
+            return String.format(Locale.ROOT, "Flow '%s', Step '%s'(order:%d)", flowId, stepType, stepOrder);
         }
 
         @Override

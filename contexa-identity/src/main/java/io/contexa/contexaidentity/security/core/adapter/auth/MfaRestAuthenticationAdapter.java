@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
+import java.util.Locale;
 import io.contexa.contexaidentity.security.core.dsl.configurer.impl.MfaRestAuthenticationConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.option.RestOptions;
 import io.contexa.contexacommon.enums.AuthType;
@@ -26,7 +27,7 @@ public final class MfaRestAuthenticationAdapter extends BaseRestAuthenticationAd
 
     @Override
     public String getId() {
-        return AuthType.MFA_REST.name().toLowerCase();
+        return AuthType.MFA_REST.name().toLowerCase(Locale.ROOT);
     }
 
     @Override

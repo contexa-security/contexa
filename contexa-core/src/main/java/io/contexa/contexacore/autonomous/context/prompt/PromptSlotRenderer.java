@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.context.prompt;
 
+import java.util.Locale;
 import java.util.regex.Pattern;
 import org.springframework.util.StringUtils;
 
@@ -88,7 +89,7 @@ public class PromptSlotRenderer {
                 case '\u2029' -> encoded.append("\\u2029");
                 default -> {
                     if (Character.isISOControl(character)) {
-                        encoded.append(String.format("\\u%04x", (int) character));
+                        encoded.append(String.format(Locale.ROOT, "\\u%04x", (int) character));
                     } else {
                         encoded.append(character);
                     }

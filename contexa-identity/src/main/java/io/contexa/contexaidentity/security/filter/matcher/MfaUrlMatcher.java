@@ -87,7 +87,7 @@ public class MfaUrlMatcher {
 
     private void addMatcher(MfaRequestType type, String pattern, String method) {
         if (pattern != null && !pattern.isEmpty()) {
-            HttpMethod httpMethod = method != null ? HttpMethod.valueOf(method.toUpperCase()) : HttpMethod.POST;
+            HttpMethod httpMethod = method != null ? HttpMethod.valueOf(method.toUpperCase(Locale.ROOT)) : HttpMethod.POST;
             RequestMatcher matcher = PathPatternRequestMatcher.withDefaults().matcher(httpMethod, pattern);
 
             matcherMap.computeIfAbsent(type, k -> new ArrayList<>()).add(matcher);

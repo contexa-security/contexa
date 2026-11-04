@@ -264,7 +264,7 @@ public class AutoConditionTemplateService {
         if (classification == null) return ConditionTemplate.ConditionClassification.CONTEXT_DEPENDENT;
 
         try {
-            return ConditionTemplate.ConditionClassification.valueOf(classification.toUpperCase());
+            return ConditionTemplate.ConditionClassification.valueOf(classification.toUpperCase(Locale.ROOT));
         } catch (Exception e) {
             return ConditionTemplate.ConditionClassification.CONTEXT_DEPENDENT;
         }

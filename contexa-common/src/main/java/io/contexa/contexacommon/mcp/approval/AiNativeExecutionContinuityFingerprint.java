@@ -77,7 +77,7 @@ public final class AiNativeExecutionContinuityFingerprint {
             byte[] bytes = digest.digest(value.getBytes(StandardCharsets.UTF_8));
             StringBuilder builder = new StringBuilder();
             for (byte current : bytes) {
-                builder.append(String.format("%02x", current));
+                builder.append(String.format(Locale.ROOT, "%02x", current));
             }
             return builder.toString();
         }

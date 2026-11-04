@@ -21,6 +21,7 @@ import io.contexa.contexaidentity.security.core.dsl.option.OttOptions;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
 import io.contexa.contexaidentity.security.handler.login.LoginFactsAuthenticationProvider;
+import io.contexa.contexaidentity.security.service.ott.ContexaOneTimeTokens;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.authentication.ott.OneTimeTokenAuthenticationProvider;
@@ -54,7 +55,7 @@ public abstract class BaseOttAuthenticationAdapter extends AbstractAuthenticatio
         PlatformContext platformContext = http.getSharedObject(PlatformContext.class);
         ApplicationContext appContext = platformContext.applicationContext();
         UserDetailsService userDetailsService = appContext.getBean(UserDetailsService.class);
-        OneTimeTokenService oneTimeTokenService = appContext.getBean(OneTimeTokenService.class);
+        OneTimeTokenService oneTimeTokenService = appContext.getBean(ContexaOneTimeTokens.BEAN_NAME, ContexaOneTimeTokens.class).service();
 
         http.oneTimeTokenLogin(ott -> {
             ott.defaultSubmitPageUrl(opts.getDefaultSubmitPageUrl())

@@ -96,7 +96,7 @@ public final class AsepConfigurer implements SecurityConfigurer {
         Objects.requireNonNull(flowCtx, "FlowContext cannot be null");
         HttpSecurity http = Objects.requireNonNull(flowCtx.http(), "HttpSecurity from FlowContext cannot be null");
         AuthenticationFlowConfig flowConfig = Objects.requireNonNull(flowCtx.flow(), "AuthenticationFlowConfig from FlowContext cannot be null");
-        String flowTypeName = Objects.requireNonNull(flowConfig.getTypeName(), "Flow typeName cannot be null").toLowerCase();
+        String flowTypeName = Objects.requireNonNull(flowConfig.getTypeName(), "Flow typeName cannot be null").toLowerCase(Locale.ROOT);
 
         List<SecurityHandlerMethodArgumentResolver> collectedCustomArgumentResolvers = new ArrayList<>();
         List<SecurityHandlerMethodReturnValueHandler> collectedCustomReturnValueHandlers = new ArrayList<>();

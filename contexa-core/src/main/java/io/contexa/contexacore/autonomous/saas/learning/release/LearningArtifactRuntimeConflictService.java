@@ -14,6 +14,7 @@
  * under the License.
  */
 package io.contexa.contexacore.autonomous.saas.learning.release;
+import java.util.Locale;
 import io.contexa.contexacore.autonomous.saas.learning.LearningArtifactReleaseState;
 import io.contexa.contexacore.autonomous.saas.learning.LearningArtifactTypeNames;
 import io.contexa.contexacore.autonomous.saas.learning.registry.LearningArtifactRegistryEntry;
@@ -159,8 +160,7 @@ public class LearningArtifactRuntimeConflictService {
             throw new IllegalArgumentException("input is required");
         }
         List<String> policyFacts = new ArrayList<>();
-        policyFacts.add(String.format(
-                "evidenceCoverageRate=%.4f falsePositiveRegressionRate=%.4f repeatedConflictCount=%d operatorRegressionCount=%d",
+        policyFacts.add(String.format(Locale.ROOT, "evidenceCoverageRate=%.4f falsePositiveRegressionRate=%.4f repeatedConflictCount=%d operatorRegressionCount=%d",
                 input.evidenceCoverageRate(),
                 input.falsePositiveRegressionRate(),
                 input.repeatedConflictCount(),

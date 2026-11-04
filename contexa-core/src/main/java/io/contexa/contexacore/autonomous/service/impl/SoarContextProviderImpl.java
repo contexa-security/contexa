@@ -51,7 +51,7 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
 
         String severity = determineSeverity(events);
 
-        String description = String.format("Security events detected: %d events starting with %s severity",
+        String description = String.format(Locale.ROOT, "Security events detected: %d events starting with %s severity",
                 events.size(), primaryEvent.getSeverity());
 
         List<String> affectedSystems = extractAffectedSystems(events);
@@ -212,7 +212,7 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
                 "delete", "terminate", "disable", "revoke"
         );
 
-        String actionLower = action.toLowerCase();
+        String actionLower = action.toLowerCase(Locale.ROOT);
         return highRiskActions.stream().anyMatch(actionLower::contains);
     }
 

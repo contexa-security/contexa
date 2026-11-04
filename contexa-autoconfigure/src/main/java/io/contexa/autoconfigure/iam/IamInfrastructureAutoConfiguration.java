@@ -20,6 +20,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import io.contexa.contexacore.autonomous.service.AuthorizationDenialRecorder;
 import io.contexa.contexacommon.annotation.Protectable;
+import io.contexa.contexacommon.security.HeldBean;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ProtectableRapidReentryRepository;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
@@ -73,10 +74,14 @@ public class IamInfrastructureAutoConfiguration {
         return new JPAQueryFactory(entityManager);
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    public PasswordEncoder passwordEncoder() {
-        return PasswordEncoderFactories.createDelegatingPasswordEncoder();
+    /**
+     * The encoder of Contexa's own accounts; not the application's PasswordEncoder. Held in a bean of no shared type: Spring Security looks
+     * a PasswordEncoder up by type for the application's authentication and finds a sole one even if it is no autowire candidate.
+     */
+    @Bean(name = "contexaPasswordEncoder")
+    @ConditionalOnMissingBean(name = "contexaPasswordEncoder")
+    public HeldBean<PasswordEncoder> passwordEncoder() {
+        return new HeldBean<>(PasswordEncoderFactories.createDelegatingPasswordEncoder());
     }
 
     @Bean(name = "contexaWebSecurityCustomizer")
@@ -139,7 +144,7 @@ public class IamInfrastructureAutoConfiguration {
     @Bean(name = "contexaProtectableLlmSuppressionWriter")
     @ConditionalOnMissingBean
     public ProtectableLlmSuppressionWriter protectableLlmSuppressionWriter(
-            ObjectProvider<JdbcOperations> jdbcOperationsProvider,
+            @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
             @Qualifier("contexaObjectMapper") ObjectProvider<ObjectMapper> objectMapperProvider,
             @Qualifier("contexaTransactionManager") PlatformTransactionManager transactionManager) {
         ObjectMapper objectMapper = objectMapperProvider.getIfAvailable(ObjectMapper::new);
@@ -155,23 +160,17 @@ public class IamInfrastructureAutoConfiguration {
                 new AnnotationMatchingPointcut(Protectable.class, true));
     }
 
+    /**
+     * Contexa's own role hierarchy, for Contexa's own accounts. Held in a bean of no shared type: Spring Security looks a RoleHierarchy up
+     * by type for the application's authorization and finds a sole one even if it is no autowire candidate, and the application's
+     * decisions would follow the rules the console of Contexa loads into it.
+     */
     @Bean(name = "contexaRoleHierarchy")
-    @ConditionalOnMissingBean
-    public RoleHierarchyImpl roleHierarchy() {
-        return new RoleHierarchyImpl();
+    @ConditionalOnMissingBean(name = "contexaRoleHierarchy")
+    public HeldBean<RoleHierarchyImpl> roleHierarchy() {
+        return new HeldBean<>(new RoleHierarchyImpl());
     }
 
-    @Bean(name = "contexaWebClientCustomizer")
-    @ConditionalOnMissingBean
-    public WebClientCustomizer webClientCustomizer() {
-
-        ConnectionProvider provider = ConnectionProvider.create("custom-ai-pool", 50);
-
-        HttpClient httpClient = HttpClient.create(provider)
-                .responseTimeout(Duration.ofMinutes(3));
-
-        return builder -> builder.clientConnector(new ReactorClientHttpConnector(httpClient));
-    }
 }
 
 

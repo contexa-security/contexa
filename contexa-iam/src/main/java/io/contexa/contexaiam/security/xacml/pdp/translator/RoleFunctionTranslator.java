@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.security.xacml.pdp.translator;
 
+import java.util.Locale;
 import org.springframework.core.annotation.Order;
 import org.springframework.expression.spel.ast.MethodReference;
 
@@ -25,7 +26,7 @@ import java.util.stream.Collectors;
 public class RoleFunctionTranslator implements SpelFunctionTranslator {
     @Override
     public boolean supports(String functionName) {
-        return functionName.toLowerCase().contains("role");
+        return functionName.toLowerCase(Locale.ROOT).contains("role");
     }
 
     @Override

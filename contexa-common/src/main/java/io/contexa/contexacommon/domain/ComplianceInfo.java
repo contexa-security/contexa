@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacommon.domain;
 
+import java.util.Locale;
 import lombok.Getter;
 
 import java.util.Map;
@@ -53,7 +54,7 @@ public class ComplianceInfo {
 
     @Override
     public String toString() {
-        return String.format("ComplianceInfo{status='%s', framework='%s', checks=%d}", 
+        return String.format(Locale.ROOT, "ComplianceInfo{status='%s', framework='%s', checks=%d}", 
                 overallStatus, complianceFramework, complianceChecks.size());
     }
 } 

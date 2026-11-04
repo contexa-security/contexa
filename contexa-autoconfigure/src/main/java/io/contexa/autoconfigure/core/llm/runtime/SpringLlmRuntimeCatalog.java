@@ -317,7 +317,7 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
     }
 
     private String inferProvider(String beanName, Class<?> beanType) {
-        String source = ((beanType != null ? beanType.getName() : "") + ":" + beanName).toLowerCase();
+        String source = ((beanType != null ? beanType.getName() : "") + ":" + beanName).toLowerCase(Locale.ROOT);
         if (source.contains("ollama")) {
             return "ollama";
         }

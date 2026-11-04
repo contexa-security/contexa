@@ -828,7 +828,7 @@ public class ZeroTrustEventPublisher {
         if (!hasNonNullPayload(payload, "authMethod")) {
             // An MFA authority states the method; without one the method is unknown, not a password login.
             boolean hasMfaAuthority = authorities.stream()
-                    .anyMatch(authority -> authority.toUpperCase().contains("MFA"));
+                    .anyMatch(authority -> authority.toUpperCase(Locale.ROOT).contains("MFA"));
             if (hasMfaAuthority) {
                 payload.put("authMethod", "mfa");
             }
@@ -836,7 +836,7 @@ public class ZeroTrustEventPublisher {
 
         if (!hasNonNullPayload(payload, "mfaVerified")) {
             boolean hasMfaAuthority = authorities.stream()
-                    .anyMatch(authority -> authority.toUpperCase().contains("MFA"));
+                    .anyMatch(authority -> authority.toUpperCase(Locale.ROOT).contains("MFA"));
             if (hasMfaAuthority) {
                 payload.put("mfaVerified", true);
             }
@@ -855,7 +855,7 @@ public class ZeroTrustEventPublisher {
 
         if (!hasNonNullPayload(payload, "effectivePermissions")) {
             List<String> effectivePermissions = new ArrayList<>(authorities.stream()
-                    .filter(authority -> !authority.toUpperCase().contains("MFA"))
+                    .filter(authority -> !authority.toUpperCase(Locale.ROOT).contains("MFA"))
                     .filter(authority -> !authority.startsWith("ROLE_"))
                     .distinct()
                     .toList());

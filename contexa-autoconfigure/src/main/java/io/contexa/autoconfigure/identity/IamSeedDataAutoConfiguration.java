@@ -32,7 +32,6 @@ import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.context.annotation.Bean;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -232,7 +231,7 @@ public class IamSeedDataAutoConfiguration {
         }
         if (schemaInstallState == SchemaInstallState.ABSENT) {
             for (String location : SCHEMA_LOCATIONS) {
-                Resource schema = new ClassPathResource(location);
+                Resource schema = ContexaResources.sql(location);
                 if (!schema.exists()) {
                     log.warn("[IamSeedData] classpath:{} not found, skipping schema initialization", location);
                     continue;
@@ -259,7 +258,7 @@ public class IamSeedDataAutoConfiguration {
             }
         }
         for (String location : seedLocations) {
-            Resource seed = new ClassPathResource(location);
+            Resource seed = ContexaResources.sql(location);
             if (!seed.exists()) {
                 log.warn("[IamSeedData] classpath:{} not found, skipping", location);
                 continue;
@@ -355,7 +354,7 @@ public class IamSeedDataAutoConfiguration {
     static void applyCanonicalSchemaMaintenance(
             DataSource dataSource, OssSchemaMaintenanceBacklog deferTo, boolean deferMissingObjects)
             throws IOException, SQLException {
-        Resource schema = new ClassPathResource(CANONICAL_SCHEMA_LOCATION);
+        Resource schema = ContexaResources.sql(CANONICAL_SCHEMA_LOCATION);
         if (!schema.exists()) {
             log.warn("[IamSeedData] classpath:{} not found, skipping schema maintenance",
                     CANONICAL_SCHEMA_LOCATION);
@@ -385,7 +384,7 @@ public class IamSeedDataAutoConfiguration {
      * are created here with their indexes. Tables that exist are left alone: their evolution stays the enterprise's.
      */
     static void createMissingOssTables(DataSource dataSource) throws IOException, SQLException {
-        Resource schema = new ClassPathResource(CANONICAL_SCHEMA_LOCATION);
+        Resource schema = ContexaResources.sql(CANONICAL_SCHEMA_LOCATION);
         if (!schema.exists()) {
             return;
         }
@@ -458,7 +457,7 @@ public class IamSeedDataAutoConfiguration {
     private void completePqaOfficialSchemaIfNeeded(DataSource dataSource) throws SQLException, IOException {
         PqaOfficialSeedState seedState = detectPqaOfficialSeedState(dataSource);
         if (seedState == PqaOfficialSeedState.ABSENT) {
-            Resource schema = new ClassPathResource(CANONICAL_SCHEMA_LOCATION);
+            Resource schema = ContexaResources.sql(CANONICAL_SCHEMA_LOCATION);
             if (!schema.exists()) {
                 log.warn("[IamSeedData] classpath:{} not found, cannot complete PQA official schema seed",
                         CANONICAL_SCHEMA_LOCATION);
@@ -762,7 +761,7 @@ public class IamSeedDataAutoConfiguration {
                 .replaceAll("(?m)--.*$", " ")
                 .replaceAll("\\s+", " ")
                 .trim()
-                .toLowerCase();
+                .toLowerCase(Locale.ROOT);
         // Under ALTER COLUMN only the removal of a NOT NULL constraint or of a default is replayed;
         // both are no-ops once applied. Type, default and constraint changes are never replayed.
         return normalized.matches("^alter table \\S+ .*\\badd column if not exists\\b.*")
@@ -788,7 +787,7 @@ public class IamSeedDataAutoConfiguration {
 
     private boolean tableExists(Connection connection, DatabaseMetaData metadata, String tableName) throws SQLException {
         return tableExists(connection, metadata, tableName, tableName)
-                || tableExists(connection, metadata, tableName, tableName.toUpperCase());
+                || tableExists(connection, metadata, tableName, tableName.toUpperCase(Locale.ROOT));
     }
 
     private boolean tableExists(Connection connection, DatabaseMetaData metadata, String markerName, String lookupName)

@@ -2128,7 +2128,7 @@ public class SecurityDecisionPromptSections {
             int minute = event != null && event.getTimestamp() != null
                     ? event.getLocalTimestamp().getMinute()
                     : 0;
-            narrative.append(" at ").append(String.format("%02d:%02d",
+            narrative.append(" at ").append(String.format(Locale.ROOT, "%02d:%02d",
                     safeParseHour(currentHour),
                     minute));
         }

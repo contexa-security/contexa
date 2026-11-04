@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.agent;
 
+import java.util.Locale;
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.security.subject.SubjectKind;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
@@ -327,7 +328,7 @@ public class AgentConfirmationService {
         }
         AgentConfirmation current = expireIfOverdue(confirmation);
         if (current.status() != AgentConfirmation.Status.PENDING) {
-            throw new IllegalStateException("The confirmation is " + current.status().name().toLowerCase()
+            throw new IllegalStateException("The confirmation is " + current.status().name().toLowerCase(Locale.ROOT)
                     + " already");
         }
         return current;

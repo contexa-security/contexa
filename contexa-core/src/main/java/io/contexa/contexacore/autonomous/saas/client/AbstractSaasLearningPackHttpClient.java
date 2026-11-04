@@ -34,9 +34,7 @@ public abstract class AbstractSaasLearningPackHttpClient {
         this(
                 properties,
                 accessTokenProvider,
-                RestClient.builder()
-                        .baseUrl(trimTrailingSlash(properties.getEndpoint()))
-                        .build());
+                SaasRestClients.create(trimTrailingSlash(properties.getEndpoint())));
     }
 
     protected AbstractSaasLearningPackHttpClient(

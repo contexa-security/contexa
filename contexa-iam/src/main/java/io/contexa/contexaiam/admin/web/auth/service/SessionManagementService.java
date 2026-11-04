@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.auth.service;
 
+import java.util.Locale;
 import io.contexa.contexaiam.domain.entity.ActiveSession;
 import io.contexa.contexaiam.repository.ActiveSessionRepository;
 import lombok.RequiredArgsConstructor;
@@ -45,7 +46,7 @@ public class SessionManagementService {
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public Page<ActiveSession> searchActiveSessions(String keyword, Pageable pageable) {
         if (StringUtils.hasText(keyword)) {
-            String likePattern = "%" + keyword.trim().toLowerCase() + "%";
+            String likePattern = "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%";
             return activeSessionRepository.searchActiveSessions(likePattern, pageable);
         }
         return getActiveSessions(pageable);

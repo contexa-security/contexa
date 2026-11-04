@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.std.advisor.core;
 
+import java.util.Locale;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClientRequest;
@@ -185,6 +186,6 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
 
     @Override
     public String toString() {
-        return String.format("Advisor[%s, order=%d, enabled=%s]", getName(), order, enabled);
+        return String.format(Locale.ROOT, "Advisor[%s, order=%d, enabled=%s]", getName(), order, enabled);
     }
 }

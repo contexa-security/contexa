@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.metadata.service;
 
+import java.util.Locale;
 import io.contexa.contexaiam.domain.dto.FunctionCatalogDto;
 import io.contexa.contexaiam.domain.dto.FunctionCatalogUpdateDto;
 import io.contexa.contexaiam.domain.dto.GroupedFunctionCatalogDto;
@@ -88,7 +89,7 @@ public class FunctionCatalogService {
     public void updateSingleStatus(Long catalogId, String status) {
         FunctionCatalog catalog = functionCatalogRepository.findById(catalogId)
                 .orElseThrow(() -> new IllegalArgumentException("Function catalog not found with ID: " + catalogId));
-        FunctionCatalog.CatalogStatus newStatus = FunctionCatalog.CatalogStatus.valueOf(status.toUpperCase());
+        FunctionCatalog.CatalogStatus newStatus = FunctionCatalog.CatalogStatus.valueOf(status.toUpperCase(Locale.ROOT));
         catalog.setStatus(newStatus);
         functionCatalogRepository.save(catalog);
             }
@@ -119,7 +120,7 @@ public class FunctionCatalogService {
 
     @Transactional(transactionManager = "contexaTransactionManager")
     public void batchUpdateStatus(List<Long> ids, String status) {
-        FunctionCatalog.CatalogStatus newStatus = FunctionCatalog.CatalogStatus.valueOf(status.toUpperCase());
+        FunctionCatalog.CatalogStatus newStatus = FunctionCatalog.CatalogStatus.valueOf(status.toUpperCase(Locale.ROOT));
         List<FunctionCatalog> catalogs = functionCatalogRepository.findAllById(ids);
         catalogs.forEach(catalog -> catalog.setStatus(newStatus));
         functionCatalogRepository.saveAll(catalogs);

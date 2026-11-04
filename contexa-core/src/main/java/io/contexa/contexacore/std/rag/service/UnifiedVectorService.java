@@ -615,7 +615,7 @@ public class UnifiedVectorService implements VectorOperations, DisposableBean {
                 future.cancel(true);
             }
             throw new VectorStoreException(
-                    String.format("Vector store %s timed out after %dms", operationLabel, effectiveTimeoutMs),
+                    String.format(Locale.ROOT, "Vector store %s timed out after %dms", operationLabel, effectiveTimeoutMs),
                     timeoutException);
         } catch (ExecutionException executionException) {
             Throwable cause = executionException.getCause();

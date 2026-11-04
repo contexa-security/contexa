@@ -48,7 +48,7 @@ public class KafkaConfiguration {
 
     private final KafkaProperties kafkaProperties;
 
-    @Bean(name = "contexaConsumerConfigs")
+    @Bean(name = "contexaConsumerConfigs", defaultCandidate = false)
     public Map<String, Object> consumerConfigs() {
         Map<String, Object> props = new HashMap<>();
         String bootstrapServers = String.join(",", kafkaProperties.getBootstrapServers());
@@ -71,7 +71,7 @@ public class KafkaConfiguration {
         return props;
     }
 
-    @Bean(name = "contexaProducerConfigs")
+    @Bean(name = "contexaProducerConfigs", defaultCandidate = false)
     public Map<String, Object> producerConfigs() {
         Map<String, Object> props = new HashMap<>();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, String.join(",", kafkaProperties.getBootstrapServers()));
@@ -82,16 +82,21 @@ public class KafkaConfiguration {
         props.put(ProducerConfig.BATCH_SIZE_CONFIG, 16384);
         props.put(ProducerConfig.LINGER_MS_CONFIG, 10);
         props.put(ProducerConfig.BUFFER_MEMORY_CONFIG, 33554432);
+        // A broker that is down must not hold the caller: a send is given a few seconds to find the cluster and to be delivered, then it fails
+        // (the publisher counts the failure and sends the event to the dead-letter path); the default, a minute, would hold a request thread.
+        props.put(ProducerConfig.MAX_BLOCK_MS_CONFIG, 3000);
+        props.put(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, 5000);
+        props.put(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, 10000);
         
         return props;
     }
 
-    @Bean(name = "contexaConsumerFactory")
+    @Bean(name = "contexaConsumerFactory", defaultCandidate = false)
     public ConsumerFactory<String, String> consumerFactory() {
         return new DefaultKafkaConsumerFactory<>(consumerConfigs());
     }
 
-    @Bean(name = "contexaProducerFactory")
+    @Bean(name = "contexaProducerFactory", defaultCandidate = false)
     public ProducerFactory<String, Object> producerFactory(@Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         Map<String, Object> props = new HashMap<>(producerConfigs());
         JsonSerializer<Object> serializer = new JsonSerializer<>(objectMapper);
@@ -100,7 +105,7 @@ public class KafkaConfiguration {
     }
 
     @Bean(name = "contexaKafkaTemplate", defaultCandidate = false)
-    public KafkaTemplate<String, Object> kafkaTemplate(ProducerFactory<String, Object> contexaProducerFactory) {
+    public KafkaTemplate<String, Object> kafkaTemplate(@Qualifier("contexaProducerFactory") ProducerFactory<String, Object> contexaProducerFactory) {
         return new KafkaTemplate<>(contexaProducerFactory);
     }
 

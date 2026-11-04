@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
+import java.util.Locale;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.snapshot.CurrentRequestSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
@@ -201,7 +202,7 @@ public final class SecurityPromptContractVerifier {
         Matcher matcher = NARRATIVE_TIME_PATTERN.matcher(" at " + narrativeTime + ".");
         if (matcher.find()) {
             String narrativeHour = matcher.group("hour");
-            if (!narrativeHour.equals(String.format("%02d", safeParseInt(currentAccessHour)))) {
+            if (!narrativeHour.equals(String.format(Locale.ROOT, "%02d", safeParseInt(currentAccessHour)))) {
                 violations.add("REQUEST_TIME_MISMATCH");
             }
         }
@@ -236,11 +237,11 @@ public final class SecurityPromptContractVerifier {
         String renderedAuthenticationType = extractLineValue(userPrompt, "AuthenticationType");
         String currentAuthenticationType = current != null ? current.authenticationType() : null;
         if (StringUtils.hasText(renderedAuthenticationType)
-                && !SEMANTIC_AUTH_TYPES.contains(renderedAuthenticationType.trim().toUpperCase())) {
+                && !SEMANTIC_AUTH_TYPES.contains(renderedAuthenticationType.trim().toUpperCase(Locale.ROOT))) {
             violations.add("REQUEST_AUTH_VOCABULARY_NOT_SEMANTIC");
         }
         if (StringUtils.hasText(currentAuthenticationType)
-                && !SEMANTIC_AUTH_TYPES.contains(currentAuthenticationType.trim().toUpperCase())) {
+                && !SEMANTIC_AUTH_TYPES.contains(currentAuthenticationType.trim().toUpperCase(Locale.ROOT))) {
             violations.add("LEARNING_AUTH_VOCABULARY_NOT_SEMANTIC");
         }
     }
@@ -343,7 +344,7 @@ public final class SecurityPromptContractVerifier {
         if (!StringUtils.hasText(evidenceState)) {
             return;
         }
-        String normalized = evidenceState.trim().toUpperCase();
+        String normalized = evidenceState.trim().toUpperCase(Locale.ROOT);
         boolean unreliable = normalized.contains("PROVISIONAL")
                 || normalized.contains("PARTIAL")
                 || normalized.contains("INCOMPLETE")
@@ -536,7 +537,7 @@ public final class SecurityPromptContractVerifier {
         if (!StringUtils.hasText(value) || allowedValues == null || violationCode == null) {
             return;
         }
-        String normalized = value.trim().toUpperCase();
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
         if (!allowedValues.contains(normalized)) {
             violations.add(violationCode);
         }
@@ -551,7 +552,7 @@ public final class SecurityPromptContractVerifier {
             return;
         }
         for (String token : value.split("[,|]")) {
-            String normalized = token == null ? null : token.trim().toUpperCase();
+            String normalized = token == null ? null : token.trim().toUpperCase(Locale.ROOT);
             if (!StringUtils.hasText(normalized) || "UNKNOWN".equals(normalized)) {
                 continue;
             }

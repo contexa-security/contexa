@@ -29,6 +29,7 @@ import io.contexa.contexaidentity.security.filter.MfaStepFilterWrapper;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
+import io.contexa.contexaidentity.security.service.ott.ContexaOneTimeTokens;
 import io.contexa.contexaidentity.security.service.ott.EmailOneTimeTokenService;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import org.slf4j.Logger;
@@ -93,7 +94,7 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
         AuthResponseWriter responseWriter = applicationContext.getBean(AuthResponseWriter.class);
         EmailOneTimeTokenService emailOttService = null;
         try {
-            emailOttService = applicationContext.getBean(EmailOneTimeTokenService.class);
+            emailOttService = applicationContext.getBean(ContexaOneTimeTokens.BEAN_NAME, ContexaOneTimeTokens.class).service();
         } catch (Exception e) {
             log.error("EmailOneTimeTokenService bean not found, MfaContinuationFilter will be created without it (some features like OTT challenge initiation might be affected).");
         }

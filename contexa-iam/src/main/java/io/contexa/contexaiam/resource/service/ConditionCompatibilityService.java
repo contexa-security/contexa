@@ -150,7 +150,7 @@ public class ConditionCompatibilityService {
 
         if (ConditionTemplate.ConditionClassification.CONTEXT_DEPENDENT.equals(condition.getClassification())) {
             
-            String spelTemplate = condition.getSpelTemplate().toLowerCase();
+            String spelTemplate = condition.getSpelTemplate().toLowerCase(Locale.ROOT);
             return spelTemplate.contains("haspermission") || 
                    spelTemplate.contains("complex") || 
                    requiredVariables.size() > 2;
@@ -325,9 +325,9 @@ public class ConditionCompatibilityService {
     }
 
     private boolean isDomainCompatible(ConditionTemplate condition, ManagedResource resource) {
-        String resourceIdentifier = resource.getResourceIdentifier().toLowerCase();
-        String conditionName = condition.getName().toLowerCase();
-        String conditionSpel = condition.getSpelTemplate() != null ? condition.getSpelTemplate().toLowerCase() : "";
+        String resourceIdentifier = resource.getResourceIdentifier().toLowerCase(Locale.ROOT);
+        String conditionName = condition.getName().toLowerCase(Locale.ROOT);
+        String conditionSpel = condition.getSpelTemplate() != null ? condition.getSpelTemplate().toLowerCase(Locale.ROOT) : "";
 
         boolean isGroupResource = isGroupRelatedResource(resourceIdentifier);
         boolean isUserResource = isUserRelatedResource(resourceIdentifier);
@@ -421,7 +421,7 @@ public class ConditionCompatibilityService {
         }
 
         if (condition.getSourceMethod() != null) {
-            String sourceMethod = condition.getSourceMethod().toLowerCase();
+            String sourceMethod = condition.getSourceMethod().toLowerCase(Locale.ROOT);
             if (isGroupResource && (sourceMethod.contains("group"))) {
                                 return true;
             }
@@ -514,9 +514,9 @@ public class ConditionCompatibilityService {
         String paramTypes = resource.getParameterTypes();
         if (paramTypes == null) return false;
         
-        return paramTypes.toLowerCase().contains("long") || 
-               paramTypes.toLowerCase().contains("id") ||
-               paramTypes.toLowerCase().contains("integer");
+        return paramTypes.toLowerCase(Locale.ROOT).contains("long") || 
+               paramTypes.toLowerCase(Locale.ROOT).contains("id") ||
+               paramTypes.toLowerCase(Locale.ROOT).contains("integer");
     }
 
     private boolean isAbacApplicableMethod(ManagedResource resource) {
@@ -542,7 +542,7 @@ public class ConditionCompatibilityService {
         }
 
         if (resourceIdentifier != null) {
-            String methodName = extractMethodName(resourceIdentifier).toLowerCase();
+            String methodName = extractMethodName(resourceIdentifier).toLowerCase(Locale.ROOT);
             if (methodName.contains("getall") || methodName.contains("findall") || 
                 methodName.contains("listall") || methodName.contains("all")) {
                 return false;

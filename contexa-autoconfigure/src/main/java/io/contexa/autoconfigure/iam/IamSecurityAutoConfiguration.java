@@ -15,6 +15,8 @@
  */
 package io.contexa.autoconfigure.iam;
 
+import org.springframework.beans.factory.BeanFactory;
+import io.contexa.autoconfigure.core.ContexaOwnBeans;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
@@ -56,7 +58,7 @@ public class IamSecurityAutoConfiguration {
     public CustomMethodSecurityExpressionHandlerFactory customMethodSecurityExpressionHandlerFactory(
             SecurityZeroTrustProperties securityZeroTrustProperties,
             CompositePermissionEvaluator contexaCompositePermissionEvaluator,
-            RoleHierarchy roleHierarchy,
+            BeanFactory beanFactory,
             PolicyRetrievalPoint policyRetrievalPoint,
             ContextHandler contextHandler,
             AuditLogRepository auditLogRepository,
@@ -66,7 +68,7 @@ public class IamSecurityAutoConfiguration {
         return new CustomMethodSecurityExpressionHandlerFactory(
                 securityZeroTrustProperties,
                 contexaCompositePermissionEvaluator,
-                roleHierarchy,
+                ContexaOwnBeans.roleHierarchy(beanFactory),
                 policyRetrievalPoint,
                 contextHandler,
                 auditLogRepository,

@@ -207,7 +207,7 @@ public class PolicyDuplicateDetector {
         return policy.getTargets().stream()
                 .map(t -> t.getTargetType() + ":"
                         + t.getTargetIdentifier() + ":"
-                        + (t.getHttpMethod() != null ? t.getHttpMethod().toUpperCase() : "ANY"))
+                        + (t.getHttpMethod() != null ? t.getHttpMethod().toUpperCase(Locale.ROOT) : "ANY"))
                 .collect(Collectors.toSet());
     }
 

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.aiam.components.prompt;
 
+import java.util.Locale;
 import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
@@ -163,12 +164,12 @@ public class PolicyGenerationStreamingTemplate extends AbstractStreamingPromptTe
         if (availableItems.roles() != null && !availableItems.roles().isEmpty()) {
             info.append("**Role List:**\n");
             availableItems.roles().forEach(role ->
-                    info.append(String.format("- %s (ID: %d)\n", role.name(), role.id())));
+                    info.append(String.format(Locale.ROOT, "- %s (ID: %d)\n", role.name(), role.id())));
         }
         if (availableItems.permissions() != null && !availableItems.permissions().isEmpty()) {
             info.append("\n**Permission List:**\n");
             availableItems.permissions().forEach(permission -> {
-                info.append(String.format("- %s (ID: %d)", permission.name(), permission.id()));
+                info.append(String.format(Locale.ROOT, "- %s (ID: %d)", permission.name(), permission.id()));
                 if (permission.targetType() != null && permission.resourceIdentifier() != null) {
                     info.append(String.format(" [Protects: %s %s %s]",
                             permission.targetType(),
@@ -181,7 +182,7 @@ public class PolicyGenerationStreamingTemplate extends AbstractStreamingPromptTe
         if (availableItems.conditions() != null && !availableItems.conditions().isEmpty()) {
             info.append("\n**Condition List (You must use only these numeric IDs as keys for the \"conditions\" field):**\n");
             availableItems.conditions().forEach(condition ->
-                    info.append(String.format("- ID: %d, Name: %s\n", condition.id(), condition.name())));
+                    info.append(String.format(Locale.ROOT, "- ID: %d, Name: %s\n", condition.id(), condition.name())));
         }
         return info.length() > 0 ? info.toString() : "No available items found.";
     }

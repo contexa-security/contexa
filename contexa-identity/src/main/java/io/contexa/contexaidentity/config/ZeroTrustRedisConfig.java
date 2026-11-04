@@ -27,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
@@ -41,7 +42,12 @@ import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
-@AutoConfiguration(before = RedisAutoConfiguration.class)
+/**
+ * Contexa's own Redis connection, for an application that has none: when the application's Redis is configured (Spring Boot's
+ * auto-configuration or its own {@code RedisConnectionFactory}), that connection is the one Contexa's templates use, with everything the
+ * application says about it (url, database, TLS, sentinel, cluster, pool, timeouts). This configuration comes after Spring Boot's.
+ */
+@AutoConfiguration(after = RedisAutoConfiguration.class)
 @RequiredArgsConstructor
 @EnableConfigurationProperties(RedisProperties.class)
 @ConditionalOnClass(name = {
@@ -55,6 +61,7 @@ public class ZeroTrustRedisConfig {
     private final RedisProperties redisProperties;
 
     @Bean(name = "contexaClientResources")
+    @ConditionalOnMissingBean(RedisConnectionFactory.class)
     public ClientResources clientResources() {
         return DefaultClientResources.builder()
                 .ioThreadPoolSize(8)  
@@ -64,7 +71,8 @@ public class ZeroTrustRedisConfig {
     }
 
     @Bean(name = "contexaLettuceClientConfiguration")
-    public LettuceClientConfiguration lettuceClientConfiguration(ClientResources contexaClientResources) {
+    @ConditionalOnMissingBean(RedisConnectionFactory.class)
+    public LettuceClientConfiguration lettuceClientConfiguration(@Qualifier("contexaClientResources") ClientResources contexaClientResources) {
         
         SocketOptions socketOptions = SocketOptions.builder()
                 .connectTimeout(Duration.ofMillis(securityZeroTrustProperties.getRedis().getTimeout()))  
@@ -90,20 +98,28 @@ public class ZeroTrustRedisConfig {
         poolConfig.setTestWhileIdle(true);  
         poolConfig.setTimeBetweenEvictionRunsMillis(30000);  
 
-        return LettucePoolingClientConfiguration.builder()
+        LettucePoolingClientConfiguration.LettucePoolingClientConfigurationBuilder builder = LettucePoolingClientConfiguration.builder()
                         .poolConfig(poolConfig)
                         .clientOptions(clientOptions)
                         .clientResources(contexaClientResources)
-                        .commandTimeout(Duration.ofMillis(securityZeroTrustProperties.getRedis().getTimeout()))
-                        .build();
+                        .commandTimeout(Duration.ofMillis(securityZeroTrustProperties.getRedis().getTimeout()));
+        if (redisProperties.getSsl().isEnabled()) {
+            builder.useSsl();
+        }
+        return builder.build();
     }
 
     @Bean(name = "contexaRedisConnectionFactory")
     @ConditionalOnMissingBean(RedisConnectionFactory.class)
-    public RedisConnectionFactory redisConnectionFactory(LettuceClientConfiguration contexaLettuceClientConfiguration) {
+    public RedisConnectionFactory redisConnectionFactory(@Qualifier("contexaLettuceClientConfiguration") LettuceClientConfiguration contexaLettuceClientConfiguration) {
         RedisStandaloneConfiguration redisConfig = new RedisStandaloneConfiguration();
         redisConfig.setHostName(redisProperties.getHost());
         redisConfig.setPort(redisProperties.getPort());
+        redisConfig.setDatabase(redisProperties.getDatabase());
+        String redisUsername = redisProperties.getUsername();
+        if (redisUsername != null && !redisUsername.isEmpty()) {
+            redisConfig.setUsername(redisUsername);
+        }
         String redisPassword = redisProperties.getPassword();
         if (redisPassword != null && !redisPassword.isEmpty()) {
             redisConfig.setPassword(redisPassword);

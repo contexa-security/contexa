@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.resource.service;
 
+import java.util.Locale;
 import java.util.Objects;
 
 import com.google.common.collect.Lists;
@@ -275,7 +276,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
                 lastPart = lastPart.replace("()", "");
             }
 
-            String formatted = lastPart.replaceAll("([a-z])([A-Z])", "$1 $2").toLowerCase();
+            String formatted = lastPart.replaceAll("([a-z])([A-Z])", "$1 $2").toLowerCase(Locale.ROOT);
             return formatted + " Feature";
         }
 

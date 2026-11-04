@@ -4,6 +4,7 @@
  */
 package io.contexa.contexaiam.resource.scanner;
 
+import org.springframework.util.ClassUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.annotation.Protectable;
@@ -48,6 +49,19 @@ public class MethodResourceScanner implements ResourceScanner {
         List<ManagedResource> resources = new ArrayList<>();
         List<String> basePackages = scannerBasePackages();
         for (String beanName : applicationContext.getBeanDefinitionNames()) {
+            // Judged by the type of the definition, before any bean is made: asking for every bean of the application would create the
+            // application's lazy and prototype beans just because an administrator refreshed Contexa's list.
+            Class<?> declaredType;
+            try {
+                declaredType = applicationContext.getType(beanName, false);
+            } catch (Exception ignored) {
+                continue;
+            }
+            // a definition whose type is not known without making the bean is judged after it is made, as before
+            if (declaredType != null
+                    && basePackages.stream().noneMatch(prefix -> matchesPackage(ClassUtils.getUserClass(declaredType).getPackageName(), prefix))) {
+                continue;
+            }
             Object bean;
             try {
                 bean = applicationContext.getBean(beanName);

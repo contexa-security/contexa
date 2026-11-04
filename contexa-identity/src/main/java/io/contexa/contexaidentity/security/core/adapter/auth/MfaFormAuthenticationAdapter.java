@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
+import java.util.Locale;
 import io.contexa.contexaidentity.security.core.dsl.configurer.impl.MfaFormAuthenticationConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
 import io.contexa.contexacommon.enums.AuthType;
@@ -27,7 +28,7 @@ public final class MfaFormAuthenticationAdapter extends BaseFormAuthenticationAd
 
     @Override
     public String getId() {
-        return AuthType.MFA_FORM.name().toLowerCase();
+        return AuthType.MFA_FORM.name().toLowerCase(Locale.ROOT);
     }
 
     @Override

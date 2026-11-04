@@ -79,7 +79,7 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
 
         List<String> conditions = new ArrayList<>();
         String subjectExpr = dto.subjects().stream()
-                .map(s -> String.format("hasAuthority('%s_%d')", s.type(), s.id()))
+                .map(s -> String.format(Locale.ROOT, "hasAuthority('%s_%d')", s.type(), s.id()))
                 .collect(Collectors.joining(" or "));
         if (!subjectExpr.isEmpty()) conditions.add("(" + subjectExpr + ")");
 

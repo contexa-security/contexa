@@ -27,6 +27,8 @@ import io.contexa.contexaidentity.security.core.dsl.option.PasskeyOptions;
 import io.contexa.contexaidentity.security.core.dsl.option.RestOptions;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
+import io.contexa.contexaidentity.security.service.ott.ContexaOneTimeTokens;
+import io.contexa.contexaidentity.security.service.ott.EmailOneTimeTokenService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -252,7 +254,8 @@ class AuthenticationAdapterTest {
             PlatformAuthenticationFailureHandler failureHandler = mock(PlatformAuthenticationFailureHandler.class);
 
             when(applicationContext.getBean(UserDetailsService.class)).thenReturn(mock(UserDetailsService.class));
-            when(applicationContext.getBean(OneTimeTokenService.class)).thenReturn(mock(OneTimeTokenService.class));
+            when(applicationContext.getBean(ContexaOneTimeTokens.BEAN_NAME, ContexaOneTimeTokens.class))
+                    .thenReturn(new ContexaOneTimeTokens(mock(EmailOneTimeTokenService.class)));
 
             OneTimeTokenLoginConfigurer<HttpSecurity> mockConfigurer = mock(OneTimeTokenLoginConfigurer.class);
             when(mockConfigurer.defaultSubmitPageUrl(any())).thenReturn(mockConfigurer);

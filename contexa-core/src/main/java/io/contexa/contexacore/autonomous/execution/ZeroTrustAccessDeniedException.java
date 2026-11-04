@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.execution;
 
+import java.util.Locale;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 
@@ -83,7 +84,7 @@ public class ZeroTrustAccessDeniedException extends AuthorizationDeniedException
             ZeroTrustAction.PENDING_ANALYSIS.name(),
             resourceId,
             null,
-            String.format("Security analysis timeout after %dms", timeoutMs),
+            String.format(Locale.ROOT, "Security analysis timeout after %dms", timeoutMs),
             true
         );
     }

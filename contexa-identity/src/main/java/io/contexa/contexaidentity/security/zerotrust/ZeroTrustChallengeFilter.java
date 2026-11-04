@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.zerotrust;
 
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import io.contexa.contexacommon.security.HostOwnedIdentityNotice;
 import io.contexa.contexacommon.security.ZeroTrustScreens;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
@@ -230,7 +231,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
             HostOwnedIdentityNotice.markWhenNoUser(request, auth);
         }
 
-        if (auth == null || !auth.isAuthenticated()) {
+        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
             filterChain.doFilter(request, response);
             return;
         }

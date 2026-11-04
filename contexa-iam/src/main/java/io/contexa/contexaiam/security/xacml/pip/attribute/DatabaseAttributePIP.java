@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.security.xacml.pip.attribute;
 
+import java.util.Locale;
 import com.fasterxml.jackson.core.type.TypeReference;
 import io.contexa.contexacommon.cache.ContexaCacheService;
 import io.contexa.contexacommon.entity.business.BusinessResource;
@@ -265,7 +266,7 @@ public class DatabaseAttributePIP implements AttributeInformationPoint {
     private String determineSensitivityLevel(String resourceType) {
         if (resourceType == null) return "STANDARD";
         
-        String type = resourceType.toUpperCase();
+        String type = resourceType.toUpperCase(Locale.ROOT);
         if (type.contains("FINANCIAL") || type.contains("SENSITIVE") || type.contains("CONFIDENTIAL")) {
             return "HIGH";
         } else if (type.contains("INTERNAL") || type.contains("PROTECTED")) {

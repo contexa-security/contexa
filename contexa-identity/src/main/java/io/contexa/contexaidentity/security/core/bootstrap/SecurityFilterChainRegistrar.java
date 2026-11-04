@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.core.bootstrap;
 
+import java.util.Locale;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.context.FlowContext;
@@ -121,7 +122,7 @@ public class SecurityFilterChainRegistrar {
 
             for (AuthenticationStepConfig step : flowConfig.getStepConfigs()) {
                 Objects.requireNonNull(step, "AuthenticationStepConfig in flow cannot be null.");
-                String pureFactorType = Objects.requireNonNull(step.getType(), "Step type cannot be null.").toLowerCase();
+                String pureFactorType = Objects.requireNonNull(step.getType(), "Step type cannot be null.").toLowerCase(Locale.ROOT);
                 String stepId = step.getStepId();
 
                 if (!StringUtils.hasText(stepId)) {

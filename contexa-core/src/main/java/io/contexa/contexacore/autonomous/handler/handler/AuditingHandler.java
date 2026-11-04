@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.handler.handler;
 
+import java.util.Locale;
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
@@ -56,7 +57,7 @@ public class AuditingHandler implements SecurityEventHandler {
             }
 
             String action = result.getAction();
-            String decision = (action != null && !action.isBlank()) ? action.toUpperCase() : "UNANALYZED";
+            String decision = (action != null && !action.isBlank()) ? action.toUpperCase(Locale.ROOT) : "UNANALYZED";
             String targetResource = getResourceFromMetadata(event);
 
             Map<String, Object> details = new HashMap<>();

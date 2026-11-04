@@ -15,6 +15,10 @@
  */
 package io.contexa.autoconfigure.core.llm;
 
+import java.time.Duration;
+import reactor.netty.resources.ConnectionProvider;
+import reactor.netty.http.client.HttpClient;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import io.contexa.autoconfigure.properties.ContexaLlmSelectionProperties;
 import io.contexa.autoconfigure.properties.ContexaLlmBindingProperties;
 import io.contexa.autoconfigure.properties.ContexaProperties;
@@ -71,12 +75,15 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Role;
+import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.DefaultResponseErrorHandler;
 import org.springframework.web.client.ResponseErrorHandler;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.reactive.function.client.WebClient;
-
+
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
@@ -100,6 +107,13 @@ public class CoreLLMTieredAutoConfiguration {
 
     private static final String DEFAULT_OLLAMA_CHAT_MODEL = "qwen3:8b";
     private static final String DEFAULT_OLLAMA_EMBEDDING_MODEL = "mxbai-embed-large";
+
+    /** An application with a primary model of its own keeps it: Contexa's primary models stand aside (two primaries do not start). */
+    @Bean(name = "contexaHostPrimaryModelStandAside")
+    @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
+    static BeanFactoryPostProcessor contexaHostPrimaryModelStandAside() {
+        return new HostPrimaryModelStandAside();
+    }
 
     @Autowired
     private ContexaProperties contexaProperties;
@@ -501,9 +515,17 @@ public class CoreLLMTieredAutoConfiguration {
             return OllamaApi.builder()
                     .baseUrl(baseUrl)
                     .restClientBuilder(restClientBuilderProvider.getIfAvailable(RestClient::builder))
-                    .webClientBuilder(webClientBuilderProvider.getIfAvailable(WebClient::builder))
+                    // a copy of the application's builder, with the connector Contexa's model calls need; the application's own builder is left as it is
+                    .webClientBuilder(webClientBuilderProvider.getIfAvailable(WebClient::builder).clone()
+                            .clientConnector(LongRunningConnector.INSTANCE))
                     .responseErrorHandler(responseErrorHandler)
                     .build();
+        }
+
+        /** Model calls stream for minutes: a response timeout of three minutes and a pool of 50 connections, for Contexa's calls only. */
+        private static final class LongRunningConnector {
+            static final ReactorClientHttpConnector INSTANCE = new ReactorClientHttpConnector(
+                    HttpClient.create(ConnectionProvider.create("contexa-ai-pool", 50)).responseTimeout(Duration.ofMinutes(3)));
         }
 
         private OllamaEmbeddingModel buildOllamaEmbeddingModel(

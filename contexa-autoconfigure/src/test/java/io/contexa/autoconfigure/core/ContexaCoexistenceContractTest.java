@@ -60,7 +60,6 @@ class ContexaCoexistenceContractTest {
             "CoreDataAutoConfiguration#transactionTemplate",            // the same
             "IamI18nAutoConfiguration#localeResolver",                  // Spring MVC's name; the language of the application
             "IamI18nAutoConfiguration#messageSource",                   // the application context's name for its messages
-            "IamInfrastructureAutoConfiguration#passwordEncoder",       // Spring Security's default encoder, as it would use without a bean
             "IdentityOAuth2AutoConfiguration#authorizationServerSettings",
             "IdentityOAuth2AutoConfiguration#jwkSource",
             "IdentityOAuth2AutoConfiguration#jwtDecoder",
@@ -86,8 +85,16 @@ class ContexaCoexistenceContractTest {
             Map.entry("ThreadPoolTaskScheduler", "contexa"),
             Map.entry("ExecutorService", "contexa"),
             Map.entry("ScheduledExecutorService", "contexa"),
+            Map.entry("PasswordEncoder", "contexa"),
+            Map.entry("RoleHierarchy", "contexa"),
+            Map.entry("RoleHierarchyImpl", "contexa"),
+            Map.entry("OneTimeTokenService", "contexa"),
             Map.entry("DataSource", "contexa"),
             Map.entry("JdbcTemplate", "contexa"),
+            Map.entry("JdbcOperations", "contexa"),
+            Map.entry("NamedParameterJdbcTemplate", "contexa"),
+            Map.entry("JdbcClient", "contexa"),
+            Map.entry("EntityManager", "contexa"),
             Map.entry("EntityManagerFactory", "contexa"),
             Map.entry("PlatformTransactionManager", "contexa"),
             Map.entry("TransactionTemplate", "contexa"),
@@ -152,6 +159,31 @@ class ContexaCoexistenceContractTest {
                 .containsExactlyInAnyOrderElementsOf(FRAMEWORK_NAMES);
     }
 
+    /**
+     * Spring Security and Spring Boot look these types up for the application with {@code getBeanProvider(T).getIfUnique()} or
+     * {@code getBean(T.class)}, which return a bean that is the only one of the type even when it is not an autowire candidate: a bean of
+     * Contexa's of such a type is the application's (a login with Contexa's mail, an authorization by Contexa's roles). Contexa's own
+     * instance is held in a bean of no shared type, and its code takes it by name.
+     */
+    private static final Set<String> TYPES_THE_FRAMEWORKS_LOOK_UP = Set.of("PasswordEncoder", "RoleHierarchy", "RoleHierarchyImpl",
+            "OneTimeTokenService", "EmailOneTimeTokenService", "JdbcOneTimeTokenService", "InMemoryOneTimeTokenService");
+
+    @Test
+    void noBeanOfContexaIsOfATypeTheFrameworksLookUpForTheApplication() throws IOException {
+        List<String> violations = new ArrayList<>();
+        for (SourceFile file : sources()) {
+            for (BeanMethod bean : beanMethods(file.source())) {
+                String type = bean.returnType().replaceAll("<.*", "");
+                if (TYPES_THE_FRAMEWORKS_LOOK_UP.contains(type.substring(type.lastIndexOf('.') + 1)) && !bean.givesWay()) {
+                    violations.add(file.path() + " : bean method " + bean.method() + " returns " + bean.returnType());
+                }
+            }
+        }
+        assertThat(violations)
+                .as("hold it in a HeldBean (or another bean of no shared type): a sole bean of the type is found by the frameworks")
+                .isEmpty();
+    }
+
     @Test
     void sharedGenericTypesAreAskedForByContexasOwnName() throws IOException {
         List<String> violations = new ArrayList<>();
@@ -207,6 +239,22 @@ class ContexaCoexistenceContractTest {
             }
         }
         assertThat(violations).isEmpty();
+    }
+
+    @Test
+    void noStringOperationDependsOnTheApplicationsDefaultLocale() throws IOException {
+        List<String> violations = new ArrayList<>();
+        Pattern caseChange = Pattern.compile("\\.to(?:Lower|Upper)Case\\(\\s*\\)");
+        Pattern format = Pattern.compile("String\\.format\\(\\s*\"(?:[^\"\\\\]|\\\\.)*%[-#+ 0,(]*\\d*(?:\\.\\d+)?[dfeEgGx]");
+        for (SourceFile file : sources()) {
+            if (caseChange.matcher(file.source()).find()) {
+                violations.add(file.path() + " : toLowerCase()/toUpperCase() without Locale.ROOT (in a Turkish JVM \"I\".toLowerCase() is not \"i\")");
+            }
+            if (format.matcher(file.source()).find()) {
+                violations.add(file.path() + " : String.format with a number directive and no Locale (in some default locales the digits are not 0-9)");
+            }
+        }
+        assertThat(violations).as("an application's default locale must not change what Contexa's identifiers, addresses and SQL say").isEmpty();
     }
 
     @Test
@@ -324,6 +372,37 @@ class ContexaCoexistenceContractTest {
         check(new SourceFile("Sample.java", "Sample", source), "bean method ds", beans.get(1).parameters(), violations);
         assertThat(violations).as("the qualified mapper passes, the provider of an unqualified one does not").hasSize(1);
         assertThat(violations.get(0)).contains("ObjectProvider<ObjectMapper> other");
+    }
+
+    @Test
+    void theGuardReadsTheReturnTypeOfABeanMethod() {
+        String source = """
+                class Config {
+                    @Bean(name = "contexaPasswordEncoder")
+                    public PasswordEncoder passwordEncoder() {
+                        return null;
+                    }
+
+                    @Bean(name = "contexaRoleHierarchy")
+                    public HeldBean<RoleHierarchyImpl> roleHierarchy() {
+                        return null;
+                    }
+
+                    @Bean(name = "contexaOneTimeTokenService")
+                    @ConditionalOnMissingBean
+                    public io.example.OneTimeTokenService oneTimeToken() {
+                        return null;
+                    }
+                }
+                """;
+
+        List<BeanMethod> beans = beanMethods(source);
+
+        assertThat(beans).extracting(BeanMethod::returnType)
+                .containsExactly("PasswordEncoder", "HeldBean<RoleHierarchyImpl>", "io.example.OneTimeTokenService");
+        assertThat(beans).extracting(bean -> bean.returnType().replaceAll("<.*", ""))
+                .filteredOn(type -> TYPES_THE_FRAMEWORKS_LOOK_UP.contains(type.substring(type.lastIndexOf('.') + 1)))
+                .containsExactly("PasswordEncoder", "io.example.OneTimeTokenService");
     }
 
     @Test
@@ -466,7 +545,7 @@ class ContexaCoexistenceContractTest {
     record SourceFile(String path, String name, String source) {
     }
 
-    record BeanMethod(String method, List<String> names, boolean givesWay, boolean overrides, String parameters) {
+    record BeanMethod(String method, List<String> names, boolean givesWay, boolean overrides, String parameters, String returnType) {
     }
 
     private static List<SourceFile> sources() throws IOException {
@@ -524,8 +603,10 @@ class ContexaCoexistenceContractTest {
             int close = closing(source, open);
             String parameters = source.substring(open + 1, close - 1);
             String annotations = precedingAnnotations(source, bean.start()) + attributes + following;
+            String returnType = head.contains(" ") ? head.substring(0, head.lastIndexOf(' ')).trim() : "";
+            returnType = returnType.substring(returnType.lastIndexOf(' ') + 1);
             result.add(new BeanMethod(method, namesOf(attributes, source, method),
-                    annotations.contains("@ConditionalOnMissingBean"), annotations.contains("@Override"), parameters));
+                    annotations.contains("@ConditionalOnMissingBean"), annotations.contains("@Override"), parameters, returnType));
         }
         return result;
     }

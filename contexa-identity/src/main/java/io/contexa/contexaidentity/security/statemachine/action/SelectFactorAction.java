@@ -16,6 +16,7 @@
 
 package io.contexa.contexaidentity.security.statemachine.action;
 
+import java.util.Locale;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexacommon.enums.AuthType;
@@ -50,7 +51,7 @@ public class SelectFactorAction extends AbstractMfaStateAction {
 
         AuthType authType;
         try {
-            authType = AuthType.valueOf(selectedFactor.toUpperCase());
+            authType = AuthType.valueOf(selectedFactor.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
             factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
                     MfaEvent.SYSTEM_ERROR);

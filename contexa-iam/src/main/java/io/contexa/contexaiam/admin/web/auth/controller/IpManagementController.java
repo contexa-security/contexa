@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.auth.controller;
 
+import java.util.Locale;
 import io.contexa.contexaiam.admin.web.auth.service.IpAccessRuleService;
 import io.contexa.contexaiam.admin.web.common.CsvColumn;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
@@ -90,7 +91,7 @@ public class IpManagementController {
 
         IpAccessRule.RuleType type;
         try {
-            type = IpAccessRule.RuleType.valueOf(ruleType.toUpperCase());
+            type = IpAccessRule.RuleType.valueOf(ruleType.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("errorMessage", msg("admin.ip.invalid.ip"));
             return "redirect:/contexa/admin/ip-management";

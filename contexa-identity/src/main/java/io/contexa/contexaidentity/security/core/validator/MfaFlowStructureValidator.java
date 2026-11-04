@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.core.validator;
 
+import java.util.Locale;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
@@ -38,12 +39,12 @@ public class MfaFlowStructureValidator implements Validator<AuthenticationFlowCo
             return result;
         }
 
-        String flowIdentifier = String.format("MFA Flow (type: '%s', order: %d)", flow.getTypeName(), flow.getOrder());
+        String flowIdentifier = String.format(Locale.ROOT, "MFA Flow (type: '%s', order: %d)", flow.getTypeName(), flow.getOrder());
 
         AuthenticationStepConfig firstStep = steps.get(0);
         if (firstStep.getOrder() != 0 ||
                 !("mfa_form".equalsIgnoreCase(firstStep.getType()) || "mfa_rest".equalsIgnoreCase(firstStep.getType()))) {
-            result.addError(String.format("The first authentication step of %s must be 'mfa_form' or 'mfa_rest' type with order 0. Current: type='%s', order=%d",
+            result.addError(String.format(Locale.ROOT, "The first authentication step of %s must be 'mfa_form' or 'mfa_rest' type with order 0. Current: type='%s', order=%d",
                     flowIdentifier, firstStep.getType(), firstStep.getOrder()));
             log.error("DSL VALIDATION ERROR for {}: {}", flowIdentifier, result.getErrors());
         }

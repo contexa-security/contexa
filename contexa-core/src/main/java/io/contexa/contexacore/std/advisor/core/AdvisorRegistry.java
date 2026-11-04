@@ -178,7 +178,7 @@ public class AdvisorRegistry {
 
         @Override
         public String toString() {
-            return String.format("RegistryStats[advisors=%d, domains=%d]",
+            return String.format(Locale.ROOT, "RegistryStats[advisors=%d, domains=%d]",
                     totalAdvisors, totalDomains);
         }
     }

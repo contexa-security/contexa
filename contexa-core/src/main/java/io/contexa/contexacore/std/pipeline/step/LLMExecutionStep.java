@@ -290,8 +290,8 @@ public class LLMExecutionStep implements PipelineStep {
                 "decisionFailureCategory",
                 "structuredOutputFailureCategory",
                 "securityDecisionParseFailureCategory");
-        if (explicit != null && explicit.toUpperCase().contains("TIMEOUT")) {
-            return explicit.toUpperCase();
+        if (explicit != null && explicit.toUpperCase(Locale.ROOT).contains("TIMEOUT")) {
+            return explicit.toUpperCase(Locale.ROOT);
         }
         if (isTimeout(error)) {
             return "TIMEOUT";
@@ -344,9 +344,9 @@ public class LLMExecutionStep implements PipelineStep {
             }
             String name = current.getClass().getName();
             String message = current.getMessage();
-            if ((name != null && name.toLowerCase().contains("timeout"))
-                    || (message != null && message.toLowerCase().contains("timeout"))
-                    || (message != null && message.toLowerCase().contains("timed out"))) {
+            if ((name != null && name.toLowerCase(Locale.ROOT).contains("timeout"))
+                    || (message != null && message.toLowerCase(Locale.ROOT).contains("timeout"))
+                    || (message != null && message.toLowerCase(Locale.ROOT).contains("timed out"))) {
                 return true;
             }
             current = current.getCause();

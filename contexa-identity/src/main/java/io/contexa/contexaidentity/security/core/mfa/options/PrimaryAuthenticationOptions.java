@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.core.mfa.options;
 
+import java.util.Locale;
 import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
 import io.contexa.contexaidentity.security.core.dsl.option.RestOptions;
 import io.contexa.contexacommon.enums.AuthType;
@@ -169,14 +170,14 @@ public final class PrimaryAuthenticationOptions {
                 );
             }
 
-            if (loginPage.toLowerCase().startsWith("javascript:")) {
+            if (loginPage.toLowerCase(Locale.ROOT).startsWith("javascript:")) {
                 throw new IllegalArgumentException(
                     "loginPage cannot be a JavaScript URL. " +
                     "Provided: " + loginPage
                 );
             }
 
-            if (loginPage.toLowerCase().startsWith("data:")) {
+            if (loginPage.toLowerCase(Locale.ROOT).startsWith("data:")) {
                 throw new IllegalArgumentException(
                     "loginPage cannot be a data URL. " +
                     "Provided: " + loginPage

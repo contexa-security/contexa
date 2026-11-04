@@ -18,6 +18,7 @@ package io.contexa.contexaidentity.security.service.ott;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.jdbc.LibraryTableNames;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.ott.*;
@@ -28,7 +29,7 @@ import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
-public class EmailOneTimeTokenService implements OneTimeTokenService {
+public class EmailOneTimeTokenService implements OneTimeTokenService, DisposableBean {
 
     private final EmailService emailService;
     private final JdbcOneTimeTokenService delegate;
@@ -48,6 +49,16 @@ public class EmailOneTimeTokenService implements OneTimeTokenService {
         this.authContextProperties = authContextProperties;
         this.jdbcTemplate = primaryJdbcTemplate;
         this.failOnEmailError = failOnEmailError;
+    }
+
+    /**
+     * The Spring Security service starts a scheduler thread (the clean-up of expired tokens, not a daemon) when it is built and stops it only in
+     * {@code destroy()}. This service owns it, so it is stopped with this bean: otherwise the thread outlives a closed or a failed application
+     * context and the JVM of the application does not end.
+     */
+    @Override
+    public void destroy() throws Exception {
+        delegate.destroy();
     }
 
     @Override

@@ -15,6 +15,7 @@
  */
 package io.contexa.autoconfigure.ai;
 
+import java.util.Locale;
 import io.contexa.contexacommon.annotation.AiSecurityImportSelector;
 import io.contexa.contexacommon.security.bridge.SecurityMode;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
@@ -167,7 +168,7 @@ public class AiSecurityConfiguration {
             return SecurityMode.SANDBOX;
         }
         try {
-            return SecurityMode.valueOf(configuredMode.trim().toUpperCase());
+            return SecurityMode.valueOf(configuredMode.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ex) {
             return SecurityMode.SANDBOX;
         }

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.config;
 
+import java.util.Locale;
 import io.contexa.contexacore.std.llm.exception.ModelSelectionException;
 import jakarta.annotation.PostConstruct;
 import lombok.Data;
@@ -154,7 +155,7 @@ public class TieredLLMProperties {
         if (modelName == null)
             return false;
 
-        String lowerName = modelName.toLowerCase();
+        String lowerName = modelName.toLowerCase(Locale.ROOT);
         return lowerName.contains(":") ||
                 lowerName.contains("llama") ||
                 lowerName.contains("qwen") ||

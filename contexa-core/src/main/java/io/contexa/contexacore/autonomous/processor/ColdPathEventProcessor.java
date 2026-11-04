@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.processor;
 
+import java.util.Locale;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.ThreatAssessment;
@@ -274,7 +275,7 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
                 double escalateRate = sample.escalateRate();
                 if (escalateRate > ESCALATE_RATE_THRESHOLD && total > 10) {
                     log.error("[ColdPath] Escalate rate {}/{} ({}%) exceeded threshold, applying CHALLENGE fallback: eventId={}",
-                            escalates, total, String.format("%.1f", escalateRate * 100), event.getEventId());
+                            escalates, total, String.format(Locale.ROOT, "%.1f", escalateRate * 100), event.getEventId());
                     publishEscalateProtectionTriggered(userId, requestPath, escalates, total);
                     result.setFinalScore(null);
                     result.setConfidence(null);

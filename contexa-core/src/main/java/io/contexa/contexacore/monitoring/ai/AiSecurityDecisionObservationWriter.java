@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.monitoring.ai;
 
+import java.util.Locale;
 import io.contexa.contexacore.util.SensitiveValueSanitizer;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -730,7 +731,7 @@ public class AiSecurityDecisionObservationWriter {
         if (value == null || value.isBlank()) {
             return null;
         }
-        return value.trim().toLowerCase();
+        return value.trim().toLowerCase(Locale.ROOT);
     }
 
     private JdbcOperations jdbcOperations() {
@@ -821,7 +822,7 @@ public class AiSecurityDecisionObservationWriter {
                 String key = entry.getKey() == null ? "" : entry.getKey().toString();
                 if ("header.X-Contexa-Test-Run-Id".equalsIgnoreCase(key)
                         || "header.x-contexa-test-run-id".equalsIgnoreCase(key)
-                        || key.toLowerCase().endsWith(".x-contexa-test-run-id")) {
+                        || key.toLowerCase(Locale.ROOT).endsWith(".x-contexa-test-run-id")) {
                     return text(entry.getValue());
                 }
             }

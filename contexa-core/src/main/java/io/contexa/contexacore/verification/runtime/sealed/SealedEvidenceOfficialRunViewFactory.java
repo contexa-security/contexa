@@ -143,7 +143,7 @@ class SealedEvidenceOfficialRunViewFactory {
         putIfPresent(eventFacts, "contextHashState", contextHashState);
 
         return new SealedEvidenceOfficialRunView(
-                safeText(aggregateRunId, "official-run") + "-" + metricCode.toLowerCase(),
+                safeText(aggregateRunId, "official-run") + "-" + metricCode.toLowerCase(Locale.ROOT),
                 1,
                 metricCode,
                 requestPath,

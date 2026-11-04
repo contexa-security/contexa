@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.auth.filter;
 
+import lombok.extern.slf4j.Slf4j;
 import io.contexa.contexaiam.admin.web.auth.service.SessionManagementService;
 import io.contexa.contexaiam.domain.entity.ActiveSession;
 import io.contexa.contexaiam.repository.ActiveSessionRepository;
@@ -38,6 +39,7 @@ import java.io.IOException;
  * 2. Tracks session activity for monitoring
  */
 @RequiredArgsConstructor
+@Slf4j
 public class SessionTrackingFilter extends OncePerRequestFilter {
 
     private final SessionManagementService sessionManagementService;
@@ -55,7 +57,13 @@ public class SessionTrackingFilter extends OncePerRequestFilter {
             long now = System.currentTimeMillis();
             if (lastCheck == null || now - lastCheck > 10_000) {
                 session.setAttribute("_sessionExpireCheck", now);
-                ActiveSession tracked = activeSessionRepository.findById(session.getId()).orElse(null);
+                ActiveSession tracked = null;
+                try {
+                    tracked = activeSessionRepository.findById(session.getId()).orElse(null);
+                } catch (RuntimeException e) {
+                    // the tracked sessions live in Contexa's database: when it cannot be read the session is not forced out for it
+                    log.warn("Tracked sessions could not be read; the request goes on: {}", e.toString());
+                }
                 if (tracked != null && tracked.isExpired()) {
                     session.invalidate();
                     SecurityContextHolder.clearContext();
@@ -75,12 +83,16 @@ public class SessionTrackingFilter extends OncePerRequestFilter {
                 long nowTrack = System.currentTimeMillis();
                 if (lastTrack == null || nowTrack - lastTrack > 30_000) {
                     session.setAttribute("_sessionTrackTime", nowTrack);
-                    sessionManagementService.trackSession(
-                            session.getId(),
-                            auth.getName(),
-                            auth.getName(),
-                            request.getRemoteAddr(),
-                            request.getHeader("User-Agent"));
+                    try {
+                        sessionManagementService.trackSession(
+                                session.getId(),
+                                auth.getName(),
+                                auth.getName(),
+                                request.getRemoteAddr(),
+                                request.getHeader("User-Agent"));
+                    } catch (RuntimeException e) {
+                        log.warn("The session could not be tracked; the response is not affected: {}", e.toString());
+                    }
                 }
             }
         }

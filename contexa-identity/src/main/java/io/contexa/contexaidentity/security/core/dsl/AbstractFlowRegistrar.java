@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.core.dsl;
 
+import java.util.Locale;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.OAuth2StateConfigurer;
 import io.contexa.contexaidentity.security.core.adapter.state.session.SessionStateConfigurer;
 import io.contexa.contexaidentity.security.core.asep.dsl.BaseAsepAttributes;
@@ -80,7 +81,7 @@ public abstract class AbstractFlowRegistrar<H extends HttpSecurityBuilder<H>> im
             actualOrder = options.getOrder();
         }
 
-        String flowTypeName = authType.name().toLowerCase() + "_flow"; 
+        String flowTypeName = authType.name().toLowerCase(Locale.ROOT) + "_flow"; 
         String finalFlowTypeName = flowTypeName;
         if (platformBuilder.getModifiableFlows().stream().anyMatch(f -> f.getTypeName().equalsIgnoreCase(finalFlowTypeName))) {
             String finalFlowTypeName1 = flowTypeName;
@@ -138,7 +139,7 @@ public abstract class AbstractFlowRegistrar<H extends HttpSecurityBuilder<H>> im
             int lastIndex = currentFlows.size() - 1;
             AuthenticationFlowConfig lastFlow = currentFlows.get(lastIndex);
             AuthenticationFlowConfig updatedFlow = lastFlow.withStateConfig(
-                    new StateConfig(stateType.name().toLowerCase(), stateType), customizer);
+                    new StateConfig(stateType.name().toLowerCase(Locale.ROOT), stateType), customizer);
             currentFlows.set(lastIndex, updatedFlow);
                     }
 

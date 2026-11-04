@@ -15,13 +15,14 @@
  */
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
+import java.util.Locale;
 import io.contexa.contexacommon.enums.AuthType;
 
 public class MfaOttAuthenticationAdapter extends BaseOttAuthenticationAdapter {
 
     @Override
     public String getId() {
-        return AuthType.MFA_OTT.name().toLowerCase();
+        return AuthType.MFA_OTT.name().toLowerCase(Locale.ROOT);
     }
 
     @Override

@@ -69,7 +69,12 @@ public class SystemSettingsRuntimeApplier
 
     @Override
     public void onApplicationEvent(ApplicationReadyEvent event) {
-        apply();
+        try {
+            apply();
+        } catch (RuntimeException e) {
+            // a stored value that cannot be applied (an unknown mode, an unreadable row) is Contexa's to report; it must not stop the application
+            log.error("Stored Contexa settings could not be applied; the configured values stay in effect", e);
+        }
     }
 
     /**

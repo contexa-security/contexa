@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.event.decision;
 
+import java.util.Locale;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 
 public enum EventTier {
@@ -111,7 +112,7 @@ public enum EventTier {
 
     @Override
     public String toString() {
-        return String.format("%s(Risk: %.2f~%.2f, Sampling: %.0f%%)",
+        return String.format(Locale.ROOT, "%s(Risk: %.2f~%.2f, Sampling: %.0f%%)",
                 name(), minRisk, maxRisk, baseSamplingRate * 100);
     }
 }

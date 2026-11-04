@@ -445,7 +445,7 @@ public class IdentitySecurityCoreAutoConfiguration {
             ObjectProvider<SecurityProperties> securityProperties) {
         FilterRegistrationBean<ZeroTrustChallengeFilter> registrationBean =
                 new FilterRegistrationBean<>(contexaZeroTrustChallengeFilter);
-        registrationBean.setName("zeroTrustChallengeFilter");
+        registrationBean.setName("contexaZeroTrustChallengeFilter");
         return HostOwnedEnforcementOrder.enforcement(registrationBean, hostOwned(bridgeProperties),
                 HostOwnedEnforcementOrder.securityFilterOrder(securityProperties), HostOwnedEnforcementOrder.CHALLENGE);
     }
@@ -501,7 +501,7 @@ public class IdentitySecurityCoreAutoConfiguration {
             ObjectProvider<SecurityProperties> securityProperties) {
         FilterRegistrationBean<ZeroTrustAccessControlFilter> registrationBean =
                 new FilterRegistrationBean<>(contexaZeroTrustAccessControlFilter);
-        registrationBean.setName("zeroTrustAccessControlFilter");
+        registrationBean.setName("contexaZeroTrustAccessControlFilter");
         return HostOwnedEnforcementOrder.enforcement(registrationBean, hostOwned(bridgeProperties),
                 HostOwnedEnforcementOrder.securityFilterOrder(securityProperties),
                 HostOwnedEnforcementOrder.ACCESS_CONTROL);

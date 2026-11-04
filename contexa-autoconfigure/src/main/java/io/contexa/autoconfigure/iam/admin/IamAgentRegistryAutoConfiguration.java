@@ -15,6 +15,8 @@
  */
 package io.contexa.autoconfigure.iam.admin;
 
+import org.springframework.beans.factory.BeanFactory;
+import io.contexa.autoconfigure.core.ContexaOwnBeans;
 import io.contexa.autoconfigure.core.autonomous.CoreAutonomousAutoConfiguration;
 import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.UserRepository;
@@ -418,7 +420,7 @@ public class IamAgentRegistryAutoConfiguration {
         @ConditionalOnMissingBean(AgentProvisioning.class)
         AgentProvisioning agentProvisioning(AgentRegistry contexaAgentRegistry,
                                             ObjectProvider<RegisteredClientRepository> clients,
-                                            ObjectProvider<PasswordEncoder> passwordEncoder,
+                                            BeanFactory beanFactory,
                                             @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbc,
                                             ObjectProvider<UserManagementService> users,
                                             ObjectProvider<UserRepository> userRepository,
@@ -427,8 +429,8 @@ public class IamAgentRegistryAutoConfiguration {
                                             ObjectProvider<SecurityZeroTrustProperties> properties,
                                             ObjectProvider<UserEngineStatePurger> engineStatePurger) {
             RegisteredClientRepository repository = clients.getIfAvailable();
-            PasswordEncoder encoder = passwordEncoder.getIfAvailable();
-            if (repository == null || encoder == null) {
+            PasswordEncoder encoder = ContexaOwnBeans.passwordEncoder(beanFactory);
+            if (repository == null) {
                 return AgentProvisioning.unavailable();
             }
             OAuth2AgentProvisioning provisioning = new OAuth2AgentProvisioning(contexaAgentRegistry, repository, encoder,

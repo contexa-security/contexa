@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.security.xacml.pdp.translator;
 
+import java.util.Locale;
 import org.springframework.core.annotation.Order;
 import org.springframework.expression.spel.ast.MethodReference;
 
@@ -24,7 +25,7 @@ import java.util.List;
 public class AuthorityFunctionTranslator implements SpelFunctionTranslator {
     @Override
     public boolean supports(String functionName) {
-        return functionName.toLowerCase().contains("authority");
+        return functionName.toLowerCase(Locale.ROOT).contains("authority");
     }
 
     @Override

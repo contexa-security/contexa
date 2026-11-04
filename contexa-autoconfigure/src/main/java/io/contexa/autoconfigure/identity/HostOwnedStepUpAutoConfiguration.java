@@ -162,7 +162,7 @@ public class HostOwnedStepUpAutoConfiguration {
             ObjectProvider<SecurityProperties> securityProperties) {
         FilterRegistrationBean<HostOwnedUserPathGuard> registration =
                 new FilterRegistrationBean<>(new HostOwnedUserPathGuard());
-        registration.setName("hostOwnedUserPathGuard");
+        registration.setName("contexaHostOwnedUserPathGuard");
         registration.setUrlPatterns(HostOwnedUserPathGuard.URL_PATTERNS);
         registration.setOrder(HostOwnedEnforcementOrder.securityFilterOrder(securityProperties)
                 + HostOwnedEnforcementOrder.USER_PATH_GUARD);

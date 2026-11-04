@@ -50,9 +50,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class BridgeResolutionFilter extends OncePerRequestFilter {
 
+    private static final long REPORT_INTERVAL_MILLIS = 60_000L;
     private static final String EXPLICIT_HANDOFF_SOURCE = "EXPLICIT_HANDOFF";
     private static final String HANDOFF_CONFLICT_ATTRIBUTE = "bridgeHandoffConflict";
     private static final String HANDOFF_PRINCIPAL_ID_ATTRIBUTE = "bridgeHandoffPrincipalId";
@@ -64,6 +66,8 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
     private final List<DelegationStampResolver> delegationStampResolvers;
     private final BridgeCoverageEvaluator bridgeCoverageEvaluator;
     private final BridgeRuntimeSupport bridgeRuntimeSupport;
+    private final AtomicLong failures = new AtomicLong();
+    private final AtomicLong lastReport = new AtomicLong();
     @Nullable
     private final SecurityContextRepository securityContextRepository;
 
@@ -145,6 +149,28 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
             return;
         }
 
+        // This filter only observes the application's request. Whatever goes wrong while the principal, the request and the stamps are read
+        // (an authentication without a name, a principal object that fails when it is walked, a mirror that cannot be written) must never
+        // become the application's error: the request goes on. The application's own exceptions in the chain are not caught here.
+        try {
+            resolveForTheRequest(request, response, auth);
+        } catch (Exception | LinkageError | StackOverflowError e) {
+            reportFailure(e);
+        }
+        filterChain.doFilter(request, response);
+    }
+
+    private void reportFailure(Throwable failure) {
+        long now = System.currentTimeMillis();
+        long count = failures.incrementAndGet();
+        long last = lastReport.get();
+        if (now - last >= REPORT_INTERVAL_MILLIS && lastReport.compareAndSet(last, now)) {
+            logger.warn("Contexa could not read this request's authentication and let the request go on ("
+                    + count + " so far): " + failure, failure);
+        }
+    }
+
+    private void resolveForTheRequest(HttpServletRequest request, HttpServletResponse response, Authentication auth) {
         request.setAttribute(
                 BridgeRequestAttributes.HOST_PRINCIPAL_SNAPSHOT,
                 HostPrincipalSnapshotAdapter.INSTANCE.snapshot(auth));
@@ -154,7 +180,6 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
         if (handoffStamp != null && resolvedAuthenticationStamp != null
                 && Objects.equals(handoffStamp.principalId(), resolvedAuthenticationStamp.principalId())) {
             // An explicit handoff earlier in this request already resolved the same principal; keep it as is.
-            filterChain.doFilter(request, response);
             return;
         }
         AuthenticationStamp authenticationStamp = handoffStamp != null
@@ -179,7 +204,6 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
         if (authenticationStamp != null && authenticationStamp.authenticated()) {
             bridgeRuntimeSupport.persistSecurityContext(securityContextRepository, request, response);
         }
-        filterChain.doFilter(request, response);
     }
 
     @Nullable

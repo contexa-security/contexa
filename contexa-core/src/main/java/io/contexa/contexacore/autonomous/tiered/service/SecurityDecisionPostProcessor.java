@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.tiered.service;
 
+import java.util.Locale;
 import io.contexa.contexacore.autonomous.agent.AgentLearningControl;
 import io.contexa.contexacommon.security.bridge.ArgumentOrigins;
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
@@ -259,14 +260,14 @@ public class SecurityDecisionPostProcessor {
         }
 
         if (event.getTimestamp() != null) {
-            sentence.append(String.format(" at %02d:%02d",
+            sentence.append(String.format(Locale.ROOT, " at %02d:%02d",
                     event.getLocalTimestamp().getHour(),
                     event.getLocalTimestamp().getMinute()));
         }
 
         ZeroTrustAction observedAction = decision.resolveAutonomousAction();
         if (observedAction != null) {
-            sentence.append(", observed ").append(observedAction.name().toLowerCase());
+            sentence.append(", observed ").append(observedAction.name().toLowerCase(Locale.ROOT));
         }
 
         return sentence.toString();
@@ -416,7 +417,7 @@ public class SecurityDecisionPostProcessor {
         }
 
         if (event.getTimestamp() != null) {
-            sentence.append(String.format(" at %02d:%02d",
+            sentence.append(String.format(Locale.ROOT, " at %02d:%02d",
                     event.getLocalTimestamp().getHour(),
                     event.getLocalTimestamp().getMinute()));
             int dow = event.getLocalTimestamp().getDayOfWeek().getValue();

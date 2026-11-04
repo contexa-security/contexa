@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacommon.security.bridge.resolver;
 
+import java.util.Locale;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.BridgeSemanticBoundaryPolicy;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
@@ -115,7 +116,7 @@ public class SecurityContextAuthorizationStampResolver implements AuthorizationS
             return AuthorizationEffect.UNKNOWN;
         }
         try {
-            return AuthorizationEffect.valueOf(value.trim().toUpperCase());
+            return AuthorizationEffect.valueOf(value.trim().toUpperCase(Locale.ROOT));
         }
         catch (IllegalArgumentException ignored) {
             return AuthorizationEffect.UNKNOWN;

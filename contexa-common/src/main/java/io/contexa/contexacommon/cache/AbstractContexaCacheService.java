@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacommon.cache;
 
+import java.util.Locale;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -59,7 +60,7 @@ public abstract class AbstractContexaCacheService implements ContexaCacheService
         }
 
         ContexaCacheProperties.DomainConfig domains = properties.getDomains();
-        return switch (domain.toLowerCase()) {
+        return switch (domain.toLowerCase(Locale.ROOT)) {
             case "users" -> domains.getUsers().getLocalTtlSeconds();
             case "roles" -> domains.getRoles().getLocalTtlSeconds();
             case "permissions" -> domains.getPermissions().getLocalTtlSeconds();

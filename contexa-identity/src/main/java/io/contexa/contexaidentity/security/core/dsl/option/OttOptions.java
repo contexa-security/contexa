@@ -17,6 +17,7 @@ package io.contexa.contexaidentity.security.core.dsl.option;
 
 import io.contexa.contexaidentity.security.core.asep.dsl.OttAsepAttributes;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
+import io.contexa.contexaidentity.security.service.ott.ContexaOneTimeTokens;
 import lombok.Getter;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.authentication.ott.OneTimeTokenService;
@@ -88,7 +89,7 @@ public final class OttOptions extends AuthenticationProcessingOptions {
                 super.loginProcessingUrl(urlProvider.getSingleOttLoginProcessing());
             }
 
-            this.oneTimeTokenService = applicationContext.getBean(OneTimeTokenService.class);
+            this.oneTimeTokenService = applicationContext.getBean(ContexaOneTimeTokens.BEAN_NAME, ContexaOneTimeTokens.class).service();
         }
 
         @Override

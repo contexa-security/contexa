@@ -15,6 +15,8 @@
  */
 package io.contexa.autoconfigure.iam.xacml;
 
+import org.springframework.beans.factory.BeanFactory;
+import io.contexa.autoconfigure.core.ContexaOwnBeans;
 import io.contexa.contexacommon.repository.*;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.method.*;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.url.AuthenticatedExpressionEvaluator;
@@ -103,8 +105,8 @@ public class IamXacmlPdpAutoConfiguration {
             ContextHandler contextHandler,
             AuditLogRepository auditLogRepository,
             ZeroTrustActionRepository actionRedisRepository,
-            RoleHierarchy roleHierarchy) {
-        return new CustomWebSecurityExpressionHandler(contextHandler, auditLogRepository, actionRedisRepository, roleHierarchy);
+            BeanFactory beanFactory) {
+        return new CustomWebSecurityExpressionHandler(contextHandler, auditLogRepository, actionRedisRepository, ContexaOwnBeans.roleHierarchy(beanFactory));
     }
 
 

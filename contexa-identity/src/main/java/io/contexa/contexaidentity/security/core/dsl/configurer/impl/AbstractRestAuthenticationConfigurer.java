@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.core.dsl.configurer.impl;
 
+import io.contexa.contexacommon.security.HeldBean;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexaidentity.security.filter.RestAuthenticationProvider;
 import org.springframework.context.ApplicationContext;
@@ -33,7 +34,12 @@ public abstract class AbstractRestAuthenticationConfigurer<T extends AbstractRes
     @Override
     protected void beforeFilterCreation(H http, AuthenticationManager authenticationManager, ApplicationContext applicationContext) {
         UserDetailsService userDetailsService = applicationContext.getBean(UserDetailsService.class);
-        PasswordEncoder passwordEncoder = applicationContext.getBean(PasswordEncoder.class);
+        // Contexa's own accounts are encoded by Contexa's own encoder (held in a bean of no shared type); the application's is the fallback
+        PasswordEncoder passwordEncoder = applicationContext.containsBean("contexaPasswordEncoder")
+                && applicationContext.getBean("contexaPasswordEncoder") instanceof HeldBean<?> held
+                && held.get() instanceof PasswordEncoder contexaOwn
+                ? contexaOwn
+                : applicationContext.getBean(PasswordEncoder.class);
         LoginPolicyHandler loginPolicyHandler = null;
         try {
             loginPolicyHandler = applicationContext.getBean(LoginPolicyHandler.class);

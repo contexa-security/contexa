@@ -58,7 +58,7 @@ public class AdapterRegistry {
                             log.error("Error instantiating MfaAuthenticationAdapter (id: 'mfa') with ApplicationContext. Using default instance from ServiceLoader.", e);
                         }
                     }
-                    String adapterId = adapterInstance.getId().toLowerCase();
+                    String adapterId = adapterInstance.getId().toLowerCase(Locale.ROOT);
                     if (authAdapter.containsKey(adapterId)) {
                         log.warn("Duplicate AuthenticationAdapter ID '{}' found. Overwriting with instance of {}. Previous was {}.",
                                 adapterId, adapterInstance.getClass().getName(), authAdapter.get(adapterId).getClass().getName());
@@ -68,7 +68,7 @@ public class AdapterRegistry {
 
         ServiceLoader.load(StateAdapter.class, getClass().getClassLoader())
                 .forEach(f -> {
-                    String stateId = f.getId().toLowerCase();
+                    String stateId = f.getId().toLowerCase(Locale.ROOT);
                     if (stateAdapter.containsKey(stateId)) {
                         log.warn("Duplicate StateAdapter ID '{}' found. Overwriting with instance of {}. Previous was {}.",
                                 stateId, f.getClass().getName(), stateAdapter.get(stateId).getClass().getName());
@@ -89,10 +89,10 @@ public class AdapterRegistry {
                 log.warn("Encountered a null flow or flow with null typeName. Skipping.");
                 continue;
             }
-            String flowTypeNameLower = flow.getTypeName().toLowerCase();
+            String flowTypeNameLower = flow.getTypeName().toLowerCase(Locale.ROOT);
 
             if (MfaFlowTypeUtils.isMfaFlow(flowTypeNameLower)) {
-                AuthenticationAdapter mfaBaseAdapter = authAdapter.get(AuthType.MFA.name().toLowerCase());
+                AuthenticationAdapter mfaBaseAdapter = authAdapter.get(AuthType.MFA.name().toLowerCase(Locale.ROOT));
                 if (mfaBaseAdapter != null) {
                     featuresToApply.add(mfaBaseAdapter);
                 } else {
@@ -106,7 +106,7 @@ public class AdapterRegistry {
                             continue;
                         }
 
-                        String stepTypeNameLower = step.getType().toLowerCase();
+                        String stepTypeNameLower = step.getType().toLowerCase(Locale.ROOT);
                         AuthenticationAdapter stepAdapter = authAdapter.get(stepTypeNameLower);
                         if (stepAdapter != null) {
                             if (!stepAdapter.getId().equalsIgnoreCase("mfa")) {
@@ -124,7 +124,7 @@ public class AdapterRegistry {
                 if (!CollectionUtils.isEmpty(flow.getStepConfigs())) {
                     AuthenticationStepConfig singleAuthStep = flow.getStepConfigs().get(0);
                     if (singleAuthStep != null && singleAuthStep.getType() != null) {
-                        String actualFactorType = singleAuthStep.getType().toLowerCase();
+                        String actualFactorType = singleAuthStep.getType().toLowerCase(Locale.ROOT);
                         AuthenticationAdapter singleAuthAdapter = authAdapter.get(actualFactorType);
                         if (singleAuthAdapter != null) {
                             featuresToApply.add(singleAuthAdapter);
@@ -154,7 +154,7 @@ public class AdapterRegistry {
         Set<String> stateIds = new HashSet<>();
         for (AuthenticationFlowConfig f : flows) {
             if (f != null && f.getStateConfig() != null && f.getStateConfig().state() != null) {
-                stateIds.add(f.getStateConfig().state().toLowerCase());
+                stateIds.add(f.getStateConfig().state().toLowerCase(Locale.ROOT));
             }
         }
 
@@ -173,6 +173,6 @@ public class AdapterRegistry {
     @Nullable
     public AuthenticationAdapter getAuthenticationAdapter(String adapterId) {
         if (adapterId == null) return null;
-        return authAdapter.get(adapterId.toLowerCase());
+        return authAdapter.get(adapterId.toLowerCase(Locale.ROOT));
     }
 }

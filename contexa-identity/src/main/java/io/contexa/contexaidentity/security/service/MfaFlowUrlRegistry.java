@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.service;
 
+import java.util.Locale;
 import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcessingOptions;
 import io.contexa.contexaidentity.security.core.mfa.options.PrimaryAuthenticationOptions;
 import io.contexa.contexacommon.enums.AuthType;
@@ -74,7 +75,7 @@ public class MfaFlowUrlRegistry {
             flowProvider.setMfaPageConfig(mfaPageConfig);
         }
 
-        String key = flowTypeName.toLowerCase();
+        String key = flowTypeName.toLowerCase(Locale.ROOT);
         flowProviders.put(key, flowProvider);
         return flowProvider;
     }
@@ -88,7 +89,7 @@ public class MfaFlowUrlRegistry {
         if (flowTypeName == null) {
             return null;
         }
-        return flowProviders.get(flowTypeName.toLowerCase());
+        return flowProviders.get(flowTypeName.toLowerCase(Locale.ROOT));
     }
 
     /**

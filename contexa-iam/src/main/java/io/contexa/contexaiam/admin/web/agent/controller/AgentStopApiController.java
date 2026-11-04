@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.agent.controller;
 
+import java.util.Locale;
 import io.contexa.contexacore.autonomous.agent.AgentRegistration;
 import io.contexa.contexaiam.admin.web.agent.service.AgentContainmentAdminService;
 import org.springframework.http.HttpStatus;
@@ -88,7 +89,7 @@ public class AgentStopApiController {
     }
 
     private ResponseEntity<StopResult> perform(StopAction request, String admin, String reason) {
-        return switch (request.action().trim().toUpperCase()) {
+        return switch (request.action().trim().toUpperCase(Locale.ROOT)) {
             case "RELEASE_DELEGATION" -> {
                 if (blank(request.userId()) || blank(request.agentId())) {
                     yield ResponseEntity.badRequest().body(new StopResult(false, request.action(), List.of(),

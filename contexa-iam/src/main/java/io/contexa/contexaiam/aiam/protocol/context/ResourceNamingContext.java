@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.aiam.protocol.context;
 
+import java.util.Locale;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import lombok.Getter;
 import lombok.Setter;
@@ -123,7 +124,7 @@ public class ResourceNamingContext extends DomainContext {
 
     @Override
     public String toString() {
-        return String.format("ResourceNamingContext{id='%s', resources=%d, complexity=%d, allowKorean=%b}",
+        return String.format(Locale.ROOT, "ResourceNamingContext{id='%s', resources=%d, complexity=%d, allowKorean=%b}",
                 getContextId(),
                 resourceBatch != null ? resourceBatch.size() : 0,
                 calculateComplexity(),

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacommon.enums;
 
+import java.util.Locale;
 import java.time.Duration;
 
 public enum ZeroTrustAction {
@@ -44,7 +45,7 @@ public enum ZeroTrustAction {
             return PENDING_ANALYSIS;
         }
 
-        return switch (action.trim().toUpperCase()) {
+        return switch (action.trim().toUpperCase(Locale.ROOT)) {
             case "ALLOW", "A" -> ALLOW;
             case "BLOCK", "B" -> BLOCK;
             case "CHALLENGE", "C" -> CHALLENGE;

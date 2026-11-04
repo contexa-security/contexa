@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.domain.entity;
 
+import java.util.Locale;
 import java.util.Objects;
 
 import jakarta.persistence.*;
@@ -146,7 +147,7 @@ public class ConditionTemplate implements Serializable {
         if (spelTemplate == null) {
             return;
         }
-        String spel = spelTemplate.toLowerCase().replaceAll("\\s+", "");
+        String spel = spelTemplate.toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
 
         // permitAll grants access to everyone - always requires approval
         if (spel.contains("permitall")) {
@@ -173,7 +174,7 @@ public class ConditionTemplate implements Serializable {
         }
         
         int score = 1; 
-        String spel = spelTemplate.toLowerCase();
+        String spel = spelTemplate.toLowerCase(Locale.ROOT);
 
         score += countOccurrences(spel, "#");
 

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.infra.session.generator;
 
+import java.util.Locale;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -66,7 +67,7 @@ public class RedisSessionIdGenerator implements SessionIdGenerator {
         long timestamp = System.currentTimeMillis();
         int randomSuffix = ThreadLocalRandom.current().nextInt(1000, 9999);
 
-        String resolvedId = String.format("%s_%s_%d_%d_%d",
+        String resolvedId = String.format(Locale.ROOT, "%s_%s_%d_%d_%d",
                 originalId.substring(0, Math.min(8, originalId.length())),
                 nodeId,
                 timestamp,
@@ -102,7 +103,7 @@ public class RedisSessionIdGenerator implements SessionIdGenerator {
         int serverPort = request.getServerPort();
         String processId = String.valueOf(ProcessHandle.current().pid());
 
-        String nodeInfo = String.format("%s:%d:%s", serverName, serverPort, processId);
+        String nodeInfo = String.format(Locale.ROOT, "%s:%d:%s", serverName, serverPort, processId);
 
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");

@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaidentity.security.core.mfa.util;
 
+import java.util.Locale;
+
 /**
  * Centralized utility for MFA flow type detection and name generation.
  * All MFA flow detection logic should delegate to this class
@@ -37,7 +39,7 @@ public final class MfaFlowTypeUtils {
         if (typeName == null) {
             return false;
         }
-        String normalized = typeName.toLowerCase();
+        String normalized = typeName.toLowerCase(Locale.ROOT);
         return normalized.equals(MFA_BASE)
                 || normalized.startsWith(MFA_UNDERSCORE_PREFIX)
                 || normalized.startsWith(MFA_HYPHEN_PREFIX);
@@ -51,7 +53,7 @@ public final class MfaFlowTypeUtils {
         if (name == null || name.isBlank()) {
             return MFA_BASE;
         }
-        return MFA_UNDERSCORE_PREFIX + name.toLowerCase();
+        return MFA_UNDERSCORE_PREFIX + name.toLowerCase(Locale.ROOT);
     }
 
     /**

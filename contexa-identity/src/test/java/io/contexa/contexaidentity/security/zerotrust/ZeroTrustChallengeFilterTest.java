@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaidentity.security.zerotrust;
 
+import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import static org.mockito.Mockito.never;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -112,6 +114,18 @@ class ZeroTrustChallengeFilterTest {
                 "/mfa/passkey/challenge", "/mfa/recovery/challenge"
         ));
         when(mfaFlowUrlRegistry.getAllMfaPageUrls()).thenReturn(Set.of());
+    }
+
+    @Test
+    void anAnonymousVisitorIsNobodysUserAndPassesWithoutADecisionLookup() throws Exception {
+        SecurityContextHolder.getContext().setAuthentication(
+                new AnonymousAuthenticationToken("key", "anonymousUser", AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS")));
+        when(request.getRequestURI()).thenReturn("/h/public/data");
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(filterChain).doFilter(request, response);
+        verifyNoInteractions(actionRepository);
     }
 
     @AfterEach

@@ -301,7 +301,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
     public List<BlockedUser> findBlockedUsers(String filter, String keyword) {
         String safeFilter = filter != null ? filter : "all";
         if (StringUtils.hasText(keyword)) {
-            String likePattern = "%" + keyword.trim().toLowerCase() + "%";
+            String likePattern = "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%";
             return switch (safeFilter) {
                 case "blocked" -> blockedUserJpaRepository.searchByStatusAndUsername(BlockedUserStatus.BLOCKED, likePattern);
                 case "unblock_requested" -> blockedUserJpaRepository.searchByStatusAndUsername(BlockedUserStatus.UNBLOCK_REQUESTED, likePattern);

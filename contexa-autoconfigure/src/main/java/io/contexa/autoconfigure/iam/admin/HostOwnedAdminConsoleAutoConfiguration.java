@@ -15,6 +15,8 @@
  */
 package io.contexa.autoconfigure.iam.admin;
 
+import org.springframework.beans.factory.BeanFactory;
+import io.contexa.autoconfigure.core.ContexaOwnBeans;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacommon.security.authority.AuthorityResolver;
@@ -85,12 +87,12 @@ public class HostOwnedAdminConsoleAutoConfiguration {
     public SecurityFilterChain contexaAdminConsoleSecurityFilterChain(HttpSecurity http,
                                                                       UserRepository userRepository,
                                                                       AuthorityResolver contexaAuthorityResolver,
-                                                                      PasswordEncoder passwordEncoder,
+                                                                      BeanFactory beanFactory,
                                                                       ObjectProvider<LoginPolicyHandler> loginPolicy)
             throws Exception {
         DaoAuthenticationProvider provider =
                 new DaoAuthenticationProvider(new UnifiedUserDetailsService(userRepository, contexaAuthorityResolver));
-        provider.setPasswordEncoder(passwordEncoder);
+        provider.setPasswordEncoder(ContexaOwnBeans.passwordEncoder(beanFactory));
         // The console's sign-ins count against Contexa's accounts (failed attempts, lock, address throttle); the
         // application's own never do (the policy's event listener runs only when Contexa owns sign-in).
         ProviderManager manager = new ProviderManager(provider);

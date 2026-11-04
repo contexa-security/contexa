@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacommon.cache;
 
+import java.util.Locale;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -228,7 +229,7 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
         }
 
         ContexaCacheProperties.DomainConfig domains = properties.getDomains();
-        return switch (domain.toLowerCase()) {
+        return switch (domain.toLowerCase(Locale.ROOT)) {
             case "users" -> domains.getUsers().getRedisTtlSeconds();
             case "roles" -> domains.getRoles().getRedisTtlSeconds();
             case "permissions" -> domains.getPermissions().getRedisTtlSeconds();

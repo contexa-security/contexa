@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.handler;
 
+import java.util.Locale;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
@@ -106,9 +107,9 @@ public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler 
         String failureUrl = request.getContextPath() + loginFailureUrl;
 
         if (!loginFailureUrl.contains("?")) {
-            failureUrl += "?error=" + errorCode.toLowerCase();
+            failureUrl += "?error=" + errorCode.toLowerCase(Locale.ROOT);
         } else {
-            failureUrl += "&error=" + errorCode.toLowerCase();
+            failureUrl += "&error=" + errorCode.toLowerCase(Locale.ROOT);
         }
 
         if (isApiRequest(request)) {

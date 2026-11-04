@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacommon.security.bridge;
 
+import java.util.Locale;
 import org.springframework.lang.Nullable;
 
 import java.util.ArrayList;
@@ -77,7 +78,7 @@ public final class BridgeSemanticBoundaryPolicy {
             if (authority == null || authority.isBlank()) {
                 continue;
             }
-            String normalized = authority.toUpperCase();
+            String normalized = authority.toUpperCase(Locale.ROOT);
             if (normalized.contains("ADMIN")
                     || normalized.contains("ROOT")
                     || normalized.contains("SUPER")

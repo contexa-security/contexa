@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.zerotrust;
 
+import java.util.Locale;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.security.bridge.AgentConfirmationFacts;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
@@ -416,7 +417,7 @@ public class AgentConfirmationGate {
 
     private static boolean formPost(HttpServletRequest request) {
         String type = request.getContentType();
-        return type != null && type.toLowerCase().startsWith(MediaType.APPLICATION_FORM_URLENCODED_VALUE);
+        return type != null && type.toLowerCase(Locale.ROOT).startsWith(MediaType.APPLICATION_FORM_URLENCODED_VALUE);
     }
 
     private static String path(HttpServletRequest request) {

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.zerotrust;
 
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.security.ZeroTrustScreens;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
@@ -162,7 +163,8 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
-        if (auth == null || !auth.isAuthenticated() || !enforcing.getAsBoolean()) {
+        // An anonymous visitor is nobody's user: all of them would share one decision, and one BLOCK would shut them all out.
+        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken || !enforcing.getAsBoolean()) {
             filterChain.doFilter(request, response);
             return;
         }

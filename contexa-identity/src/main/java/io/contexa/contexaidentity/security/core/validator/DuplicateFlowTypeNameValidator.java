@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.core.validator;
 
+import java.util.Locale;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.CollectionUtils;
@@ -51,7 +52,7 @@ public class DuplicateFlowTypeNameValidator implements Validator<List<Authentica
                 continue;
             }
 
-            String normalizedTypeName = typeName.toLowerCase();
+            String normalizedTypeName = typeName.toLowerCase(Locale.ROOT);
 
             if (!uniqueNormalizedTypeNames.add(normalizedTypeName)) {
                 duplicateOriginalTypeNames.add(typeName);

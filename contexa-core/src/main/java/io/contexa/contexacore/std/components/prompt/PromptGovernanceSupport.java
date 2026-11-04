@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.std.components.prompt;
 
+import java.util.Locale;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleManifest;
 import io.contexa.contexacommon.domain.context.DomainContext;
@@ -278,7 +279,7 @@ public final class PromptGovernanceSupport {
             byte[] hash = digest.digest(value.getBytes(StandardCharsets.UTF_8));
             StringBuilder encoded = new StringBuilder("sha256:");
             for (byte item : hash) {
-                encoded.append(String.format("%02x", item));
+                encoded.append(String.format(Locale.ROOT, "%02x", item));
             }
             return encoded.toString();
         }

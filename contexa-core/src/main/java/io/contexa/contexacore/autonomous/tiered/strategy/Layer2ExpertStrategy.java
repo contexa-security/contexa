@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
+import java.util.Locale;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityResponse;
@@ -504,7 +505,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                     "ACTION_MISSING",
                     "Layer2 LLM response action was missing; CHALLENGE was applied.");
         }
-        String normalized = rawAction.trim().toUpperCase();
+        String normalized = rawAction.trim().toUpperCase(Locale.ROOT);
         boolean recognized = switch (normalized) {
             case "ALLOW", "A", "BLOCK", "B", "CHALLENGE", "C",
                     "ESCALATE", "E", "PENDING_ANALYSIS" -> true;

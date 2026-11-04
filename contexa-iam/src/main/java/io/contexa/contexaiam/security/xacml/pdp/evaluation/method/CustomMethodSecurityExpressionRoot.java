@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
+import java.util.Locale;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
@@ -192,7 +193,7 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
             return field.get(target);
         }
 
-        String getterName = "get" + ownerField.substring(0, 1).toUpperCase()
+        String getterName = "get" + ownerField.substring(0, 1).toUpperCase(Locale.ROOT)
                 + ownerField.substring(1);
         Method getter = target.getClass().getMethod(getterName);
         return getter.invoke(target);

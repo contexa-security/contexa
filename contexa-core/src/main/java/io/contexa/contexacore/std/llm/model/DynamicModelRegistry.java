@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.std.llm.model;
 
+import java.util.Locale;
 import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.std.llm.client.ChatModelProviders;
 import io.contexa.contexacore.std.llm.exception.ModelSelectionException;
@@ -171,7 +172,7 @@ public class DynamicModelRegistry {
     }
 
     private String inferProviderFromModelName(String modelName) {
-        String lowerName = modelName.toLowerCase();
+        String lowerName = modelName.toLowerCase(Locale.ROOT);
         if (lowerName.contains("llama") || lowerName.contains("qwen")
                 || lowerName.contains("gemma") || lowerName.contains("mistral")
                 || lowerName.contains("phi") || lowerName.contains("exaone")
@@ -293,7 +294,7 @@ public class DynamicModelRegistry {
             return Collections.emptyList();
         }
 
-        String normalizedProvider = provider.trim().toLowerCase();
+        String normalizedProvider = provider.trim().toLowerCase(Locale.ROOT);
         return modelDescriptors.values().stream()
                 .filter(d -> normalizedProvider.equalsIgnoreCase(d.getProvider()))
                 .filter(d -> d.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE)

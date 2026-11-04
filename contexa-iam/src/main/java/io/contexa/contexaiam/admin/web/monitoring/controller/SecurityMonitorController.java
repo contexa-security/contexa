@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.monitoring.controller;
 
+import java.util.Locale;
 import io.contexa.contexacommon.entity.AuditLog;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexaiam.admin.web.common.CsvColumn;
@@ -128,7 +129,7 @@ public class SecurityMonitorController {
         int pageSize = 20;
         Pageable pageable = PageRequest.of(page, pageSize, Sort.by(Sort.Direction.DESC, "timestamp"));
         boolean hasKeyword = keyword != null && !keyword.isBlank();
-        String likePattern = hasKeyword ? "%" + keyword.trim().toLowerCase() + "%" : null;
+        String likePattern = hasKeyword ? "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%" : null;
         if (filter != null && !filter.isBlank()) {
             model.addAttribute("filterType", filter);
             Page<AuditLog> logPage = switch (filter) {

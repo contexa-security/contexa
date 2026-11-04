@@ -358,7 +358,7 @@ public class FactorContext implements FactorContextExtensions, Serializable {
     private static String bytesToHex(byte[] bytes, int length) {
         StringBuilder hex = new StringBuilder(length * 2);
         for (int i = 0; i < length && i < bytes.length; i++) {
-            hex.append(String.format("%02x", bytes[i]));
+            hex.append(String.format(Locale.ROOT, "%02x", bytes[i]));
         }
         return hex.toString();
     }

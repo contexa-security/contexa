@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.center.service;
 
+import java.util.Locale;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
@@ -149,7 +150,7 @@ public class PolicyCenterQueryService {
     }
 
     public List<PolicySpelPermissionResponse> getSpelPermissions(String keyword) {
-        String pattern = (keyword != null && !keyword.isBlank()) ? "%" + keyword.toLowerCase() + "%" : null;
+        String pattern = (keyword != null && !keyword.isBlank()) ? "%" + keyword.toLowerCase(Locale.ROOT) + "%" : null;
         return securitySpelRepository.search(pattern).stream()
                 .map(this::toSpelPermissionResponse)
                 .toList();
@@ -292,6 +293,6 @@ public class PolicyCenterQueryService {
     }
 
     private boolean lowerContains(String value, String keyword) {
-        return value != null && value.toLowerCase().contains(keyword.toLowerCase());
+        return value != null && value.toLowerCase(Locale.ROOT).contains(keyword.toLowerCase(Locale.ROOT));
     }
 }

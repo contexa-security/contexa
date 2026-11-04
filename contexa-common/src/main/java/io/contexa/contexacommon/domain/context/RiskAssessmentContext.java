@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacommon.domain.context;
 
+import java.util.Locale;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -131,7 +132,7 @@ public class RiskAssessmentContext extends DomainContext {
 
     @Override
     public String toString() {
-        return String.format("RiskAssessmentContext{userId='%s', resource='%s', action='%s', ip='%s', complexity=%d}",
+        return String.format(Locale.ROOT, "RiskAssessmentContext{userId='%s', resource='%s', action='%s', ip='%s', complexity=%d}",
                 userId, resourceIdentifier, actionType, remoteIp, calculateRiskComplexity());
     }
 }

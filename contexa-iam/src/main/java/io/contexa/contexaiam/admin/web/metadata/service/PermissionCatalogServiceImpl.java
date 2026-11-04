@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.metadata.service;
 
+import java.util.Locale;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
 import io.contexa.contexacommon.entity.ManagedResource;
@@ -88,7 +89,7 @@ public class PermissionCatalogServiceImpl implements PermissionCatalogService {
     public Page<PermissionDto> searchAvailablePermissions(String keyword, Collection<Long> excludeIds, Pageable pageable) {
         Collection<Long> safeExcludeIds = (excludeIds == null || excludeIds.isEmpty())
                 ? Collections.singleton(-1L) : excludeIds;
-        String pattern = (keyword != null && !keyword.isBlank()) ? "%" + keyword.toLowerCase() + "%" : null;
+        String pattern = (keyword != null && !keyword.isBlank()) ? "%" + keyword.toLowerCase(Locale.ROOT) + "%" : null;
         return permissionRepository.searchAvailablePermissions(pattern, safeExcludeIds, pageable)
                 .map(p -> modelMapper.map(p, PermissionDto.class));
     }
@@ -102,7 +103,7 @@ public class PermissionCatalogServiceImpl implements PermissionCatalogService {
         } else if (resource.getResourceType() == ManagedResource.ResourceType.URL) {
             identifierPart = simplifyUrlIdentifier(resource.getResourceIdentifier());
         } else {
-            identifierPart = resource.getResourceIdentifier().replaceAll("[^a-zA-Z0-9]", "_").toUpperCase();
+            identifierPart = resource.getResourceIdentifier().replaceAll("[^a-zA-Z0-9]", "_").toUpperCase(Locale.ROOT);
         }
 
         return String.format("%s_%s", typePrefix, identifierPart).replaceAll("_+", "_");
@@ -112,7 +113,7 @@ public class PermissionCatalogServiceImpl implements PermissionCatalogService {
         String[] parts = methodIdentifier.split("\\.");
         String className = parts[parts.length - 2]; 
         String methodPart = parts[parts.length - 1].split("\\(")[0]; 
-        return String.format("%s_%s", className, methodPart).toUpperCase();
+        return String.format("%s_%s", className, methodPart).toUpperCase(Locale.ROOT);
     }
 
     private String simplifyUrlIdentifier(String urlIdentifier) {
@@ -121,6 +122,6 @@ public class PermissionCatalogServiceImpl implements PermissionCatalogService {
                 .replaceAll("[^a-zA-Z0-9]", "_")
                 .replaceAll("_+", "_")
                 .replaceAll("^_|_$", "")
-                .toUpperCase();
+                .toUpperCase(Locale.ROOT);
     }
 }

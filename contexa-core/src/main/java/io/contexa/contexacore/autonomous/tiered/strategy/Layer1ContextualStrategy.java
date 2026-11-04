@@ -1083,7 +1083,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             StringBuilder action = new StringBuilder();
 
             if (event.getTimestamp() != null) {
-                action.append(String.format("%02d:%02d",
+                action.append(String.format(Locale.ROOT, "%02d:%02d",
                         event.getLocalTimestamp().getHour(),
                         event.getLocalTimestamp().getMinute()));
             }

@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacommon.security.bridge.stamp;
 
+import java.util.Locale;
+
 public enum AuthorizationEffect {
     ALLOW,
     DENY,
@@ -28,7 +30,7 @@ public enum AuthorizationEffect {
         if (value.isEmpty()) {
             return UNKNOWN;
         }
-        return switch (value.toUpperCase()) {
+        return switch (value.toUpperCase(Locale.ROOT)) {
             case "ALLOW", "ALLOWED", "PERMIT", "PERMITTED", "TRUE" -> ALLOW;
             case "DENY", "DENIED", "BLOCK", "BLOCKED", "FALSE" -> DENY;
             default -> UNKNOWN;

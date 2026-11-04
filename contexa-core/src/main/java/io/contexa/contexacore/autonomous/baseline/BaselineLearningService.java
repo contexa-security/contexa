@@ -1696,7 +1696,7 @@ public class BaselineLearningService {
             }
 
             if (currentEvent.getTimestamp() != null) {
-                sb.append(String.format("  Hour: %d\n", currentEvent.getLocalTimestamp().getHour()));
+                sb.append(String.format(Locale.ROOT, "  Hour: %d\n", currentEvent.getLocalTimestamp().getHour()));
             }
 
             String userAgent = currentEvent.getUserAgent();

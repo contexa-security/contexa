@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.std.components.prompt;
 
+import java.util.Locale;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleManifest;
 
@@ -117,7 +118,7 @@ public record PromptGovernanceDescriptor(
             byte[] hash = digest.digest(value.getBytes(StandardCharsets.UTF_8));
             StringBuilder builder = new StringBuilder(hash.length * 2);
             for (byte item : hash) {
-                builder.append(String.format("%02x", item & 0xff));
+                builder.append(String.format(Locale.ROOT, "%02x", item & 0xff));
             }
             return builder.toString();
         }

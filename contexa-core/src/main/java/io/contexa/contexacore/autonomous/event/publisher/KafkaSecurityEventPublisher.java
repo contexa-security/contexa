@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.event.publisher;
 
+import java.util.Locale;
 import io.contexa.contexacore.autonomous.event.SecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 
@@ -50,8 +51,8 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
         publishRequestedCount.incrementAndGet();
 
             String topic = String.format("security.events.%s.%s",
-                    event.getCategory().name().toLowerCase(),
-                    event.getEventType().toLowerCase());
+                    event.getCategory().name().toLowerCase(Locale.ROOT),
+                    event.getEventType().toLowerCase(Locale.ROOT));
 
             String key = generateEventKey(event);
             CompletableFuture<SendResult<String, Object>> future = kafkaTemplate.send(topic, key, event);

@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaidentity.security.zerotrust;
 
+import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
@@ -98,6 +100,18 @@ class ZeroTrustAccessControlFilterTest {
         when(authentication.isAuthenticated()).thenReturn(true);
         when(authentication.getName()).thenReturn("testUser");
         when(authentication.getAuthorities()).thenReturn(List.of());
+    }
+
+    @Test
+    void anAnonymousVisitorIsNobodysUserAndPassesWithoutADecisionLookup() throws Exception {
+        SecurityContextHolder.getContext().setAuthentication(
+                new AnonymousAuthenticationToken("key", "anonymousUser", AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS")));
+        when(request.getRequestURI()).thenReturn("/h/public/data");
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(filterChain).doFilter(request, response);
+        verifyNoInteractions(actionRedisRepository);
     }
 
     @AfterEach

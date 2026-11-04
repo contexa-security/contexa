@@ -15,6 +15,8 @@
  */
 package io.contexa.autoconfigure.iam;
 
+import org.springframework.beans.factory.BeanFactory;
+import io.contexa.autoconfigure.core.ContexaOwnBeans;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
@@ -108,7 +110,7 @@ public class IamSecurityCoreAutoConfiguration {
                 new FilterRegistrationBean<>(new LoginAttemptCleanupFilter());
         registration.addUrlPatterns("/*");
         registration.setOrder(Ordered.LOWEST_PRECEDENCE);
-        registration.setName("loginAttemptCleanupFilter");
+        registration.setName("contexaLoginAttemptCleanupFilter");
         return registration;
     }
 
@@ -116,9 +118,9 @@ public class IamSecurityCoreAutoConfiguration {
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
     public CustomAuthenticationProvider customAuthenticationProvider(UserDetailsService userDetailsService,
-                                                                    PasswordEncoder passwordEncoder,
+                                                                    BeanFactory beanFactory,
                                                                     LoginPolicyHandler contexaLoginPolicyHandler) {
-        return new CustomAuthenticationProvider(userDetailsService, passwordEncoder, contexaLoginPolicyHandler);
+        return new CustomAuthenticationProvider(userDetailsService, ContexaOwnBeans.passwordEncoder(beanFactory), contexaLoginPolicyHandler);
     }
 
     @Bean(name = "contexaAiSecurityContextSupport")

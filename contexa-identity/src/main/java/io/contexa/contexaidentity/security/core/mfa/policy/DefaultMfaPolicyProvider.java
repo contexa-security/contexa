@@ -68,7 +68,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
                 platformConfig.getFlows().stream()
                         .filter(flow -> MfaFlowTypeUtils.isMfaFlow(flow.getTypeName()))
                         .forEach(flow -> cachedMfaFlowConfigs.put(
-                                flow.getTypeName().toLowerCase(), flow));
+                                flow.getTypeName().toLowerCase(Locale.ROOT), flow));
 
                 if (cachedMfaFlowConfigs.isEmpty()) {
                     log.debug("No MFA flow configured; form-only authentication remains valid");
@@ -155,10 +155,10 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
 
         return flowSteps.stream()
                 .filter(step -> !step.isPrimary())
-                .filter(step -> availableTypeNames.contains(step.getType().toUpperCase()))
+                .filter(step -> availableTypeNames.contains(step.getType().toUpperCase(Locale.ROOT)))
                 .filter(step -> !completedStepIds.contains(step.getStepId()))
                 .min(Comparator.comparingInt(AuthenticationStepConfig::getOrder))
-                .map(step -> AuthType.valueOf(step.getType().toUpperCase()))
+                .map(step -> AuthType.valueOf(step.getType().toUpperCase(Locale.ROOT)))
                 .orElse(null);
     }
 
@@ -167,7 +167,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
         if (flowTypeName == null) {
             return cachedMfaFlowConfigs.values().stream().findFirst().orElse(null);
         }
-        return cachedMfaFlowConfigs.get(flowTypeName.toLowerCase());
+        return cachedMfaFlowConfigs.get(flowTypeName.toLowerCase(Locale.ROOT));
     }
 
     @Override

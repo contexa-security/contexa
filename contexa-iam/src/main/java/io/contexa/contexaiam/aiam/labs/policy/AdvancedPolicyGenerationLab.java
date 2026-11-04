@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.aiam.labs.policy;
 
+import java.util.Locale;
 import io.contexa.contexacommon.domain.LabSpecialization;
 import io.contexa.contexacommon.domain.request.AIResponse;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
@@ -158,7 +159,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         if (availableItems.roles() != null && !availableItems.roles().isEmpty()) {
             metadata.append("[Available Roles]\n");
             availableItems.roles().forEach(role ->
-                    metadata.append(String.format("- ID: %d, Name: %s, Description: %s\n",
+                    metadata.append(String.format(Locale.ROOT, "- ID: %d, Name: %s, Description: %s\n",
                             role.id(), role.name(), role.description() != null ? role.description() : "")));
         } else {
             metadata.append("[Available Roles] None\n");
@@ -167,7 +168,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         if (availableItems.permissions() != null && !availableItems.permissions().isEmpty()) {
             metadata.append("\n[Available Permissions]\n");
             availableItems.permissions().forEach(perm -> {
-                metadata.append(String.format("- ID: %d, Name: %s, Description: %s",
+                metadata.append(String.format(Locale.ROOT, "- ID: %d, Name: %s, Description: %s",
                         perm.id(), perm.name(), perm.description() != null ? perm.description() : ""));
                 if (perm.targetType() != null && perm.resourceIdentifier() != null) {
                     metadata.append(String.format(", Protects: %s %s %s",
@@ -184,7 +185,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         if (availableItems.conditions() != null && !availableItems.conditions().isEmpty()) {
             metadata.append("\n[Available Condition Templates]\n");
             availableItems.conditions().forEach(cond ->
-                    metadata.append(String.format("- ID: %d, Name: %s, Description: %s, Compatible: %s\n",
+                    metadata.append(String.format(Locale.ROOT, "- ID: %d, Name: %s, Description: %s, Compatible: %s\n",
                             cond.id(), cond.name(),
                             cond.description() != null ? cond.description() : "",
                             cond.isCompatible() != null ? cond.isCompatible() : true)));

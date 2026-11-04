@@ -328,7 +328,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
             List<String> actions = dto.getAllowedActions();
             if (actions.size() == 1) {
                 String action = actions.get(0);
-                String expr = switch (action.toUpperCase()) {
+                String expr = switch (action.toUpperCase(Locale.ROOT)) {
                     case "ALLOW" -> "#ai.isAllowed()";
                     case "BLOCK" -> "#ai.isBlocked()";
                     case "CHALLENGE" -> "#ai.needsChallenge()";
@@ -338,7 +338,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
                 allConditions.add(expr);
             } else {
                 String actionList = actions.stream()
-                        .map(a -> "'" + a.toUpperCase() + "'")
+                        .map(a -> "'" + a.toUpperCase(Locale.ROOT) + "'")
                         .collect(Collectors.joining(","));
                 allConditions.add("#ai.hasActionIn(" + actionList + ")");
             }
@@ -514,7 +514,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         Matcher singleMatcher = Pattern.compile("#ai\\.hasAction\\('([^']+)'\\)").matcher(expression);
         if (singleMatcher.find()) {
             dto.setAiActionEnabled(true);
-            dto.setAllowedActions(List.of(singleMatcher.group(1).toUpperCase()));
+            dto.setAllowedActions(List.of(singleMatcher.group(1).toUpperCase(Locale.ROOT)));
         }
     }
 
@@ -522,7 +522,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         Matcher valueMatcher = Pattern.compile("'([^']+)'").matcher(actionsStr);
         List<String> actions = new ArrayList<>();
         while (valueMatcher.find()) {
-            actions.add(valueMatcher.group(1).toUpperCase());
+            actions.add(valueMatcher.group(1).toUpperCase(Locale.ROOT));
         }
         return actions;
     }

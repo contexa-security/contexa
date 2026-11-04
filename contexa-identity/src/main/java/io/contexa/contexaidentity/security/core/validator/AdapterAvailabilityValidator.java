@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.core.validator;
 
+import java.util.Locale;
 import io.contexa.contexaidentity.security.core.bootstrap.AdapterRegistry;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import lombok.RequiredArgsConstructor;
@@ -34,9 +35,9 @@ public class AdapterAvailabilityValidator implements Validator<AuthenticationSte
             return result;
         }
 
-        String stepType = step.getType().toLowerCase();
+        String stepType = step.getType().toLowerCase(Locale.ROOT);
         if (adapterRegistry.getAuthenticationAdapter(stepType) == null) {
-            result.addError(String.format("Critical platform error: No AuthenticationFeature implementation registered in FeatureRegistry for authentication type '%s' defined in DSL. (Step order: %d)",
+            result.addError(String.format(Locale.ROOT, "Critical platform error: No AuthenticationFeature implementation registered in FeatureRegistry for authentication type '%s' defined in DSL. (Step order: %d)",
                     step.getType(), step.getOrder()));
             log.error("DSL VALIDATION ERROR: AuthenticationFeature not found for type '{}'", step.getType());
         }

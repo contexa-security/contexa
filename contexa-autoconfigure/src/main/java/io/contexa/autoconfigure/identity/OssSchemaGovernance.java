@@ -2,7 +2,6 @@ package io.contexa.autoconfigure.identity;
 
 import io.contexa.contexaiam.admin.promptquality.official.common.OfficialVerificationDefinitionCatalogWriter;
 import io.contexa.contexaiam.admin.promptquality.official.common.OfficialVerificationDefinitionCatalogWriter.CatalogSnapshot;
-import org.springframework.core.io.ClassPathResource;
 
 import javax.sql.DataSource;
 import java.io.IOException;
@@ -113,7 +112,7 @@ public final class OssSchemaGovernance {
 
     public ContexaSchemaInventory.Snapshot ossInventory() throws IOException {
         return ContexaSchemaInventory.fromResources(
-                OSS_OWNER, List.of(new ClassPathResource(OSS_SCHEMA)));
+                OSS_OWNER, List.of(ContexaResources.sql(OSS_SCHEMA)));
     }
 
     static boolean sameOwnedObjects(

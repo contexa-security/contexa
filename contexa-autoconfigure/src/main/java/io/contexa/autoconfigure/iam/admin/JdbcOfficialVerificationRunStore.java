@@ -1,5 +1,6 @@
 package io.contexa.autoconfigure.iam.admin;
 
+import java.util.Locale;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationCheckResultView;
@@ -481,8 +482,8 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
         String runId = detailedView.runId();
         String metric = detailedView.endpointKey();
         if (StringUtils.hasText(runId) && StringUtils.hasText(metric)) {
-            String suffix = "-" + metric.trim().toLowerCase();
-            if (runId.toLowerCase().endsWith(suffix)) {
+            String suffix = "-" + metric.trim().toLowerCase(Locale.ROOT);
+            if (runId.toLowerCase(Locale.ROOT).endsWith(suffix)) {
                 return runId.substring(0, runId.length() - suffix.length());
             }
         }

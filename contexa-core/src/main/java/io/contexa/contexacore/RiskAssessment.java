@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore;
 
+import java.util.Locale;
 import io.contexa.contexacommon.annotation.SoarTool;
 import io.contexa.contexacommon.annotation.SoarTool.ApprovalRequirement;
 import io.contexa.contexacore.domain.ApprovalRequest.ApprovalType;
@@ -133,7 +134,7 @@ public class RiskAssessment {
             return toolApprovalMap.get(toolName);
         }
 
-        String lowerName = toolName.toLowerCase();
+        String lowerName = toolName.toLowerCase(Locale.ROOT);
 
         for (String keyword : CRITICAL_KEYWORDS) {
             if (lowerName.contains(keyword)) {

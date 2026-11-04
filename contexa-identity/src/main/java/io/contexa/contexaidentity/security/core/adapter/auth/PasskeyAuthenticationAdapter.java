@@ -15,13 +15,14 @@
  */
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
+import java.util.Locale;
 import io.contexa.contexacommon.enums.AuthType;
 
 public class PasskeyAuthenticationAdapter extends BasePasskeyAuthenticationAdapter {
 
     @Override
     public String getId() {
-        return AuthType.PASSKEY.name().toLowerCase();
+        return AuthType.PASSKEY.name().toLowerCase(Locale.ROOT);
     }
 
     @Override

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.core.validator;
 
+import java.util.Locale;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.dsl.option.PasskeyOptions;
 import lombok.extern.slf4j.Slf4j;
@@ -34,7 +35,7 @@ public class PasskeyOptionsValidator implements Validator<AuthenticationStepConf
             return result;
         }
 
-        String stepIdentifier = String.format("Step (type: '%s', order: %d)", step.getType(), step.getOrder());
+        String stepIdentifier = String.format(Locale.ROOT, "Step (type: '%s', order: %d)", step.getType(), step.getOrder());
         Object optionsObject = step.getOptions().get(AuthenticationStepConfig.OPTIONS_KEY);
 
         if (!(optionsObject instanceof PasskeyOptions passkeyOptions)) {

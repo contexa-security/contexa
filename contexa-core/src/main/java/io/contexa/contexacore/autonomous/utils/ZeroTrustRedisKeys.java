@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.autonomous.utils;
 
+import java.util.Locale;
+
 public class ZeroTrustRedisKeys {
 
     private static final String NAMESPACE = "security";
@@ -265,7 +267,7 @@ public class ZeroTrustRedisKeys {
         if (proposalId == null) {
             throw new IllegalArgumentException("Proposal ID cannot be null");
         }
-        return String.format("%s:governance:approval:workflow:%d", NAMESPACE, proposalId);
+        return String.format(Locale.ROOT, "%s:governance:approval:workflow:%d", NAMESPACE, proposalId);
     }
 
     public static String approvalWorkflowIndex() {

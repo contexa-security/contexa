@@ -21,7 +21,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @Data
 @ConfigurationProperties(prefix = "contexa.opentelemetry")
 public class OpenTelemetryProperties {
-    private boolean enabled = true;
+    /**
+     * Off by default. When on, Contexa builds an OpenTelemetry SDK, registers it as the JVM's global instance, installs a shutdown hook and
+     * exports spans to {@link #exporterEndpoint}: an application that has its own OpenTelemetry (an agent, its own SDK) must not meet that
+     * unless it asked for it.
+     */
+    private boolean enabled = false;
     private String serviceName = "contexa-core";
     private String exporterEndpoint = "http://localhost:4317";
     private double samplingProbability = 1.0;

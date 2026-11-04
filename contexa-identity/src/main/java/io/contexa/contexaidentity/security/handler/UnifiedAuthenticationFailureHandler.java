@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.handler;
 
+import java.util.Locale;
 import io.contexa.contexacore.autonomous.store.LoginFailureRecording;
 import java.time.Instant;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
@@ -205,7 +206,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
             failureType = FailureType.MFA_GLOBAL_FAILURE;
         }
 
-        String failureRedirectUrl = request.getContextPath() + "/login?error=" + errorCode.toLowerCase();
+        String failureRedirectUrl = request.getContextPath() + "/login?error=" + errorCode.toLowerCase(Locale.ROOT);
 
         Map<String, Object> errorDetails = new HashMap<>();
         errorDetails.put("message", errorMessage);
@@ -310,7 +311,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                                                             int attempts) {
         Map<String, Object> errorDetails = new HashMap<>();
         errorDetails.put("mfaSessionId", factorContext.getMfaSessionId());
-        errorDetails.put("failedFactor", currentProcessingFactor.name().toUpperCase());
+        errorDetails.put("failedFactor", currentProcessingFactor.name().toUpperCase(Locale.ROOT));
         errorDetails.put("attemptsMade", attempts);
         errorDetails.put("currentState", factorContext.getCurrentState().name());
         errorDetails.put("timestamp", System.currentTimeMillis());

@@ -40,7 +40,8 @@ import org.springframework.statemachine.transition.TransitionConflictPolicy;
 
 @Slf4j
 @Configuration
-@EnableStateMachineFactory
+// the bean is named for Contexa: Spring State Machine's default name, stateMachineFactory, is the application's to use
+@EnableStateMachineFactory(name = "contexaMfaStateMachineFactory")
 public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdapter<MfaState, MfaEvent> {
 
     private final InitializeMfaAction initializeMfaAction;

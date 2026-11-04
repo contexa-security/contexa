@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.security.xacml.pap.analysis;
 
+import java.util.Locale;
 import java.util.Objects;
 
 import io.contexa.contexaiam.domain.entity.policy.Policy;
@@ -206,7 +207,7 @@ public class PolicyConflictAnalyzer {
         if (method == null) {
             return "ANY";
         }
-        return method.toUpperCase();
+        return method.toUpperCase(Locale.ROOT);
     }
 
     private Severity classifySeverity(TargetOverlap overlap) {

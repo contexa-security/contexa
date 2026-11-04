@@ -28,7 +28,7 @@ public class StompEventListener {
         public void onApplicationEvent(SessionConnectedEvent event) {
             StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
             String sessionId = headerAccessor.getSessionId();
-            log.error("STOMP session connected: sessionId={}", sessionId);
+            log.debug("STOMP session connected: sessionId={}", sessionId);
         }
     }
 
@@ -37,7 +37,7 @@ public class StompEventListener {
         public void onApplicationEvent(SessionDisconnectEvent event) {
             StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
             String sessionId = headerAccessor.getSessionId();
-            log.error("STOMP session disconnected: sessionId={}", sessionId);
+            log.debug("STOMP session disconnected: sessionId={}", sessionId);
         }
     }
 
@@ -48,7 +48,7 @@ public class StompEventListener {
             String sessionId = headerAccessor.getSessionId();
             String destination = headerAccessor.getDestination();
             String subscriptionId = headerAccessor.getSubscriptionId();
-            log.error("STOMP subscription: sessionId={}, destination={}, subscriptionId={}", sessionId, destination, subscriptionId);
+            log.debug("STOMP subscription: sessionId={}, destination={}, subscriptionId={}", sessionId, destination, subscriptionId);
         }
     }
 
@@ -58,7 +58,7 @@ public class StompEventListener {
             StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
             String sessionId = headerAccessor.getSessionId();
             String subscriptionId = headerAccessor.getSubscriptionId();
-            log.error("STOMP unsubscription: sessionId={}, subscriptionId={}", sessionId, subscriptionId);
+            log.debug("STOMP unsubscription: sessionId={}, subscriptionId={}", sessionId, subscriptionId);
         }
     }
 
@@ -67,7 +67,7 @@ public class StompEventListener {
         public void onApplicationEvent(SessionConnectEvent event) {
             StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
             String sessionId = headerAccessor.getSessionId();
-            log.error("STOMP connect event: sessionId={}", sessionId);
+            log.debug("STOMP connect event: sessionId={}", sessionId);
         }
     }
 

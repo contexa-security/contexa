@@ -1,5 +1,6 @@
 package io.contexa.contexacore.verification.runtime;
 
+import java.util.Locale;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
@@ -50,7 +51,7 @@ public final class OfficialVerificationRuntimeIsolationSupport {
             byte[] bytes = digest.digest(value.getBytes(StandardCharsets.UTF_8));
             StringBuilder builder = new StringBuilder(HASH_LENGTH * 2);
             for (byte item : bytes) {
-                builder.append(String.format("%02x", item));
+                builder.append(String.format(Locale.ROOT, "%02x", item));
                 if (builder.length() >= HASH_LENGTH) {
                     return builder.substring(0, HASH_LENGTH);
                 }

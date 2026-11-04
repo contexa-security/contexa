@@ -56,7 +56,7 @@ public class IamAdminSessionAutoConfiguration {
         FilterRegistrationBean<SessionTrackingFilter> registration = new FilterRegistrationBean<>();
         registration.setFilter(new SessionTrackingFilter(contexaSessionManagementService, activeSessionRepository));
         registration.addUrlPatterns("/*");
-        registration.setName("sessionTrackingFilter");
+        registration.setName("contexaSessionTrackingFilter");
         registration.setOrder(200);
         return registration;
     }

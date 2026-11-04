@@ -10,6 +10,7 @@ io.contexa.autoconfigure.core.infra.CoreSchedulerLockAutoConfiguration
 io.contexa.autoconfigure.core.ContexaProxyModeAutoConfiguration
 io.contexa.autoconfigure.core.scope.ContexaScopedAnnotationAutoConfiguration
 io.contexa.autoconfigure.core.scope.ContexaScopedKafkaAutoConfiguration
+io.contexa.autoconfigure.core.scope.ContexaLazyInitializationAutoConfiguration
 io.contexa.autoconfigure.core.ContexaOwnedDataSourceAutoConfiguration
 io.contexa.autoconfigure.core.CoreDataAutoConfiguration
 io.contexa.autoconfigure.identity.ContexaSchemaPrefixAutoConfiguration

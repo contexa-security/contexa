@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.tiered.cache;
 
+import java.util.Locale;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.stats.CacheStats;
@@ -319,8 +320,7 @@ public class VectorStoreCacheLayer {
 
         @Override
         public String toString() {
-            return String.format(
-                    "CacheStatistics{hitRate=%.2f%%, missRate=%.2f%%, size=%d, evictions=%d, avgLoadTime=%dms}",
+            return String.format(Locale.ROOT, "CacheStatistics{hitRate=%.2f%%, missRate=%.2f%%, size=%d, evictions=%d, avgLoadTime=%dms}",
                     hitRate * 100, missRate * 100, estimatedSize, evictionCount,
                     averageLoadPenalty != null ? averageLoadPenalty.toMillis() : 0
             );

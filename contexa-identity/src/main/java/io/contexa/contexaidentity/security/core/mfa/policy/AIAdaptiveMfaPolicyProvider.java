@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.core.mfa.policy;
 
+import java.util.Locale;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
@@ -106,7 +107,7 @@ public class AIAdaptiveMfaPolicyProvider extends DefaultMfaPolicyProvider {
     }
 
     private MfaDecision.DecisionType resolveDecisionType(String decisionType) {
-        return switch (decisionType.toUpperCase()) {
+        return switch (decisionType.toUpperCase(Locale.ROOT)) {
             case "BLOCKED" -> MfaDecision.DecisionType.BLOCKED;
             case "ESCALATED" -> MfaDecision.DecisionType.ESCALATED;
             case "NO_MFA_REQUIRED" -> MfaDecision.DecisionType.NO_MFA_REQUIRED;

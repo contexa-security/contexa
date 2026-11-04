@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.center.service;
 
+import java.util.Locale;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.entity.Role;
@@ -265,7 +266,7 @@ public class PolicyCenterCommandService {
                     String resPath = item.getResourceIdentifier() != null
                             ? item.getResourceIdentifier().replaceAll("[/{}]", "_")
                                     .replaceAll("^_+|_+$", "")
-                                    .toUpperCase()
+                                    .toUpperCase(Locale.ROOT)
                             : "";
                     String rawName = request.getEffect().name() + "_" + allRoleNames + "_" + crud + "_" + resPath;
                     String policyName = rawName.replaceAll("_+", "_");
@@ -523,7 +524,7 @@ public class PolicyCenterCommandService {
                             default -> "READ";
                         };
                     }
-                    String upper = permissionName.toUpperCase();
+                    String upper = permissionName.toUpperCase(Locale.ROOT);
                     if (upper.contains("DELETE") || upper.contains("REMOVE")) {
                         return "DELETE";
                     }

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.security.xacml.pap.service;
 
+import java.util.Locale;
 import io.contexa.contexaiam.common.event.dto.PolicyChangedEvent;
 import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
 import io.contexa.contexaiam.domain.dto.ConditionDto;
@@ -105,14 +106,14 @@ public class DefaultPolicyService implements PolicyService {
     @Override
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public Page<Policy> searchPolicies(String keyword, Pageable pageable) {
-        String pattern = (keyword != null && !keyword.isBlank()) ? "%" + keyword.toLowerCase() + "%" : null;
+        String pattern = (keyword != null && !keyword.isBlank()) ? "%" + keyword.toLowerCase(Locale.ROOT) + "%" : null;
         return policyRepository.searchByKeyword(pattern, pageable);
     }
 
     @Override
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public Page<Policy> searchPolicies(String keyword, Policy.ApprovalStatus approvalStatus, Boolean activeFilter, Pageable pageable) {
-        String pattern = (keyword != null && !keyword.isBlank()) ? "%" + keyword.toLowerCase() + "%" : null;
+        String pattern = (keyword != null && !keyword.isBlank()) ? "%" + keyword.toLowerCase(Locale.ROOT) + "%" : null;
         return policyRepository.searchByFilters(pattern, approvalStatus, activeFilter, pageable);
     }
 

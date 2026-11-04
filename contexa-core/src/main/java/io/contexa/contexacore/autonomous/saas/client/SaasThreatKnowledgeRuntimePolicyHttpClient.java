@@ -32,9 +32,7 @@ public class SaasThreatKnowledgeRuntimePolicyHttpClient {
         this(
                 properties,
                 accessTokenProvider,
-                RestClient.builder()
-                        .baseUrl(trimTrailingSlash(properties.getEndpoint()))
-                        .build());
+                SaasRestClients.create(trimTrailingSlash(properties.getEndpoint())));
     }
 
     SaasThreatKnowledgeRuntimePolicyHttpClient(

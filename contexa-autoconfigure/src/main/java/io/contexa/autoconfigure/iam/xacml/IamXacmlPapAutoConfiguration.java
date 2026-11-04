@@ -15,6 +15,8 @@
  */
 package io.contexa.autoconfigure.iam.xacml;
 
+import org.springframework.beans.factory.BeanFactory;
+import io.contexa.autoconfigure.core.ContexaOwnBeans;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
@@ -104,9 +106,9 @@ public class IamXacmlPapAutoConfiguration {
     @ConditionalOnMissingBean
     public PolicyDuplicateDetector policyDuplicateDetector(
             PolicyRepository policyRepository,
-            RoleHierarchy roleHierarchy,
+            BeanFactory beanFactory,
             MessageSource messageSource) {
-        return new PolicyDuplicateDetector(policyRepository, roleHierarchy, messageSource);
+        return new PolicyDuplicateDetector(policyRepository, ContexaOwnBeans.roleHierarchy(beanFactory), messageSource);
     }
 
     @Bean(name = "contexaPolicyValidationService")
@@ -124,9 +126,9 @@ public class IamXacmlPapAutoConfiguration {
     public PolicyImpactAnalyzer policyImpactAnalyzer(
             UserRepository userRepository,
             PolicyRepository policyRepository,
-            RoleHierarchy roleHierarchy,
+            BeanFactory beanFactory,
             AuthorityResolver contexaAuthorityResolver) {
-        return new PolicyImpactAnalyzer(userRepository, policyRepository, roleHierarchy, contexaAuthorityResolver);
+        return new PolicyImpactAnalyzer(userRepository, policyRepository, ContexaOwnBeans.roleHierarchy(beanFactory), contexaAuthorityResolver);
     }
 
     @Bean(name = "contexaPolicySimulator")
@@ -134,10 +136,10 @@ public class IamXacmlPapAutoConfiguration {
     public PolicySimulator policySimulator(
             UserRepository userRepository,
             PolicyRepository policyRepository,
-            RoleHierarchy roleHierarchy,
+            BeanFactory beanFactory,
             ObjectProvider<PolicyCombiningEvaluator> policyCombiningEvaluator,
             ObjectProvider<PolicyCombiningProperties> policyCombiningProperties) {
-        return new PolicySimulator(userRepository, policyRepository, roleHierarchy,
+        return new PolicySimulator(userRepository, policyRepository, ContexaOwnBeans.roleHierarchy(beanFactory),
                 policyCombiningEvaluator.getIfAvailable(PolicyCombiningEvaluator::new),
                 policyCombiningProperties.getIfAvailable(PolicyCombiningProperties::new));
     }
@@ -147,8 +149,8 @@ public class IamXacmlPapAutoConfiguration {
     public PolicyMatrixService policyMatrixService(
             PolicyRepository policyRepository,
             RoleRepository roleRepository,
-            RoleHierarchy roleHierarchy) {
-        return new PolicyMatrixService(policyRepository, roleRepository, roleHierarchy);
+            BeanFactory beanFactory) {
+        return new PolicyMatrixService(policyRepository, roleRepository, ContexaOwnBeans.roleHierarchy(beanFactory));
     }
 
     @Bean(name = "contexaAiPolicyValidator")

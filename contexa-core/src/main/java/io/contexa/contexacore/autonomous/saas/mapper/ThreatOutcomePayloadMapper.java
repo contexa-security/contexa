@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.saas.mapper;
 
+import java.util.Locale;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.AdminOverride;
 import io.contexa.contexacommon.domain.SecurityEvent;
@@ -140,7 +141,7 @@ public class ThreatOutcomePayloadMapper {
     }
 
     private String summarizeReason(String reason) {
-        String normalized = reason == null ? "" : reason.toLowerCase();
+        String normalized = reason == null ? "" : reason.toLowerCase(Locale.ROOT);
         if (normalized.contains("mfa")) {
             return "mfa_followup";
         }

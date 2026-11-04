@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.execution;
 
+import java.util.Locale;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 
 public class RapidProtectableReentryDeniedException extends AuthorizationDeniedException {
@@ -47,8 +48,7 @@ public class RapidProtectableReentryDeniedException extends AuthorizationDeniedE
     }
 
     private static String formatMessage(String resourceId, long windowSeconds) {
-        return String.format(
-                "Protected resource re-entry denied within %d seconds: %s",
+        return String.format(Locale.ROOT, "Protected resource re-entry denied within %d seconds: %s",
                 windowSeconds,
                 resourceId != null ? resourceId : "unknown");
     }

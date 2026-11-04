@@ -36,7 +36,13 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 
 
-@AutoConfiguration
+/**
+ * The distributed cache service is made from the application's Redis (a StringRedisTemplate), so it is evaluated after Spring Boot's Redis
+ * auto-configuration and Contexa's own; before that the template does not exist yet and the service would silently not be made.
+ */
+@AutoConfiguration(afterName = {
+        "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
+        "io.contexa.contexacommon.config.redis.CommonRedisAutoConfiguration"})
 @EnableConfigurationProperties(ContexaCacheProperties.class)
 @ConditionalOnProperty(name = "contexa.cache.enabled", havingValue = "true", matchIfMissing = true)
 @Slf4j

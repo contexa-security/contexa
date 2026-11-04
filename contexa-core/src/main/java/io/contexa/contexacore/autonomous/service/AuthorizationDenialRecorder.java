@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.service;
 
+import java.util.Locale;
 import io.contexa.contexacore.autonomous.store.SessionDecisionRecord;
 import java.time.Instant;
 import io.contexa.contexacommon.domain.EventTimeZone;
@@ -106,7 +107,7 @@ public class AuthorizationDenialRecorder {
         LocalDateTime time = event.getLocalTimestamp() != null ? event.getLocalTimestamp() : EventTimeZone.toLocal(Instant.now());
         Object method = event.getMetadata() != null ? event.getMetadata().get("httpMethod") : null;
         Object path = event.getMetadata() != null ? event.getMetadata().get("requestPath") : null;
-        dataStore.addSessionAction(sessionId, String.format("%02d:%02d | AUTHORIZATION_DENIED | %s %s | %s",
+        dataStore.addSessionAction(sessionId, String.format(Locale.ROOT, "%02d:%02d | AUTHORIZATION_DENIED | %s %s | %s",
                 time.getHour(), time.getMinute(),
                 method != null ? method : "-",
                 path != null ? path : "-",

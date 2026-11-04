@@ -41,13 +41,18 @@ public class BridgeOAuth2ResourceServerFallbackConfigurer extends AbstractHttpCo
         if (configurer == null) {
             return;
         }
-        if (hasOpaqueTokenConfigurer(configurer) || hasJwtConfigurer(configurer)) {
+        // a multi-tenant resource server picks its authentication manager per request: Spring Security refuses jwt() beside it
+        if (hasAuthenticationManagerResolver(configurer) || hasOpaqueTokenConfigurer(configurer) || hasJwtConfigurer(configurer)) {
             return;
         }
         if (applicationContext.getBeanNamesForType(JwtDecoder.class).length == 0) {
             return;
         }
         http.oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
+    }
+
+    private boolean hasAuthenticationManagerResolver(OAuth2ResourceServerConfigurer<?> configurer) {
+        return readField(configurer, "authenticationManagerResolver") != null;
     }
 
     private boolean hasJwtConfigurer(OAuth2ResourceServerConfigurer<?> configurer) {

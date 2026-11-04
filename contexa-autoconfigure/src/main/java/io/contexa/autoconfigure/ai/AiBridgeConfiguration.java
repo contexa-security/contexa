@@ -15,6 +15,7 @@
  */
 package io.contexa.autoconfigure.ai;
 
+import java.util.Locale;
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
 import io.contexa.contexacommon.annotation.AiSecurityImportSelector;
 import io.contexa.contexacommon.security.bridge.*;
@@ -260,7 +261,7 @@ public class AiBridgeConfiguration {
             BridgeProperties properties,
             ObjectProvider<SecurityProperties> securityProperties) {
         FilterRegistrationBean<BridgeResolutionFilter> registration = new FilterRegistrationBean<>(contexaBridgeResolutionFilter);
-        registration.setName("bridgeResolutionFilter");
+        registration.setName("contexaBridgeResolutionFilter");
         return HostOwnedEnforcementOrder.bridge(registration, !properties.isContexaOwned(),
                 HostOwnedEnforcementOrder.securityFilterOrder(securityProperties));
     }
@@ -294,7 +295,7 @@ public class AiBridgeConfiguration {
             return AuthObjectLocation.AUTO;
         }
         try {
-            return AuthObjectLocation.valueOf(configured.trim().toUpperCase());
+            return AuthObjectLocation.valueOf(configured.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ignored) {
             return AuthObjectLocation.AUTO;
         }

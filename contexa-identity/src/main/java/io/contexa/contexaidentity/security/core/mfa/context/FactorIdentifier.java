@@ -15,12 +15,13 @@
  */
 package io.contexa.contexaidentity.security.core.mfa.context;
 
+import java.util.Locale;
 import java.util.Objects;
 
 public record FactorIdentifier(String flowName, String stepId) {
 
     public FactorIdentifier(String flowName, String stepId) {
-        this.flowName = Objects.requireNonNull(flowName, "flowName cannot be null").toLowerCase();
+        this.flowName = Objects.requireNonNull(flowName, "flowName cannot be null").toLowerCase(Locale.ROOT);
         this.stepId = Objects.requireNonNull(stepId, "stepId cannot be null"); 
     }
 

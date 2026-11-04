@@ -1,0 +1,72 @@
+{
+  "promptKey" : "PolicyGenerationStreaming",
+  "bundleVersion" : "2026.11.04-v1",
+  "bundleHash" : "3ed208bd5838a664da87297c402976aa6ea13d7aba087af3f0a76d0434527fc9",
+  "elements" : [ {
+    "id" : "B1",
+    "state" : "PRESENT",
+    "hash" : "0ebf976c57d547d4209499006656a9321acc24b2dfd90645141244768fadb6ca",
+    "detail" : "template definition source src/main/java/io/contexa/contexaiam/aiam/components/prompt/PolicyGenerationStreamingTemplate.java"
+  }, {
+    "id" : "B2",
+    "state" : "ABSENT",
+    "hash" : "523248d73a7012bbe9d9f900615ee3daba3400943c9ab0897cac9dd9cc1b0507",
+    "detail" : "not part of a default bundle"
+  }, {
+    "id" : "B3",
+    "state" : "ABSENT",
+    "hash" : "2a9fcb20f60ca80360a41bc537594a710111168a17f1216cd9b2ffedc5aa6bae",
+    "detail" : "not part of a default bundle"
+  }, {
+    "id" : "B4",
+    "state" : "ABSENT",
+    "hash" : "db6d6ddb7e03a74c9176644ef792f67ead17dc37e097bc4809d4c07b2a2f3f7d",
+    "detail" : "not part of a default bundle"
+  }, {
+    "id" : "B5",
+    "state" : "ABSENT",
+    "hash" : "9e12668b5707b35c4fdfa8ec06d6f657a8e65b36c841ac1e79fafc5c68dea263",
+    "detail" : "not part of a default bundle"
+  }, {
+    "id" : "B6",
+    "state" : "ABSENT",
+    "hash" : "129f713489ff2dddacf0a5905e5f266e64577b4735123027b438b33ee274a11f",
+    "detail" : "not part of a default bundle"
+  }, {
+    "id" : "B7",
+    "state" : "ABSENT",
+    "hash" : "14a75d5db4041078e75d2f47c9a2ce31f644633957eb1d08d44d9b4488f4666b",
+    "detail" : "not part of a default bundle"
+  }, {
+    "id" : "B8",
+    "state" : "ABSENT",
+    "hash" : "65fffd5e4df31da15c90f6ed8ccb0defff83ef86da27f7b39ea93d497e3f06d1",
+    "detail" : "not part of a default bundle"
+  }, {
+    "id" : "B9",
+    "state" : "ABSENT",
+    "hash" : "1379a7d2d6d698507038376bf6921a76478d01e4c174367987899cf6ec724b9d",
+    "detail" : "not part of a default bundle"
+  }, {
+    "id" : "B10",
+    "state" : "ABSENT",
+    "hash" : "c210151607cd0799e288a4e10148ff13a9948db6b60c06660740c82d9690fabb",
+    "detail" : "not part of a default bundle"
+  }, {
+    "id" : "B11",
+    "state" : "ABSENT",
+    "hash" : "377662086f0d5493211a27f3f42cb895dee9aa29fd58ce3d4481d6cf55fb733d",
+    "detail" : "not part of a default bundle"
+  } ],
+  "goldenInputs" : null,
+  "parentVersion" : "2026.10.10-v1",
+  "changeSummary" : "Id formatting in the prompt context no longer depends on the default locale of the JVM (Locale.ROOT); the fixed prompt text of the PolicyGenerationStreaming prompt is unchanged",
+  "problemIds" : [ "PV-13" ],
+  "author" : "contexa",
+  "frozenOn" : "2026-11-04",
+  "vocabularyVersion" : null,
+  "compatibleVocabularyVersions" : [ ],
+  "rollbackTargets" : [ ],
+  "declaredModelProfiles" : [ ],
+  "evaluationScenarioFamilies" : [ ]
+}

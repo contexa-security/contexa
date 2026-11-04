@@ -55,7 +55,7 @@ public class IamAdminIpAutoConfiguration {
         FilterRegistrationBean<IpAccessFilter> reg = new FilterRegistrationBean<>();
         reg.setFilter(new IpAccessFilter(contexaIpAccessRuleService, tieredStrategyProperties.getSecurity()));
         reg.addUrlPatterns(bridgeProperties.isContexaOwned() ? "/*" : "/contexa/*");
-        reg.setName("ipAccessFilter");
+        reg.setName("contexaIpAccessFilter");
         reg.setOrder(50);
         return reg;
     }

@@ -15,11 +15,13 @@
  */
 package io.contexa.autoconfigure.identity;
 
+import org.springframework.beans.factory.ObjectProvider;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.controller.MfaConfigController;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
+import io.contexa.contexaidentity.security.service.ott.ContexaOneTimeTokens;
 import io.contexa.contexaidentity.security.service.ott.EmailOneTimeTokenService;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
 import io.contexa.contexaidentity.security.service.ott.MagicLinkHandler;
@@ -33,7 +35,6 @@ import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.security.authentication.ott.OneTimeTokenService;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @AutoConfiguration
@@ -57,24 +58,28 @@ public class IdentityServiceAutoConfiguration {
 
     @Bean(name = "contexaEmailService")
     @ConditionalOnMissingBean
-    public EmailService emailService(@Autowired(required = false) JavaMailSender mailSender) {
-        return new EmailService(mailSender);
+    public EmailService emailService(ObjectProvider<JavaMailSender> mailSender) {
+        // none, or several of the application's: Contexa then does not send mail with the application's sender
+        return new EmailService(mailSender.getIfUnique());
     }
 
+    // Held in a bean that is not a OneTimeTokenService, and not stood aside for the application's own service: the one-time token login of
+    // the application takes its OneTimeTokenService by type (and finds a sole bean of that type even when it is no autowire candidate),
+    // while Contexa's flows take theirs by this name.
     @Bean(name = "contexaOneTimeTokenService")
-    @ConditionalOnMissingBean(OneTimeTokenService.class)
-    public EmailOneTimeTokenService oneTimeTokenService(
+    @ConditionalOnMissingBean(name = "contexaOneTimeTokenService")
+    public ContexaOneTimeTokens oneTimeTokenService(
             EmailService contexaEmailService,
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
             // ctxa_one_time_tokens is JDBC-owned; the shared Contexa transaction manager keeps the boundary explicit.
             @Qualifier("contexaTransactionTemplate") TransactionTemplate transactionTemplate,
             AuthContextProperties authContextProperties) {
-        return new EmailOneTimeTokenService(
+        return new ContexaOneTimeTokens(new EmailOneTimeTokenService(
                 contexaEmailService,
                 jdbcTemplate,
                 transactionTemplate,
                 authContextProperties,
-                authContextProperties.getOtt().isFailOnEmailError());
+                authContextProperties.getOtt().isFailOnEmailError()));
     }
 
     @Bean(name = "contexaMagicLinkHandler")
@@ -83,8 +88,10 @@ public class IdentityServiceAutoConfiguration {
         return new MagicLinkHandler();
     }
 
+    /** The MFA SDK's endpoint, outside Contexa's own path space ({@code /api/mfa/config}): only where Contexa owns the sign-in and its MFA flows. */
     @Bean(name = "contexaMfaConfigController")
     @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
     @ConditionalOnBean(AuthUrlProvider.class)
     public MfaConfigController mfaConfigController(AuthUrlProvider contexaAuthUrlProvider,
                                                      MfaFlowUrlRegistry contexaMfaFlowUrlRegistry,

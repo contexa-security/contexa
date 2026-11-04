@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.admin.promptquality.official.process;
 
+import java.util.Locale;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.util.StringUtils;
@@ -443,7 +444,7 @@ final class PromptQualityProcessRunStore {
     }
 
     static String normalize(String value) {
-        return StringUtils.hasText(value) ? value.trim().toUpperCase() : null;
+        return StringUtils.hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : null;
     }
 
     static String value(String value) {

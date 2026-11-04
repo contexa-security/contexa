@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.std.operations;
 
+import java.util.Locale;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.exception.AIOperationException;
 import io.contexa.contexacore.std.components.event.AuditLogger;
@@ -190,7 +191,7 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
             byte[] hash = digest.digest(value.getBytes(StandardCharsets.UTF_8));
             StringBuilder builder = new StringBuilder();
             for (int i = 0; i < 8 && i < hash.length; i++) {
-                builder.append(String.format("%02x", hash[i]));
+                builder.append(String.format(Locale.ROOT, "%02x", hash[i]));
             }
             return builder.toString();
         } catch (NoSuchAlgorithmException e) {

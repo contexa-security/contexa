@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.aiam.components.retriever;
 
+import java.util.Locale;
 import io.contexa.contexacore.properties.ContexaRagProperties;
 import io.contexa.contexacore.std.components.retriever.ContextRetriever;
 import io.contexa.contexacore.std.components.retriever.ContextRetrieverRegistry;
@@ -112,7 +113,7 @@ public class PolicyGenerationContextRetriever extends ContextRetriever {
                 if (text.length() > 300) {
                     text = text.substring(0, 300) + "...";
                 }
-                patterns.append(String.format("%d. %s\n", i + 1, text));
+                patterns.append(String.format(Locale.ROOT, "%d. %s\n", i + 1, text));
 
                 if (doc.getMetadata().containsKey("policyType")) {
                     patterns.append("   - Policy Type: ").append(doc.getMetadata().get("policyType")).append("\n");

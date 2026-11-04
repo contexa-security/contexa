@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacommon.security.authority;
 
+import java.util.Locale;
 import io.contexa.contexacommon.entity.Permission;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.util.Assert;
@@ -37,7 +38,7 @@ public class PermissionAuthority implements GrantedAuthority, Serializable {
         Assert.notNull(permission.getId(), "Permission ID cannot be null");
         Assert.hasText(permission.getName(), "Permission name cannot be empty");
 
-        this.authority = permission.getName().toUpperCase(); 
+        this.authority = permission.getName().toUpperCase(Locale.ROOT); 
         this.permissionId = permission.getId();
         this.permissionName = permission.getName();
         this.targetType = permission.getTargetType();

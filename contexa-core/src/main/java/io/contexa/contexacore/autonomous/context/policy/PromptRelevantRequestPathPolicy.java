@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.context.policy;
 
+import java.util.Locale;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
@@ -49,7 +50,7 @@ public final class PromptRelevantRequestPathPolicy {
         if (!StringUtils.hasText(actionSummary)) {
             return false;
         }
-        String normalized = actionSummary.trim().toLowerCase();
+        String normalized = actionSummary.trim().toLowerCase(Locale.ROOT);
         return normalized.startsWith("user accessed ");
     }
 
@@ -57,7 +58,7 @@ public final class PromptRelevantRequestPathPolicy {
         if (!StringUtils.hasText(value)) {
             return false;
         }
-        String normalized = value.trim().toLowerCase();
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
         for (String fragment : NOISE_PATH_FRAGMENTS) {
             if (normalized.contains(fragment)) {
                 return false;

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.auth.service;
 
+import java.util.Locale;
 import io.contexa.contexaiam.domain.entity.IpAccessRule;
 import io.contexa.contexaiam.repository.IpAccessRuleRepository;
 import lombok.RequiredArgsConstructor;
@@ -73,7 +74,7 @@ public class IpAccessRuleService {
     public Page<IpAccessRule> searchRules(String type, String keyword, Pageable pageable) {
         IpAccessRule.RuleType ruleType = parseRuleType(type);
         boolean hasKeyword = StringUtils.hasText(keyword);
-        String likePattern = hasKeyword ? "%" + keyword.trim().toLowerCase() + "%" : null;
+        String likePattern = hasKeyword ? "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%" : null;
 
         if (hasKeyword && ruleType != null) {
             return ipAccessRuleRepository.searchByTypeAndKeyword(ruleType, likePattern, pageable);
@@ -97,7 +98,7 @@ public class IpAccessRuleService {
             return null;
         }
         try {
-            return IpAccessRule.RuleType.valueOf(type.trim().toUpperCase());
+            return IpAccessRule.RuleType.valueOf(type.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ex) {
             return null;
         }

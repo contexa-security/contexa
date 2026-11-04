@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.admin.promptquality.official.application;
 
+import java.util.Locale;
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationExecutionLockService.ExecutionRecord;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -71,7 +72,7 @@ final class OfficialVerificationExecutionProgressStore {
         }
         List<String> normalized = metricCodes == null ? List.of() : metricCodes.stream()
                 .filter(StringUtils::hasText)
-                .map(value -> value.trim().toUpperCase())
+                .map(value -> value.trim().toUpperCase(Locale.ROOT))
                 .distinct()
                 .toList();
         int sequence = 1;
@@ -156,14 +157,14 @@ final class OfficialVerificationExecutionProgressStore {
                 nowTimestamp(),
                 record.id(),
                 record.attemptNo(),
-                trim(metricCode).toUpperCase(),
+                trim(metricCode).toUpperCase(Locale.ROOT),
                 record.tenantId());
         if (updated == 0) {
             insertMetric(record, aggregateRunId, metricCode, 999, STATE_COMPLETED, boundedProgress, false, null, null, Instant.now(), Instant.now());
         }
         advanceOverallProgress(record, aggregateRunId, boundedProgress);
         recordState(queryRepository.latestRecord(record), STATE_METRICS_RUNNING, boundedProgress,
-                "Official metric completed: " + trim(metricCode).toUpperCase(), false, null, null);
+                "Official metric completed: " + trim(metricCode).toUpperCase(Locale.ROOT), false, null, null);
     }
 
     void markMetricFailed(
@@ -206,7 +207,7 @@ final class OfficialVerificationExecutionProgressStore {
                 nowTimestamp(),
                 record.id(),
                 record.attemptNo(),
-                trim(metricCode).toUpperCase(),
+                trim(metricCode).toUpperCase(Locale.ROOT),
                 record.tenantId());
         if (updated == 0) {
             insertMetric(record, aggregateRunId, metricCode, 999, STATE_METRIC_FAILED, failedProgress,
@@ -272,7 +273,7 @@ final class OfficialVerificationExecutionProgressStore {
                     trim(record.tenantId()),
                     trim(aggregateRunId),
                     record.attemptNo(),
-                    trim(metricCode).toUpperCase(),
+                    trim(metricCode).toUpperCase(Locale.ROOT),
                     sequenceNo,
                     trim(state),
                     OfficialVerificationProgressPolicy.bound(progressPercent),

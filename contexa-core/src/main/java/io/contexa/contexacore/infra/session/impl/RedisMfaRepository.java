@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.infra.session.impl;
 
+import java.util.Locale;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.infra.session.SessionIdGenerationException;
@@ -236,7 +237,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
 
     private String createSessionValue(String sessionId, HttpServletRequest request) {
 
-        return String.format("user:%s|ip:%s|ua:%s|created:%d",
+        return String.format(Locale.ROOT, "user:%s|ip:%s|ua:%s|created:%d",
                 request.getRemoteUser() != null ? request.getRemoteUser() : "anonymous",
                 getClientIpAddress(request),
                 request.getHeader("User-Agent") != null ? request.getHeader("User-Agent").substring(0, Math.min(request.getHeader("User-Agent").length(), 50)) : "unknown",

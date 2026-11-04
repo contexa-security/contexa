@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.tiered.util;
 
+import java.util.Locale;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import lombok.extern.slf4j.Slf4j;
 
@@ -283,7 +284,7 @@ public class SecurityEventEnricher {
             return ip;
         }
 
-        String trimmed = ip.trim().toLowerCase();
+        String trimmed = ip.trim().toLowerCase(Locale.ROOT);
 
         if (trimmed.equals("loopback") ||
                 trimmed.equals("::1") ||

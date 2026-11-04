@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.std.llm.gate;
 
+import java.util.Locale;
 import io.contexa.contexacore.autonomous.telemetry.SecurityEventTelemetryContext;
 
 import java.time.Duration;
@@ -237,7 +238,7 @@ public final class ModelServerGate {
     private ModelServerBusyException busy(CallKind kind, long waitedNanos) {
         int waiting = embeddings.size() + chats.size();
         return new ModelServerBusyException(server.key(), "No free slot at model server " + server.key()
-                + " for a " + kind.name().toLowerCase() + " call within " + TimeUnit.NANOSECONDS.toMillis(waitedNanos)
+                + " for a " + kind.name().toLowerCase(Locale.ROOT) + " call within " + TimeUnit.NANOSECONDS.toMillis(waitedNanos)
                 + "ms (" + running + " running, " + waiting + " waiting)");
     }
 

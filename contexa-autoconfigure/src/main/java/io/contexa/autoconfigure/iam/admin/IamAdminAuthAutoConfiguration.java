@@ -15,6 +15,8 @@
  */
 package io.contexa.autoconfigure.iam.admin;
 
+import org.springframework.beans.factory.BeanFactory;
+import io.contexa.autoconfigure.core.ContexaOwnBeans;
 import io.contexa.contexacommon.repository.BridgeUserProfileRepository;
 import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.PermissionRepository;
@@ -45,10 +47,9 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
 import org.springframework.context.MessageSource;
-import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.beans.factory.annotation.Qualifier;
-
+
 @AutoConfiguration
 public class IamAdminAuthAutoConfiguration {
 
@@ -122,7 +123,7 @@ public class IamAdminAuthAutoConfiguration {
             UserRepository userRepository,
             GroupRepository groupRepository,
             RoleRepository roleRepository,
-            PasswordEncoder passwordEncoder,
+            BeanFactory beanFactory,
             @Qualifier("contexaModelMapper") ModelMapper contexaModelMapper,
             CentralAuditFacade contexaCentralAuditFacade,
             PasswordPolicyService contexaPasswordPolicyService,
@@ -132,7 +133,7 @@ public class IamAdminAuthAutoConfiguration {
             BridgeUserProfileRepository bridgeUserProfileRepository,
             ApplicationEventPublisher eventPublisher) {
         return new UserManagementServiceImpl(
-                userRepository, groupRepository, roleRepository, passwordEncoder, contexaModelMapper,
+                userRepository, groupRepository, roleRepository, ContexaOwnBeans.passwordEncoder(beanFactory), contexaModelMapper,
                 contexaCentralAuditFacade, contexaPasswordPolicyService, contexaSystemSettingsService, messageSource,
                 userRolePermissionRepository, bridgeUserProfileRepository, eventPublisher);
     }
@@ -178,10 +179,10 @@ public class IamAdminAuthAutoConfiguration {
     public RoleHierarchyService roleHierarchyService(
             RoleHierarchyRepository roleHierarchyRepository,
             RoleRepository roleRepository,
-            RoleHierarchyImpl contexaRoleHierarchy,
+            BeanFactory beanFactory,
             MessageSource messageSource) {
-        return new RoleHierarchyService(
-                roleHierarchyRepository, roleRepository, contexaRoleHierarchy, messageSource);
+        return new RoleHierarchyService(roleHierarchyRepository, roleRepository,
+                ContexaOwnBeans.roleHierarchyImpl(beanFactory), messageSource);
     }
 }
 

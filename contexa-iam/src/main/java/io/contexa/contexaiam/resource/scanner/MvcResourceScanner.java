@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.resource.scanner;
 
+import java.util.Locale;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexaiam.admin.web.auth.service.SystemRuntimeSettingsService;
 import io.contexa.contexaiam.properties.IamAdminProperties;
@@ -79,7 +80,7 @@ public class MvcResourceScanner implements ResourceScanner {
 
             ManagedResource.HttpMethod httpMethod;
             try {
-                httpMethod = ManagedResource.HttpMethod.valueOf(httpMethodStr.toUpperCase());
+                httpMethod = ManagedResource.HttpMethod.valueOf(httpMethodStr.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
                 httpMethod = ManagedResource.HttpMethod.ANY;
             }
@@ -87,7 +88,7 @@ public class MvcResourceScanner implements ResourceScanner {
             String friendlyName = handlerMethod.getMethod().getName();
             String description = String.format("URL: [%s] %s", httpMethodStr, urlPattern);
 
-            String docsAnchor = String.format("%s_%s", beanType.getSimpleName().toLowerCase().replace("controller", ""), handlerMethod.getMethod().getName().toLowerCase());
+            String docsAnchor = String.format("%s_%s", beanType.getSimpleName().toLowerCase(Locale.ROOT).replace("controller", ""), handlerMethod.getMethod().getName().toLowerCase(Locale.ROOT));
             String apiDocsUrl = String.format("%s#%s", iamAdminProperties.getRestDocsPath(), docsAnchor);
 
             resources.add(ManagedResource.builder()

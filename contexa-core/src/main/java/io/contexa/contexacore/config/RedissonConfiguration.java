@@ -15,19 +15,28 @@
  */
 package io.contexa.contexacore.config;
 
-import java.time.Duration;
-import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
-import org.redisson.Redisson;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.data.redis.RedisConnectionDetails;
 import org.springframework.boot.autoconfigure.data.redis.RedisProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
+import org.springframework.util.StringUtils;
+
+import java.time.Duration;
+
+/**
+ * Contexa's Redisson client, connected the way the application's own Redis is: user name, password, database, TLS, and standalone, sentinel
+ * or cluster as Spring Boot reads them from {@code spring.data.redis.*} (the url form included). It connects when it is first used, so a
+ * Redis that is down when the application starts does not stop the application from starting.
+ */
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
@@ -39,23 +48,74 @@ public class RedissonConfiguration {
 
     @Bean(name = "contexaRedissonClient")
     @ConditionalOnMissingBean(type = "org.redisson.api.RedissonClient")
-    public RedissonClient redissonClient() {
+    public RedissonClient redissonClient(ObjectProvider<RedisConnectionDetails> connectionDetails) {
+        return Redisson.create(configFor(connectionDetails.getIfAvailable(), redisProperties));
+    }
+
+    /** The Redisson configuration for the connection the application describes; {@code details} may be absent, then the properties are used. */
+    static Config configFor(RedisConnectionDetails details, RedisProperties properties) {
+        Duration timeout = properties.getTimeout() != null ? properties.getTimeout() : Duration.ofMillis(5000);
         Config config = new Config();
+        config.setLazyInitialization(true);
+        if (details != null && details.getCluster() != null) {
+            RedisConnectionDetails.Cluster cluster = details.getCluster();
+            String scheme = cluster.getSslBundle() != null ? "rediss" : "redis";
+            var servers = config.useClusterServers().setConnectTimeout((int) timeout.toMillis()).setTimeout(3000).setRetryAttempts(3)
+                    .setUsername(StringUtils.hasText(details.getUsername()) ? details.getUsername() : null)
+                    .setPassword(StringUtils.hasText(details.getPassword()) ? details.getPassword() : null);
+            for (RedisConnectionDetails.Node node : cluster.getNodes()) {
+                servers.addNodeAddress(address(scheme, node.host(), node.port()));
+            }
+        } else if (details != null && details.getSentinel() != null) {
+            RedisConnectionDetails.Sentinel sentinel = details.getSentinel();
+            String scheme = sentinel.getSslBundle() != null ? "rediss" : "redis";
+            var servers = config.useSentinelServers().setMasterName(sentinel.getMaster()).setDatabase(sentinel.getDatabase())
+                    .setConnectTimeout((int) timeout.toMillis()).setTimeout(3000).setRetryAttempts(3)
+                    .setUsername(StringUtils.hasText(sentinel.getUsername()) ? sentinel.getUsername() : null)
+                    .setPassword(StringUtils.hasText(sentinel.getPassword()) ? sentinel.getPassword() : null);
+            for (RedisConnectionDetails.Node node : sentinel.getNodes()) {
+                servers.addSentinelAddress(address(scheme, node.host(), node.port()));
+            }
+        } else {
+            String host;
+            int port;
+            int database;
+            boolean tls;
+            String username;
+            String password;
+            if (details != null && details.getStandalone() != null) {
+                host = details.getStandalone().getHost();
+                port = details.getStandalone().getPort();
+                database = details.getStandalone().getDatabase();
+                tls = details.getStandalone().getSslBundle() != null;
+                username = details.getUsername();
+                password = details.getPassword();
+            } else {
+                host = properties.getHost();
+                port = properties.getPort();
+                database = properties.getDatabase();
+                tls = properties.getSsl().isEnabled();
+                username = properties.getUsername();
+                password = properties.getPassword();
+            }
+            config.useSingleServer()
+                    .setAddress(address(tls ? "rediss" : "redis", host, port))
+                    .setUsername(StringUtils.hasText(username) ? username : null)
+                    .setPassword(StringUtils.hasText(password) ? password : null)
+                    .setDatabase(database)
+                    .setConnectionMinimumIdleSize(2)
+                    .setConnectionPoolSize(10)
+                    .setIdleConnectionTimeout(10000)
+                    .setConnectTimeout((int) timeout.toMillis())
+                    .setTimeout(3000)
+                    .setRetryAttempts(3)
+                    .setPingConnectionInterval(0);
+        }
+        return config;
+    }
 
-        String address = String.format("redis://%s:%d", redisProperties.getHost(), redisProperties.getPort());
-        Duration timeout = redisProperties.getTimeout() != null ? redisProperties.getTimeout() : Duration.ofMillis(5000);
-        config.useSingleServer()
-            .setAddress(address)
-            .setPassword(null)
-            .setDatabase(0)
-            .setConnectionMinimumIdleSize(2)
-            .setConnectionPoolSize(10)
-            .setIdleConnectionTimeout(10000)
-            .setConnectTimeout((int) timeout.toMillis())
-            .setTimeout(3000)
-            .setRetryAttempts(3)
-            .setPingConnectionInterval(0);
-
-        return Redisson.create(config);
+    /** The port is written as text, never formatted: a default locale with other digits must not change an address. */
+    private static String address(String scheme, String host, int port) {
+        return scheme + "://" + host + ":" + port;
     }
 }

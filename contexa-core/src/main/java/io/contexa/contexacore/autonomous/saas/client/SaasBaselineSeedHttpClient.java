@@ -32,9 +32,7 @@ public class SaasBaselineSeedHttpClient {
         this(
                 properties,
                 accessTokenProvider,
-                RestClient.builder()
-                        .baseUrl(trimTrailingSlash(properties.getEndpoint()))
-                        .build());
+                SaasRestClients.create(trimTrailingSlash(properties.getEndpoint())));
     }
 
     SaasBaselineSeedHttpClient(

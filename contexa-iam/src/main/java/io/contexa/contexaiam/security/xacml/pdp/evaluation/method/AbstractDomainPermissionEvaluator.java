@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
+import java.util.Locale;
 import io.contexa.contexacommon.security.authority.PermissionAuthority;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
@@ -36,7 +37,7 @@ public abstract class AbstractDomainPermissionEvaluator implements DomainPermiss
     );
 
     static List<String> resolveCrudSynonyms(String action) {
-        String upper = action.toUpperCase();
+        String upper = action.toUpperCase(Locale.ROOT);
         for (List<String> group : CRUD_GROUPS) {
             if (group.contains(upper)) {
                 return group;
@@ -61,7 +62,7 @@ public abstract class AbstractDomainPermissionEvaluator implements DomainPermiss
         if (permission == null) {
             return false;
         }
-        return permission.toUpperCase().startsWith(domain() + "_");
+        return permission.toUpperCase(Locale.ROOT).startsWith(domain() + "_");
     }
 
     @Override
@@ -116,14 +117,14 @@ public abstract class AbstractDomainPermissionEvaluator implements DomainPermiss
             return true;
         }
 
-        String permStr = permission.toString().toUpperCase();
-        String domainPrefix = domain().toUpperCase() + "_";
+        String permStr = permission.toString().toUpperCase(Locale.ROOT);
+        String domainPrefix = domain().toUpperCase(Locale.ROOT) + "_";
 
         String action = permStr.startsWith(domainPrefix)
                 ? permStr.substring(domainPrefix.length())
                 : permStr;
 
-        String domainUpper = domain().toUpperCase();
+        String domainUpper = domain().toUpperCase(Locale.ROOT);
         List<String> synonyms = resolveCrudSynonyms(action);
 
         return auth.getAuthorities().stream()
@@ -131,7 +132,7 @@ public abstract class AbstractDomainPermissionEvaluator implements DomainPermiss
                 .map(PermissionAuthority.class::cast)
                 .filter(pa -> "METHOD".equalsIgnoreCase(pa.getTargetType()))
                 .anyMatch(pa -> {
-                    String authority = pa.getAuthority().toUpperCase();
+                    String authority = pa.getAuthority().toUpperCase(Locale.ROOT);
                     return synonyms.stream().anyMatch(authority::contains)
                             && authority.contains(domainUpper);
                 });

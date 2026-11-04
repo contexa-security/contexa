@@ -283,7 +283,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
                         "' are not of type AuthenticationProcessingOptions. Actual: " + (stepOptionsObject != null ? stepOptionsObject.getClass().getName() : "null"));
             }
             try {
-                AuthType factorType = AuthType.valueOf(step.getType().toUpperCase());
+                AuthType factorType = AuthType.valueOf(step.getType().toUpperCase(Locale.ROOT));
                 factorOptionsMap.put(factorType, factorOption);
             } catch (IllegalArgumentException e) {
                 throw new DslConfigurationException("Invalid AuthType string for MFA factor stepConfig: " + step.getType(), e);

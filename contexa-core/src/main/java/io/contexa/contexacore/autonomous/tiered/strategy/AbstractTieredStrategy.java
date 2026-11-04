@@ -499,7 +499,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         }
         ZeroTrustAction zta = ZeroTrustAction.fromString(action);
         if (zta == ZeroTrustAction.ESCALATE && action != null && !action.isBlank()) {
-            String upper = action.trim().toUpperCase();
+            String upper = action.trim().toUpperCase(Locale.ROOT);
             if (!ZeroTrustAction.ESCALATE.name().equals(upper) && !"E".equals(upper)) {
                 log.error("[{}] Unknown action '{}' from LLM, converting to ESCALATE",
                         getLayerName(), action);

@@ -9,6 +9,9 @@ import org.springframework.context.ApplicationContext;
 
 import java.util.List;
 
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -41,6 +44,20 @@ class MethodResourceScannerTest {
         MethodResourceScanner scanner = new MethodResourceScanner(context, new ObjectMapper(), settings);
 
         assertThat(scanner.scan()).isEmpty();
+    }
+
+    @Test
+    void doesNotMakeTheApplicationsBeansOutsideTheConfiguredPackages() {
+        ApplicationContext context = mock(ApplicationContext.class);
+        SystemRuntimeSettingsService settings = mock(SystemRuntimeSettingsService.class);
+        when(context.getBeanDefinitionNames()).thenReturn(new String[]{"hostsLazyBean"});
+        doReturn(ProbeService.class).when(context).getType("hostsLazyBean", false);
+        when(settings.getResourceScannerBasePackages()).thenReturn(List.of("com.customer.other."));
+
+        MethodResourceScanner scanner = new MethodResourceScanner(context, new ObjectMapper(), settings);
+
+        assertThat(scanner.scan()).isEmpty();
+        verify(context, never()).getBean("hostsLazyBean");
     }
 
     static class ProbeService {

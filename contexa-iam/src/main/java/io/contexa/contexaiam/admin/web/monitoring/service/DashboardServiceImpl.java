@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.monitoring.service;
 
+import java.util.Locale;
 import io.contexa.contexacommon.entity.AuditLog;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.repository.AuditLogRepository;
@@ -285,7 +286,7 @@ public class DashboardServiceImpl implements DashboardService {
             for (Map.Entry<Integer, long[]> entry : hourlyData.entrySet()) {
                 long[] counts = entry.getValue();
                 trends.add(new AccessTrendDto(
-                        String.format("%02d:00", entry.getKey()),
+                        String.format(Locale.ROOT, "%02d:00", entry.getKey()),
                         counts[0],
                         counts[1],
                         counts[0] + counts[1]

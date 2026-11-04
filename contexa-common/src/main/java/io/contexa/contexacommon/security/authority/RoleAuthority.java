@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacommon.security.authority;
 
+import java.util.Locale;
 import io.contexa.contexacommon.entity.Role;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.util.Assert;
@@ -36,7 +37,7 @@ public class RoleAuthority implements GrantedAuthority, Serializable {
         Assert.notNull(role.getId(), "Role ID cannot be null");
         Assert.hasText(role.getRoleName(), "Role name cannot be empty");
 
-        this.authority = role.getRoleName().startsWith("ROLE_") ? role.getRoleName() : ROLE_PREFIX + role.getRoleName().toUpperCase();
+        this.authority = role.getRoleName().startsWith("ROLE_") ? role.getRoleName() : ROLE_PREFIX + role.getRoleName().toUpperCase(Locale.ROOT);
         this.roleId = role.getId();
         this.roleName = role.getRoleName();
     }

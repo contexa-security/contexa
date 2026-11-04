@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.security.xacml.pdp.translator;
 
+import java.util.Locale;
 import org.springframework.core.annotation.Order;
 import org.springframework.expression.spel.ast.MethodReference;
 
@@ -22,7 +23,7 @@ import org.springframework.expression.spel.ast.MethodReference;
 public class AuthenticationFunctionTranslator implements SpelFunctionTranslator {
     @Override
     public boolean supports(String functionName) {
-        return switch (functionName.toLowerCase()) {
+        return switch (functionName.toLowerCase(Locale.ROOT)) {
             case "isauthenticated", "isfullyauthenticated", "isanonymous", "isrememberme" -> true;
             default -> false;
         };
@@ -30,7 +31,7 @@ public class AuthenticationFunctionTranslator implements SpelFunctionTranslator 
 
     @Override
     public ExpressionNode translate(String functionName, MethodReference node) {
-        return switch (functionName.toLowerCase()) {
+        return switch (functionName.toLowerCase(Locale.ROOT)) {
             case "isauthenticated" -> new TerminalNode("Authenticated user", true);
             case "isfullyauthenticated" -> new TerminalNode("Fully authenticated user (not Remember-Me)", true);
             case "isanonymous" -> new TerminalNode("Anonymous user", false);

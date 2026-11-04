@@ -41,6 +41,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.authentication.logout.LogoutFilter;
 import io.contexa.contexaidentity.security.filter.MfaContinuationFilter;
 import io.contexa.contexaidentity.security.filter.MfaStepFilterWrapper;
+import io.contexa.contexaidentity.security.service.ott.ContexaOneTimeTokens;
 import io.contexa.contexaidentity.security.service.ott.EmailOneTimeTokenService;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 
@@ -338,7 +339,7 @@ class MfaAuthenticationAdapterTest {
             when(mfaFlow.getUrlPrefix()).thenReturn(null);
 
             setupCommonBeans(mfaFlow);
-            when(applicationContext.getBean(EmailOneTimeTokenService.class))
+            when(applicationContext.getBean(ContexaOneTimeTokens.BEAN_NAME, ContexaOneTimeTokens.class))
                     .thenThrow(new NoSuchBeanDefinitionException("EmailOneTimeTokenService"));
 
             assertThatCode(() -> adapter.apply(httpSecurity, Collections.emptyList(), stateConfig))

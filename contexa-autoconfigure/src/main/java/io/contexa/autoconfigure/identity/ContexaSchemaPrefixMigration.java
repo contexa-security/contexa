@@ -15,6 +15,7 @@
  */
 package io.contexa.autoconfigure.identity;
 
+import java.util.Locale;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
 
@@ -288,7 +289,7 @@ public final class ContexaSchemaPrefixMigration {
         if (name.length() <= MAX_IDENTIFIER) {
             return name;
         }
-        return name.substring(0, MAX_IDENTIFIER - 9) + "_" + String.format("%08x", name.hashCode());
+        return name.substring(0, MAX_IDENTIFIER - 9) + "_" + String.format(Locale.ROOT, "%08x", name.hashCode());
     }
 
     private static String quote(String identifier) {

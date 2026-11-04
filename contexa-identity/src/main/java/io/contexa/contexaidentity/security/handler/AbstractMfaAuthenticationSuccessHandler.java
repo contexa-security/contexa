@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.handler;
 
+import java.util.Locale;
 import io.contexa.contexacommon.domain.EventTimeZone;
 import java.time.Instant;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
@@ -649,7 +650,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         Map<String, Object> detail = new HashMap<>();
         detail.put("type", factorType);
 
-        switch (factorType.toUpperCase()) {
+        switch (factorType.toUpperCase(Locale.ROOT)) {
             case "MFA_OTT":
                 detail.put("displayName", "Email Verification Code");
                 detail.put("icon", "email");
@@ -787,7 +788,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 String event = challengeFlow
                         ? "ZERO_TRUST_CHALLENGE_VERIFIED (step-up MFA in this session)"
                         : "MFA_LOGIN (multi-factor sign-in)";
-                String record = String.format("%02d:%02d | %s | %s", time.getHour(), time.getMinute(), event, ip);
+                String record = String.format(Locale.ROOT, "%02d:%02d | %s | %s", time.getHour(), time.getMinute(), event, ip);
                 dataStore.addSessionAction(sessionId, record);
             }
         } catch (Exception e) {

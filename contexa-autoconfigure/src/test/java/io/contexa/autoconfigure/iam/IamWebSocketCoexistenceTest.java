@@ -15,6 +15,8 @@
  */
 package io.contexa.autoconfigure.iam;
 
+import org.springframework.boot.LazyInitializationBeanFactoryPostProcessor;
+import io.contexa.autoconfigure.core.scope.ContexaLazyInitializationAutoConfiguration;
 import io.contexa.contexaiam.aiam.config.WebSocketConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import org.junit.jupiter.api.Test;
@@ -126,6 +128,17 @@ class IamWebSocketCoexistenceTest {
             assertThat(context).doesNotHaveBean("clientInboundChannel");
             assertThat(output).doesNotContain("console WebSocket (/ws-soar) is not started");
         });
+    }
+
+    @Test
+    void lazyInitializationOfTheWholeApplicationDoesNotStopTheBroker() {
+        autoConfigured(ApplicationWithNothingOfTheKind.class)
+                .withConfiguration(AutoConfigurations.of(ContexaLazyInitializationAutoConfiguration.class))
+                .withInitializer(context -> context.addBeanFactoryPostProcessor(new LazyInitializationBeanFactoryPostProcessor()))
+                .run(context -> {
+                    assertThat(context).as("the broker's endpoints are registered when the application starts").hasNotFailed();
+                    assertThat(context).hasBean("stompWebSocketHandlerMapping");
+                });
     }
 
     @Configuration(proxyBeanMethods = false)

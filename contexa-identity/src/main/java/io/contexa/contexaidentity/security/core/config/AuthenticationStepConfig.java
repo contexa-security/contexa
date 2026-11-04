@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.core.config;
 
+import java.util.Locale;
 import io.contexa.contexacommon.enums.AuthType;
 import lombok.Getter;
 import lombok.Setter;
@@ -66,7 +67,7 @@ public class AuthenticationStepConfig {
     }
 
     public static String generateId(String flowName, String factorType, int order) {
-        return flowName.toLowerCase() + ":" + factorType.toLowerCase() + ":" + order;
+        return flowName.toLowerCase(Locale.ROOT) + ":" + factorType.toLowerCase(Locale.ROOT) + ":" + order;
     }
 
     @Override

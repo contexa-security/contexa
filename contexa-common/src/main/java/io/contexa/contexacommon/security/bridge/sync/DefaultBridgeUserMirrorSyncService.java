@@ -531,7 +531,7 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
             byte[] digest = messageDigest.digest(value.getBytes(StandardCharsets.UTF_8));
             StringBuilder builder = new StringBuilder(digest.length * 2);
             for (byte b : digest) {
-                builder.append(String.format("%02x", b));
+                builder.append(String.format(Locale.ROOT, "%02x", b));
             }
             return builder.toString();
         } catch (NoSuchAlgorithmException ex) {

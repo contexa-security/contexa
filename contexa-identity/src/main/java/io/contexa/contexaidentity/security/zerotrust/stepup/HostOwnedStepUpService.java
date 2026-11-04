@@ -31,6 +31,7 @@ import io.contexa.contexaidentity.security.zerotrust.ChallengeResolution;
 import io.contexa.contexaidentity.security.zerotrust.HostOwnedStepUp;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.lang.Nullable;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.authentication.ott.GenerateOneTimeTokenRequest;
@@ -78,7 +79,7 @@ import java.util.Locale;
  * user name column. Contexa's mail sender delivers it to the copy's own address.
  */
 @Slf4j
-public class HostOwnedStepUpService implements HostOwnedStepUp {
+public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
 
     /** What the step-up resolves. */
     public enum Purpose { CHALLENGE, BLOCK }
@@ -152,6 +153,18 @@ public class HostOwnedStepUpService implements HostOwnedStepUp {
         this.creationOptionsCodec = creationOptionsCodec;
         this.reauthenticationUrl = reauthenticationUrl != null && !reauthenticationUrl.isBlank()
                 ? reauthenticationUrl : null;
+    }
+
+    /**
+     * The one-time code service of Spring Security starts a scheduler thread (not a daemon) when it is built and stops it only in
+     * {@code destroy()}; this service built it, so it stops it. Otherwise the thread outlives a closed or a failed application context
+     * and the JVM of the application does not end.
+     */
+    @Override
+    public void destroy() throws Exception {
+        if (stepUpCodes instanceof DisposableBean disposable) {
+            disposable.destroy();
+        }
     }
 
     /** The user's situation, or null for an anonymous request or an agent's (an agent answers no factor). */
