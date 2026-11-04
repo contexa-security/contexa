@@ -2375,18 +2375,23 @@ class AbstractTieredStrategyTest {
         SecurityEvent event = pastRecordEvent("event-overtaken");
         AtomicBoolean newerStarted = new AtomicBoolean();
         AtomicBoolean newerRunning = new AtomicBoolean();
-        when(unifiedVectorService.searchSimilar(any(SearchRequest.class))).thenAnswer(invocation -> {
-            if (newerRunning.get()) {
-                return List.of();
-            }
-            if (newerStarted.compareAndSet(false, true)) {
-                newerRunning.set(true);
-                strategy.callSearchRelatedContextBase(event, 3, 0.7d);
-                newerRunning.set(false);
-            }
-            return List.of(pastRecord("older-1"));
-        });
-        authorizeEveryRecord();
+        when(unifiedVectorService.searchSimilar(any(SearchRequest.class)))
+                .thenAnswer(invocation -> newerRunning.get() ? List.of() : List.of(pastRecord("older-1")));
+        // The searches of one event run in parallel: the newer one starts after all of them, where the older one is authorized.
+        when(promptContextAuthorizationService.authorize(
+                any(SecurityEvent.class),
+                any(),
+                ArgumentMatchers.<List<Document>>any()))
+                .thenAnswer(invocation -> {
+                    if (newerStarted.compareAndSet(false, true)) {
+                        newerRunning.set(true);
+                        strategy.callSearchRelatedContextBase(event, 3, 0.7d);
+                        newerRunning.set(false);
+                    }
+                    List<Document> documents = invocation.getArgument(2);
+                    return new AuthorizedPromptContext(documents, documents.size(), documents.size(), 0,
+                            "security_investigation", List.of());
+                });
 
         List<Document> older = strategy.callSearchRelatedContextBase(event, 3, 0.7d);
 
