@@ -179,7 +179,7 @@ class AuthorizationManagerMethodInterceptorTest {
         @DisplayName("SHADOW should proceed and skip duplicate sync LLM decision on actor-session rapid re-entry")
         void shadowSyncProtectableShouldProceedWithoutDuplicateLlmOnRapidReentry() throws Throwable {
             SecurityZeroTrustProperties properties = new SecurityZeroTrustProperties();
-            properties.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+            properties.setMode(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
             interceptor.setSecurityZeroTrustProperties(properties);
             Method method = SyncProtectableService.class.getMethod("protectedMethod");
             when(methodInvocation.getMethod()).thenReturn(method);
@@ -303,7 +303,7 @@ class AuthorizationManagerMethodInterceptorTest {
             when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
             interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
             SecurityZeroTrustProperties enforce = new SecurityZeroTrustProperties();
-            enforce.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            enforce.setMode(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
             interceptor.setSecurityZeroTrustProperties(enforce);
             when(synchronousProtectableDecisionService.asyncGate(methodInvocation, authentication))
                     .thenReturn(SynchronousProtectableDecisionService.AsyncProtectableGate.restricted(ZeroTrustAction.CHALLENGE));
@@ -322,7 +322,7 @@ class AuthorizationManagerMethodInterceptorTest {
             when(methodInvocation.proceed()).thenReturn("result");
             interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
             SecurityZeroTrustProperties shadow = new SecurityZeroTrustProperties();
-            shadow.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+            shadow.setMode(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
             interceptor.setSecurityZeroTrustProperties(shadow);
             when(synchronousProtectableDecisionService.asyncGate(methodInvocation, authentication))
                     .thenReturn(SynchronousProtectableDecisionService.AsyncProtectableGate.restricted(ZeroTrustAction.CHALLENGE));
@@ -338,7 +338,7 @@ class AuthorizationManagerMethodInterceptorTest {
             when(methodInvocation.proceed()).thenReturn("result");
             interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
             SecurityZeroTrustProperties enforce = new SecurityZeroTrustProperties();
-            enforce.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            enforce.setMode(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
             interceptor.setSecurityZeroTrustProperties(enforce);
             when(synchronousProtectableDecisionService.asyncGate(methodInvocation, authentication))
                     .thenReturn(SynchronousProtectableDecisionService.AsyncProtectableGate.PROCEED);
@@ -353,7 +353,7 @@ class AuthorizationManagerMethodInterceptorTest {
     class AgentRequestsInNumbersTests {
 
         private void enforceWith(SynchronousProtectableDecisionService.AsyncProtectableGate gate,
-                                 SecurityZeroTrustProperties.SecurityMode mode) {
+                                 SecurityZeroTrustProperties.EnforcementMode mode) {
             when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
             interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
             SecurityZeroTrustProperties properties = new SecurityZeroTrustProperties();
@@ -367,7 +367,7 @@ class AuthorizationManagerMethodInterceptorTest {
         void thePassThatLeadsRunsAndPublishesItsEvent() throws Throwable {
             when(methodInvocation.proceed()).thenReturn("result");
             enforceWith(SynchronousProtectableDecisionService.AsyncProtectableGate.PASS_AND_ANALYSE,
-                    SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+                    SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
 
             assertThat(interceptor.invoke(methodInvocation)).isEqualTo("result");
 
@@ -381,7 +381,7 @@ class AuthorizationManagerMethodInterceptorTest {
         void aPassThatFollowsRunsAndPublishesNothing() throws Throwable {
             when(methodInvocation.proceed()).thenReturn("result");
             enforceWith(SynchronousProtectableDecisionService.AsyncProtectableGate.PASS_AND_RECORD,
-                    SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+                    SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
 
             assertThat(interceptor.invoke(methodInvocation)).isEqualTo("result");
 
@@ -394,7 +394,7 @@ class AuthorizationManagerMethodInterceptorTest {
         @DisplayName("a request the analysis has no place for is refused with 429 and never runs")
         void aBusyAnalysisRefusesTheRequestAndTheMethodNeverRuns() throws Throwable {
             enforceWith(SynchronousProtectableDecisionService.AsyncProtectableGate.DECIDE_IN_PLACE,
-                    SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+                    SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
             when(synchronousProtectableDecisionService.analyze(methodInvocation, authentication))
                     .thenThrow(ZeroTrustAccessDeniedException.analysisBusy("ContexaBusinessOperations#readDocument", 10));
 
@@ -412,7 +412,7 @@ class AuthorizationManagerMethodInterceptorTest {
     @DisplayName("A1-5: an agent request with no decision on record at an asynchronous Protectable")
     class UnrecordedAgentRequestTests {
 
-        private void enforceWithGate(SecurityZeroTrustProperties.SecurityMode mode) {
+        private void enforceWithGate(SecurityZeroTrustProperties.EnforcementMode mode) {
             interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
             SecurityZeroTrustProperties properties = new SecurityZeroTrustProperties();
             properties.setMode(mode);
@@ -431,7 +431,7 @@ class AuthorizationManagerMethodInterceptorTest {
         void decidedAllowRuns() throws Throwable {
             when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
             when(methodInvocation.proceed()).thenReturn("result");
-            enforceWithGate(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            enforceWithGate(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
             decided(ZeroTrustAction.ALLOW);
 
             assertThat(interceptor.invoke(methodInvocation)).isEqualTo("result");
@@ -444,7 +444,7 @@ class AuthorizationManagerMethodInterceptorTest {
         @DisplayName("a BLOCK decided in place stops the method")
         void decidedBlockStops() throws Throwable {
             when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
-            enforceWithGate(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            enforceWithGate(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
             decided(ZeroTrustAction.BLOCK);
 
             assertThatThrownBy(() -> interceptor.invoke(methodInvocation))
@@ -457,7 +457,7 @@ class AuthorizationManagerMethodInterceptorTest {
         @DisplayName("when the model is unavailable the technical fallback (ESCALATE) answers with 423, never a pass")
         void technicalFallbackAnswersWithLocked() throws Throwable {
             when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
-            enforceWithGate(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            enforceWithGate(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
             decided(ZeroTrustAction.ESCALATE);
 
             assertThatThrownBy(() -> interceptor.invoke(methodInvocation))
@@ -472,7 +472,7 @@ class AuthorizationManagerMethodInterceptorTest {
         @DisplayName("an analysis that leaves no decision answers that analysis is required (503), never a pass")
         void noDecisionAnswersAnalysisRequired() throws Throwable {
             when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
-            enforceWithGate(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            enforceWithGate(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
             decided(ZeroTrustAction.PENDING_ANALYSIS);
 
             assertThatThrownBy(() -> interceptor.invoke(methodInvocation))
@@ -485,7 +485,7 @@ class AuthorizationManagerMethodInterceptorTest {
         @DisplayName("a request while the session's analysis is in progress waits instead of running undecided")
         void rapidReentryWaits() throws Throwable {
             when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(false);
-            enforceWithGate(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            enforceWithGate(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
 
             assertThatThrownBy(() -> interceptor.invoke(methodInvocation))
                     .isInstanceOfSatisfying(ZeroTrustAccessDeniedException.class,
@@ -499,7 +499,7 @@ class AuthorizationManagerMethodInterceptorTest {
         void shadowObservesAndRuns() throws Throwable {
             when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
             when(methodInvocation.proceed()).thenReturn("result");
-            enforceWithGate(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+            enforceWithGate(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
             decided(ZeroTrustAction.BLOCK);
 
             assertThat(interceptor.invoke(methodInvocation)).isEqualTo("result");
@@ -513,7 +513,7 @@ class AuthorizationManagerMethodInterceptorTest {
             when(methodInvocation.proceed()).thenReturn("result");
             interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
             SecurityZeroTrustProperties enforce = new SecurityZeroTrustProperties();
-            enforce.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            enforce.setMode(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
             interceptor.setSecurityZeroTrustProperties(enforce);
             when(synchronousProtectableDecisionService.asyncGate(methodInvocation, authentication))
                     .thenReturn(SynchronousProtectableDecisionService.AsyncProtectableGate.PROCEED);
@@ -532,7 +532,7 @@ class AuthorizationManagerMethodInterceptorTest {
         void businessExceptionIsAnExecutionFailure() throws Throwable {
             when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
             SecurityZeroTrustProperties enforce = new SecurityZeroTrustProperties();
-            enforce.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            enforce.setMode(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
             interceptor.setSecurityZeroTrustProperties(enforce);
             when(methodInvocation.proceed()).thenThrow(new IllegalArgumentException("document not found"));
 
@@ -549,7 +549,7 @@ class AuthorizationManagerMethodInterceptorTest {
         void policyDenialIsRecorded() throws Throwable {
             when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
             SecurityZeroTrustProperties enforce = new SecurityZeroTrustProperties();
-            enforce.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            enforce.setMode(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
             interceptor.setSecurityZeroTrustProperties(enforce);
             interceptor.setAuthorizationDenialRecorder(authorizationDenialRecorder);
             doThrow(new AuthorizationDeniedException("role cannot read customers"))
@@ -591,7 +591,7 @@ class AuthorizationManagerMethodInterceptorTest {
             interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
 
             SecurityZeroTrustProperties disabled = new SecurityZeroTrustProperties();
-            disabled.setMode(SecurityZeroTrustProperties.SecurityMode.DISABLED);
+            disabled.setMode(SecurityZeroTrustProperties.EnforcementMode.DISABLED);
             interceptor.setSecurityZeroTrustProperties(disabled);
 
             Object result = interceptor.invoke(methodInvocation);
@@ -613,7 +613,7 @@ class AuthorizationManagerMethodInterceptorTest {
             interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
 
             SecurityZeroTrustProperties observe = new SecurityZeroTrustProperties();
-            observe.setMode(SecurityZeroTrustProperties.SecurityMode.OBSERVE);
+            observe.setMode(SecurityZeroTrustProperties.EnforcementMode.OBSERVE);
             interceptor.setSecurityZeroTrustProperties(observe);
 
             Object result = interceptor.invoke(methodInvocation);
@@ -635,7 +635,7 @@ class AuthorizationManagerMethodInterceptorTest {
             interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
 
             SecurityZeroTrustProperties enforce = new SecurityZeroTrustProperties();
-            enforce.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            enforce.setMode(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
             interceptor.setSecurityZeroTrustProperties(enforce);
 
             SynchronousProtectableDecisionService.SyncDecisionResult blockResult =
@@ -661,7 +661,7 @@ class AuthorizationManagerMethodInterceptorTest {
             interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
 
             SecurityZeroTrustProperties shadow = new SecurityZeroTrustProperties();
-            shadow.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+            shadow.setMode(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
             interceptor.setSecurityZeroTrustProperties(shadow);
 
             SynchronousProtectableDecisionService.SyncDecisionResult blockResult =
@@ -687,7 +687,7 @@ class AuthorizationManagerMethodInterceptorTest {
             interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
 
             SecurityZeroTrustProperties shadow = new SecurityZeroTrustProperties();
-            shadow.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+            shadow.setMode(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
             interceptor.setSecurityZeroTrustProperties(shadow);
 
             SynchronousProtectableDecisionService.SyncDecisionResult allowResult =
@@ -713,7 +713,7 @@ class AuthorizationManagerMethodInterceptorTest {
             interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
 
             SecurityZeroTrustProperties shadow = new SecurityZeroTrustProperties();
-            shadow.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+            shadow.setMode(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
             interceptor.setSecurityZeroTrustProperties(shadow);
 
             when(synchronousProtectableDecisionService.analyze(methodInvocation, authentication))
@@ -737,7 +737,7 @@ class AuthorizationManagerMethodInterceptorTest {
             interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
 
             SecurityZeroTrustProperties enforce = new SecurityZeroTrustProperties();
-            enforce.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            enforce.setMode(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
             interceptor.setSecurityZeroTrustProperties(enforce);
 
             when(synchronousProtectableDecisionService.analyze(methodInvocation, authentication))
@@ -761,7 +761,7 @@ class AuthorizationManagerMethodInterceptorTest {
             when(methodInvocation.proceed()).thenReturn("protected");
 
             SecurityZeroTrustProperties shadow = new SecurityZeroTrustProperties();
-            shadow.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+            shadow.setMode(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
             interceptor.setSecurityZeroTrustProperties(shadow);
 
             Object result = interceptor.invoke(methodInvocation);
@@ -780,7 +780,7 @@ class AuthorizationManagerMethodInterceptorTest {
             when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
 
             SecurityZeroTrustProperties enforce = new SecurityZeroTrustProperties();
-            enforce.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            enforce.setMode(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
             interceptor.setSecurityZeroTrustProperties(enforce);
 
             assertThatThrownBy(() -> interceptor.invoke(methodInvocation))

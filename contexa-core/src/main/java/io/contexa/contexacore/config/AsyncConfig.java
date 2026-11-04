@@ -110,10 +110,9 @@ public class AsyncConfig {
 
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
-        executor.initialize();
-        if (settings.isPrestartCoreThreads()) {
-            executor.getThreadPoolExecutor().prestartAllCoreThreads();
-        }
+        // Not initialized here: Spring does it in afterPropertiesSet, and a pool started here would be replaced by a second one,
+        // its prestarted threads (not daemons) owned by nobody and holding the JVM after a failed start-up.
+        executor.setPrestartCoreThreads(settings.isPrestartCoreThreads());
         return executor;
     }
 
@@ -129,6 +128,12 @@ public class AsyncConfig {
     private static final class ScalingThreadPoolTaskExecutor extends ThreadPoolTaskExecutor {
 
         private ScalingQueue scalingQueue;
+
+        private boolean prestartCoreThreads;
+
+        private void setPrestartCoreThreads(boolean prestartCoreThreads) {
+            this.prestartCoreThreads = prestartCoreThreads;
+        }
 
         @Override
         protected BlockingQueue<Runnable> createQueue(int queueCapacity) {
@@ -146,6 +151,9 @@ public class AsyncConfig {
             ExecutorService executorService = super.initializeExecutor(threadFactory, rejectedExecutionHandler);
             if (this.scalingQueue != null) {
                 this.scalingQueue.setExecutor(getThreadPoolExecutor());
+            }
+            if (this.prestartCoreThreads) {
+                getThreadPoolExecutor().prestartAllCoreThreads();
             }
             return executorService;
         }

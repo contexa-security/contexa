@@ -16,7 +16,6 @@
 package io.contexa.autoconfigure.iam;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import io.contexa.contexacore.autonomous.service.AuthorizationDenialRecorder;
 import io.contexa.contexacommon.annotation.Protectable;
@@ -44,26 +43,20 @@ import io.contexa.contexaiam.security.xacml.pep.DelegatorAuthority;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
-import org.springframework.boot.web.reactive.function.client.WebClientCustomizer;
-import org.springframework.cache.CacheManager;
 import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Role;
-import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.orm.jpa.SharedEntityManagerCreator;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import reactor.netty.http.client.HttpClient;
-import reactor.netty.resources.ConnectionProvider;
 
 @Slf4j
 @AutoConfiguration
+@Import(IamInfrastructureContexaOwnedConfiguration.class)
 public class IamInfrastructureAutoConfiguration {
 
     @Bean(name = "contexaJpaQueryFactory")
@@ -82,14 +75,6 @@ public class IamInfrastructureAutoConfiguration {
     @ConditionalOnMissingBean(name = "contexaPasswordEncoder")
     public HeldBean<PasswordEncoder> passwordEncoder() {
         return new HeldBean<>(PasswordEncoderFactories.createDelegatingPasswordEncoder());
-    }
-
-    @Bean(name = "contexaWebSecurityCustomizer")
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
-    public WebSecurityCustomizer webSecurityCustomizer() {
-        return (web) -> web.ignoring()
-                .requestMatchers(PathRequest.toStaticResources().atCommonLocations());
     }
 
     @Bean(name = "contexaProtectableRapidReentryGuard")

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacommon.security.bridge;
 
+import io.contexa.contexacommon.operating.OwnershipBehaviour;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
@@ -55,8 +56,8 @@ public class BridgeProperties {
         return enabled;
     }
 
-    public boolean isContexaOwned() {
-        return ownership == SecurityOwnershipMode.CONTEXA_OWNED;
+    public OwnershipBehaviour ownershipBehaviour() {
+        return OwnershipBehaviour.of(ownership);
     }
 
     @Data

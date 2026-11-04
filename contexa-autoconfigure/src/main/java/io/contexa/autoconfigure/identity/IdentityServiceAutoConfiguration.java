@@ -17,21 +17,19 @@ package io.contexa.autoconfigure.identity;
 
 import org.springframework.beans.factory.ObjectProvider;
 import io.contexa.contexacommon.properties.AuthContextProperties;
-import io.contexa.contexaidentity.controller.MfaConfigController;
-import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.service.ott.ContexaOneTimeTokens;
 import io.contexa.contexaidentity.security.service.ott.EmailOneTimeTokenService;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
 import io.contexa.contexaidentity.security.service.ott.MagicLinkHandler;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -40,6 +38,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @AutoConfiguration
 @ConditionalOnBean(PlatformConfig.class)
 @ConditionalOnProperty(prefix = "contexa.identity.service", name = "enabled", havingValue = "true", matchIfMissing = true)
+@Import(IdentityServiceContexaOwnedConfiguration.class)
 public class IdentityServiceAutoConfiguration {
 
     public IdentityServiceAutoConfiguration() {
@@ -88,15 +87,5 @@ public class IdentityServiceAutoConfiguration {
         return new MagicLinkHandler();
     }
 
-    /** The MFA SDK's endpoint, outside Contexa's own path space ({@code /api/mfa/config}): only where Contexa owns the sign-in and its MFA flows. */
-    @Bean(name = "contexaMfaConfigController")
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
-    @ConditionalOnBean(AuthUrlProvider.class)
-    public MfaConfigController mfaConfigController(AuthUrlProvider contexaAuthUrlProvider,
-                                                     MfaFlowUrlRegistry contexaMfaFlowUrlRegistry,
-                                                     MfaStateMachineIntegrator stateMachineIntegrator) {
-        return new MfaConfigController(contexaAuthUrlProvider, contexaMfaFlowUrlRegistry, stateMachineIntegrator);
-    }
 }
 

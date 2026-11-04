@@ -67,7 +67,7 @@ final class FormerTableNames {
     private static Map<String, String> load() {
         Map<String, String> names = new HashMap<>();
         try {
-            for (Resource resource : new PathMatchingResourcePatternResolver().getResources(PATTERN)) {
+            for (Resource resource : new PathMatchingResourcePatternResolver(FormerTableNames.class.getClassLoader()).getResources(PATTERN)) {
                 try (BufferedReader reader = new BufferedReader(
                         new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
                     String line;

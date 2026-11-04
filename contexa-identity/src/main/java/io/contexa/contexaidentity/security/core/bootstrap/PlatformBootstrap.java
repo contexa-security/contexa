@@ -53,7 +53,7 @@ public class PlatformBootstrap implements InitializingBean {
             throw e;
         }
 
-        if (bridgeProperties != null && !bridgeProperties.isContexaOwned()) {
+        if (bridgeProperties != null && !bridgeProperties.ownershipBehaviour().buildsSecurityChain()) {
             log.info("Skipping Contexa-owned authentication chain bootstrap in HOST_OWNED mode");
             return;
         }

@@ -1,6 +1,7 @@
 /* Copyright 2026 The Contexa Project */
 package io.contexa.contexacommon.annotation;
 
+import io.contexa.contexacommon.operating.ContexaOperatingProfileException;
 import io.contexa.contexacommon.security.bridge.AuthObjectLocation;
 import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import io.contexa.contexacommon.security.bridge.SecurityMode;
@@ -12,6 +13,7 @@ import java.util.Map;
 import org.springframework.core.type.AnnotationMetadata;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AiSecurityImportSelectorTest {
 
@@ -53,45 +55,55 @@ class AiSecurityImportSelectorTest {
     }
 
     @Test
-    void shouldPreserveExplicitOwnershipOverrides() {
+    void aFullApplicationThatSaysItKeepsItsSignInDoesNotStart() {
         StandardEnvironment environment = new StandardEnvironment();
         environment.getPropertySources().addFirst(new MapPropertySource("explicitOwnership",
-                Map.of(
-                        AiSecurityImportSelector.PROP_BRIDGE_OWNERSHIP,
-                        SecurityOwnershipMode.HOST_OWNED.name(),
-                        AiSecurityImportSelector.PROP_CONTEXA_OWNED_APPLICATION,
-                        false)));
+                Map.of(AiSecurityImportSelector.PROP_BRIDGE_OWNERSHIP, SecurityOwnershipMode.HOST_OWNED.name())));
         AiSecurityImportSelector selector = new AiSecurityImportSelector();
         selector.setEnvironment(environment);
-        selector.selectImports(AnnotationMetadata.introspect(FullModeApplication.class));
 
-        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_BRIDGE_OWNERSHIP))
-                .isEqualTo(SecurityOwnershipMode.HOST_OWNED.name());
-        assertThat(environment.getProperty(
-                AiSecurityImportSelector.PROP_CONTEXA_OWNED_APPLICATION, Boolean.class))
-                .isFalse();
+        assertThatThrownBy(() -> selector.selectImports(AnnotationMetadata.introspect(FullModeApplication.class)))
+                .isInstanceOf(ContexaOperatingProfileException.class);
+        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_MODE)).isNull();
     }
 
     @Test
-    void shouldPreserveExplicitContexaOwnershipForSandboxMode() {
+    void aSandboxApplicationThatGivesContexaItsSignInDoesNotStart() {
         StandardEnvironment environment = new StandardEnvironment();
         environment.getPropertySources().addFirst(new MapPropertySource("explicitOwnership",
-                Map.of(
-                        AiSecurityImportSelector.PROP_BRIDGE_OWNERSHIP,
-                        SecurityOwnershipMode.CONTEXA_OWNED.name(),
-                        AiSecurityImportSelector.PROP_CONTEXA_OWNED_APPLICATION,
-                        true)));
+                Map.of(AiSecurityImportSelector.PROP_BRIDGE_OWNERSHIP, SecurityOwnershipMode.CONTEXA_OWNED.name())));
         AiSecurityImportSelector selector = new AiSecurityImportSelector();
         selector.setEnvironment(environment);
+
+        assertThatThrownBy(() -> selector.selectImports(AnnotationMetadata.introspect(DefaultSandboxApplication.class)))
+                .isInstanceOf(ContexaOperatingProfileException.class);
+    }
+
+    @Test
+    void aSandboxApplicationWithoutADatabaseOfItsOwnKeepsSayingSo() {
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(new MapPropertySource("explicitData",
+                Map.of(AiSecurityImportSelector.PROP_CONTEXA_OWNED_APPLICATION, true)));
+        AiSecurityImportSelector selector = new AiSecurityImportSelector(unused -> null);
+        selector.setEnvironment(environment);
+
         selector.selectImports(AnnotationMetadata.introspect(DefaultSandboxApplication.class));
 
-        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_MODE))
-                .isEqualTo(SecurityMode.SANDBOX.name());
-        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_BRIDGE_OWNERSHIP))
-                .isEqualTo(SecurityOwnershipMode.CONTEXA_OWNED.name());
-        assertThat(environment.getProperty(
-                AiSecurityImportSelector.PROP_CONTEXA_OWNED_APPLICATION, Boolean.class))
-                .isTrue();
+        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_BRIDGE_OWNERSHIP)).isEqualTo(SecurityOwnershipMode.HOST_OWNED.name());
+        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_CONTEXA_OWNED_APPLICATION, Boolean.class)).isTrue();
+    }
+
+    @Test
+    void whatIsPublishedIsTheOneSpellingWhateverTheApplicationWrote() {
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(new MapPropertySource("relaxedOwnership",
+                Map.of(AiSecurityImportSelector.PROP_BRIDGE_OWNERSHIP, "contexa-owned")));
+        AiSecurityImportSelector selector = new AiSecurityImportSelector();
+        selector.setEnvironment(environment);
+
+        selector.selectImports(AnnotationMetadata.introspect(FullModeApplication.class));
+
+        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_BRIDGE_OWNERSHIP)).isEqualTo(SecurityOwnershipMode.CONTEXA_OWNED.name());
     }
 
     @Test
@@ -111,6 +123,48 @@ class AiSecurityImportSelectorTest {
         StandardEnvironment untouched = new StandardEnvironment();
         assertThat(full.getProperty(AiSecurityImportSelector.PROP_MODE)).isEqualTo("FULL");
         assertThat(untouched.getProperty(AiSecurityImportSelector.PROP_MODE)).isNull();
+    }
+
+    @Test
+    void anApplicationThatKeepsItsSignInStartsWithContexaOffWhenTheDatabaseIsDown() {
+        StandardEnvironment environment = new StandardEnvironment();
+        AiSecurityImportSelector selector = new AiSecurityImportSelector(unused -> "connection refused");
+        selector.setEnvironment(environment);
+
+        assertThat(selector.selectImports(AnnotationMetadata.introspect(DefaultSandboxApplication.class))).isEmpty();
+        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_MODE)).isNull();
+    }
+
+    @Test
+    void anApplicationWhoseSignInContexaOwnsDoesNotAskTheDatabaseAndFailsAsItAlwaysDid() {
+        StandardEnvironment environment = new StandardEnvironment();
+        AiSecurityImportSelector selector = new AiSecurityImportSelector(unused -> {
+            throw new AssertionError("the database must not be asked");
+        });
+        selector.setEnvironment(environment);
+
+        assertThat(selector.selectImports(AnnotationMetadata.introspect(FullModeApplication.class))).isNotEmpty();
+    }
+
+    @Test
+    void theOwnershipIsReadAsTheBridgeReadsItHoweverItIsWritten() {
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(new MapPropertySource("explicitOwnership",
+                Map.of(AiSecurityImportSelector.PROP_BRIDGE_OWNERSHIP, "contexa-owned")));
+        AiSecurityImportSelector selector = new AiSecurityImportSelector(unused -> "connection refused");
+        selector.setEnvironment(environment);
+
+        assertThat(selector.selectImports(AnnotationMetadata.introspect(FullModeApplication.class))).isNotEmpty();
+    }
+
+    @Test
+    void aDatabaseThatAnswersChangesNothing() {
+        StandardEnvironment environment = new StandardEnvironment();
+        AiSecurityImportSelector selector = new AiSecurityImportSelector(unused -> null);
+        selector.setEnvironment(environment);
+
+        assertThat(selector.selectImports(AnnotationMetadata.introspect(DefaultSandboxApplication.class))).isNotEmpty();
+        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_MODE)).isEqualTo(SecurityMode.SANDBOX.name());
     }
 
     @Test

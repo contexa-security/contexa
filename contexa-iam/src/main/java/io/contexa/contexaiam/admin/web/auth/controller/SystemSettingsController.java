@@ -79,7 +79,7 @@ public class SystemSettingsController {
         model.addAttribute("roles", systemSettingsService.getDefaultRoleOptions());
         model.addAttribute("algorithms", CombiningAlgorithm.values());
         model.addAttribute("noPolicyDecisionOptions", NoPolicyDecision.values());
-        model.addAttribute("zeroTrustModeOptions", SecurityZeroTrustProperties.SecurityMode.values());
+        model.addAttribute("zeroTrustModeOptions", SecurityZeroTrustProperties.EnforcementMode.values());
         return "contexa/admin/system-settings";
     }
 

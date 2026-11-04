@@ -25,6 +25,7 @@ import io.contexa.contexacommon.security.bridge.handoff.ContexaAuthBridgeHandler
 import io.contexa.contexacommon.security.bridge.handoff.DefaultContexaAuthBridgeHandler;
 import io.contexa.contexacommon.security.bridge.resolver.*;
 import io.contexa.contexacommon.security.bridge.runtime.BridgeRuntimeSupport;
+import io.contexa.contexacommon.security.bridge.runtime.RequestPathDatabaseGuard;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextCollector;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncService;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
@@ -197,8 +198,16 @@ public class AiBridgeConfiguration {
     @ConditionalOnMissingBean
     public BridgeRuntimeSupport bridgeRuntimeSupport(
             BridgeProperties properties,
-            ObjectProvider<BridgeUserMirrorSyncService> bridgeUserMirrorSyncService) {
-        return new BridgeRuntimeSupport(properties, bridgeUserMirrorSyncService.getIfAvailable());
+            ObjectProvider<BridgeUserMirrorSyncService> bridgeUserMirrorSyncService,
+            RequestPathDatabaseGuard contexaRequestPathDatabaseGuard) {
+        return new BridgeRuntimeSupport(properties, bridgeUserMirrorSyncService.getIfAvailable(), contexaRequestPathDatabaseGuard);
+    }
+
+    /** An outage of Contexa's database must not hold the application's request threads. */
+    @Bean(name = "contexaRequestPathDatabaseGuard")
+    @ConditionalOnMissingBean
+    public RequestPathDatabaseGuard requestPathDatabaseGuard() {
+        return new RequestPathDatabaseGuard();
     }
 
     @Bean
@@ -262,7 +271,7 @@ public class AiBridgeConfiguration {
             ObjectProvider<SecurityProperties> securityProperties) {
         FilterRegistrationBean<BridgeResolutionFilter> registration = new FilterRegistrationBean<>(contexaBridgeResolutionFilter);
         registration.setName("contexaBridgeResolutionFilter");
-        return HostOwnedEnforcementOrder.bridge(registration, !properties.isContexaOwned(),
+        return HostOwnedEnforcementOrder.bridge(registration, properties.ownershipBehaviour().enforcesFromServletFilters(),
                 HostOwnedEnforcementOrder.securityFilterOrder(securityProperties));
     }
 

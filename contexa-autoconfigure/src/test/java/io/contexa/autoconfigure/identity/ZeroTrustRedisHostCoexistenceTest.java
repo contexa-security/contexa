@@ -23,6 +23,7 @@ import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import io.lettuce.core.resource.ClientResources;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 
@@ -62,7 +63,7 @@ class ZeroTrustRedisHostCoexistenceTest {
             assertThat(context).as("Contexa makes no connection of its own beside the application's")
                     .doesNotHaveBean("contexaRedisConnectionFactory").doesNotHaveBean("contexaClientResources")
                     .doesNotHaveBean("contexaLettuceClientConfiguration");
-            assertThat(context.getBeansOfType(io.lettuce.core.resource.ClientResources.class))
+            assertThat(context.getBeansOfType(ClientResources.class))
                     .as("Spring Boot's own client resources, not Contexa's").hasSize(1);
         });
     }

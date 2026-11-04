@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
+import io.contexa.contexacore.security.ContexaUserStore;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.core.dsl.option.OttOptions;
@@ -54,7 +55,7 @@ public abstract class BaseOttAuthenticationAdapter extends AbstractAuthenticatio
         String loginProcessingUrl = opts.getLoginProcessingUrl();
         PlatformContext platformContext = http.getSharedObject(PlatformContext.class);
         ApplicationContext appContext = platformContext.applicationContext();
-        UserDetailsService userDetailsService = appContext.getBean(UserDetailsService.class);
+        UserDetailsService userDetailsService = ContexaUserStore.of(appContext);
         OneTimeTokenService oneTimeTokenService = appContext.getBean(ContexaOneTimeTokens.BEAN_NAME, ContexaOneTimeTokens.class).service();
 
         http.oneTimeTokenLogin(ott -> {

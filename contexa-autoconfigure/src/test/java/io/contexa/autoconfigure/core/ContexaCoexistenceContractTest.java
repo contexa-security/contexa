@@ -62,9 +62,7 @@ class ContexaCoexistenceContractTest {
             "IamI18nAutoConfiguration#messageSource",                   // the application context's name for its messages
             "IdentityOAuth2AutoConfiguration#authorizationServerSettings",
             "IdentityOAuth2AutoConfiguration#jwkSource",
-            "IdentityOAuth2AutoConfiguration#jwtDecoder",
             "IdentityOAuth2AutoConfiguration#registeredClientRepository",
-            "IdentitySecurityCoreAutoConfiguration#securityFilterChain", // the application's chain, when Contexa owns sign-in
             "CommonRedisAutoConfiguration#stringRedisTemplate",
             "WebSocketConfig#clientInboundChannelExecutor",             // overrides of the message broker's own beans
             "WebSocketConfig#clientOutboundChannelExecutor",
@@ -89,6 +87,11 @@ class ContexaCoexistenceContractTest {
             Map.entry("RoleHierarchy", "contexa"),
             Map.entry("RoleHierarchyImpl", "contexa"),
             Map.entry("OneTimeTokenService", "contexa"),
+            Map.entry("JwtDecoder", "contexa"),
+            Map.entry("ChatModel", "contexa"),
+            Map.entry("EmbeddingModel", "contexa"),
+            Map.entry("ChatClient.Builder", "contexa"),
+            Map.entry("VectorStore", "contexa"),
             Map.entry("DataSource", "contexa"),
             Map.entry("JdbcTemplate", "contexa"),
             Map.entry("JdbcOperations", "contexa"),

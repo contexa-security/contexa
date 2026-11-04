@@ -115,12 +115,16 @@ class OAuth2StateRequestScopeTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void adapterAppliesTheFlowsOauth2Customizer() throws Exception {
         PlatformContext platformContext = mock(PlatformContext.class);
         when(platformContext.applicationContext()).thenReturn(applicationContext);
         when(applicationContext.getBean(ObjectMapper.class)).thenReturn(mock(ObjectMapper.class));
         when(applicationContext.getBean(JsonAuthResponseWriter.class)).thenReturn(mock(JsonAuthResponseWriter.class));
-        when(applicationContext.getBean(JwtDecoder.class)).thenReturn(mock(JwtDecoder.class));
+        ObjectProvider<JwtDecoder> noDecoderOfTheApplication = mock(ObjectProvider.class);
+        when(applicationContext.getBeanProvider(JwtDecoder.class)).thenReturn(noDecoderOfTheApplication);
+        JwtDecoder contexaDecoder = mock(JwtDecoder.class);
+        when(applicationContext.getBean(OAuth2StateAdapter.CONTEXA_JWT_DECODER, JwtDecoder.class)).thenReturn(contexaDecoder);
         Customizer<OAuth2StateConfigurer> customizer = oauth2 -> oauth2.requestScope(OAuth2RequestScope.TOKEN_REQUESTS);
         AuthenticationFlowConfig flow = restFlow("/api/agent/login").withStateConfig(
                 new StateConfig("oauth2", StateType.OAUTH2), customizer);

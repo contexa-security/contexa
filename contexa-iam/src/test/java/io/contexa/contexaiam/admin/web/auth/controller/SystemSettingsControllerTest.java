@@ -138,7 +138,7 @@ class SystemSettingsControllerTest {
                     .securityZeroTrustMode(null)
                     .build());
             when(systemSettingsService.getDefaultRoleOptions()).thenReturn(List.of());
-            controller.setZeroTrustProperties(zeroTrustProperties(SecurityZeroTrustProperties.SecurityMode.ENFORCE));
+            controller.setZeroTrustProperties(zeroTrustProperties(SecurityZeroTrustProperties.EnforcementMode.ENFORCE));
 
             Model model = new ConcurrentModel();
             controller.showSettings(model);
@@ -154,7 +154,7 @@ class SystemSettingsControllerTest {
                     .securityZeroTrustMode("SHADOW")
                     .build());
             when(systemSettingsService.getDefaultRoleOptions()).thenReturn(List.of());
-            controller.setZeroTrustProperties(zeroTrustProperties(SecurityZeroTrustProperties.SecurityMode.ENFORCE));
+            controller.setZeroTrustProperties(zeroTrustProperties(SecurityZeroTrustProperties.EnforcementMode.ENFORCE));
 
             Model model = new ConcurrentModel();
             controller.showSettings(model);
@@ -163,7 +163,7 @@ class SystemSettingsControllerTest {
             assertThat(form.getSecurityZeroTrustMode()).isEqualTo("SHADOW");
         }
 
-        private SecurityZeroTrustProperties zeroTrustProperties(SecurityZeroTrustProperties.SecurityMode mode) {
+        private SecurityZeroTrustProperties zeroTrustProperties(SecurityZeroTrustProperties.EnforcementMode mode) {
             SecurityZeroTrustProperties properties = new SecurityZeroTrustProperties();
             properties.setMode(mode);
             return properties;

@@ -15,6 +15,8 @@
  */
 package io.contexa.autoconfigure.iam.admin;
 
+import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
+import io.contexa.contexacommon.operating.ConditionalOnOwnership;
 import org.springframework.beans.factory.BeanFactory;
 import io.contexa.autoconfigure.core.ContexaOwnBeans;
 import io.contexa.contexacommon.repository.UserRepository;
@@ -27,7 +29,6 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.Ordered;
@@ -68,7 +69,7 @@ import java.util.List;
         "org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration"})
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @ConditionalOnClass(SecurityFilterChain.class)
-@ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "HOST_OWNED")
+@ConditionalOnOwnership(SecurityOwnershipMode.HOST_OWNED)
 public class HostOwnedAdminConsoleAutoConfiguration {
 
     /** The bean name of the console's chain; Contexa's diagnostics leave it out of the application's chains. */

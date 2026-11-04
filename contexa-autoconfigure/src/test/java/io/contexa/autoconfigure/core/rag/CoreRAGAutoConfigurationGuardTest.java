@@ -101,33 +101,33 @@ class CoreRAGAutoConfigurationGuardTest {
     @Test
     @DisplayName("the metadata index is set up at start only when Spring AI initialises the schema (W2-15)")
     void theMetadataIndexIsSetUpOnlyWhenTheSchemaIsInitialised() {
-        contextRunner.withBean(VectorStore.class, () -> mock(VectorStore.class))
-                .withPropertyValues("spring.ai.vectorstore.pgvector.initialize-schema=true")
+        contextRunner.withBean("contexaVectorStore", VectorStore.class, () -> mock(VectorStore.class))
+                .withPropertyValues("contexa.vectorstore.pgvector.initialize-schema=true")
                 .run(context -> assertThat(context).hasBean("contexaPgVectorMetadataIndexInitializer"));
-        contextRunner.withBean(VectorStore.class, () -> mock(VectorStore.class))
-                .withPropertyValues("spring.ai.vectorstore.pgvector.initialize-schema=false")
+        contextRunner.withBean("contexaVectorStore", VectorStore.class, () -> mock(VectorStore.class))
+                .withPropertyValues("contexa.vectorstore.pgvector.initialize-schema=false")
                 .run(context -> assertThat(context).doesNotHaveBean("contexaPgVectorMetadataIndexInitializer"));
     }
 
     @Test
     @DisplayName("the vector service reads past records by the exact pgvector lookup on the configured table (W3-18)")
     void theVectorServiceReadsPastRecordsByTheExactLookupOnTheConfiguredTable() {
-        contextRunner.withBean(VectorStore.class, () -> mock(VectorStore.class))
+        contextRunner.withBean("contexaVectorStore", VectorStore.class, () -> mock(VectorStore.class))
                 .run(context -> {
                     // A store that is not pgvector cannot answer the exact lookup.
                     assertThat(context.getBean(UnifiedVectorService.class).pastRecordQuery())
                             .isInstanceOf(PgVectorPastRecordQuery.class);
                     assertThat(context.getBean(UnifiedVectorService.class).pastRecordQuery().available()).isFalse();
                 });
-        contextRunner.withBean(VectorStore.class, () -> mock(VectorStore.class))
-                .withPropertyValues("spring.ai.vectorstore.pgvector.table-name=not a table")
+        contextRunner.withBean("contexaVectorStore", VectorStore.class, () -> mock(VectorStore.class))
+                .withPropertyValues("contexa.vectorstore.pgvector.table-name=not a table")
                 .run(context -> assertThat(context).hasFailed());
     }
 
     @Test
     @DisplayName("the retry of failed vector stores is on by default, with a bounded in-memory queue (BR-C4)")
     void theStoreRetryIsOnByDefault() {
-        contextRunner.withBean(VectorStore.class, () -> mock(VectorStore.class)).run(context -> {
+        contextRunner.withBean("contexaVectorStore", VectorStore.class, () -> mock(VectorStore.class)).run(context -> {
             VectorStoreRetryProperties retry = context.getBean(VectorStoreRetryProperties.class);
             assertThat(retry.isEnabled()).isTrue();
             assertThat(retry.getQueueSize()).isEqualTo(2000);
@@ -145,7 +145,7 @@ class CoreRAGAutoConfigurationGuardTest {
         VectorStore failingStore = mock(VectorStore.class);
         doThrow(new IllegalStateException("Connection refused")).when(failingStore).add(any());
 
-        contextRunner.withBean(VectorStore.class, () -> failingStore)
+        contextRunner.withBean("contexaVectorStore", VectorStore.class, () -> failingStore)
                 .withPropertyValues("contexa.vectorstore.retry.queue-size=7", "contexa.vectorstore.retry.max-attempts=3",
                         "contexa.vectorstore.retry.max-age=30m", "contexa.vectorstore.retry.initial-delay=2s",
                         "contexa.vectorstore.retry.max-delay=40s", "contexa.vectorstore.retry.batch-size=5")
@@ -163,7 +163,7 @@ class CoreRAGAutoConfigurationGuardTest {
                     assertThat(service.storeFailureStats()).isEqualTo(new StoreFailureStats(1, 1, 0, 0));
                     assertThat(context.getBean(FailedDocumentSink.class).size()).isEqualTo(1);
                 });
-        contextRunner.withBean(VectorStore.class, () -> failingStore)
+        contextRunner.withBean("contexaVectorStore", VectorStore.class, () -> failingStore)
                 .withPropertyValues("contexa.vectorstore.retry.enabled=false")
                 .run(context -> {
                     UnifiedVectorService service = context.getBean(UnifiedVectorService.class);
@@ -181,7 +181,7 @@ class CoreRAGAutoConfigurationGuardTest {
         VectorStore failingStore = mock(VectorStore.class);
         doThrow(new IllegalStateException("Connection refused")).when(failingStore).add(any());
 
-        contextRunner.withBean(VectorStore.class, () -> failingStore)
+        contextRunner.withBean("contexaVectorStore", VectorStore.class, () -> failingStore)
                 .withBean(FailedDocumentSink.class, () -> own)
                 .run(context -> {
                     assertThat(context.getBean(FailedDocumentSink.class)).isSameAs(own);
@@ -199,7 +199,7 @@ class CoreRAGAutoConfigurationGuardTest {
         doThrow(new IllegalStateException("Connection refused")).when(failingStore).add(any());
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
 
-        contextRunner.withBean(VectorStore.class, () -> failingStore)
+        contextRunner.withBean("contexaVectorStore", VectorStore.class, () -> failingStore)
                 .withBean(MeterRegistry.class, () -> registry)
                 .run(context -> {
                     assertThatThrownBy(() -> context.getBean(UnifiedVectorService.class)
@@ -208,7 +208,7 @@ class CoreRAGAutoConfigurationGuardTest {
                     assertThat(registry.get("contexa.vector.store.failed").functionCounter().count()).isEqualTo(1.0);
                     assertThat(registry.get("contexa.vector.store.pending").gauge().value()).isEqualTo(1.0);
                 });
-        contextRunner.withBean(VectorStore.class, () -> failingStore)
+        contextRunner.withBean("contexaVectorStore", VectorStore.class, () -> failingStore)
                 .run(context -> assertThat(context).hasNotFailed());
     }
 
@@ -218,7 +218,7 @@ class CoreRAGAutoConfigurationGuardTest {
         VectorStore failingStore = mock(VectorStore.class);
         doThrow(new IllegalStateException("Connection refused")).when(failingStore).add(any());
 
-        contextRunner.withBean(VectorStore.class, () -> failingStore).run(context -> {
+        contextRunner.withBean("contexaVectorStore", VectorStore.class, () -> failingStore).run(context -> {
             assertThat(context.getBeansOfType(UserStatePurgeContributor.class).values())
                     .extracting(UserStatePurgeContributor::name).contains("pending-vector-stores");
             UnifiedVectorService service = context.getBean(UnifiedVectorService.class);
@@ -233,7 +233,7 @@ class CoreRAGAutoConfigurationGuardTest {
     @DisplayName("vector services are created when VectorStore is available")
     void vectorServicesAreCreatedWhenVectorStoreIsAvailable() {
         contextRunner
-                .withBean(VectorStore.class, () -> mock(VectorStore.class))
+                .withBean("contexaVectorStore", VectorStore.class, () -> mock(VectorStore.class))
                 .run(context -> {
                     assertThat(context).hasSingleBean(BehaviorVectorService.class);
                     assertThat(context).hasSingleBean(UnifiedVectorService.class);
@@ -245,7 +245,7 @@ class CoreRAGAutoConfigurationGuardTest {
     @DisplayName("the behaviour advisor that retrieves the documents of every user is not created unless it is asked for (BR-S7)")
     void theUnfilteredBehaviourAdvisorIsOffByDefault() {
         contextRunner
-                .withBean(VectorStore.class, () -> mock(VectorStore.class))
+                .withBean("contexaVectorStore", VectorStore.class, () -> mock(VectorStore.class))
                 .withBean("contexaBehaviorQueryTransformer", QueryTransformer.class, () -> mock(QueryTransformer.class))
                 .run(context -> assertThat(context).doesNotHaveBean("contexaBehaviorAnalysisRagAdvisor"));
     }
@@ -254,7 +254,7 @@ class CoreRAGAutoConfigurationGuardTest {
     @DisplayName("asked for, the behaviour advisor exists but is never the primary advisor a host gets by type (BR-S7)")
     void theUnfilteredBehaviourAdvisorIsNeverPrimary() {
         contextRunner
-                .withBean(VectorStore.class, () -> mock(VectorStore.class))
+                .withBean("contexaVectorStore", VectorStore.class, () -> mock(VectorStore.class))
                 .withBean("contexaBehaviorQueryTransformer", QueryTransformer.class, () -> mock(QueryTransformer.class))
                 .withPropertyValues("contexa.rag.behavior.shared-advisor-enabled=true")
                 .run(context -> {

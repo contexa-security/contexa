@@ -15,6 +15,8 @@
  */
 package io.contexa.autoconfigure.iam.admin;
 
+import io.contexa.contexacommon.operating.ContexaOperatingProfile;
+import io.contexa.contexacommon.operating.OwnershipBehaviour;
 import org.springframework.beans.factory.BeanFactory;
 import io.contexa.autoconfigure.core.ContexaOwnBeans;
 import io.contexa.contexacommon.repository.BridgeUserProfileRepository;
@@ -60,8 +62,9 @@ public class IamAdminAuthAutoConfiguration {
     @Bean(name = "contexaLoginController")
     @ConditionalOnMissingBean
     public LoginController loginController(Environment environment) {
-        boolean hostOwned = "HOST_OWNED".equalsIgnoreCase(environment.getProperty("contexa.bridge.ownership"));
-        return new LoginController(hostOwned ? LoginController.HOST_OWNED_LOGIN_PROCESSING_URL
+        boolean ownChain = !ContexaOperatingProfile.ownershipUndeclared(environment)
+                && OwnershipBehaviour.of(ContexaOperatingProfile.resolve(environment).ownership()).consoleSignsInOnItsOwnChain();
+        return new LoginController(ownChain ? LoginController.HOST_OWNED_LOGIN_PROCESSING_URL
                 : LoginController.DEFAULT_LOGIN_PROCESSING_URL);
     }
 

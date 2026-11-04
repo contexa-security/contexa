@@ -113,9 +113,9 @@ public class CoreRAGAutoConfiguration {
 
     @Bean(name = "contexaBehaviorVectorService")
     @ConditionalOnMissingBean
-    @ConditionalOnBean(VectorStore.class)
+    @ConditionalOnBean(name = "contexaVectorStore")
     public BehaviorVectorService behaviorVectorService(
-            VectorStore vectorStore,
+            @Qualifier("contexaVectorStore") VectorStore vectorStore,
             @Autowired(required = false) VectorStoreMetrics contexaVectorStoreMetrics,
             ContexaRagProperties ragProperties) {
         return new BehaviorVectorService(vectorStore, contexaVectorStoreMetrics, ragProperties);
@@ -129,9 +129,9 @@ public class CoreRAGAutoConfiguration {
 
     @Bean(name = "contexaBehaviorDocumentRetentionScheduler")
     @ConditionalOnMissingBean
-    @ConditionalOnBean(VectorStore.class)
+    @ConditionalOnBean(name = "contexaVectorStore")
     public BehaviorDocumentRetentionScheduler behaviorDocumentRetentionScheduler(
-            VectorStore vectorStore,
+            @Qualifier("contexaVectorStore") VectorStore vectorStore,
             ContexaRagProperties ragProperties,
             ObjectProvider<VectorStoreCacheLayer> vectorStoreCacheLayer) {
         BehaviorDocumentRetentionScheduler scheduler = new BehaviorDocumentRetentionScheduler(vectorStore, ragProperties);
@@ -141,9 +141,9 @@ public class CoreRAGAutoConfiguration {
 
     @Bean(name = "contexaVectorStoreCacheLayer")
     @ConditionalOnMissingBean
-    @ConditionalOnBean(VectorStore.class)
+    @ConditionalOnBean(name = "contexaVectorStore")
     public VectorStoreCacheLayer vectorStoreCacheLayer(
-            VectorStore vectorStore,
+            @Qualifier("contexaVectorStore") VectorStore vectorStore,
             TieredStrategyProperties tieredStrategyProperties,
             PgVectorStoreProperties pgVectorStoreProperties) {
         return new VectorStoreCacheLayer(vectorStore, tieredStrategyProperties,
@@ -155,12 +155,12 @@ public class CoreRAGAutoConfiguration {
      * that a personal search reads one user's rows directly. A store that is not pgvector has none.
      */
     @Bean(name = "contexaPgVectorMetadataIndexInitializer")
-    @ConditionalOnBean(VectorStore.class)
-    @ConditionalOnProperty(prefix = "spring.ai.vectorstore.pgvector", name = "initialize-schema", havingValue = "true")
-    public SmartInitializingSingleton pgVectorMetadataIndexInitializer(VectorStore vectorStore, Environment environment) {
+    @ConditionalOnBean(name = "contexaVectorStore")
+    @ConditionalOnProperty(prefix = "contexa.vectorstore.pgvector", name = "initialize-schema", havingValue = "true")
+    public SmartInitializingSingleton pgVectorMetadataIndexInitializer(@Qualifier("contexaVectorStore") VectorStore vectorStore, Environment environment) {
         return () -> PgVectorMetadataIndex.ensureFor(vectorStore,
-                environment.getProperty("spring.ai.vectorstore.pgvector.schema-name", "public"),
-                environment.getProperty("spring.ai.vectorstore.pgvector.table-name", "ctxa_vector_store"));
+                environment.getProperty("contexa.vectorstore.pgvector.schema-name", "public"),
+                environment.getProperty("contexa.vectorstore.pgvector.table-name", "ctxa_vector_store"));
     }
 
     /**
@@ -169,14 +169,14 @@ public class CoreRAGAutoConfiguration {
      * pgvector has none to move.
      */
     @Bean(name = "contexaPgVectorVocabularyReindexOnStart")
-    @ConditionalOnBean(VectorStore.class)
+    @ConditionalOnBean(name = "contexaVectorStore")
     @ConditionalOnProperty(prefix = "contexa.rag", name = "vocabulary-reindex-on-start", havingValue = "true",
             matchIfMissing = true)
-    public ApplicationListener<ApplicationReadyEvent> pgVectorVocabularyReindexOnStart(VectorStore vectorStore,
+    public ApplicationListener<ApplicationReadyEvent> pgVectorVocabularyReindexOnStart(@Qualifier("contexaVectorStore") VectorStore vectorStore,
                                                                                        Environment environment) {
         PgVectorVocabularyReindexer reindexer = new PgVectorVocabularyReindexer(vectorStore,
-                environment.getProperty("spring.ai.vectorstore.pgvector.schema-name", "public"),
-                environment.getProperty("spring.ai.vectorstore.pgvector.table-name", "ctxa_vector_store"));
+                environment.getProperty("contexa.vectorstore.pgvector.schema-name", "public"),
+                environment.getProperty("contexa.vectorstore.pgvector.table-name", "ctxa_vector_store"));
         return event -> {
             Thread reindex = new Thread(() -> {
                 try {
@@ -217,11 +217,11 @@ public class CoreRAGAutoConfiguration {
 
     @Bean(name = "contexaUnifiedVectorService")
     @ConditionalOnMissingBean
-    @ConditionalOnBean(VectorStore.class)
+    @ConditionalOnBean(name = "contexaVectorStore")
     public UnifiedVectorService unifiedVectorService(
             PgVectorStoreProperties properties,
             VectorStoreCacheLayer cacheLayer,
-            VectorStore vectorStore,
+            @Qualifier("contexaVectorStore") VectorStore vectorStore,
             @Qualifier("contexaVectorOperationExecutor") ExecutorService contexaVectorOperationExecutor,
             Environment environment,
             VectorStoreRetryProperties retryProperties,
@@ -231,8 +231,8 @@ public class CoreRAGAutoConfiguration {
         UnifiedVectorService service = new UnifiedVectorService(properties, cacheLayer, vectorStore,
                 contexaVectorOperationExecutor,
                 new PgVectorPastRecordQuery(vectorStore,
-                        environment.getProperty("spring.ai.vectorstore.pgvector.schema-name", "public"),
-                        environment.getProperty("spring.ai.vectorstore.pgvector.table-name", "ctxa_vector_store")),
+                        environment.getProperty("contexa.vectorstore.pgvector.schema-name", "public"),
+                        environment.getProperty("contexa.vectorstore.pgvector.table-name", "ctxa_vector_store")),
                 retryProperties, contexaFailedDocumentSink);
         // BR-S2: a stored document names the embedding model as the start-up dimension check resolves it (read at the
         // first store, not at start, so that the check's beans are not created early).
@@ -249,7 +249,7 @@ public class CoreRAGAutoConfiguration {
      */
     @Bean(name = "contexaPendingStoreUserPurgeContributor")
     @ConditionalOnMissingBean(PendingStoreUserPurgeContributor.class)
-    @ConditionalOnBean(VectorStore.class)
+    @ConditionalOnBean(name = "contexaVectorStore")
     public PendingStoreUserPurgeContributor pendingStoreUserPurgeContributor(UnifiedVectorService contexaUnifiedVectorService) {
         return new PendingStoreUserPurgeContributor(contexaUnifiedVectorService);
     }
@@ -290,7 +290,7 @@ public class CoreRAGAutoConfiguration {
 
     @Bean(name = "contexaEmbeddingDimensionConsistencyVerifier")
     @ConditionalOnMissingBean
-    @ConditionalOnBean(VectorStore.class)
+    @ConditionalOnBean(name = "contexaVectorStore")
     public EmbeddingDimensionConsistencyVerifier embeddingDimensionConsistencyVerifier(
             PgVectorStoreProperties properties,
             ContexaLlmSelectionProperties selectionProperties,
@@ -332,10 +332,10 @@ public class CoreRAGAutoConfiguration {
      */
     @Bean(name = "contexaBehaviorAnalysisRagAdvisor")
     @ConditionalOnProperty(prefix = "contexa.rag.behavior", name = "shared-advisor-enabled", havingValue = "true")
-    @ConditionalOnBean(value = VectorStore.class, name = "contexaBehaviorQueryTransformer")
+    @ConditionalOnBean(name = {"contexaVectorStore", "contexaBehaviorQueryTransformer"})
     @ConditionalOnMissingBean(name = "contexaBehaviorAnalysisRagAdvisor")
     public RetrievalAugmentationAdvisor behaviorAnalysisRagAdvisor(
-            VectorStore vectorStore,
+            @Qualifier("contexaVectorStore") VectorStore vectorStore,
             @Qualifier("contexaBehaviorQueryTransformer") QueryTransformer contexaBehaviorQueryTransformer) {
 
         String thirtyDaysAgo = LocalDateTime.now()
@@ -361,10 +361,10 @@ public class CoreRAGAutoConfiguration {
     }
 
     @Bean(name = "contexaRiskAssessmentRagAdvisor")
-    @ConditionalOnBean(value = VectorStore.class, name = "contexaRiskQueryTransformer")
+    @ConditionalOnBean(name = {"contexaVectorStore", "contexaRiskQueryTransformer"})
     @ConditionalOnMissingBean(name = "contexaRiskAssessmentRagAdvisor")
     public RetrievalAugmentationAdvisor riskAssessmentRagAdvisor(
-            VectorStore vectorStore,
+            @Qualifier("contexaVectorStore") VectorStore vectorStore,
             @Qualifier("contexaRiskQueryTransformer") QueryTransformer contexaRiskQueryTransformer) {
 
         FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
@@ -386,10 +386,10 @@ public class CoreRAGAutoConfiguration {
     }
 
     @Bean(name = "contexaPolicyGenerationRagAdvisor")
-    @ConditionalOnBean(value = VectorStore.class, name = "contexaPolicyQueryTransformer")
+    @ConditionalOnBean(name = {"contexaVectorStore", "contexaPolicyQueryTransformer"})
     @ConditionalOnMissingBean(name = "contexaPolicyGenerationRagAdvisor")
     public RetrievalAugmentationAdvisor policyGenerationRagAdvisor(
-            VectorStore vectorStore,
+            @Qualifier("contexaVectorStore") VectorStore vectorStore,
             @Qualifier("contexaPolicyQueryTransformer") QueryTransformer contexaPolicyQueryTransformer) {
 
         FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
@@ -409,9 +409,9 @@ public class CoreRAGAutoConfiguration {
     }
 
     @Bean("contexaBehaviorQueryTransformer")
-    @ConditionalOnBean(ChatClient.Builder.class)
+    @ConditionalOnBean(name = "contexaChatClientBuilder")
     @ConditionalOnMissingBean(name = "contexaBehaviorQueryTransformer")
-    public QueryTransformer behaviorQueryTransformer(ChatClient.Builder contexaChatClientBuilder,
+    public QueryTransformer behaviorQueryTransformer(@Qualifier("contexaChatClientBuilder") ChatClient.Builder contexaChatClientBuilder,
             ObjectProvider<ModelServerGates> modelServerGates,
             @Qualifier("contexaPrimaryChatModel") ObjectProvider<ChatModel> primaryChatModel) {
         return new QueryTransformer() {
@@ -449,9 +449,9 @@ public class CoreRAGAutoConfiguration {
     }
 
     @Bean("contexaRiskQueryTransformer")
-    @ConditionalOnBean(ChatClient.Builder.class)
+    @ConditionalOnBean(name = "contexaChatClientBuilder")
     @ConditionalOnMissingBean(name = "contexaRiskQueryTransformer")
-    public QueryTransformer riskQueryTransformer(ChatClient.Builder contexaChatClientBuilder,
+    public QueryTransformer riskQueryTransformer(@Qualifier("contexaChatClientBuilder") ChatClient.Builder contexaChatClientBuilder,
             ObjectProvider<ModelServerGates> modelServerGates,
             @Qualifier("contexaPrimaryChatModel") ObjectProvider<ChatModel> primaryChatModel) {
         return new QueryTransformer() {
@@ -489,9 +489,9 @@ public class CoreRAGAutoConfiguration {
     }
 
     @Bean("contexaPolicyQueryTransformer")
-    @ConditionalOnBean(ChatClient.Builder.class)
+    @ConditionalOnBean(name = "contexaChatClientBuilder")
     @ConditionalOnMissingBean(name = "contexaPolicyQueryTransformer")
-    public QueryTransformer policyQueryTransformer(ChatClient.Builder contexaChatClientBuilder,
+    public QueryTransformer policyQueryTransformer(@Qualifier("contexaChatClientBuilder") ChatClient.Builder contexaChatClientBuilder,
             ObjectProvider<ModelServerGates> modelServerGates,
             @Qualifier("contexaPrimaryChatModel") ObjectProvider<ChatModel> primaryChatModel) {
         return new QueryTransformer() {
@@ -530,7 +530,7 @@ public class CoreRAGAutoConfiguration {
 
     /** O-1: a query rewrite is a call of the primary chat model's server and passes its gate. */
     private static String throughModelServerGate(ObjectProvider<ModelServerGates> modelServerGates,
-                                                 ObjectProvider<ChatModel> primaryChatModel,
+                                                 @Qualifier("contexaPrimaryChatModel") ObjectProvider<ChatModel> primaryChatModel,
                                                  Supplier<String> call) {
         ModelServerGates gates = modelServerGates.getIfAvailable();
         ChatModel model = primaryChatModel.getIfAvailable();

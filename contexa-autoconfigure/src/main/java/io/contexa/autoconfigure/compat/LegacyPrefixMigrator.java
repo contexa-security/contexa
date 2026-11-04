@@ -73,22 +73,6 @@ public class LegacyPrefixMigrator implements EnvironmentPostProcessor {
         PREFIX_MAP.put("spring.ai.vectorstore.pgvector.", "contexa.vectorstore.pgvector.");
     }
 
-    /**
-     * Reverse alias map: keys defined under the new contexa prefix that must
-     * also be exposed under an external library prefix so third-party
-     * autoconfigurations (Spring AI's PgVectorStoreAutoConfiguration) keep
-     * receiving the same values.
-     *
-     * Without this, a user who migrates to contexa.vectorstore.pgvector.dimensions
-     * would silently leave Spring AI's PgVectorStore bean on its default value,
-     * causing dimension mismatches at query time.
-     */
-    private static final Map<String, String> REVERSE_PREFIX_MAP = new LinkedHashMap<>();
-
-    static {
-        REVERSE_PREFIX_MAP.put("contexa.vectorstore.pgvector.", "spring.ai.vectorstore.pgvector.");
-    }
-
     private static final String ALIAS_SOURCE_NAME = "contexaLegacyPrefixAliases";
 
     @Override
@@ -136,32 +120,6 @@ public class LegacyPrefixMigrator implements EnvironmentPostProcessor {
                     log.error("Contexa legacy property prefix '{}*' detected. Migrate to '{}*'. Aliases will be removed in v0.3.0.",
                             matched, PREFIX_MAP.get(matched));
                     reportedPrefixes.put(matched, Boolean.TRUE);
-                }
-            }
-        }
-
-        // Reverse alias: expose contexa.* keys under the external library prefix
-        // so third-party autoconfigurations keep receiving values after migration.
-        for (PropertySource<?> source : env.getPropertySources()) {
-            if (!(source instanceof EnumerablePropertySource<?> ePs)) {
-                continue;
-            }
-            if (ALIAS_SOURCE_NAME.equals(source.getName())) {
-                continue;
-            }
-
-            for (String name : ePs.getPropertyNames()) {
-                for (Map.Entry<String, String> e : REVERSE_PREFIX_MAP.entrySet()) {
-                    if (!name.startsWith(e.getKey())) {
-                        continue;
-                    }
-                    String tail = name.substring(e.getKey().length());
-                    String externalKey = e.getValue() + tail;
-                    if (env.containsProperty(externalKey)) {
-                        break;
-                    }
-                    aliases.putIfAbsent(externalKey, ePs.getProperty(name));
-                    break;
                 }
             }
         }

@@ -19,7 +19,6 @@ import io.micrometer.observation.ObservationRegistry;
 import org.springframework.ai.embedding.BatchingStrategy;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.TokenCountBatchingStrategy;
-import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.observation.VectorStoreObservationConvention;
 import org.springframework.ai.vectorstore.pgvector.PgVectorStore;
 import org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreProperties;
@@ -30,17 +29,16 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * O-4: Contexa's vector store, on the dedicated Contexa database. Spring AI's PgVectorStore auto-configuration takes the
- * application's default JdbcTemplate; when the application owns sign-in (HOST_OWNED) that is the application's own
- * database, which then fails to start (no vector extension) or silently receives Contexa's decision records. This
- * store is built the same way from the same {@code spring.ai.vectorstore.pgvector.*} settings, only on
- * {@code contexaJdbcTemplate}, ahead of Spring AI's, which then backs off. A VectorStore the application declares
- * itself is left as it is.
+ * O-4: Contexa's vector store, on the dedicated Contexa database, built from Contexa's own keys
+ * ({@code contexa.vectorstore.pgvector.*}). Spring AI's PgVectorStore auto-configuration
+ * takes the application's default JdbcTemplate: its store belongs to the application, and Contexa writes nothing under Spring AI's
+ * keys, so with Spring AI's defaults it creates nothing in the application's database. Contexa's decision records go only to
+ * this store: it is not a default candidate, and Contexa's code names it.
  */
 @AutoConfiguration(
         afterName = {
@@ -53,15 +51,27 @@ import org.springframework.jdbc.core.JdbcTemplate;
         "org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreProperties"
 })
 @ConditionalOnProperty(name = "spring.ai.vectorstore.type", havingValue = "pgvector", matchIfMissing = true)
-@EnableConfigurationProperties(PgVectorStoreProperties.class)
 public class ContexaPgVectorStoreAutoConfiguration {
 
-    @Bean(name = "contexaVectorStore")
-    @ConditionalOnMissingBean(VectorStore.class)
-    @ConditionalOnBean(name = "contexaJdbcTemplate", value = EmbeddingModel.class)
+    /**
+     * Spring AI's settings type, bound from Contexa's keys. Not a default candidate: Spring AI's auto-configuration takes this type for the application's own
+     * store and must find its own bean, bound from its own keys. A value an application wrote under Spring AI's keys for Contexa still arrives here through
+     * the legacy alias of {@code LegacyPrefixMigrator}.
+     */
+    @Bean(name = "contexaVectorStoreSettings", defaultCandidate = false)
+    @ConfigurationProperties(prefix = "contexa.vectorstore.pgvector")
+    public PgVectorStoreProperties contexaVectorStoreSettings() {
+        return new PgVectorStoreProperties();
+    }
+
+    // Contexa always has a vector store of its own, in its own database, and it is not the default one: an application with a pgvector starter keeps
+    // its own auto-configured VectorStore, and the documents of Contexa never go to the application's store.
+    @Bean(name = "contexaVectorStore", defaultCandidate = false)
+    @ConditionalOnMissingBean(name = "contexaVectorStore")
+    @ConditionalOnBean(name = {"contexaJdbcTemplate", "contexaPrimaryEmbeddingModel"})
     public PgVectorStore vectorStore(@Qualifier("contexaJdbcTemplate") JdbcTemplate contexaJdbcTemplate,
-                                     EmbeddingModel contexaEmbeddingModel,
-                                     PgVectorStoreProperties properties,
+                                     @Qualifier("contexaPrimaryEmbeddingModel") EmbeddingModel contexaEmbeddingModel,
+                                     @Qualifier("contexaVectorStoreSettings") PgVectorStoreProperties properties,
                                      ObjectProvider<ObservationRegistry> observationRegistry,
                                      ObjectProvider<VectorStoreObservationConvention> customObservationConvention,
                                      ObjectProvider<BatchingStrategy> batchingStrategy) {

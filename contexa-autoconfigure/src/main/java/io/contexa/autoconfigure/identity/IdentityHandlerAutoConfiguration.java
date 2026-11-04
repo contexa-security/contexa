@@ -15,6 +15,8 @@
  */
 package io.contexa.autoconfigure.identity;
 
+import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
+import io.contexa.contexacommon.operating.ConditionalOnOwnership;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
@@ -35,7 +37,7 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration
 @ConditionalOnBean(PlatformConfig.class)
 @ConditionalOnProperty(prefix = "contexa.identity.handler", name = "enabled", havingValue = "true", matchIfMissing = true)
-@ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
+@ConditionalOnOwnership(SecurityOwnershipMode.CONTEXA_OWNED)
 public class IdentityHandlerAutoConfiguration {
 
     public IdentityHandlerAutoConfiguration() {

@@ -15,6 +15,11 @@
  */
 package io.contexa.autoconfigure.ai;
 
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexacommon.operating.ContexaOperatingProfileException;
+import io.contexa.contexacommon.operating.ContexaOperatingProfile;
+import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
+import io.contexa.autoconfigure.identity.IdentitySecurityCoreContexaOwnedConfiguration;
 import io.contexa.contexacore.security.UnifiedUserDetailsService;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
@@ -27,7 +32,6 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.FilterChainProxy;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.util.matcher.AnyRequestMatcher;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,33 +52,34 @@ import java.util.Map;
 public class OwnershipStartupDiagnostics implements SmartInitializingSingleton {
 
     private final ListableBeanFactory beans;
-    private final boolean contexaOwned;
+    private final ContexaOperatingProfile profile;
 
-    public OwnershipStartupDiagnostics(ListableBeanFactory beans, boolean contexaOwned) {
+    public OwnershipStartupDiagnostics(ListableBeanFactory beans, ContexaOperatingProfile profile) {
         this.beans = beans;
-        this.contexaOwned = contexaOwned;
+        this.profile = profile;
     }
 
     @Override
     public void afterSingletonsInstantiated() {
+        log.info(report(profile, enforcement()));
+        if (profile.declaredDatabaseUnused()) {
+            log.warn("[Contexa] contexa.datasource.isolation.contexa-owned-application=true: the application's "
+                    + "spring.datasource is not used; Contexa's database serves the application.");
+        }
+        if (profile.ownership() == SecurityOwnershipMode.CONTEXA_OWNED) {
+            refuseApplicationChains(beans.getBeansOfType(FilterChainProxy.class).values().stream()
+                    .flatMap(proxy -> proxy.getFilterChains().stream()).toList(), placeholderChain());
+        }
         try {
-            if (contexaOwned) {
-                List<SecurityFilterChain> chains = new ArrayList<>();
-                beans.getBeansOfType(FilterChainProxy.class).values()
-                        .forEach(proxy -> chains.addAll(proxy.getFilterChains()));
-                List<String> shadowed = shadowedApplicationChains(chains);
-                if (!shadowed.isEmpty()) {
-                    log.error("[Contexa] CONTEXA_OWNED: Contexa's security chain takes every request first, so the "
-                            + "application's own chain(s) {} are never reached and their sign-in is not used. For an "
-                            + "application that keeps its own sign-in, use HOST_OWNED (@EnableAISecurity without "
-                            + "mode = FULL, or contexa.bridge.ownership=HOST_OWNED); otherwise remove those chains.",
-                            shadowed);
-                }
+            if (profile.ownership() == SecurityOwnershipMode.CONTEXA_OWNED) {
                 List<String> stores = applicationUserStores(beans.getBeansOfType(UserDetailsService.class));
-                if (!stores.isEmpty()) {
+                if (stores.size() == 1) {
                     log.warn("[Contexa] CONTEXA_OWNED: Contexa's sign-in looks users up in the application's {} "
                             + "instead of Contexa's user store; Contexa's seeded administrator can sign in only if "
                             + "that store has the account.", stores);
+                } else if (stores.size() > 1) {
+                    log.warn("[Contexa] CONTEXA_OWNED: the application has several user stores {}, so Contexa's sign-in "
+                            + "uses Contexa's own unless one of them is marked @Primary.", stores);
                 }
             }
             boolean oneTimeCode = beans.getBeansOfType(PlatformConfig.class).values().stream()
@@ -90,20 +95,48 @@ public class OwnershipStartupDiagnostics implements SmartInitializingSingleton {
         }
     }
 
-    /** The chains after Contexa's chain for every request, in the order the security filter chain proxy tries them. */
-    static List<String> shadowedApplicationChains(List<SecurityFilterChain> chains) {
-        List<String> shadowed = new ArrayList<>();
-        boolean behindContexa = false;
+    private Object placeholderChain() {
+        return beans.containsBean(IdentitySecurityCoreContexaOwnedConfiguration.PLACEHOLDER_CHAIN)
+                ? beans.getBean(IdentitySecurityCoreContexaOwnedConfiguration.PLACEHOLDER_CHAIN) : null;
+    }
+
+    private String enforcement() {
+        SecurityZeroTrustProperties zeroTrust = beans.getBeanProvider(SecurityZeroTrustProperties.class).getIfAvailable();
+        return zeroTrust != null ? zeroTrust.getMode().name() : "none";
+    }
+
+    /** One line at start: how this application runs Contexa. */
+    static String report(ContexaOperatingProfile profile, String enforcement) {
+        return "[Contexa] mode=" + profile.mode() + " ownership=" + profile.ownership()
+                + " data=" + (profile.contexaOwnsApplicationData() ? "contexa" : "application")
+                + " enforcement=" + enforcement;
+    }
+
+    /**
+     * An application that owns a chain keeps its sign-in, and Contexa's chain, which takes every request first, would leave
+     * what that chain protects open. So it does not start. Contexa's own chains and its placeholder, which only keeps Boot's
+     * default chain away, are not the application's, and neither is what {@code web.ignoring()} leaves: a chain without
+     * filters signs nobody in.
+     */
+    static void refuseApplicationChains(List<SecurityFilterChain> chains, Object placeholder) {
+        List<String> application = applicationChains(chains, placeholder);
+        if (!application.isEmpty()) {
+            throw new ContexaOperatingProfileException(
+                    "Contexa owns the sign-in of this application, but the application declares its own security chain(s) " + application
+                            + ". Contexa's chain takes every request first, so they would never run and what they protect would be open.",
+                    "For an application that keeps its sign-in, use @EnableAISecurity without mode = FULL. For a new application "
+                            + "whose sign-in Contexa owns, remove those chains.");
+        }
+    }
+
+    static List<String> applicationChains(List<SecurityFilterChain> chains, Object placeholder) {
+        List<String> application = new ArrayList<>();
         for (SecurityFilterChain chain : chains) {
-            if (behindContexa) {
-                shadowed.add(chain instanceof DefaultSecurityFilterChain d
-                        ? d.getRequestMatcher().toString() : chain.getClass().getSimpleName());
-            } else if (chain instanceof OrderedSecurityFilterChain contexa
-                    && contexa.getRequestMatcher() instanceof AnyRequestMatcher) {
-                behindContexa = true;
+            if (chain != placeholder && !(chain instanceof OrderedSecurityFilterChain) && !chain.getFilters().isEmpty()) {
+                application.add(chain instanceof DefaultSecurityFilterChain d ? d.getRequestMatcher().toString() : chain.getClass().getSimpleName());
             }
         }
-        return shadowed;
+        return application;
     }
 
     /** The user stores other than Contexa's own, by bean name. */

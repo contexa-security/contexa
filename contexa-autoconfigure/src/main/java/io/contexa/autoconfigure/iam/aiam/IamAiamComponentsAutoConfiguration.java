@@ -21,6 +21,7 @@ import io.contexa.contexaiam.aiam.components.prompt.*;
 import io.contexa.contexaiam.aiam.components.retriever.*;
 import io.contexa.contexaiam.aiam.labs.policy.PolicyGenerationVectorService;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -55,9 +56,9 @@ public class IamAiamComponentsAutoConfiguration {
 
     @Bean(name = "contexaPolicyGenerationContextRetriever")
     @ConditionalOnMissingBean
-    @ConditionalOnBean({VectorStore.class, ContextRetrieverRegistry.class, PolicyGenerationVectorService.class, ContexaRagProperties.class})
+    @ConditionalOnBean(value = {ContextRetrieverRegistry.class, PolicyGenerationVectorService.class, ContexaRagProperties.class}, name = "contexaVectorStore")
     public PolicyGenerationContextRetriever policyGenerationContextRetriever(
-            VectorStore vectorStore,
+            @Qualifier("contexaVectorStore") VectorStore vectorStore,
             ContextRetrieverRegistry contexaContextRetrieverRegistry,
             PolicyGenerationVectorService contexaPolicyGenerationVectorService,
             ContexaRagProperties ragProperties) {
@@ -67,9 +68,9 @@ public class IamAiamComponentsAutoConfiguration {
 
     @Bean(name = "contexaConditionTemplateContextRetriever")
     @ConditionalOnMissingBean
-    @ConditionalOnBean({VectorStore.class, ContextRetrieverRegistry.class, ContexaRagProperties.class})
+    @ConditionalOnBean(value = {ContextRetrieverRegistry.class, ContexaRagProperties.class}, name = "contexaVectorStore")
     public ConditionTemplateContextRetriever conditionTemplateContextRetriever(
-            VectorStore vectorStore,
+            @Qualifier("contexaVectorStore") VectorStore vectorStore,
             ContextRetrieverRegistry contexaContextRetrieverRegistry,
             ContexaRagProperties ragProperties) {
         return new ConditionTemplateContextRetriever(
@@ -78,9 +79,9 @@ public class IamAiamComponentsAutoConfiguration {
 
     @Bean(name = "contexaResourceNamingContextRetriever")
     @ConditionalOnMissingBean
-    @ConditionalOnBean({VectorStore.class, ContextRetrieverRegistry.class, ContexaRagProperties.class})
+    @ConditionalOnBean(value = {ContextRetrieverRegistry.class, ContexaRagProperties.class}, name = "contexaVectorStore")
     public ResourceNamingContextRetriever resourceNamingContextRetriever(
-            VectorStore vectorStore,
+            @Qualifier("contexaVectorStore") VectorStore vectorStore,
             ContextRetrieverRegistry contexaContextRetrieverRegistry,
             ContexaRagProperties ragProperties) {
         return new ResourceNamingContextRetriever(

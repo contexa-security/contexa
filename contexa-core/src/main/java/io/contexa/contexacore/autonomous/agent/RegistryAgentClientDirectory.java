@@ -16,6 +16,7 @@
 
 package io.contexa.contexacore.autonomous.agent;
 
+import io.contexa.contexacommon.security.bridge.runtime.RequestPathDatabaseGuard;
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
 import lombok.extern.slf4j.Slf4j;
 
@@ -31,9 +32,15 @@ import java.util.Optional;
 public class RegistryAgentClientDirectory implements AgentClientDirectory {
 
     private final AgentRegistry registry;
+    private final RequestPathDatabaseGuard requestPathDatabaseGuard;
 
     public RegistryAgentClientDirectory(AgentRegistry registry) {
+        this(registry, new RequestPathDatabaseGuard());
+    }
+
+    public RegistryAgentClientDirectory(AgentRegistry registry, RequestPathDatabaseGuard requestPathDatabaseGuard) {
         this.registry = registry;
+        this.requestPathDatabaseGuard = requestPathDatabaseGuard;
     }
 
     @Override
@@ -42,7 +49,7 @@ public class RegistryAgentClientDirectory implements AgentClientDirectory {
             return Optional.empty();
         }
         try {
-            return registry.findByClientId(tenantId, clientId)
+            return find(tenantId, clientId)
                     .filter(registration -> registration.allowlisted() && registration.status() == AgentStatus.ACTIVE)
                     .map(AgentRegistration::agentId);
         } catch (RuntimeException e) {
@@ -57,12 +64,17 @@ public class RegistryAgentClientDirectory implements AgentClientDirectory {
             return false;
         }
         try {
-            return registry.findByClientId(tenantId, clientId)
+            return find(tenantId, clientId)
                     .filter(registration -> registration.status() == AgentStatus.SUSPENDED)
                     .isPresent();
         } catch (RuntimeException e) {
             log.error("Agent registry lookup failed; the client's suspension is not known. clientId={}", clientId, e);
             return false;
         }
+    }
+
+    /** A registry that does not answer in time reads as one that failed: the client is not taken as an agent. */
+    private Optional<AgentRegistration> find(String tenantId, String clientId) {
+        return requestPathDatabaseGuard.call(() -> registry.findByClientId(tenantId, clientId), Optional.empty());
     }
 }

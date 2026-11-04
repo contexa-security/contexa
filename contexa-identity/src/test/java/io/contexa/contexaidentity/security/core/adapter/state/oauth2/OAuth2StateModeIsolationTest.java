@@ -63,14 +63,38 @@ class OAuth2StateModeIsolationTest {
         AuthContextProperties properties = new AuthContextProperties();
         properties.setOauth2ServerMode(OAuth2ServerMode.RESOURCE_SERVER);
         JwtDecoder decoder = mock(JwtDecoder.class);
+        ObjectProvider<JwtDecoder> noneOrSeveral = applicationDecoders(null);
         when(applicationContext.getBean(AuthContextProperties.class)).thenReturn(properties);
-        when(applicationContext.getBean(JwtDecoder.class)).thenReturn(decoder);
+        when(applicationContext.getBeanProvider(JwtDecoder.class)).thenReturn(noneOrSeveral);
+        when(applicationContext.getBean(OAuth2StateAdapter.CONTEXA_JWT_DECODER, JwtDecoder.class)).thenReturn(decoder);
 
         new OAuth2StateAdapter().apply(http, platformContext);
 
         verify(http).setSharedObject(JwtDecoder.class, decoder);
         verify(applicationContext, never()).getBean(JwtEncoder.class);
         verify(http).with(any(OAuth2StateConfigurer.class), any(Customizer.class));
+    }
+
+    @Test
+    void aResourceServerChecksAnotherIssuersTokensWithTheApplicationsOnlyDecoder() throws Exception {
+        AuthContextProperties properties = new AuthContextProperties();
+        properties.setOauth2ServerMode(OAuth2ServerMode.RESOURCE_SERVER);
+        JwtDecoder application = mock(JwtDecoder.class);
+        ObjectProvider<JwtDecoder> theOnlyOne = applicationDecoders(application);
+        when(applicationContext.getBean(AuthContextProperties.class)).thenReturn(properties);
+        when(applicationContext.getBeanProvider(JwtDecoder.class)).thenReturn(theOnlyOne);
+
+        new OAuth2StateAdapter().apply(http, platformContext);
+
+        verify(http).setSharedObject(JwtDecoder.class, application);
+        verify(applicationContext, never()).getBean(OAuth2StateAdapter.CONTEXA_JWT_DECODER, JwtDecoder.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ObjectProvider<JwtDecoder> applicationDecoders(JwtDecoder unique) {
+        ObjectProvider<JwtDecoder> decoders = mock(ObjectProvider.class);
+        when(decoders.getIfUnique()).thenReturn(unique);
+        return decoders;
     }
 
     @Test

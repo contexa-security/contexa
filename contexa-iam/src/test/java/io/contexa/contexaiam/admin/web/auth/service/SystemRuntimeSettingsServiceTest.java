@@ -107,7 +107,7 @@ class SystemRuntimeSettingsServiceTest {
         assertThat(service.findSecurityZeroTrustMode()).isEmpty();
 
         when(repository.findAll()).thenReturn(List.of(SystemSettings.builder().securityZeroTrustMode("ENFORCE").build()));
-        assertThat(service.findSecurityZeroTrustMode()).contains(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+        assertThat(service.findSecurityZeroTrustMode()).contains(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
     }
 
     @Test

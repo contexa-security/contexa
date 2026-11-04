@@ -75,4 +75,25 @@ class ContexaResourcesTest {
     void contexasSchemaIsFoundWhenTheApplicationHasNone() throws Exception {
         assertThat(ContexaResources.sql("db/schema.sql").getContentAsString(StandardCharsets.UTF_8)).contains("ctxa_");
     }
+
+    @Test
+    void theClassLoaderAContextLeftStoppedOnTheThreadIsNotAsked() {
+        ClassLoader previous = Thread.currentThread().getContextClassLoader();
+        Thread.currentThread().setContextClassLoader(new ClassLoader(null) {
+            @Override
+            public URL getResource(String name) {
+                throw new IllegalStateException("this web application instance has been stopped already");
+            }
+
+            @Override
+            public Enumeration<URL> getResources(String name) {
+                throw new IllegalStateException("this web application instance has been stopped already");
+            }
+        });
+        try {
+            assertThat(ContexaResources.sql("db/no-such-file-of-contexa.sql").exists()).isFalse();
+        } finally {
+            Thread.currentThread().setContextClassLoader(previous);
+        }
+    }
 }

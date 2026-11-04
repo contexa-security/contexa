@@ -90,7 +90,7 @@ class CoreAutonomousAutoConfigurationTest {
             assertThat(method.getReturnType()).isEqualTo(VectorStoreCacheLayer.class);
             ConditionalOnBean annotation = method.getAnnotation(ConditionalOnBean.class);
             assertThat(annotation).isNotNull();
-            assertThat(annotation.value()).containsExactly(VectorStore.class);
+            assertThat(annotation.name()).containsExactly("contexaVectorStore");
         }
     }
 

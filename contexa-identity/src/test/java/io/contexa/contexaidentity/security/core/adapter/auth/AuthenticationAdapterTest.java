@@ -38,6 +38,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.MessageSource;
 import org.springframework.security.config.Customizer;
@@ -90,6 +91,9 @@ class AuthenticationAdapterTest {
 
     @BeforeEach
     void setUp() {
+        ObjectProvider<UserDetailsService> applicationStore = mock(ObjectProvider.class);
+        when(applicationStore.getIfUnique()).thenReturn(mock(UserDetailsService.class));
+        when(applicationContext.getBeanProvider(UserDetailsService.class)).thenReturn(applicationStore);
         when(httpSecurity.getSharedObject(PlatformContext.class)).thenReturn(platformContext);
         when(platformContext.applicationContext()).thenReturn(applicationContext);
         when(applicationContext.getBean(AuthContextProperties.class)).thenReturn(authContextProperties);
@@ -253,7 +257,6 @@ class AuthenticationAdapterTest {
             PlatformAuthenticationSuccessHandler successHandler = mock(PlatformAuthenticationSuccessHandler.class);
             PlatformAuthenticationFailureHandler failureHandler = mock(PlatformAuthenticationFailureHandler.class);
 
-            when(applicationContext.getBean(UserDetailsService.class)).thenReturn(mock(UserDetailsService.class));
             when(applicationContext.getBean(ContexaOneTimeTokens.BEAN_NAME, ContexaOneTimeTokens.class))
                     .thenReturn(new ContexaOneTimeTokens(mock(EmailOneTimeTokenService.class)));
 

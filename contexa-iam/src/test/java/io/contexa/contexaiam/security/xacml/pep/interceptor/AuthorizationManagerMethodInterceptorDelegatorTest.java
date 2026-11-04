@@ -118,7 +118,7 @@ class AuthorizationManagerMethodInterceptorDelegatorTest {
     @Test
     void shadowModeRecordsTheRefusalAndRunsTheCall() throws Throwable {
         SecurityZeroTrustProperties shadow = new SecurityZeroTrustProperties();
-        shadow.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+        shadow.setMode(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
         interceptor.setSecurityZeroTrustProperties(shadow);
 
         assertThat(interceptor.invoke(call)).isEqualTo("exported");

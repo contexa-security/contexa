@@ -15,6 +15,8 @@
  */
 package io.contexa.autoconfigure.iam;
 
+import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
+import io.contexa.contexacommon.operating.ConditionalOnOwnership;
 import org.springframework.beans.factory.BeanFactory;
 import io.contexa.autoconfigure.core.ContexaOwnBeans;
 import io.contexa.contexacommon.repository.AuditLogRepository;
@@ -31,7 +33,6 @@ import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -81,10 +82,7 @@ public class IamSecurityAutoConfiguration {
      * when the application turned method security on itself, its interceptor (and its handler) already serves Contexa's classes.
      */
     @Configuration(proxyBeanMethods = false)
-    @ConditionalOnProperty(
-            prefix = "contexa.bridge",
-            name = "ownership",
-            havingValue = "CONTEXA_OWNED")
+    @ConditionalOnOwnership(SecurityOwnershipMode.CONTEXA_OWNED)
     static class ContexaOwnedMethodSecurityConfiguration {
 
         @Bean(name = "contexaPreAuthorizeAdvisor")

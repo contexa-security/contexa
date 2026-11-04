@@ -175,7 +175,7 @@ class CoreBacklogRegressionTest {
         Harness h = new Harness(Runnable::run);
         SecurityEvent event = event();
         if ("GLOBAL".equals(boundary)) {
-            h.mode.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+            h.mode.setMode(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
         }
         if ("EVENT".equals(boundary)) {
             event.addMetadata("decisionBoundaryMode", "SHADOW");
@@ -476,14 +476,14 @@ class CoreBacklogRegressionTest {
         h.resultAction = "BLOCK";
         SecurityEvent event = event();
         if ("GLOBAL".equals(boundary)) {
-            h.mode.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+            h.mode.setMode(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
         } else {
             event.addMetadata("decisionBoundaryMode", "SHADOW");
         }
         h.store.failComplete.set(1);
         assertThatThrownBy(() -> h.agent.processSecurityEvent(event)).isInstanceOf(RuntimeException.class);
         assertThat(h.saved.get().runtimeEnforcementMode()).isEqualTo("SHADOW");
-        h.mode.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+        h.mode.setMode(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
         event.getMetadata().remove("decisionBoundaryMode");
         h.agent.processSecurityEvent(event);
         assertThat(h.analysisCount).hasValue(1);
@@ -628,7 +628,7 @@ class CoreBacklogRegressionTest {
         }
 
         Harness(Executor executor, boolean processingExecutionHandler) {
-            mode.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            mode.setMode(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
             when(writer.findFinalDecision(anyString())).thenAnswer(i -> saved.get());
             when(writer.recordDecision(any(), any(), any())).thenAnswer(i -> {
                 if (rejectObservations.getAndUpdate(n -> Math.max(0, n - 1)) > 0) {

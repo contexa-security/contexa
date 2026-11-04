@@ -15,6 +15,8 @@
  */
 package io.contexa.autoconfigure.identity;
 
+import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
+import io.contexa.contexacommon.operating.ConditionalOnOwnership;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.properties.PasskeyUrls;
 import io.contexa.contexacommon.repository.UserRepository;
@@ -77,7 +79,7 @@ import java.util.stream.Collectors;
 @AutoConfigureAfter({IdentitySecurityCoreAutoConfiguration.class, IdentityWebAuthnAutoConfiguration.class,
         IdentityServiceAutoConfiguration.class})
 @ConditionalOnBean(PlatformConfig.class)
-@ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "HOST_OWNED")
+@ConditionalOnOwnership(SecurityOwnershipMode.HOST_OWNED)
 public class HostOwnedStepUpAutoConfiguration {
 
     /** A distributed deployment shares the step-up options, so the answer may reach another instance. */

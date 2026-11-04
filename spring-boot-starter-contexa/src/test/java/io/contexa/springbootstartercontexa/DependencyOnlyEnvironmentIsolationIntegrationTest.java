@@ -72,8 +72,10 @@ class DependencyOnlyEnvironmentIsolationIntegrationTest {
             environment.getPropertySources().addFirst(new MapPropertySource(
                     "contexaAiSecurityAnnotation", Map.of("contexa.ai.security.mode", "SANDBOX")));
 
-            assertThat(environment.getProperty("spring.ai.vectorstore.pgvector.initialize-schema")).isEqualTo("true");
-            assertThat(environment.getProperty("spring.ai.vectorstore.pgvector.dimensions")).isEqualTo("1536");
+            // Spring AI's vector store keys belong to the application's own store, also once Contexa is active
+            assertThat(environment.containsProperty("spring.ai.vectorstore.pgvector.initialize-schema")).isFalse();
+            assertThat(environment.getProperty("spring.ai.vectorstore.pgvector.dimensions")).isNull();
+            assertThat(environment.getProperty("contexa.vectorstore.pgvector.initialize-schema")).isEqualTo("true");
             assertThat(environment.getProperty("spring.ai.openai.embedding.options.model"))
                     .isEqualTo("text-embedding-3-small");
             assertThat(Binder.get(environment)
@@ -90,12 +92,12 @@ class DependencyOnlyEnvironmentIsolationIntegrationTest {
                         "spring.main.web-application-type=none")
                 .run()) {
             ConfigurableEnvironment environment = context.getEnvironment();
-            assertThat(environment.getProperty("spring.ai.vectorstore.pgvector.initialize-schema")).isNull();
+            assertThat(environment.getProperty("spring.ai.openai.embedding.options.model")).isNull();
 
             environment.getPropertySources().addFirst(new MapPropertySource(
                     "contexaAiSecurityAnnotation", Map.of("contexa.ai.security.mode", "SANDBOX")));
 
-            assertThat(environment.getProperty("spring.ai.vectorstore.pgvector.initialize-schema")).isEqualTo("true");
+            assertThat(environment.getProperty("spring.ai.openai.embedding.options.model")).isEqualTo("text-embedding-3-small");
         }
     }
 

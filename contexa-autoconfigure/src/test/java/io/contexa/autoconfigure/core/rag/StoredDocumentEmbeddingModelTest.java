@@ -49,7 +49,7 @@ class StoredDocumentEmbeddingModelTest {
     void aStoredDocumentNamesTheEmbeddingModel() {
         VectorStore store = mock(VectorStore.class);
 
-        contextRunner.withBean(VectorStore.class, () -> store)
+        contextRunner.withBean("contexaVectorStore", VectorStore.class, () -> store)
                 .withPropertyValues("contexa.llm.selection.embedding.priority=ollama",
                         "spring.ai.ollama.embedding.options.model=mxbai-embed-large")
                 .run(context -> {

@@ -130,7 +130,7 @@ public class SystemSettingsRuntimeApplier
 
     public static void applyZeroTrustSettings(
             SecurityZeroTrustProperties zeroTrustProperties,
-            SecurityZeroTrustProperties.SecurityMode mode) {
+            SecurityZeroTrustProperties.EnforcementMode mode) {
         if (zeroTrustProperties == null || mode == null) {
             return;
         }

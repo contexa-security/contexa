@@ -299,7 +299,7 @@ public final class ContexaSchemaPrefixMigration {
     private static List<Entry> load() {
         List<Entry> loaded = new ArrayList<>();
         try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(new ClassPathResource(MAP).getInputStream(), StandardCharsets.UTF_8))) {
+                new InputStreamReader(new ClassPathResource(MAP, ContexaSchemaPrefixMigration.class.getClassLoader()).getInputStream(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 if (line.isBlank() || line.startsWith("#")) {

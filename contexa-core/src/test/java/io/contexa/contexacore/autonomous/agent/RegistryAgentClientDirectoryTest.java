@@ -16,15 +16,22 @@
 
 package io.contexa.contexacore.autonomous.agent;
 
+import io.contexa.contexacommon.security.bridge.runtime.RequestPathDatabaseGuard;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class RegistryAgentClientDirectoryTest {
 
@@ -83,5 +90,26 @@ class RegistryAgentClientDirectoryTest {
         assertThat(new RegistryAgentClientDirectory(null).activeAgentForClient(null, "report-client")).isEmpty();
         assertThat(List.of(directory.activeAgentForClient(null, null), directory.activeAgentForClient(null, " ")))
                 .allMatch(Optional::isEmpty);
+    }
+
+    @Test
+    void aRegistryThatDoesNotAnswerDoesNotHoldTheRequest() {
+        CountDownLatch databaseBack = new CountDownLatch(1);
+        AgentRegistry hanging = mock(AgentRegistry.class);
+        when(hanging.findByClientId(any(), any())).thenAnswer(call -> {
+            databaseBack.await();
+            return Optional.empty();
+        });
+        RequestPathDatabaseGuard guard = new RequestPathDatabaseGuard(Duration.ofMillis(150), 4);
+        RegistryAgentClientDirectory outage = new RegistryAgentClientDirectory(hanging, guard);
+        try {
+            assertTimeoutPreemptively(Duration.ofSeconds(3), () -> {
+                assertThat(outage.activeAgentForClient(null, "report-client")).isEmpty();
+                assertThat(outage.suspendedAgentClient(null, "report-client")).isFalse();
+            });
+        } finally {
+            databaseBack.countDown();
+            guard.destroy();
+        }
     }
 }

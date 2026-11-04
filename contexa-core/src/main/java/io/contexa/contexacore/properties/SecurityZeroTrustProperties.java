@@ -34,11 +34,11 @@ public class SecurityZeroTrustProperties {
 
     private boolean enabled = true;
 
-    private SecurityMode mode = SecurityMode.ENFORCE;
+    private EnforcementMode mode = EnforcementMode.ENFORCE;
 
     private int maxBlockMfaAttempts = 2;
 
-    public enum SecurityMode {
+    public enum EnforcementMode {
         DISABLED,
         OBSERVE,
         SHADOW,

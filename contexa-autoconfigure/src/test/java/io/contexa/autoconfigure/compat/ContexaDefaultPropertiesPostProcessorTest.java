@@ -50,10 +50,11 @@ class ContexaDefaultPropertiesPostProcessorTest {
         postProcessor.postProcessEnvironment(environment, new SpringApplication());
 
         assertThat(environment.getProperty("contexa.vectorstore.pgvector.dimensions")).isEqualTo("1024");
-        assertThat(environment.getProperty("spring.ai.vectorstore.pgvector.dimensions")).isEqualTo("1024");
-        assertThat(environment.getProperty("spring.ai.vectorstore.pgvector.initialize-schema")).isEqualTo("true");
-        assertThat(environment.getProperty("spring.ai.vectorstore.pgvector.schema-name")).isEqualTo("public");
-        assertThat(environment.getProperty("spring.ai.vectorstore.pgvector.table-name")).isEqualTo("ctxa_vector_store");
+        assertThat(environment.getProperty("contexa.vectorstore.pgvector.initialize-schema")).isEqualTo("true");
+        assertThat(environment.getProperty("contexa.vectorstore.pgvector.schema-name")).isEqualTo("public");
+        assertThat(environment.getProperty("contexa.vectorstore.pgvector.table-name")).isEqualTo("ctxa_vector_store");
+        assertThat(environment.containsProperty("spring.ai.vectorstore.pgvector.initialize-schema"))
+                .as("Spring AI's keys belong to the application's own store").isFalse();
         assertThat(environment.getProperty("spring.ai.openai.embedding.options.model")).isEqualTo("text-embedding-3-small");
         assertThat(environment.getProperty("spring.ai.openai.embedding.options.dimensions")).isEqualTo("1024");
         assertThat(environment.getProperty("contexa.llm.selection.embedding.mode")).isNull();
@@ -85,7 +86,6 @@ class ContexaDefaultPropertiesPostProcessorTest {
         postProcessor.postProcessEnvironment(environment, new SpringApplication());
 
         assertThat(environment.getProperty("contexa.vectorstore.pgvector.dimensions")).isEqualTo("1536");
-        assertThat(environment.getProperty("spring.ai.vectorstore.pgvector.dimensions")).isEqualTo("1536");
         assertThat(environment.getProperty("spring.ai.openai.embedding.options.dimensions")).isEqualTo("1536");
     }
 
@@ -99,7 +99,6 @@ class ContexaDefaultPropertiesPostProcessorTest {
         postProcessor.postProcessEnvironment(environment, new SpringApplication());
 
         assertThat(environment.getProperty("contexa.vectorstore.pgvector.dimensions")).isEqualTo("1024");
-        assertThat(environment.getProperty("spring.ai.vectorstore.pgvector.dimensions")).isEqualTo("1024");
         assertThat(environment.getProperty("spring.ai.openai.embedding.options.dimensions")).isEqualTo("1024");
         assertThat(environment.getProperty("spring.ai.model.chat")).isEqualTo("ollama");
         assertThat(environment.getProperty("spring.ai.model.embedding")).isEqualTo("ollama");
@@ -159,8 +158,7 @@ class ContexaDefaultPropertiesPostProcessorTest {
         environment.getPropertySources().addFirst(new MapPropertySource(
                 "contexaAiSecurityAnnotation", Map.of("contexa.ai.security.mode", "SANDBOX")));
 
-        assertThat(environment.getProperty("spring.ai.vectorstore.pgvector.initialize-schema")).isEqualTo("true");
-        assertThat(environment.getProperty("spring.ai.vectorstore.pgvector.dimensions")).isEqualTo("1024");
+        assertThat(environment.getProperty("contexa.vectorstore.pgvector.initialize-schema")).isEqualTo("true");
         assertThat(environment.getProperty("spring.ai.model.chat")).isEqualTo("ollama");
         assertThat(environment.getProperty("management.metrics.enable.lettuce")).isEqualTo("false");
     }

@@ -75,9 +75,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
-import org.springframework.context.annotation.Role;
-import org.springframework.beans.factory.config.BeanDefinition;
-import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.DefaultResponseErrorHandler;
 import org.springframework.web.client.ResponseErrorHandler;
@@ -107,13 +104,6 @@ public class CoreLLMTieredAutoConfiguration {
 
     private static final String DEFAULT_OLLAMA_CHAT_MODEL = "qwen3:8b";
     private static final String DEFAULT_OLLAMA_EMBEDDING_MODEL = "mxbai-embed-large";
-
-    /** An application with a primary model of its own keeps it: Contexa's primary models stand aside (two primaries do not start). */
-    @Bean(name = "contexaHostPrimaryModelStandAside")
-    @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
-    static BeanFactoryPostProcessor contexaHostPrimaryModelStandAside() {
-        return new HostPrimaryModelStandAside();
-    }
 
     @Autowired
     private ContexaProperties contexaProperties;
@@ -181,8 +171,7 @@ public class CoreLLMTieredAutoConfiguration {
         return new TieredLayerModelVerifier(contexaDynamicModelRegistry, tieredLLMProperties);
     }
 
-    @Bean(name = "contexaPrimaryChatModel")
-    @Primary
+    @Bean(name = "contexaPrimaryChatModel", defaultCandidate = false)
     @ConditionalOnMissingBean(name = "contexaPrimaryChatModel")
     @Conditional(AnyChatModelAvailableCondition.class)
     @ConditionalOnProperty(prefix = "contexa.llm.selection.chat", name = "mode", havingValue = "dynamic-priority", matchIfMissing = true)
@@ -203,8 +192,7 @@ public class CoreLLMTieredAutoConfiguration {
                         "No chat runtime binding is available for spring-primary selection. Register a Spring AI ChatModel bean first."));
     }
 
-    @Bean(name = "contexaPrimaryChatModel")
-    @Primary
+    @Bean(name = "contexaPrimaryChatModel", defaultCandidate = false)
     @ConditionalOnMissingBean(name = "contexaPrimaryChatModel")
     @Conditional(AnyChatModelAvailableCondition.class)
     @ConditionalOnProperty(prefix = "contexa.llm.selection.chat", name = "mode", havingValue = "fixed")
@@ -226,8 +214,7 @@ public class CoreLLMTieredAutoConfiguration {
         return new DynamicModelSelectionStrategy(contexaDynamicModelRegistry, tieredLLMProperties, contexaPrimaryChatModel);
     }
 
-    @Bean(name = "contexaChatClientBuilder")
-    @Primary
+    @Bean(name = "contexaChatClientBuilder", defaultCandidate = false)
     @ConditionalOnMissingBean(name = "contexaChatClientBuilder")
     @ConditionalOnBean(name = "contexaPrimaryChatModel")
     public ChatClient.Builder contexaPrimaryChatClientBuilder(
@@ -308,8 +295,7 @@ public class CoreLLMTieredAutoConfiguration {
         return contexaUnifiedLLMOrchestrator;
     }
 
-    @Bean(name = {"contexaPrimaryEmbeddingModel", "contexaEmbeddingModel"})
-    @Primary
+    @Bean(name = {"contexaPrimaryEmbeddingModel", "contexaEmbeddingModel"}, defaultCandidate = false)
     @ConditionalOnMissingBean(name = {"contexaPrimaryEmbeddingModel", "contexaEmbeddingModel"})
     @Conditional(AnyEmbeddingModelAvailableCondition.class)
     @ConditionalOnProperty(prefix = "contexa.llm.selection.embedding", name = "mode", havingValue = "fixed", matchIfMissing = true)
@@ -323,8 +309,7 @@ public class CoreLLMTieredAutoConfiguration {
                                 + "Configure exactly one contexa.llm.selection.embedding.priority value and the matching Spring AI embedding runtime."));
     }
 
-    @Bean(name = {"contexaPrimaryEmbeddingModel", "contexaEmbeddingModel"})
-    @Primary
+    @Bean(name = {"contexaPrimaryEmbeddingModel", "contexaEmbeddingModel"}, defaultCandidate = false)
     @ConditionalOnMissingBean(name = {"contexaPrimaryEmbeddingModel", "contexaEmbeddingModel"})
     @Conditional(AnyEmbeddingModelAvailableCondition.class)
     @ConditionalOnProperty(prefix = "contexa.llm.selection.embedding", name = "mode", havingValue = "dynamic-priority")

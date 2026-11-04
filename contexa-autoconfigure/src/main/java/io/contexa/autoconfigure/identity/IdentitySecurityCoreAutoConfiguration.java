@@ -22,16 +22,10 @@ import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.autoconfigure.ai.HostOwnedEnforcementOrder;
 import io.contexa.contexaidentity.security.zerotrust.HostOwnedStepUp;
 import org.springframework.boot.autoconfigure.security.SecurityProperties;
-import io.contexa.contexacommon.security.LoginPolicyHandler;
-import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
-import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
-import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
-import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
-import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.statemachine.core.service.MfaStateMachineService;
@@ -54,12 +48,8 @@ import io.contexa.contexaidentity.security.filter.MfaFormAuthenticationFilter;
 import io.contexa.contexaidentity.security.filter.MfaPendingAccessControlFilter;
 import io.contexa.contexaidentity.security.filter.MfaRestAuthenticationFilter;
 import io.contexa.contexaidentity.security.filter.RestAuthenticationFilter;
-import io.contexa.contexaidentity.security.handler.MfaFactorProcessingSuccessHandler;
-import io.contexa.contexaidentity.security.handler.PrimaryAuthenticationSuccessHandler;
-import io.contexa.contexaidentity.security.handler.UnifiedAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
-import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import io.contexa.contexaidentity.security.utils.JsonAuthResponseWriter;
 import io.contexa.contexaidentity.security.zerotrust.ChallengeMfaInitializer;
@@ -76,9 +66,7 @@ import jakarta.servlet.Filter;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -88,6 +76,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.env.Environment;
@@ -95,7 +84,6 @@ import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.authentication.ott.OneTimeTokenAuthenticationFilter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.webauthn.authentication.WebAuthnAuthenticationFilter;
 import org.springframework.security.web.webauthn.management.JdbcPublicKeyCredentialUserEntityRepository;
 import org.springframework.security.web.webauthn.management.JdbcUserCredentialRepository;
@@ -110,18 +98,10 @@ import org.springframework.security.web.webauthn.management.UserCredentialReposi
 @EnableConfigurationProperties({AuthContextProperties.class })
 @ConditionalOnProperty(prefix = "contexa.identity.security-core", name = "enabled", havingValue = "true", matchIfMissing = true)
 @ConditionalOnBean(PlatformConfig.class)
+@Import(IdentitySecurityCoreContexaOwnedConfiguration.class)
 public class IdentitySecurityCoreAutoConfiguration {
 
     public IdentitySecurityCoreAutoConfiguration() {
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
-    public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
-        httpSecurity.securityMatcher("/" + UUID.randomUUID())
-                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
-        return httpSecurity.build();
     }
 
     @Bean(name = "contexaIdentityDslRegistry")
@@ -290,83 +270,6 @@ public class IdentitySecurityCoreAutoConfiguration {
         return new PlatformBootstrap(contexaSecurityPlatform, platformConfig, registry, contexaDslValidator, bridgeProperties);
     }
 
-    @Bean(name = "contexaWebSecurityConfigurationDependencyInjector")
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
-    public WebSecurityConfigurationDependencyInjector webSecurityConfigurationDependencyInjector() {
-        return new WebSecurityConfigurationDependencyInjector();
-    }
-
-    @Bean(name = "contexaPrimaryAuthenticationSuccessHandler")
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
-    public PrimaryAuthenticationSuccessHandler primaryAuthenticationSuccessHandler(
-            AuthResponseWriter contexaAuthResponseWriter,
-            MfaPolicyProvider mfaPolicyProvider,
-            ApplicationContext applicationContext,
-            MfaStateMachineIntegrator contexaMfaStateMachineIntegrator,
-            MfaSessionRepository contexaMfaSessionRepository,
-            AuthUrlProvider contexaAuthUrlProvider,
-            MfaFlowUrlRegistry contexaMfaFlowUrlRegistry,
-            TokenService tokenService,
-            AuthContextProperties authContextProperties,
-            ZeroTrustEventPublisher contexaZeroTrustEventPublisher,
-            ZeroTrustActionRepository actionRedisRepository,
-            SecurityLearningService contexaSecurityLearningService,
-            IBlockedUserRecorder contexaBlockedUserRecorder,
-            BlockMfaStateStore blockMfaStateStore,
-            CentralAuditFacade contexaCentralAuditFacade,
-            BlockingSignalBroadcaster blockingSignalBroadcaster,
-            @Autowired(required = false) LoginPolicyHandler contexaLoginPolicyHandler) {
-        return new PrimaryAuthenticationSuccessHandler(mfaPolicyProvider, tokenService, contexaAuthResponseWriter,
-                authContextProperties, applicationContext, contexaMfaStateMachineIntegrator, contexaMfaSessionRepository,
-                contexaAuthUrlProvider, contexaMfaFlowUrlRegistry, contexaZeroTrustEventPublisher, actionRedisRepository, contexaSecurityLearningService,
-                contexaBlockedUserRecorder, blockMfaStateStore, contexaCentralAuditFacade, blockingSignalBroadcaster, contexaLoginPolicyHandler);
-    }
-
-    @Bean(name = "contexaUnifiedAuthenticationFailureHandler")
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
-    public UnifiedAuthenticationFailureHandler unifiedAuthenticationFailureHandler(
-            MfaStateMachineIntegrator contexaMfaStateMachineIntegrator,
-            AuthResponseWriter contexaAuthResponseWriter,
-            MfaSessionRepository contexaMfaSessionRepository,
-            ZeroTrustActionRepository actionRedisRepository,
-            AuthContextProperties authContextProperties,
-            IBlockedUserRecorder contexaBlockedUserRecorder,
-            @Autowired(required = false) CentralAuditFacade contexaCentralAuditFacade,
-            @Autowired(required = false) LoginPolicyHandler contexaLoginPolicyHandler,
-            @Autowired(required = false) SecurityContextDataStore securityContextDataStore) {
-        return new UnifiedAuthenticationFailureHandler(contexaAuthResponseWriter, contexaMfaStateMachineIntegrator,
-                contexaMfaSessionRepository, actionRedisRepository, authContextProperties.getMfa(),
-                contexaBlockedUserRecorder, contexaCentralAuditFacade, contexaLoginPolicyHandler, securityContextDataStore);
-    }
-
-    @Bean(name = "contexaMfaFactorProcessingSuccessHandler")
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
-    public MfaFactorProcessingSuccessHandler mfaFactorProcessingSuccessHandler(
-            MfaStateMachineIntegrator contexaMfaStateMachineIntegrator,
-            AuthResponseWriter contexaAuthResponseWriter,
-            MfaSessionRepository contexaMfaSessionRepository,
-            AuthUrlProvider contexaAuthUrlProvider,
-            MfaFlowUrlRegistry contexaMfaFlowUrlRegistry,
-            AuthContextProperties authContextProperties,
-            TokenService tokenService,
-            ZeroTrustEventPublisher contexaZeroTrustEventPublisher,
-            ZeroTrustActionRepository actionRedisRepository,
-            SecurityLearningService contexaSecurityLearningService,
-            ApplicationContext applicationContext,
-            IBlockedUserRecorder contexaBlockedUserRecorder,
-            BlockMfaStateStore blockMfaStateStore,
-            CentralAuditFacade contexaCentralAuditFacade,
-            BlockingSignalBroadcaster blockingSignalBroadcaster) {
-        return new MfaFactorProcessingSuccessHandler(contexaMfaStateMachineIntegrator, contexaAuthResponseWriter,
-                authContextProperties, contexaMfaSessionRepository, tokenService, contexaAuthUrlProvider,
-                contexaMfaFlowUrlRegistry, contexaZeroTrustEventPublisher, actionRedisRepository, contexaSecurityLearningService, applicationContext,
-                contexaBlockedUserRecorder, blockMfaStateStore, contexaCentralAuditFacade, blockingSignalBroadcaster);
-    }
-
     @Bean(name = "contexaAuthResponseWriter")
     @ConditionalOnMissingBean
     public AuthResponseWriter authResponseWriter(@Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
@@ -453,7 +356,7 @@ public class IdentitySecurityCoreAutoConfiguration {
     /** Whether the application owns sign-in (HOST_OWNED); Contexa then builds no chain. */
     private static boolean hostOwned(ObjectProvider<BridgeProperties> bridgeProperties) {
         BridgeProperties properties = bridgeProperties != null ? bridgeProperties.getIfAvailable() : null;
-        return properties != null && !properties.isContexaOwned();
+        return properties != null && properties.ownershipBehaviour().enforcesFromServletFilters();
     }
 
     @Bean(name = "contexaZeroTrustChallengeConfigurer")

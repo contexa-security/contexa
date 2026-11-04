@@ -15,6 +15,8 @@
  */
 package io.contexa.autoconfigure.iam.admin;
 
+import org.springframework.beans.factory.support.DefaultListableBeanFactory;
+import io.contexa.contexacommon.security.bridge.runtime.RequestPathDatabaseGuard;
 import io.contexa.autoconfigure.ai.AiBridgeConfiguration;
 import io.contexa.autoconfigure.core.autonomous.CoreAutonomousAutoConfiguration;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
@@ -199,7 +201,7 @@ class AgentRegistryWiringTest {
     void theRegistrysApprovedAgentsReachTheTokenDelegationStamp() {
         InMemoryAgentRegistry registry = new InMemoryAgentRegistry();
         registry.register(new AgentRegistrationRequest(null, "report-bot", "Report bot", null, "report-client", "carol", null));
-        AgentClientDirectory directory = new CoreAutonomousAutoConfiguration().agentClientDirectory(registry);
+        AgentClientDirectory directory = new CoreAutonomousAutoConfiguration().agentClientDirectory(registry, new DefaultListableBeanFactory().getBeanProvider(RequestPathDatabaseGuard.class));
         ObjectProvider<AgentClientDirectory> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable(any())).thenReturn(directory);
         DelegationStampResolver resolver = new AiBridgeConfiguration().tokenDelegationStampResolver(provider);
@@ -221,7 +223,7 @@ class AgentRegistryWiringTest {
     void anApprovedAgentsSessionLoginIsReadAsThatAgent() {
         InMemoryAgentRegistry registry = new InMemoryAgentRegistry();
         registry.register(new AgentRegistrationRequest(null, "report-bot", "Report bot", null, "report-client", "carol", null));
-        AgentClientDirectory directory = new CoreAutonomousAutoConfiguration().agentClientDirectory(registry);
+        AgentClientDirectory directory = new CoreAutonomousAutoConfiguration().agentClientDirectory(registry, new DefaultListableBeanFactory().getBeanProvider(RequestPathDatabaseGuard.class));
         ObjectProvider<AgentClientDirectory> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable(any())).thenReturn(directory);
         DelegationStampResolver resolver = new AiBridgeConfiguration().agentAccountDelegationStampResolver(provider);

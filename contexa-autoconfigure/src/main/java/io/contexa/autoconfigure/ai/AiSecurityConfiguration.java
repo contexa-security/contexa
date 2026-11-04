@@ -15,8 +15,7 @@
  */
 package io.contexa.autoconfigure.ai;
 
-import java.util.Locale;
-import io.contexa.contexacommon.annotation.AiSecurityImportSelector;
+import io.contexa.contexacommon.operating.ContexaOperatingProfile;
 import io.contexa.contexacommon.security.bridge.SecurityMode;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
@@ -31,7 +30,6 @@ import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
@@ -55,7 +53,7 @@ import java.util.UUID;
  * @see io.contexa.contexacommon.annotation.EnableAISecurity
  */
 @Configuration
-@Import(AiBridgeConfiguration.class)
+@Import({AiBridgeConfiguration.class, HostOwnedHealthConfiguration.class, HostOwnedDiagnosticsConfiguration.class})
 @ConditionalOnClass(SecurityFilterChain.class)
 public class AiSecurityConfiguration {
 
@@ -82,7 +80,7 @@ public class AiSecurityConfiguration {
     public PlatformConfig platformDslConfig(ApplicationContext applicationContext,
                                                CustomDynamicAuthorizationManager contexaCustomDynamicAuthorizationManager) throws Exception {
         IdentityDslRegistry<HttpSecurity> registry = new IdentityDslRegistry<>(applicationContext);
-        SecurityMode securityMode = resolveSecurityMode();
+        SecurityMode securityMode = ContexaOperatingProfile.resolve(environment).mode();
         SafeHttpCustomizer<HttpSecurity> globalHttpCustomizer = http -> {
             http
                     .authorizeHttpRequests(authReq -> authReq
@@ -147,30 +145,10 @@ public class AiSecurityConfiguration {
         return new BridgeResolutionConfigurer(bridgeResolutionFilterProvider.getIfAvailable());
     }
 
-    @Bean(name = "contexaHostOwnedSecurityChainDiagnostics")
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "HOST_OWNED", matchIfMissing = true)
-    public HostOwnedSecurityChainDiagnostics hostOwnedSecurityChainDiagnostics(ConfigurableListableBeanFactory beanFactory) {
-        return new HostOwnedSecurityChainDiagnostics(beanFactory);
-    }
-
     /** What an installation should know at start about its ownership (findings F-1, F-2, F-8). */
     @Bean(name = "contexaOwnershipStartupDiagnostics")
     @ConditionalOnMissingBean
     public OwnershipStartupDiagnostics ownershipStartupDiagnostics(ConfigurableListableBeanFactory beanFactory) {
-        return new OwnershipStartupDiagnostics(beanFactory,
-                "CONTEXA_OWNED".equalsIgnoreCase(environment.getProperty("contexa.bridge.ownership")));
-    }
-
-    private SecurityMode resolveSecurityMode() {
-        String configuredMode = environment.getProperty(AiSecurityImportSelector.PROP_MODE);
-        if (configuredMode == null || configuredMode.isBlank()) {
-            return SecurityMode.SANDBOX;
-        }
-        try {
-            return SecurityMode.valueOf(configuredMode.trim().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException ex) {
-            return SecurityMode.SANDBOX;
-        }
+        return new OwnershipStartupDiagnostics(beanFactory, ContexaOperatingProfile.resolve(environment));
     }
 }

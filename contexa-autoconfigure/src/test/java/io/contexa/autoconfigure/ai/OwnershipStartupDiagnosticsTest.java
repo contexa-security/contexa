@@ -15,6 +15,11 @@
  */
 package io.contexa.autoconfigure.ai;
 
+import jakarta.servlet.Filter;
+import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
+import io.contexa.contexacommon.security.bridge.SecurityMode;
+import io.contexa.contexacommon.operating.ContexaOperatingProfileException;
+import io.contexa.contexacommon.operating.ContexaOperatingProfile;
 import io.contexa.contexacore.security.UnifiedUserDetailsService;
 import io.contexa.contexaidentity.security.core.context.OrderedSecurityFilterChain;
 import org.junit.jupiter.api.DisplayName;
@@ -30,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 /** Ownership findings F-1, F-2, F-8 (harness 2026-11-03): what Contexa reports at start. */
@@ -38,25 +44,53 @@ class OwnershipStartupDiagnosticsTest {
     private final RequestMatcher api = request -> request.getRequestURI().startsWith("/api/");
 
     @Test
-    @DisplayName("F-1: the application's chains behind Contexa's chain for every request are named")
-    void shadowedApplicationChainsAreNamed() {
-        List<SecurityFilterChain> chains = List.of(
-                new OrderedSecurityFilterChain(100, AnyRequestMatcher.INSTANCE, List.of()),
-                new DefaultSecurityFilterChain(api, List.of()),
-                new DefaultSecurityFilterChain(AnyRequestMatcher.INSTANCE, List.of()));
+    @DisplayName("Q-2: a chain of the application under CONTEXA_OWNED stops the start, and the refusal names it and says what to change")
+    void anApplicationChainIsRefused() {
+        SecurityFilterChain contexa = new OrderedSecurityFilterChain(100, AnyRequestMatcher.INSTANCE, List.of());
+        SecurityFilterChain application = new DefaultSecurityFilterChain(api, List.of(mock(Filter.class)));
 
-        assertThat(OwnershipStartupDiagnostics.shadowedApplicationChains(chains)).hasSize(2);
+        assertThatThrownBy(() -> OwnershipStartupDiagnostics.refuseApplicationChains(List.of(contexa, application), null))
+                .isInstanceOfSatisfying(ContexaOperatingProfileException.class, refused -> {
+                    assertThat(refused.getMessage()).contains("would be open");
+                    assertThat(refused.action()).contains("without mode = FULL");
+                });
     }
 
     @Test
-    @DisplayName("F-1: nothing is reported when Contexa's chain takes part of the requests only, or comes last")
-    void nothingWhenContexaDoesNotShadow() {
-        assertThat(OwnershipStartupDiagnostics.shadowedApplicationChains(List.of(
-                new OrderedSecurityFilterChain(100, api, List.of()),
-                new DefaultSecurityFilterChain(AnyRequestMatcher.INSTANCE, List.of())))).isEmpty();
-        assertThat(OwnershipStartupDiagnostics.shadowedApplicationChains(List.of(
-                new DefaultSecurityFilterChain(api, List.of()),
-                new OrderedSecurityFilterChain(100, AnyRequestMatcher.INSTANCE, List.of())))).isEmpty();
+    @DisplayName("Q-2: a chain the application put in front of Contexa's is refused as well: it keeps a sign-in of its own")
+    void aChainInFrontOfContexasIsRefusedToo() {
+        SecurityFilterChain application = new DefaultSecurityFilterChain(api, List.of(mock(Filter.class)));
+        SecurityFilterChain contexa = new OrderedSecurityFilterChain(100, AnyRequestMatcher.INSTANCE, List.of());
+
+        assertThat(OwnershipStartupDiagnostics.applicationChains(List.of(application, contexa), null)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("P-9: Contexa's chains and its placeholder are not the application's, so a new application starts")
+    void contexasOwnChainsAreNotRefused() {
+        SecurityFilterChain placeholder = new DefaultSecurityFilterChain(api, List.of(mock(Filter.class)));
+        SecurityFilterChain contexa = new OrderedSecurityFilterChain(100, AnyRequestMatcher.INSTANCE, List.of());
+
+        OwnershipStartupDiagnostics.refuseApplicationChains(List.of(contexa, placeholder), placeholder);
+
+        assertThat(OwnershipStartupDiagnostics.applicationChains(List.of(contexa, placeholder), placeholder)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Q-2: what web.ignoring() leaves is no chain of the application: without filters it signs nobody in")
+    void anIgnoredPathIsNotAChain() {
+        SecurityFilterChain ignored = new DefaultSecurityFilterChain(api, List.of());
+
+        assertThat(OwnershipStartupDiagnostics.applicationChains(List.of(ignored), null)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("the start report says how the application runs Contexa")
+    void theStartReportSaysHowContexaRuns() {
+        assertThat(OwnershipStartupDiagnostics.report(new ContexaOperatingProfile(SecurityMode.SANDBOX, SecurityOwnershipMode.HOST_OWNED, false, false), "ENFORCE"))
+                .isEqualTo("[Contexa] mode=SANDBOX ownership=HOST_OWNED data=application enforcement=ENFORCE");
+        assertThat(OwnershipStartupDiagnostics.report(new ContexaOperatingProfile(SecurityMode.FULL, SecurityOwnershipMode.CONTEXA_OWNED, true, false), "SHADOW"))
+                .isEqualTo("[Contexa] mode=FULL ownership=CONTEXA_OWNED data=contexa enforcement=SHADOW");
     }
 
     @Test

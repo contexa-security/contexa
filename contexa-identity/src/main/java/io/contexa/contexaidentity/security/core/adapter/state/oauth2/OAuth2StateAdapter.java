@@ -49,6 +49,9 @@ import org.springframework.security.web.authentication.logout.LogoutSuccessHandl
 @Slf4j
 public final class OAuth2StateAdapter implements StateAdapter {
 
+    /** The decoder of the tokens Contexa issues. */
+    public static final String CONTEXA_JWT_DECODER = "contexaJwtDecoder";
+
     private static final String ID = "oauth2";
     private static final String OAUTH2_LOGOUT_SUCCESS_HANDLER = "contexaOauth2LogoutSuccessHandler";
     private static final String TOKEN_PERSISTENCE_MEMORY = "memory";
@@ -138,10 +141,24 @@ public final class OAuth2StateAdapter implements StateAdapter {
 
     private void configureResourceServer(HttpSecurity http, ApplicationContext appContext) {
         try {
-            http.setSharedObject(JwtDecoder.class, appContext.getBean(JwtDecoder.class));
+            http.setSharedObject(JwtDecoder.class, resourceServerDecoder(appContext));
         } catch (NoSuchBeanDefinitionException e) {
             throw new IllegalStateException("JwtDecoder is required for Resource Server mode", e);
         }
+    }
+
+    /**
+     * What Contexa issues it checks with its own keys. A resource server only checks another issuer's tokens, so there the
+     * application's decoder (Boot's for an issuer-uri, or its own) serves when it has exactly one.
+     */
+    private JwtDecoder resourceServerDecoder(ApplicationContext appContext) {
+        if (resolveMode(appContext) == OAuth2ServerMode.RESOURCE_SERVER) {
+            JwtDecoder application = appContext.getBeanProvider(JwtDecoder.class).getIfUnique();
+            if (application != null) {
+                return application;
+            }
+        }
+        return appContext.getBean(CONTEXA_JWT_DECODER, JwtDecoder.class);
     }
 
     private void configureAuthorizationServer(HttpSecurity http, ApplicationContext appContext) {

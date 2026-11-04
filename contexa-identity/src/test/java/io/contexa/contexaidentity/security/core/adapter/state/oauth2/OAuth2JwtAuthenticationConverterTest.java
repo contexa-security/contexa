@@ -68,7 +68,9 @@ class OAuth2JwtAuthenticationConverterTest {
     @BeforeEach
     void setUp() {
         when(httpSecurity.getSharedObject(ApplicationContext.class)).thenReturn(applicationContext);
-        when(applicationContext.getBean(UserDetailsService.class)).thenReturn(userDetailsService);
+        ObjectProvider<UserDetailsService> applicationStore = mock(ObjectProvider.class);
+        when(applicationStore.getIfUnique()).thenReturn(userDetailsService);
+        when(applicationContext.getBeanProvider(UserDetailsService.class)).thenReturn(applicationStore);
         ObjectProvider<AuthContextProperties> provider = mock(ObjectProvider.class);
         when(applicationContext.getBeanProvider(AuthContextProperties.class)).thenReturn(provider);
 
@@ -267,7 +269,9 @@ class OAuth2JwtAuthenticationConverterTest {
         ApplicationContext context = mock(ApplicationContext.class);
         HttpSecurity http = mock(HttpSecurity.class);
         when(http.getSharedObject(ApplicationContext.class)).thenReturn(context);
-        when(context.getBean(UserDetailsService.class)).thenReturn(userDetailsService);
+        ObjectProvider<UserDetailsService> applicationStore = mock(ObjectProvider.class);
+        when(applicationStore.getIfUnique()).thenReturn(userDetailsService);
+        when(context.getBeanProvider(UserDetailsService.class)).thenReturn(applicationStore);
         ObjectProvider<AuthContextProperties> propertiesProvider = mock(ObjectProvider.class);
         when(propertiesProvider.getIfAvailable()).thenReturn(properties);
         when(context.getBeanProvider(AuthContextProperties.class)).thenReturn(propertiesProvider);

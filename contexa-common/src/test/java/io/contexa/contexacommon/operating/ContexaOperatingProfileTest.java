@@ -1,0 +1,174 @@
+/*
+ * Copyright 2026 The Contexa Project
+ *
+ * The Contexa Project licenses this file to you under the Apache License,
+ * version 2.0 (the "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at:
+ *
+ *   https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ */
+package io.contexa.contexacommon.operating;
+
+import io.contexa.contexacommon.security.bridge.SecurityMode;
+import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.mock.env.MockEnvironment;
+
+import static io.contexa.contexacommon.operating.ContexaOperatingProfile.PROP_APPLICATION_DATA;
+import static io.contexa.contexacommon.operating.ContexaOperatingProfile.PROP_MODE;
+import static io.contexa.contexacommon.operating.ContexaOperatingProfile.PROP_OWNERSHIP;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+class ContexaOperatingProfileTest {
+
+    private static MockEnvironment environment() {
+        return new MockEnvironment();
+    }
+
+    @Test
+    void sandboxMeansTheApplicationKeepsTheSignIn() {
+        ContexaOperatingProfile profile = ContexaOperatingProfile.of(SecurityMode.SANDBOX, environment());
+
+        assertThat(profile.mode()).isEqualTo(SecurityMode.SANDBOX);
+        assertThat(profile.ownership()).isEqualTo(SecurityOwnershipMode.HOST_OWNED);
+    }
+
+    @Test
+    void fullMeansContexaOwnsTheSignIn() {
+        ContexaOperatingProfile profile = ContexaOperatingProfile.of(SecurityMode.FULL, environment());
+
+        assertThat(profile.ownership()).isEqualTo(SecurityOwnershipMode.CONTEXA_OWNED);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"CONTEXA_OWNED", "contexa_owned", "contexa-owned", "contexaOwned", "Contexa-Owned", " CONTEXA_OWNED "})
+    void everySpellingSpringAcceptsMeansTheSameOwnership(String spelling) {
+        ContexaOperatingProfile profile = ContexaOperatingProfile.of(SecurityMode.FULL, environment().withProperty(PROP_OWNERSHIP, spelling));
+
+        assertThat(profile.ownership()).isEqualTo(SecurityOwnershipMode.CONTEXA_OWNED);
+    }
+
+    @Test
+    void aValueThatIsNoOwnershipIsRefusedAndTheAnswerNamesTheChoices() {
+        assertThatThrownBy(() -> ContexaOperatingProfile.of(SecurityMode.SANDBOX, environment().withProperty(PROP_OWNERSHIP, "NOBODY")))
+                .isInstanceOf(ContexaOperatingProfileException.class)
+                .hasMessageContaining("contexa.bridge.ownership=NOBODY")
+                .hasMessageContaining("HOST_OWNED")
+                .hasMessageContaining("CONTEXA_OWNED");
+    }
+
+    @Test
+    void aFullApplicationThatKeepsItsSignInIsRefusedWithWhatToChange() {
+        assertThatThrownBy(() -> ContexaOperatingProfile.of(SecurityMode.FULL, environment().withProperty(PROP_OWNERSHIP, "HOST_OWNED")))
+                .isInstanceOfSatisfying(ContexaOperatingProfileException.class, refused -> {
+                    assertThat(refused.getMessage()).contains("mode = FULL").contains("HOST_OWNED");
+                    assertThat(refused.action()).contains("contexa.bridge.ownership").contains("@EnableAISecurity");
+                });
+    }
+
+    @Test
+    void aSandboxApplicationThatGivesContexaItsSignInIsRefusedWithWhatToChange() {
+        assertThatThrownBy(() -> ContexaOperatingProfile.of(SecurityMode.SANDBOX, environment().withProperty(PROP_OWNERSHIP, "contexa-owned")))
+                .isInstanceOfSatisfying(ContexaOperatingProfileException.class, refused -> {
+                    assertThat(refused.getMessage()).contains("SANDBOX").contains("CONTEXA_OWNED");
+                    assertThat(refused.action()).contains("mode = FULL");
+                });
+    }
+
+    @Test
+    void anOwnershipThatRepeatsTheModeIsFine() {
+        assertThat(ContexaOperatingProfile.of(SecurityMode.FULL, environment().withProperty(PROP_OWNERSHIP, "CONTEXA_OWNED")).ownership())
+                .isEqualTo(SecurityOwnershipMode.CONTEXA_OWNED);
+        assertThat(ContexaOperatingProfile.of(SecurityMode.SANDBOX, environment().withProperty(PROP_OWNERSHIP, "HOST_OWNED")).ownership())
+                .isEqualTo(SecurityOwnershipMode.HOST_OWNED);
+    }
+
+    @Test
+    void withoutADeclaredModeTheOwnershipStandsAlone() {
+        ContexaOperatingProfile profile = ContexaOperatingProfile.resolve(environment().withProperty(PROP_OWNERSHIP, "CONTEXA_OWNED"));
+
+        assertThat(profile.ownership()).isEqualTo(SecurityOwnershipMode.CONTEXA_OWNED);
+        assertThat(profile.mode()).isEqualTo(SecurityMode.FULL);
+    }
+
+    @Test
+    void resolveReadsTheModeTheAnnotationPublished() {
+        ContexaOperatingProfile profile = ContexaOperatingProfile.resolve(environment().withProperty(PROP_MODE, "FULL"));
+
+        assertThat(profile.ownership()).isEqualTo(SecurityOwnershipMode.CONTEXA_OWNED);
+    }
+
+    @Test
+    void nothingDeclaredIsTheDefaultOfAnExistingApplication() {
+        ContexaOperatingProfile profile = ContexaOperatingProfile.resolve(environment());
+
+        assertThat(profile.mode()).isEqualTo(SecurityMode.SANDBOX);
+        assertThat(profile.ownership()).isEqualTo(SecurityOwnershipMode.HOST_OWNED);
+    }
+
+    @Test
+    void aModeThatDoesNotExistIsRefused() {
+        assertThatThrownBy(() -> ContexaOperatingProfile.resolve(environment().withProperty(PROP_MODE, "PARTIAL")))
+                .isInstanceOf(ContexaOperatingProfileException.class)
+                .hasMessageContaining("contexa.ai.security.mode=PARTIAL");
+    }
+
+    @Test
+    void anExistingApplicationDoesNotHandItsDataToContexa() {
+        assertThat(ContexaOperatingProfile.of(SecurityMode.SANDBOX, environment()).contexaOwnsApplicationData()).isFalse();
+    }
+
+    @Test
+    void aNewApplicationWithoutADatabaseOfItsOwnUsesContexas() {
+        assertThat(ContexaOperatingProfile.of(SecurityMode.FULL, environment()).contexaOwnsApplicationData()).isTrue();
+    }
+
+    @Test
+    void aFullApplicationWithItsOwnDatabaseKeepsIt() {
+        ContexaOperatingProfile profile = ContexaOperatingProfile.of(SecurityMode.FULL, environment()
+                .withProperty("spring.datasource.url", "jdbc:postgresql://db/application")
+                .withProperty("contexa.datasource.url", "jdbc:postgresql://db/contexa"));
+
+        assertThat(profile.contexaOwnsApplicationData()).isFalse();
+    }
+
+    @Test
+    void aFullApplicationPointedAtContexasOwnDatabaseLosesNothing() {
+        ContexaOperatingProfile profile = ContexaOperatingProfile.of(SecurityMode.FULL, environment()
+                .withProperty("spring.datasource.url", " jdbc:postgresql://db/contexa ")
+                .withProperty("contexa.datasource.url", "jdbc:postgresql://db/contexa"));
+
+        assertThat(profile.contexaOwnsApplicationData()).isTrue();
+    }
+
+    @Test
+    void aDeclaredDatabaseThatIsNotUsedIsNoSecret() {
+        ContexaOperatingProfile profile = ContexaOperatingProfile.of(SecurityMode.SANDBOX, environment()
+                .withProperty(PROP_APPLICATION_DATA, "true")
+                .withProperty("spring.datasource.url", "jdbc:h2:mem:application")
+                .withProperty("contexa.datasource.url", "jdbc:postgresql://db/contexa"));
+
+        assertThat(profile.contexaOwnsApplicationData()).isTrue();
+        assertThat(profile.declaredDatabaseUnused()).isTrue();
+    }
+
+    @Test
+    void withoutADatabaseOfItsOwnNothingGoesUnused() {
+        assertThat(ContexaOperatingProfile.of(SecurityMode.FULL, environment()).declaredDatabaseUnused()).isFalse();
+    }
+
+    @Test
+    void whatTheApplicationDeclaresAboutItsDataAlwaysStands() {
+        assertThat(ContexaOperatingProfile.of(SecurityMode.SANDBOX, environment().withProperty(PROP_APPLICATION_DATA, "true")).contexaOwnsApplicationData()).isTrue();
+        assertThat(ContexaOperatingProfile.of(SecurityMode.FULL, environment().withProperty(PROP_APPLICATION_DATA, "false")).contexaOwnsApplicationData()).isFalse();
+    }
+}

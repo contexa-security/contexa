@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SystemRuntimeSettingsService {
 
-    public static final SecurityZeroTrustProperties.SecurityMode DEFAULT_SECURITY_ZEROTRUST_MODE = SecurityZeroTrustProperties.SecurityMode.SHADOW;
+    public static final SecurityZeroTrustProperties.EnforcementMode DEFAULT_SECURITY_ZEROTRUST_MODE = SecurityZeroTrustProperties.EnforcementMode.SHADOW;
     public static final String DEFAULT_MVC_RESOURCE_SCANNER_BASE_PACKAGES = "io.contexa.contexaiam.";
     public static final CombiningAlgorithm DEFAULT_POLICY_COMBINING_ALGORITHM = CombiningAlgorithm.FIRST_APPLICABLE;
     public static final NoPolicyDecision DEFAULT_NO_POLICY_DECISION = NoPolicyDecision.PERMIT;
@@ -55,7 +55,7 @@ public class SystemRuntimeSettingsService {
      * value stays in effect.
      */
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
-    public Optional<SecurityZeroTrustProperties.SecurityMode> findSecurityZeroTrustMode() {
+    public Optional<SecurityZeroTrustProperties.EnforcementMode> findSecurityZeroTrustMode() {
         return repository.findAll().stream()
                 .findFirst()
                 .map(SystemSettings::getSecurityZeroTrustMode)
@@ -128,9 +128,9 @@ public class SystemRuntimeSettingsService {
         throw new IllegalArgumentException(field + " has an unsupported value: " + rawValue);
     }
 
-    public static SecurityZeroTrustProperties.SecurityMode normalizeSecurityZeroTrustMode(String rawValue) {
+    public static SecurityZeroTrustProperties.EnforcementMode normalizeSecurityZeroTrustMode(String rawValue) {
         String value = StringUtils.hasText(rawValue) ? rawValue.trim() : DEFAULT_SECURITY_ZEROTRUST_MODE.name();
-        return SecurityZeroTrustProperties.SecurityMode.valueOf(value.replace('-', '_').toUpperCase(Locale.ROOT));
+        return SecurityZeroTrustProperties.EnforcementMode.valueOf(value.replace('-', '_').toUpperCase(Locale.ROOT));
     }
 
     public static String normalizeSecurityZeroTrustModeForStorage(String rawValue) {

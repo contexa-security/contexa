@@ -260,7 +260,7 @@ class SecurityDecisionEnforcementHandlerTest {
     @DisplayName("docs/agent G-9: in the report-only mode an agent's BLOCK stops, narrows and sends nothing")
     void inTheReportOnlyModeAnAgentsBlockIsObservedOnly() {
         SecurityZeroTrustProperties shadow = new SecurityZeroTrustProperties();
-        shadow.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+        shadow.setMode(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
         SecurityDecisionEnforcementHandler observing = new SecurityDecisionEnforcementHandler(actionRepository,
                 securityLearningService, blockedUserRecorder, blockingSignalBroadcaster, shadow, Runnable::run,
                 () -> aiSecurityDecisionObservationWriter);
@@ -643,7 +643,7 @@ class SecurityDecisionEnforcementHandlerTest {
         ContextObservationRecorder recorder = new ContextObservationRecorder(store);
         List<String> recorded = new ArrayList<>();
         SecurityZeroTrustProperties shadowProperties = new SecurityZeroTrustProperties();
-        shadowProperties.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+        shadowProperties.setMode(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
         SecurityEvent event = sessionEvent("request-shadow");
         recorder.stage(event, ContextObservationRecorder.WORK_PROFILE, null,
                 commit -> recorded.add(commit.outcome() + " learnable=" + commit.learnable()));
@@ -874,7 +874,7 @@ class SecurityDecisionEnforcementHandlerTest {
     void shadowMode_shouldSkipEnforcementSideEffects() {
         // given
         SecurityZeroTrustProperties shadowProperties = new SecurityZeroTrustProperties();
-        shadowProperties.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+        shadowProperties.setMode(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
 
         SecurityDecisionEnforcementHandler shadowHandler = new SecurityDecisionEnforcementHandler(
                 actionRepository,
@@ -916,7 +916,7 @@ class SecurityDecisionEnforcementHandlerTest {
     void enforceMode_withExplicitProperties_shouldPersist() {
         // given
         SecurityZeroTrustProperties enforceProperties = new SecurityZeroTrustProperties();
-        enforceProperties.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+        enforceProperties.setMode(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
 
         SecurityDecisionEnforcementHandler enforceHandler = new SecurityDecisionEnforcementHandler(
                 actionRepository,
@@ -959,7 +959,7 @@ class SecurityDecisionEnforcementHandlerTest {
     @DisplayName("event-level SHADOW should record the LLM observation and skip enforcement and learning")
     void eventShadow_shouldRecordObservationAndSkipSideEffects() throws Exception {
         SecurityZeroTrustProperties enforceProperties = new SecurityZeroTrustProperties();
-        enforceProperties.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+        enforceProperties.setMode(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
         List<Runnable> submittedTasks = new ArrayList<>();
         SecurityDecisionEnforcementHandler eventShadowHandler = new SecurityDecisionEnforcementHandler(
                 actionRepository,

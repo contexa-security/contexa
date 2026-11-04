@@ -54,7 +54,7 @@ public final class SystemSettingsDtos {
          * @param effectiveZeroTrustMode the zero trust mode in effect, shown when no mode is stored
          */
         public static SystemSettingsForm from(SystemSettings entity,
-                                              SecurityZeroTrustProperties.SecurityMode effectiveZeroTrustMode) {
+                                              SecurityZeroTrustProperties.EnforcementMode effectiveZeroTrustMode) {
             SystemSettings source = entity == null ? SystemRuntimeSettingsService.defaultSettings() : entity;
             SystemSettingsForm form = new SystemSettingsForm();
             form.setAuditLogRetentionDays(source.getAuditLogRetentionDays());

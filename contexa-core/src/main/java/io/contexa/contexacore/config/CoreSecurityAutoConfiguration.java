@@ -20,18 +20,15 @@ import org.springframework.beans.factory.BeanFactory;
 import io.contexa.contexacommon.repository.GroupRolePermissionRepository;
 import io.contexa.contexacommon.security.HeldBean;
 import io.contexa.contexacommon.repository.RolePermissionRepository;
-import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.repository.UserRolePermissionRepository;
 import io.contexa.contexacommon.security.authority.AuthorityResolver;
-import io.contexa.contexacore.security.UnifiedUserDetailsService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
-import org.springframework.security.core.userdetails.UserDetailsService;
 
 @Slf4j
 @AutoConfiguration
@@ -41,6 +38,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
         havingValue = "true",
         matchIfMissing = true
 )
+@Import(CoreSecurityContexaOwnedConfiguration.class)
 public class CoreSecurityAutoConfiguration {
 
     public CoreSecurityAutoConfiguration() {}
@@ -62,23 +60,4 @@ public class CoreSecurityAutoConfiguration {
                 rolePermissionRepository, roleHierarchy);
     }
 
-    @Bean(name = "contexaUnifiedUserDetailsService")
-    @Primary
-    @ConditionalOnProperty(
-            prefix = "contexa.core.security.unified",
-            name = "enabled",
-            havingValue = "true",
-            matchIfMissing = true
-    )
-    @ConditionalOnProperty(
-            prefix = "contexa.bridge",
-            name = "ownership",
-            havingValue = "CONTEXA_OWNED"
-    )
-    @ConditionalOnMissingBean(UserDetailsService.class)
-        public UnifiedUserDetailsService unifiedUserDetailsService(
-                UserRepository userRepository,
-                AuthorityResolver contexaAuthorityResolver) {
-            return new UnifiedUserDetailsService(userRepository, contexaAuthorityResolver);
-        }
     }

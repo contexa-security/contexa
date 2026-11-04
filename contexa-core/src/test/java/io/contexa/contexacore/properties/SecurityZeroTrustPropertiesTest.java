@@ -83,11 +83,11 @@ class SecurityZeroTrustPropertiesTest {
     void disabledAndObserve_shouldNotAllowLlmAnalysis() {
         SecurityZeroTrustProperties properties = new SecurityZeroTrustProperties();
 
-        properties.setMode(SecurityZeroTrustProperties.SecurityMode.DISABLED);
+        properties.setMode(SecurityZeroTrustProperties.EnforcementMode.DISABLED);
         assertThat(properties.allowsLlmAnalysis()).isFalse();
         assertThat(properties.isEnforcementEnabled()).isFalse();
 
-        properties.setMode(SecurityZeroTrustProperties.SecurityMode.OBSERVE);
+        properties.setMode(SecurityZeroTrustProperties.EnforcementMode.OBSERVE);
         assertThat(properties.allowsLlmAnalysis()).isFalse();
         assertThat(properties.isEnforcementEnabled()).isFalse();
     }
@@ -97,11 +97,11 @@ class SecurityZeroTrustPropertiesTest {
     void shadowAndEnforce_shouldSeparateAnalysisFromActionApplication() {
         SecurityZeroTrustProperties properties = new SecurityZeroTrustProperties();
 
-        properties.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+        properties.setMode(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
         assertThat(properties.allowsLlmAnalysis()).isTrue();
         assertThat(properties.isEnforcementEnabled()).isFalse();
 
-        properties.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+        properties.setMode(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
         assertThat(properties.allowsLlmAnalysis()).isTrue();
         assertThat(properties.isEnforcementEnabled()).isTrue();
     }

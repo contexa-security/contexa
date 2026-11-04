@@ -105,14 +105,14 @@ class AccessEvaluationServiceTest {
         answer(ZeroTrustAction.PENDING_ANALYSIS, null);
         assertThat(service.evaluate(delegatedAgentReading(), "gateway-client", null).decision()).isFalse();
 
-        properties.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+        properties.setMode(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
         answer(ZeroTrustAction.BLOCK, null);
         AccessEvaluation observed = service.evaluate(delegatedAgentReading(), "gateway-client", null);
         assertThat(observed.decision()).isTrue();
         assertThat(observed.enforced()).isFalse();
         assertThat(observed.action()).isEqualTo(ZeroTrustAction.BLOCK);
 
-        properties.setMode(SecurityZeroTrustProperties.SecurityMode.OBSERVE);
+        properties.setMode(SecurityZeroTrustProperties.EnforcementMode.OBSERVE);
         AccessEvaluation notAnalysed = service.evaluate(delegatedAgentReading(), "gateway-client", null);
         assertThat(notAnalysed.decision()).isTrue();
         assertThat(notAnalysed.action()).isNull();

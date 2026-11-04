@@ -15,12 +15,13 @@
  */
 package io.contexa.autoconfigure.iam;
 
+import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
+import io.contexa.contexacommon.operating.ConditionalOnOwnership;
 import java.util.Locale;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.web.WebProperties;
 import org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration;
 import org.springframework.context.HierarchicalMessageSource;
@@ -104,8 +105,7 @@ public class IamI18nAutoConfiguration {
 
     /** CONTEXA_OWNED: Contexa resolves the language of the whole application, as it always did. */
     @Configuration(proxyBeanMethods = false)
-    @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED",
-            matchIfMissing = true)
+    @ConditionalOnOwnership(value = SecurityOwnershipMode.CONTEXA_OWNED, matchIfUndeclared = true)
     static class ContexaOwned {
 
         @Bean
@@ -127,7 +127,7 @@ public class IamI18nAutoConfiguration {
 
     /** HOST_OWNED: the application's own language resolution stays; Contexa serves its screens only. */
     @Configuration(proxyBeanMethods = false)
-    @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "HOST_OWNED")
+    @ConditionalOnOwnership(SecurityOwnershipMode.HOST_OWNED)
     static class HostOwned {
 
         @Bean

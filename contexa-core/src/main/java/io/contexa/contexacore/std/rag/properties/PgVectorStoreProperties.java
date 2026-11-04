@@ -28,11 +28,11 @@ import org.springframework.validation.annotation.Validated;
 /**
  * The pgvector settings of the Contexa vector service ({@code contexa.vectorstore.pgvector.*}).
  * <p>
- * The table, its index and its schema are Spring AI's {@code PgVectorStore}: a key set here under this prefix is also
- * given to Spring AI as {@code spring.ai.vectorstore.pgvector.*} (unless that key is set itself), so
- * {@code index-type}, {@code distance-type}, {@code dimensions} and {@code initialize-schema} reach the store through
- * Spring AI's auto-configuration. BR-S8, {@code initialize-schema}: Contexa's defaults set
- * {@code spring.ai.vectorstore.pgvector.initialize-schema=true}, against Spring AI's own default false, so that a first
+ * The table, its index and its schema are a Spring AI {@code PgVectorStore} of Contexa's own, built by
+ * {@code ContexaPgVectorStoreAutoConfiguration} from these same keys, so {@code index-type}, {@code distance-type},
+ * {@code dimensions} and {@code initialize-schema} reach it; Spring AI's own keys belong to the application. BR-S8,
+ * {@code initialize-schema}: Contexa's defaults set
+ * {@code contexa.vectorstore.pgvector.initialize-schema=true}, against Spring AI's own default false, so that a first
  * start creates the extension, the table and its HNSW index, and the metadata index of the personal search is created
  * only then. A production database whose schema is managed by migrations should set it to false and create the
  * table, the vector index and the metadata index itself; with false, nothing is created or changed at start.
@@ -48,15 +48,13 @@ import org.springframework.validation.annotation.Validated;
 public class PgVectorStoreProperties {
 
     /**
-     * The index type; Contexa does not read it, a value set here is given to Spring AI as
-     * spring.ai.vectorstore.pgvector.index-type.
+     * The index type of Contexa's store.
      */
     @NotNull
     private IndexType indexType = IndexType.HNSW;
 
     /**
-     * The distance type; Contexa does not read it, a value set here is given to Spring AI as
-     * spring.ai.vectorstore.pgvector.distance-type.
+     * The distance type of Contexa's store.
      */
     @NotNull
     private DistanceType distanceType = DistanceType.COSINE_DISTANCE;

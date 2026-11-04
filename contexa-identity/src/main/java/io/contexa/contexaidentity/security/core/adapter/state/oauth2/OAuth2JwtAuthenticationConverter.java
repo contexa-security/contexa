@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.core.adapter.state.oauth2;
 
+import io.contexa.contexacore.security.ContexaUserStore;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.security.bridge.AgentTokenClaims;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
@@ -67,7 +68,7 @@ public class OAuth2JwtAuthenticationConverter implements Converter<Jwt, Abstract
 
     public OAuth2JwtAuthenticationConverter(HttpSecurity httpSecurity) {
         ApplicationContext applicationContext = httpSecurity.getSharedObject(ApplicationContext.class);
-        this.userDetailsService = applicationContext.getBean(UserDetailsService.class);
+        this.userDetailsService = ContexaUserStore.of(applicationContext);
         AuthContextProperties properties = applicationContext.getBeanProvider(AuthContextProperties.class)
                 .getIfAvailable();
         this.authorizationValidator = properties != null

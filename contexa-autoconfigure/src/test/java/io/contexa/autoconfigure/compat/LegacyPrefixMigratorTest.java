@@ -92,34 +92,28 @@ class LegacyPrefixMigratorTest {
     }
 
     @Test
-    @DisplayName("역방향 alias: contexa.vectorstore.pgvector.* 가 Spring AI 표준 prefix 로도 노출된다")
-    void reverseAliasesPgVectorToSpringAi() {
+    @DisplayName("contexa.vectorstore.pgvector.* stays under Contexa's keys: Spring AI's keys belong to the application's own store")
+    void contexaWritesNothingUnderSpringAisKeys() {
         MockEnvironment env = new MockEnvironment();
         env.setProperty("contexa.ai.security.mode", "SANDBOX");
         env.setProperty("contexa.vectorstore.pgvector.dimensions", "2048");
 
         migrator.postProcessEnvironment(env, new SpringApplication());
 
-        assertThat(env.getProperty("spring.ai.vectorstore.pgvector.dimensions")).isEqualTo("2048");
+        assertThat(env.containsProperty("spring.ai.vectorstore.pgvector.dimensions")).isFalse();
     }
 
     @Test
-    @DisplayName("Reverse aliases outside contexa.* stay hidden until @EnableAISecurity activates the platform")
-    void reverseAliasesStayHiddenWhilePlatformIsInactive() {
+    @DisplayName("Legacy aliases into contexa.* are there before @EnableAISecurity activates the platform too")
+    void legacyAliasesAreKeptWhilePlatformIsInactive() {
         MockEnvironment env = new MockEnvironment();
         env.setProperty("contexa.vectorstore.pgvector.dimensions", "2048");
         env.setProperty("security.zerotrust.mode", "ENFORCE");
 
         migrator.postProcessEnvironment(env, new SpringApplication());
 
-        assertThat(env.getProperty("spring.ai.vectorstore.pgvector.dimensions")).isNull();
         assertThat(env.containsProperty("spring.ai.vectorstore.pgvector.dimensions")).isFalse();
         assertThat(env.getProperty("contexa.security.zerotrust.mode")).isEqualTo("ENFORCE");
-
-        env.getPropertySources().addFirst(new MapPropertySource(
-                "contexaAiSecurityAnnotation", Map.of("contexa.ai.security.mode", "SANDBOX")));
-
-        assertThat(env.getProperty("spring.ai.vectorstore.pgvector.dimensions")).isEqualTo("2048");
     }
 
     @Test

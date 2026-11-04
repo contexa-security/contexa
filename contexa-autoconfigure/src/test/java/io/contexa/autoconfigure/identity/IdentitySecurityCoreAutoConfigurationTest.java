@@ -15,6 +15,8 @@
  */
 package io.contexa.autoconfigure.identity;
 
+import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
+import io.contexa.contexacommon.operating.ConditionalOnOwnership;
 import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
@@ -38,7 +40,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.jdbc.core.JdbcOperations;
@@ -87,35 +88,25 @@ class IdentitySecurityCoreAutoConfigurationTest {
         @Test
         @DisplayName("Should limit Contexa-owned authentication handlers to CONTEXA_OWNED mode")
         void shouldLimitAuthenticationHandlersToContexaOwnedMode() {
-            assertContexaOwnedCondition(IdentitySecurityCoreAutoConfiguration.class,
+            assertContexaOwnedCondition(IdentitySecurityCoreContexaOwnedConfiguration.class,
                     "primaryAuthenticationSuccessHandler");
-            assertContexaOwnedCondition(IdentitySecurityCoreAutoConfiguration.class,
+            assertContexaOwnedCondition(IdentitySecurityCoreContexaOwnedConfiguration.class,
                     "unifiedAuthenticationFailureHandler");
-            assertContexaOwnedCondition(IdentitySecurityCoreAutoConfiguration.class,
+            assertContexaOwnedCondition(IdentitySecurityCoreContexaOwnedConfiguration.class,
                     "mfaFactorProcessingSuccessHandler");
 
-            ConditionalOnProperty handlerCondition = Arrays.stream(IdentityHandlerAutoConfiguration.class
-                            .getAnnotationsByType(ConditionalOnProperty.class))
-                    .filter(condition -> condition.prefix().equals("contexa.bridge"))
-                    .findFirst()
-                    .orElseThrow();
-            assertContexaOwnedCondition(handlerCondition);
+            assertContexaOwnedCondition(IdentityHandlerAutoConfiguration.class.getAnnotation(ConditionalOnOwnership.class));
         }
 
-        private void assertContexaOwnedCondition(Class<?> configurationClass, String methodName) {
-            Method method = Arrays.stream(configurationClass.getDeclaredMethods())
-                    .filter(candidate -> candidate.getName().equals(methodName))
-                    .findFirst()
-                    .orElseThrow();
-            assertContexaOwnedCondition(method.getAnnotation(ConditionalOnProperty.class));
+        private void assertContexaOwnedCondition(Class<?> plane, String methodName) {
+            assertThat(Arrays.stream(plane.getDeclaredMethods()).map(Method::getName)).contains(methodName);
+            assertContexaOwnedCondition(plane.getAnnotation(ConditionalOnOwnership.class));
         }
 
-        private void assertContexaOwnedCondition(ConditionalOnProperty condition) {
+        private void assertContexaOwnedCondition(ConditionalOnOwnership condition) {
             assertThat(condition).isNotNull();
-            assertThat(condition.prefix()).isEqualTo("contexa.bridge");
-            assertThat(condition.name()).containsExactly("ownership");
-            assertThat(condition.havingValue()).isEqualTo("CONTEXA_OWNED");
-            assertThat(condition.matchIfMissing()).isFalse();
+            assertThat(condition.value()).isEqualTo(SecurityOwnershipMode.CONTEXA_OWNED);
+            assertThat(condition.matchIfUndeclared()).isFalse();
         }
     }
 

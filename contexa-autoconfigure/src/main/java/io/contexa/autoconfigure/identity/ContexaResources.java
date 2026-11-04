@@ -34,12 +34,14 @@ import java.util.concurrent.ConcurrentHashMap;
 final class ContexaResources {
 
     private static final Map<String, Resource> FOUND = new ConcurrentHashMap<>();
+    /** Not the thread's context class loader: a context closed earlier on this thread leaves its stopped web class loader there. */
+    private static final ClassLoader LOADER = ContexaResources.class.getClassLoader();
 
     private ContexaResources() {
     }
 
     static Resource sql(String location) {
-        return FOUND.computeIfAbsent(location, name -> sql(new PathMatchingResourcePatternResolver(), name));
+        return FOUND.computeIfAbsent(location, name -> sql(new PathMatchingResourcePatternResolver(LOADER), name));
     }
 
     static Resource sql(PathMatchingResourcePatternResolver resolver, String location) {
@@ -52,7 +54,7 @@ final class ContexaResources {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return new ClassPathResource(location);
+        return new ClassPathResource(location, LOADER);
     }
 
     private static boolean namesContexaTables(Resource candidate) {

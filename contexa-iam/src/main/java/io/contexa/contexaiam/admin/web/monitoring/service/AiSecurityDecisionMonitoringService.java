@@ -755,15 +755,15 @@ public class AiSecurityDecisionMonitoringService {
     }
 
     private RuntimeModeSummary runtimeModeSummary() {
-        SecurityZeroTrustProperties.SecurityMode llmMode = zeroTrustProperties == null
-                ? SecurityZeroTrustProperties.SecurityMode.ENFORCE
+        SecurityZeroTrustProperties.EnforcementMode llmMode = zeroTrustProperties == null
+                ? SecurityZeroTrustProperties.EnforcementMode.ENFORCE
                 : zeroTrustProperties.getMode();
         return new RuntimeModeSummary(
                 llmMode.name(),
                 llmEffectKey(llmMode));
     }
 
-    private String llmEffectKey(SecurityZeroTrustProperties.SecurityMode mode) {
+    private String llmEffectKey(SecurityZeroTrustProperties.EnforcementMode mode) {
         return switch (mode) {
             case DISABLED -> "LLM_DISABLED";
             case OBSERVE -> "LLM_OBSERVE_LOG_ONLY";

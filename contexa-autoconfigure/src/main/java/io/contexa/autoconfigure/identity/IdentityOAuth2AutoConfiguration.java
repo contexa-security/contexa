@@ -15,6 +15,9 @@
  */
 package io.contexa.autoconfigure.identity;
 
+import io.contexa.contexaidentity.security.core.adapter.state.oauth2.OAuth2StateAdapter;
+import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
+import io.contexa.contexacommon.operating.ConditionalOnOwnership;
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
 import io.contexa.contexacore.autonomous.agent.AgentDelegations;
 import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
@@ -43,7 +46,6 @@ import io.contexa.contexaidentity.security.core.adapter.state.oauth2.DeviceAware
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.AuthenticatedUserGrantAuthenticationToken;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.MfaGrantedAuthority;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.MfaGrantedAuthorityMixin;
-import io.contexa.contexaidentity.security.core.adapter.state.oauth2.OAuth2StateAdapter;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.handler.logout.CompositeLogoutHandler;
 import io.contexa.contexaidentity.security.handler.logout.LogoutStrategy;
@@ -88,7 +90,6 @@ import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.io.ClassPathResource;
@@ -147,7 +148,7 @@ import io.contexa.contexacommon.jdbc.LibraryTableNames;
 @AutoConfigureAfter({IdentitySecurityCoreAutoConfiguration.class, CoreDataAutoConfiguration.class})
 @ConditionalOnClass(name = "org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository")
 @ConditionalOnBean(value = PlatformConfig.class, name = {"contexaJdbcTemplate", "contexaTransactionTemplate"})
-@ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
+@ConditionalOnOwnership(SecurityOwnershipMode.CONTEXA_OWNED)
 public class IdentityOAuth2AutoConfiguration {
 
     private final TransactionTemplate transactionTemplate;
@@ -191,12 +192,25 @@ public class IdentityOAuth2AutoConfiguration {
         return new OAuth2StateAdapter();
     }
 
-    @Bean
+    /**
+     * Contexa's own: what Contexa issues is checked with its keys, whatever decoders the application has for its own purposes.
+     * An application that verifies another issuer's tokens on Contexa's chain gives a bean of this name. Where the application
+     * has no decoder, whatever asks for a JwtDecoder gets this one.
+     */
+    @Bean(name = "contexaJwtDecoder")
     @ConditionalOnMissingBean(JwtDecoder.class)
     public JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource,
                                  ObjectProvider<AuthorizationServerSettings> authorizationServerSettings) {
         AuthorizationServerSettings serverSettings = authorizationServerSettings.getIfAvailable();
         return jwtDecoder(jwkSource, serverSettings != null ? serverSettings.getIssuer() : null);
+    }
+
+    /** Beside the application's own decoders it stays out of their way. */
+    @Bean(name = "contexaJwtDecoder", defaultCandidate = false)
+    @ConditionalOnMissingBean(name = "contexaJwtDecoder")
+    public JwtDecoder standbyJwtDecoder(JWKSource<SecurityContext> jwkSource,
+                                        ObjectProvider<AuthorizationServerSettings> authorizationServerSettings) {
+        return jwtDecoder(jwkSource, authorizationServerSettings);
     }
 
     /** The decoder for tokens of this authorization server, which issues them under its settings' issuer. */
@@ -422,7 +436,7 @@ public class IdentityOAuth2AutoConfiguration {
         }
 
         ResourceDatabasePopulator populator = new ResourceDatabasePopulator(
-                new ClassPathResource("contexa-oauth2-authorization-schema.sql"));
+                new ClassPathResource("contexa-oauth2-authorization-schema.sql", IdentityOAuth2AutoConfiguration.class.getClassLoader()));
         populator.setContinueOnError(false);
         populator.execute(dataSource);
     }
@@ -625,7 +639,7 @@ public class IdentityOAuth2AutoConfiguration {
     @Bean(name = "contexaOauth2TokenValidator")
     @ConditionalOnMissingBean(TokenValidator.class)
     public TokenValidator oauth2TokenValidator(
-            JwtDecoder jwtDecoder,
+            @Qualifier("contexaJwtDecoder") JwtDecoder jwtDecoder,
             OAuth2AuthorizationService contexaAuthorizationService) {
 
         long rotateThresholdMillis = authContextProperties.getRefreshTokenValidity() / 2;

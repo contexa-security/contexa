@@ -42,7 +42,7 @@ public class ContexaWebAuthnResourceFilter extends GenericFilterBean {
 
     private ContexaWebAuthnResourceFilter(RequestMatcher matcher) {
         this.matcher = matcher;
-        this.resource = new ClassPathResource("org/springframework/security/spring-security-webauthn.js");
+        this.resource = new ClassPathResource("org/springframework/security/spring-security-webauthn.js", ContexaWebAuthnResourceFilter.class.getClassLoader());
         this.mediaType = new MediaType("text", "javascript", StandardCharsets.UTF_8);
     }
 

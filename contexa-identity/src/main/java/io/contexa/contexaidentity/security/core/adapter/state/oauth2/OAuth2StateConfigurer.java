@@ -18,6 +18,7 @@ import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.Authe
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.AuthenticatedUserGrantAuthenticationProvider;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -149,7 +150,14 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
         tokenResolver = chainTokenResolver(appContext, cookieTokenSupport);
 
         http.oauth2ResourceServer(oauth2 -> {
-            oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(new OAuth2JwtAuthenticationConverter(http)))
+            // named here: jwt() on its own asks the context for the only JwtDecoder, and the application may have several
+            oauth2.jwt(jwt -> {
+                        JwtDecoder decoder = http.getSharedObject(JwtDecoder.class);
+                        if (decoder != null) {
+                            jwt.decoder(decoder);
+                        }
+                        jwt.jwtAuthenticationConverter(new OAuth2JwtAuthenticationConverter(http));
+                    })
                     .authenticationEntryPoint(entryPoint)
                     .accessDeniedHandler(new OAuth2AccessDeniedHandler());
             if (cookieTokenSupport != null) {

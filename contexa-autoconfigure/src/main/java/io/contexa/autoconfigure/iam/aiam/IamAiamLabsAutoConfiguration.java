@@ -53,9 +53,9 @@ public class IamAiamLabsAutoConfiguration {
 
     @Bean(name = "contexaPolicyGenerationVectorService")
     @ConditionalOnMissingBean
-    @ConditionalOnBean({VectorStore.class, ContexaRagProperties.class})
+    @ConditionalOnBean(value = {ContexaRagProperties.class}, name = "contexaVectorStore")
     public PolicyGenerationVectorService policyGenerationVectorService(
-            VectorStore vectorStore,
+            @Qualifier("contexaVectorStore") VectorStore vectorStore,
             @Autowired(required = false) VectorStoreMetrics contexaVectorStoreMetrics,
             ContexaRagProperties ragProperties,
             MessageSource messageSource) {

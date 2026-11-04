@@ -15,6 +15,9 @@
  */
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
+import io.contexa.contexaidentity.security.core.context.PlatformContext;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import io.contexa.contexacore.security.ContexaUserStore;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.dsl.option.PasskeyOptions;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
@@ -29,6 +32,8 @@ public abstract class BasePasskeyAuthenticationAdapter extends AbstractAuthentic
                                          PlatformAuthenticationSuccessHandler successHandler,
                                          PlatformAuthenticationFailureHandler failureHandler) throws Exception {
 
+        // WebAuthn looks for the store as the only bean of its type, and the application may have several
+        http.setSharedObject(UserDetailsService.class, ContexaUserStore.of(http.getSharedObject(PlatformContext.class).applicationContext()));
         http.webAuthn(web -> {
             web.rpName(opts.getRpName())
                     .rpId(opts.getRpId())

@@ -39,6 +39,7 @@ import io.contexa.contexacore.autonomous.SecurityEventProcessor;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
+import io.contexa.contexacommon.security.bridge.runtime.RequestPathDatabaseGuard;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.audit.AuditPersistenceListener;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
@@ -296,8 +297,9 @@ public class CoreAutonomousAutoConfiguration {
      */
     @Bean(name = "contexaAgentClientDirectory")
     @ConditionalOnMissingBean(AgentClientDirectory.class)
-    public AgentClientDirectory agentClientDirectory(AgentRegistry contexaAgentRegistry) {
-        return new RegistryAgentClientDirectory(contexaAgentRegistry);
+    public AgentClientDirectory agentClientDirectory(AgentRegistry contexaAgentRegistry,
+                                                     ObjectProvider<RequestPathDatabaseGuard> contexaRequestPathDatabaseGuard) {
+        return new RegistryAgentClientDirectory(contexaAgentRegistry, contexaRequestPathDatabaseGuard.getIfAvailable(RequestPathDatabaseGuard::new));
     }
 
     /** A1-6: every agent request reaches the registry. */
@@ -606,9 +608,9 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean(name = "contexaVectorStoreCacheLayer")
     @ConditionalOnMissingBean
-    @ConditionalOnBean(VectorStore.class)
+    @ConditionalOnBean(name = "contexaVectorStore")
     public VectorStoreCacheLayer vectorStoreCacheLayer(
-            VectorStore vectorStore,
+            @Qualifier("contexaVectorStore") VectorStore vectorStore,
             TieredStrategyProperties tieredStrategyProperties) {
         return new VectorStoreCacheLayer(vectorStore, tieredStrategyProperties);
     }
@@ -1072,7 +1074,7 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<BaselineDataStore> baselineDataStore,
             ObjectProvider<SecurityContextDataStore> securityContextDataStore,
             ObjectProvider<ColdPathEventProcessor> coldPathEventProcessor,
-            ObjectProvider<VectorStore> vectorStore,
+            @Qualifier("contexaVectorStore") ObjectProvider<VectorStore> vectorStore,
             ObjectProvider<IForceLogoutService> forceLogoutService,
             ObjectProvider<UserStatePurgeContributor> contributors,
             ObjectProvider<VectorStoreCacheLayer> vectorStoreCacheLayer,

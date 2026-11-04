@@ -37,9 +37,9 @@ public class IamAiamServiceStrategyAutoConfiguration {
 
     @Bean(name = "contexaDataIngestionService")
     @ConditionalOnMissingBean
-    @ConditionalOnBean(VectorStore.class)
+    @ConditionalOnBean(name = "contexaVectorStore")
     public DataIngestionServiceImpl dataIngestionService(
-            VectorStore vectorStore,
+            @Qualifier("contexaVectorStore") VectorStore vectorStore,
             PolicyRepository policyRepository,
             @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         return new DataIngestionServiceImpl(vectorStore, policyRepository, objectMapper);

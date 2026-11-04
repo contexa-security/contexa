@@ -17,8 +17,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 /**
- * O-4: the vector store Contexa's decisions are stored in uses the Contexa database, also when the application's
- * default JdbcTemplate is its own database (the application owns sign-in); a store the application declares is kept.
+ * O-4: the vector store Contexa's decisions are stored in uses the Contexa database, also when the application's default JdbcTemplate is its own
+ * database (the application owns sign-in). It is Contexa's own bean and not a default candidate: the application's VectorStore (declared, or made by
+ * Spring AI's auto-configuration from its own database) is neither replaced nor shared, and Contexa's documents never go to it.
  */
 class ContexaPgVectorStoreAutoConfigurationTest {
 
@@ -30,27 +31,37 @@ class ContexaPgVectorStoreAutoConfigurationTest {
     @Test
     void theVectorStoreUsesTheContexaDatabaseNotTheApplicationsOwn() {
         runner.withUserConfiguration(TwoDatabases.class).run(context -> {
-            assertThat(context).hasSingleBean(PgVectorStore.class);
-            PgVectorStore store = context.getBean(PgVectorStore.class);
-            assertThat(ReflectionTestUtils.getField(store, "jdbcTemplate"))
-                    .isSameAs(context.getBean("contexaJdbcTemplate"));
+            PgVectorStore contexas = context.getBean("contexaVectorStore", PgVectorStore.class);
+            assertThat(ReflectionTestUtils.getField(contexas, "jdbcTemplate")).isSameAs(context.getBean("contexaJdbcTemplate"));
         });
     }
 
     @Test
-    void aVectorStoreTheApplicationDeclaresIsKeptAndContexaAddsNone() {
+    void theApplicationsOwnStoreOfSpringAiIsStillMadeFromItsOwnDatabase() {
+        runner.withUserConfiguration(TwoDatabases.class).run(context -> {
+            assertThat(context.getBeansOfType(PgVectorStore.class)).containsOnlyKeys("contexaVectorStore", "vectorStore");
+            PgVectorStore applications = context.getBean("vectorStore", PgVectorStore.class);
+            assertThat(ReflectionTestUtils.getField(applications, "jdbcTemplate")).isSameAs(context.getBean("jdbcTemplate"));
+            assertThat(context.getBeanProvider(VectorStore.class).getIfAvailable())
+                    .as("what an injection point of the application gets by type").isSameAs(applications);
+        });
+    }
+
+    @Test
+    void aVectorStoreTheApplicationDeclaresIsKeptAndContexaKeepsItsOwn() {
         runner.withUserConfiguration(TwoDatabases.class, OwnVectorStore.class).run(context -> {
             assertThat(context).hasBean("applicationVectorStore");
-            // Spring AI's own store, if it makes one next to the application's, stays as it was.
-            assertThat(context.getBeansOfType(PgVectorStore.class).values())
-                    .allSatisfy(store -> assertThat(ReflectionTestUtils.getField(store, "jdbcTemplate"))
-                            .isNotSameAs(context.getBean("contexaJdbcTemplate")));
+            // the application has its own store and Spring AI's, as it would alone; Contexa's is a third, hidden from the injection by type
+            assertThat(context.getBeansOfType(VectorStore.class)).containsOnlyKeys("applicationVectorStore", "vectorStore", "contexaVectorStore");
+            PgVectorStore contexas = context.getBean("contexaVectorStore", PgVectorStore.class);
+            assertThat(ReflectionTestUtils.getField(contexas, "jdbcTemplate")).isSameAs(context.getBean("contexaJdbcTemplate"));
         });
     }
 
     @Test
     void withoutTheContexaDatabaseSpringAisStoreIsLeftAsItWas() {
         runner.withUserConfiguration(ApplicationDatabaseOnly.class).run(context -> {
+            assertThat(context).doesNotHaveBean("contexaVectorStore");
             PgVectorStore store = context.getBean(PgVectorStore.class);
             assertThat(ReflectionTestUtils.getField(store, "jdbcTemplate")).isSameAs(context.getBean("jdbcTemplate"));
         });
@@ -77,6 +88,11 @@ class ContexaPgVectorStoreAutoConfigurationTest {
         @Bean(defaultCandidate = false)
         JdbcTemplate contexaJdbcTemplate() {
             return mock(JdbcTemplate.class);
+        }
+
+        @Bean(name = "contexaPrimaryEmbeddingModel", defaultCandidate = false)
+        EmbeddingModel contexaPrimaryEmbeddingModel() {
+            return mock(EmbeddingModel.class);
         }
     }
 

@@ -73,6 +73,7 @@ import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.server.authorization.InMemoryOAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
@@ -313,7 +314,7 @@ class OAuth2TokenChainIntegrationTest {
     }
 
     private Jwt decode(String token) {
-        return context.getBean(JwtDecoder.class).decode(token);
+        return context.getBean("contexaJwtDecoder", JwtDecoder.class).decode(token);
     }
 
     private static String dpopProof(ECKey key, String method, String uri) throws Exception {
@@ -356,9 +357,24 @@ class OAuth2TokenChainIntegrationTest {
             return contexaOAuth2.jwtEncoder(keys);
         }
 
-        @Bean
-        JwtDecoder jwtDecoder(IdentityOAuth2AutoConfiguration contexaOAuth2, JWKSource<SecurityContext> keys) {
+        @Bean(name = "contexaJwtDecoder", defaultCandidate = false)
+        JwtDecoder contexaJwtDecoder(IdentityOAuth2AutoConfiguration contexaOAuth2, JWKSource<SecurityContext> keys) {
             return contexaOAuth2.jwtDecoder(keys);
+        }
+
+        /** P-8: decoders of the application for purposes of its own, which neither check Contexa's tokens nor stop the chain. */
+        @Bean
+        JwtDecoder applicationDecoderOne() {
+            return token -> {
+                throw new JwtException("the application's decoder must not see Contexa's tokens");
+            };
+        }
+
+        @Bean
+        JwtDecoder applicationDecoderTwo() {
+            return token -> {
+                throw new JwtException("the application's decoder must not see Contexa's tokens");
+            };
         }
 
         @Bean

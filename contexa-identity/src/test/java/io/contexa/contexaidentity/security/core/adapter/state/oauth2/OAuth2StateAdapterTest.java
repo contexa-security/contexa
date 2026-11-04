@@ -150,7 +150,7 @@ class OAuth2StateAdapterTest {
     void applyWhenJwtDecoderMissingThrowsException() {
         when(applicationContext.getBean("contexaObjectMapper", ObjectMapper.class)).thenReturn(objectMapper);
         when(applicationContext.getBean(JsonAuthResponseWriter.class)).thenReturn(jsonAuthResponseWriter);
-        when(applicationContext.getBean(JwtDecoder.class))
+        when(applicationContext.getBean(OAuth2StateAdapter.CONTEXA_JWT_DECODER, JwtDecoder.class))
                 .thenThrow(new NoSuchBeanDefinitionException(JwtDecoder.class));
 
         assertThatThrownBy(() -> adapter.apply(httpSecurity, platformContext))
@@ -163,7 +163,7 @@ class OAuth2StateAdapterTest {
     void applyWhenAuthServerBeansMissingThrowsException() {
         when(applicationContext.getBean("contexaObjectMapper", ObjectMapper.class)).thenReturn(objectMapper);
         when(applicationContext.getBean(JsonAuthResponseWriter.class)).thenReturn(jsonAuthResponseWriter);
-        when(applicationContext.getBean(JwtDecoder.class)).thenReturn(jwtDecoder);
+        when(applicationContext.getBean(OAuth2StateAdapter.CONTEXA_JWT_DECODER, JwtDecoder.class)).thenReturn(jwtDecoder);
         when(applicationContext.getBean(JwtEncoder.class))
                 .thenThrow(new NoSuchBeanDefinitionException(JwtEncoder.class));
 
@@ -178,7 +178,7 @@ class OAuth2StateAdapterTest {
     void applyWithAllBeansSucceeds() throws Exception {
         when(applicationContext.getBean("contexaObjectMapper", ObjectMapper.class)).thenReturn(objectMapper);
         when(applicationContext.getBean(JsonAuthResponseWriter.class)).thenReturn(jsonAuthResponseWriter);
-        when(applicationContext.getBean(JwtDecoder.class)).thenReturn(jwtDecoder);
+        when(applicationContext.getBean(OAuth2StateAdapter.CONTEXA_JWT_DECODER, JwtDecoder.class)).thenReturn(jwtDecoder);
         when(applicationContext.getBean(JwtEncoder.class)).thenReturn(jwtEncoder);
         when(applicationContext.getBean(OAuth2AuthorizationService.class)).thenReturn(authorizationService);
         when(applicationContext.getBean(RegisteredClientRepository.class)).thenReturn(registeredClientRepository);

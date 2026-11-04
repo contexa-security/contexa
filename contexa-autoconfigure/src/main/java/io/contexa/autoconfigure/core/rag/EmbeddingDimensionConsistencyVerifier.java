@@ -80,7 +80,7 @@ public class EmbeddingDimensionConsistencyVerifier implements SmartInitializingS
             throw new IllegalStateException("""
                     Embedding dimension mismatch before vector storage starts.
                     selectedProvider=%s, selectedModel=%s, expectedDimension=%d, configuredPgVectorDimension=%d.
-                    Keep contexa.vectorstore.pgvector.dimensions, spring.ai.vectorstore.pgvector.dimensions, and provider embedding dimensions identical.
+                    Keep contexa.vectorstore.pgvector.dimensions and provider embedding dimensions identical.
                     Existing vectors must be regenerated when the dimension changes.
                     """.formatted(expected.provider(), expected.modelId(), expected.dimensions(), configuredDimension).trim());
         }
@@ -184,8 +184,8 @@ public class EmbeddingDimensionConsistencyVerifier implements SmartInitializingS
             if (productName == null || !productName.toLowerCase(Locale.ROOT).contains("postgres")) {
                 return OptionalInt.empty();
             }
-            String schema = environment.getProperty("spring.ai.vectorstore.pgvector.schema-name", "public");
-            String table = environment.getProperty("spring.ai.vectorstore.pgvector.table-name", "ctxa_vector_store");
+            String schema = environment.getProperty("contexa.vectorstore.pgvector.schema-name", "public");
+            String table = environment.getProperty("contexa.vectorstore.pgvector.table-name", "ctxa_vector_store");
             String relation = quoteIdentifier(schema) + "." + quoteIdentifier(table);
             try (PreparedStatement statement = connection.prepareStatement("""
                     select format_type(a.atttypid, a.atttypmod)

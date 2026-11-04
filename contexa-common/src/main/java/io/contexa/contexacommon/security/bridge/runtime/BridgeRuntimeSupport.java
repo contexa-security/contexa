@@ -53,12 +53,21 @@ public class BridgeRuntimeSupport {
     private final BridgeProperties properties;
     @Nullable
     private final BridgeUserMirrorSyncService bridgeUserMirrorSyncService;
+    private final RequestPathDatabaseGuard requestPathDatabaseGuard;
 
     public BridgeRuntimeSupport(
             BridgeProperties properties,
             @Nullable BridgeUserMirrorSyncService bridgeUserMirrorSyncService) {
+        this(properties, bridgeUserMirrorSyncService, new RequestPathDatabaseGuard());
+    }
+
+    public BridgeRuntimeSupport(
+            BridgeProperties properties,
+            @Nullable BridgeUserMirrorSyncService bridgeUserMirrorSyncService,
+            RequestPathDatabaseGuard requestPathDatabaseGuard) {
         this.properties = properties != null ? properties : new BridgeProperties();
         this.bridgeUserMirrorSyncService = bridgeUserMirrorSyncService;
+        this.requestPathDatabaseGuard = requestPathDatabaseGuard;
     }
 
     public Optional<AuthorizationStamp> deriveAuthorizationStamp(
@@ -120,7 +129,8 @@ public class BridgeRuntimeSupport {
             return null;
         }
         try {
-            return bridgeUserMirrorSyncService.sync(authenticationStamp, authorizationStamp, requestContext);
+            return requestPathDatabaseGuard.call(
+                    () -> bridgeUserMirrorSyncService.sync(authenticationStamp, authorizationStamp, requestContext), null);
         } catch (Exception ex) {
             String principalId = authenticationStamp.principalId() != null ? authenticationStamp.principalId() : "unknown";
             log.error("[Bridge] Failed to synchronize bridge user mirror for principalId: {}", principalId, ex);
@@ -191,7 +201,7 @@ public class BridgeRuntimeSupport {
             @Nullable SecurityContextRepository securityContextRepository,
             @Nullable HttpServletRequest request,
             @Nullable HttpServletResponse response) {
-        if (!properties.isContexaOwned()) {
+        if (!properties.ownershipBehaviour().writesSecurityContext()) {
             return;
         }
         if (securityContextRepository == null || request == null || response == null) {
@@ -211,7 +221,7 @@ public class BridgeRuntimeSupport {
             BridgeResolutionResult result,
             @Nullable BridgeUserMirrorSyncResult userSyncResult,
             boolean allowOverride) {
-        if (!properties.isContexaOwned() || !properties.isPopulateSecurityContext()) {
+        if (!properties.ownershipBehaviour().writesSecurityContext() || !properties.isPopulateSecurityContext()) {
             return null;
         }
         if (authenticationStamp == null || !authenticationStamp.authenticated()) {

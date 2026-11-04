@@ -5,15 +5,16 @@
  */
 package io.contexa.autoconfigure.identity;
 
-import io.contexa.autoconfigure.iam.IamInfrastructureAutoConfiguration;
+import io.contexa.contexacore.config.CoreSecurityContexaOwnedConfiguration;
+import io.contexa.autoconfigure.iam.admin.IamAdminSessionContexaOwnedConfiguration;
+import io.contexa.autoconfigure.iam.IamInfrastructureContexaOwnedConfiguration;
+import io.contexa.autoconfigure.iam.IamSecurityCoreContexaOwnedConfiguration;
+import io.contexa.contexacommon.operating.ConditionalOnOwnership;
 import io.contexa.autoconfigure.iam.IamSecurityAutoConfiguration;
-import io.contexa.autoconfigure.iam.IamSecurityCoreAutoConfiguration;
 import io.contexa.autoconfigure.iam.IamWebSocketAutoConfiguration;
 import io.contexa.autoconfigure.iam.admin.IamAdminIpAutoConfiguration;
-import io.contexa.autoconfigure.iam.admin.IamAdminSessionAutoConfiguration;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
-import io.contexa.contexacore.config.CoreSecurityAutoConfiguration;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexaiam.admin.web.auth.service.IpAccessRuleService;
 import org.junit.jupiter.api.Test;
@@ -32,24 +33,16 @@ class SecurityOwnershipBoundaryContractTest {
 
     @Test
     void hostOwnedModeCannotMaterializeContexaAuthenticationInfrastructure() {
-        assertContexaOwnedOnly(findMethod(
-                IamSecurityCoreAutoConfiguration.class, "customAuthenticationProvider"));
-        assertContexaOwnedOnly(findMethod(
-                IamSecurityCoreAutoConfiguration.class, "loginAttemptEventListener"));
-        assertContexaOwnedOnly(findMethod(
-                IamSecurityCoreAutoConfiguration.class, "loginAttemptCleanupFilterRegistration"));
-        assertContexaOwnedOnly(findMethod(
-                IdentitySecurityCoreAutoConfiguration.class, "securityFilterChain"));
-        assertContexaOwnedOnly(findMethod(
-                IdentitySecurityCoreAutoConfiguration.class, "webSecurityConfigurationDependencyInjector"));
-        assertContexaOwnedOnly(findMethod(
-                CoreSecurityAutoConfiguration.class, "unifiedUserDetailsService"));
-        assertContexaOwnedOnly(findMethod(
-                IamInfrastructureAutoConfiguration.class, "webSecurityCustomizer"));
-        assertContexaOwnedOnly(findMethod(
-                IamAdminSessionAutoConfiguration.class, "sessionTrackingFilter"));
+        assertInContexaOwnedPlane(IamSecurityCoreContexaOwnedConfiguration.class, "customAuthenticationProvider");
+        assertInContexaOwnedPlane(IamSecurityCoreContexaOwnedConfiguration.class, "loginAttemptEventListener");
+        assertInContexaOwnedPlane(IamSecurityCoreContexaOwnedConfiguration.class, "loginAttemptCleanupFilterRegistration");
+        assertInContexaOwnedPlane(IdentitySecurityCoreContexaOwnedConfiguration.class, "securityFilterChain");
+        assertInContexaOwnedPlane(IdentitySecurityCoreContexaOwnedConfiguration.class, "webSecurityConfigurationDependencyInjector");
+        assertInContexaOwnedPlane(CoreSecurityContexaOwnedConfiguration.class, "unifiedUserDetailsService");
+        assertInContexaOwnedPlane(IamInfrastructureContexaOwnedConfiguration.class, "webSecurityCustomizer");
+        assertInContexaOwnedPlane(IamAdminSessionContexaOwnedConfiguration.class, "sessionTrackingFilter");
         assertContexaOwnedOnly(IdentityOAuth2AutoConfiguration.class
-                .getAnnotation(ConditionalOnProperty.class));
+                .getAnnotation(ConditionalOnOwnership.class));
     }
 
     @Test
@@ -68,7 +61,7 @@ class SecurityOwnershipBoundaryContractTest {
         assertThat(findMethod(ownedConfiguration, "contexaPreAuthorizeAdvisor"))
                 .as("Contexa's @PreAuthorize is served by an advisor narrowed to Contexa's classes")
                 .isNotNull();
-        assertContexaOwnedOnly(ownedConfiguration.getAnnotation(ConditionalOnProperty.class));
+        assertContexaOwnedOnly(ownedConfiguration.getAnnotation(ConditionalOnOwnership.class));
     }
 
     @Test
@@ -110,20 +103,14 @@ class SecurityOwnershipBoundaryContractTest {
                 .orElseThrow();
     }
 
-    private void assertContexaOwnedOnly(Method method) {
-        ConditionalOnProperty condition = Arrays.stream(
-                        method.getAnnotationsByType(ConditionalOnProperty.class))
-                .filter(candidate -> candidate.prefix().equals("contexa.bridge"))
-                .findFirst()
-                .orElse(null);
-        assertContexaOwnedOnly(condition);
+    private void assertInContexaOwnedPlane(Class<?> plane, String method) {
+        assertThat(findMethod(plane, method)).isNotNull();
+        assertContexaOwnedOnly(plane.getAnnotation(ConditionalOnOwnership.class));
     }
 
-    private void assertContexaOwnedOnly(ConditionalOnProperty condition) {
+    private void assertContexaOwnedOnly(ConditionalOnOwnership condition) {
         assertThat(condition).isNotNull();
-        assertThat(condition.prefix()).isEqualTo("contexa.bridge");
-        assertThat(condition.name()).containsExactly("ownership");
-        assertThat(condition.havingValue()).isEqualTo("CONTEXA_OWNED");
-        assertThat(condition.matchIfMissing()).isFalse();
+        assertThat(condition.value()).isEqualTo(SecurityOwnershipMode.CONTEXA_OWNED);
+        assertThat(condition.matchIfUndeclared()).isFalse();
     }
 }

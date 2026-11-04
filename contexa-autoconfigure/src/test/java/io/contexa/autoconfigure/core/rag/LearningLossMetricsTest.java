@@ -48,7 +48,7 @@ class LearningLossMetricsTest {
         when(baseline.lostLearnings()).thenReturn(2L);
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
 
-        contextRunner.withBean(VectorStore.class, () -> mock(VectorStore.class))
+        contextRunner.withBean("contexaVectorStore", VectorStore.class, () -> mock(VectorStore.class))
                 .withBean(BaselineLearningService.class, () -> baseline)
                 .withBean(MeterRegistry.class, () -> registry)
                 .run(context -> {
@@ -60,7 +60,7 @@ class LearningLossMetricsTest {
 
     @Test
     void withoutARegistryNothingIsBoundAndTheContextStarts() {
-        contextRunner.withBean(VectorStore.class, () -> mock(VectorStore.class))
+        contextRunner.withBean("contexaVectorStore", VectorStore.class, () -> mock(VectorStore.class))
                 .withBean(BaselineLearningService.class, () -> mock(BaselineLearningService.class))
                 .run(context -> assertThat(context).hasNotFailed());
     }

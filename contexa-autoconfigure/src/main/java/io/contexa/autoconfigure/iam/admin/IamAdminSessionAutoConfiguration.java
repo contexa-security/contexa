@@ -16,19 +16,17 @@
 package io.contexa.autoconfigure.iam.admin;
 
 import io.contexa.contexaiam.admin.web.auth.controller.SessionManagementController;
-import io.contexa.contexaiam.admin.web.auth.filter.SessionTrackingFilter;
 import io.contexa.contexaiam.admin.web.auth.service.SessionManagementService;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
 import io.contexa.contexaiam.repository.ActiveSessionRepository;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 
 @AutoConfiguration
+@Import(IamAdminSessionContexaOwnedConfiguration.class)
 public class IamAdminSessionAutoConfiguration {
 
     @Bean(name = "contexaSessionManagementService")
@@ -47,18 +45,5 @@ public class IamAdminSessionAutoConfiguration {
         return new SessionManagementController(contexaSessionManagementService, messageSource, contexaCsvExportService);
     }
 
-    @Bean(name = "contexaSessionTrackingFilter")
-    @ConditionalOnMissingBean(SessionTrackingFilter.class)
-    @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
-    public FilterRegistrationBean<SessionTrackingFilter> sessionTrackingFilter(
-            SessionManagementService contexaSessionManagementService,
-            ActiveSessionRepository activeSessionRepository) {
-        FilterRegistrationBean<SessionTrackingFilter> registration = new FilterRegistrationBean<>();
-        registration.setFilter(new SessionTrackingFilter(contexaSessionManagementService, activeSessionRepository));
-        registration.addUrlPatterns("/*");
-        registration.setName("contexaSessionTrackingFilter");
-        registration.setOrder(200);
-        return registration;
-    }
 }
 
