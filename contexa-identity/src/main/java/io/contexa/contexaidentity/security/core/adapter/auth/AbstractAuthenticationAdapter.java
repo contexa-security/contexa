@@ -273,7 +273,7 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         try {
             return appContext.getBean("contexaOneTimeTokenCreationSuccessHandler", OneTimeTokenGenerationSuccessHandler.class);
         } catch (Exception e) {
-            String errorMessage = String.format("Default OneTimeTokenGenerationSuccessHandler bean ('oneTimeTokenCreationSuccessHandler' or specific OTT handler) not found for OTT feature: %s. This is a critical configuration error.", getId());
+            String errorMessage = String.format("Default OneTimeTokenGenerationSuccessHandler bean ('contexaOneTimeTokenCreationSuccessHandler' or specific OTT handler) not found for OTT feature: %s. This is a critical configuration error.", getId());
             log.error(errorMessage, e);
             throw new IllegalStateException(errorMessage, e);
         }

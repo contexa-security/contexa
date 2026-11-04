@@ -87,7 +87,6 @@ public class IamSecurityAutoConfiguration {
 
         @Bean(name = "contexaPreAuthorizeAdvisor")
         @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
-        @ConditionalOnMissingBean(name = "preAuthorizeAuthorizationMethodInterceptor")
         static Advisor contexaPreAuthorizeAdvisor(
                 ObjectProvider<CustomMethodSecurityExpressionHandlerFactory> factory,
                 ApplicationContext applicationContext) {

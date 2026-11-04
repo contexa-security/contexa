@@ -116,7 +116,7 @@ public class CoreAutonomousEventAutoConfiguration {
 
         @Bean(name = "contexaKafkaSecurityEventCollector")
         @ConditionalOnMissingBean
-        @ConditionalOnBean(type = "org.springframework.kafka.core.KafkaTemplate")
+        @ConditionalOnBean(name = "contexaKafkaTemplate")
         public KafkaSecurityEventCollector kafkaSecurityEventCollector(
                 @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
                 @Qualifier("contexaKafkaTemplate") KafkaTemplate<String, Object> contexaKafkaTemplate,
@@ -126,7 +126,7 @@ public class CoreAutonomousEventAutoConfiguration {
 
         @Bean(name = "contexaKafkaSecurityEventPublisher")
         @ConditionalOnMissingBean
-        @ConditionalOnBean(type = "org.springframework.kafka.core.KafkaTemplate")
+        @ConditionalOnBean(name = "contexaKafkaTemplate")
         public KafkaSecurityEventPublisher kafkaSecurityEventPublisher(
                 @Qualifier("contexaKafkaTemplate") KafkaTemplate<String, Object> contexaKafkaTemplate,
                 SecurityKafkaProperties securityKafkaProperties) {

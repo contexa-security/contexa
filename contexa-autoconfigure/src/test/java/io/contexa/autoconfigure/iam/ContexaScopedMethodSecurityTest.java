@@ -111,7 +111,8 @@ class ContexaScopedMethodSecurityTest {
     void anApplicationThatTurnedMethodSecurityOnItselfIsGivenNoSecondInterceptor() {
         runner(LegacySecurityApplication.Enabled.class).run(context -> {
             assertThat(context).hasNotFailed();
-            assertThat(context).doesNotHaveBean("contexaPreAuthorizeAdvisor");
+            assertThat(context.getBean("contexaPreAuthorizeAdvisor", PointcutAdvisor.class).getPointcut().getClassFilter()
+                    .matches(ContexaSecuredSample.class)).as("Contexa's advisor leaves its classes to the application's interceptor").isFalse();
             assertThat(context.getBeansOfType(MethodSecurityExpressionHandler.class))
                     .as("the application keeps Spring Security's own handler for its own annotations").isEmpty();
 

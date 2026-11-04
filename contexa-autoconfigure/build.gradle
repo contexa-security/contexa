@@ -27,6 +27,7 @@ dependencies {
 
     compileOnly 'org.springframework.boot:spring-boot-starter-mail'
     compileOnly("org.springframework.kafka:spring-kafka")
+    testImplementation("org.springframework.kafka:spring-kafka")
     compileOnly 'com.querydsl:querydsl-jpa:5.1.0:jakarta'
     compileOnly("org.redisson:redisson:3.48.0")
 

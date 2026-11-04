@@ -17,6 +17,7 @@ package io.contexa.autoconfigure.core.scope;
 
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.BeanFactory;
+import org.springframework.beans.factory.HierarchicalBeanFactory;
 
 /**
  * Which classes are Contexa's: those of the Contexa libraries. The scheduling, asynchronous and caching support Contexa brings is applied
@@ -52,6 +53,10 @@ public final class ContexaPackages {
      * and Contexa's processor must then leave the beans to it instead of applying the annotation a second time.
      */
     public static boolean contextHas(BeanFactory beanFactory, String beanName) {
+        if (beanFactory instanceof HierarchicalBeanFactory hierarchical) {
+            // A processor serves the beans of its own context only: support in a parent context does not serve the beans of this one.
+            return hierarchical.containsLocalBean(beanName);
+        }
         return beanFactory != null && beanFactory.containsBean(beanName);
     }
 

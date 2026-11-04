@@ -19,14 +19,11 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
-import org.springframework.cache.config.CacheManagementConfigUtils;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Role;
 import org.springframework.core.env.Environment;
-import org.springframework.scheduling.config.TaskManagementConfigUtils;
 
 import java.time.Duration;
 import java.util.concurrent.Executor;
@@ -37,21 +34,24 @@ import java.util.concurrent.Executor;
  * Contexa used to switch these on for the whole application ({@code @EnableScheduling}, {@code @EnableAsync}, {@code @EnableCaching}), which
  * made the application's dormant {@code @Scheduled}, {@code @Async} and {@code @Cacheable} methods start to run, run on another thread, and
  * cache. Each support is now a post-processor that looks at Contexa's classes only. When the application turned the support on itself, its
- * own processor already handles Contexa's beans and Contexa adds nothing (the bean names Spring uses for its processors tell).
+ * own processor already handles Contexa's beans and Contexa's stands aside; that is decided when a bean is processed, in the context of
+ * the bean (a registration condition would look at the parent contexts too, and the order of auto-configurations would matter).
  */
 @AutoConfiguration
 public class ContexaScopedAnnotationAutoConfiguration {
 
     @Bean(name = "contexaScheduledAnnotationProcessor")
     @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
-    @ConditionalOnMissingBean(name = TaskManagementConfigUtils.SCHEDULED_ANNOTATION_PROCESSOR_BEAN_NAME)
     static ContexaScheduledAnnotationBeanPostProcessor contexaScheduledAnnotationProcessor(Environment environment) {
         return new ContexaScheduledAnnotationBeanPostProcessor(environment.getProperty("spring.task.scheduling.pool.size", Integer.class, 1));
     }
 
+    /**
+     * Always there: whether it serves Contexa's beans is decided when a bean is processed (the application's support may look at a marker of
+     * its own instead of {@code @Async}, in which case this one must serve them).
+     */
     @Bean(name = "contexaAsyncAnnotationProcessor")
     @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
-    @ConditionalOnMissingBean(name = TaskManagementConfigUtils.ASYNC_ANNOTATION_PROCESSOR_BEAN_NAME)
     static ContexaAsyncAnnotationBeanPostProcessor contexaAsyncAnnotationProcessor(BeanFactory beanFactory) {
         ContexaAsyncAnnotationBeanPostProcessor processor = new ContexaAsyncAnnotationBeanPostProcessor();
         processor.configure(() -> beanFactory.getBean("contexaTaskExecutor", Executor.class), null);
@@ -64,7 +64,7 @@ public class ContexaScopedAnnotationAutoConfiguration {
      * candidate for injection by type: an application that has no cache manager of its own keeps having none.
      */
     @Bean(name = "contexaCacheManager", autowireCandidate = false)
-    CacheManager contexaCacheManager() {
+    static CacheManager contexaCacheManager() {
         CaffeineCacheManager manager = new CaffeineCacheManager();
         manager.setCaffeine(Caffeine.newBuilder()
                 .maximumSize(500)
@@ -74,7 +74,6 @@ public class ContexaScopedAnnotationAutoConfiguration {
 
     @Bean(name = "contexaCacheAnnotationProcessor")
     @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
-    @ConditionalOnMissingBean(name = CacheManagementConfigUtils.CACHE_ADVISOR_BEAN_NAME)
     static ContexaCacheAnnotationBeanPostProcessor contexaCacheAnnotationProcessor(BeanFactory beanFactory) {
         return new ContexaCacheAnnotationBeanPostProcessor(beanFactory.getBean("contexaCacheManager", CacheManager.class));
     }

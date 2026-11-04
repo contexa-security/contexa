@@ -296,7 +296,7 @@ public class CoreRAGAutoConfiguration {
             ContexaLlmSelectionProperties selectionProperties,
             Environment environment,
             ObjectProvider<LlmRuntimeCatalog> runtimeCatalogProvider,
-            ObjectProvider<DataSource> dataSourceProvider) {
+            @Qualifier("contexaDataSource") ObjectProvider<DataSource> dataSourceProvider) {
         return new EmbeddingDimensionConsistencyVerifier(
                 properties,
                 selectionProperties,

@@ -71,6 +71,7 @@ class ContexaCoexistenceContractTest {
             "WebSocketConfig#clientOutboundChannelExecutor",
             "WebSocketConfig#brokerChannelExecutor",
             "WebSocketConfig#messageBrokerTaskScheduler",
+            "WebSocketConfig#messageBrokerSockJsTaskScheduler",       // the alias Spring gives the same scheduler
             "WebSocketConfig#stompWebSocketHandlerMapping");
 
     /** The shared generic types and the qualifier prefix a Contexa injection point must name. */
@@ -85,6 +86,11 @@ class ContexaCoexistenceContractTest {
             Map.entry("ThreadPoolTaskScheduler", "contexa"),
             Map.entry("ExecutorService", "contexa"),
             Map.entry("ScheduledExecutorService", "contexa"),
+            Map.entry("DataSource", "contexa"),
+            Map.entry("JdbcTemplate", "contexa"),
+            Map.entry("EntityManagerFactory", "contexa"),
+            Map.entry("PlatformTransactionManager", "contexa"),
+            Map.entry("TransactionTemplate", "contexa"),
             Map.entry("RedisTemplate", "contexa"),
             Map.entry("KafkaTemplate", "contexa"),
             Map.entry("ConcurrentKafkaListenerContainerFactory", "contexa"),
@@ -94,6 +100,15 @@ class ContexaCoexistenceContractTest {
     /** The names of the message broker's own executors and scheduler: Contexa's broker overrides them and Spring names them. */
     private static final Set<String> BROKER_NAMES = Set.of("clientInboundChannelExecutor", "clientOutboundChannelExecutor",
             "brokerChannelExecutor", "messageBrokerTaskScheduler");
+
+    /** Beans of the enterprise libraries that these libraries ask for by name and optionally (required = false); the enterprise guard checks they exist. */
+    private static final Set<String> DEFINED_BY_THE_OTHER_REPOSITORY = Set.of("contexaPipelineSoarToolExecutionStep");
+
+    private static final Pattern QUALIFIER_NAME = Pattern.compile("@Qualifier\\(\\s*\"(contexa[A-Za-z0-9_]*)\"\\s*\\)");
+    private static final Pattern GET_BEAN_NAME = Pattern.compile("\\b(?:getBean|containsBean|getBeanProvider)\\(\\s*\"(contexa[A-Za-z0-9_]*)\"");
+    private static final Pattern RESOURCE_NAME = Pattern.compile("@Resource\\(\\s*name\\s*=\\s*\"(contexa[A-Za-z0-9_]*)\"");
+    private static final Pattern STEREOTYPE_NAME = Pattern.compile(
+            "@(?:Component|Service|Repository|Controller|RestController|Configuration)\\(\\s*(?:value\\s*=\\s*)?\"(contexa[A-Za-z0-9_]*)\"");
 
     private static final Pattern STEREOTYPE = Pattern.compile(
             "@(Component|Service|Repository|Controller|RestController|ControllerAdvice|RestControllerAdvice|Aspect|Configuration)\\b");
@@ -206,6 +221,70 @@ class ContexaCoexistenceContractTest {
             }
         }
         assertThat(violations).isEmpty();
+    }
+
+    @Test
+    void everyContexaNameAskedForByStringIsABeanSomewhere() throws IOException {
+        Set<String> defined = new TreeSet<>();
+        List<SourceFile> sources = sources();
+        for (SourceFile file : sources) {
+            for (BeanMethod bean : beanMethods(file.source())) {
+                defined.addAll(bean.names());
+            }
+            Matcher named = STEREOTYPE_NAME.matcher(file.source());
+            while (named.find()) {
+                defined.add(named.group(1));
+            }
+        }
+        List<String> violations = new ArrayList<>();
+        for (SourceFile file : sources) {
+            for (String name : referencedByString(file.source())) {
+                if (!defined.contains(name) && !DEFINED_BY_THE_OTHER_REPOSITORY.contains(name)) {
+                    violations.add(file.path() + " : \"" + name + "\" is asked for by name, and no bean of that name is defined");
+                }
+            }
+        }
+        assertThat(violations)
+                .as("a name written as a string is not checked by the compiler; one that no bean has fails when the bean is first asked for")
+                .isEmpty();
+    }
+
+    @Test
+    void theNamesAskedForByStringAreFound() {
+        String source = """
+                class Sample {
+                    Sample(@Qualifier("contexaOne") Thing one, @Qualifier(CONSTANT) Thing two) {
+                        beanFactory.getBean("contexaTwo", Thing.class);
+                        context.containsBean("contexaThree");
+                    }
+                    @DependsOn({"contexaFour", "otherBean"})
+                    @Resource(name = "contexaFive")
+                    Thing five;
+                    @ConditionalOnBean(name = "contexaNotChecked")
+                    Thing six;
+                }
+                """;
+
+        assertThat(referencedByString(source)).containsExactlyInAnyOrder("contexaOne", "contexaTwo", "contexaThree", "contexaFour", "contexaFive");
+    }
+
+    /** The contexa-prefixed bean names a source asks for as a string (a condition on a name may name a bean that is not there). */
+    private static Set<String> referencedByString(String source) {
+        Set<String> names = new TreeSet<>();
+        for (Pattern pattern : List.of(QUALIFIER_NAME, GET_BEAN_NAME, RESOURCE_NAME)) {
+            Matcher matcher = pattern.matcher(source);
+            while (matcher.find()) {
+                names.add(matcher.group(1));
+            }
+        }
+        Matcher depends = Pattern.compile("@DependsOn\\(([^)]*)\\)").matcher(source);
+        while (depends.find()) {
+            Matcher literal = Pattern.compile("\"(contexa[A-Za-z0-9_]*)\"").matcher(depends.group(1));
+            while (literal.find()) {
+                names.add(literal.group(1));
+            }
+        }
+        return names;
     }
 
     @Test

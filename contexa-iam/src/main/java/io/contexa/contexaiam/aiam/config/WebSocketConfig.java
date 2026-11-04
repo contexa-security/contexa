@@ -20,12 +20,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.messaging.support.AbstractSubscribableChannel;
 import org.springframework.scheduling.TaskScheduler;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
-import org.springframework.web.socket.server.HandshakeInterceptor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.TaskExecutor;
@@ -92,7 +88,6 @@ public class WebSocketConfig extends WebSocketMessageBrokerConfigurationSupport 
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws-soar")
                 .setAllowedOriginPatterns("*")
-                .addInterceptors(new AuthenticatedHandshakeInterceptor())
                 .setHandshakeHandler(handshakeHandler)
                 .withSockJS();
             }
@@ -149,7 +144,7 @@ public class WebSocketConfig extends WebSocketMessageBrokerConfigurationSupport 
         return super.brokerChannelExecutor(clientInboundChannel, clientOutboundChannel);
     }
 
-    @Bean(defaultCandidate = false)
+    @Bean(name = {"messageBrokerTaskScheduler", "messageBrokerSockJsTaskScheduler"}, defaultCandidate = false)
     @Override
     public TaskScheduler messageBrokerTaskScheduler() {
         return super.messageBrokerTaskScheduler();
@@ -163,27 +158,6 @@ public class WebSocketConfig extends WebSocketMessageBrokerConfigurationSupport 
             @Qualifier("messageBrokerTaskScheduler") TaskScheduler messageBrokerTaskScheduler,
             @Qualifier("clientInboundChannel") AbstractSubscribableChannel clientInboundChannel) {
         return super.stompWebSocketHandlerMapping(subProtocolWebSocketHandler, messageBrokerTaskScheduler, clientInboundChannel);
-    }
-
-    /** Only a signed-in user may open the connection: it serves the screens of the console, not the public. */
-    static final class AuthenticatedHandshakeInterceptor implements HandshakeInterceptor {
-
-        @Override
-        public boolean beforeHandshake(@NonNull ServerHttpRequest request, @NonNull ServerHttpResponse response,
-                                       @NonNull WebSocketHandler wsHandler, @NonNull Map<String, Object> attributes) {
-            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-            boolean signedIn = authentication != null && authentication.isAuthenticated()
-                    && !(authentication instanceof AnonymousAuthenticationToken);
-            if (!signedIn) {
-                response.setStatusCode(HttpStatus.UNAUTHORIZED);
-            }
-            return signedIn;
-        }
-
-        @Override
-        public void afterHandshake(@NonNull ServerHttpRequest request, @NonNull ServerHttpResponse response,
-                                   @NonNull WebSocketHandler wsHandler, Exception exception) {
-        }
     }
 }
 

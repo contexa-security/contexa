@@ -11,7 +11,13 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.scheduling.annotation.SchedulingConfigurer;
+import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -54,6 +60,21 @@ public class LegacyScopeApplication {
         }
     }
 
+    /** The application's own scheduling configuration: only the application's scheduling support may ever call it, and once. */
+    public static class CountingSchedulingConfigurer implements SchedulingConfigurer {
+
+        private final AtomicInteger calls = new AtomicInteger();
+
+        @Override
+        public void configureTasks(ScheduledTaskRegistrar registrar) {
+            calls.incrementAndGet();
+        }
+
+        public int calls() {
+            return calls.get();
+        }
+    }
+
     /** Application code that asks for "a cache manager, if there is one" and acts on the answer. */
     public static class CacheManagerConsumer {
 
@@ -83,8 +104,29 @@ public class LegacyScopeApplication {
         }
 
         @Bean
+        CountingSchedulingConfigurer schedulingConfigurer() {
+            return new CountingSchedulingConfigurer();
+        }
+
+        @Bean
         CacheManagerConsumer cacheManagerConsumer(ObjectProvider<CacheManager> provider, @Nullable CacheManager injected) {
             return new CacheManagerConsumer(provider, injected);
+        }
+    }
+
+    /** The application's own marker for asynchronous methods. */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.METHOD)
+    public @interface AppAsync {
+    }
+
+    /** The application turned asynchronous execution on for its own marker only; {@code @Async} is not what its support looks at. */
+    @Configuration(proxyBeanMethods = false)
+    @EnableAsync(annotation = AppAsync.class)
+    public static class AsyncForItsOwnMarker {
+        @Bean
+        AppService appService() {
+            return new AppService();
         }
     }
 
@@ -96,6 +138,11 @@ public class LegacyScopeApplication {
         @Bean
         AppService appService() {
             return new AppService();
+        }
+
+        @Bean
+        CountingSchedulingConfigurer schedulingConfigurer() {
+            return new CountingSchedulingConfigurer();
         }
     }
 

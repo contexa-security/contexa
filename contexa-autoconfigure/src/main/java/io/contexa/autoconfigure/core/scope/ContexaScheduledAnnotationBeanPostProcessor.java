@@ -17,6 +17,7 @@ package io.contexa.autoconfigure.core.scope;
 
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor;
+import org.springframework.scheduling.annotation.SchedulingConfigurer;
 import org.springframework.scheduling.config.TaskManagementConfigUtils;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
@@ -41,7 +42,7 @@ public class ContexaScheduledAnnotationBeanPostProcessor extends ScheduledAnnota
 
     @Override
     public void setBeanFactory(BeanFactory beanFactory) {
-        super.setBeanFactory(beanFactory);
+        super.setBeanFactory(HiddenBeanTypes.hiding(beanFactory, SchedulingConfigurer.class));
         this.beanFactory = beanFactory;
     }
 

@@ -15,13 +15,23 @@
  */
 package io.contexa.autoconfigure.core.scope;
 
+import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanFactory;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.AsyncAnnotationBeanPostProcessor;
 import org.springframework.scheduling.config.TaskManagementConfigUtils;
+import org.springframework.util.ReflectionUtils;
+
+import java.lang.reflect.Field;
 
 /**
  * {@code @Async} for Contexa's own beans, without {@code @EnableAsync} for the application: an {@code @Async} method of the application
  * that the application never turned asynchronous execution on for keeps running on the caller's thread.
+ * <p>
+ * When the application's own support is in the context it serves Contexa's beans, and this processor stands aside — unless the
+ * application's support does not look at {@code @Async} at all ({@code @EnableAsync(annotation = ...)} for a marker of its own): then
+ * Contexa's methods would run on the caller's thread, so this processor keeps serving them. The two never advise the same method,
+ * because each looks at a different annotation.
  */
 public class ContexaAsyncAnnotationBeanPostProcessor extends AsyncAnnotationBeanPostProcessor {
 
@@ -35,8 +45,27 @@ public class ContexaAsyncAnnotationBeanPostProcessor extends AsyncAnnotationBean
 
     @Override
     protected boolean isEligible(Class<?> targetClass) {
-        return ContexaPackages.owns(targetClass)
-                && !ContexaPackages.contextHas(beanFactory, TaskManagementConfigUtils.ASYNC_ANNOTATION_PROCESSOR_BEAN_NAME)
-                && super.isEligible(targetClass);
+        return ContexaPackages.owns(targetClass) && !applicationServesAsync() && super.isEligible(targetClass);
+    }
+
+    private boolean applicationServesAsync() {
+        if (!ContexaPackages.contextHas(beanFactory, TaskManagementConfigUtils.ASYNC_ANNOTATION_PROCESSOR_BEAN_NAME)) {
+            return false;
+        }
+        Object processor;
+        try {
+            processor = beanFactory.getBean(TaskManagementConfigUtils.ASYNC_ANNOTATION_PROCESSOR_BEAN_NAME);
+        } catch (BeansException e) {
+            // the application's processor is still being made: the bean asked about was made while it was, which that processor never sees
+            return false;
+        }
+        Field marker = ReflectionUtils.findField(processor.getClass(), "asyncAnnotationType");
+        if (marker == null) {
+            // not known what the application's support looks at: two supports advising one method only hop threads twice, none loses it
+            return false;
+        }
+        ReflectionUtils.makeAccessible(marker);
+        Object type = ReflectionUtils.getField(marker, processor);
+        return type == null || type == Async.class;
     }
 }

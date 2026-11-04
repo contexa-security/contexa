@@ -64,6 +64,26 @@ class ContexaScopedAnnotationAutoConfigurationTest {
     }
 
     @Test
+    void theApplicationsSchedulingConfigurerIsNeverCalledWhenSchedulingIsNotEnabled() {
+        runner(LegacyScopeApplication.Dormant.class).run(context -> {
+            assertThat(context).hasNotFailed();
+
+            assertThat(context.getBean(LegacyScopeApplication.CountingSchedulingConfigurer.class).calls())
+                    .as("the application never turned scheduling on: Contexa's scheduling does not bring its configurer to life").isZero();
+        });
+    }
+
+    @Test
+    void theApplicationsSchedulingConfigurerIsCalledOnceNotForContexasSchedulingToo() {
+        runner(LegacyScopeApplication.Enabled.class).run(context -> {
+            assertThat(context).hasNotFailed();
+
+            assertThat(context.getBean(LegacyScopeApplication.CountingSchedulingConfigurer.class).calls())
+                    .as("applied to the application's own scheduling only").isEqualTo(1);
+        });
+    }
+
+    @Test
     void contexasOwnAnnotationsWork() {
         runner(LegacyScopeApplication.Dormant.class).run(context -> {
             assertThat(context).hasNotFailed();
@@ -95,8 +115,6 @@ class ContexaScopedAnnotationAutoConfigurationTest {
     void anApplicationThatEnabledSchedulingAndAsyncItselfIsNotGivenASecondProcessor() {
         runner(LegacyScopeApplication.Enabled.class).run(context -> {
             assertThat(context).hasNotFailed();
-            assertThat(context).doesNotHaveBean("contexaScheduledAnnotationProcessor");
-            assertThat(context).doesNotHaveBean("contexaAsyncAnnotationProcessor");
             LegacyScopeApplication.AppService app = context.getBean(LegacyScopeApplication.AppService.class);
             ContexaSample sample = context.getBean(ContexaSample.class);
             Thread.sleep(400);
@@ -113,10 +131,32 @@ class ContexaScopedAnnotationAutoConfigurationTest {
     }
 
     @Test
+    void anApplicationThatEnabledSchedulingItselfRunsContexasScheduledMethodToo() {
+        runner(LegacyScopeApplication.Enabled.class).run(context -> {
+            assertThat(context).hasNotFailed();
+            ContexaSample sample = context.getBean(ContexaSample.class);
+            Thread.sleep(500);
+
+            assertThat(sample.ticks()).as("@Scheduled of Contexa, served by the application's own scheduling support").isGreaterThan(2);
+        });
+    }
+
+    @Test
+    void anApplicationThatEnabledAsyncExecutionForItsOwnMarkerOnlyStillGetsContexasAsync() {
+        runner(LegacyScopeApplication.AsyncForItsOwnMarker.class).run(context -> {
+            assertThat(context).hasNotFailed();
+            ContexaSample sample = context.getBean(ContexaSample.class);
+
+            assertThat(sample.thread().get(2, TimeUnit.SECONDS))
+                    .as("the application's support does not look at @Async, so Contexa's own support must serve Contexa's method")
+                    .startsWith("contexa-async-");
+        });
+    }
+
+    @Test
     void anApplicationThatEnabledCachingItselfKeepsItsOwnCacheManagerAndItsOwnCaches() {
         runner(LegacyScopeApplication.CachingEnabled.class).run(context -> {
             assertThat(context).hasNotFailed();
-            assertThat(context).doesNotHaveBean("contexaCacheAnnotationProcessor");
             CacheManager application = context.getBean("cacheManager", CacheManager.class);
             CacheManager contexa = context.getBean("contexaCacheManager", CacheManager.class);
             assertThat(application).as("Spring Boot made the application's cache manager").isNotSameAs(contexa);

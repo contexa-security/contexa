@@ -18,10 +18,13 @@ package io.contexa.autoconfigure.iam;
 import io.contexa.contexaiam.aiam.config.WebSocketConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.task.TaskExecutionAutoConfiguration;
 import org.springframework.boot.autoconfigure.task.TaskSchedulingAutoConfiguration;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.TaskExecutor;
@@ -41,6 +44,7 @@ import static org.mockito.Mockito.mock;
  * executor a bean asks for by type is the application's default executor, and the tasks the application scheduled run on Spring Boot's
  * scheduler, not on the threads of the broker.
  */
+@ExtendWith(OutputCaptureExtension.class)
 class IamWebSocketCoexistenceTest {
 
     private WebApplicationContextRunner runner(Class<?>... application) {
@@ -84,6 +88,8 @@ class IamWebSocketCoexistenceTest {
             assertThat(context.getBean("clientOutboundChannelExecutor")).isInstanceOf(TaskExecutor.class);
             assertThat(context.getBean("brokerChannelExecutor")).isInstanceOf(Executor.class);
             assertThat(context.getBean("messageBrokerTaskScheduler")).isInstanceOf(TaskScheduler.class);
+            assertThat(context.getBean("messageBrokerSockJsTaskScheduler")).as("the alias Spring gives the same scheduler")
+                    .isSameAs(context.getBean("messageBrokerTaskScheduler"));
             assertThat(context.containsBean("webSocketMessageBrokerStats")).isTrue();
             assertThat(context.containsBean("clientInboundChannel")).isTrue();
         });
@@ -104,11 +110,21 @@ class IamWebSocketCoexistenceTest {
     }
 
     @Test
-    void aBeanOfTheApplicationNamedLikeOneOfTheBrokersMakesContexasBrokerStandAside() {
+    void aBeanOfTheApplicationNamedLikeOneOfTheBrokersMakesContexasBrokerStandAsideAndSaysSo(CapturedOutput output) {
         autoConfigured(ApplicationWithItsOwnUserRegistry.class).run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context.getBean("userRegistry")).as("the application's own bean of that name").isEqualTo("the application's registry");
             assertThat(context).as("no broker of Contexa's in an application that uses the name").doesNotHaveBean("clientInboundChannel");
+            assertThat(output).as("never silently").contains("/ws-soar", "userRegistry", "contexa.iam.websocket.enabled=false");
+        });
+    }
+
+    @Test
+    void switchingTheConsoleWebSocketOffIsQuiet(CapturedOutput output) {
+        autoConfigured(ApplicationWithItsOwnUserRegistry.class).withPropertyValues("contexa.iam.websocket.enabled=false").run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context).doesNotHaveBean("clientInboundChannel");
+            assertThat(output).doesNotContain("console WebSocket (/ws-soar) is not started");
         });
     }
 

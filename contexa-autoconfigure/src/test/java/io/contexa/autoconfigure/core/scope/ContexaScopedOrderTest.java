@@ -34,6 +34,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.config.ScheduledTaskHolder;
 
 import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -91,6 +92,30 @@ class ContexaScopedOrderTest {
     }
 
     @Test
+    void supportOfAParentContextDoesNotServeTheBeansOfAChildContext() {
+        // A processor serves the beans of its own context only; an application's support in the parent must not make Contexa's stand aside.
+        new ApplicationContextRunner().withUserConfiguration(LegacyScopeApplication.Enabled.class)
+                .withConfiguration(AutoConfigurations.of(AopAutoConfiguration.class, TaskExecutionAutoConfiguration.class))
+                .run(parent -> {
+                    assertThat(parent).hasNotFailed();
+                    new ApplicationContextRunner()
+                            .withUserConfiguration(LegacyScopeApplication.Dormant.class, ContexaSample.Definition.class)
+                            .withConfiguration(AutoConfigurations.of(AopAutoConfiguration.class, CacheAutoConfiguration.class,
+                                    TaskExecutionAutoConfiguration.class, ContexaProxyModeAutoConfiguration.class,
+                                    ContexaScopedAnnotationAutoConfiguration.class))
+                            .withParent(parent).run(child -> {
+                        assertThat(child).hasNotFailed();
+                        ContexaSample sample = child.getBean(ContexaSample.class);
+
+                        assertThat(sample.thread().get(2, TimeUnit.SECONDS)).as("@Async of Contexa in the child context")
+                                .startsWith("contexa-async-");
+                        Thread.sleep(300);
+                        assertThat(sample.ticks()).as("@Scheduled of Contexa in the child context").isGreaterThan(1);
+                    });
+                });
+    }
+
+    @Test
     void contexasAnnotationsStillWorkUnderTheOtherProcessors() {
         runner.run(context -> {
             assertThat(context).hasNotFailed();
@@ -99,7 +124,7 @@ class ContexaScopedOrderTest {
             sample.cached("a");
             sample.cached("a");
             assertThat(sample.cacheCalls()).as("cached by the processor that came after, with Contexa's cache manager").isEqualTo(1);
-            assertThat(sample.thread().get(2, java.util.concurrent.TimeUnit.SECONDS)).startsWith("contexa-async-");
+            assertThat(sample.thread().get(2, TimeUnit.SECONDS)).startsWith("contexa-async-");
         });
     }
 }
