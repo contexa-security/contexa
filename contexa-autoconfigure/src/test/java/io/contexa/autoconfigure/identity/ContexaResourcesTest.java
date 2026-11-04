@@ -34,18 +34,18 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** An application's own db/schema.sql, found first on the class path, never stands in for Contexa's. */
+/** An application's own META-INF/contexa/db/schema.sql, found first on the class path, never stands in for Contexa's. */
 class ContexaResourcesTest {
 
     @Test
     void contexasSchemaIsChosenWhenTheApplicationHasAFileOfTheSameNameInFront(@TempDir Path application) throws Exception {
         Files.createDirectories(application.resolve("db"));
-        Files.writeString(application.resolve("db/schema.sql"), "create table orders (id bigint);");
+        Files.writeString(application.resolve("META-INF/contexa/db/schema.sql"), "create table orders (id bigint);");
         try (HostFirst loader = new HostFirst(new URL[] {application.toUri().toURL()}, getClass().getClassLoader())) {
-            Resource hosts = new UrlResource(loader.getResource("db/schema.sql"));
+            Resource hosts = new UrlResource(loader.getResource("META-INF/contexa/db/schema.sql"));
             assertThat(hosts.getContentAsString(StandardCharsets.UTF_8)).as("the application's file is the first on the class path").contains("orders");
 
-            Resource chosen = ContexaResources.sql(new PathMatchingResourcePatternResolver(loader), "db/schema.sql");
+            Resource chosen = ContexaResources.sql(new PathMatchingResourcePatternResolver(loader), "META-INF/contexa/db/schema.sql");
 
             assertThat(chosen.getContentAsString(StandardCharsets.UTF_8)).contains("ctxa_").doesNotContain("create table orders");
         }
@@ -73,7 +73,7 @@ class ContexaResourcesTest {
 
     @Test
     void contexasSchemaIsFoundWhenTheApplicationHasNone() throws Exception {
-        assertThat(ContexaResources.sql("db/schema.sql").getContentAsString(StandardCharsets.UTF_8)).contains("ctxa_");
+        assertThat(ContexaResources.sql("META-INF/contexa/db/schema.sql").getContentAsString(StandardCharsets.UTF_8)).contains("ctxa_");
     }
 
     @Test

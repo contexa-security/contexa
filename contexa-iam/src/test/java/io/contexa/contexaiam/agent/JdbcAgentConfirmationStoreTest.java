@@ -127,7 +127,7 @@ class JdbcAgentConfirmationStoreTest {
 
     /** The table and its indexes exactly as the canonical schema creates them. */
     private static List<String> agentConfirmationDdl() throws Exception {
-        String schema = new ClassPathResource("db/schema.sql").getContentAsString(StandardCharsets.UTF_8);
+        String schema = new ClassPathResource("META-INF/contexa/db/schema.sql").getContentAsString(StandardCharsets.UTF_8);
         Matcher table = Pattern.compile("(?is)create table if not exists ctxa_agent_confirmation\\s*\\(.*?\\n\\);")
                 .matcher(schema);
         assertThat(table.find()).isTrue();

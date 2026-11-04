@@ -47,14 +47,14 @@ import java.util.Set;
  * marker tables (those Contexa's schema installation was recognised by) exist under the old names, which no
  * application has. A database that has only some of them is reported and left as it is.
  * <p>
- * The names are those of {@code db/ctxa-rename-map.tsv} (generated from the schema as it was before the prefix).
+ * The names are those of {@code META-INF/contexa/db/ctxa-rename-map.tsv} (generated from the schema as it was before the prefix).
  */
 @Slf4j
 public final class ContexaSchemaPrefixMigration {
 
     public enum Outcome { NOT_NEEDED, MIGRATED, NOT_CONTEXA }
 
-    static final String MAP = "db/ctxa-rename-map.tsv";
+    static final String MAP = "META-INF/contexa/db/ctxa-rename-map.tsv";
     static final String PREFIX = "ctxa_";
     static final int MAX_IDENTIFIER = 63;
 

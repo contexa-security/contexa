@@ -27,8 +27,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Contexa's own SQL files, found among the files of the same name on the class path. An application may have a {@code db/schema.sql} or a
- * {@code db/data.sql} of its own; the first file of that name on the class path would be the application's, and it must never run in
+ * Contexa's own SQL files, found among the files of the same name on the class path. An application may have a {@code META-INF/contexa/db/schema.sql} or a
+ * {@code META-INF/contexa/db/data.sql} of its own; the first file of that name on the class path would be the application's, and it must never run in
  * Contexa's database. Of the files with the name, the one that names Contexa's tables ({@code ctxa_}) is Contexa's.
  */
 final class ContexaResources {

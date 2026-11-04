@@ -179,7 +179,7 @@ class JdbcDelegationRegistryTest {
     }
 
     private static List<String> delegationDdl() throws Exception {
-        String schema = new ClassPathResource("db/schema.sql").getContentAsString(StandardCharsets.UTF_8);
+        String schema = new ClassPathResource("META-INF/contexa/db/schema.sql").getContentAsString(StandardCharsets.UTF_8);
         Matcher table = Pattern.compile("(?is)create table if not exists ctxa_agent_delegation_record\\s*\\(.*?\\n\\);")
                 .matcher(schema);
         assertThat(table.find()).isTrue();

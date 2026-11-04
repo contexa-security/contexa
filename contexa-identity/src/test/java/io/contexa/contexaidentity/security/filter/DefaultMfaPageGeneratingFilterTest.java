@@ -247,7 +247,7 @@ class DefaultMfaPageGeneratingFilterTest {
 
     private ResourceBundleMessageSource messageSource() {
         ResourceBundleMessageSource source = new ResourceBundleMessageSource();
-        source.setBasenames("i18n/messages");
+        source.setBasenames("contexa/i18n/messages");
         source.setDefaultEncoding("UTF-8");
         source.setFallbackToSystemLocale(false);
         return source;

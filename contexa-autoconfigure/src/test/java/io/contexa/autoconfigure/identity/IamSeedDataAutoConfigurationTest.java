@@ -54,7 +54,7 @@ class IamSeedDataAutoConfigurationTest {
     @Test
     @DisplayName("Q-32: the sample accounts are seeded only when contexa.iam.seed.accounts.enabled is true")
     void sampleAccountsAreSeededOnlyWhenAskedFor() throws Exception {
-        String data = new ClassPathResource("db/data.sql").getContentAsString(StandardCharsets.UTF_8);
+        String data = new ClassPathResource("META-INF/contexa/db/data.sql").getContentAsString(StandardCharsets.UTF_8);
         ClassPathResource accounts = new ClassPathResource(IamSeedDataAutoConfiguration.ACCOUNT_SEED_LOCATION);
         String accountRows = accounts.exists() ? accounts.getContentAsString(StandardCharsets.UTF_8) : "";
 
@@ -69,10 +69,10 @@ class IamSeedDataAutoConfigurationTest {
     }
 
     @Test
-    @DisplayName("IAM canonical schema should be a single db/schema.sql resource")
+    @DisplayName("IAM canonical schema should be a single META-INF/contexa/db/schema.sql resource")
     void iamCanonicalSchemaUsesSingleSchemaSqlResource() {
         assertThat(IamSeedDataAutoConfiguration.SCHEMA_LOCATIONS)
-                .containsExactly("db/schema.sql");
+                .containsExactly("META-INF/contexa/db/schema.sql");
         assertThat(new ClassPathResource("db/pqa-official-schema.sql").exists())
                 .isFalse();
     }
@@ -80,7 +80,7 @@ class IamSeedDataAutoConfigurationTest {
     @Test
     @DisplayName("IAM canonical schema should include PQA run ledger before child ledger tables")
     void iamCanonicalSchemaCreatesPqaRunLedgerBeforeChildLedgers() throws Exception {
-        String schema = new ClassPathResource("db/schema.sql")
+        String schema = new ClassPathResource("META-INF/contexa/db/schema.sql")
                 .getContentAsString(StandardCharsets.UTF_8);
 
         assertThat(schema)
@@ -234,7 +234,7 @@ class IamSeedDataAutoConfigurationTest {
     @DisplayName("A1-6: the canonical schema creates the agent registry idempotently, so every database can gain it")
     void canonicalSchemaCreatesTheAgentRegistryIdempotently() throws Exception {
         String schema = IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(
-                new ClassPathResource("db/schema.sql").getContentAsString(StandardCharsets.UTF_8));
+                new ClassPathResource("META-INF/contexa/db/schema.sql").getContentAsString(StandardCharsets.UTF_8));
 
         String creation = IamSeedDataAutoConfiguration.extractMissingTableCreationSql(schema, Set.of("ctxa_agent_registration"));
 
@@ -288,7 +288,7 @@ class IamSeedDataAutoConfigurationTest {
     @Test
     @DisplayName("IAM schema maintenance should index the sealed package expiry the retention delete reads")
     void iamSchemaMaintenanceIndexesTheSealedPackageExpiry() throws Exception {
-        String schema = new ClassPathResource("db/schema.sql").getContentAsString(StandardCharsets.UTF_8);
+        String schema = new ClassPathResource("META-INF/contexa/db/schema.sql").getContentAsString(StandardCharsets.UTF_8);
 
         String maintenanceSql = IamSeedDataAutoConfiguration.extractIdempotentSchemaMaintenanceSql(
                 IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(schema));
@@ -302,7 +302,7 @@ class IamSeedDataAutoConfigurationTest {
     @Test
     @DisplayName("IAM schema maintenance should leave the zero trust mode unset on new and existing databases")
     void iamSchemaMaintenanceLeavesZeroTrustModeUnset() throws Exception {
-        String schema = new ClassPathResource("db/schema.sql").getContentAsString(StandardCharsets.UTF_8);
+        String schema = new ClassPathResource("META-INF/contexa/db/schema.sql").getContentAsString(StandardCharsets.UTF_8);
 
         String maintenanceSql = IamSeedDataAutoConfiguration.extractIdempotentSchemaMaintenanceSql(
                 IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(schema));
@@ -438,7 +438,7 @@ class IamSeedDataAutoConfigurationTest {
     @DisplayName("IAM canonical schema inventory includes versioned OSS provenance")
     void iamSchemaInventoryIncludesProvenance() throws Exception {
         ContexaSchemaInventory.Snapshot inventory = ContexaSchemaInventory.fromResources(
-                "OSS", List.of(new ClassPathResource("db/schema.sql")));
+                "OSS", List.of(new ClassPathResource("META-INF/contexa/db/schema.sql")));
 
         assertThat(inventory.tables()).contains(
                 "ctxa_schema_provenance",

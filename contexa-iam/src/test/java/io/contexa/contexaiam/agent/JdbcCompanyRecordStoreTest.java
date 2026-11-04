@@ -155,7 +155,7 @@ class JdbcCompanyRecordStoreTest {
     }
 
     private static List<String> ddl() throws Exception {
-        String schema = new ClassPathResource("db/schema.sql").getContentAsString(StandardCharsets.UTF_8);
+        String schema = new ClassPathResource("META-INF/contexa/db/schema.sql").getContentAsString(StandardCharsets.UTF_8);
         Matcher table = Pattern.compile("(?is)create table if not exists ctxa_company_record\\s*\\(.*?\\n\\);")
                 .matcher(schema.replace("\r\n", "\n"));
         assertThat(table.find()).isTrue();

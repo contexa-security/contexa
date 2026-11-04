@@ -16,7 +16,7 @@ import java.util.regex.Pattern;
  * The statements of the OSS schema the inspection store, queries and bundle trace read: the sealed package table with
  * its request facts shadow column, the safe JSON function, the inspection tables, the prompt release registry and the
  * two official verification tables that name sealed packages (R4-S5), taken
- * from {@code db/schema.sql} as is.
+ * from {@code META-INF/contexa/db/schema.sql} as is.
  */
 final class InspectionSchema {
 
@@ -65,9 +65,9 @@ final class InspectionSchema {
     }
 
     private static String read() {
-        try (InputStream input = InspectionSchema.class.getClassLoader().getResourceAsStream("db/schema.sql")) {
+        try (InputStream input = InspectionSchema.class.getClassLoader().getResourceAsStream("META-INF/contexa/db/schema.sql")) {
             if (input == null) {
-                throw new IllegalStateException("db/schema.sql is not on the test class path");
+                throw new IllegalStateException("META-INF/contexa/db/schema.sql is not on the test class path");
             }
             return new String(input.readAllBytes(), StandardCharsets.UTF_8);
         }

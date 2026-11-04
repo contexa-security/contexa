@@ -65,7 +65,7 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
     @Nullable
     private final CacheManager cacheManager;
 
-    // The columns of users (db/schema.sql).
+    // The columns of users (META-INF/contexa/db/schema.sql).
     private static final int TEXT_MAX = 100;
     private static final int LONG_TEXT_MAX = 255;
     private static final int PHONE_MAX = 20;
@@ -451,7 +451,7 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
         return null;
     }
 
-    /** The value cut to the length of its column (db/schema.sql, users), so that one long value of the host cannot fail the copy. */
+    /** The value cut to the length of its column (META-INF/contexa/db/schema.sql, users), so that one long value of the host cannot fail the copy. */
     private static String fit(@Nullable String value, int max) {
         if (value == null || value.length() <= max) {
             return value;

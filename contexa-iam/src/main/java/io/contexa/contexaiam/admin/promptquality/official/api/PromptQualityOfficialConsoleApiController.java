@@ -28,9 +28,9 @@ public class PromptQualityOfficialConsoleApiController {
             @RequestParam(defaultValue = "enterprise.pqa.") String prefix,
             Locale locale) {
         Properties properties = new Properties();
-        views.loadProperties(properties, "classpath*:i18n/messages.properties");
+        views.loadProperties(properties, "classpath*:contexa/i18n/messages.properties");
         if (locale != null && "ko".equalsIgnoreCase(locale.getLanguage())) {
-            views.loadProperties(properties, "classpath*:i18n/messages_ko.properties");
+            views.loadProperties(properties, "classpath*:contexa/i18n/messages_ko.properties");
         }
         Map<String, String> messages = new LinkedHashMap<>();
         properties.stringPropertyNames().stream()

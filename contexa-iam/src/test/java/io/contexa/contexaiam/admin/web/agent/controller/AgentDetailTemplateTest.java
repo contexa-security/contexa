@@ -151,7 +151,7 @@ class AgentDetailTemplateTest {
         fragments.setResolvablePatterns(Set.of("contexa/fragments/*"));
         ClassLoaderTemplateResolver templates = resolver("templates/", 2);
         ResourceBundleMessageSource messages = new ResourceBundleMessageSource();
-        messages.setBasename("i18n/messages");
+        messages.setBasename("contexa/i18n/messages");
         messages.setFallbackToSystemLocale(false);
         SpringTemplateEngine engine = new SpringTemplateEngine();
         engine.setTemplateResolvers(Set.of(fragments, templates));

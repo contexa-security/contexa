@@ -40,7 +40,7 @@ class OfficialVerificationGateFailureMatrixTest {
 
     private static ResourceBundleMessageSource messageSource() {
         ResourceBundleMessageSource source = new ResourceBundleMessageSource();
-        source.setBasename("i18n.messages");
+        source.setBasename("contexa.i18n.messages");
         source.setDefaultEncoding("UTF-8");
         source.setFallbackToSystemLocale(false);
         return source;

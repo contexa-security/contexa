@@ -55,7 +55,7 @@ class PromptQualityOfficialConsoleApiControllerTest {
                     verificationService, runDetailService, views);
     private static PromptQualityMessageResolver koreanMessageResolver() {
         ResourceBundleMessageSource source = new ResourceBundleMessageSource();
-        source.setBasename("i18n.messages");
+        source.setBasename("contexa.i18n.messages");
         source.setDefaultEncoding("UTF-8");
         return new DefaultPromptQualityMessageResolver(source) {
             @Override

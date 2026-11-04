@@ -56,9 +56,9 @@ class OssSchemaMaintenanceDeferralTest {
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
 
         // A database older than the code: the release ledger exists without the two columns its identity index names.
-        IamSeedDataAutoConfiguration.executeSchemaSql(dataSource, "db/schema.sql",
+        IamSeedDataAutoConfiguration.executeSchemaSql(dataSource, "META-INF/contexa/db/schema.sql",
                 IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(
-                        new ClassPathResource("db/schema.sql").getContentAsString(StandardCharsets.UTF_8)));
+                        new ClassPathResource("META-INF/contexa/db/schema.sql").getContentAsString(StandardCharsets.UTF_8)));
         jdbc.execute("alter table " + LEDGER + " drop column template_key cascade");
         jdbc.execute("alter table " + LEDGER + " drop column contract_version cascade");
         assertThat(indexCount(jdbc)).as("the cascade removed the index with its columns").isZero();

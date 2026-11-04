@@ -1,7 +1,7 @@
 -- System Settings Singleton Seed
 -- Loaded by IamSeedDataAutoConfiguration after data.sql / data-menu.sql.
 -- WHERE NOT EXISTS makes it idempotent across restarts and re-applies.
--- Schema source-of-truth: db/schema.sql.
+-- Schema source-of-truth: META-INF/contexa/db/schema.sql.
 INSERT INTO ctxa_system_settings (
     audit_log_retention_days,
     default_role,

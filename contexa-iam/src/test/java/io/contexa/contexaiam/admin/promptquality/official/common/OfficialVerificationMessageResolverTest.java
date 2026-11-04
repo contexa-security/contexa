@@ -15,8 +15,8 @@ import java.util.Properties;
 
 class OfficialVerificationMessageResolverTest {
 
-    private static final String EN_BUNDLE = "i18n/messages.properties";
-    private static final String KO_BUNDLE = "i18n/messages_ko.properties";
+    private static final String EN_BUNDLE = "contexa/i18n/messages.properties";
+    private static final String KO_BUNDLE = "contexa/i18n/messages_ko.properties";
 
     @Test
     void resolvesEnglishAndKoreanMessagesWithArguments() {

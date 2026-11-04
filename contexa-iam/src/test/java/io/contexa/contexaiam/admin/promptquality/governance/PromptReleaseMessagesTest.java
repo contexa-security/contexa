@@ -35,8 +35,8 @@ class PromptReleaseMessagesTest {
         }
         keys.add("menu.pqa.releases");
 
-        Properties english = properties("i18n/messages.properties");
-        Properties korean = properties("i18n/messages_ko.properties");
+        Properties english = properties("contexa/i18n/messages.properties");
+        Properties korean = properties("contexa/i18n/messages_ko.properties");
         assertThat(keys).allMatch(english::containsKey, "in the English messages");
         assertThat(keys).allMatch(korean::containsKey, "in the Korean messages");
         assertThat(keys.stream().filter(key -> english.getProperty(key).equals(korean.getProperty(key))).toList())
@@ -59,7 +59,7 @@ class PromptReleaseMessagesTest {
 
     @Test
     void theMenuHasTheVersionScreenUnderThePromptQualityGroup() throws IOException {
-        assertThat(read("db/data-menu.sql")).containsPattern(
+        assertThat(read("META-INF/contexa/db/data-menu.sql")).containsPattern(
                 "\\('menu\\.pqa\\.releases',\\s*'/contexa/admin/prompt-quality/releases',\\s*'',\\s*'prompt-quality',"
                         + "\\s*\\d+,\\s*TRUE,\\s*'CORE',\\s*'prompt-quality-releases'\\)");
     }

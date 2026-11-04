@@ -1,7 +1,7 @@
 -- ============================================================
 -- Contexa IAM sample accounts (Q-32): five accounts that share one known password, for a local quick start only.
 -- Run only when contexa.iam.seed.accounts.enabled is true (default false); never turn it on for a deployment.
--- Every INSERT is idempotent (ON CONFLICT DO NOTHING), as in db/data.sql, whose roles and groups these rows name.
+-- Every INSERT is idempotent (ON CONFLICT DO NOTHING), as in META-INF/contexa/db/data.sql, whose roles and groups these rows name.
 -- ============================================================
 
 -- ----------------------------------------------------------------
@@ -29,7 +29,7 @@ INSERT INTO CTXA_USER_GROUPS (user_id, group_id, assigned_at) VALUES
 ON CONFLICT (group_id, user_id) DO NOTHING;
 
 -- ----------------------------------------------------------------
--- The sequence follows the ids set above (as db/data.sql does for its rows), so that the next user created,
+-- The sequence follows the ids set above (as META-INF/contexa/db/data.sql does for its rows), so that the next user created,
 -- such as the bridge's mirror of a signed-in user, takes a free id.
 -- ----------------------------------------------------------------
 SELECT setval('ctxa_users_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM ctxa_users), 0), 1), COALESCE((SELECT MAX(id) FROM ctxa_users), 0) > 0)

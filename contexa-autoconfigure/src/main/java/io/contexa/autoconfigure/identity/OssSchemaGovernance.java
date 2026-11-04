@@ -21,7 +21,7 @@ public final class OssSchemaGovernance {
     public static final String ENTERPRISE_OWNER = "ENTERPRISE";
     public static final String HOST_OWNER = "HOST";
     public static final String LEGACY_UNOWNED_OWNER = "LEGACY_UNOWNED";
-    private static final String OSS_SCHEMA = "db/schema.sql";
+    private static final String OSS_SCHEMA = "META-INF/contexa/db/schema.sql";
 
     private final DataSource dataSource;
     private final OfficialVerificationDefinitionCatalogWriter catalogWriter;

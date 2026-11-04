@@ -79,6 +79,26 @@ class ContexaConsolePathsContractTest {
         assertThat(found).isEmpty();
     }
 
+    /** An application with a db/schema.sql or an i18n/messages of its own would have met Contexa's on the class path. */
+    @Test
+    @DisplayName("Contexa's resources stay under its own names")
+    void noResourceOfContexaUnderANameEveryApplicationUses() throws IOException {
+        Path root = Path.of("").toAbsolutePath().getParent();
+        List<String> shared = new ArrayList<>();
+        try (Stream<Path> files = Files.walk(root)) {
+            for (Path file : files.filter(ContexaConsolePathsContractTest::isMainResource).toList()) {
+                shared.add(root.relativize(file).toString());
+            }
+        }
+        assertThat(shared).isEmpty();
+    }
+
+    private static boolean isMainResource(Path file) {
+        String name = file.toString().replace('\\', '/');
+        return name.contains("/src/main/resources/") && !name.contains("/build/") && !name.contains("/META-INF/contexa/")
+                && (name.contains("/resources/db/") || name.contains("/resources/i18n/"));
+    }
+
     private static boolean isMainSource(Path file) {
         String name = file.toString().replace('\\', '/');
         return name.contains("/src/main/") && !name.contains("/build/")

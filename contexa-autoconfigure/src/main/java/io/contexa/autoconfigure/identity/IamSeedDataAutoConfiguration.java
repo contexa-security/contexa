@@ -63,7 +63,7 @@ public class IamSeedDataAutoConfiguration {
 
     private static final char BYTE_ORDER_MARK = (char) 0xFEFF;
 
-    private static final String CANONICAL_SCHEMA_LOCATION = "db/schema.sql";
+    private static final String CANONICAL_SCHEMA_LOCATION = "META-INF/contexa/db/schema.sql";
     static final String IAM_SEED_DATA_INITIALIZER_BEAN = "contexaIamSeedDataInitializer";
     static final String CONTEXA_ENTITY_MANAGER_FACTORY_BEAN = "contexaEntityManagerFactory";
     private static final int EXPECTED_OFFICIAL_METRIC_EVALUATION_CONTRACTS = 66;
@@ -96,14 +96,14 @@ public class IamSeedDataAutoConfiguration {
     };
 
     static final String[] SEED_LOCATIONS = {
-            "db/data.sql",
-            "db/data-hcad-removal.sql",
-            "db/data-menu.sql",
-            "db/data-system-settings.sql"
+            "META-INF/contexa/db/data.sql",
+            "META-INF/contexa/db/data-hcad-removal.sql",
+            "META-INF/contexa/db/data-menu.sql",
+            "META-INF/contexa/db/data-system-settings.sql"
     };
 
     /** Q-32: the sample accounts (one shared password) are seeded only when asked for; the rest always is. */
-    static final String ACCOUNT_SEED_LOCATION = "db/data-accounts.sql";
+    static final String ACCOUNT_SEED_LOCATION = "META-INF/contexa/db/data-accounts.sql";
     static final String ACCOUNT_SEED_PROPERTY = "contexa.iam.seed.accounts.enabled";
 
     /**
@@ -116,7 +116,7 @@ public class IamSeedDataAutoConfiguration {
     static final String ADMIN_EMAIL_PROPERTY = "contexa.iam.seed.admin.email";
     static final String DEFAULT_ADMIN_USERNAME = "admin";
     static final String DEFAULT_ADMIN_EMAIL = "admin@localhost";
-    /** The system administrators group of db/data.sql, which holds ROLE_ADMIN. */
+    /** The system administrators group of META-INF/contexa/db/data.sql, which holds ROLE_ADMIN. */
     static final long ADMIN_GROUP_ID = 1L;
 
     private static final Pattern CREATE_TABLE_IF_NOT_EXISTS =
@@ -246,7 +246,7 @@ public class IamSeedDataAutoConfiguration {
                 throw new IllegalStateException(
                         "Contexa schema is partially installed after canonical schema execution. "
                                 + "Rebuild the Contexa database or run the canonical "
-                                + "db/schema.sql manually before starting the application.");
+                                + "META-INF/contexa/db/schema.sql manually before starting the application.");
             }
         } else if (schemaInstallState == SchemaInstallState.COMPLETE) {
             log.info("[IamSeedData] Contexa schema already installed, skipping schema initialization");
@@ -476,9 +476,9 @@ public class IamSeedDataAutoConfiguration {
         }
         if (seedState != PqaOfficialSeedState.COMPLETE) {
             throw new IllegalStateException(
-                    "PQA official schema seed is incomplete after canonical db/schema.sql execution. "
+                    "PQA official schema seed is incomplete after canonical META-INF/contexa/db/schema.sql execution. "
                             + "Rebuild the Contexa database or run the canonical "
-                            + "db/schema.sql manually before starting the application.");
+                            + "META-INF/contexa/db/schema.sql manually before starting the application.");
         }
     }
 

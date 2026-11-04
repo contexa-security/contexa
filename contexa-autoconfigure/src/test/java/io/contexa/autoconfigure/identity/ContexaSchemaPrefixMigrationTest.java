@@ -116,7 +116,7 @@ class ContexaSchemaPrefixMigrationTest {
         assertThat(new ContexaSchemaPrefixMigration(legacy).migrate()).isEqualTo(ContexaSchemaPrefixMigration.Outcome.NOT_NEEDED);
 
         DataSource fresh = inSchema(FRESH);
-        install(fresh, "db/schema.sql");
+        install(fresh, "META-INF/contexa/db/schema.sql");
         Map<String, List<String>> migrated = shape(legacy, LEGACY);
         Map<String, List<String>> installed = shape(fresh, FRESH);
         for (String kind : installed.keySet()) {

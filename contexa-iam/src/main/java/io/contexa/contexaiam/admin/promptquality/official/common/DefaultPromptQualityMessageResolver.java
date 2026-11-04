@@ -13,7 +13,7 @@ import java.util.ResourceBundle;
 
 public class DefaultPromptQualityMessageResolver implements PromptQualityMessageResolver {
 
-    private static final String CORE_BUNDLE_BASE_NAME = "i18n.messages";
+    private static final String CORE_BUNDLE_BASE_NAME = "contexa.i18n.messages";
     private static final String ENTERPRISE_BUNDLE_BASE_NAME = "i18n.messages-enterprise";
 
     private final MessageSource messageSource;

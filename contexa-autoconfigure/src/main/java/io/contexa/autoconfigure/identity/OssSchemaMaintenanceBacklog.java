@@ -43,7 +43,7 @@ public final class OssSchemaMaintenanceBacklog {
         while (!pending.isEmpty()) {
             String statement = pending.get(0);
             try {
-                IamSeedDataAutoConfiguration.executeSchemaSql(dataSource, "db/schema.sql#deferred-maintenance", statement);
+                IamSeedDataAutoConfiguration.executeSchemaSql(dataSource, "META-INF/contexa/db/schema.sql#deferred-maintenance", statement);
             } catch (SQLException error) {
                 throw new IllegalStateException("A put-off OSS schema maintenance statement still fails after the "
                         + "enterprise migrations: " + error.getMessage() + ". " + (pending.size() - 1)

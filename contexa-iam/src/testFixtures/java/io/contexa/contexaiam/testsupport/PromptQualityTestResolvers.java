@@ -49,7 +49,7 @@ public final class PromptQualityTestResolvers {
     private static PromptQualityMessageResolver bundle(Locale locale) {
         LocaleContextHolder.setLocale(locale);
         ResourceBundleMessageSource messageSource = new ResourceBundleMessageSource();
-        messageSource.setBasenames("i18n/messages", "i18n/messages-enterprise");
+        messageSource.setBasenames("contexa/i18n/messages", "i18n/messages-enterprise");
         messageSource.setDefaultEncoding(StandardCharsets.UTF_8.name());
         messageSource.setFallbackToSystemLocale(false);
         return new DefaultPromptQualityMessageResolver(messageSource);

@@ -31,7 +31,7 @@ import java.util.Locale;
  *
  * <ol>
  *   <li>{@link #englishMessageSource()} returns a real {@link ResourceBundleMessageSource}
- *       wired against the production {@code i18n/messages} bundle, with
+ *       wired against the production {@code contexa/i18n/messages} bundle, with
  *       {@code fallbackToSystemLocale=false} so an English message is returned
  *       even when the JVM default locale is ko_KR (typical CI host).</li>
  *   <li>{@link EnglishLocale} pins {@link LocaleContextHolder} to
@@ -58,7 +58,7 @@ public final class I18nTestSupport {
 
     public static MessageSource englishMessageSource() {
         ResourceBundleMessageSource ms = new ResourceBundleMessageSource();
-        ms.setBasename("i18n/messages");
+        ms.setBasename("contexa/i18n/messages");
         ms.setDefaultEncoding("UTF-8");
         ms.setUseCodeAsDefaultMessage(true);
         ms.setFallbackToSystemLocale(false);

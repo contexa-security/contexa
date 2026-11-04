@@ -48,7 +48,7 @@ import org.springframework.web.servlet.i18n.SessionLocaleResolver;
 @AutoConfiguration(before = WebMvcAutoConfiguration.class)
 public class IamI18nAutoConfiguration {
 
-    static final String BUNDLE = "i18n/messages";
+    static final String BUNDLE = "contexa/i18n/messages";
 
     /** The message source Contexa creates when the application has none: its own bundle only. */
     static final class ContexaMessageSource extends ResourceBundleMessageSource {

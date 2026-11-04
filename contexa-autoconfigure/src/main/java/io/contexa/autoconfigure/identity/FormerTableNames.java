@@ -33,12 +33,12 @@ import java.util.Map;
  * reads the tables a migration chain leads to out of the scripts, reads them under their present names through this
  * map: a migration that creates {@code ctxa_prompt_governance_registry} leads to {@code ctxa_prompt_governance_registry}
  * once the migration that moves the tables to the new names has run, which every database has by the time the
- * inventory is compared with it. The maps are the {@code db/ctxa-rename-map*.tsv} resources of every Contexa module on
+ * inventory is compared with it. The maps are the {@code META-INF/contexa/db/ctxa-rename-map*.tsv} resources of every Contexa module on
  * the class path (the open-source one, and the enterprise's own).
  */
 final class FormerTableNames {
 
-    private static final String PATTERN = "classpath*:db/ctxa-rename-map*.tsv";
+    private static final String PATTERN = "classpath*:META-INF/contexa/db/ctxa-rename-map*.tsv";
 
     private static volatile Map<String, String> renamed;
 

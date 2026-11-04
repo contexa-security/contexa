@@ -28,7 +28,7 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.mock.env.MockEnvironment;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 
-/** One administrator from contexa.iam.seed.admin.*, against the columns db/schema.sql gives users. */
+/** One administrator from contexa.iam.seed.admin.*, against the columns META-INF/contexa/db/schema.sql gives users. */
 class IamSeedAdministratorTest {
 
     private DataSource dataSource;

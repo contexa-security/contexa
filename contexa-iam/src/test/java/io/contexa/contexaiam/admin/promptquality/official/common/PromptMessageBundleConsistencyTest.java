@@ -36,8 +36,8 @@ class PromptMessageBundleConsistencyTest {
     @ParameterizedTest
     @ValueSource(strings = {"", "_ko"})
     void theCoreBundleCopiesTheSharedIamMessagesWordForWord(String languageSuffix) throws IOException {
-        Properties core = load("i18n/core-verification-messages" + languageSuffix + ".properties");
-        Properties iam = load("i18n/messages" + languageSuffix + ".properties");
+        Properties core = load("contexa/i18n/core-verification-messages" + languageSuffix + ".properties");
+        Properties iam = load("contexa/i18n/messages" + languageSuffix + ".properties");
 
         assertThat(core).isNotEmpty();
         for (String key : core.stringPropertyNames()) {

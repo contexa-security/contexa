@@ -9,7 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.regex.Pattern;
 
 /**
- * The prompt version management tables as the OSS {@code db/schema.sql} defines them, for tests on an empty database:
+ * The prompt version management tables as the OSS {@code META-INF/contexa/db/schema.sql} defines them, for tests on an empty database:
  * the canonical DDL, not a copy of it, with the statements that change an existing table.
  */
 public final class PromptGovernanceTestSchema {
@@ -35,7 +35,7 @@ public final class PromptGovernanceTestSchema {
     private static String schema() {
         try (InputStream stream = PromptGovernanceTestSchema.class.getResourceAsStream("/db/schema.sql")) {
             if (stream == null) {
-                throw new IllegalStateException("db/schema.sql is not on the test classpath");
+                throw new IllegalStateException("META-INF/contexa/db/schema.sql is not on the test classpath");
             }
             return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {

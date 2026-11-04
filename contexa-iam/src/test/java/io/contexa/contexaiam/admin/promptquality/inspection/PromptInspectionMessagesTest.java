@@ -36,8 +36,8 @@ class PromptInspectionMessagesTest {
         keys.add("menu.pqa.inspection.overview");
         keys.add("menu.pqa.inspection.packages");
 
-        Properties english = properties("i18n/messages.properties");
-        Properties korean = properties("i18n/messages_ko.properties");
+        Properties english = properties("contexa/i18n/messages.properties");
+        Properties korean = properties("contexa/i18n/messages_ko.properties");
         assertThat(keys).allMatch(english::containsKey, "in the English messages");
         assertThat(keys).allMatch(korean::containsKey, "in the Korean messages");
         assertThat(keys.stream().filter(key -> english.getProperty(key).equals(korean.getProperty(key))).toList())

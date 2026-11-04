@@ -55,7 +55,7 @@ class ContexaSchemaInventoryFormerNamesTest {
     @Test
     void theOpenSourceSchemaIsAlreadyWrittenUnderTheNewNamesAndStaysSo() throws Exception {
         ContexaSchemaInventory.Snapshot inventory = ContexaSchemaInventory.fromResources("OSS",
-                List.of(new ClassPathResource("db/schema.sql")));
+                List.of(new ClassPathResource("META-INF/contexa/db/schema.sql")));
 
         assertThat(inventory.tables()).contains("ctxa_users", "ctxa_sealed_evidence_package", "ctxa_schema_provenance")
                 .doesNotContain("users", "sealed_evidence_package", "contexa_schema_provenance");

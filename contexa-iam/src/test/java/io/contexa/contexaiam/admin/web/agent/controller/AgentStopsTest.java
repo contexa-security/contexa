@@ -254,7 +254,7 @@ class AgentStopsTest {
 
     private static ResourceBundleMessageSource messages() {
         ResourceBundleMessageSource messages = new ResourceBundleMessageSource();
-        messages.setBasename("i18n/messages");
+        messages.setBasename("contexa/i18n/messages");
         messages.setFallbackToSystemLocale(false);
         return messages;
     }

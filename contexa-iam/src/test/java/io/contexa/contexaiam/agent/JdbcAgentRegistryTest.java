@@ -237,7 +237,7 @@ class JdbcAgentRegistryTest {
     }
 
     private static List<String> agentRegistrationDdl() throws Exception {
-        String schema = new ClassPathResource("db/schema.sql").getContentAsString(StandardCharsets.UTF_8);
+        String schema = new ClassPathResource("META-INF/contexa/db/schema.sql").getContentAsString(StandardCharsets.UTF_8);
         Matcher table = Pattern.compile("(?is)create table if not exists ctxa_agent_registration\\s*\\(.*?\\n\\);").matcher(schema);
         assertThat(table.find()).isTrue();
         Matcher indexes = Pattern.compile("(?is)create (?:unique )?index if not exists \\S+\\s+on ctxa_agent_registration[^;]*;")

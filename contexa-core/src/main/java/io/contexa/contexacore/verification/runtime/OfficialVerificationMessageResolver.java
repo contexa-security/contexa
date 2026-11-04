@@ -8,7 +8,7 @@ import java.util.ResourceBundle;
 public interface OfficialVerificationMessageResolver {
 
     /** The core's own bundle, so the core resolves its messages without the IAM module on the classpath. */
-    String CORE_BUNDLE_BASE_NAME = "i18n.core-verification-messages";
+    String CORE_BUNDLE_BASE_NAME = "contexa.i18n.core-verification-messages";
 
     String resolve(String key, Object... args);
 

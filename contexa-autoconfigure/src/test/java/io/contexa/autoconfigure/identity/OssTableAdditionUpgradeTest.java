@@ -55,12 +55,12 @@ class OssTableAdditionUpgradeTest {
                 .as("this test only runs on an empty database").isEmpty();
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
         ContexaSchemaInventory.Snapshot oss = ContexaSchemaInventory.fromResources(
-                OssSchemaGovernance.OSS_OWNER, List.of(new ClassPathResource("db/schema.sql")));
+                OssSchemaGovernance.OSS_OWNER, List.of(new ClassPathResource("META-INF/contexa/db/schema.sql")));
 
         // A database installed before the agent registry existed, then taken over by an enterprise.
-        IamSeedDataAutoConfiguration.executeSchemaSql(dataSource, "db/schema.sql",
+        IamSeedDataAutoConfiguration.executeSchemaSql(dataSource, "META-INF/contexa/db/schema.sql",
                 IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(
-                        new ClassPathResource("db/schema.sql").getContentAsString(StandardCharsets.UTF_8)));
+                        new ClassPathResource("META-INF/contexa/db/schema.sql").getContentAsString(StandardCharsets.UTF_8)));
         jdbc.execute("drop table ctxa_agent_registration");
         // prompt_inspection_result.finding_kinds_json is added by an alter statement of the schema, not by the create table
         jdbc.execute("drop table ctxa_prompt_inspection_result cascade");
