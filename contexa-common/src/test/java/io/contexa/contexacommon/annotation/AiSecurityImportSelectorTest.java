@@ -44,6 +44,20 @@ class AiSecurityImportSelectorTest {
         assertThat(environment.getProperty(AiSecurityImportSelector.PROP_AUTH_OBJECT_ATTRIBUTE)).isEqualTo("operatorUser");
     }
 
+    /** Contexa's enforcement is servlet filters: on a reactive server nothing would be enforced and nothing would say so. */
+    @Test
+    void anApplicationThatChoseTheReactiveStackIsToldInsteadOfLeftUnprotected() {
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(new MapPropertySource("application",
+                Map.of("spring.main.web-application-type", "reactive")));
+        AiSecurityImportSelector selector = new AiSecurityImportSelector();
+        selector.setEnvironment(environment);
+
+        assertThatThrownBy(() -> selector.selectImports(AnnotationMetadata.introspect(DefaultSandboxApplication.class)))
+                .isInstanceOf(ContexaOperatingProfileException.class)
+                .hasMessageContaining("reactive");
+    }
+
     @Test
     void shouldPropagateFullModeWhenDeclared() {
         StandardEnvironment environment = select(FullModeApplication.class);

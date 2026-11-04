@@ -57,7 +57,7 @@ public class PromptInspectionCleanPackageRetentionScheduler {
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
-    @Scheduled(cron = "${contexa.pqa.oss.sealed-evidence.retention.cleanup-cron:0 30 3 * * *}")
+    @Scheduled(scheduler = "contexaTaskScheduler", cron = "${contexa.pqa.oss.sealed-evidence.retention.cleanup-cron:0 30 3 * * *}")
     @SchedulerLock(name = LOCK_NAME, lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
     public void removeCleanPackages() {
         Instant before = clock.instant().minus(cleanPeriod);

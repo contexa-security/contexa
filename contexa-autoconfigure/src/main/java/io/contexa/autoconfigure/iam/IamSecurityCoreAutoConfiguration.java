@@ -90,7 +90,7 @@ public class IamSecurityCoreAutoConfiguration {
         return new AISecurityContextSupport(securityZeroTrustProperties, contexaZeroTrustSecurityService, sessionIdResolver);
     }
 
-    @Bean(name = "contexaAiSessionSecurityContextRepository")
+    @Bean(name = "contexaAiSessionSecurityContextRepository", defaultCandidate = false)
     @ConditionalOnMissingBean
     public AISessionSecurityContextRepository aiSessionSecurityContextRepository(
             AISecurityContextSupport contexaAiSecurityContextSupport,

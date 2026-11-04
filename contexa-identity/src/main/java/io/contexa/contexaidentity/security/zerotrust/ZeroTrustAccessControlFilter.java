@@ -84,6 +84,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     private UnanalysedRequestRecorder unanalysedRequestRecorder;
     private BooleanSupplier enforcing = () -> true;
     private HostOwnedStepUp hostOwnedStepUp;
+    private boolean monitoringHeaders = true;
 
     public ZeroTrustAccessControlFilter(
             ZeroTrustActionRepository actionRedisRepository,
@@ -133,6 +134,10 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
      * Ownership HOST_OWNED: a BLOCK an administrator lets the user release by MFA goes to Contexa's verification-only
      * step-up instead of a Contexa MFA flow. Null under CONTEXA_OWNED.
      */
+    public void setMonitoringHeaders(boolean monitoringHeaders) {
+        this.monitoringHeaders = monitoringHeaders;
+    }
+
     public void setHostOwnedStepUp(HostOwnedStepUp hostOwnedStepUp) {
         this.hostOwnedStepUp = hostOwnedStepUp;
     }
@@ -567,6 +572,9 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         String blockedRedirectUrl = resolveBlockedRedirectUrl();
         BlockableResponseWrapper wrapper = new BlockableResponseWrapper(
                 response, blockingDecisionRegistry, userId, blockedRedirectUrl, responseStartNanos);
+        if (!monitoringHeaders) {
+            wrapper.omitMonitoringHeaders();
+        }
         // The block signal stays after a cut, so the user's other responses in flight are cut too; the release
         // paths (MFA success, administrator, account purge) clear it.
         try {

@@ -50,7 +50,7 @@ public class BlockedUserTimeoutScheduler {
     private final ApplicationEventPublisher eventPublisher;
     private final CentralAuditFacade centralAuditFacade;
 
-    @Scheduled(fixedDelay = 3600000)
+    @Scheduled(scheduler = "contexaTaskScheduler", fixedDelay = 3600000)
     @SchedulerLock(name = "blockedUserTimeoutCheck", lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
     public void checkBlockedUserTimeout() {
         LocalDateTime threshold = LocalDateTime.now().minusHours(TIMEOUT_HOURS);

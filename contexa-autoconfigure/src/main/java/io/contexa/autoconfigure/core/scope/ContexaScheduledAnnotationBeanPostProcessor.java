@@ -19,7 +19,7 @@ import org.springframework.beans.factory.BeanFactory;
 import org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor;
 import org.springframework.scheduling.annotation.SchedulingConfigurer;
 import org.springframework.scheduling.config.TaskManagementConfigUtils;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.scheduling.TaskScheduler;
 
 /**
  * {@code @Scheduled} for Contexa's own beans, without {@code @EnableScheduling} for the application: a {@code @Scheduled} method of the
@@ -28,16 +28,10 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
  */
 public class ContexaScheduledAnnotationBeanPostProcessor extends ScheduledAnnotationBeanPostProcessor {
 
-    private final ThreadPoolTaskScheduler scheduler;
     private BeanFactory beanFactory;
 
-    public ContexaScheduledAnnotationBeanPostProcessor(int poolSize) {
-        this.scheduler = new ThreadPoolTaskScheduler();
-        this.scheduler.setPoolSize(Math.max(1, poolSize));
-        this.scheduler.setThreadNamePrefix("contexa-scheduling-");
-        this.scheduler.setRemoveOnCancelPolicy(true);
-        this.scheduler.initialize();
-        setScheduler(this.scheduler);
+    public ContexaScheduledAnnotationBeanPostProcessor(TaskScheduler scheduler) {
+        setScheduler(scheduler);
     }
 
     @Override
@@ -53,9 +47,4 @@ public class ContexaScheduledAnnotationBeanPostProcessor extends ScheduledAnnota
                 ? super.postProcessAfterInitialization(bean, beanName) : bean;
     }
 
-    @Override
-    public void destroy() {
-        super.destroy();
-        scheduler.shutdown();
-    }
 }

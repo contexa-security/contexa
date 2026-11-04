@@ -353,6 +353,12 @@ public class BridgeProperties {
          * an OIDC authorization request with {@code prompt=login} or {@code max_age=0}); not offered when empty.
          */
         private String reauthenticationUrl;
+
+        /**
+         * Lets the step-up use the passkeys the application already keeps in repositories of its own, one of each type.
+         * Off, Contexa's step-up keeps its passkeys in Contexa's tables and users register one there.
+         */
+        private boolean shareApplicationPasskeys = false;
     }
 
     @Data

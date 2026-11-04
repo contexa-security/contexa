@@ -16,7 +16,10 @@
 package io.contexa.autoconfigure.identity;
 
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
+import io.contexa.contexacommon.operating.ConditionalOnOwnership;
+import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import io.contexa.contexaidentity.security.service.PasskeyUserStatePurgeContributor;
+import io.contexa.contexaidentity.security.zerotrust.stepup.ContexaPasskeyStores;
 import io.contexa.contexaidentity.security.webauthn.codec.DefaultPasskeyCreationOptionsCodec;
 import io.contexa.contexaidentity.security.webauthn.codec.PasskeyCreationOptionsCodec;
 import io.contexa.contexaidentity.security.webauthn.repository.SerializablePasskeyCreationOptionsRepository;
@@ -29,6 +32,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.security.web.webauthn.management.JdbcPublicKeyCredentialUserEntityRepository;
 import org.springframework.security.web.webauthn.management.JdbcUserCredentialRepository;
@@ -41,30 +45,54 @@ import org.springframework.security.web.webauthn.registration.PublicKeyCredentia
 @ConditionalOnBean(PlatformConfig.class)
 public class IdentityWebAuthnAutoConfiguration {
 
-    @Bean(name = "contexaPublicKeyCredentialUserEntityRepository")
-    @ConditionalOnMissingBean(PublicKeyCredentialUserEntityRepository.class)
-    @ConditionalOnBean(name = "contexaJdbcTemplate")
-    public PublicKeyCredentialUserEntityRepository publicKeyCredentialUserEntityRepository(
-            @Qualifier("contexaJdbcTemplate")
-            JdbcOperations jdbcOperations) {
-        return new JdbcPublicKeyCredentialUserEntityRepository(LibraryTableNames.wrap(jdbcOperations));
+    /** Spring Security's {@code webAuthn()} of Contexa's chain finds its repositories as beans; no chain of an application is there. */
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnOwnership(SecurityOwnershipMode.CONTEXA_OWNED)
+    static class ContexaOwnedPasskeys {
+
+        @Bean(name = "contexaPublicKeyCredentialUserEntityRepository")
+        @ConditionalOnMissingBean(PublicKeyCredentialUserEntityRepository.class)
+        @ConditionalOnBean(name = "contexaJdbcTemplate")
+        public PublicKeyCredentialUserEntityRepository publicKeyCredentialUserEntityRepository(
+                @Qualifier("contexaJdbcTemplate")
+                JdbcOperations jdbcOperations) {
+            return new JdbcPublicKeyCredentialUserEntityRepository(LibraryTableNames.wrap(jdbcOperations));
+        }
+
+        @Bean(name = "contexaUserCredentialRepository")
+        @ConditionalOnMissingBean(UserCredentialRepository.class)
+        @ConditionalOnBean(name = "contexaJdbcTemplate")
+        public UserCredentialRepository userCredentialRepository(
+                @Qualifier("contexaJdbcTemplate")
+                JdbcOperations jdbcOperations) {
+            return new JdbcUserCredentialRepository(LibraryTableNames.wrap(jdbcOperations));
+        }
     }
 
-    @Bean(name = "contexaUserCredentialRepository")
-    @ConditionalOnMissingBean(UserCredentialRepository.class)
-    @ConditionalOnBean(name = "contexaJdbcTemplate")
-    public UserCredentialRepository userCredentialRepository(
-            @Qualifier("contexaJdbcTemplate")
-            JdbcOperations jdbcOperations) {
-        return new JdbcUserCredentialRepository(LibraryTableNames.wrap(jdbcOperations));
+    /** The application's {@code webAuthn()} must not find Contexa's repositories, so that they are held instead of being beans. */
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnOwnership(SecurityOwnershipMode.HOST_OWNED)
+    static class HostOwnedPasskeys {
+
+        @Bean(name = "contexaPasskeyStores")
+        @ConditionalOnMissingBean
+        @ConditionalOnBean(name = "contexaJdbcTemplate")
+        public ContexaPasskeyStores contexaPasskeyStores(@Qualifier("contexaJdbcTemplate") JdbcOperations jdbcOperations) {
+            JdbcOperations ctxaTables = LibraryTableNames.wrap(jdbcOperations);
+            return new ContexaPasskeyStores(new JdbcPublicKeyCredentialUserEntityRepository(ctxaTables),
+                    new JdbcUserCredentialRepository(ctxaTables));
+        }
     }
 
     @Bean(name = "contexaPasskeyUserStatePurgeContributor")
     @ConditionalOnMissingBean
     public PasskeyUserStatePurgeContributor passkeyUserStatePurgeContributor(
+            ObjectProvider<ContexaPasskeyStores> held,
             ObjectProvider<PublicKeyCredentialUserEntityRepository> userEntities,
             ObjectProvider<UserCredentialRepository> userCredentials) {
-        return new PasskeyUserStatePurgeContributor(userEntities, userCredentials);
+        return new PasskeyUserStatePurgeContributor(
+                () -> held.getIfAvailable() != null ? held.getObject().userEntities() : userEntities.getIfAvailable(),
+                () -> held.getIfAvailable() != null ? held.getObject().userCredentials() : userCredentials.getIfAvailable());
     }
 
     @Bean(name = "contexaPasskeyCreationOptionsCodec")

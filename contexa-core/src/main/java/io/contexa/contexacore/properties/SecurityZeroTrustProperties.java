@@ -32,6 +32,9 @@ import java.util.Map;
 @ConfigurationProperties(prefix = "contexa.security.zerotrust")
 public class SecurityZeroTrustProperties {
 
+    /** Whether a signed-in user's responses carry X-Contexa-Monitored and X-Contexa-Blocked-Redirect, which Contexa's browser SDK reads. */
+    private boolean monitoringHeaders = true;
+
     private boolean enabled = true;
 
     private EnforcementMode mode = EnforcementMode.ENFORCE;

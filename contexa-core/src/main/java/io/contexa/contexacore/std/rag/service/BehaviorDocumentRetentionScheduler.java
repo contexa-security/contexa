@@ -62,7 +62,7 @@ public class BehaviorDocumentRetentionScheduler {
         this.vectorStoreCacheLayer = vectorStoreCacheLayer;
     }
 
-    @Scheduled(cron = "${contexa.rag.etl.behavior.retention-cleanup-cron:0 45 3 * * *}")
+    @Scheduled(scheduler = "contexaTaskScheduler", cron = "${contexa.rag.etl.behavior.retention-cleanup-cron:0 45 3 * * *}")
     @SchedulerLock(name = LOCK_NAME, lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
     public void deleteExpiredBehaviorDocuments() {
         Filter.Expression expired = expiredBehaviorDocuments();

@@ -26,6 +26,7 @@ import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.context.OrderedSecurityFilterChain;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.ClassUtils;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -33,6 +34,8 @@ import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.FilterChainProxy;
 import org.springframework.security.web.SecurityFilterChain;
 
+import java.util.LinkedHashMap;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -51,17 +54,45 @@ import java.util.Map;
 @Slf4j
 public class OwnershipStartupDiagnostics implements SmartInitializingSingleton {
 
+    private static final String REACTIVE_ROUTES = "org.springframework.web.reactive.function.server.RouterFunction";
+
+    /** What comes with Contexa and changes what Spring Boot configures in the application. */
+    private static final Map<String, String> CLASS_PATH_IMPACT = orderedImpact();
+
     private final ListableBeanFactory beans;
     private final ContexaOperatingProfile profile;
+    private final boolean reportClassPath;
 
     public OwnershipStartupDiagnostics(ListableBeanFactory beans, ContexaOperatingProfile profile) {
+        this(beans, profile, true);
+    }
+
+    public OwnershipStartupDiagnostics(ListableBeanFactory beans, ContexaOperatingProfile profile, boolean reportClassPath) {
         this.beans = beans;
         this.profile = profile;
+        this.reportClassPath = reportClassPath;
+    }
+
+    private static Map<String, String> orderedImpact() {
+        Map<String, String> impact = new LinkedHashMap<>();
+        impact.put("reactor.netty.http.client.HttpClient",
+                "Reactor Netty (RestClient, RestTemplate and WebClient built by Boot use it unless the application has its own client)");
+        impact.put("org.thymeleaf.spring6.view.ThymeleafViewResolver", "Thymeleaf (its view resolver is asked before JSP)");
+        impact.put("io.micrometer.prometheusmetrics.PrometheusMeterRegistry", "Prometheus (Boot's simple meter registry is not created)");
+        impact.put("jakarta.validation.Validator", "Bean Validation (@Valid and @Validated take effect)");
+        return impact;
     }
 
     @Override
     public void afterSingletonsInstantiated() {
+        refuseReactiveRoutes(beans, getClass().getClassLoader());
         log.info(report(profile, enforcement()));
+        if (reportClassPath) {
+            String impact = classPathImpact(getClass().getClassLoader());
+            if (impact != null) {
+                log.info(impact);
+            }
+        }
         if (profile.declaredDatabaseUnused()) {
             log.warn("[Contexa] contexa.datasource.isolation.contexa-owned-application=true: the application's "
                     + "spring.datasource is not used; Contexa's database serves the application.");
@@ -103,6 +134,37 @@ public class OwnershipStartupDiagnostics implements SmartInitializingSingleton {
     private String enforcement() {
         SecurityZeroTrustProperties zeroTrust = beans.getBeanProvider(SecurityZeroTrustProperties.class).getIfAvailable();
         return zeroTrust != null ? zeroTrust.getMode().name() : "none";
+    }
+
+    /**
+     * Contexa brings the servlet stack, and Boot then runs an application written for WebFlux on it. Its annotated controllers
+     * keep working, but its functional routes are never mapped: every one of them would answer 404 without a word.
+     */
+    static void refuseReactiveRoutes(ListableBeanFactory beans, ClassLoader loader) {
+        if (!ClassUtils.isPresent(REACTIVE_ROUTES, loader)) {
+            return;
+        }
+        Class<?> routes = ClassUtils.resolveClassName(REACTIVE_ROUTES, loader);
+        String[] names = beans.getBeanNamesForType(routes, true, false);
+        if (names.length > 0) {
+            throw new ContexaOperatingProfileException(
+                    "Contexa runs on a servlet stack, and this application has WebFlux routes that it never maps: "
+                            + Arrays.toString(names) + ".",
+                    "Run this application on the servlet stack with Spring MVC, or remove Contexa from it.");
+        }
+    }
+
+    /** What the class path brought, for an application that wonders why Boot behaves differently. */
+    static String classPathImpact(ClassLoader loader) {
+        List<String> present = CLASS_PATH_IMPACT.entrySet().stream()
+                .filter(entry -> ClassUtils.isPresent(entry.getKey(), loader))
+                .map(Map.Entry::getValue)
+                .toList();
+        if (present.isEmpty()) {
+            return null;
+        }
+        return "[Contexa] On the class path with Contexa, unless the application declares them itself: " + String.join("; ", present)
+                + ". contexa.startup.class-path-report=false turns this line off.";
     }
 
     /** One line at start: how this application runs Contexa. */

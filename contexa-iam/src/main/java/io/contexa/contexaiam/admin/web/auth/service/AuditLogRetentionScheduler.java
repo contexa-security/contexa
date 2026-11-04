@@ -34,7 +34,7 @@ public class AuditLogRetentionScheduler {
     private final AuditLogRepository auditLogRepository;
     private final SystemSettingsService systemSettingsService;
 
-    @Scheduled(cron = "0 0 2 * * *")
+    @Scheduled(scheduler = "contexaTaskScheduler", cron = "0 0 2 * * *")
     @SchedulerLock(name = "auditLogRetentionCleanup", lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
     @Transactional(transactionManager = "contexaTransactionManager")
     public void cleanupExpiredAuditLogs() {

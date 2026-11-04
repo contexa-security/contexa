@@ -61,7 +61,6 @@ import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmationService;
 import io.contexa.contexacore.autonomous.agent.AgentCallGuard;
 import io.contexa.contexacore.autonomous.agent.AgentScopeService;
-import io.contexa.contexacommon.jdbc.LibraryTableNames;
 import jakarta.servlet.Filter;
 import java.util.Collections;
 import java.util.List;
@@ -80,15 +79,10 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.env.Environment;
-import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.authentication.ott.OneTimeTokenAuthenticationFilter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.webauthn.authentication.WebAuthnAuthenticationFilter;
-import org.springframework.security.web.webauthn.management.JdbcPublicKeyCredentialUserEntityRepository;
-import org.springframework.security.web.webauthn.management.JdbcUserCredentialRepository;
-import org.springframework.security.web.webauthn.management.PublicKeyCredentialUserEntityRepository;
-import org.springframework.security.web.webauthn.management.UserCredentialRepository;
 
 
 
@@ -387,6 +381,7 @@ public class IdentitySecurityCoreAutoConfiguration {
         filter.setUnanalysedRequestRecorder(unanalysedRequestRecorder.getIfAvailable());
         // Ownership design Q-5: a stored BLOCK or ESCALATE is enforced under ENFORCE only.
         filter.setEnforcing(securityZeroTrustProperties::isEnforcementEnabled);
+        filter.setMonitoringHeaders(securityZeroTrustProperties.isMonitoringHeaders());
         // docs/agent A5-3: an agent whose escalation turns into a block is stopped.
         agentContainment.ifAvailable(filter::setAgentContainment);
         // Ownership design S-1/S-2: when the application owns sign-in, a BLOCK's release by MFA goes to the step-up.
@@ -448,24 +443,6 @@ public class IdentitySecurityCoreAutoConfiguration {
     public MfaPendingAccessControlConfigurer mfaPendingAccessControlConfigurer(
             MfaPendingAccessControlFilter contexaMfaPendingAccessControlFilter) {
         return new MfaPendingAccessControlConfigurer(contexaMfaPendingAccessControlFilter);
-    }
-
-    @Bean(name = "contexaPublicKeyCredentialUserEntityRepository")
-    @ConditionalOnMissingBean
-    @ConditionalOnBean(name = "contexaJdbcTemplate")
-    public PublicKeyCredentialUserEntityRepository publicKeyCredentialUserEntityRepository(
-            @Qualifier("contexaJdbcTemplate")
-            JdbcOperations jdbcOperations) {
-        return new JdbcPublicKeyCredentialUserEntityRepository(LibraryTableNames.wrap(jdbcOperations));
-    }
-
-    @Bean(name = "contexaUserCredentialRepository")
-    @ConditionalOnMissingBean
-    @ConditionalOnBean(name = "contexaJdbcTemplate")
-    public UserCredentialRepository userCredentialRepository(
-            @Qualifier("contexaJdbcTemplate")
-            JdbcOperations jdbcOperations) {
-        return new JdbcUserCredentialRepository(LibraryTableNames.wrap(jdbcOperations));
     }
 
     @Bean(name = "contexaHttpSessionCleanupListener")

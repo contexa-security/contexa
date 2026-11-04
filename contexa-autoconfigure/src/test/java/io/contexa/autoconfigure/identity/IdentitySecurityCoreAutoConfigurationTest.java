@@ -188,14 +188,12 @@ class IdentitySecurityCoreAutoConfigurationTest {
         @Test
         @DisplayName("Should bind WebAuthn repositories to contexaJdbcTemplate")
         void shouldBindWebAuthnRepositoriesToContexaJdbcTemplate() throws Exception {
-            assertContexaJdbcTemplateBinding(IdentitySecurityCoreAutoConfiguration.class,
+            assertContexaJdbcTemplateBinding(IdentityWebAuthnAutoConfiguration.ContexaOwnedPasskeys.class,
                     "publicKeyCredentialUserEntityRepository");
-            assertContexaJdbcTemplateBinding(IdentitySecurityCoreAutoConfiguration.class,
+            assertContexaJdbcTemplateBinding(IdentityWebAuthnAutoConfiguration.ContexaOwnedPasskeys.class,
                     "userCredentialRepository");
-            assertContexaJdbcTemplateBinding(IdentityWebAuthnAutoConfiguration.class,
-                    "publicKeyCredentialUserEntityRepository");
-            assertContexaJdbcTemplateBinding(IdentityWebAuthnAutoConfiguration.class,
-                    "userCredentialRepository");
+            assertContexaJdbcTemplateBinding(IdentityWebAuthnAutoConfiguration.HostOwnedPasskeys.class,
+                    "contexaPasskeyStores");
         }
 
         private void assertContexaJdbcTemplateBinding(Class<?> configurationClass, String methodName) throws Exception {

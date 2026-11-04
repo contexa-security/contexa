@@ -31,7 +31,7 @@ public class SaasDecisionFeedbackRetryScheduler {
         this.properties = properties;
     }
 
-    @Scheduled(fixedDelayString = "${contexa.saas.dispatch-interval-ms:30000}")
+    @Scheduled(scheduler = "contexaTaskScheduler", fixedDelayString = "${contexa.saas.dispatch-interval-ms:30000}")
     @SchedulerLock(name = "saasDecisionFeedbackRetry", lockAtMostFor = "PT5M", lockAtLeastFor = "PT5S")
     public void retryPendingDispatches() {
         if (!properties.isEnabled() || !properties.getDecisionFeedback().isEnabled()) {

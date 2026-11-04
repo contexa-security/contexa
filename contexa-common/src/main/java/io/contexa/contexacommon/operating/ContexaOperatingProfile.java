@@ -41,6 +41,7 @@ public record ContexaOperatingProfile(SecurityMode mode, SecurityOwnershipMode o
     public static final String PROP_MODE = "contexa.ai.security.mode";
     public static final String PROP_OWNERSHIP = "contexa.bridge.ownership";
     public static final String PROP_APPLICATION_DATA = "contexa.datasource.isolation.contexa-owned-application";
+    private static final String PROP_WEB_APPLICATION_TYPE = "spring.main.web-application-type";
 
     /** The profile of a running application: the mode as the annotation published it. */
     public static ContexaOperatingProfile resolve(Environment environment) {
@@ -57,6 +58,15 @@ public record ContexaOperatingProfile(SecurityMode mode, SecurityOwnershipMode o
         SecurityMode mode = declaredMode != null ? declaredMode : modeOf(ownership);
         boolean applicationData = applicationData(ownership, environment);
         return new ContexaOperatingProfile(mode, ownership, applicationData, applicationData && !sameDatabaseOrNone(environment));
+    }
+
+    /** Contexa's enforcement is a chain of servlet filters: on a reactive server nothing would be enforced, and nothing would say so. */
+    public static void refuseReactive(Environment environment) {
+        if ("reactive".equalsIgnoreCase(environment.getProperty(PROP_WEB_APPLICATION_TYPE))) {
+            throw new ContexaOperatingProfileException(
+                    "Contexa runs on a servlet stack, and spring.main.web-application-type is reactive.",
+                    "Run this application on the servlet stack, or remove @EnableAISecurity.");
+        }
     }
 
     /** The mode an operator set, which outranks what the code declares, as with any Spring setting. */

@@ -152,4 +152,17 @@ class BlockableResponseWrapperTest {
                 .isInstanceOf(IOException.class);
         assertThat(mockResponse.getStatus()).isEqualTo(403);
     }
+
+    /** An application that promises identical responses switches them off; the block itself goes on working. */
+    @Test
+    void theMonitoringHeadersCanBeOmitted() throws Exception {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        BlockableResponseWrapper wrapper = new BlockableResponseWrapper(response, broadcaster, USER_ID, "/blocked");
+        wrapper.omitMonitoringHeaders();
+
+        wrapper.getOutputStream().write('x');
+
+        assertThat(response.getHeader("X-Contexa-Monitored")).isNull();
+        assertThat(response.getHeader("X-Contexa-Blocked-Redirect")).isNull();
+    }
 }

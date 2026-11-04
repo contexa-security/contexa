@@ -171,6 +171,20 @@ class ContexaOperatingProfileContractTest {
         return false;
     }
 
+    /** Without the name they run on the application's scheduler when it turns scheduling on, which Boot sizes at one thread. */
+    @Test
+    void everyScheduleOfContexaNamesContexasScheduler() throws IOException {
+        List<String> unnamed = new ArrayList<>();
+        for (Path source : mainSources()) {
+            String text = read(source);
+            if (text.contains("@Scheduled(") && text.split("@Scheduled\\(", -1).length - 1
+                    != text.split("@Scheduled\\(scheduler = \"contexaTaskScheduler\"", -1).length - 1) {
+                unnamed.add(source.getFileName().toString());
+            }
+        }
+        assertThat(unnamed).isEmpty();
+    }
+
     /** G-24. */
     @Test
     void atRunTimeCodeAsksTheStrategyNotWhoOwnsTheSignIn() throws IOException {

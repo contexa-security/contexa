@@ -59,6 +59,10 @@ configurations {
 
 dependencies {
     standaloneImage 'org.springframework.ai:spring-ai-starter-model-ollama'
+    standaloneImage 'io.opentelemetry:opentelemetry-api:1.32.0'
+    standaloneImage 'io.opentelemetry:opentelemetry-sdk:1.32.0'
+    standaloneImage 'io.opentelemetry:opentelemetry-exporter-otlp:1.32.0'
+    standaloneImage 'io.opentelemetry.instrumentation:opentelemetry-reactor-3.1:1.32.0-alpha'
     standaloneImage 'org.springframework.ai:spring-ai-starter-vector-store-pgvector'
 }
 

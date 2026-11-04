@@ -31,7 +31,7 @@ public class SaasThreatSignalPullScheduler {
         this.properties = properties;
     }
 
-    @Scheduled(
+    @Scheduled(scheduler = "contexaTaskScheduler",
             initialDelayString = "${contexa.saas.threat-intelligence.initial-delay-ms:0}",
             fixedDelayString = "${contexa.saas.threat-intelligence.pull-interval-ms:3600000}")
     @SchedulerLock(name = "saasThreatSignalPull", lockAtMostFor = "PT10M", lockAtLeastFor = "PT10S")

@@ -31,7 +31,7 @@ public class SaasPromptContextAuditRetryScheduler {
         this.properties = properties;
     }
 
-    @Scheduled(fixedDelayString = "#{@contexaSaasForwardingProperties.dispatchIntervalMs}")
+    @Scheduled(scheduler = "contexaTaskScheduler", fixedDelayString = "#{@contexaSaasForwardingProperties.dispatchIntervalMs}")
     @SchedulerLock(name = "saasPromptContextAuditRetry", lockAtMostFor = "PT5M", lockAtLeastFor = "PT5S")
     public void dispatchPendingAudits() {
         if (!properties.isEnabled()) {

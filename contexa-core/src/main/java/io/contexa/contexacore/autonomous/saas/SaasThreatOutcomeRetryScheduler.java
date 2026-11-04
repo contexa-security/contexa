@@ -31,7 +31,7 @@ public class SaasThreatOutcomeRetryScheduler {
         this.properties = properties;
     }
 
-    @Scheduled(fixedDelayString = "${contexa.saas.dispatch-interval-ms:30000}")
+    @Scheduled(scheduler = "contexaTaskScheduler", fixedDelayString = "${contexa.saas.dispatch-interval-ms:30000}")
     @SchedulerLock(name = "saasThreatOutcomeRetry", lockAtMostFor = "PT5M", lockAtLeastFor = "PT5S")
     public void dispatchPendingThreatOutcomes() {
         if (!properties.isEnabled()

@@ -34,7 +34,7 @@ public class SaasBaselineSignalScheduler {
         this.properties = properties;
     }
 
-    @Scheduled(
+    @Scheduled(scheduler = "contexaTaskScheduler",
             initialDelayString = "${contexa.saas.baseline-signal.initial-delay-ms:300000}",
             fixedDelayString = "${contexa.saas.baseline-signal.publish-interval-ms:86400000}")
     @SchedulerLock(name = "saasBaselineSignal", lockAtMostFor = "PT15M", lockAtLeastFor = "PT30S")

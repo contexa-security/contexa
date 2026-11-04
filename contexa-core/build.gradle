@@ -26,16 +26,20 @@ dependencies {
 
     implementation 'io.micrometer:micrometer-registry-prometheus'
 
-    implementation 'io.opentelemetry:opentelemetry-api:1.32.0'
-    implementation 'io.opentelemetry:opentelemetry-sdk:1.32.0'
-    implementation 'io.opentelemetry.instrumentation:opentelemetry-reactor-3.1:1.32.0-alpha'
-    implementation 'io.opentelemetry:opentelemetry-exporter-otlp:1.32.0'
+    // On the class path of an application they switch Boot's OpenTelemetry on: whoever wants the export declares them.
+    compileOnly 'io.opentelemetry:opentelemetry-api:1.32.0'
+    compileOnly 'io.opentelemetry:opentelemetry-sdk:1.32.0'
+    compileOnly 'io.opentelemetry:opentelemetry-exporter-otlp:1.32.0'
+    compileOnly 'io.opentelemetry.instrumentation:opentelemetry-reactor-3.1:1.32.0-alpha'
+    testImplementation 'io.opentelemetry:opentelemetry-api:1.32.0'
+    testImplementation 'io.opentelemetry:opentelemetry-sdk:1.32.0'
+    testImplementation 'io.opentelemetry:opentelemetry-exporter-otlp:1.32.0'
+    testImplementation 'io.opentelemetry.instrumentation:opentelemetry-reactor-3.1:1.32.0-alpha'
 
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-cache'
     compileOnly("org.redisson:redisson:3.48.0")
     compileOnly("org.springframework.kafka:spring-kafka")
-    implementation 'io.micrometer:micrometer-tracing-bridge-brave'
     implementation 'org.springframework.boot:spring-boot-starter-mail'
 
     api 'net.javacrumbs.shedlock:shedlock-spring:5.16.0'

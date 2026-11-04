@@ -151,6 +151,7 @@ public class AiSecurityConfiguration {
     @Bean(name = "contexaOwnershipStartupDiagnostics")
     @ConditionalOnMissingBean
     public OwnershipStartupDiagnostics ownershipStartupDiagnostics(ConfigurableListableBeanFactory beanFactory) {
-        return new OwnershipStartupDiagnostics(beanFactory, ContexaOperatingProfile.resolve(environment));
+        return new OwnershipStartupDiagnostics(beanFactory, ContexaOperatingProfile.resolve(environment),
+                environment.getProperty("contexa.startup.class-path-report", Boolean.class, true));
     }
 }

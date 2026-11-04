@@ -15,6 +15,9 @@
  */
 package io.contexa.autoconfigure.ai;
 
+import org.springframework.web.reactive.function.server.ServerResponse;
+import org.springframework.beans.factory.support.DefaultListableBeanFactory;
+import org.springframework.web.reactive.function.server.RouterFunctions;
 import jakarta.servlet.Filter;
 import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import io.contexa.contexacommon.security.bridge.SecurityMode;
@@ -109,5 +112,28 @@ class OwnershipStartupDiagnosticsTest {
         assertThat(OwnershipStartupDiagnostics.oneTimeCodeUndeliverable(true, false)).isTrue();
         assertThat(OwnershipStartupDiagnostics.oneTimeCodeUndeliverable(true, true)).isFalse();
         assertThat(OwnershipStartupDiagnostics.oneTimeCodeUndeliverable(false, false)).isFalse();
+    }
+
+    /** Boot runs a WebFlux application on the servlet stack Contexa brings, and its functional routes then answer 404. */
+    @Test
+    void anApplicationWithWebFluxRoutesIsToldInsteadOfAnswering404() {
+        DefaultListableBeanFactory beans = new DefaultListableBeanFactory();
+        beans.registerSingleton("routes", RouterFunctions.route().GET("/orders", request -> ServerResponse.ok().build()).build());
+
+        assertThatThrownBy(() -> OwnershipStartupDiagnostics.refuseReactiveRoutes(beans, getClass().getClassLoader()))
+                .isInstanceOf(ContexaOperatingProfileException.class)
+                .hasMessageContaining("routes");
+    }
+
+    @Test
+    void anApplicationWithoutWebFluxRoutesStarts() {
+        OwnershipStartupDiagnostics.refuseReactiveRoutes(new DefaultListableBeanFactory(), getClass().getClassLoader());
+    }
+
+    @Test
+    void whatComesWithContexaIsNamedOnlyWhenItIsThere() {
+        assertThat(OwnershipStartupDiagnostics.classPathImpact(getClass().getClassLoader())).contains("Reactor Netty");
+        assertThat(OwnershipStartupDiagnostics.classPathImpact(new ClassLoader(null) {
+        })).isNull();
     }
 }

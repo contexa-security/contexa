@@ -15,6 +15,7 @@
  */
 package io.contexa.autoconfigure.identity;
 
+import io.contexa.contexaidentity.security.zerotrust.stepup.ContexaPasskeyStores;
 import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import io.contexa.contexacommon.operating.ConditionalOnOwnership;
 import io.contexa.contexacommon.properties.AuthContextProperties;
@@ -119,6 +120,7 @@ public class HostOwnedStepUpAutoConfiguration {
             ObjectProvider<BlockMfaStateStore> blockMfaStateStore,
             @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcTemplate> contexaJdbcTemplate,
             ObjectProvider<EmailService> emailService,
+            ObjectProvider<ContexaPasskeyStores> contexaPasskeyStores,
             ObjectProvider<PublicKeyCredentialUserEntityRepository> userEntities,
             ObjectProvider<UserCredentialRepository> userCredentials,
             ObjectProvider<PasskeyCreationOptionsCodec> passkeyCreationOptionsCodec) {
@@ -131,8 +133,9 @@ public class HostOwnedStepUpAutoConfiguration {
         JdbcTemplate jdbcTemplate = contexaJdbcTemplate.getIfAvailable();
         OneTimeTokenService stepUpCodes = jdbcTemplate != null ? new JdbcOneTimeTokenService(LibraryTableNames.wrap(jdbcTemplate)) : null;
 
-        PublicKeyCredentialUserEntityRepository entities = userEntities.getIfAvailable();
-        UserCredentialRepository credentials = userCredentials.getIfAvailable();
+        ContexaPasskeyStores stores = passkeyStores(bridgeProperties, contexaPasskeyStores, userEntities, userCredentials);
+        PublicKeyCredentialUserEntityRepository entities = stores != null ? stores.userEntities() : null;
+        UserCredentialRepository credentials = stores != null ? stores.userCredentials() : null;
         Webauthn4JRelyingPartyOperations relyingParty = entities != null && credentials != null
                 ? relyingParty(entities, credentials, authContextProperties, environment) : null;
 
@@ -172,6 +175,20 @@ public class HostOwnedStepUpAutoConfiguration {
     }
 
     /** The same relying party as Contexa's own passkey factor ({@code contexa.auth.urls.factors.passkey.*}). */
+    /** Contexa's own, unless the application asks to share the passkeys it already has and has one store of each to share. */
+    static ContexaPasskeyStores passkeyStores(BridgeProperties bridgeProperties, ObjectProvider<ContexaPasskeyStores> contexaPasskeyStores,
+                                              ObjectProvider<PublicKeyCredentialUserEntityRepository> userEntities,
+                                              ObjectProvider<UserCredentialRepository> userCredentials) {
+        if (bridgeProperties.getStepUp().isShareApplicationPasskeys()) {
+            PublicKeyCredentialUserEntityRepository entities = userEntities.getIfUnique();
+            UserCredentialRepository credentials = userCredentials.getIfUnique();
+            if (entities != null && credentials != null) {
+                return new ContexaPasskeyStores(entities, credentials);
+            }
+        }
+        return contexaPasskeyStores.getIfAvailable();
+    }
+
     private static Webauthn4JRelyingPartyOperations relyingParty(PublicKeyCredentialUserEntityRepository entities,
                                                                  UserCredentialRepository credentials,
                                                                  AuthContextProperties properties,

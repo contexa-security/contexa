@@ -31,7 +31,7 @@ public class SaasBaselineSeedPullScheduler {
         this.properties = properties;
     }
 
-    @Scheduled(
+    @Scheduled(scheduler = "contexaTaskScheduler",
             initialDelayString = "${contexa.saas.baseline-signal.seed-initial-delay-ms:120000}",
             fixedDelayString = "${contexa.saas.baseline-signal.seed-pull-interval-ms:3600000}")
     @SchedulerLock(name = "saasBaselineSeedPull", lockAtMostFor = "PT10M", lockAtLeastFor = "PT10S")

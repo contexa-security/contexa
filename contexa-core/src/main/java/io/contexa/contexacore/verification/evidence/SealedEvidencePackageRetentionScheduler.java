@@ -28,7 +28,7 @@ public class SealedEvidencePackageRetentionScheduler {
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
-    @Scheduled(cron = "${contexa.pqa.oss.sealed-evidence.retention.cleanup-cron:0 30 3 * * *}")
+    @Scheduled(scheduler = "contexaTaskScheduler", cron = "${contexa.pqa.oss.sealed-evidence.retention.cleanup-cron:0 30 3 * * *}")
     @SchedulerLock(name = LOCK_NAME, lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
     public void deleteExpiredPackages() {
         repository.deleteByExpiresAtBefore(clock.instant());

@@ -31,7 +31,7 @@ public class SaasDetectionStrategyPackPullScheduler {
         this.properties = properties;
     }
 
-    @Scheduled(
+    @Scheduled(scheduler = "contexaTaskScheduler",
             initialDelayString = "${contexa.saas.detection-strategy.initial-delay-ms:0}",
             fixedDelayString = "${contexa.saas.detection-strategy.pull-interval-ms:3600000}")
     @SchedulerLock(name = "saasDetectionStrategyPackPull", lockAtMostFor = "PT10M", lockAtLeastFor = "PT10S")

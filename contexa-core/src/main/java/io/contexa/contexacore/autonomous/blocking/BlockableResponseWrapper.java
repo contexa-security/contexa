@@ -90,6 +90,11 @@ public class BlockableResponseWrapper extends HttpServletResponseWrapper {
         return cut.isCut();
     }
 
+    /** The application's responses then carry no sign of Contexa; Contexa's browser SDK reads these headers. */
+    public void omitMonitoringHeaders() {
+        monitoredHeaderSet = true;
+    }
+
     private void ensureMonitoredHeader() {
         if (!monitoredHeaderSet) {
             monitoredHeaderSet = true;

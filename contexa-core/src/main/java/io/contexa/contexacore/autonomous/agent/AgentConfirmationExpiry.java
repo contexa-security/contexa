@@ -31,7 +31,7 @@ public class AgentConfirmationExpiry {
         this.confirmations = confirmations;
     }
 
-    @Scheduled(fixedDelayString = "${contexa.security.zerotrust.agent.confirmation-sweep-interval:PT1M}",
+    @Scheduled(scheduler = "contexaTaskScheduler", fixedDelayString = "${contexa.security.zerotrust.agent.confirmation-sweep-interval:PT1M}",
             initialDelayString = "${contexa.security.zerotrust.agent.confirmation-sweep-interval:PT1M}")
     public void expireOverdue() {
         try {

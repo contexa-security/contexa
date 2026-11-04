@@ -22,18 +22,28 @@ import org.springframework.security.web.webauthn.api.PublicKeyCredentialUserEnti
 import org.springframework.security.web.webauthn.management.PublicKeyCredentialUserEntityRepository;
 import org.springframework.security.web.webauthn.management.UserCredentialRepository;
 
+import java.util.function.Supplier;
+
 /**
  * Deletes the passkeys of a deleted account. Spring Security resolves a passkey sign-in to the user name stored in
  * its user entity, so a passkey left behind would sign in to any later account created with the same name.
  */
 public class PasskeyUserStatePurgeContributor implements UserStatePurgeContributor {
 
-    private final ObjectProvider<PublicKeyCredentialUserEntityRepository> userEntities;
-    private final ObjectProvider<UserCredentialRepository> userCredentials;
+    private final Supplier<PublicKeyCredentialUserEntityRepository> userEntities;
+    private final Supplier<UserCredentialRepository> userCredentials;
 
     public PasskeyUserStatePurgeContributor(
             ObjectProvider<PublicKeyCredentialUserEntityRepository> userEntities,
             ObjectProvider<UserCredentialRepository> userCredentials) {
+        this((Supplier<PublicKeyCredentialUserEntityRepository>) userEntities::getIfAvailable,
+                (Supplier<UserCredentialRepository>) userCredentials::getIfAvailable);
+    }
+
+    /** Asked at the time of a deletion, and either may answer nothing. */
+    public PasskeyUserStatePurgeContributor(
+            Supplier<PublicKeyCredentialUserEntityRepository> userEntities,
+            Supplier<UserCredentialRepository> userCredentials) {
         this.userEntities = userEntities;
         this.userCredentials = userCredentials;
     }
@@ -45,8 +55,8 @@ public class PasskeyUserStatePurgeContributor implements UserStatePurgeContribut
 
     @Override
     public void purge(String userId) {
-        PublicKeyCredentialUserEntityRepository entities = userEntities.getIfAvailable();
-        UserCredentialRepository credentials = userCredentials.getIfAvailable();
+        PublicKeyCredentialUserEntityRepository entities = userEntities.get();
+        UserCredentialRepository credentials = userCredentials.get();
         if (entities == null || credentials == null) {
             return;
         }

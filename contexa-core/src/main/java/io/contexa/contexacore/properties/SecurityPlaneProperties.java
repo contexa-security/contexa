@@ -139,7 +139,7 @@ public class SecurityPlaneProperties {
 
         private long queueTimeoutMs = 60000L;
 
-        private boolean prestartCoreThreads = true;
+        private boolean prestartCoreThreads = false;
 
         private boolean backpressureEnabled = true;
 

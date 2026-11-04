@@ -16,6 +16,8 @@
 package io.contexa.autoconfigure.core.scope;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -40,10 +42,30 @@ import java.util.concurrent.Executor;
 @AutoConfiguration
 public class ContexaScopedAnnotationAutoConfiguration {
 
+    public static final String TASK_SCHEDULER = "contexaTaskScheduler";
+
+    private static final int CONTEXA_SCHEDULER_THREADS = 4;
+
+    /**
+     * Every {@code @Scheduled} of Contexa names this scheduler, so that it runs here whoever processes it: an application
+     * that turns scheduling on serves Contexa's beans too, on its own pool, which Boot sizes at one thread.
+     */
+    @Bean(name = TASK_SCHEDULER, defaultCandidate = false)
+    @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
+    static ThreadPoolTaskScheduler contexaTaskScheduler(Environment environment) {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(Math.max(CONTEXA_SCHEDULER_THREADS, environment.getProperty("spring.task.scheduling.pool.size", Integer.class, 1)));
+        scheduler.setThreadNamePrefix("contexa-scheduling-");
+        scheduler.setRemoveOnCancelPolicy(true);
+        scheduler.setDaemon(true);
+        return scheduler;
+    }
+
     @Bean(name = "contexaScheduledAnnotationProcessor")
     @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
-    static ContexaScheduledAnnotationBeanPostProcessor contexaScheduledAnnotationProcessor(Environment environment) {
-        return new ContexaScheduledAnnotationBeanPostProcessor(environment.getProperty("spring.task.scheduling.pool.size", Integer.class, 1));
+    static ContexaScheduledAnnotationBeanPostProcessor contexaScheduledAnnotationProcessor(
+            @Qualifier(TASK_SCHEDULER) ThreadPoolTaskScheduler contexaTaskScheduler) {
+        return new ContexaScheduledAnnotationBeanPostProcessor(contexaTaskScheduler);
     }
 
     /**

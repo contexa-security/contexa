@@ -49,7 +49,7 @@ public class PromptInspectionScheduler {
         this.samplePercent = samplePercent;
     }
 
-    @Scheduled(fixedDelayString = "${contexa.prompt-inspection.interval:" + DEFAULT_INTERVAL + "}",
+    @Scheduled(scheduler = "contexaTaskScheduler", fixedDelayString = "${contexa.prompt-inspection.interval:" + DEFAULT_INTERVAL + "}",
             initialDelayString = "${contexa.prompt-inspection.initial-delay:" + DEFAULT_INITIAL_DELAY + "}")
     @SchedulerLock(name = LOCK_NAME, lockAtMostFor = "PT10M", lockAtLeastFor = "PT5S")
     public void inspectUninspected() {

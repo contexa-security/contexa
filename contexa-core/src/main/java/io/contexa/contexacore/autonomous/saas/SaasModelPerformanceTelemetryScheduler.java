@@ -31,7 +31,7 @@ public class SaasModelPerformanceTelemetryScheduler {
         this.properties = properties;
     }
 
-    @Scheduled(
+    @Scheduled(scheduler = "contexaTaskScheduler",
             initialDelayString = "${contexa.saas.performance-telemetry.initial-delay-ms:60000}",
             fixedDelayString = "${contexa.saas.performance-telemetry.publish-interval-ms:3600000}")
     @SchedulerLock(name = "saasModelPerformanceTelemetry", lockAtMostFor = "PT15M", lockAtLeastFor = "PT30S")
