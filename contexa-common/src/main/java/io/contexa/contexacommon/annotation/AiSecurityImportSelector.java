@@ -29,6 +29,8 @@ public class AiSecurityImportSelector implements ImportSelector, EnvironmentAwar
     public static final String PROP_BRIDGE_OWNERSHIP = ContexaOperatingProfile.PROP_OWNERSHIP;
     public static final String PROP_CONTEXA_OWNED_APPLICATION =
             ContexaOperatingProfile.PROP_APPLICATION_DATA;
+    /** What this selector publishes once it switched Contexa on. An application's own settings can name the mode, not this. */
+    public static final String ACTIVATION_SOURCE = "contexaAiSecurityAnnotation";
     private static final String AI_SECURITY_CONFIGURATION = "io.contexa.autoconfigure.ai.AiSecurityConfiguration";
     private final Function<Environment, String> databaseProblem;
     private final Function<Environment, String> redisProblem;
@@ -101,7 +103,7 @@ public class AiSecurityImportSelector implements ImportSelector, EnvironmentAwar
         activation.put(PROP_BRIDGE_OWNERSHIP, profile.ownership().name());
         activation.put(PROP_CONTEXA_OWNED_APPLICATION, profile.contexaOwnsApplicationData());
         // First, for the one spelling. Every value above already gave way to what an operator set, as with any Spring setting.
-        environment.getPropertySources().addFirst(new MapPropertySource("contexaAiSecurityAnnotation", activation));
+        environment.getPropertySources().addFirst(new MapPropertySource(ACTIVATION_SOURCE, activation));
         return new String[]{AI_SECURITY_CONFIGURATION};
     }
 
@@ -128,6 +130,8 @@ public class AiSecurityImportSelector implements ImportSelector, EnvironmentAwar
         LoggerFactory.getLogger(AiSecurityImportSelector.class).error(
                 "Contexa's database cannot be reached ({}): the application starts without Contexa, and nothing of it is active. "
                         + "Restart the application once the database is back.", problem);
+        // an application without a database of its own would start its JPA on this one
+        environment.getPropertySources().addFirst(new MapPropertySource("contexaDatabaseDown", Map.of(PROP_CONTEXA_OWNED_APPLICATION, false)));
         return true;
     }
 

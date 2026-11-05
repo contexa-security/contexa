@@ -183,6 +183,47 @@ class AiSecurityImportSelectorTest {
         assertThat(environment.getProperty(AiSecurityImportSelector.PROP_MODE)).isNull();
     }
 
+    /** Spring Boot's JPA would otherwise start on Contexa's database as the application's own, and it is down. */
+    @Test
+    void anApplicationWithoutADatabaseOfItsOwnDoesNotTakeTheOneThatIsDown() {
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(new MapPropertySource("explicitData",
+                Map.of(AiSecurityImportSelector.PROP_CONTEXA_OWNED_APPLICATION, true)));
+        AiSecurityImportSelector selector = new AiSecurityImportSelector(unused -> "connection refused");
+        selector.setEnvironment(environment);
+
+        selector.selectImports(AnnotationMetadata.introspect(DefaultSandboxApplication.class));
+
+        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_CONTEXA_OWNED_APPLICATION, Boolean.class)).isFalse();
+    }
+
+    /** With Redis down the database answers: the application keeps the one it said it uses. */
+    @Test
+    void anApplicationWithoutADatabaseOfItsOwnKeepsTheOneThatAnswersWhenRedisIsDown() {
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(new MapPropertySource("explicitData",
+                Map.of(AiSecurityImportSelector.PROP_CONTEXA_OWNED_APPLICATION, true)));
+        AiSecurityImportSelector selector = new AiSecurityImportSelector(unused -> null, unused -> "127.0.0.1:1 refused");
+        selector.setEnvironment(environment);
+
+        selector.selectImports(AnnotationMetadata.introspect(DefaultSandboxApplication.class));
+
+        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_CONTEXA_OWNED_APPLICATION, Boolean.class)).isTrue();
+    }
+
+    /** The application's own settings name the mode: nothing of it may read as Contexa being on. */
+    @Test
+    void aModeInTheSettingsPublishesNothingWhenTheDatabaseIsDown() {
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(new MapPropertySource("operator",
+                Map.of(AiSecurityImportSelector.PROP_MODE, SecurityMode.SANDBOX.name())));
+        AiSecurityImportSelector selector = new AiSecurityImportSelector(unused -> "connection refused");
+        selector.setEnvironment(environment);
+
+        assertThat(selector.selectImports(AnnotationMetadata.introspect(DefaultSandboxApplication.class))).isEmpty();
+        assertThat(environment.getPropertySources().contains("contexaAiSecurityAnnotation")).isFalse();
+    }
+
     @Test
     void anApplicationWhoseSignInContexaOwnsDoesNotAskTheDatabaseAndFailsAsItAlwaysDid() {
         StandardEnvironment environment = new StandardEnvironment();

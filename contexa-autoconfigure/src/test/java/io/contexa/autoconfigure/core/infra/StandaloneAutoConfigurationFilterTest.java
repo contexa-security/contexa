@@ -19,7 +19,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurationMetadata;
+import org.springframework.core.env.MapPropertySource;
 import org.springframework.mock.env.MockEnvironment;
+
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -45,7 +48,8 @@ class StandaloneAutoConfigurationFilterTest {
         if (mode != null) {
             env.setProperty("contexa.infrastructure.mode", mode);
         }
-        env.setProperty("contexa.ai.security.mode", "SANDBOX");
+        env.getPropertySources().addFirst(new MapPropertySource(
+                "contexaAiSecurityAnnotation", Map.of("contexa.ai.security.mode", "SANDBOX")));
         filter.setEnvironment(env);
         return filter;
     }
@@ -187,6 +191,21 @@ class StandaloneAutoConfigurationFilterTest {
         }
 
         @Test
+        @DisplayName("Should exclude Contexa auto-configurations when only the settings name a mode")
+        void shouldExcludeContexaAutoConfigurationsWhenOnlyTheSettingsNameAMode() {
+            StandaloneAutoConfigurationFilter filter = new StandaloneAutoConfigurationFilter();
+            filter.setEnvironment(new MockEnvironment().withProperty("contexa.ai.security.mode", "SANDBOX"));
+            String[] classes = {
+                    "io.contexa.autoconfigure.iam.admin.IamAdminIpAutoConfiguration",
+                    "io.contexa.autoconfigure.core.CoreDataAutoConfiguration"
+            };
+
+            boolean[] result = filter.match(classes, metadata);
+
+            assertThat(result).containsExactly(false, false);
+        }
+
+        @Test
         @DisplayName("Dependency-only policy should preserve Boot-generated host security")
         void shouldExcludeDefaultSecurityAutoConfigurationsWhenPlatformIsInactive() {
             StandaloneAutoConfigurationFilter filter = createFilter("standalone");
@@ -285,9 +304,9 @@ class StandaloneAutoConfigurationFilterTest {
 
         private StandaloneAutoConfigurationFilter createActiveStandaloneFilter(String... properties) {
             StandaloneAutoConfigurationFilter filter = new StandaloneAutoConfigurationFilter();
-            MockEnvironment env = new MockEnvironment()
-                    .withProperty("contexa.infrastructure.mode", "standalone")
-                    .withProperty("contexa.ai.security.mode", "SANDBOX");
+            MockEnvironment env = new MockEnvironment().withProperty("contexa.infrastructure.mode", "standalone");
+            env.getPropertySources().addFirst(new MapPropertySource(
+                    "contexaAiSecurityAnnotation", Map.of("contexa.ai.security.mode", "SANDBOX")));
             for (int i = 0; i < properties.length; i += 2) {
                 env.setProperty(properties[i], properties[i + 1]);
             }
