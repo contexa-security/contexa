@@ -167,6 +167,25 @@ class UserManagementServiceImplTest {
             verify(userRepository).findAllWithDetails();
         }
 
+        /** PR-27: a copy is named by a hash; the administrator reads the name the application knows the user by. */
+        @Test
+        @DisplayName("a copy of an application user is listed under the application's name for it")
+        void aBridgeCopyIsListedUnderTheApplicationsName() {
+            Users copy = buildUser(3L, "brg_23aa0123456789abcdef", "Carol");
+            copy.setBridgeManaged(true);
+            copy.setExternalSubjectId("carol");
+            when(userRepository.findAllWithDetails()).thenReturn(List.of(copy, buildUser(1L, "alice", "Alice")));
+            when(modelMapper.map(any(Users.class), eq(UserListDto.class)))
+                    .thenAnswer(inv -> {
+                        Users u = inv.getArgument(0);
+                        return buildUserListDto(u.getId(), u.getName(), u.getUsername());
+                    });
+
+            List<UserListDto> result = service.getUsers();
+
+            assertThat(result).extracting(UserListDto::getUsername).containsExactly("carol", "alice");
+        }
+
         @Test
         @DisplayName("should return empty list when no users exist")
         void shouldReturnEmptyList() {

@@ -29,6 +29,31 @@ The format is based on Keep a Changelog and the project follows semantic version
   the request's thread, on the application's own Redis client. While a store is down the request now waits three more
   seconds at most: a verdict in that time still answers, a restriction in force stands, and otherwise the call is the
   outage it is, which lets a person through and answers an agent that the analysis is busy.
+- **An application on Spring Boot's own user keeps it with only the starter added.** The OAuth2 libraries the starter brings
+  made Boot give that user up, so its generated password was gone and nobody could sign in. An application that configures
+  OAuth2 or SAML in its settings still gets no such user, as without Contexa; one that signs in through OAuth2 with beans of
+  its own and no such settings keeps a user nobody knows the password of.
+- **A Contexa database the account may not fully use no longer stops the application.** An account that may not create the
+  `vector`, `hstore` or `uuid-ossp` extension stopped a `HOST_OWNED` start with a stack trace. The application now starts
+  without Contexa, as it does when the database is down, with one ERROR that names the statement an administrator runs. The
+  ERROR for a database that is down now reads "cannot be used".
+- **`DISABLED` and `OBSERVE` send nothing to the analysis.** Sign-ins and other events still reached the model, at the
+  model's cost, although a protected method did not. Nothing is analysed or kept for the session in these modes now.
+- **The first requests after a start are decided.** The agent started after the web server had opened, and an event of that
+  moment was dropped, so the first user passed without a decision. It now starts before the server opens.
+- **A sign-in's decision is found by its request.** Its observation, audit and sealed rows had no `request_id` or
+  `correlation_id`; they now carry the event id, as a protected call's rows do.
+- **The console's policy list reads a page.** Each opening read every policy into memory and cut the page there
+  (`HHH90003004`).
+- **A user of Contexa no longer gets a second row.** Where Contexa owns the sign-in the bridge made a copy `brg_<hash>` of
+  each signed-in account, and what read the subject of a request read that copy, without the account's groups and roles. It
+  now reads the account. Rows an earlier version made stay in `ctxa_users`. The console's user list shows a copy of an
+  application's user under the application's name for it.
+- The start names an `actions` value of `@Protectable` outside the action families; the value had no effect on the request.
+- The guidance for running without decisions names `contexa.security.zerotrust.mode=DISABLED`. The
+  `contexa.autonomous.enabled=false` it named stops the start of an application with `@EnableAISecurity`.
+- A new session of a user no longer writes `Context binding hash mismatch` at ERROR: it is the ordinary way to a new decision.
+- Contexa adds no `BeanPostProcessorChecker` line to an application's start log.
 - **A store outage is no longer an outage of the application.** Redis or Contexa's database that stops, freezes or runs out
   of connections used to hold every request of a signed-in user, the pages no decision protects included: a minute for each
   read on Redis, and a minute on the pool. A request now waits about a second once and then not at all, and everything

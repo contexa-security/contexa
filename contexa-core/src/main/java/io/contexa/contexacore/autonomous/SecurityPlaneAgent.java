@@ -249,6 +249,9 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             thread.setDaemon(true);
             return thread;
         });
+        // PR-32: here and not only in the runner, which comes after the web server and the Kafka listeners have opened: an
+        // event of that moment was refused three times within milliseconds and dropped.
+        startOnItsOwn();
     }
 
     private void processBatch(List<SecurityEvent> events) {
@@ -435,8 +438,13 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         return false;
     }
 
+    /** The runner makes the agent of an application with lazy initialization, where nothing else may ask for it. */
     @Override
     public void run(String... args) {
+        startOnItsOwn();
+    }
+
+    private void startOnItsOwn() {
         if (securityPlaneProperties.getAgent().isAutoStart()) {
             start();
         }

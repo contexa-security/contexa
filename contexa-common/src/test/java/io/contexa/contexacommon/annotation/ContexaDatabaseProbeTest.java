@@ -22,10 +22,12 @@ import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.StandardEnvironment;
 
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.Driver;
 import java.sql.DriverManager;
 import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Properties;
@@ -34,7 +36,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class ContexaDatabaseProbeTest {
 
@@ -48,6 +55,7 @@ class ContexaDatabaseProbeTest {
 
     private volatile int failuresBeforeAnswer;
     private volatile boolean hangs;
+    private volatile Connection scripted;
 
     @BeforeEach
     void register() throws SQLException {
@@ -126,6 +134,79 @@ class ContexaDatabaseProbeTest {
         assertThat(probe.problem(environmentWith(Map.of("contexa.datasource.url", "${NOT_SET_ANYWHERE}")))).isNull();
     }
 
+    /** PR-16: the database answered and the start then stopped on what the account may not create, with no word on what to do. */
+    @Test
+    void anExtensionTheAccountMayNotCreateIsAProblemThatNamesTheWayOut() throws SQLException {
+        Statement statement = postgresConnection();
+        when(statement.execute(contains("vector")))
+                .thenThrow(new SQLException("permission denied to create extension \"vector\"", "42501"));
+
+        String problem = probe.problem(database());
+
+        assertThat(problem).contains("permission denied to create extension")
+                .contains("CREATE EXTENSION \"vector\"");
+    }
+
+    @Test
+    void anExtensionTheAccountMayNotCreateIsNotWaitedFor() throws SQLException {
+        Statement statement = postgresConnection();
+        when(statement.execute(contains("vector")))
+                .thenThrow(new SQLException("permission denied to create extension \"vector\"", "42501"));
+
+        assertThat(probe.problem(database())).isNotNull();
+        assertThat(attempts).as("waiting changes nothing about what the account may do").hasValue(1);
+    }
+
+    @Test
+    void askingLeavesNothingBehindInTheDatabase() throws SQLException {
+        Statement statement = postgresConnection();
+
+        assertThat(probe.problem(database())).isNull();
+
+        verify(statement).execute("create extension if not exists \"vector\"");
+        verify(statement).execute("create extension if not exists \"hstore\"");
+        verify(statement).execute("create extension if not exists \"uuid-ossp\"");
+        verify(scripted).setAutoCommit(false);
+        verify(scripted).rollback();
+        verify(scripted, never()).commit();
+    }
+
+    /** A database under migrations creates the vector table itself: the store then creates no extension of its own. */
+    @Test
+    void whereTheVectorStoreCreatesNothingOnlyTheSchemasExtensionIsAsked() throws SQLException {
+        Statement statement = postgresConnection();
+
+        assertThat(probe.problem(environmentWith(Map.of("contexa.datasource.url", URL,
+                "contexa.vectorstore.pgvector.initialize-schema", "false")))).isNull();
+
+        verify(statement).execute("create extension if not exists \"vector\"");
+        verify(statement, never()).execute(contains("hstore"));
+    }
+
+    @Test
+    void aDatabaseOfAnotherKindIsNotAskedForExtensions() throws SQLException {
+        Statement statement = connection("H2");
+
+        assertThat(probe.problem(database())).isNull();
+
+        verify(statement, never()).execute(anyString());
+    }
+
+    private Statement postgresConnection() throws SQLException {
+        return connection("PostgreSQL");
+    }
+
+    private Statement connection(String product) throws SQLException {
+        Connection connection = mock(Connection.class);
+        DatabaseMetaData metadata = mock(DatabaseMetaData.class);
+        Statement statement = mock(Statement.class);
+        when(connection.getMetaData()).thenReturn(metadata);
+        when(metadata.getDatabaseProductName()).thenReturn(product);
+        when(connection.createStatement()).thenReturn(statement);
+        scripted = connection;
+        return statement;
+    }
+
     /** Answers, refuses or hangs as the test says, for its own address only. */
     private final class ScriptedDriver implements Driver {
 
@@ -145,7 +226,7 @@ class ContexaDatabaseProbeTest {
             if (attempt <= failuresBeforeAnswer) {
                 throw new SQLException("connection refused", "08001");
             }
-            return mock(Connection.class);
+            return scripted != null ? scripted : mock(Connection.class);
         }
 
         @Override

@@ -52,7 +52,8 @@ public class ZeroTrustEventListener {
         long startTime = System.currentTimeMillis();
 
         try {
-            if (!securityZeroTrustProperties.isEnabled()) {
+            // PR-21: as at a protected method, a mode that allows no analysis sends nothing to it: every event ends in a model call.
+            if (!securityZeroTrustProperties.allowsLlmAnalysis()) {
                 return;
             }
 

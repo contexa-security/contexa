@@ -222,7 +222,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         }
         ZeroTrustAction action = ZeroTrustAction.fromString(entry.action);
         if (requiresFreshAnalysis(action, contextBindingHash, entry.contextBindingHash)) {
-            log.error("[InMemoryZTARepository] Context binding hash mismatch detected: userId={}, action={}", userId, action);
+            log.debug("[InMemoryZTARepository] Context binding hash mismatch detected: userId={}, action={}", userId, action);
             return heldBack(userId, contextBindingHash, ZeroTrustAction.PENDING_ANALYSIS);
         }
         return heldBack(userId, contextBindingHash, action);

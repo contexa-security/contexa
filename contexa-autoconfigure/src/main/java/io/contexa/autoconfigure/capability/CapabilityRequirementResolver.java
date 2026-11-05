@@ -228,7 +228,7 @@ public class CapabilityRequirementResolver {
                 if (!customerFacing) {
                     guidance.add("Verify autonomous decision auto-configuration completed and required LLM/RAG dependencies are active.");
                 }
-                guidance.add("Set contexa.autonomous.enabled=false if the application intentionally runs without the autonomous decision plane.");
+                guidance.add("Set contexa.security.zerotrust.mode=DISABLED if the application intentionally runs without decisions.");
             }
             case BRIDGE -> guidance.add("Verify AI security bridge configuration is active before invoking protected resources.");
             case PQA_ENGINE -> guidance.add("Verify the Core prompt quality official inspection modules are on the runtime classpath.");

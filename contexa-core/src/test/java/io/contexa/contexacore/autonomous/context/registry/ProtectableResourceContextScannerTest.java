@@ -195,6 +195,33 @@ class ProtectableResourceContextScannerTest {
         assertThat(warningsOf(new NotProtected())).isEmpty();
     }
 
+    /** PR-26: a word outside the vocabulary was dropped without a word and the HTTP method gave the action family. */
+    @Test
+    void theStartNamesAnActionOutsideTheVocabulary() {
+        List<String> warnings = warningsOf(new WithActions());
+
+        assertThat(warnings).anySatisfy(warning -> assertThat(warning)
+                .contains(WithActions.class.getName() + "#changeOwner").contains("CHANGE")
+                .contains("READ, WRITE, EXPORT, DELETE, ADMIN, EXECUTE"));
+    }
+
+    @Test
+    void anActionOfTheVocabularyIsNotNamed() {
+        List<String> warnings = warningsOf(new WithActions());
+
+        assertThat(warnings).noneSatisfy(warning -> assertThat(warning).contains("#exportDocuments"));
+        assertThat(warnings).noneSatisfy(warning -> assertThat(warning).contains("#updateDocument"));
+        assertThat(warnings).noneSatisfy(warning -> assertThat(warning).contains("#readEverything"));
+    }
+
+    @Test
+    void anActionOutsideTheVocabularyStaysDeclaredAsItWasWritten() {
+        ResourceContextDescriptor change = scanned(new WithActions())
+                .findByResourceId(WithActions.class.getName() + "#changeOwner").orElseThrow();
+
+        assertThat(change.allowedActionFamilies()).containsExactly("CHANGE");
+    }
+
     private static List<String> warningsOf(Object bean) {
         Logger logger = (Logger) LoggerFactory.getLogger(ProtectableResourceContextScanner.class);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
@@ -208,6 +235,25 @@ class ProtectableResourceContextScannerTest {
                     .toList();
         } finally {
             logger.detachAppender(appender);
+        }
+    }
+
+    public static class WithActions {
+
+        @Protectable(actions = "CHANGE")
+        public void changeOwner() {
+        }
+
+        @Protectable(actions = "EXPORT")
+        public void exportDocuments() {
+        }
+
+        @Protectable(actions = "update-document")
+        public void updateDocument() {
+        }
+
+        @Protectable
+        public void readEverything() {
         }
     }
 
