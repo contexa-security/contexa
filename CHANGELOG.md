@@ -36,6 +36,20 @@ The format is based on Keep a Changelog and the project follows semantic version
   in its sign-in, session, cookie, locale or message bundle, asks for a mail code or a passkey on its own screens, and
   keeps a separate console chain with its own sign-in policy.
 
+### Security
+
+- **The screens of a decision only lead to paths of the application**: `returnUrl` of
+  `/contexa/zero-trust/analysis-pending` went to the browser unchecked, and `mfaUrl` of
+  `/contexa/zero-trust/challenge-required` let a backslash, a tab or an encoded slash through. Anything but a path of the
+  application, however it is encoded, now falls back to the screen's own destination.
+- **A sign-in no longer tells who has an account**: the single-factor flows answer every refused sign-in with
+  `Invalid username or password.`, as the MFA flows do, instead of `User not found: <name>`, `Invalid password` or
+  `Account is locked`. A refused sign-in also costs one password comparison whether the account exists or not, so the
+  time of the answer tells nothing either.
+- **An attempt during a lock no longer moves the lock's end**: trying a locked account, even with the right password,
+  pushed `lock_expires_at` back, so that anyone could keep the account locked. The count of failures still starts over
+  when the lock has run out.
+
 ## [0.1.1] - 2026-11-02
 
 ### Fixed

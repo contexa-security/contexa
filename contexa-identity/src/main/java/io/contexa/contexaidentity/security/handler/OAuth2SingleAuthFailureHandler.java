@@ -16,6 +16,7 @@
 package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexacommon.security.LocalCredentialsVerifier;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import jakarta.servlet.ServletException;
@@ -58,16 +59,10 @@ public class OAuth2SingleAuthFailureHandler extends AbstractTokenBasedFailureHan
         }
 
 
-        String errorCode = "AUTHENTICATION_FAILED";
-        String errorMessage = "Authentication failed. Please check your username or password.";
-
-        if (failureType == FailureType.PRIMARY_AUTH_FAILED) {
-            errorCode = "PRIMARY_AUTH_FAILED";
-            errorMessage = "Invalid username or password.";
-        } else if (exception.getMessage() != null && !exception.getMessage().isBlank()) {
-
-            errorMessage = exception.getMessage();
-        }
+        // The same words whatever refused the sign-in, as in the MFA flow: the reason would tell who has an account.
+        String errorCode = failureType == FailureType.PRIMARY_AUTH_FAILED
+                ? "PRIMARY_AUTH_FAILED" : "AUTHENTICATION_FAILED";
+        String errorMessage = LocalCredentialsVerifier.SIGN_IN_REFUSED;
 
         Map<String, Object> responseData = new HashMap<>();
         responseData.put("authenticated", false);

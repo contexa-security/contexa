@@ -23,6 +23,7 @@ import io.contexa.contexacommon.security.ContexaConsolePaths;
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.properties.MfaSettings;
+import io.contexa.contexacommon.security.LocalCredentialsVerifier;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
@@ -198,7 +199,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         }
 
         String errorCode = "PRIMARY_AUTH_FAILED";
-        String errorMessage = "Invalid username or password.";
+        String errorMessage = LocalCredentialsVerifier.SIGN_IN_REFUSED;
         FailureType failureType = FailureType.PRIMARY_AUTH_FAILED;
 
         if (exception.getMessage() != null && exception.getMessage().contains("MFA")) {

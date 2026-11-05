@@ -18,6 +18,7 @@ package io.contexa.contexaidentity.security.handler;
 import java.util.Locale;
 import io.contexa.contexacommon.security.ContexaConsolePaths;
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.security.LocalCredentialsVerifier;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
@@ -94,15 +95,9 @@ public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler 
             return;
         }
 
+        // The same words whatever refused the sign-in, as in the MFA flow: the reason would tell who has an account.
         String errorCode = "PRIMARY_AUTH_FAILED";
-        String errorMessage = "Invalid username or password.";
-
-        if (failureType == FailureType.PRIMARY_AUTH_FAILED) {
-            errorCode = "PRIMARY_AUTH_FAILED";
-            errorMessage = "Invalid username or password.";
-        } else if (exception.getMessage() != null && !exception.getMessage().isBlank()) {
-            errorMessage = exception.getMessage();
-        }
+        String errorMessage = LocalCredentialsVerifier.SIGN_IN_REFUSED;
 
         String loginFailureUrl = getDefaultTargetUrl(request);
         String failureUrl = request.getContextPath() + loginFailureUrl;
