@@ -397,8 +397,12 @@ class ZeroTrustChallengeFilterTest {
 
         filter.doFilter(request, response, filterChain);
 
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> body = ArgumentCaptor.forClass(Map.class);
         verify(responseWriter).writeErrorResponse(eq(response), eq(401), eq("ZERO_TRUST_CHALLENGE"),
-                anyString(), any(), any());
+                anyString(), any(), body.capture());
+        assertThat(body.getValue()).containsEntry("error", "ZERO_TRUST_CHALLENGE")
+                .containsEntry("code", "ZERO_TRUST_CHALLENGE");
         verify(challengeMfaInitializer, never()).initializeChallengeFlow(any(), any(), any());
         verify(filterChain, never()).doFilter(request, response);
         assertThat(filter.start(request, response)).isEmpty();
@@ -527,8 +531,34 @@ class ZeroTrustChallengeFilterTest {
                 anyString(), any(), body.capture());
         assertThat(body.getValue()).containsEntry("mfaUrl", "/contexa/step-up")
                 .containsEntry("challengeNoticeUrl",
-                        "/contexa/zero-trust/challenge-required?mfaUrl=%2Fcontexa%2Fstep-up");
+                        "/contexa/zero-trust/challenge-required?mfaUrl=%2Fcontexa%2Fstep-up")
+                .containsEntry("error", "MFA_CHALLENGE_REQUIRED")
+                .containsEntry("code", "ZERO_TRUST_CHALLENGE");
         verifyNoInteractions(challengeMfaInitializer, sessionRepository, lockService);
+    }
+
+    @Test
+    @DisplayName("An API client of the MFA flow gets 401 with error and code, as a synchronous decision answers")
+    void anApiClientOfTheMfaFlowGetsBothNames() throws Exception {
+        when(request.getRequestURI()).thenReturn("/api/reports/export");
+        setUpChallengeAuthentication();
+        when(sessionRepository.getSessionId(request)).thenReturn(null);
+        when(actionRepository.getCurrentAction(eq("testUser"), any())).thenReturn(ZeroTrustAction.CHALLENGE);
+        when(lockService.tryLock(anyString(), anyString(), any())).thenReturn(true);
+        FactorContext factorContext = mock(FactorContext.class);
+        when(factorContext.getCurrentState()).thenReturn(MfaState.AWAITING_FACTOR_SELECTION);
+        when(factorContext.getMfaSessionId()).thenReturn("session-123");
+        when(challengeMfaInitializer.initializeChallengeFlow(any(), any(), any())).thenReturn(factorContext);
+        when(authUrlProvider.getMfaSelectFactor()).thenReturn("/mfa/select-factor");
+
+        filter.doFilter(request, response, filterChain);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> body = ArgumentCaptor.forClass(Map.class);
+        verify(responseWriter).writeErrorResponse(eq(response), eq(401), eq("MFA_CHALLENGE_REQUIRED"),
+                anyString(), any(), body.capture());
+        assertThat(body.getValue()).containsEntry("error", "MFA_CHALLENGE_REQUIRED")
+                .containsEntry("code", "ZERO_TRUST_CHALLENGE");
     }
 
     @Test

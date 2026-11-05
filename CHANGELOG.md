@@ -148,6 +148,11 @@ The format is based on Keep a Changelog and the project follows semantic version
   now reads the account. Rows an earlier version made stay in `ctxa_users`. The console's user list shows a copy of an
   application's user under the application's name for it.
 - The start names an `actions` value of `@Protectable` outside the action families; the value had no effect on the request.
+- **A CHALLENGE decided in the request takes the browser SDK to the step-up.** The request filters named it in `error` and a
+  synchronous decision in `code`, so the SDK, which follows `error`, stayed on the page. Both answers now carry `error` and
+  `code`: `error` is `MFA_CHALLENGE_REQUIRED` where a step-up can go on and `ZERO_TRUST_CHALLENGE` where none is offered, `code`
+  is `ZERO_TRUST_CHALLENGE`. A synchronous answer also carries `challengeNoticeUrl`, and every other synchronous refusal
+  carries its code in `error` too.
 - The guidance for running without decisions names `contexa.security.zerotrust.mode=DISABLED`. The
   `contexa.autonomous.enabled=false` it named stopped the start of an application with `@EnableAISecurity`, on a bean of
   Contexa's. That setting takes away the decision engine all of Contexa reads, so an application that keeps its sign-in now

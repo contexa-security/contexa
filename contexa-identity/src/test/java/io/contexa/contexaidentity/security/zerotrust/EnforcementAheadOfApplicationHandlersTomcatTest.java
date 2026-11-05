@@ -58,6 +58,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -122,6 +123,21 @@ class EnforcementAheadOfApplicationHandlersTomcatTest {
         assertAnsweredByContexa(answer, 401, "ZERO_TRUST_CHALLENGE", "CHALLENGE");
         assertThat(json.readTree(answer.body()).path("mfaUrl").asText())
                 .as("the name Contexa's browser SDK reads, whatever the application's JSON naming").isEqualTo(STEP_UP);
+        assertThat(json.readTree(answer.body()).path("error").asText())
+                .as("what makes the browser SDK follow it, as a CHALLENGE of the filters").isEqualTo("MFA_CHALLENGE_REQUIRED");
+    }
+
+    @Test
+    @DisplayName("the browser SDK follows a 401 by these names, in fetch and in XMLHttpRequest")
+    void whatTheBrowserSdkFollows() throws Exception {
+        String sdk;
+        try (InputStream source = getClass().getResourceAsStream("/static/js/contexa-mfa-sdk.js")) {
+            sdk = new String(source.readAllBytes(), StandardCharsets.UTF_8);
+        }
+
+        assertThat(sdk).contains("challengeError = data.error === 'MFA_CHALLENGE_REQUIRED'")
+                .contains("if (challengeError && (data.challengeNoticeUrl || data.mfaUrl)) {")
+                .contains("status === 401 && (data.error === 'MFA_CHALLENGE_REQUIRED'");
     }
 
     @Test

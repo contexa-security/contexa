@@ -74,6 +74,8 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
     private static final Duration DEFAULT_LOCK_LEASE_TIME = Duration.ofSeconds(30);
     private static final int DEFAULT_BUSY_RETRY_AFTER_SECONDS = 3;
     private static final String LOGOUT_PATH = "/logout";
+    /** The decision's name in the answer, as a synchronous decision gives it. */
+    private static final String CHALLENGE_CODE = "ZERO_TRUST_CHALLENGE";
     private static final String ADMIN_MFA_API = "/contexa/admin/api/mfa";
     private static final String DECISION_SCREENS = "/contexa/zero-trust";
     private static final String AGENT_CONFIRMATION_API = "/contexa/api/agent-confirmations";
@@ -566,6 +568,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
         }
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("error", "MFA_CHALLENGE_REQUIRED");
+        responseBody.put("code", CHALLENGE_CODE);
         responseBody.put("message", "MFA verification required");
         responseBody.put("mfaUrl", stepUpUrl);
         responseBody.put("challengeNoticeUrl", challengeNoticeUrl);
@@ -583,12 +586,13 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
     private void writeChallengeWithoutProcedure(HttpServletResponse response, HttpServletRequest request)
             throws IOException {
         Map<String, Object> responseBody = new HashMap<>();
-        responseBody.put("error", "ZERO_TRUST_CHALLENGE");
+        responseBody.put("error", CHALLENGE_CODE);
+        responseBody.put("code", CHALLENGE_CODE);
         responseBody.put("message", "Additional verification is required and this application offers no MFA flow");
         responseWriter.writeErrorResponse(
                 response,
                 HttpServletResponse.SC_UNAUTHORIZED,
-                "ZERO_TRUST_CHALLENGE",
+                CHALLENGE_CODE,
                 "Additional verification is required and this application offers no MFA flow",
                 request.getRequestURI(),
                 responseBody
@@ -607,6 +611,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
                                            String challengeNoticeUrl) throws IOException {
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("error", "MFA_CHALLENGE_REQUIRED");
+        responseBody.put("code", CHALLENGE_CODE);
         responseBody.put("message", "MFA verification required");
         responseBody.put("mfaUrl", mfaPageUrl);
         responseBody.put("challengeNoticeUrl", challengeNoticeUrl);
