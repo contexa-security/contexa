@@ -662,6 +662,22 @@ class SynchronousProtectableDecisionServiceTest {
         return request;
     }
 
+    @Test
+    @DisplayName("a call reads as sensitive as the gate of a call without a decision reads it")
+    void aCallReadsAsSensitiveAsTheGateReadsIt() {
+        ZeroTrustSpringEvent declared = ZeroTrustSpringEvent.builder(new Object())
+                .category(ZeroTrustEventCategory.AUTHORIZATION).eventType(ZeroTrustSpringEvent.TYPE_AUTHORIZATION_METHOD)
+                .userId(USER_ID).payload(Map.of("resourceImportance", "SENSITIVE")).build();
+        ZeroTrustSpringEvent general = ZeroTrustSpringEvent.builder(new Object())
+                .category(ZeroTrustEventCategory.AUTHORIZATION).eventType(ZeroTrustSpringEvent.TYPE_AUTHORIZATION_METHOD)
+                .userId(USER_ID).payload(Map.of()).build();
+        when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null))
+                .thenReturn(declared, general);
+
+        assertThat(service.sensitive(methodInvocation, authentication)).isTrue();
+        assertThat(service.sensitive(methodInvocation, authentication)).isFalse();
+    }
+
     private void bindRequest(MockHttpServletRequest request) {
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
     }

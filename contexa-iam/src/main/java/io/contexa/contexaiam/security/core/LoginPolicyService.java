@@ -67,6 +67,9 @@ public class LoginPolicyService implements LoginPolicyHandler {
     /** How often an unnamed proxy is reported: every sign-in behind it would repeat the same line. */
     private static final long UNNAMED_PROXY_REPORT_INTERVAL_MS = Duration.ofHours(1).toMillis();
 
+    /** How many times the policy's address limit a peer gets that may be a proxy nobody named. */
+    private static final int UNNAMED_PROXY_LIMIT_FACTOR = 10;
+
     private final UserRepository userRepository;
     private final LoginAttemptIpRepository loginAttemptIpRepository;
     private final PasswordPolicyService passwordPolicyService;
@@ -192,7 +195,7 @@ public class LoginPolicyService implements LoginPolicyHandler {
     @Override
     @Transactional(transactionManager = "contexaTransactionManager")
     public boolean isIpBlocked(String ip) {
-        if (ip == null || ip.isBlank() || behindUnnamedProxy()) return false;
+        if (ip == null || ip.isBlank()) return false;
         return loginAttemptIpRepository.findByIpAddress(ip)
                 .map(row -> row.getBlockedUntil() != null
                         && row.getBlockedUntil().isAfter(LocalDateTime.now()))
@@ -227,7 +230,12 @@ public class LoginPolicyService implements LoginPolicyHandler {
     /** The throttle lives in Contexa's database: when it cannot be read the sign-in is not refused for it. */
     private boolean isCurrentAddressBlocked() {
         try {
-            return isIpBlocked(currentAddress());
+            String address = currentAddress();
+            // Every sign-in comes by here, so the first one names the setting, not the first failure.
+            if (behindUnnamedProxy(address)) {
+                reportUnnamedProxy(address);
+            }
+            return isIpBlocked(address);
         } catch (RuntimeException e) {
             log.warn("[login-policy] the address throttle could not be read; the sign-in goes on: {}", e.toString());
             return false;
@@ -276,10 +284,11 @@ public class LoginPolicyService implements LoginPolicyHandler {
 
     /** IP-dimension throttling: rolling window + threshold lock. */
     private void applyIpThrottle(String ip, String username, String failureType) {
-        if (ip == null || ip.isBlank() || behindUnnamedProxy()) return;
+        if (ip == null || ip.isBlank()) return;
         PasswordPolicy policy = passwordPolicyService.getCurrentPolicy();
         if (policy.getIpMaxFailedAttempts() <= 0) return;
 
+        long limit = addressLimit(ip, policy);
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime windowStart = now.minusMinutes(Math.max(1, policy.getIpWindowMinutes()));
         String tag = username == null ? "" : username;
@@ -308,7 +317,7 @@ public class LoginPolicyService implements LoginPolicyHandler {
                 loginAttemptIpRepository.resetWindow(ip, now, now, tag);
                 return;
             }
-            if (row.getFailedAttempts() >= policy.getIpMaxFailedAttempts()) {
+            if (row.getFailedAttempts() >= limit) {
                 LocalDateTime blockUntil = now.plusMinutes(Math.max(1, policy.getIpWindowMinutes()));
                 loginAttemptIpRepository.blockIp(ip, blockUntil);
                 log.warn("[login-policy] ip blocked ip={} attempts={} until={} username={} failureType={}",
@@ -319,26 +328,40 @@ public class LoginPolicyService implements LoginPolicyHandler {
     }
 
     /**
-     * Q-24: behind a proxy Contexa was not told about, the address is the proxy's and everyone arrives from it: limiting
-     * it would stop every user behind it for whatever one of them typed, so the address limit stands aside and says
-     * which setting brings it back. The lock of each account is not touched by this.
+     * The failures the address may reach in the window. A failure always counts against the address the request connected
+     * from, and one count stands for that address. Behind a proxy Contexa was not told about everyone arrives from it, so
+     * such a peer gets ten times the policy's limit: a few mistyped passwords do not stop all its users, and the limit
+     * stays. The limit is the one of the request at hand and is compared only when a failure is counted, so a request
+     * without the header meets the plain limit on the count the others raised: sending the header now and then gets no
+     * further than sending it always. A sign-in is refused by the block alone. The lock of each account is not touched.
      */
-    private boolean behindUnnamedProxy() {
-        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes
-                && SessionFingerprintUtil.forwardedWithoutTrustedProxy(attributes.getRequest())) {
-            reportUnnamedProxy(attributes.getRequest().getRemoteAddr());
-            return true;
+    private long addressLimit(String ip, PasswordPolicy policy) {
+        long limit = policy.getIpMaxFailedAttempts();
+        if (!behindUnnamedProxy(ip)) {
+            return limit;
         }
-        return false;
+        reportUnnamedProxy(ip);
+        return limit * UNNAMED_PROXY_LIMIT_FACTOR;
+    }
+
+    /**
+     * Whether the address may be a proxy Contexa was not told about. Nothing proves it: anyone on that network can send the
+     * header, so the answer eases the limit of the address and never lifts it.
+     */
+    private static boolean behindUnnamedProxy(String ip) {
+        return RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes
+                && SessionFingerprintUtil.forwardedWithoutTrustedProxy(attributes.getRequest())
+                && attributes.getRequest().getRemoteAddr().equals(ip);
     }
 
     private void reportUnnamedProxy(String peer) {
         long now = System.currentTimeMillis();
         long due = nextUnnamedProxyReportAt.get();
         if (now >= due && nextUnnamedProxyReportAt.compareAndSet(due, now + UNNAMED_PROXY_REPORT_INTERVAL_MS)) {
-            log.error("[login-policy] {} sends X-Forwarded-For and no proxy is trusted, so the address limit of sign-ins "
-                    + "is not applied (the lock of each account is). Set "
-                    + "contexa.security.tiered.security.trusted-proxies to your proxies to apply it", peer);
+            log.error("[login-policy] {} sends X-Forwarded-For and no proxy is trusted, so everyone behind it counts as this "
+                    + "one address, at {} times the address limit of sign-ins (the lock of each account stays as it is). Set "
+                    + "contexa.security.tiered.security.trusted-proxies to your proxies to count each client on its own",
+                    peer, UNNAMED_PROXY_LIMIT_FACTOR);
         }
     }
 

@@ -37,6 +37,11 @@ import java.util.function.Predicate;
  * the hash; a changed record whose hash was computed again fails the signature; a removed record breaks the link of the
  * one after it. A record signed with a key the signer no longer holds, or written before records were sealed, cannot be
  * verified, which is said apart from a mismatch.
+ * <p>
+ * By the rule of the sealed packages: once a store shows older sealed records, a record without its hash or
+ * signature had them taken away, and once it shows older records under the signer's active key, a record naming a key
+ * the signer never held made that key up. Both are mismatches. What the seal cannot tell without something kept outside
+ * the database stays the same: every record up to one point changed together reads as sealing that began later.
  */
 public final class DecisionRecordSeal {
 
@@ -83,8 +88,25 @@ public final class DecisionRecordSeal {
     public static Status evaluate(AuditLog record, @Nullable EvidenceSigner signer,
                                   @Nullable Predicate<String> recordExists,
                                   @Nullable Predicate<AuditLog> olderSealedKept) {
-        if (record == null || !StringUtils.hasText(record.getRecordHash())) {
+        return evaluate(record, signer, recordExists, olderSealedKept, null);
+    }
+
+    /**
+     * As {@link #evaluate(AuditLog, EvidenceSigner, Predicate, Predicate)}, telling a record that lost its seal or names
+     * a key nobody held from one that was never sealed or signed with a key since lost.
+     *
+     * @param olderUnderActiveKey whether a decision record older than the record was signed with the signer's active
+     *                            key, or null to leave a key the signer does not hold not verifiable
+     */
+    public static Status evaluate(AuditLog record, @Nullable EvidenceSigner signer,
+                                  @Nullable Predicate<String> recordExists,
+                                  @Nullable Predicate<AuditLog> olderSealedKept,
+                                  @Nullable Predicate<AuditLog> olderUnderActiveKey) {
+        if (record == null) {
             return Status.UNVERIFIABLE;
+        }
+        if (!StringUtils.hasText(record.getRecordHash())) {
+            return unsealed(record, signer, olderSealedKept);
         }
         if (!record.getRecordHash().equals(recordHash(record))) {
             return Status.MISMATCH;
@@ -96,13 +118,21 @@ public final class DecisionRecordSeal {
         }
         if (signer == null || !StringUtils.hasText(record.getRecordSignature())
                 || !StringUtils.hasText(record.getSignatureKeyId())) {
-            return Status.UNVERIFIABLE;
+            return unsealed(record, signer, olderSealedKept);
         }
         Boolean valid = signer.verify(record.getSignatureKeyId(), record.getRecordHash(), record.getRecordSignature());
         if (valid == null) {
-            return Status.UNVERIFIABLE;
+            return signer.keepsItsKeys() && olderUnderActiveKey != null && olderUnderActiveKey.test(record)
+                    ? Status.MISMATCH : Status.UNVERIFIABLE;
         }
         return valid ? Status.VERIFIED : Status.MISMATCH;
+    }
+
+    /** A record without its seal: taken away when older sealed records are kept, or else it predates the sealing. */
+    private static Status unsealed(AuditLog record, @Nullable EvidenceSigner signer,
+                                   @Nullable Predicate<AuditLog> olderSealedKept) {
+        return signer != null && olderSealedKept != null && olderSealedKept.test(record)
+                ? Status.MISMATCH : Status.UNVERIFIABLE;
     }
 
     /** The SHA-256 (hex) of the record's fields and of the previous record's hash. */

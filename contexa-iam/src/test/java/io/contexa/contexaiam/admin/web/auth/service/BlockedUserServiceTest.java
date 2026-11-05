@@ -556,7 +556,7 @@ class BlockedUserServiceTest {
             BlockedUser resolved = buildBlockedUser(1L, "user1", BlockedUserStatus.RESOLVED);
             when(blockedUserJpaRepository.findById(1L)).thenReturn(Optional.of(resolved));
 
-            service.deleteBlockRecord(1L);
+            service.deleteBlockRecord(1L, "admin1");
 
             verify(blockedUserJpaRepository).delete(resolved);
         }
@@ -567,7 +567,7 @@ class BlockedUserServiceTest {
             BlockedUser blocked = buildBlockedUser(1L, "user1", BlockedUserStatus.BLOCKED);
             when(blockedUserJpaRepository.findById(1L)).thenReturn(Optional.of(blocked));
 
-            assertThatThrownBy(() -> service.deleteBlockRecord(1L))
+            assertThatThrownBy(() -> service.deleteBlockRecord(1L, "admin1"))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("Cannot delete active block");
         }
@@ -577,7 +577,7 @@ class BlockedUserServiceTest {
         void shouldThrowWhenNotFound() {
             when(blockedUserJpaRepository.findById(999L)).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> service.deleteBlockRecord(999L))
+            assertThatThrownBy(() -> service.deleteBlockRecord(999L, "admin1"))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Blocked user not found");
         }

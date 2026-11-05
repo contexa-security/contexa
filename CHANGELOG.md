@@ -44,6 +44,10 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **A sensitive resource does not go on without its method policies.** While the database does not answer, a call whose
+  policies could not be read went on, and a DENY among them was missed. A call to a resource declared sensitive is now
+  refused for that request with a CHALLENGE, whatever the model answered: a decision does not speak for a policy. A general
+  resource goes on as before, and in SHADOW nothing is refused.
 - **A double click on the right code no longer ends the sign-in.** A second request that reached a flow being verified
   ended the flow: both clicks failed and the user started again with a new code. The second request is now answered
   `429 MFA_BUSY_RETRY` and changes nothing, so wrong codes sent at once are read one at a time and the limit on the codes
@@ -133,7 +137,16 @@ The format is based on Keep a Changelog and the project follows semantic version
   is gone. A package the retention may have taken (older than the shorter of `retention.period` and
   `retention.clean-period`) is no finding. The limits of the seal are in `SECURITY.md`.
 - The console's version comparison and shadow pairs read the sealed decision, which the package hash covers, not the
-  `decision_jsonb` copy beside it.
+  `decision_jsonb` copy beside it. Its package list and resource counts read the sealed request facts the same way, not the
+  `request_facts_jsonb` copy.
+- **A key nobody held no longer leaves a sealed package unread.** With keys configured in
+  `contexa.security.evidence.signing`, a package from the time the active key signs that names a key the installation does
+  not hold fails instead of reading as not verifiable. Packages from before that time keep reading as not verifiable, as
+  every package does under an ephemeral key. A package lowered to an older schema with any text as its signature no longer
+  passes either. Run a re-inspection to read the packages already kept: the inspector version moves to 29.
+- **A decision record follows the same rule.** Once older sealed records are kept, a record without its hash or signature
+  shows as changed on the security monitor instead of as not verifiable, and so does one that names a key never held once
+  older records are signed with the active key. A custom `EvidenceSigner` answers `keepsItsKeys()` to take part in this.
 - **A layer model set in `contexa.security.tiered.llm.layer1.model` or `layer2.model` runs with Anthropic from the
   settings alone.** The second layer used to run on the first layer's model without a word, and one chat model bean of
   the second layer's model pulled the first layer onto it too. Each layer's model is now made from the Anthropic chat
@@ -164,10 +177,24 @@ The format is based on Keep a Changelog and the project follows semantic version
   A bearer token keeps the rights it was issued with until it expires; disabling the account ends it.
 - **The console's administrator is not the application's user of that name** under `HOST_OWNED`: a BLOCK of one no longer
   locks the console of the other, in either direction, and the block list stays open to a console session.
-- **Behind a proxy nobody named, one person's typing no longer stops everyone.** When requests carry `X-Forwarded-For` and
-  `contexa.security.tiered.security.trusted-proxies` is empty, the address limit of sign-ins is not applied and an ERROR
-  names the setting. The lock of each account works as before. **Set the setting if you run behind a proxy**: until you do,
-  no address limit applies, and a client that adds the header itself escapes it too.
+- **A session under a BLOCK no longer lifts it itself.** The block list stays open to a blocked console session, but its own
+  record and its own CHALLENGE take another administrator, or a verification passed in that session: the list then offers
+  a one-time code to the account's address, or its passkey, at `/contexa/admin/blacklist/step-up`. No spelling of the name
+  gets around this. An administrator's own record can no longer be deleted that way either, and the attempt is audited:
+  `BlockedUserService.deleteBlockRecord` takes the acting administrator now. **A sole administrator needs mail configured
+  and a real address on the account, or a second administrator**: without a factor nothing lifts the console's own BLOCK
+  from the console. Under `CONTEXA_OWNED` the same rule reads the shared account, and its own record takes another
+  administrator.
+- A BLOCK decided over a CHALLENGE that other sessions still held could be lifted through the CHALLENGE release. It stays.
+- **Behind a proxy nobody named, one person's typing no longer stops everyone, and a forged header escapes nothing.** A
+  sign-in is counted against the address it connected from, whatever `X-Forwarded-For` says, and the header never switches
+  the address limit off or lifts a block of it. When a request carries the header,
+  `contexa.security.tiered.security.trusted-proxies` is empty and the connection comes from a private range, a link-local
+  address or the machine itself, that address may be a proxy with everyone behind it, so its limit is ten times the
+  policy's and an ERROR names the setting. A connection from a public address, and any connection without the header, keeps
+  the plain limit on the same count, so sending the header now and then gains nothing. The lock of each account works as
+  before. **Set the setting if you run behind a proxy**: until you do, all users behind it share one count and one block,
+  and anyone on that network who adds the header gets the ten times too.
 - **A model outage no longer locks users out for half an hour.** A CHALLENGE no model decided (the analysis failed: an
   HTTP error, an empty or unreadable answer, a time-out) is marked, lasts 60 seconds instead of 30 minutes and gives way
   to what the model decides next. While it lasts the model is asked again about the same request, every 10 seconds, at

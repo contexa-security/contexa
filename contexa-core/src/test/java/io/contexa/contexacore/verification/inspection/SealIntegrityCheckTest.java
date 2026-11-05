@@ -13,6 +13,8 @@ import io.contexa.contexacore.verification.evidence.CanonicalSecurityContextSeri
 import io.contexa.contexacore.verification.evidence.HmacEvidenceSigner;
 import io.contexa.contexacore.verification.evidence.SealedEvidenceChain;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
+import io.contexa.contexacore.verification.evidence.HmacEvidenceSigner;
+import io.contexa.contexacore.verification.evidence.SealedEvidenceChain;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageAssembler;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
 import org.junit.jupiter.api.Test;
@@ -452,6 +454,50 @@ class SealIntegrityCheckTest {
         sealed.setDecisionJson(JSON.writeValueAsString(decision));
         sealed.setPackageHash(integrity.computeHash(sealed));
         return sealed;
+    }
+
+    /** The finding says which field to look at. */
+    @Test
+    void aKeyNeverHeldIsPointedAtByItsField() {
+        HmacEvidenceSigner signer = HmacEvidenceSigner.of(Map.of("k1", Base64.getEncoder()
+                .encodeToString("k1-0123456789abcdef0123456789abcd".getBytes())), null);
+        SealedEvidencePackageIntegrity signing = new SealedEvidencePackageIntegrity(signer);
+        Instant keyInUseSince = Instant.parse("2020-01-01T00:00:00Z");
+        signing.setChain(new SealedEvidenceChain() {
+            @Override
+            public Optional<Instant> signedSince() {
+                return Optional.of(keyInUseSince);
+            }
+
+            @Override
+            public Optional<Instant> signedSince(String keyId) {
+                return Optional.of(keyInUseSince);
+            }
+
+            @Override
+            public boolean previousKept(SealedEvidencePackage pkg) {
+                return true;
+            }
+
+            @Override
+            public Optional<Instant> capturedBefore(SealedEvidencePackage pkg) {
+                return Optional.empty();
+            }
+        }, Duration.ofDays(7), Clock.systemUTC());
+        SealedEvidencePackage sealed = seal("user prompt", "user prompt", Map.of());
+        sealed.setSchemaVersion(SealedEvidencePackageIntegrity.LINKED_SCHEMA_VERSION);
+        signing.seal(sealed, null);
+        sealed.setSignatureKeyId("forged-key");
+
+        PromptInspectionResult result = new PromptInspector(List.of(new SealIntegrityCheck(signing)), JSON).inspect(sealed);
+
+        assertThat(result.verdict()).isEqualTo(PromptInspectionVerdict.FAIL);
+        assertThat(result.checks().get(0).findings()).singleElement().satisfies(finding -> {
+            assertThat(finding.outcome()).isEqualTo(PromptInspectionOutcome.MISMATCH);
+            assertThat(finding.entry()).isEqualTo("signatureKeyId");
+            assertThat(finding.sourceRef()).isEqualTo("sealedPackage.signatureKeyId");
+            assertThat(finding.actual()).isEqualTo("forged-key");
+        });
     }
 
     @Test

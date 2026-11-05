@@ -106,8 +106,17 @@ class PromptInspectorVersionsTest {
     /** Q-21: the seal check points at a missing signature and at a break in the chain from version 28. */
     @Test
     void aMissingSignatureAndABrokenLinkAreFoundFromVersionTwentyEight() {
-        assertThat(PromptInspectorVersions.current().number()).isEqualTo(28);
-        assertThat(PromptInspectorVersions.current().reason()).contains("signature").contains("(Q-21)");
+        PromptInspectorVersions.Version twentyEight = PromptInspectorVersions.ALL.get(27);
+        assertThat(twentyEight.number()).isEqualTo(28);
+        assertThat(twentyEight.reason()).contains("signature").contains("(Q-21)");
+    }
+
+    /** A key never held and a lowered package with any text as its signature are found from version 29. */
+    @Test
+    void aKeyNeverHeldIsFoundFromVersionTwentyNine() {
+        PromptInspectorVersions.Version twentyNine = PromptInspectorVersions.ALL.get(28);
+        assertThat(twentyNine.number()).isEqualTo(29);
+        assertThat(twentyNine.reason()).contains("never held").contains("as its signature");
     }
 
     /** N-OUT-3 lands in version 22 with N-INJ-4 (one build after P8), not in a version of its own. */

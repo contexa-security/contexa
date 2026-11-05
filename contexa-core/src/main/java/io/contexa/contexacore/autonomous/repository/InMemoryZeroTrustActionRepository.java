@@ -32,6 +32,7 @@ import java.util.Objects;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
+import org.springframework.lang.Nullable;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -88,7 +89,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
     private final ConcurrentHashMap<String, ExpiringKeySpace<Boolean>> decisionAuditPending = new ConcurrentHashMap<>();
     private static final String DECISION_AUDIT_NO_CONTEXT = "no-context";
     /** Z-16 (1-d): each BLOCK MFA verification, with when it lapses. */
-    private final ExpiringKeySpace<Instant> blockMfaVerifiedUntil;
+    private final ExpiringKeySpace<BlockMfaVerification> blockMfaVerifications;
     /** Q-12: each CHALLENGE still in force for the sessions that did not answer it, until it would have lapsed. */
     private final ExpiringKeySpace<ChallengeHold> challengeHolds;
 
@@ -142,7 +143,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         this.mfaFailCounts = ExpiringKeySpace.<Long>builder(clock).ttl(failCountTtl).build();
         this.mfaPending = ExpiringKeySpace.<Boolean>builder(clock).ttl(MFA_PENDING_TTL).build();
         this.escalateRetries = ExpiringKeySpace.<Boolean>builder(clock).build();
-        this.blockMfaVerifiedUntil = ExpiringKeySpace.<Instant>builder(clock).build();
+        this.blockMfaVerifications = ExpiringKeySpace.<BlockMfaVerification>builder(clock).build();
         this.challengeHolds = ExpiringKeySpace.<ChallengeHold>builder(clock).build();
         this.lastWrittenMs = ExpiringKeySpace.<Long>builder(clock)
                 .ttl(WRITE_ORDER_SPAN)
@@ -605,6 +606,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         userId = ZeroTrustUserKey.of(userId);
         if (!isBlank(userId)) {
             blockedUsers.remove(userId);
+            blockMfaVerifications.remove(userId);
         }
     }
 
@@ -647,7 +649,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
                 blockedUsers.remove(userId);
                 mfaPending.remove(userId);
                 mfaFailCounts.remove(userId);
-                blockMfaVerifiedUntil.remove(userId);
+                blockMfaVerifications.remove(userId);
             }
         } finally {
             lock.unlock();
@@ -678,7 +680,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         mfaPending.remove(userId);
         escalateRetries.remove(userId);
         decisionAuditPending.remove(userId);
-        blockMfaVerifiedUntil.remove(userId);
+        blockMfaVerifications.remove(userId);
         challengeHolds.remove(userId);
         lastWrittenMs.remove(userId);
         retireLockIfUnused(userId);
@@ -699,7 +701,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         mfaPending.removeIf(agentsOfTheUser);
         escalateRetries.removeIf(agentsOfTheUser);
         decisionAuditPending.keySet().removeIf(agentsOfTheUser);
-        blockMfaVerifiedUntil.removeIf(agentsOfTheUser);
+        blockMfaVerifications.removeIf(agentsOfTheUser);
         challengeHolds.removeIf(agentsOfTheUser);
         lastWrittenMs.removeIf(agentsOfTheUser);
         userLocks.keySet().stream().filter(agentsOfTheUser).toList()
@@ -712,11 +714,16 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
      * remove it as they remove the rest.
      */
     public void setBlockMfaVerified(String userId, Duration ttl) {
+        setBlockMfaVerified(userId, ttl, null);
+    }
+
+    /** Records the verification for the context that passed it, which takes the place of the one before. */
+    public void setBlockMfaVerified(String userId, Duration ttl, @Nullable String contextBindingHash) {
         userId = ZeroTrustUserKey.of(userId);
         if (isBlank(userId) || ttl == null) {
             return;
         }
-        blockMfaVerifiedUntil.put(userId, clock.instant().plus(ttl), ttl);
+        blockMfaVerifications.put(userId, new BlockMfaVerification(clock.instant().plus(ttl), contextBindingHash), ttl);
         recordWrite(userId);
     }
 
@@ -726,14 +733,26 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         if (isBlank(userId)) {
             return null;
         }
-        return blockMfaVerifiedUntil.get(userId);
+        BlockMfaVerification verification = blockMfaVerifications.get(userId);
+        return verification != null ? verification.until() : null;
+    }
+
+    /** The context the verification in force was passed in; null without one, or when none was named. */
+    @Nullable
+    public String getBlockMfaVerifiedContext(String userId) {
+        userId = ZeroTrustUserKey.of(userId);
+        if (isBlank(userId)) {
+            return null;
+        }
+        BlockMfaVerification verification = blockMfaVerifications.get(userId);
+        return verification != null ? verification.contextBindingHash() : null;
     }
 
     /** Z-16 (1-d): removes the user's BLOCK MFA verification. */
     public void clearBlockMfaVerified(String userId) {
         userId = ZeroTrustUserKey.of(userId);
         if (!isBlank(userId)) {
-            blockMfaVerifiedUntil.remove(userId);
+            blockMfaVerifications.remove(userId);
         }
     }
 
@@ -790,7 +809,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         mfaFailCounts.removeExpired();
         mfaPending.removeExpired();
         escalateRetries.removeExpired();
-        blockMfaVerifiedUntil.removeExpired();
+        blockMfaVerifications.removeExpired();
         challengeHolds.removeExpired();
         for (String userId : decisionAuditPending.keySet()) {
             decisionAuditPending.computeIfPresent(userId, (key, contexts) -> withoutExpiredMarkers(contexts));
@@ -862,9 +881,9 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         mfaPending.containsKey(userId);
         escalateRetries.containsKey(userId);
         decisionAuditPending.computeIfPresent(userId, (key, contexts) -> withoutExpiredMarkers(contexts));
-        Instant mfaVerified = blockMfaVerifiedUntil.get(userId);
+        BlockMfaVerification mfaVerified = blockMfaVerifications.get(userId);
         if (mfaVerified != null) {
-            blockMfaVerifiedUntil.remove(userId, mfaVerified);
+            blockMfaVerifications.remove(userId, mfaVerified);
         }
         lastWrittenMs.remove(userId, writtenMs);
     }
@@ -975,6 +994,8 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         try {
             blockedUsers.remove(userId);
             challengeHolds.remove(userId);
+            // A verification answers the BLOCK it was passed under, so the next BLOCK needs its own.
+            blockMfaVerifications.remove(userId);
             AnalysisEntry existing = liveAnalysis(userId);
             AnalysisEntry entry = existing != null ? existing.copy() : new AnalysisEntry();
             entry.action = newAction.name();
@@ -1005,6 +1026,10 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
 
     private static boolean isBlank(String userId) {
         return userId == null || userId.isBlank();
+    }
+
+    /** When a BLOCK MFA verification lapses and the context it was passed in, if one was named. */
+    private record BlockMfaVerification(Instant until, @Nullable String contextBindingHash) {
     }
 
     // An ESCALATE whose TTL ends without resolution keeps reading as ESCALATE through its 24 h last-verified
@@ -1142,7 +1167,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         return analyses.holds(userId) || lastVerified.holds(userId)
                 || mfaPending.holds(userId) || escalateRetries.holds(userId)
                 || mfaFailCounts.holds(userId) || blockedUsers.contains(userId)
-                || decisionAuditPending.containsKey(userId) || blockMfaVerifiedUntil.holds(userId)
+                || decisionAuditPending.containsKey(userId) || blockMfaVerifications.holds(userId)
                 || challengeHolds.holds(userId);
     }
 

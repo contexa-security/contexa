@@ -19,15 +19,20 @@ import java.time.Instant;
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.soar.event.SecurityActionEvent;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
+import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
@@ -36,10 +41,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -56,10 +64,65 @@ public class BlockedUserService implements IBlockedUserRecorder {
     private final BlockingSignalBroadcaster blockingDecisionRegistry;
     private final MessageSource messageSource;
     private VerificationLearningService verificationLearningService;
+    private BlockMfaStateStore blockMfaStateStore;
 
     /** Learns, after an administrator's ALLOW, the blocked request from its own facts (W5-2). */
     public void setVerificationLearningService(VerificationLearningService verificationLearningService) {
         this.verificationLearningService = verificationLearningService;
+    }
+
+    /** Where a verification of the acting administrator is read; without one nobody releases themselves. */
+    public void setBlockMfaStateStore(BlockMfaStateStore blockMfaStateStore) {
+        this.blockMfaStateStore = blockMfaStateStore;
+    }
+
+    /** Whether a console session stands under a BLOCK of its own that it has not answered in this session. */
+    public boolean ownBlockAwaitsVerification(String adminId) {
+        String ownKey = ownKey(adminId);
+        return ConsoleSession.current() && ownKey != null
+                && actionRedisRepository.getCurrentAction(ownKey) == ZeroTrustAction.BLOCK && !verifiedHere(ownKey);
+    }
+
+    /**
+     * A session under a BLOCK reaches the block list, so a stolen console session could lift the very BLOCK that
+     * stopped it. Its own record and decision take another administrator, or a verification passed in this session.
+     * Both sides are compared as the decisions are enforced, so no spelling of the name, in the record, in the typed
+     * name or in the sign-in, makes the key someone else's. Under HOST_OWNED the application's user of the name is
+     * someone else.
+     */
+    private void refuseOwnRelease(String subjectKey, String adminId, String action) {
+        String ownKey = ownKey(adminId);
+        if (ownKey == null || !Objects.equals(ZeroTrustUserKey.of(ownKey), ZeroTrustUserKey.of(subjectKey))
+                || verifiedHere(ownKey)) {
+            return;
+        }
+        try {
+            centralAuditFacade.recordAsync(AuditRecord.builder()
+                    .eventCategory(AuditEventCategory.ADMIN_OVERRIDE)
+                    .principalName(adminId)
+                    .eventSource("IAM")
+                    .resourceIdentifier(subjectKey)
+                    .action(action)
+                    .decision(ZeroTrustAction.BLOCK.name())
+                    .outcome("REFUSED")
+                    .reason("An administrator's own release without a verification in this session")
+                    .build());
+        } catch (RuntimeException e) {
+            log.error("[BlockedUserService] Failed to audit a refused own release: adminId={}", adminId, e);
+        }
+        throw new AccessDeniedException(msg("msg.blacklist.self.release"));
+    }
+
+    /** The key the acting administrator's decisions are stored under, in the console or in the application. */
+    private static String ownKey(String adminId) {
+        ZeroTrustSubject acting = ZeroTrustSubject.of(adminId, null);
+        return acting != null ? acting.storageKey() : null;
+    }
+
+    private boolean verifiedHere(String ownKey) {
+        return blockMfaStateStore != null
+                && RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes
+                && blockMfaStateStore.isVerified(ownKey, SessionFingerprintUtil.verificationContext(attributes.getRequest()));
     }
 
     private String msg(String key, Object... args) {
@@ -144,6 +207,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
         }
 
         BlockedUser blocked = blockedOpt.get();
+        refuseOwnRelease(blocked.getUserId(), adminId, "RESOLVE_BLOCK");
         applyResolution(blocked, adminId, resolvedAction, reason);
     }
 
@@ -155,6 +219,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
         if (blocked.getStatus() == BlockedUserStatus.RESOLVED) {
             throw new IllegalStateException(msg("msg.blocked.user.already.resolved", id));
         }
+        refuseOwnRelease(blocked.getUserId(), adminId, "RESOLVE_BLOCK");
 
         applyResolution(blocked, adminId, resolvedAction, reason);
 
@@ -308,8 +373,11 @@ public class BlockedUserService implements IBlockedUserRecorder {
             throw new IllegalArgumentException("A user and a reason are required");
         }
         String user = userId.trim();
-        if (actionRedisRepository.getActionFromHash(user) != ZeroTrustAction.CHALLENGE
-                && actionRedisRepository.challengeHeldSince(user) == null) {
+        refuseOwnRelease(user, adminId, "RELEASE_CHALLENGE");
+        // A hold outlives the CHALLENGE it came from, so a BLOCK decided since is looked for first: it has its own way out.
+        ZeroTrustAction stored = actionRedisRepository.getActionFromHash(user);
+        if (stored == ZeroTrustAction.BLOCK
+                || (stored != ZeroTrustAction.CHALLENGE && actionRedisRepository.challengeHeldSince(user) == null)) {
             return false;
         }
         actionRedisRepository.approveOverrideAtomically(user, ZeroTrustAction.ALLOW);
@@ -402,10 +470,12 @@ public class BlockedUserService implements IBlockedUserRecorder {
     }
 
     @Transactional(transactionManager = "contexaTransactionManager")
-    public void deleteBlockRecord(Long id) {
+    public void deleteBlockRecord(Long id, String adminId) {
         BlockedUser blocked = blockedUserJpaRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException(msg("msg.blocked.user.not.found.id", id)));
 
+        // Without its record a block no longer reads as in force, and whoever it stopped leaves no trace of it.
+        refuseOwnRelease(blocked.getUserId(), adminId, "DELETE_BLOCK_RECORD");
         if (blocked.getStatus() == BlockedUserStatus.BLOCKED) {
             throw new IllegalStateException(msg("msg.blocked.user.delete.active", id));
         }

@@ -17,10 +17,12 @@ package io.contexa.contexaiam.security.xacml.pep;
 
 import io.contexa.contexacore.autonomous.service.AuthorizationDenialRecorder;
 import io.contexa.contexacommon.annotation.Protectable;
+import io.contexa.contexacommon.annotation.ResourceImportance;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.store.ContexaStores;
 import io.contexa.contexacommon.store.RequestPathScope;
 import io.contexa.contexacommon.store.StoreFailures;
+import io.contexa.contexacore.autonomous.context.support.ResourceImportanceResolver;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.execution.RapidProtectableReentryDeniedException;
 import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedException;
@@ -166,8 +168,8 @@ public class AuthorizationManagerMethodInterceptor
                 if (!StoreFailures.isStoreFailure(unfinished)) {
                     throw unfinished;
                 }
-                // A store that did not answer says nothing about the user: the method policies stay unknown and the call
-                // goes on, as the operating mode specifies (Q-7).
+                // A store that did not answer says nothing about the user: the method policies stay unknown, and the call
+                // goes on as the operating mode specifies (Q-7) unless its resource is sensitive.
                 checkFailure = unfinished.getClass().getSimpleName();
             }
             checkDelegatorAuthority(mi, authentication);
@@ -214,6 +216,7 @@ public class AuthorizationManagerMethodInterceptor
                         if (!StoreFailures.isStoreFailure(syncEvaluationFailure)) {
                             throw syncEvaluationFailure;
                         }
+                        refuseSensitiveCallWithoutItsPolicies(mi, authentication, protectable, checkFailure, publishEvent);
                         contexaStores.passedWithoutDecision();
                         granted = true;
                         invoked = true;
@@ -240,6 +243,9 @@ public class AuthorizationManagerMethodInterceptor
                 }
             }
 
+            if (llmAnalysisAllowed) {
+                refuseSensitiveCallWithoutItsPolicies(mi, authentication, protectable, checkFailure, publishEvent);
+            }
             if (llmAnalysisAllowed && (checkFailure != null || contexaStores.anyDown())) {
                 contexaStores.passedWithoutDecision();
             }
@@ -286,6 +292,45 @@ public class AuthorizationManagerMethodInterceptor
                 RequestPathScope.leave();
             }
         }
+    }
+
+    /**
+     * The method policies were not read, so a DENY among them is not known, and no decision of the model speaks for
+     * a policy. A sensitive resource does not go on then, as it does not without a decision while the analysis is behind.
+     * The refusal is this request's, nothing is stored, and a restriction in force has answered before it. A
+     * general resource goes on, as the operating mode specifies: stopping every call would turn the outage into one of
+     * the application.
+     *
+     * @param publish whether the call still has to tell the analysis of itself
+     */
+    private void refuseSensitiveCallWithoutItsPolicies(MethodInvocation mi, Authentication authentication,
+                                                       Protectable protectable, String checkFailure, boolean publish) {
+        if (checkFailure == null || isEnforcementDisabled() || !sensitive(mi, authentication, protectable)) {
+            return;
+        }
+        String resourceId = buildResourceId(mi, protectable);
+        log.warn("[ZeroTrust] Refusing a sensitive Protectable resource: its method policies could not be read. resource={}",
+                resourceId);
+        if (publish) {
+            publishAuthorizationEvent(mi, authentication, false, null, ZeroTrustEventPublisher.METHOD_NOT_RUN, null,
+                    checkFailure);
+        }
+        throw ZeroTrustAccessDeniedException.challengeRequired(resourceId);
+    }
+
+    /** Whether the call is for a sensitive resource; what the method declares answers when its facts cannot be read. */
+    private boolean sensitive(MethodInvocation mi, Authentication authentication, Protectable protectable) {
+        if (synchronousProtectableDecisionService != null) {
+            try {
+                return synchronousProtectableDecisionService.sensitive(mi, authentication);
+            } catch (RuntimeException unread) {
+                if (!StoreFailures.isStoreFailure(unread)) {
+                    throw unread;
+                }
+            }
+        }
+        return protectable != null && ResourceImportanceResolver.resolve(protectable.importance(), protectable.sensitivity())
+                == ResourceImportance.SENSITIVE;
     }
 
     /** The method is the application's: what it does with its time is not bounded as Contexa's own work is. */
