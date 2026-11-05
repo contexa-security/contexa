@@ -326,6 +326,14 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:processing:%s", NAMESPACE, eventId);
     }
 
+    /** The sign of life of a process, for as long as it says it lives. */
+    public static String processAlive(String instance) {
+        if (instance == null || instance.isBlank()) {
+            throw new IllegalArgumentException("Process instance cannot be null or empty");
+        }
+        return String.format("%s:process-alive:%s", NAMESPACE, instance);
+    }
+
     private static void validateUserId(String userId) {
         if (userId == null || userId.trim().isEmpty()) {
             throw new IllegalArgumentException("UserId is required for Zero Trust architecture");
