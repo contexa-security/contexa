@@ -81,11 +81,12 @@ contexa init
 
 ### By hand
 
-**1. Add the dependencies.** The starter brings the five Contexa modules; add the Spring AI model and vector-store starters you use next to it.
+**1. Add the dependencies.** The starter brings the five Contexa modules; add Spring Security and the Spring AI model and vector-store starters you use next to it. The starter does not bring Spring Security, so that adding it alone changes nothing in your application.
 
 ```gradle
 dependencies {
     implementation 'ai.ctxa:spring-boot-starter-contexa:0.1.1'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation platform('org.springframework.ai:spring-ai-bom:1.1.8')
     implementation 'org.springframework.ai:spring-ai-starter-model-ollama'
     implementation 'org.springframework.ai:spring-ai-starter-vector-store-pgvector'
@@ -112,6 +113,10 @@ dependencies {
         <groupId>ai.ctxa</groupId>
         <artifactId>spring-boot-starter-contexa</artifactId>
         <version>0.1.1</version>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-security</artifactId>
     </dependency>
     <dependency>
         <groupId>org.springframework.ai</groupId>
