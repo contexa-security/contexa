@@ -8,6 +8,10 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A blocked address no longer locks an account through the password page.** `POST /contexa/password-change` refused a
+  blocked address but still counted the attempt against the account it named, the right password too, so that address went
+  on locking its owner out where a sign-in would have counted nothing. The attempt is now refused as before and counted
+  against nobody.
 - **A sign-in no longer wipes the failures of its address.** A password that was right took the address's count back, so
   whoever held one account of their own could try any number of others from that address. The address now keeps its count
   until its window ends; the count of each account is reset as before. Behind a shared address a public NAT counts everyone's
