@@ -54,7 +54,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 @CacheConfig(cacheManager = "contexaCacheManager")
-public class RoleServiceImpl implements RoleService {
+public class RoleServiceImpl extends AccountAuthoritiesService implements RoleService {
 
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
@@ -154,6 +154,7 @@ public class RoleServiceImpl implements RoleService {
             put = {@CachePut(value = "roles", key = "#result.id")}
     )
     public Role updateRole(Role role, List<Long> permissionIds) {
+        authoritiesChanged();
         Role existingRole = roleRepository.findByIdWithPermissions(role.getId())
                 .orElseThrow(() -> new IllegalArgumentException("Role not found with ID: " + role.getId()));
 
@@ -195,6 +196,7 @@ public class RoleServiceImpl implements RoleService {
             }
     )
     public void deleteRole(long id) {
+        authoritiesChanged();
         // Check if role is referenced in any active hierarchy (exact token matching)
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Role not found with ID: " + id));

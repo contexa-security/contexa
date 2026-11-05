@@ -49,6 +49,16 @@ abstract class AbstractSecurityContextDataStoreContractTest {
     /** Z-16 D-8: whether {@link #store} still holds a risk score for the session (no read of it is offered). */
     protected abstract boolean holdsSessionRisk(String sessionId);
 
+    @Test
+    void q14_theVersionOfAccountsMovesOnWithEachChange() {
+        SecurityContextDataStore store = createStore();
+        long before = store.authoritiesVersion();
+
+        store.advanceAuthoritiesVersion();
+
+        assertThat(store.authoritiesVersion()).isGreaterThan(before);
+    }
+
     @BeforeEach
     void setUpStore() {
         store = createStore();

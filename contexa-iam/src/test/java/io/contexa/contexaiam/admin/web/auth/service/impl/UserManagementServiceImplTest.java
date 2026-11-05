@@ -28,6 +28,8 @@ import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.repository.UserRolePermissionRepository;
 import io.contexa.contexacommon.security.UserAccountDeletedEvent;
+import io.contexa.contexacommon.security.UserAccountDisabledEvent;
+import io.contexa.contexacommon.security.UserAuthoritiesChangedEvent;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexaiam.domain.dto.UserListDto;
@@ -230,7 +232,7 @@ class UserManagementServiceImplTest {
     }
 
     // =========================================================================
-    // modifyUser
+    // modifyUser (Q-14: what reaches the sessions that are open)
     // =========================================================================
 
     @Nested
@@ -251,6 +253,64 @@ class UserManagementServiceImplTest {
             assertThat(user.getName()).isEqualTo("Alice Updated");
             assertThat(user.isMfaEnabled()).isTrue();
             verify(userRepository).save(user);
+        }
+
+        @Test
+        @DisplayName("Q-14: a disabled account's open sessions end")
+        void disablingEndsTheSessions() {
+            Users user = buildUser(1L, "alice", "Alice");
+            user.setEnabled(true);
+            UserDto dto = buildUserDto(1L, "alice", "Alice");
+            dto.setEnabled(false);
+            when(userRepository.findByIdWithGroupsRolesAndPermissions(1L)).thenReturn(Optional.of(user));
+
+            service.modifyUser(dto);
+
+            verify(eventPublisher).publishEvent(new UserAccountDisabledEvent("alice"));
+        }
+
+        @Test
+        @DisplayName("Q-14: an account already disabled tells nobody again")
+        void savingADisabledAccountEndsNothing() {
+            Users user = buildUser(1L, "alice", "Alice");
+            user.setEnabled(false);
+            UserDto dto = buildUserDto(1L, "alice", "Alice");
+            dto.setEnabled(false);
+            when(userRepository.findByIdWithGroupsRolesAndPermissions(1L)).thenReturn(Optional.of(user));
+
+            service.modifyUser(dto);
+
+            verify(eventPublisher, never()).publishEvent(any(Object.class));
+        }
+
+        @Test
+        @DisplayName("Q-14: a group given or taken away reaches the open sessions")
+        void groupsReachTheSessions() {
+            Users user = buildUser(1L, "alice", "Alice");
+            user.setEnabled(true);
+            UserDto dto = buildUserDto(1L, "alice", "Alice");
+            dto.setEnabled(true);
+            dto.setSelectedGroupIds(List.of(7L));
+            when(userRepository.findByIdWithGroupsRolesAndPermissions(1L)).thenReturn(Optional.of(user));
+            when(groupRepository.findById(7L)).thenReturn(Optional.of(Group.builder().id(7L).build()));
+
+            service.modifyUser(dto);
+
+            verify(eventPublisher).publishEvent(new UserAuthoritiesChangedEvent());
+        }
+
+        @Test
+        @DisplayName("Q-14: a name changed reaches nobody")
+        void otherFieldsReachNobody() {
+            Users user = buildUser(1L, "alice", "Alice");
+            user.setEnabled(true);
+            UserDto dto = buildUserDto(1L, "alice", "Alice Updated");
+            dto.setEnabled(true);
+            when(userRepository.findByIdWithGroupsRolesAndPermissions(1L)).thenReturn(Optional.of(user));
+
+            service.modifyUser(dto);
+
+            verify(eventPublisher, never()).publishEvent(any(Object.class));
         }
 
         @Test

@@ -131,6 +131,11 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:block:mfa:failCount:%s", NAMESPACE, ZeroTrustUserKey.of(userId));
     }
 
+    /** Q-14: the version of what accounts may do, one for all accounts. */
+    public static String authoritiesVersion() {
+        return String.format("%s:context:authorities:version", NAMESPACE);
+    }
+
     public static String authenticationMfaVerified(String userId) {
         validateUserId(userId);
         return String.format("%s:context:authentication:mfa:verified:%s", NAMESPACE, userId);
