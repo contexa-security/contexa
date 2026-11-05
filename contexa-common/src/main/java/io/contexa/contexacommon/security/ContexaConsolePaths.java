@@ -18,7 +18,10 @@ package io.contexa.contexacommon.security;
 /** Paths of Contexa's console that modules which do not know each other have to agree on. */
 public final class ContexaConsolePaths {
 
-    /** Where an account changes its password. An expired password cannot sign in, so this is reached before any sign-in. */
+    /**
+     * Where the signed-in owner, and an account whose password expired, change a password. An expired password cannot
+     * sign in, so this is reached before any sign-in.
+     */
     public static final String PASSWORD_CHANGE = "/contexa/password-change";
 
     private ContexaConsolePaths() {

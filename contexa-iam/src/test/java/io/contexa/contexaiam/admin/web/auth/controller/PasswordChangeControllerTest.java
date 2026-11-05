@@ -16,8 +16,15 @@
 package io.contexa.contexaiam.admin.web.auth.controller;
 
 import io.contexa.contexacommon.entity.PasswordPolicy;
+import io.contexa.contexacommon.entity.Users;
+import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.security.LoginPolicyHandler;
+import io.contexa.contexacommon.security.MfaPendingSession;
+import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordChangeService;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -27,12 +34,24 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.MessageSource;
+import org.springframework.mock.web.MockHttpSession;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -224,4 +243,124 @@ class PasswordChangeControllerTest {
 
             verify(passwordChangeService).changePassword("testuser", "correct", "validpass", "validpass", "127.0.0.1");
         }    }
+
+    /**
+     * What a refused request sees, with the service as it runs: the right password of an account that may not change here
+     * reads as a wrong one, so whoever holds a password learns nothing of the state of the account.
+     */
+    @Nested
+    @DisplayName("every refusal answers as a wrong password")
+    class OneAnswer {
+
+        private final UserRepository users = mock(UserRepository.class);
+        private final PasswordEncoder encoder = mock(PasswordEncoder.class);
+        private final InMemoryZeroTrustActionRepository actions = new InMemoryZeroTrustActionRepository();
+        private final Users account = Users.builder().username("alice").password("{hash}old").build();
+        private MockMvc answering;
+
+        @BeforeEach
+        void realService() {
+            when(users.findByUsername("alice")).thenReturn(Optional.of(account));
+            when(encoder.matches("right", "{hash}old")).thenReturn(true);
+            when(encoder.encode(anyString())).thenReturn("{hash}decoy");
+            ObjectProvider<LoginPolicyHandler> noPolicy = mock(ObjectProvider.class);
+            ObjectProvider<ZeroTrustActionRepository> decisions = mock(ObjectProvider.class);
+            when(decisions.getIfAvailable()).thenReturn(actions);
+            PasswordChangeService service = new PasswordChangeService(users, encoder, passwordPolicyService, noPolicy,
+                    decisions, () -> true);
+            answering = MockMvcBuilders.standaloneSetup(
+                    new PasswordChangeController(service, passwordPolicyService, messageSource)).build();
+        }
+
+        @AfterEach
+        void signOut() {
+            SecurityContextHolder.clearContext();
+        }
+
+        private MvcResult post(String currentPassword) throws Exception {
+            return post(currentPassword, new MockHttpSession());
+        }
+
+        private MvcResult post(String currentPassword, MockHttpSession session) throws Exception {
+            return answering.perform(MockMvcRequestBuilders.post("/contexa/password-change")
+                            .session(session)
+                            .param("username", "alice")
+                            .param("currentPassword", currentPassword)
+                            .param("newPassword", "New-Pass-1")
+                            .param("confirmPassword", "New-Pass-1"))
+                    .andReturn();
+        }
+
+        private void assertAnswersAsWrong(MvcResult refused) throws Exception {
+            MvcResult wrong = post("wrong");
+            assertThat(refused.getResponse().getStatus()).isEqualTo(wrong.getResponse().getStatus()).isEqualTo(302);
+            assertThat(refused.getResponse().getRedirectedUrl()).isEqualTo(wrong.getResponse().getRedirectedUrl())
+                    .isEqualTo("/contexa/password-change?username=alice");
+            Map<String, Object> flash = refused.getFlashMap();
+            assertThat(flash).isEqualTo(wrong.getFlashMap())
+                    .containsEntry("errorMessage", "msg.password.change.current.incorrect");
+            assertThat(refused.getResponse().getContentAsString()).isEqualTo(wrong.getResponse().getContentAsString());
+            assertThat(refused.getResponse().getHeaderNames()).isEqualTo(wrong.getResponse().getHeaderNames());
+            verify(users, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("an account that can still sign in")
+        void notExpired() throws Exception {
+            assertAnswersAsWrong(post("right"));
+        }
+
+        @Test
+        @DisplayName("a disabled account")
+        void disabled() throws Exception {
+            account.setEnabled(false);
+            account.setCredentialsExpired(true);
+
+            assertAnswersAsWrong(post("right"));
+        }
+
+        @Test
+        @DisplayName("an expired account with a stored BLOCK")
+        void blocked() throws Exception {
+            account.setCredentialsExpired(true);
+            actions.setBlockedFlag("alice");
+
+            assertAnswersAsWrong(post("right"));
+        }
+
+        @Test
+        @DisplayName("a session of another user")
+        void anotherUser() throws Exception {
+            SecurityContextHolder.getContext().setAuthentication(
+                    UsernamePasswordAuthenticationToken.authenticated("mallory", null, AuthorityUtils.NO_AUTHORITIES));
+
+            assertAnswersAsWrong(post("right"));
+        }
+
+        @Test
+        @DisplayName("a session that waits for its MFA")
+        void mfaPending() throws Exception {
+            SecurityContextHolder.getContext().setAuthentication(
+                    UsernamePasswordAuthenticationToken.authenticated("alice", null, AuthorityUtils.NO_AUTHORITIES));
+            MockHttpSession session = new MockHttpSession();
+            session.setAttribute(MfaPendingSession.ATTRIBUTE, "mfa");
+
+            assertAnswersAsWrong(post("right", session));
+        }
+
+        @Test
+        @DisplayName("the form reads no account: a name that exists and one that does not get the same page")
+        void theFormTellsNothing() throws Exception {
+            when(passwordPolicyService.getCurrentPolicy()).thenReturn(new PasswordPolicy());
+
+            for (String name : List.of("alice", "nobody")) {
+                answering.perform(get("/contexa/password-change").param("username", name))
+                        .andExpect(status().isOk())
+                        .andExpect(view().name("contexa/password-change"))
+                        .andExpect(model().attribute("username", name));
+            }
+
+            verifyNoInteractions(users, encoder);
+        }
+    }
 }

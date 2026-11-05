@@ -8,6 +8,14 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A stolen password no longer changes the password.** `POST /contexa/password-change` asked for the current password and
+  nothing else, of anybody: whoever held a stolen password passed the second step by and locked the owner out. It now
+  serves two people. An account whose password expired, which cannot sign in, changes its password with the current one,
+  and the owner signed in changes their own: a session of another user, a session that waits for its MFA and an agent
+  acting for the user are neither. Under `ENFORCE` a stored CHALLENGE, BLOCK or ESCALATE stops a session, and a BLOCK or an
+  ESCALATE stops an expired account; a disabled account changes nothing. Whatever refuses answers exactly as a wrong
+  password does, and the right password refused is not counted as a failed sign-in, which would let whoever holds it lock
+  the owner out.
 - **A sign-in flow no longer mails a code in another user's name.** The name of a code request comes from the form, and it
   was compared with the flow only after the mail had gone: a user could send anyone a code from their own sign-in. A flow
   now asks for the code of its own user, and any other name is refused before a code is made.

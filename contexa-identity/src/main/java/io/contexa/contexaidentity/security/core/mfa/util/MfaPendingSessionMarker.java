@@ -20,6 +20,7 @@ import jakarta.servlet.http.HttpSession;
 import org.springframework.lang.Nullable;
 import org.springframework.util.StringUtils;
 import io.contexa.contexacommon.enums.StateType;
+import io.contexa.contexacommon.security.MfaPendingSession;
 
 /**
  * Marks an HTTP session whose primary authentication succeeded but whose MFA has not completed yet.
@@ -40,7 +41,7 @@ import io.contexa.contexacommon.enums.StateType;
  */
 public final class MfaPendingSessionMarker {
 
-    public static final String SESSION_ATTRIBUTE = "SPRING_SECURITY_CONTEXA_MFA_PENDING_FLOW";
+    public static final String SESSION_ATTRIBUTE = MfaPendingSession.ATTRIBUTE;
     public static final String STATE_ATTRIBUTE = "SPRING_SECURITY_CONTEXA_MFA_PENDING_STATE";
 
     private MfaPendingSessionMarker() {
