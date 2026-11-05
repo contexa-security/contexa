@@ -38,6 +38,7 @@ import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.autonomous.SecurityEventProcessor;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
 import io.contexa.contexacommon.security.bridge.runtime.RequestPathDatabaseGuard;
 import io.contexa.contexacommon.repository.AuditLogRepository;
@@ -783,10 +784,18 @@ public class CoreAutonomousAutoConfiguration {
         SecurityPlaneAgent agent = new SecurityPlaneAgent(
                 securityMonitor, dataStore, contexaCentralAuditFacade,
                 processingOrchestrator, securityPlaneProperties, llmAnalysisExecutor);
-        // docs/agent RL-12 (QD): an agent's queued event is read against the stored decisions again at its turn.
-        agent.setQueuedEventRecheck(event -> {
-            QueuedAgentEventRecheck recheck = queuedAgentEventRecheckProvider.getIfAvailable();
-            return recheck != null && recheck.answeredWithoutAnalysis(event);
+        // docs/agent RL-12 (QD), PR-82: a queued event is read against the stored decisions again at its turn.
+        agent.setQueuedEventRecheck(new SecurityPlaneAgent.QueuedEventRecheck() {
+            @Override
+            public boolean answeredWithoutAnalysis(SecurityEvent event) {
+                QueuedAgentEventRecheck recheck = queuedAgentEventRecheckProvider.getIfAvailable();
+                return recheck != null && recheck.answeredWithoutAnalysis(event);
+            }
+
+            @Override
+            public void leftOut(SecurityEvent event) {
+                queuedAgentEventRecheckProvider.ifAvailable(recheck -> recheck.leftOut(event));
+            }
         });
         agent.setAiSecurityDecisionObservationWriterSupplier(aiSecurityDecisionObservationWriterProvider::getIfAvailable);
         agent.setZeroTrustActionRepository(zeroTrustActionRepository);
@@ -913,6 +922,8 @@ public class CoreAutonomousAutoConfiguration {
         service.setAgentDecisionFlights(agentDecisionFlights.getIfAvailable());
         // PR-54: a synchronous request waits for its verdict as long as a request of the flights does.
         service.setDecisionWait(securityZeroTrustProperties.getAgent().getFlight().getWait());
+        // Q-23: where decisions are not enforced no sensitive request is held for one.
+        service.setEnforcing(securityZeroTrustProperties::isEnforcementEnabled);
         return service;
     }
     /**

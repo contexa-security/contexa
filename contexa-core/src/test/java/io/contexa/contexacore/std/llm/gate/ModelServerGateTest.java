@@ -75,6 +75,52 @@ class ModelServerGateTest {
         assertThat(order).containsExactly("embedding", "chat");
     }
 
+    /** Q-23: the first decision of a session goes in before the calls of sessions that have one, not before embeddings. */
+    @Test
+    void aFirstDecisionGoesInBeforeChatsThatCameEarlierInTheOrderTheFirstDecisionsCame() throws Exception {
+        ModelServerGate gate = new ModelServerGate(LOCAL, 1, false, Duration.ZERO);
+        List<String> order = new CopyOnWriteArrayList<>();
+        ModelServerGate.Permit running = gate.enter(CallKind.CHAT, "qwen3:8b", 1_000L);
+        ExecutorService callers = Executors.newFixedThreadPool(4);
+        try {
+            Future<?> chat = callers.submit(() -> enterAndRecord(gate, CallKind.CHAT, "qwen3:8b", order, "chat"));
+            awaitWaiters(gate, 1);
+            Future<?> firstDecision = callers.submit(() -> enterFirstInLine(gate, order, "first-1"));
+            awaitWaiters(gate, 2);
+            Future<?> secondFirstDecision = callers.submit(() -> enterFirstInLine(gate, order, "first-2"));
+            awaitWaiters(gate, 3);
+            Future<?> embedding = callers.submit(() -> enterAndRecord(gate, CallKind.EMBEDDING, "qwen3:8b", order,
+                    "embedding"));
+            awaitWaiters(gate, 4);
+
+            running.close();
+            chat.get(5, TimeUnit.SECONDS);
+            firstDecision.get(5, TimeUnit.SECONDS);
+            secondFirstDecision.get(5, TimeUnit.SECONDS);
+            embedding.get(5, TimeUnit.SECONDS);
+        } finally {
+            callers.shutdownNow();
+        }
+
+        assertThat(order).containsExactly("embedding", "first-1", "first-2", "chat");
+    }
+
+    private static Void enterFirstInLine(ModelServerGate gate, List<String> order, String name) throws Exception {
+        ModelCallTimer timer = ModelCallTimer.start(10_000L).firstInLine(true);
+        try (ModelServerGate.Permit ignored = gate.enter(CallKind.CHAT, "qwen3:8b", 5_000L, timer)) {
+            order.add(name);
+        }
+        return null;
+    }
+
+    @Test
+    void aTimerInsideOneOfAFirstDecisionIsOneToo() {
+        ModelCallTimer outer = ModelCallTimer.start(1_000L).firstInLine(true);
+
+        assertThat(outer.child(100L).firstInLine()).isTrue();
+        assertThat(ModelCallTimer.start(1_000L).firstInLine()).isFalse();
+    }
+
     @Test
     void aSelfHostedServerSwitchesItsModelOnlyWhenTheLoadedModelsCallsAreDone() throws Exception {
         ModelServerGate gate = new ModelServerGate(LOCAL, 2, true, Duration.ZERO);

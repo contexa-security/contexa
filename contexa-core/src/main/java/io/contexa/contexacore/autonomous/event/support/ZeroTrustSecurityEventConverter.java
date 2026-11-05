@@ -67,6 +67,10 @@ public final class ZeroTrustSecurityEventConverter {
         if (zeroTrustEvent.getResource() != null) {
             event.addMetadata("requestPath", zeroTrustEvent.getResource());
         }
+        // Q-23: a queued sign-in is analysed whatever is in force; a queued call to a resource need not be.
+        if (zeroTrustEvent.getCategory() != null) {
+            event.addMetadata("zerotrust.category", zeroTrustEvent.getCategory().name());
+        }
 
         return event;
     }

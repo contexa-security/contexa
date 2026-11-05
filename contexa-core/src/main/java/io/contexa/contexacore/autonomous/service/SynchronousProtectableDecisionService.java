@@ -39,11 +39,20 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.BooleanSupplier;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
 
 public class SynchronousProtectableDecisionService {
+
+    /**
+     * Q-23: how long a sensitive request waits for its verdict while the analysis is behind: the three seconds a request
+     * of a synchronous {@code @Protectable} is meant to take. It is the wait of one request, on a resource the host called
+     * sensitive, and only then.
+     */
+    private static final Duration DEFAULT_BEHIND_WAIT = Duration.ofSeconds(3);
+    private static final long VERDICT_POLL_MS = 100L;
 
     private final ZeroTrustEventPublisher zeroTrustEventPublisher;
     private final ZeroTrustEventListener zeroTrustEventListener;
@@ -55,6 +64,8 @@ public class SynchronousProtectableDecisionService {
     private SecurityZeroTrustProperties.UnrecordedAgentRequest unrecordedAgentRequest =
             SecurityZeroTrustProperties.UnrecordedAgentRequest.DECIDE_IN_PLACE;
     private Duration decisionWait;
+    private Duration behindWait = DEFAULT_BEHIND_WAIT;
+    private BooleanSupplier enforcing = () -> true;
 
     public SynchronousProtectableDecisionService(
             ZeroTrustEventPublisher zeroTrustEventPublisher,
@@ -75,6 +86,16 @@ public class SynchronousProtectableDecisionService {
     public void setDecisionWait(Duration decisionWait) {
         this.decisionWait = decisionWait != null && !decisionWait.isZero() && !decisionWait.isNegative()
                 ? decisionWait : null;
+    }
+
+    /** Q-23: how long a sensitive request waits for its verdict while the analysis is behind. */
+    void setBehindWait(Duration behindWait) {
+        this.behindWait = behindWait;
+    }
+
+    /** Q-23: whether decisions are enforced; where they are not nothing is held for one. */
+    public void setEnforcing(BooleanSupplier enforcing) {
+        this.enforcing = enforcing != null ? enforcing : () -> true;
     }
 
     public SyncDecisionResult analyze(MethodInvocation methodInvocation, Authentication authentication) {
@@ -351,7 +372,50 @@ public class SynchronousProtectableDecisionService {
                 AgentAllowReuse.sensitive(event.getPayload()))) {
             return AsyncProtectableGate.DECIDE_IN_PLACE;
         }
+        if (action == ZeroTrustAction.PENDING_ANALYSIS && !agentRequest(event) && enforcing.getAsBoolean()
+                && AgentAllowReuse.sensitive(event.getPayload()) && securityPlaneAgent.isBehind()) {
+            return heldForItsVerdict(methodInvocation, authentication, event, gateContext);
+        }
         return AsyncProtectableGate.PROCEED;
+    }
+
+    /**
+     * Q-23: while the analysis is behind, a request to a sensitive resource does not go without a decision, or filling
+     * the line would be a way past it. Its analysis is asked for first, among the first decisions; it waits a moment
+     * for the verdict and is then refused. The refusal is this request's: nothing is stored, the user's other requests
+     * go on, and the verdict that comes answers the next one. A general resource passes as it does while the engine
+     * keeps up, and stopping every request would turn a slow model into a stopped application.
+     */
+    private AsyncProtectableGate heldForItsVerdict(MethodInvocation methodInvocation, Authentication authentication,
+                                                   ZeroTrustSpringEvent event, String gateContext) {
+        zeroTrustEventPublisher.publishMethodAuthorization(methodInvocation, authentication, true, null,
+                ZeroTrustEventPublisher.METHOD_NOT_RUN, null);
+        ZeroTrustAction verdict = awaitVerdict(event, gateContext);
+        if (verdict == ZeroTrustAction.ALLOW) {
+            return AsyncProtectableGate.PASS_AND_RECORD;
+        }
+        return AsyncProtectableGate.restricted(verdict == ZeroTrustAction.PENDING_ANALYSIS
+                ? ZeroTrustAction.CHALLENGE : verdict);
+    }
+
+    private ZeroTrustAction awaitVerdict(ZeroTrustSpringEvent event, String gateContext) {
+        long until = System.nanoTime() + behindWait.toNanos();
+        while (true) {
+            ZeroTrustAction action = currentAction(event, event.getUserId(), gateContext);
+            if (action != ZeroTrustAction.PENDING_ANALYSIS) {
+                return action;
+            }
+            long left = until - System.nanoTime();
+            if (left <= 0L) {
+                return ZeroTrustAction.PENDING_ANALYSIS;
+            }
+            try {
+                TimeUnit.MILLISECONDS.sleep(Math.min(VERDICT_POLL_MS, TimeUnit.NANOSECONDS.toMillis(left) + 1L));
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return ZeroTrustAction.PENDING_ANALYSIS;
+            }
+        }
     }
 
     /** docs/agent F-1: how far an ALLOW in force answers an agent's later requests. */

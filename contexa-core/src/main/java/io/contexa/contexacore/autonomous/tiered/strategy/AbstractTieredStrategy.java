@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
 import io.contexa.contexacore.infra.ContexaBackgroundExecution;
+import io.contexa.contexacore.autonomous.AnalysisTurn;
 import io.contexa.contexacore.autonomous.SecurityEventProcessor;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import io.contexa.contexacore.autonomous.context.support.PastRecordScope;
@@ -378,7 +379,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
      */
     protected <T> T awaitPipeline(Mono<T> pipeline, long limitMs, SecurityEvent event,
                                   LongFunction<RuntimeException> timeout) {
-        ModelCallTimer timer = ModelCallTimer.start(limitMs).withDeadline(processingDeadline(event));
+        ModelCallTimer timer = ModelCallTimer.start(limitMs).withDeadline(processingDeadline(event))
+                .firstInLine(event != null && event.getMetadata() != null
+                        && Boolean.TRUE.equals(event.getMetadata().get(AnalysisTurn.FIRST_DECISION)));
         Callable<T> work = pipeline::block;
         CompletableFuture<T> future = Mono.fromCallable(timer.bind(work))
                 .subscribeOn(ContexaBackgroundExecution.scheduler())

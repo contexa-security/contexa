@@ -24,6 +24,16 @@ The format is based on Keep a Changelog and the project follows semantic version
   and to the dead letters as before. Every event keeps one id, so one that reached the broker after all, or that is
   replayed from the dead letters, is the same event and is not analysed twice. The publisher's queue still drops, counts
   and reports what it has no room for: nothing may hold the request's thread.
+- **Filling the analysis no longer keeps a decision away.** With a slow model and many users a user the model would stop
+  got no decision for as long as the load lasted. A session without a decision of the model now goes first at every
+  line of the analysis (the session's turn, the analysis threads, a model server's gate), one user holds at most eight
+  analyses however many sessions it opens, and a person's queued call that a decision in force answers is not analysed
+  again: calls that waited behind a decision cost that decision and not one each. A sign-in is always analysed.
+- **While the analysis is behind, a sensitive resource does not go without a decision.** Behind means as many analyses
+  in progress as `security.plane.llm-executor.backpressure-queue-threshold` (96). A call to a resource declared
+  `importance = SENSITIVE`, or whose sensitivity is `HIGH`, `CONFIDENTIAL`, `RESTRICTED` or the like, with no decision in
+  force asks for its analysis, waits three seconds for the verdict and is then refused with a CHALLENGE that is not
+  stored. Any other resource passes as it did, and nothing changes while the analysis keeps up.
 - **A synchronous `@Protectable` no longer holds the application's thread as long as the model is given.** A request
   waits for its verdict at most `contexa.security.zerotrust.agent.flight.wait` (40 seconds), a person's as an agent's.
   Past it the request is refused with a CHALLENGE that is not stored, the analysis goes on and stores its decision for
