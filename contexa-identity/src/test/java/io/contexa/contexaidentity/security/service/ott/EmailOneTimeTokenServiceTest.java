@@ -19,6 +19,10 @@ import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.properties.MfaSettings;
 import io.contexa.contexaiam.testsupport.PostgresTestDatabase;
 import org.junit.jupiter.api.AfterEach;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,6 +31,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import org.springframework.jdbc.support.JdbcTransactionManager;
@@ -46,6 +51,7 @@ import java.time.Instant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -128,6 +134,67 @@ class EmailOneTimeTokenServiceTest {
                 contains("Authentication Code"),
                 contains(token.getTokenValue())
         );
+    }
+
+    /** Anyone may ask in any name: a name with no row is no event of the log, or asking would fill it. */
+    @Test
+    @DisplayName("a name with no account leaves nothing in the log")
+    void aNameWithNoAccountLeavesNothingInTheLog() {
+        when(emailService.isMailSenderConfigured()).thenReturn(true);
+        EmailOneTimeTokenService service = new EmailOneTimeTokenService(
+                emailService, jdbcTemplate, transactionTemplate, authContextProperties, true
+        );
+        Logger logger = (Logger) LoggerFactory.getLogger(EmailOneTimeTokenService.class);
+        ListAppender<ILoggingEvent> events = new ListAppender<>();
+        events.start();
+        logger.addAppender(events);
+        try {
+            service.generate(new GenerateOneTimeTokenRequest("nobody@contexa.io"));
+        } finally {
+            logger.detachAppender(events);
+        }
+
+        assertThat(events.list).noneMatch(event -> event.getLevel().isGreaterOrEqual(Level.WARN));
+        verify(emailService, never()).sendHtmlMessage(anyString(), anyString(), anyString());
+    }
+
+    /** A store that does not answer is an event: only the name with no row is quiet. */
+    @Test
+    @DisplayName("a lookup that fails is still reported")
+    void aLookupThatFailsIsReported() {
+        when(emailService.isMailSenderConfigured()).thenReturn(true);
+        EmailOneTimeTokenService service = new EmailOneTimeTokenService(
+                emailService, jdbcTemplate, transactionTemplate, authContextProperties, true
+        );
+        jdbcTemplate.execute("DROP TABLE ctxa_users");
+        Logger logger = (Logger) LoggerFactory.getLogger(EmailOneTimeTokenService.class);
+        ListAppender<ILoggingEvent> events = new ListAppender<>();
+        events.start();
+        logger.addAppender(events);
+        try {
+            service.generate(new GenerateOneTimeTokenRequest("nobody@contexa.io"));
+        } finally {
+            logger.detachAppender(events);
+        }
+
+        assertThat(events.list).anyMatch(event -> event.getLevel() == Level.WARN);
+    }
+
+    /** A name is what its owner typed at sign-up, and the mail is read as HTML in the owner's mailbox. */
+    @Test
+    @DisplayName("a name reaches the mail as text, never as markup")
+    void aNameReachesTheMailAsText() {
+        when(emailService.isMailSenderConfigured()).thenReturn(true);
+        String name = "<a href=\"https://evil.example\">verify</a>";
+        jdbcTemplate.update("INSERT INTO ctxa_users(username, email) VALUES(?, ?)", name, "marked@contexa.io");
+        EmailOneTimeTokenService service = new EmailOneTimeTokenService(
+                emailService, jdbcTemplate, transactionTemplate, authContextProperties, true
+        );
+
+        service.generate(new GenerateOneTimeTokenRequest(name));
+
+        verify(emailService).sendHtmlMessage(eq("marked@contexa.io"), anyString(),
+                argThat(body -> !body.contains("<a href") && body.contains("&lt;a href")));
     }
 
     /** The application's own users are in no table of Contexa's, and an application may sign in with an address. */

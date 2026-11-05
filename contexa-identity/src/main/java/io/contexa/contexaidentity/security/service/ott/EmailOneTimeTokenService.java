@@ -24,6 +24,7 @@ import jakarta.mail.internet.AddressException;
 import jakarta.mail.internet.InternetAddress;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.DisposableBean;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.ott.*;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -31,6 +32,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
+import org.springframework.web.util.HtmlUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -208,7 +210,7 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
                         "<p>This code will expire in %d minutes.</p>" +
                         "<p>If you did not request this code, please ignore this email.</p>" +
                         "<p>Thank you.</p>",
-                username, emailPurpose, token.getTokenValue(), tokenValidityMinutes
+                HtmlUtils.htmlEscape(username), emailPurpose, token.getTokenValue(), tokenValidityMinutes
         );
 
         if (!emailService.isMailSenderConfigured()) {
@@ -292,6 +294,9 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
     private String lookupRegisteredEmail(String username) {
         try {
             return jdbcTemplate.queryForObject("SELECT email FROM ctxa_users WHERE username = ?", String.class, username);
+        } catch (EmptyResultDataAccessException noRow) {
+            // Anyone may ask in any name: reporting each one would hand a stranger the size of the log.
+            return null;
         } catch (Exception e) {
             log.warn("Failed to find user email for username: {}", username, e);
             return null;

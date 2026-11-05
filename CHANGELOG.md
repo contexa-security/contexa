@@ -8,6 +8,7 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- A one-time code asked for a name with no account leaves nothing in the log, and the mail shows a name as text, never as markup.
 - **A sign-in by code no longer mails any address a stranger types.** Before a sign-in the name of a code request is what
   the form says, and a name of no account was mailed as an address: with `.ott()` anybody could have your mail server send a
   code, and the name itself in the text of the mail, to any mailbox. A code now goes to the address on record, or to the name
