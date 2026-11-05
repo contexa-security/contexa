@@ -211,6 +211,16 @@ class OAuth2JwtAuthenticationConverterTest {
     }
 
     @Test
+    void anApprovedAgentClientNamedLikeAPersonCarriesItsScopesAndNothingOfThePerson() {
+        OAuth2JwtAuthenticationConverter clientAware = converterWith(new AuthContextProperties(),
+                (tenantId, clientId) -> "alice".equals(clientId) ? Optional.of("report-bot") : Optional.empty());
+        stubUserDetails("alice", List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+
+        assertThat(extractAuthorityStrings(clientAware.convert(clientJwt("alice", "alice", "reports.read"))))
+                .containsExactly("SCOPE_reports.read");
+    }
+
+    @Test
     void theInternalClientsOwnTokenIsRefusedEvenWhenTheDirectoryWouldNameIt() {
         OAuth2JwtAuthenticationConverter clientAware = converterWith(new AuthContextProperties(),
                 (tenantId, clientId) -> Optional.of("any-agent"));

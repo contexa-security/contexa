@@ -52,11 +52,11 @@ import org.springframework.security.oauth2.server.resource.InvalidBearerTokenExc
  * session would end; a locked account's goes on as its session does, because anyone can lock an account with wrong
  * passwords.
  *
- * <p>A client's own token (client credentials: the subject is the client) has no user account. It authenticates only
- * for a client the {@link AgentClientDirectory} names as an approved agent in service, or a client the settings list
- * as a service client ({@code contexa.auth.oauth2.service-client-ids}), and then carries the token's scopes only
- * (A1-2, AG-12b). The internal client and every other client is refused as before, as is a token naming a
- * user without an account.</p>
+ * <p>A client's own token (client credentials: the subject is the client) has no user account, whatever account carries
+ * the client's name. It authenticates only for a client the {@link AgentClientDirectory} names as an approved agent in
+ * service, or a client the settings list as a service client ({@code contexa.auth.oauth2.service-client-ids}), and then
+ * carries the token's scopes only (A1-2, AG-12b). The internal client and every other client is refused as before, as
+ * is a token naming a user without an account.</p>
  */
 public class OAuth2JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthenticationToken> {
 
@@ -89,12 +89,12 @@ public class OAuth2JwtAuthenticationConverter implements Converter<Jwt, Abstract
             authorizationValidator.validateAccessToken(jwt);
         }
         refuseSuspendedAgent(jwt);
-        UserDetails userDetails;
-        try {
-            userDetails = userDetailsService.loadUserByUsername(jwt.getSubject());
-        } catch (UsernameNotFoundException noAccount) {
-            return clientPrincipal(jwt).orElseThrow(() -> noAccount);
+        // Before any account is read: an account of the client's name is a person's, and would lend the client its rights.
+        if (AgentTokenClaims.isClientOwnToken(jwt.getClaims(), tokenSettings())) {
+            return clientPrincipal(jwt).orElseThrow(
+                    () -> new UsernameNotFoundException("This client does not authenticate without a user account"));
         }
+        UserDetails userDetails = userDetailsService.loadUserByUsername(jwt.getSubject());
         if (AccountTokenGuard.disabled(userDetails)) {
             throw new InvalidBearerTokenException("The account of this token is disabled");
         }
@@ -108,9 +108,6 @@ public class OAuth2JwtAuthenticationConverter implements Converter<Jwt, Abstract
     private Optional<AbstractAuthenticationToken> clientPrincipal(Jwt jwt) {
         Map<String, Object> claims = jwt.getClaims();
         BridgeProperties.Delegation.Token tokenSettings = tokenSettings();
-        if (!AgentTokenClaims.isClientOwnToken(claims, tokenSettings)) {
-            return Optional.empty();
-        }
         String clientId = jwt.getSubject();
         if (properties != null && clientId.equals(properties.getOauth2().getClientId())) {
             return Optional.empty();

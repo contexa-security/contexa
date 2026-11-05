@@ -8,6 +8,14 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A client named like a person no longer gets the person's rights.** A client's own token has the client's ID as its
+  subject, and an account of that name was looked up first: a client registered as `alice` authenticated with everything
+  the person `alice` holds, without being an approved agent or a listed service client. A client's own token now reads no
+  account: it carries its scopes when the client is an approved agent or in `contexa.auth.oauth2.service-client-ids`, and is
+  refused otherwise. Registering an agent's client under the name of an existing account is refused too. **Check:** a client
+  that relied on an account of its own name gets its scopes only: give the scopes it needs to the client. A person named
+  exactly as `contexa.auth.oauth2.client-id` can no longer sign in with a token, as that token now reads as the internal
+  client's.
 - **The refresh entry point no longer hands out what another client was issued.** `/api/refresh` asks for no client
   authentication, and a still valid access token never reached the token endpoint, which is what refuses a token of another
   client: whoever held a refresh token of an application you registered yourself got that application's access token back

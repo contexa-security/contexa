@@ -132,6 +132,10 @@ public class OAuth2AgentProvisioning implements AgentProvisioning {
         if (clients.findByClientId(clientId) != null) {
             throw new IllegalArgumentException("OAuth2 client " + clientId + " already exists");
         }
+        // The client's own token has the client's ID as its subject, where a person's token has the person's name.
+        if (userRepository != null && userRepository.findByUsername(clientId).isPresent()) {
+            throw new IllegalArgumentException("An account named " + clientId + " already exists");
+        }
         boolean account = Boolean.TRUE.equals(request.account());
         List<Long> groupIds = account ? groupIds(request.accountGroups()) : List.of();
         if (account) {
