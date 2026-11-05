@@ -8,6 +8,12 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A sign-in after a run of wrong passwords no longer reads as any other sign-in.** Under `HOST_OWNED` the model decided the
+  application's sign-in without what a protected call of the same request tells it: the signals the application states on
+  the request, the authorities of the account, the failures on record and the bridge's stamps. A sign-in now carries all of
+  them, through the same code as a protected call, and its decision is bound to the session the client presents next.
+  `ZeroTrustEventPublisher.publishAuthenticationSuccess` now takes the authentication and the request. A sign-in stays out
+  of what a role's usual work is compared with and learned from: the POST of a form is no work of the role.
 - **A sign-in no longer wipes the failures of its address.** A password that was right took the address's count back, so
   whoever held one account of their own could try any number of others from that address. The address now keeps its count
   until its window ends; the count of each account is reset as before. Behind a shared address a public NAT counts everyone's

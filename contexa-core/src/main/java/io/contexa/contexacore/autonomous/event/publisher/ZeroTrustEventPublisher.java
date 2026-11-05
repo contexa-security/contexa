@@ -31,6 +31,7 @@ import io.contexa.contexacommon.security.bridge.coverage.MissingBridgeContext;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
+import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import io.contexa.contexacommon.security.subject.SubjectKind;
 import io.contexa.contexacore.autonomous.agent.AgentRegistration;
@@ -48,15 +49,18 @@ import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.aop.framework.AopProxyUtils;
 import org.springframework.aop.support.AopUtils;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.annotation.AnnotationUtils;
+import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -106,6 +110,10 @@ public class ZeroTrustEventPublisher {
     @Autowired(required = false)
     private BridgeProperties bridgeProperties;
 
+    /** Reads the stamps of a sign-in; asked for when one comes, the bridge being a servlet filter built apart. */
+    @Autowired(required = false)
+    private ObjectProvider<BridgeResolutionFilter> bridgeResolution;
+
     public ZeroTrustEventPublisher(
             ApplicationEventPublisher eventPublisher,
             TieredStrategyProperties properties) {
@@ -125,24 +133,49 @@ public class ZeroTrustEventPublisher {
                 : new SecurityPlaneProperties();
     }
 
-    public void publishAuthenticationSuccess(
-            String userId,
-            String sessionId,
-            String clientIp,
-            String userAgent,
-            Map<String, Object> payload) {
-
-        publish(
+    /**
+     * A person signed in. The engine decides a sign-in from what a protected call of the same request carries: what the
+     * application stated on the request, the bridge's stamps, the authorities of the authentication and the failures on
+     * record, so that a guessed password is not a sign-in like any other. What {@code signIn} states of the sign-in stands
+     * over them. Without a request only that is known.
+     *
+     * @param request the request of the sign-in, null outside one
+     * @param signIn  the facts of the sign-in itself
+     */
+    public void publishAuthenticationSuccess(Authentication authentication, @Nullable HttpServletRequest request,
+                                             Map<String, Object> signIn) {
+        resolveBridgeOfSignIn(request, authentication);
+        RequestInfo requestInfo = requestInfoOf(request);
+        Map<String, Object> payload = new HashMap<>();
+        if (requestInfo != null) {
+            populateRequestFacts(requestInfo, payload);
+        }
+        payload.putAll(signIn);
+        // The session id may have changed with the sign-in: its decision belongs to the session the client presents next.
+        putIfPresent(payload, "contextBindingHash", SessionFingerprintUtil.generateNextRequestContextBindingHash(request));
+        populateAuthenticationFallback(authentication, payload);
+        String userId = authentication.getName();
+        populateStoredSecurityContext(userId, requestInfo, payload);
+        putIfAbsent(payload, "decisionBoundaryMode", securityZeroTrustMode());
+        eventPublisher.publishEvent(build(
                 ZeroTrustEventCategory.AUTHENTICATION,
                 ZeroTrustSpringEvent.TYPE_AUTHENTICATION_SUCCESS,
                 userId,
-                sessionId,
-                clientIp,
-                userAgent,
+                requestInfo != null ? requestInfo.getSessionId() : null,
+                requestInfo != null ? requestInfo.getClientIp() : null,
+                requestInfo != null ? requestInfo.getUserAgent() : null,
                 null,
-                payload
-        );
+                payload,
+                requestInfo != null ? requestInfo.getObservedAt() : null
+        ));
+    }
 
+    /** The bridge met the request before the authentication existed, and a sign-in usually ends the request there. */
+    private void resolveBridgeOfSignIn(@Nullable HttpServletRequest request, Authentication authentication) {
+        BridgeResolutionFilter bridge = bridgeResolution != null ? bridgeResolution.getIfAvailable() : null;
+        if (bridge != null && request != null) {
+            bridge.resolveSignIn(request, authentication);
+        }
     }
 
     /** The method has not run: the event describes the authorization check before execution. */
@@ -314,129 +347,7 @@ public class ZeroTrustEventPublisher {
         }
 
         if (requestInfo != null) {
-            payload.put("httpUri", requestInfo.getRequestUri());
-            payload.put("requestPath", requestInfo.getRequestUri());
-            payload.put("requestUri", requestInfo.getRequestUri());
-            payload.put("httpMethod", requestInfo.getMethod());
-            payload.put("eventId", requestInfo.getRequestId());
-            payload.put("requestId", requestInfo.getRequestId());
-            payload.put("correlationId", requestInfo.getRequestId());
-            if (requestInfo.getClientRequestId() != null) {
-                // The caller's own request id, kept for log correlation only; never an identifier of the processing.
-                payload.put("clientRequestId", requestInfo.getClientRequestId());
-            }
-            payload.put("contextBindingHash", requestInfo.getContextBindingHash());
-            payload.put("clientIp", requestInfo.getClientIp());
-            payload.put("userAgent", requestInfo.getUserAgent());
-            if (requestInfo.getUntrustedAnomalySignalClaim() != null) {
-                payload.put("untrustedAnomalySignalClaim", requestInfo.getUntrustedAnomalySignalClaim());
-            }
-            if (requestInfo.getDecisionBoundaryMode() != null) {
-                payload.put("decisionBoundaryMode", requestInfo.getDecisionBoundaryMode());
-            }
-            if (requestInfo.getRequestedModelId() != null) {
-                payload.put("requestedModelId", requestInfo.getRequestedModelId());
-                payload.put("preferredModel", requestInfo.getRequestedModelId());
-            }
-            if (requestInfo.getRuntimeTemperature() != null) {
-                payload.put("temperature", requestInfo.getRuntimeTemperature());
-            }
-            if (requestInfo.getRuntimeTopP() != null) {
-                payload.put("topP", requestInfo.getRuntimeTopP());
-            }
-            if (requestInfo.getRuntimeSeed() != null) {
-                payload.put("seed", requestInfo.getRuntimeSeed());
-            }
-            if (requestInfo.getRuntimeMaxTokens() != null) {
-                payload.put("maxTokens", requestInfo.getRuntimeMaxTokens());
-            }
-            if (requestInfo.getRuntimeDisableRetries() != null) {
-                payload.put("disableRetries", requestInfo.getRuntimeDisableRetries());
-            }
-            if (requestInfo.getRuntimeDisableOllamaThinking() != null) {
-                payload.put("disableOllamaThinking", requestInfo.getRuntimeDisableOllamaThinking());
-            }
-            if (requestInfo.getSimulatedUserAgentLabel() != null) {
-                payload.put("simulatedUserAgentLabel", requestInfo.getSimulatedUserAgentLabel());
-            }
-            payload.put("isNewSession", requestInfo.getIsNewSession());
-            if (requestInfo.getSessionCreatedAt() != null) {
-                payload.put("sessionCreatedAt", requestInfo.getSessionCreatedAt().toString());
-            }
-            payload.put("isNewUser", requestInfo.getIsNewUser());
-            payload.put("isNewDevice", requestInfo.getIsNewDevice());
-            payload.put("recentRequestCount", requestInfo.getRecentRequestCount());
-            payload.put("failedLoginAttempts", requestInfo.getFailedLoginAttempts());
-            payload.put("baselineConfidence", requestInfo.getBaselineConfidence());
-            payload.put("isSensitiveResource", requestInfo.getIsSensitiveResource());
-            if (requestInfo.getAuthMethod() != null) {
-                payload.put("authMethod", requestInfo.getAuthMethod());
-            }
-            if (requestInfo.getResourceSensitivity() != null) {
-                payload.put("resourceSensitivity", requestInfo.getResourceSensitivity());
-            }
-            if (requestInfo.getResourceBusinessLabel() != null) {
-                payload.put("resourceLabel", requestInfo.getResourceBusinessLabel());
-            }
-            if (requestInfo.getResourceAuthorText() != null) {
-                payload.put("resourceAuthorText", requestInfo.getResourceAuthorText());
-            }
-            if (requestInfo.getResourceScope() != null) {
-                payload.put("resourceScope", requestInfo.getResourceScope());
-            }
-            if (requestInfo.getClaimedRecord() != null) {
-                payload.put("claimedRecord", requestInfo.getClaimedRecord());
-            }
-            if (requestInfo.getRequestItems() != null) {
-                payload.put("requestItems", requestInfo.getRequestItems());
-            }
-            if (requestInfo.getResourceId() != null) {
-                payload.put("resourceId", requestInfo.getResourceId());
-            }
-            if (requestInfo.getTenantId() != null) {
-                payload.put("tenantId", requestInfo.getTenantId());
-            }
-            if (requestInfo.getOrganizationId() != null) {
-                payload.put("organizationId", requestInfo.getOrganizationId());
-            }
-            payload.put("mfaVerified", requestInfo.getMfaVerified());
-            if (requestInfo.getPreviousPath() != null) {
-                payload.put("previousPath", requestInfo.getPreviousPath());
-            }
-            if (requestInfo.getLastRequestIntervalMs() != null) {
-                payload.put("lastRequestIntervalMs", requestInfo.getLastRequestIntervalMs());
-            }
-            payload.put("userRoles", requestInfo.getUserRoles());
-            if (requestInfo.getServletPath() != null) {
-                payload.put("servletPath", requestInfo.getServletPath());
-            }
-            if (requestInfo.getQueryString() != null) {
-                payload.put("queryString", requestInfo.getQueryString());
-            }
-            populateBridgePayload(requestInfo, payload);
-            populateRequestContextHints(requestInfo, payload);
-            populateTestRunMarker(payload);
-
-            if (requestInfo.getGeoCountry() != null) {
-                payload.put("geoCountry", requestInfo.getGeoCountry());
-            }
-            if (requestInfo.getGeoCity() != null) {
-                payload.put("geoCity", requestInfo.getGeoCity());
-            }
-            if (requestInfo.getGeoLatitude() != null) {
-                payload.put("geoLatitude", requestInfo.getGeoLatitude());
-            }
-            if (requestInfo.getGeoLongitude() != null) {
-                payload.put("geoLongitude", requestInfo.getGeoLongitude());
-            }
-            if (Boolean.TRUE.equals(requestInfo.getImpossibleTravel())) {
-                payload.put("impossibleTravel", true);
-            }
-            // The move facts travel whether or not the host also calls the move impossible (W2-13).
-            putIfAbsent(payload, "travelDistanceKm", requestInfo.getTravelDistanceKm());
-            putIfAbsent(payload, "travelElapsedMinutes", requestInfo.getTravelElapsedMinutes());
-            putIfAbsent(payload, "previousLocation", requestInfo.getPreviousLocation());
-            promoteOfficialContextFields(requestInfo, payload);
+            populateRequestFacts(requestInfo, payload);
         }
         promoteProtectableDescriptor(payload);
 
@@ -471,6 +382,133 @@ public class ZeroTrustEventPublisher {
                 payload,
                 requestInfo != null ? requestInfo.getObservedAt() : null
         );
+    }
+
+    /** What the request says of itself, the bridge's stamps and what the application stated on it. */
+    private void populateRequestFacts(RequestInfo requestInfo, Map<String, Object> payload) {
+        payload.put("httpUri", requestInfo.getRequestUri());
+        payload.put("requestPath", requestInfo.getRequestUri());
+        payload.put("requestUri", requestInfo.getRequestUri());
+        payload.put("httpMethod", requestInfo.getMethod());
+        payload.put("eventId", requestInfo.getRequestId());
+        payload.put("requestId", requestInfo.getRequestId());
+        payload.put("correlationId", requestInfo.getRequestId());
+        if (requestInfo.getClientRequestId() != null) {
+            // The caller's own request id, kept for log correlation only; never an identifier of the processing.
+            payload.put("clientRequestId", requestInfo.getClientRequestId());
+        }
+        payload.put("contextBindingHash", requestInfo.getContextBindingHash());
+        payload.put("clientIp", requestInfo.getClientIp());
+        payload.put("userAgent", requestInfo.getUserAgent());
+        if (requestInfo.getUntrustedAnomalySignalClaim() != null) {
+            payload.put("untrustedAnomalySignalClaim", requestInfo.getUntrustedAnomalySignalClaim());
+        }
+        if (requestInfo.getDecisionBoundaryMode() != null) {
+            payload.put("decisionBoundaryMode", requestInfo.getDecisionBoundaryMode());
+        }
+        if (requestInfo.getRequestedModelId() != null) {
+            payload.put("requestedModelId", requestInfo.getRequestedModelId());
+            payload.put("preferredModel", requestInfo.getRequestedModelId());
+        }
+        if (requestInfo.getRuntimeTemperature() != null) {
+            payload.put("temperature", requestInfo.getRuntimeTemperature());
+        }
+        if (requestInfo.getRuntimeTopP() != null) {
+            payload.put("topP", requestInfo.getRuntimeTopP());
+        }
+        if (requestInfo.getRuntimeSeed() != null) {
+            payload.put("seed", requestInfo.getRuntimeSeed());
+        }
+        if (requestInfo.getRuntimeMaxTokens() != null) {
+            payload.put("maxTokens", requestInfo.getRuntimeMaxTokens());
+        }
+        if (requestInfo.getRuntimeDisableRetries() != null) {
+            payload.put("disableRetries", requestInfo.getRuntimeDisableRetries());
+        }
+        if (requestInfo.getRuntimeDisableOllamaThinking() != null) {
+            payload.put("disableOllamaThinking", requestInfo.getRuntimeDisableOllamaThinking());
+        }
+        if (requestInfo.getSimulatedUserAgentLabel() != null) {
+            payload.put("simulatedUserAgentLabel", requestInfo.getSimulatedUserAgentLabel());
+        }
+        payload.put("isNewSession", requestInfo.getIsNewSession());
+        if (requestInfo.getSessionCreatedAt() != null) {
+            payload.put("sessionCreatedAt", requestInfo.getSessionCreatedAt().toString());
+        }
+        payload.put("isNewUser", requestInfo.getIsNewUser());
+        payload.put("isNewDevice", requestInfo.getIsNewDevice());
+        payload.put("recentRequestCount", requestInfo.getRecentRequestCount());
+        payload.put("failedLoginAttempts", requestInfo.getFailedLoginAttempts());
+        payload.put("baselineConfidence", requestInfo.getBaselineConfidence());
+        payload.put("isSensitiveResource", requestInfo.getIsSensitiveResource());
+        if (requestInfo.getAuthMethod() != null) {
+            payload.put("authMethod", requestInfo.getAuthMethod());
+        }
+        if (requestInfo.getResourceSensitivity() != null) {
+            payload.put("resourceSensitivity", requestInfo.getResourceSensitivity());
+        }
+        if (requestInfo.getResourceBusinessLabel() != null) {
+            payload.put("resourceLabel", requestInfo.getResourceBusinessLabel());
+        }
+        if (requestInfo.getResourceAuthorText() != null) {
+            payload.put("resourceAuthorText", requestInfo.getResourceAuthorText());
+        }
+        if (requestInfo.getResourceScope() != null) {
+            payload.put("resourceScope", requestInfo.getResourceScope());
+        }
+        if (requestInfo.getClaimedRecord() != null) {
+            payload.put("claimedRecord", requestInfo.getClaimedRecord());
+        }
+        if (requestInfo.getRequestItems() != null) {
+            payload.put("requestItems", requestInfo.getRequestItems());
+        }
+        if (requestInfo.getResourceId() != null) {
+            payload.put("resourceId", requestInfo.getResourceId());
+        }
+        if (requestInfo.getTenantId() != null) {
+            payload.put("tenantId", requestInfo.getTenantId());
+        }
+        if (requestInfo.getOrganizationId() != null) {
+            payload.put("organizationId", requestInfo.getOrganizationId());
+        }
+        payload.put("mfaVerified", requestInfo.getMfaVerified());
+        if (requestInfo.getPreviousPath() != null) {
+            payload.put("previousPath", requestInfo.getPreviousPath());
+        }
+        if (requestInfo.getLastRequestIntervalMs() != null) {
+            payload.put("lastRequestIntervalMs", requestInfo.getLastRequestIntervalMs());
+        }
+        payload.put("userRoles", requestInfo.getUserRoles());
+        if (requestInfo.getServletPath() != null) {
+            payload.put("servletPath", requestInfo.getServletPath());
+        }
+        if (requestInfo.getQueryString() != null) {
+            payload.put("queryString", requestInfo.getQueryString());
+        }
+        populateBridgePayload(requestInfo, payload);
+        populateRequestContextHints(requestInfo, payload);
+        populateTestRunMarker(payload);
+
+        if (requestInfo.getGeoCountry() != null) {
+            payload.put("geoCountry", requestInfo.getGeoCountry());
+        }
+        if (requestInfo.getGeoCity() != null) {
+            payload.put("geoCity", requestInfo.getGeoCity());
+        }
+        if (requestInfo.getGeoLatitude() != null) {
+            payload.put("geoLatitude", requestInfo.getGeoLatitude());
+        }
+        if (requestInfo.getGeoLongitude() != null) {
+            payload.put("geoLongitude", requestInfo.getGeoLongitude());
+        }
+        if (Boolean.TRUE.equals(requestInfo.getImpossibleTravel())) {
+            payload.put("impossibleTravel", true);
+        }
+        // The move facts travel whether or not the host also calls the move impossible (W2-13).
+        putIfAbsent(payload, "travelDistanceKm", requestInfo.getTravelDistanceKm());
+        putIfAbsent(payload, "travelElapsedMinutes", requestInfo.getTravelElapsedMinutes());
+        putIfAbsent(payload, "previousLocation", requestInfo.getPreviousLocation());
+        promoteOfficialContextFields(requestInfo, payload);
     }
 
     /**
@@ -600,16 +638,19 @@ public class ZeroTrustEventPublisher {
     }
 
     private RequestInfo extractRequestInfoFromContext() {
+        return RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attrs
+                ? requestInfoOf(attrs.getRequest())
+                : null;
+    }
+
+    @Nullable
+    private RequestInfo requestInfoOf(@Nullable HttpServletRequest request) {
         try {
-            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-            if (attrs != null) {
-                HttpServletRequest request = attrs.getRequest();
-                return RequestInfoExtractor.extract(request, getSecurity());
-            }
+            return RequestInfoExtractor.extract(request, getSecurity());
         } catch (Exception e) {
             log.error("Failed to extract request info from context", e);
+            return null;
         }
-        return null;
     }
 
     private void populateBridgePayload(RequestInfo requestInfo, Map<String, Object> payload) {

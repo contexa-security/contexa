@@ -23,6 +23,7 @@ import io.contexa.contexacore.autonomous.context.support.VocabularyVersion;
 import io.contexa.contexacommon.domain.EventTimeZone;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
+import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import org.springframework.util.StringUtils;
 
@@ -128,7 +129,7 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
      */
     @Override
     public Optional<RoleScopeSnapshot> collect(SecurityEvent event) {
-        if (event == null || !StringUtils.hasText(event.getUserId())) {
+        if (event == null || !StringUtils.hasText(event.getUserId()) || isSignIn(event)) {
             return Optional.empty();
         }
         Optional<RoleScopeSnapshot> resolved = recorder.resolved(event, ContextObservationRecorder.ROLE_SCOPE,
@@ -192,6 +193,15 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
             store.setAuthorizationScopeState(tenantId, stateKey, authorizationState);
         });
         return snapshot;
+    }
+
+    /**
+     * How the user came in is no work of the user's role: the POST of a sign-in form would read as a WRITE of the role,
+     * compared with the role's work now and learned as its usual work later.
+     */
+    private static boolean isSignIn(SecurityEvent event) {
+        return event.getMetadata() != null
+                && ZeroTrustEventCategory.AUTHENTICATION.name().equals(event.getMetadata().get("zerotrust.category"));
     }
 
     private Optional<RoleScopeSnapshot> buildSnapshot(

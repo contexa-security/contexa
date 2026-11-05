@@ -160,6 +160,22 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
+    /**
+     * The stamps of a sign-in. This filter met the request before its authentication existed, and a sign-in usually ends
+     * the request there, so whoever sends the sign-in for analysis asks for them: the resolution of any request, with the
+     * authentication the sign-in put in the security context. Nothing of it may fail the sign-in.
+     */
+    public void resolveSignIn(HttpServletRequest request, Authentication authentication) {
+        if (shouldNotFilter(request)) {
+            return;
+        }
+        try {
+            resolveForTheRequest(request, null, authentication);
+        } catch (Exception | LinkageError | StackOverflowError e) {
+            reportFailure(e);
+        }
+    }
+
     private void reportFailure(Throwable failure) {
         long now = System.currentTimeMillis();
         long count = failures.incrementAndGet();
@@ -170,7 +186,7 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
         }
     }
 
-    private void resolveForTheRequest(HttpServletRequest request, HttpServletResponse response, Authentication auth) {
+    private void resolveForTheRequest(HttpServletRequest request, @Nullable HttpServletResponse response, Authentication auth) {
         request.setAttribute(
                 BridgeRequestAttributes.HOST_PRINCIPAL_SNAPSHOT,
                 HostPrincipalSnapshotAdapter.INSTANCE.snapshot(auth));
