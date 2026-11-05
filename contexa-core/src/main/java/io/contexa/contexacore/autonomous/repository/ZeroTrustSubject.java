@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.repository;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.security.subject.SubjectKind;
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
@@ -32,7 +33,8 @@ import java.util.Map;
  * its decisions are kept under a key of its own ({@code <user>::agent::<agent id>}, the shape of the agent's learning
  * key, A3-1): an agent's CHALLENGE or BLOCK never stops the person's own work, and the person's never answers the
  * agent's request. The delegation and the tenant are carried but not keyed: a token may name no delegation before its
- * record is looked up, and a person's key names no tenant either.
+ * record is looked up, and a person's key names no tenant either. A session of the HOST_OWNED console is keyed apart as
+ * well ({@code console::<user>}): its administrator and the application's user of that name are two people (Q-17).
  *
  * @param tenantId     the request's tenant, or null
  * @param userId       the request's user: the person a delegated agent acts for, or the subject's own identity
@@ -44,6 +46,9 @@ public record ZeroTrustSubject(@Nullable String tenantId, String userId, Subject
                                @Nullable String delegationId) {
 
     private static final String EVENT_SUBJECT_KIND = "executionSubjectKind";
+
+    /** What starts the key of a console session's decisions (Q-17). */
+    public static final String CONSOLE_KEY = "console::";
 
     public ZeroTrustSubject {
         if (!StringUtils.hasText(userId)) {
@@ -78,6 +83,9 @@ public record ZeroTrustSubject(@Nullable String tenantId, String userId, Subject
                                       @Nullable String tenantId) {
         if (!StringUtils.hasText(userId)) {
             return null;
+        }
+        if (ConsoleSession.current()) {
+            return new ZeroTrustSubject(null, userId, SubjectKind.CONSOLE_ADMIN, null, null);
         }
         if (stamp == null || !StringUtils.hasText(stamp.agentId())) {
             return person(userId);
@@ -147,8 +155,16 @@ public record ZeroTrustSubject(@Nullable String tenantId, String userId, Subject
         return kind == SubjectKind.DELEGATED_AGENT && agentId != null;
     }
 
-    /** The key the subject's decisions are stored under: the user ID, or the delegated agent's own key. */
+    /** Whether a session of the console acts (Q-17). */
+    public boolean console() {
+        return kind == SubjectKind.CONSOLE_ADMIN;
+    }
+
+    /** The key the subject's decisions are stored under: the user ID, or the delegated agent's or console's own key. */
     public String storageKey() {
+        if (console()) {
+            return CONSOLE_KEY + userId;
+        }
         return delegatedAgent() ? LearningSubject.agentKey(userId, agentId) : userId;
     }
 

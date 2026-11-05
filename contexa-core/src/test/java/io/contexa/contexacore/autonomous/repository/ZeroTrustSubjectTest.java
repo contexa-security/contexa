@@ -16,9 +16,15 @@
 package io.contexa.contexacore.autonomous.repository;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.security.subject.SubjectKind;
+import io.contexa.contexacore.autonomous.event.publisher.CanonicalExecutionEventMetadataSupport;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -29,6 +35,47 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /** docs/agent A5-1: whose decision a request reads and writes. */
 class ZeroTrustSubjectTest {
+
+    @AfterEach
+    void leaveTheRequest() {
+        RequestContextHolder.resetRequestAttributes();
+    }
+
+    @Test
+    void q17_aConsoleSessionIsKeptApartFromThePersonOfItsName() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/contexa/admin/users");
+        ConsoleSession.mark(request);
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        ZeroTrustSubject subject = ZeroTrustSubject.of("rcboss", (DelegationStamp) null);
+
+        assertThat(subject.console()).isTrue();
+        assertThat(subject.storageKey()).isEqualTo("console::rcboss");
+    }
+
+    @Test
+    void q17_aRequestOfTheApplicationIsThePersons() {
+        RequestContextHolder.setRequestAttributes(
+                new ServletRequestAttributes(new MockHttpServletRequest("GET", "/contexa/admin/users")));
+
+        assertThat(ZeroTrustSubject.of("rcboss", (DelegationStamp) null).storageKey()).isEqualTo("rcboss");
+    }
+
+    @Test
+    void q17_anEventOfTheConsoleNamesItsSubject() {
+        Map<String, Object> facts = CanonicalExecutionEventMetadataSupport.enrich(Map.of("consoleSession", true));
+
+        assertThat(facts.get("executionSubjectKind")).isEqualTo("CONSOLE_ADMIN");
+        assertThat(ZeroTrustSubject.ofFacts("rcboss", facts).storageKey()).isEqualTo("console::rcboss");
+    }
+
+    @Test
+    void q17_whatAConsoleSessionDecidesIsWrittenUnderItsOwnKey() {
+        assertThat(ZeroTrustSubject.of(event("rcboss", Map.of("executionSubjectKind", "CONSOLE_ADMIN"))).storageKey())
+                .isEqualTo("console::rcboss");
+        assertThat(ZeroTrustSubject.ofFacts("rcboss", Map.of("executionSubjectKind", "CONSOLE_ADMIN")).storageKey())
+                .isEqualTo("console::rcboss");
+    }
 
     @Test
     void aPersonAServiceClientAndAnAgentOnItsOwnKeepTheirUserId() {

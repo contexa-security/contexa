@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.event.publisher;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.AgentConfirmationFacts;
 import io.contexa.contexacommon.security.bridge.ArgumentOrigins;
+import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.CredentialFacts;
 import io.contexa.contexacore.autonomous.event.support.InvocationArguments;
@@ -412,7 +413,7 @@ public class ZeroTrustEventPublisher {
         if (actionRedisRepository != null && authentication != null) {
             // docs/agent A5-1: the decision in force for the request's subject, classified as the event records it.
             ZeroTrustSubject subject = ZeroTrustSubject.ofFacts(effectiveUserId,
-                    CanonicalExecutionEventMetadataSupport.enrich(payload));
+                    CanonicalExecutionEventMetadataSupport.enrich(consoleFact(payload)));
             ZeroTrustAction currentAction = subject != null ? subject.currentAction(actionRedisRepository)
                     : actionRedisRepository.getCurrentAction(effectiveUserId);
             if (currentAction != null) {
@@ -525,7 +526,7 @@ public class ZeroTrustEventPublisher {
             Map<String, Object> payload,
             Instant eventTimestamp) {
 
-        Map<String, Object> effectivePayload = CanonicalExecutionEventMetadataSupport.enrich(payload != null ? payload : Map.of());
+        Map<String, Object> effectivePayload = CanonicalExecutionEventMetadataSupport.enrich(consoleFact(payload));
         putAgentAccountability(effectivePayload);
 
         return ZeroTrustSpringEvent.builder(this)
@@ -1203,6 +1204,17 @@ public class ZeroTrustEventPublisher {
     private boolean isClassNameFallback(AuthenticationStamp authenticationStamp, String evidenceStateKey) {
         return BridgeSemanticBoundaryPolicy.CLASS_NAME_FALLBACK.equals(
                 authenticationStamp.attributes().get(evidenceStateKey));
+    }
+
+    /** Q-17: a request of the console's chain says so, as the subject of its event is told from the payload. */
+    private static Map<String, Object> consoleFact(Map<String, Object> payload) {
+        Map<String, Object> given = payload != null ? payload : Map.of();
+        if (!ConsoleSession.current()) {
+            return given;
+        }
+        Map<String, Object> marked = new HashMap<>(given);
+        marked.put("consoleSession", Boolean.TRUE);
+        return marked;
     }
 
     /**
