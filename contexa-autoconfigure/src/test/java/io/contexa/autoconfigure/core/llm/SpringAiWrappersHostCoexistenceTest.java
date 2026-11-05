@@ -20,12 +20,18 @@ import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.ai.ollama.api.OllamaApi;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+
+import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -36,6 +42,42 @@ import static org.mockito.Mockito.mock;
  * injections were given Contexa's wrappers, and an application with a primary model of its own did not start). Contexa's code names its beans.
  */
 class SpringAiWrappersHostCoexistenceTest {
+
+    private static final List<Class<?>> TYPES_ASKED_FOR = List.of(ChatModel.class, EmbeddingModel.class, ChatClient.class,
+            ChatClient.Builder.class, OllamaApi.class);
+
+    /**
+     * The real configuration, not the shape below: with Spring AI's Ollama and PgVector starters, the application's vector store
+     * met two embedding models and the application did not start, in the configuration the README gives.
+     */
+    @Test
+    @DisplayName("every model bean of Contexa stays out of what the application looks for by type")
+    void everyModelBeanOfContexaStaysOutOfWhatTheApplicationLooksFor() {
+        List<String> offered = Stream.concat(Stream.of(CoreLLMTieredAutoConfiguration.class),
+                        Arrays.stream(CoreLLMTieredAutoConfiguration.class.getDeclaredClasses()))
+                .flatMap(type -> Arrays.stream(type.getDeclaredMethods()))
+                .filter(method -> method.isAnnotationPresent(Bean.class))
+                .filter(method -> TYPES_ASKED_FOR.stream().anyMatch(type -> type.isAssignableFrom(method.getReturnType())))
+                .filter(method -> method.getAnnotation(Bean.class).defaultCandidate())
+                .map(Method::getName)
+                .toList();
+
+        assertThat(offered).isEmpty();
+    }
+
+    /** With a condition on the type, an application's ChatClient took the place of Contexa's, and Contexa refused to start. */
+    @Test
+    @DisplayName("an application's ChatClient does not take the place of Contexa's")
+    void anApplicationsChatClientDoesNotTakeThePlaceOfContexas() throws NoSuchMethodException {
+        Method method = Arrays.stream(CoreLLMTieredAutoConfiguration.class.getDeclaredMethods())
+                .filter(candidate -> "primaryChatClient".equals(candidate.getName()))
+                .findFirst()
+                .orElseThrow();
+
+        ConditionalOnMissingBean condition = method.getAnnotation(ConditionalOnMissingBean.class);
+        assertThat(condition.name()).containsExactly("contexaPrimaryChatClient");
+        assertThat(condition.value()).isEmpty();
+    }
 
     private final ApplicationContextRunner contexts = new ApplicationContextRunner().withUserConfiguration(TheApplication.class, ContexasWrappers.class);
 

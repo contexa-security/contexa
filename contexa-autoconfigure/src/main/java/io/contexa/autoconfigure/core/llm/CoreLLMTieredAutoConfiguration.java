@@ -182,7 +182,7 @@ public class CoreLLMTieredAutoConfiguration {
                                 + "Configure contexa.llm.selection.chat.priority or provide a ready chat runtime binding."));
     }
 
-    @Bean(name = "contexaPrimaryChatModel")
+    @Bean(name = "contexaPrimaryChatModel", defaultCandidate = false)
     @ConditionalOnMissingBean(name = "contexaPrimaryChatModel")
     @Conditional(AnyChatModelAvailableCondition.class)
     @ConditionalOnProperty(prefix = "contexa.llm.selection.chat", name = "mode", havingValue = "spring-primary")
@@ -224,8 +224,8 @@ public class CoreLLMTieredAutoConfiguration {
                 .defaultAdvisors(ThinkingGenerationAdvisor.INSTANCE);
     }
 
-    @Bean(name = "contexaPrimaryChatClient")
-    @ConditionalOnMissingBean
+    @Bean(name = "contexaPrimaryChatClient", defaultCandidate = false)
+    @ConditionalOnMissingBean(name = "contexaPrimaryChatClient")
     @ConditionalOnBean(name = "contexaPrimaryChatModel")
     public ChatClient primaryChatClient(@Qualifier("contexaPrimaryChatModel") ChatModel contexaPrimaryChatModel, AdvisorRegistry contexaAdvisorRegistry) {
         ChatClient.Builder builder = ChatClient.builder(contexaPrimaryChatModel, observationRegistry(), null, null)
@@ -319,7 +319,7 @@ public class CoreLLMTieredAutoConfiguration {
                         + "Configure contexa.llm.selection.embedding.mode=fixed and exactly one contexa.llm.selection.embedding.priority value.");
     }
 
-    @Bean(name = {"contexaPrimaryEmbeddingModel", "contexaEmbeddingModel"})
+    @Bean(name = {"contexaPrimaryEmbeddingModel", "contexaEmbeddingModel"}, defaultCandidate = false)
     @ConditionalOnMissingBean(name = {"contexaPrimaryEmbeddingModel", "contexaEmbeddingModel"})
     @Conditional(AnyEmbeddingModelAvailableCondition.class)
     @ConditionalOnProperty(prefix = "contexa.llm.selection.embedding", name = "mode", havingValue = "spring-primary")
@@ -400,7 +400,7 @@ public class CoreLLMTieredAutoConfiguration {
     @ConditionalOnClass(name = "org.springframework.ai.ollama.OllamaChatModel")
     public static class OllamaConfiguration {
 
-        @Bean(name = "contexaOllamaChatApi")
+        @Bean(name = "contexaOllamaChatApi", defaultCandidate = false)
         @ConditionalOnProperty(prefix = "contexa.llm.chat.ollama", name = "base-url")
         @ConditionalOnMissingBean(name = "contexaOllamaChatApi")
         public OllamaApi contexaOllamaChatApi(
@@ -417,7 +417,7 @@ public class CoreLLMTieredAutoConfiguration {
             );
         }
 
-        @Bean(name = "contexaOllamaChatModel")
+        @Bean(name = "contexaOllamaChatModel", defaultCandidate = false)
         @ConditionalOnBean(name = "contexaOllamaChatApi")
         @ConditionalOnMissingBean(name = "contexaOllamaChatModel")
         public OllamaChatModel contexaOllamaChatModel(
@@ -443,7 +443,7 @@ public class CoreLLMTieredAutoConfiguration {
             return model;
         }
 
-        @Bean(name = "contexaDedicatedEmbeddingOllamaApi")
+        @Bean(name = "contexaDedicatedEmbeddingOllamaApi", defaultCandidate = false)
         @ConditionalOnProperty(prefix = "contexa.llm.embedding.ollama", name = "dedicated-runtime-enabled", havingValue = "true")
         @ConditionalOnMissingBean(name = "contexaDedicatedEmbeddingOllamaApi")
         public OllamaApi contexaDedicatedEmbeddingOllamaApi(
@@ -457,7 +457,7 @@ public class CoreLLMTieredAutoConfiguration {
                     responseErrorHandlerProvider.getIfAvailable(DefaultResponseErrorHandler::new));
         }
 
-        @Bean(name = "contexaDedicatedOllamaEmbeddingModel")
+        @Bean(name = "contexaDedicatedOllamaEmbeddingModel", defaultCandidate = false)
         @ConditionalOnProperty(prefix = "contexa.llm.embedding.ollama", name = "dedicated-runtime-enabled", havingValue = "true")
         @ConditionalOnMissingBean(name = "contexaDedicatedOllamaEmbeddingModel")
         public OllamaEmbeddingModel contexaDedicatedOllamaEmbeddingModel(
@@ -474,7 +474,7 @@ public class CoreLLMTieredAutoConfiguration {
             return model;
         }
 
-        @Bean(name = "contexaSharedOllamaEmbeddingModel")
+        @Bean(name = "contexaSharedOllamaEmbeddingModel", defaultCandidate = false)
         @ConditionalOnBean(name = "contexaOllamaChatApi")
         @ConditionalOnMissingBean(name = "contexaSharedOllamaEmbeddingModel")
         public OllamaEmbeddingModel contexaSharedOllamaEmbeddingModel(
