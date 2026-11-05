@@ -29,7 +29,7 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
  * A CHALLENGE also lapses with its TTL; an ESCALATE whose TTL ends without resolution is promoted to
  * BLOCK by the access filter.</p>
  */
-final class ZeroTrustActionPrecedence {
+public final class ZeroTrustActionPrecedence {
 
     private ZeroTrustActionPrecedence() {
     }
@@ -46,7 +46,7 @@ final class ZeroTrustActionPrecedence {
      * Returns whether a final analysis result must not replace the active action because the
      * active action is a user-level BLOCK, CHALLENGE or ESCALATE and the result is less strict.
      */
-    static boolean keepsActiveRestriction(ZeroTrustAction active, ZeroTrustAction incoming) {
+    public static boolean keepsActiveRestriction(ZeroTrustAction active, ZeroTrustAction incoming) {
         return (active == ZeroTrustAction.BLOCK || active == ZeroTrustAction.CHALLENGE
                 || active == ZeroTrustAction.ESCALATE)
                 && incoming != null

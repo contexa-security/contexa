@@ -308,6 +308,34 @@ class AgentFlightsServiceTest {
         assertThat(result.action()).isEqualTo(ZeroTrustAction.BLOCK);
     }
 
+    /** PR-86: a failure of the flights leaves the request to its own analysis, which has no final gate of the flights. */
+    @Test
+    void aRequestAnalysedOnItsOwnAfterAFlightsFailureIsStillAnsweredByTheRestrictionStored() throws Exception {
+        SynchronousProtectableDecisionService service = service(true, 3, 20, 5_000, 3);
+        beforeAnswer = () -> stored.set(ZeroTrustAction.BLOCK);
+        when(repository.getCurrentAction(eq(USER), eq(CONTEXT)))
+                .thenThrow(new IllegalStateException("The store cannot be read"))
+                .thenAnswer(call -> stored.get());
+        current.set(request("DELEGATED_AGENT", "/api/customers/CUS-1", true, "SENSITIVE", null));
+
+        SyncDecisionResult result = service.analyze(invocation, authentication);
+
+        assertThat(result.action()).isEqualTo(ZeroTrustAction.BLOCK);
+    }
+
+    /** PR-86: an ALLOW the store kept out leaves an anchor, and an anchor only reaches as far as an ALLOW in force. */
+    @Test
+    void theAnchorOfAnAllowKeptOutAnswersNothingWhileTheRestrictionStands() throws Exception {
+        SynchronousProtectableDecisionService service = service(true, 3, 20, 5_000, 3);
+        beforeAnswer = () -> stored.set(ZeroTrustAction.CHALLENGE);
+        current.set(request("DELEGATED_AGENT", "/api/docs/1", true, null, null));
+
+        assertThat(service.analyze(invocation, authentication).action()).isEqualTo(ZeroTrustAction.CHALLENGE);
+
+        assertThat(gate(service, request("DELEGATED_AGENT", "/api/docs/1", false, null, null)).restriction())
+                .isEqualTo(ZeroTrustAction.CHALLENGE);
+    }
+
     // SV-06 (PB-01, PB-03..PB-07)
     @Test
     void theGatePassesAFewExplicitNonSensitiveReadsAndDecidesTheRestInPlace() {

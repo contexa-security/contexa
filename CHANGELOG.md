@@ -25,6 +25,11 @@ The format is based on Keep a Changelog and the project follows semantic version
   starts, and keep a backup as for any upgrade.
 - `spring.ai.vectorstore.pgvector.table-name` and `contexa.rag.etl.vector-table-name` default to `ctxa_vector_store`; a
   configuration that names `vector_store` explicitly points at a table Contexa no longer creates.
+- **A request decided in place no longer passes under a stricter decision stored meanwhile.** When a CHALLENGE, an
+  ESCALATE or a BLOCK is stored for the user while another of the user's calls is being decided, that call is answered
+  with the stored decision, whichever session it came from, in memory and on Redis alike. The audit record of the call
+  keeps the decision of its analysis, marked as kept out where the agent decision record shows it. A CHALLENGE an agent's
+  accountable person confirmed, a shadow boundary and an ALLOW of another session change nothing.
 
 ### Added
 
