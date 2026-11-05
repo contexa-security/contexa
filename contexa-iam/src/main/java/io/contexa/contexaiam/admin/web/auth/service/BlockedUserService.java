@@ -28,6 +28,7 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
@@ -299,7 +300,8 @@ public class BlockedUserService implements IBlockedUserRecorder {
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     /**
      * Q-1: an administrator lifts a CHALLENGE, for a user who has no way to answer it, in every session of the user. It
-     * says nothing about the request that was stopped, so nothing is learned from it.
+     * says nothing about the request that was stopped, so nothing is learned from it. The administrator names a person;
+     * a console session's CHALLENGE, kept apart from the person of that name, is named by its key.
      *
      * @return false when no CHALLENGE stands
      */
@@ -307,9 +309,10 @@ public class BlockedUserService implements IBlockedUserRecorder {
         if (userId == null || userId.isBlank() || reason == null || reason.isBlank()) {
             throw new IllegalArgumentException("A user and a reason are required");
         }
-        String user = userId.trim();
-        if (actionRedisRepository.getActionFromHash(user) != ZeroTrustAction.CHALLENGE
-                && actionRedisRepository.challengeHeldSince(user) == null) {
+        String typed = userId.trim();
+        String person = ZeroTrustUserKey.person(typed);
+        String user = underChallenge(person) ? person : !person.equals(typed) && underChallenge(typed) ? typed : null;
+        if (user == null) {
             return false;
         }
         actionRedisRepository.approveOverrideAtomically(user, ZeroTrustAction.ALLOW);
@@ -331,6 +334,11 @@ public class BlockedUserService implements IBlockedUserRecorder {
             log.error("[BlockedUserService] Failed to audit a released challenge: userId={}", user, e);
         }
         return true;
+    }
+
+    private boolean underChallenge(String key) {
+        return actionRedisRepository.getActionFromHash(key) == ZeroTrustAction.CHALLENGE
+                || actionRedisRepository.challengeHeldSince(key) != null;
     }
 
     @Protectable(verificationRequired = false)

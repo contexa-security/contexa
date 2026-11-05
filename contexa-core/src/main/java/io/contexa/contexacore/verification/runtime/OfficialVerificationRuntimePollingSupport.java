@@ -2,6 +2,7 @@ package io.contexa.contexacore.verification.runtime;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.domain.entity.PromptContextAuditForwardingOutboxRecord;
 import io.contexa.contexacore.domain.entity.SecurityDecisionForwardingOutboxRecord;
 import io.contexa.contexacore.repository.PromptContextAuditForwardingOutboxRepository;
@@ -257,7 +258,7 @@ public final class OfficialVerificationRuntimePollingSupport {
         Instant deadline = Instant.now().plus(timeout);
         while (Instant.now().isBefore(deadline)) {
             ZeroTrustActionRepository.ZeroTrustAnalysisData analysisData =
-                    zeroTrustActionRepository.getAnalysisData(subjectId);
+                    zeroTrustActionRepository.getAnalysisData(ZeroTrustUserKey.person(subjectId));
             if (analysisData != null
                     && StringUtils.hasText(analysisData.requestId())
                     && requestId.equals(analysisData.requestId())

@@ -41,6 +41,7 @@ import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
@@ -502,6 +503,20 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
             ArgumentCaptor<String> record = ArgumentCaptor.forClass(String.class);
             verify(dataStore).addSessionAction(eq("session-1"), record.capture());
             assertThat(record.getValue()).contains("ZERO_TRUST_CHALLENGE_VERIFIED");
+        }
+
+        @Test
+        @DisplayName("the MFA of a user named as the console's key answers the user's CHALLENGE, not the console's")
+        void challengeMfaOfAUserNamedAsAnInternalKeyAnswersThatUsersChallenge() throws Exception {
+            String own = ZeroTrustUserKey.person("console::rcboss");
+            when(actionRepository.getActionFromHash(own)).thenReturn(ZeroTrustAction.CHALLENGE);
+            FactorContext factorContext = completedFactorContext(true);
+
+            handler().complete(requestWithSession(), new MockHttpServletResponse(),
+                    new TestingAuthenticationToken("console::rcboss", "pw", "ROLE_USER"), factorContext);
+
+            verify(actionRepository).saveActionWithPrevious(eq(own), eq(ZeroTrustAction.ALLOW), any());
+            verify(actionRepository, never()).saveActionWithPrevious(eq("console::rcboss"), any(), any());
         }
 
         @Test

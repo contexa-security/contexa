@@ -2,11 +2,13 @@ package io.contexa.contexacore.autonomous.service;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.security.baseline.BaselineVector;
+import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 import io.contexa.contexacore.autonomous.baseline.store.InMemoryBaselineDataStore;
 import io.contexa.contexacore.autonomous.blocking.InMemoryBlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.store.InMemoryBlockMfaStateStore;
 import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.Filter;
@@ -108,6 +110,33 @@ class UserEngineStatePurgerTest {
         assertThat(result.complete()).isTrue();
         verify(vectorStore).delete(new FilterExpressionBuilder().eq("userId", quoted).build());
         assertThat(baselines.getUserBaseline(quoted)).isNull();
+    }
+
+    @Test
+    void thePurgeOfAPersonNamedAsAnInternalKeyTakesThePersonsStateAndLeavesThatKeys() {
+        String name = "console::admin";
+        String own = ZeroTrustUserKey.person(name);
+        for (String key : List.of(name, own)) {
+            actions.saveAction(key, ZeroTrustAction.BLOCK, null);
+            actions.setBlockedFlag(key);
+            broadcaster.registerBlock(key);
+            blockMfa.setVerified(key);
+            baselines.saveUserBaseline(key, BaselineVector.builder().userId(key).build());
+        }
+        actions.saveAction(LearningSubject.agentKey(name, "report-agent"), ZeroTrustAction.BLOCK, null);
+
+        assertThat(purger(List.of()).purge(name).complete()).isTrue();
+
+        assertThat(actions.getCurrentAction(own, "any-context")).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+        assertThat(actions.getCurrentAction(LearningSubject.agentKey(name, "report-agent")))
+                .isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+        assertThat(broadcaster.isBlocked(own)).isFalse();
+        assertThat(blockMfa.isVerified(own)).isFalse();
+        assertThat(baselines.getUserBaseline(own)).isNull();
+        assertThat(actions.getCurrentAction(name, "any-context")).isEqualTo(ZeroTrustAction.BLOCK);
+        assertThat(broadcaster.isBlocked(name)).isTrue();
+        assertThat(blockMfa.isVerified(name)).isTrue();
+        assertThat(baselines.getUserBaseline(name)).isNotNull();
     }
 
     @Test

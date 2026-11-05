@@ -27,6 +27,7 @@ import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
@@ -175,6 +176,11 @@ public class ChallengeResolution {
      */
     private void learnStepUp(String userId, HttpServletRequest request, @Nullable String originalIp,
                              @Nullable String challengedRequestId) {
+        // Only a key that is the name itself names the person to learn for: a console session's key, or a moved name's,
+        // would be learned as a name of that spelling, another person's.
+        if (!userId.equals(ZeroTrustUserKey.person(userId))) {
+            return;
+        }
         VerificationLearningService verificationLearning = verificationLearningService.get();
         if (verificationLearning != null && verificationLearning.learnStepUp(userId, challengedRequestId)) {
             return;

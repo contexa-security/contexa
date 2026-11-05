@@ -19,6 +19,7 @@ import io.contexa.contexacommon.security.baseline.BaselineVector;
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 import io.contexa.contexacore.autonomous.store.ExpiringKeySpace;
 import io.contexa.contexacore.autonomous.store.ExpiringStateStore;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -91,11 +92,13 @@ public class InMemoryBaselineDataStore implements BaselineDataStore, ExpiringSta
     @Override
     public void deleteUserBaseline(String userId) {
         if (userId != null) {
-            userBaselines.remove(userId);
-            // The user's baselines under every tenant (W5-10 D9).
-            userBaselines.removeIf(key -> key.endsWith(TENANT_SEPARATOR + userId));
+            String userKey = ZeroTrustUserKey.person(userId);
+            userBaselines.remove(userKey);
+            // The user's baselines under every tenant (W5-10 D9); an agent that bears the user's name ends the same way.
+            String agentOfThatName = LearningSubject.AGENT_KEY + userKey;
+            userBaselines.removeIf(key -> key.endsWith(TENANT_SEPARATOR + userKey) && !key.endsWith(agentOfThatName));
             // docs/agent A3-1: the baselines of the agents acting for the user, in every tenant.
-            String agentKeys = userId + LearningSubject.AGENT_KEY;
+            String agentKeys = userKey + LearningSubject.AGENT_KEY;
             userBaselines.removeIf(key -> key.startsWith(agentKeys)
                     || key.contains(TENANT_SEPARATOR + agentKeys));
         }

@@ -21,6 +21,7 @@ import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.security.subject.SubjectKind;
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import org.springframework.lang.Nullable;
 import org.springframework.util.StringUtils;
 
@@ -34,7 +35,8 @@ import java.util.Map;
  * key, A3-1): an agent's CHALLENGE or BLOCK never stops the person's own work, and the person's never answers the
  * agent's request. The delegation and the tenant are carried but not keyed: a token may name no delegation before its
  * record is looked up, and a person's key names no tenant either. A session of the HOST_OWNED console is keyed apart as
- * well ({@code console::<user>}): its administrator and the application's user of that name are two people (Q-17).
+ * well ({@code console::<user>}): its administrator and the application's user of that name are two people (Q-17). A
+ * name spelled as one of these keys is kept off it by {@link ZeroTrustUserKey#person}.
  *
  * @param tenantId     the request's tenant, or null
  * @param userId       the request's user: the person a delegated agent acts for, or the subject's own identity
@@ -144,7 +146,7 @@ public record ZeroTrustSubject(@Nullable String tenantId, String userId, Subject
 
     private ZeroTrustAction withDelegatorBlock(ZeroTrustActionRepository repository, ZeroTrustAction action) {
         if (delegatedAgent() && action != ZeroTrustAction.BLOCK
-                && repository.getCurrentAction(userId) == ZeroTrustAction.BLOCK) {
+                && repository.getCurrentAction(ZeroTrustUserKey.person(userId)) == ZeroTrustAction.BLOCK) {
             return ZeroTrustAction.BLOCK;
         }
         return action;
@@ -160,12 +162,12 @@ public record ZeroTrustSubject(@Nullable String tenantId, String userId, Subject
         return kind == SubjectKind.CONSOLE_ADMIN;
     }
 
-    /** The key the subject's decisions are stored under: the user ID, or the delegated agent's or console's own key. */
+    /** The key the subject's decisions are stored under: the user ID's, or the delegated agent's or console's own key. */
     public String storageKey() {
         if (console()) {
-            return CONSOLE_KEY + userId;
+            return CONSOLE_KEY + ZeroTrustUserKey.person(userId);
         }
-        return delegatedAgent() ? LearningSubject.agentKey(userId, agentId) : userId;
+        return delegatedAgent() ? LearningSubject.agentKey(userId, agentId) : ZeroTrustUserKey.person(userId);
     }
 
     private static SubjectKind kindOf(@Nullable Object value) {

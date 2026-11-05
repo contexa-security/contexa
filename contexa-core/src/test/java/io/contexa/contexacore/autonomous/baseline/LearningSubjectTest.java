@@ -58,6 +58,24 @@ class LearningSubjectTest {
     }
 
     @Test
+    void aPersonNamedAsAnAgentsKeyLearnsApartFromTheAgent() {
+        LearningSubject agent = LearningSubject.of(event("alice", Map.of("executionSubjectKind", "DELEGATED_AGENT",
+                "agentId", "report-agent", "tenantId", "t-1")));
+        LearningSubject person = LearningSubject.of(event("alice::agent::report-agent",
+                Map.of("executionSubjectKind", "HUMAN_USER", "tenantId", "t-1")));
+
+        assertThat(person.key()).isNotEqualTo(agent.key());
+        assertThat(person.tenantKey()).isNotEqualTo(agent.tenantKey());
+        assertThat(person.userId()).as("what is recorded keeps the name").isEqualTo("alice::agent::report-agent");
+    }
+
+    @Test
+    void theAgentOfAPersonNamedAsAKeyLearnsApartFromAnotherPersonsAgent() {
+        assertThat(LearningSubject.agentKey("alice::agent::x", "bot"))
+                .isNotEqualTo(LearningSubject.agentKey("alice", "x::agent::bot"));
+    }
+
+    @Test
     void theDelegationOfRecordNamesTheDelegationWhenTheRequestDoesNot() {
         Map<String, Object> attributes = new LinkedHashMap<>();
         attributes.put(RecordedDelegationContextProvider.RECORD_ID_ATTRIBUTE, "DLG-9");

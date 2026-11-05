@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexaidentity.security.token.dto.TokenPair;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportResult;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportStrategy;
@@ -266,7 +267,7 @@ public class OAuth2TokenService implements TokenService {
         if (repository == null) {
             return;
         }
-        ZeroTrustAction action = repository.getCurrentAction(principalName);
+        ZeroTrustAction action = repository.getCurrentAction(ZeroTrustUserKey.person(principalName));
         if (action == ZeroTrustAction.BLOCK || action == ZeroTrustAction.ESCALATE) {
             throw new OAuth2AuthenticationException(new OAuth2Error(OAuth2ErrorCodes.ACCESS_DENIED,
                     "Token refresh is not allowed while the zero trust action is " + action, null));

@@ -30,6 +30,7 @@ import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
 import io.contexa.contexacore.autonomous.context.support.VocabularyMigration;
 import io.contexa.contexacore.autonomous.context.support.VocabularyVersion;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.RequiredArgsConstructor;
@@ -172,11 +173,12 @@ public class BaselineLearningService {
     private LearnedBaseline learnPersonal(String userId, String key, SecurityDecision decision, SecurityEvent event) {
         BaselineDataStore.BaselineRead read = readPersonal(key);
         boolean earlierKey = false;
+        String earlier = ZeroTrustUserKey.person(userId);
         // An agent's key has no earlier form: the user's own earlier key is the person's, never the agent's (A3-1).
-        if (read.state() == BaselineDataStore.BaselineRead.State.ABSENT && !key.equals(userId)
+        if (read.state() == BaselineDataStore.BaselineRead.State.ABSENT && !key.equals(earlier)
                 && !agentRequest(userId, event)) {
             // A baseline learned before the tenant key is read and moved under it (W5-10 D9).
-            read = readPersonal(userId);
+            read = readPersonal(earlier);
             earlierKey = read.baseline() != null;
         }
         if (read.isFailed()) {
@@ -197,7 +199,7 @@ public class BaselineLearningService {
         }
         if (earlierKey) {
             // The earlier key goes, so that the baseline is not counted twice nor left behind by an account purge.
-            baselineDataStore.deleteUserBaselineKey(userId);
+            baselineDataStore.deleteUserBaselineKey(earlier);
         }
         return new LearnedBaseline(current, updated);
     }
@@ -993,7 +995,7 @@ public class BaselineLearningService {
         if (baselineDataStore == null || userId == null) {
             return null;
         }
-        return baselineDataStore.getUserBaseline(userId);
+        return baselineDataStore.getUserBaseline(ZeroTrustUserKey.person(userId));
     }
 
     /**
@@ -1005,9 +1007,10 @@ public class BaselineLearningService {
             return null;
         }
         String key = personalKey(userId, event);
+        String earlier = ZeroTrustUserKey.person(userId);
         BaselineVector baseline = baselineDataStore.getUserBaseline(key);
-        BaselineVector read = baseline != null || key.equals(userId) || agentRequest(userId, event)
-                ? baseline : baselineDataStore.getUserBaseline(userId);
+        BaselineVector read = baseline != null || key.equals(earlier) || agentRequest(userId, event)
+                ? baseline : baselineDataStore.getUserBaseline(earlier);
         // docs/agent A3-8: a quarantined agent's baseline is not read.
         if (learningQuarantine.test(LearningSubject.of(event, userId))) {
             return null;

@@ -19,6 +19,7 @@ import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
@@ -99,7 +100,7 @@ public class RiskSignalReceiver {
 
     private void invalidate(String user, String type) {
         // A restriction in force stays; an ALLOW or a pending decision goes, so the next request is decided again.
-        actions.removeLogoutData(user);
+        actions.removeLogoutData(ZeroTrustUserKey.person(user));
         if (zeroTrust != null) {
             zeroTrust.invalidateDecisionCache(user);
             if (SecurityEventToken.endsSessions(type)) {

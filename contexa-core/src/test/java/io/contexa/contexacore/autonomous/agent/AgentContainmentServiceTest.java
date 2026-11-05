@@ -24,6 +24,7 @@ import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -222,6 +223,27 @@ class AgentContainmentServiceTest {
         assertThat(actions.getCurrentAction("sync-client")).isNotEqualTo(ZeroTrustAction.BLOCK);
         assertThatThrownBy(() -> containment.releaseDelegatedAgent(" ", "report-agent", "admin", "x"))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void theKeyOfAConfirmationIsTheKeyOfTheDecisions() {
+        AgentConfirmation person = new AgentConfirmation("c-1", null, "AUTONOMOUS_AGENT", "console::bot", "agent-1", null,
+                "carol", "hash", "POST", "/orders", "trigger", "reason", null, AgentConfirmation.Status.PENDING,
+                Instant.parse("2026-11-05T10:00:00Z"), Instant.parse("2026-11-05T11:00:00Z"), null, null, null, null, null);
+
+        assertThat(person.subjectKey()).isEqualTo(ZeroTrustUserKey.person("console::bot"));
+    }
+
+    @Test
+    void releasingAnAgentNamedAsAnInternalKeyLeavesThatKeysDecisions() {
+        actions.saveAction("console::admin", ZeroTrustAction.BLOCK, Map.of());
+        actions.saveAction(ZeroTrustUserKey.person("console::admin"), ZeroTrustAction.BLOCK, Map.of());
+
+        containment.releaseAgent(null, "console::admin", "admin", "reviewed");
+
+        assertThat(actions.getCurrentAction("console::admin")).isEqualTo(ZeroTrustAction.BLOCK);
+        assertThat(actions.getCurrentAction(ZeroTrustUserKey.person("console::admin")))
+                .isNotEqualTo(ZeroTrustAction.BLOCK);
     }
 
     @Test

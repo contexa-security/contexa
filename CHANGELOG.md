@@ -8,6 +8,16 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A user's name can no longer reach the decisions of a console session or an agent.** A console session keeps its
+  decisions under `console::<user>` and an agent acting for a person under `<user>::agent::<agent id>`, and a user is kept
+  under the name. A user named `console::admin` therefore shared the console administrator's key: a BLOCK of that user
+  threw the administrator out of the console, and a delegated agent's decisions could reach a user named as its key in
+  the same way. A name that reads as such a key, in any spelling, now has a key of its own (`ctxa-user::` and the name
+  spelled out), in the decisions, the block flags and signals, the block records and the learning. So does a name that
+  contains `agent::` or starts with `ctxa-user::`. Every other name keeps its key, so what is stored under it stays. What
+  was stored for a user named so before this version cannot be told from what the console or the agent stored: it stays
+  under that key and the user starts again. Deleting a user also no longer removes the learning of an agent whose id is
+  the user's name.
 - **A sign-in flow no longer mails a code in another user's name.** The name of a code request comes from the form, and it
   was compared with the flow only after the mail had gone: a user could send anyone a code from their own sign-in. A flow
   now asks for the code of its own user, and any other name is refused before a code is made.

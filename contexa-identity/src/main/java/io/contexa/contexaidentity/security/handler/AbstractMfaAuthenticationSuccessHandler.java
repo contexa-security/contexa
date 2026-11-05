@@ -42,6 +42,7 @@ import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import org.springframework.beans.factory.ObjectProvider;
 import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
@@ -174,7 +175,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 request.setAttribute("mfaSessionReleased", true);
             }
 
-            String userId = finalAuthentication.getName();
+            String userId = ZeroTrustUserKey.person(finalAuthentication.getName());
             if (factorContext != null && factorContext.isCompleted()) {
                 Boolean blockMfaFlow = (Boolean) factorContext.getAttribute(ZeroTrustAccessControlFilter.BLOCK_MFA_FLOW_ATTRIBUTE);
                 if (Boolean.TRUE.equals(blockMfaFlow)) {

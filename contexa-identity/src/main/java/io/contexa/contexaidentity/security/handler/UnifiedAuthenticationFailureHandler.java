@@ -30,6 +30,7 @@ import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
@@ -280,7 +281,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
     private void handleBlockMfaFailure(HttpServletRequest request,
                                         HttpServletResponse response,
                                         FactorContext factorContext) throws IOException {
-        String userId = factorContext.getUsername();
+        String userId = ZeroTrustUserKey.person(factorContext.getUsername());
         long failCount = actionRedisRepository.incrementBlockMfaFailCount(userId);
 
         if (failCount >= MAX_BLOCK_MFA_ATTEMPTS) {

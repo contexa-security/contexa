@@ -18,6 +18,7 @@ package io.contexa.contexaidentity.security.zerotrust;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexaidentity.security.handler.login.LoginFactsDetails;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.core.Authentication;
@@ -59,7 +60,7 @@ public class PasskeyRegistrationGate {
     public Verdict verdict(HttpServletRequest request, Authentication authentication) {
         boolean canVerify = verificationAvailable.getAsBoolean();
         if (enforcing.getAsBoolean()) {
-            ZeroTrustAction action = actions.getCurrentAction(authentication.getName(),
+            ZeroTrustAction action = actions.getCurrentAction(ZeroTrustUserKey.person(authentication.getName()),
                     SessionFingerprintUtil.generateContextBindingHash(request));
             if (action == ZeroTrustAction.BLOCK || action == ZeroTrustAction.ESCALATE) {
                 return Verdict.REFUSED;

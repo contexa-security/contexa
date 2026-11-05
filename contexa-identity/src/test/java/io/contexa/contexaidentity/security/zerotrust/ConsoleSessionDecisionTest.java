@@ -19,12 +19,15 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -119,6 +122,50 @@ class ConsoleSessionDecisionTest {
 
         request("/contexa/admin/api/blacklist/1/resolve", true);
         assertThat(passed).isTrue();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"console::rcboss", "CONSOLE::RCBOSS", "ｃｏｎｓｏｌｅ::rcboss", " console::rcboss "})
+    @DisplayName("the BLOCK of an application user named as the console's key leaves the console open and stops that user")
+    void aBlockOfAUserNamedAsTheConsolesKey(String name) throws Exception {
+        blocked(ZeroTrustUserKey.person(name));
+
+        request("/contexa/admin/users", true);
+        assertThat(passed).as("the administrator").isTrue();
+
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(name, "x", "ROLE_USER"));
+        request("/orders", false);
+        assertThat(passed).as("the application's user").isFalse();
+    }
+
+    @Test
+    @DisplayName("the BLOCK of the console leaves the application user named as its key alone")
+    void aConsoleBlockLeavesTheUserNamedAsItsKey() throws Exception {
+        blocked("console::rcboss");
+        SecurityContextHolder.getContext()
+                .setAuthentication(new TestingAuthenticationToken("console::rcboss", "x", "ROLE_USER"));
+
+        request("/orders", false);
+
+        assertThat(passed).isTrue();
+    }
+
+    @Test
+    @DisplayName("an application user named as an agent's key is stopped by no BLOCK of that agent, nor the agent by the user's")
+    void anAgentsBlockAndTheUserNamedAsItsKeyStayApart() throws Exception {
+        blocked("alice::agent::report-agent");
+        SecurityContextHolder.getContext()
+                .setAuthentication(new TestingAuthenticationToken("alice::agent::report-agent", "x", "ROLE_USER"));
+
+        request("/orders", false);
+        assertThat(passed).isTrue();
+
+        actions.removeAllUserData("alice::agent::report-agent");
+        blocked(ZeroTrustUserKey.person("alice::agent::report-agent"));
+
+        assertThat(actions.getCurrentAction("alice::agent::report-agent")).isNotEqualTo(ZeroTrustAction.BLOCK);
+        request("/orders", false);
+        assertThat(passed).isFalse();
     }
 
     @Test

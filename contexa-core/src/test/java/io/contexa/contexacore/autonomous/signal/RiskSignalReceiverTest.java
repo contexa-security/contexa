@@ -20,6 +20,7 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -95,6 +96,19 @@ class RiskSignalReceiverTest {
         assertThat(RiskSignalReceiver.userOf(Map.of("format", "complex", "user", issSub("dave")), null))
                 .isEqualTo("dave");
         assertThat(RiskSignalReceiver.userOf(Map.of("format", "opaque", "id", "erin"), null)).isEqualTo("erin");
+    }
+
+    @Test
+    void aSignalNamingAPersonInTheFormOfAnInternalKeyStaysOffThatKey() {
+        String own = ZeroTrustUserKey.person("console::admin");
+        actions.saveAction("console::admin", ZeroTrustAction.ALLOW, Map.of());
+        actions.saveAction(own, ZeroTrustAction.ALLOW, Map.of());
+
+        receiver.receive(token("jti-5", Map.of(
+                SecurityEventToken.TOKEN_CLAIMS_CHANGE, Map.of("subject", issSub("console::admin")))));
+
+        assertThat(actions.getCurrentAction("console::admin")).isEqualTo(ZeroTrustAction.ALLOW);
+        assertThat(actions.getCurrentAction(own)).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
     }
 
     @Test

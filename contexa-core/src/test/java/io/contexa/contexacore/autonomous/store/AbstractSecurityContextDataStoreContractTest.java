@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.store;
 
 import java.time.Instant;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -503,6 +504,52 @@ abstract class AbstractSecurityContextDataStoreContractTest {
         assertThat(store.promotionLearning("erin::agent::agt-1")).isEmpty();
         assertThat(store.getRecentWorkProfileObservations("tenant-a", "frank::agent::agt-1", 10)).hasSize(1);
         assertThat(store.promotionLearning("frank::agent::agt-1")).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("deleting a user leaves what an agent that bears the user's name learned")
+    void deleteUserData_leavesTheAgentOfThatName() {
+        store.addWorkProfileObservation("tenant-a", "ivy", "{\"path\":\"/documents\"}");
+        store.addWorkProfileObservation(null, "erin::agent::ivy", "{\"path\":\"/documents\"}");
+        store.addWorkProfileObservation("tenant-a", "erin::agent::ivy", "{\"path\":\"/exports\"}");
+        store.addPermissionChangeObservation("tenant-a", "erin::agent::ivy", "{\"role\":\"SCOPE_READ\"}");
+        store.setAuthorizationScopeState("tenant-a", "erin::agent::ivy", "{\"scope\":\"read\"}");
+        store.holdPromotionLearning("tenant-a::ivy", "request-1", "{}");
+        store.holdPromotionLearning("tenant-a::erin::agent::ivy", "request-2", "{}");
+
+        store.deleteUserData("ivy");
+
+        assertThat(store.getRecentWorkProfileObservations("tenant-a", "ivy", 10)).isEmpty();
+        assertThat(store.promotionLearning("tenant-a::ivy")).isEmpty();
+        assertThat(store.getRecentWorkProfileObservations(null, "erin::agent::ivy", 10)).hasSize(1);
+        assertThat(store.getRecentWorkProfileObservations("tenant-a", "erin::agent::ivy", 10)).hasSize(1);
+        assertThat(store.getRecentPermissionChangeObservations("tenant-a", "erin::agent::ivy", 10)).hasSize(1);
+        assertThat(store.getAuthorizationScopeState("tenant-a", "erin::agent::ivy")).isNotNull();
+        assertThat(store.promotionLearning("tenant-a::erin::agent::ivy")).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("deleting a user named as an agent's key takes what the user left and leaves what the agent learned")
+    void deleteUserData_ofAUserNamedAsAnAgentsKeyLeavesTheAgent() {
+        String name = "erin::agent::agt-1";
+        String own = ZeroTrustUserKey.person(name);
+        store.addWorkProfileObservation("tenant-a", name, "{\"path\":\"/documents\"}");
+        store.setAuthorizationScopeState("tenant-a", name, "{\"scope\":\"read\"}");
+        store.holdPromotionLearning(name, "request-1", "{}");
+        store.addWorkProfileObservation("tenant-a", own, "{\"path\":\"/exports\"}");
+        store.setAuthorizationScopeState("tenant-a", own, "{\"scope\":\"write\"}");
+        store.holdPromotionLearning(own, "request-2", "{}");
+        store.setLastRequestTime(name, 1_000L);
+
+        store.deleteUserData(name);
+
+        assertThat(store.getRecentWorkProfileObservations("tenant-a", own, 10)).isEmpty();
+        assertThat(store.getAuthorizationScopeState("tenant-a", own)).isNull();
+        assertThat(store.promotionLearning(own)).isEmpty();
+        assertThat(store.getLastRequestTime(name)).as("what is kept under the name goes with the user").isNull();
+        assertThat(store.getRecentWorkProfileObservations("tenant-a", name, 10)).hasSize(1);
+        assertThat(store.getAuthorizationScopeState("tenant-a", name)).isNotNull();
+        assertThat(store.promotionLearning(name)).hasSize(1);
     }
 
     @Test

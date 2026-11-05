@@ -38,6 +38,7 @@ import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
 import io.contexa.contexacore.autonomous.baseline.store.InMemoryBaselineDataStore;
 import io.contexa.contexacore.autonomous.context.support.VocabularyVersion;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import java.util.concurrent.ExecutorService;
@@ -821,6 +822,30 @@ class BaselineLearningServiceTest {
         // The earlier key is removed when the baseline moves, so it is not counted twice nor left by a purge.
         assertThat(store.getUserBaseline("user-m")).isNull();
         assertThat(store.countUserBaselines()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("A person named as an agent's key neither reads nor takes over the agent's baseline")
+    void aPersonNamedAsAnAgentsKeyLeavesTheAgentsBaseline() {
+        InMemoryBaselineDataStore store = new InMemoryBaselineDataStore(Duration.ofDays(30));
+        String name = "user-a::agent::report-agent";
+        store.saveUserBaseline(name, BaselineVector.builder()
+                .userId("user-a")
+                .updateCount(5L)
+                .avgTrustScore(0.9)
+                .normalAccessHours(new Integer[]{9})
+                .build());
+        BaselineLearningService learning = new BaselineLearningService(store, zeroTrustProperties);
+
+        assertThat(learning.getPersonalBaseline(name)).isNull();
+        assertThat(learning.getPersonalBaseline(name, tenantEvent("tenant-a", 10))).isNull();
+        assertThat(learning.getPersonalBaseline(name, tenantEvent(null, 10))).isNull();
+        learning.learnIfNormal(name, allowDecision(), tenantEvent("tenant-a", 10));
+        learning.learnIfNormal(name, allowDecision(), tenantEvent(null, 11));
+
+        assertThat(store.getUserBaseline(name).getUpdateCount()).isEqualTo(5L);
+        assertThat(store.getUserBaseline("tenant-a::" + ZeroTrustUserKey.person(name)).getUpdateCount()).isEqualTo(1L);
+        assertThat(store.getUserBaseline(ZeroTrustUserKey.person(name)).getUpdateCount()).isEqualTo(1L);
     }
 
     @Test

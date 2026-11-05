@@ -24,6 +24,7 @@ import io.contexa.contexaidentity.security.core.mfa.util.ZeroTrustActionMfaMappe
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.lang.Nullable;
@@ -127,7 +128,7 @@ public class DefaultMfaPolicyEvaluator extends AbstractMfaPolicyEvaluator {
             action = ZeroTrustAction.fromString(actionStr);
         } else if (actionRedisRepository != null) {
             try {
-                action = actionRedisRepository.getActionFromHash(user.getUsername());
+                action = actionRedisRepository.getActionFromHash(ZeroTrustUserKey.person(user.getUsername()));
             } catch (Exception e) {
                 log.error("Failed to read action from Redis for user: {}", user.getUsername(), e);
             }

@@ -24,6 +24,7 @@ import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
 import io.contexa.contexaidentity.security.webauthn.codec.PasskeyCreationOptionsCodec;
 import io.contexa.contexaidentity.security.webauthn.state.PasskeyCreationOptionsState;
@@ -184,7 +185,7 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
         if (authentication == null || !authentication.isAuthenticated() || isAgentRequest(request)) {
             return null;
         }
-        String decisionKey = authentication.getName();
+        String decisionKey = ZeroTrustUserKey.person(authentication.getName());
         ZeroTrustAction action = actions.getCurrentAction(decisionKey,
                 SessionFingerprintUtil.generateContextBindingHash(request));
         Purpose purpose = null;
@@ -193,7 +194,7 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
         } else if (action == ZeroTrustAction.BLOCK && actions.isBlockMfaPending(decisionKey)) {
             purpose = Purpose.BLOCK;
         }
-        Users user = bridgedUser(decisionKey);
+        Users user = bridgedUser(authentication.getName());
         boolean passkey = user != null && hasPasskey(user);
         boolean restricted = action == ZeroTrustAction.CHALLENGE || action == ZeroTrustAction.BLOCK
                 || action == ZeroTrustAction.ESCALATE;

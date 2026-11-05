@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.store;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -783,19 +784,24 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         if (userId == null) {
             return;
         }
+        // What is learned and verified is kept under the user's key, the rest under the name as it came.
+        String userKey = ZeroTrustUserKey.person(userId);
         releaseHeldRecords(verificationLearning.remove(userId));
-        releaseHeldRecords(promotionLearning.remove(userId));
+        releaseHeldRecords(promotionLearning.remove(userKey));
         stoppedRequests.remove(userId);
-        String tenantScopedSuffix = "::" + userId;
-        Predicate<String> usersKeys = key -> key.equals(userId) || key.endsWith(tenantScopedSuffix);
+        String tenantScopedSuffix = "::" + userKey;
+        // An agent that bears the user's name ends the same way; its learning is not the user's.
+        String agentOfThatName = LearningSubject.AGENT_KEY + userKey;
+        Predicate<String> tenantsKeys = key -> key.endsWith(tenantScopedSuffix) && !key.endsWith(agentOfThatName);
+        Predicate<String> usersKeys = key -> key.equals(userKey) || tenantsKeys.test(key);
         for (ExpiringKeySpace<?> perUser : List.of(
                 workProfileObservations, permissionChangeObservations, authorizationScopeStates)) {
             perUser.removeIf(usersKeys);
         }
         // QF-29: the user's held requests are kept within each tenant.
-        promotionLearning.removeIf(key -> key.endsWith(tenantScopedSuffix), this::releaseHeldRecords);
+        promotionLearning.removeIf(tenantsKeys, this::releaseHeldRecords);
         // docs/agent A3-1: what the agents acting for the user learned, under their learning keys in every tenant.
-        String agentKeys = userId + LearningSubject.AGENT_KEY;
+        String agentKeys = userKey + LearningSubject.AGENT_KEY;
         Predicate<String> agentsKeys = key -> key.startsWith(agentKeys) || key.contains("::" + agentKeys);
         promotionLearning.removeIf(agentsKeys, this::releaseHeldRecords);
         // docs/agent F-6 (CF-27): and the authorization state the agents' requests are compared with.
@@ -805,8 +811,8 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         }
         lastRequestTimes.remove(userId);
         previousPaths.remove(userId);
-        mfaVerifiedAt.remove(userId);
-        challengeVerifiedAt.removeIf(key -> key.startsWith(userId + CHALLENGE_VERIFIED_KEY_SEPARATOR));
+        mfaVerifiedAt.remove(userKey);
+        challengeVerifiedAt.removeIf(key -> key.startsWith(userKey + CHALLENGE_VERIFIED_KEY_SEPARATOR));
         loginFailureCounters.remove("user:" + userId.trim());
         userSessions.remove(userId);
     }

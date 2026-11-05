@@ -81,6 +81,17 @@ class ChallengeResolutionTest {
     }
 
     @Test
+    @DisplayName("a CHALLENGE kept under a key that is no plain name is released and learned for no name of that spelling")
+    void aKeyThatIsNoNameLearnsNothing() {
+        actions.saveAction("console::rcboss", ZeroTrustAction.CHALLENGE, Map.of("contextBindingHash", ATTACKER));
+
+        assertThat(resolution(actions).releaseChallenge("console::rcboss", VICTIM, request, null)).isTrue();
+
+        assertThat(actions.getCurrentAction("console::rcboss", VICTIM)).isEqualTo(ZeroTrustAction.ALLOW);
+        verify(learning, never()).learnAndStore(any(), any(), any());
+    }
+
+    @Test
     @DisplayName("an answer that cannot be kept to its session releases no one")
     void aHoldThatFailsReleasesNoOne() {
         ZeroTrustActionRepository repository = mock(ZeroTrustActionRepository.class);

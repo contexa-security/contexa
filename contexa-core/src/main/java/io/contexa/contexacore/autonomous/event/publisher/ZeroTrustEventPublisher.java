@@ -48,6 +48,7 @@ import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
@@ -919,7 +920,7 @@ public class ZeroTrustEventPublisher {
         try {
             // Q-16: a step-up passed in this context is this session's MFA, whoever owns the sign-in: under HOST_OWNED
             // the application's authentication stays as it was, so nothing else tells the next decision of it.
-            Instant stepUpPassedAt = securityContextDataStore.getChallengeVerifiedAt(userId,
+            Instant stepUpPassedAt = securityContextDataStore.getChallengeVerifiedAt(ZeroTrustUserKey.person(userId),
                     textValue(payload.get("contextBindingHash")));
             if (stepUpPassedAt != null) {
                 payload.put("mfaVerified", true);
@@ -929,7 +930,7 @@ public class ZeroTrustEventPublisher {
             // The user-level MFA mark is not this session's MFA: another session (or device) may have set it. It
             // is carried as its own fact when this session has no MFA of its own.
             if (!Boolean.TRUE.equals(payload.get("mfaVerified"))) {
-                Instant lastMfaElsewhere = securityContextDataStore.getLastMfaVerifiedAt(userId);
+                Instant lastMfaElsewhere = securityContextDataStore.getLastMfaVerifiedAt(ZeroTrustUserKey.person(userId));
                 if (lastMfaElsewhere != null) {
                     payload.put("recentMfaElsewhereAt", lastMfaElsewhere.toString());
                 }
