@@ -124,6 +124,56 @@ class InvocationArgumentsTest {
                 + name(other, 2, "content") + "=<512 bytes>");
     }
 
+    /** Q-11 (PR-64): measured, a pin, a new password and a social security number reached the seal and the observation. */
+    @Test
+    void theValuesOfCredentialsAndIdentityNumbersAreHidden() {
+        Map<String, Object> arguments = new LinkedHashMap<>();
+        arguments.put("pin", "RCSECRET1");
+        arguments.put("newPwd", "RCSECRET2");
+        arguments.put("ssn", "RCSECRET3");
+        arguments.put("token", "RCSECRET4");
+        arguments.put("cardPin", 1234);
+        arguments.put("PIN_CODE", "RCSECRET5");
+        arguments.put("userSSN", "RCSECRET6");
+        arguments.put("otp", "RCSECRET7");
+        arguments.put("cvv", "RCSECRET8");
+        arguments.put("confirmPass", "RCSECRET9");
+
+        assertThat(InvocationArguments.summarize(arguments))
+                .doesNotContain("RCSECRET", "1234")
+                .contains("pin=<hidden>", "newPwd=<hidden>", "ssn=<hidden>", "token=<hidden>", "cardPin=<hidden>",
+                        "PIN_CODE=<hidden>", "userSSN=<hidden>", "otp=<hidden>", "cvv=<hidden>", "confirmPass=<hidden>");
+    }
+
+    /** Q-11: a short word counts as a whole word of the name, so what a decision reads is not hidden by a look-alike. */
+    @Test
+    void aNameThatOnlyHoldsTheLettersOfAShortWordKeepsItsValue() {
+        Map<String, Object> arguments = new LinkedHashMap<>();
+        arguments.put("shippingAddress", "Seoul");
+        arguments.put("className", "Report");
+        arguments.put("hotpath", "/exports");
+        arguments.put("opinion", "ok");
+        arguments.put("recipient", "US133000000121212121212");
+        arguments.put("projectKey", "GB-500");
+        arguments.put("amount", 5);
+
+        assertThat(InvocationArguments.summarize(arguments)).isEqualTo("shippingAddress=Seoul; className=Report; "
+                + "hotpath=/exports; opinion=ok; recipient=US133000000121212121212; projectKey=GB-500; amount=5");
+    }
+
+    /** Q-11: the same names inside what an argument holds. */
+    @Test
+    void aSecretNameInsideAMapOrARecordIsHiddenToo() {
+        record ChangePin(String pin, String newPwd, String holder) {
+        }
+        Map<String, Object> arguments = new LinkedHashMap<>();
+        arguments.put("change", new ChangePin("RCSECRET1", "RCSECRET2", "alice"));
+        arguments.put("form", Map.of("ssn", "RCSECRET3"));
+
+        assertThat(InvocationArguments.summarize(arguments))
+                .doesNotContain("RCSECRET").contains("pin=<hidden>", "newPwd=<hidden>", "holder=alice", "ssn=<hidden>");
+    }
+
     @Test
     void theSummaryIsKeptShortAndAMethodWithoutArgumentsHasNone() throws Exception {
         String summary = InvocationArguments.summarize(method("export", String.class, int.class, String.class),

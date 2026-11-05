@@ -31,6 +31,7 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.telemetry.SecurityEventTelemetryContext;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
@@ -266,7 +267,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         for (SecurityEvent event : events) {
             String analysisKey = resolveAnalysisKey(event);
             int stripeId = resolveStripeId(analysisKey);
-            event.addMetadata("analysisKey", analysisKey);
+            event.addMetadata("analysisKey", recordedAnalysisKey(event));
             event.addMetadata("stripeId", stripeId);
             event.addMetadata("analysisQueuedAt", System.currentTimeMillis());
             boolean firstDecision = markFirstDecision(event, analysisKey);
@@ -304,7 +305,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                                 "eventId", event.getEventId(),
                                 "userId", event.getUserId() != null ? event.getUserId() : "unknown",
                                 "phase", "async_batch_processing",
-                                "analysisKey", analysisKey,
+                                "analysisKey", recordedAnalysisKey(event),
                                 "stripeId", stripeId
                         ));
                     }
@@ -728,11 +729,22 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     }
 
     private String resolveAnalysisKey(SecurityEvent event) {
+        return analysisKey(event, event != null ? event.getSessionId() : null);
+    }
+
+    /**
+     * The analysis key as a record keeps it (Q-11): what goes in the event's metadata reaches the canonical context, so
+     * the seal and the observation, and it names the session by its reference. The key itself stays in this class.
+     */
+    private String recordedAnalysisKey(SecurityEvent event) {
+        return analysisKey(event, event != null ? RequestFactRedaction.sessionReference(event.getSessionId()) : null);
+    }
+
+    private String analysisKey(SecurityEvent event, String sessionId) {
         if (event == null) {
             return "unknown";
         }
         String userId = event.getUserId();
-        String sessionId = event.getSessionId();
         if (userId != null && !userId.isBlank() && sessionId != null && !sessionId.isBlank()) {
             return userId + "|" + sessionId;
         }

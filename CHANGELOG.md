@@ -95,6 +95,11 @@ The format is based on Keep a Changelog and the project follows semantic version
 - A query string keeps the names of its parameters, not their values (`pin&newPwd`): in the sealed evidence, the decision
   observations and the session's records. A part without `=` is left out, since it may be the value itself. The model's
   input never held a query.
+- The arguments of a protected method hide the value of a pin, a passcode, an OTP, a card's security code or a social
+  security number as they hide a password or a token, by the argument's name. The name stays, and the other arguments
+  stay as they were: the v21 prompt reads them, and the seal keeps what the model read. The value of a secret passed
+  under an unrelated name cannot be told by its name, and a class compiled without `-parameters` has no names to read.
+- The analysis key kept with a decision names the session by its reference.
 - **A sealed package changed without the signing key no longer passes the re-inspection.** Where the installation signs,
   a package without the signature it should carry fails instead of reading as not verifiable, whatever schema it names:
   a decision changed, its schema lowered and its hash computed again used to pass in full. Packages captured before the
