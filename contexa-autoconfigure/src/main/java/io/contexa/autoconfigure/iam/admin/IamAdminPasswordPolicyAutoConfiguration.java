@@ -111,8 +111,11 @@ public class IamAdminPasswordPolicyAutoConfiguration {
     @ConditionalOnMissingBean
     public SystemSettingsService systemSettingsService(
             SystemSettingsRepository systemSettingsRepository,
-            RoleRepository roleRepository) {
-        return new SystemSettingsService(systemSettingsRepository, roleRepository);
+            RoleRepository roleRepository,
+            ObjectProvider<SecurityZeroTrustProperties> zeroTrustPropertiesProvider) {
+        SystemSettingsService service = new SystemSettingsService(systemSettingsRepository, roleRepository);
+        zeroTrustPropertiesProvider.ifAvailable(service::setZeroTrustProperties);
+        return service;
     }
 
     @Bean(name = "contexaSystemSettingsController")

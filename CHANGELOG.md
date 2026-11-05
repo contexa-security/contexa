@@ -277,6 +277,11 @@ The format is based on Keep a Changelog and the project follows semantic version
   session, and no other page of the console or the application, the agents' tab included. A verification is kept for the
   session that passed it and ends with the BLOCK it answered.
 - A BLOCK decided over a CHALLENGE that other sessions still held could be lifted through the CHALLENGE release. It stays.
+- **A save of the console's system settings no longer fixes the zero trust mode.** While no mode is stored,
+  `contexa.security.zerotrust.mode` applies and the form shows it; saving any other setting used to store that mode, and
+  the setting of the next deployment then silently no longer applied. A form that names no mode, or the mode in effect, now
+  leaves it unset, and another mode is stored as before. A row an earlier save filled keeps its value: set
+  `security_zerotrust_mode` of `ctxa_system_settings` to NULL to hand the mode back to the setting.
 - **Behind a proxy nobody named, one person's typing no longer stops everyone, and a forged header escapes nothing.** A
   sign-in is counted against the address it connected from, whatever `X-Forwarded-For` says, and the header never switches
   the address limit off or lifts a block of it. When a request carries the header,

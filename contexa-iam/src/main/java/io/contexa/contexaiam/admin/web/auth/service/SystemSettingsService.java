@@ -19,11 +19,13 @@ import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.entity.SystemSettings;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.SystemSettingsRepository;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.RoleOption;
 import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.SystemSettingsForm;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.Comparator;
 import java.util.List;
@@ -44,6 +46,12 @@ public class SystemSettingsService {
 
     private final SystemSettingsRepository repository;
     private final RoleRepository roleRepository;
+    private SecurityZeroTrustProperties zeroTrustProperties;
+
+    /** The mode in effect, which the form shows while no mode is stored; without it a submitted mode is stored. */
+    public void setZeroTrustProperties(SecurityZeroTrustProperties zeroTrustProperties) {
+        this.zeroTrustProperties = zeroTrustProperties;
+    }
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public SystemSettings getSettings() {
@@ -80,10 +88,28 @@ public class SystemSettingsService {
         existing.setMissingMethodPolicyDecision(SystemRuntimeSettingsService.parseNoPolicyDecision(
                 "missingMethodPolicyDecision", form.getMissingMethodPolicyDecision()).name());
         existing.setRegistrationEnabled(form.isRegistrationEnabled());
-        existing.setSecurityZeroTrustMode(SystemRuntimeSettingsService.normalizeSecurityZeroTrustModeForStorage(form.getSecurityZeroTrustMode()));
+        if (operatorChoseMode(existing, form)) {
+            existing.setSecurityZeroTrustMode(
+                    SystemRuntimeSettingsService.normalizeSecurityZeroTrustModeForStorage(form.getSecurityZeroTrustMode()));
+        }
         existing.setMvcResourceScannerBasePackages(
                 SystemRuntimeSettingsService.normalizePackagePrefixesForStorage(form.getMvcResourceScannerBasePackages()));
         repository.save(existing);
+    }
+
+    /**
+     * While no mode is stored {@code contexa.security.zerotrust.mode} applies, and the form shows that mode. A save
+     * of any other setting sends it back, and storing it would freeze the mode: the setting of the next deployment would
+     * no longer apply, without a word. So a form that names no mode, or the mode in effect, chose nothing. Choosing the
+     * mode in effect on purpose looks the same; the setting keeps deciding then, which is what the operator sees.
+     */
+    private boolean operatorChoseMode(SystemSettings existing, SystemSettingsForm form) {
+        if (StringUtils.hasText(existing.getSecurityZeroTrustMode()) || zeroTrustProperties == null) {
+            return true;
+        }
+        return StringUtils.hasText(form.getSecurityZeroTrustMode())
+                && SystemRuntimeSettingsService.normalizeSecurityZeroTrustMode(form.getSecurityZeroTrustMode())
+                != zeroTrustProperties.getMode();
     }
 
     private void validate(SystemSettingsForm form) {
