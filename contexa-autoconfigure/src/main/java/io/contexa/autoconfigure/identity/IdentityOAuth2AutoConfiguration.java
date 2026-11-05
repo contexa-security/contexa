@@ -48,12 +48,15 @@ import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.Authe
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.MfaGrantedAuthority;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.MfaGrantedAuthorityMixin;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
+import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.handler.logout.CompositeLogoutHandler;
 import io.contexa.contexaidentity.security.handler.logout.LogoutStrategy;
+import io.contexa.contexaidentity.security.handler.logout.MfaFlowLogoutStrategy;
 import io.contexa.contexaidentity.security.handler.logout.OAuth2LogoutStrategy;
 import io.contexa.contexaidentity.security.handler.logout.OAuth2LogoutSuccessHandler;
 import io.contexa.contexaidentity.security.handler.logout.SessionLogoutStrategy;
 import io.contexa.contexaidentity.security.handler.logout.ZeroTrustLogoutStrategy;
+import io.contexa.contexaidentity.security.statemachine.core.service.MfaStateMachineService;
 import io.contexa.contexaidentity.security.handler.oauth2.OAuth2TokenSuccessHandler;
 import io.contexa.contexaidentity.security.token.service.OAuth2TokenService;
 import io.contexa.contexaidentity.security.token.service.TokenService;
@@ -686,11 +689,14 @@ public class IdentityOAuth2AutoConfiguration {
             AuthContextProperties authContextProperties,
             ObjectProvider<ZeroTrustSecurityService> zeroTrustSecurityServiceProvider,
             SessionIdResolver sessionIdResolver,
-            DeviceAwareOAuth2AuthorizationService authorizationService) {
+            DeviceAwareOAuth2AuthorizationService authorizationService,
+            ObjectProvider<MfaSessionRepository> mfaSessionRepository,
+            ObjectProvider<MfaStateMachineService> mfaStateMachineService) {
 
         ZeroTrustSecurityService zeroTrustService = zeroTrustSecurityServiceProvider.getIfAvailable();
 
         List<LogoutStrategy> strategies = new ArrayList<>();
+        strategies.add(new MfaFlowLogoutStrategy(mfaSessionRepository, mfaStateMachineService));
         strategies.add(new SessionLogoutStrategy(new HttpSessionCsrfTokenRepository(), authContextProperties));
         strategies.add(new OAuth2LogoutStrategy(tokenService));
         if (zeroTrustService != null) {

@@ -86,6 +86,37 @@ abstract class AbstractMfaSessionRepositoryContractTest {
         assertThat(repository.getSessionId(nextRequest(id))).isNull();
     }
 
+    /** PR-89: a session that ends takes the flow it started with it, whichever store keeps the flow. */
+    @Test
+    void anHttpSessionNamesTheMfaSessionItStarted() {
+        MfaSessionRepository repository = createRepository(Duration.ofMinutes(10));
+
+        String id = store(repository);
+
+        assertThat(repository.sessionIdOf(httpSession)).isEqualTo(id);
+    }
+
+    @Test
+    void aForgottenMfaSessionCannotBeContinuedWithItsCookie() {
+        MfaSessionRepository repository = createRepository(Duration.ofMinutes(10));
+        String id = store(repository);
+
+        repository.forgetSession(repository.sessionIdOf(httpSession));
+
+        assertThat(repository.existsSession(id)).isFalse();
+        assertThat(repository.getSessionId(nextRequest(id))).isNull();
+    }
+
+    @Test
+    void aFinishedMfaSessionNoLongerStandsInItsHttpSession() {
+        MfaSessionRepository repository = createRepository(Duration.ofMinutes(10));
+        String id = store(repository);
+
+        repository.removeSession(id, nextRequest(id), null);
+
+        assertThat(repository.sessionIdOf(httpSession)).isNull();
+    }
+
     private String store(MfaSessionRepository repository) {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setSession(httpSession);
