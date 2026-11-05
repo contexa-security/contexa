@@ -33,9 +33,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Login policy enforcement with atomic, race-free counters.
@@ -62,11 +64,15 @@ public class LoginPolicyService implements LoginPolicyHandler {
     private static final ThreadLocal<Set<String>> HANDLED_KEYS =
             ThreadLocal.withInitial(HashSet::new);
 
+    /** How often an unnamed proxy is reported: every sign-in behind it would repeat the same line. */
+    private static final long UNNAMED_PROXY_REPORT_INTERVAL_MS = Duration.ofHours(1).toMillis();
+
     private final UserRepository userRepository;
     private final LoginAttemptIpRepository loginAttemptIpRepository;
     private final PasswordPolicyService passwordPolicyService;
     private final LoginAttemptIpUpserter loginAttemptIpUpserter;
     private final ObjectProvider<SecurityContextDataStore> securityContextDataStoreProvider;
+    private final AtomicLong nextUnnamedProxyReportAt = new AtomicLong();
 
     // ---------------------------------------------------------------------
     // Public API — legacy signatures delegate to the extended ones
@@ -186,7 +192,7 @@ public class LoginPolicyService implements LoginPolicyHandler {
     @Override
     @Transactional(transactionManager = "contexaTransactionManager")
     public boolean isIpBlocked(String ip) {
-        if (ip == null || ip.isBlank()) return false;
+        if (ip == null || ip.isBlank() || behindUnnamedProxy()) return false;
         return loginAttemptIpRepository.findByIpAddress(ip)
                 .map(row -> row.getBlockedUntil() != null
                         && row.getBlockedUntil().isAfter(LocalDateTime.now()))
@@ -270,7 +276,7 @@ public class LoginPolicyService implements LoginPolicyHandler {
 
     /** IP-dimension throttling: rolling window + threshold lock. */
     private void applyIpThrottle(String ip, String username, String failureType) {
-        if (ip == null || ip.isBlank()) return;
+        if (ip == null || ip.isBlank() || behindUnnamedProxy()) return;
         PasswordPolicy policy = passwordPolicyService.getCurrentPolicy();
         if (policy.getIpMaxFailedAttempts() <= 0) return;
 
@@ -310,6 +316,30 @@ public class LoginPolicyService implements LoginPolicyHandler {
                 reportUnlistedProxy(ip);
             }
         });
+    }
+
+    /**
+     * Q-24: behind a proxy Contexa was not told about, the address is the proxy's and everyone arrives from it: limiting
+     * it would stop every user behind it for whatever one of them typed, so the address limit stands aside and says
+     * which setting brings it back. The lock of each account is not touched by this.
+     */
+    private boolean behindUnnamedProxy() {
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes
+                && SessionFingerprintUtil.forwardedWithoutTrustedProxy(attributes.getRequest())) {
+            reportUnnamedProxy(attributes.getRequest().getRemoteAddr());
+            return true;
+        }
+        return false;
+    }
+
+    private void reportUnnamedProxy(String peer) {
+        long now = System.currentTimeMillis();
+        long due = nextUnnamedProxyReportAt.get();
+        if (now >= due && nextUnnamedProxyReportAt.compareAndSet(due, now + UNNAMED_PROXY_REPORT_INTERVAL_MS)) {
+            log.error("[login-policy] {} sends X-Forwarded-For and no proxy is trusted, so the address limit of sign-ins "
+                    + "is not applied (the lock of each account is). Set "
+                    + "contexa.security.tiered.security.trusted-proxies to your proxies to apply it", peer);
+        }
     }
 
     /** Behind a proxy that is not listed all users arrive from its address, and one block stops them all. */
