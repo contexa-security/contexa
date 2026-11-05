@@ -32,12 +32,15 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.authentication.ott.GenerateOneTimeTokenFilter;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -170,12 +173,24 @@ class OneTimeTokenResendResponseTest {
         assertThat(unknownRefused.getStatus()).isEqualTo(registeredRefused.getStatus());
     }
 
+    /** Before a sign-in the name is what the form says: mailed, the code would make the mail server a sender for anyone. */
+    @Test
+    @DisplayName("a name that is nobody's account is mailed nothing, however often it is asked for")
+    void aNameOfNoAccountIsMailedNothing() throws Exception {
+        post(UNKNOWN);
+        post(UNKNOWN.toUpperCase(Locale.ROOT));
+        post("another-" + UNKNOWN);
+
+        verify(mail, never()).sendHtmlMessage(anyString(), anyString(), anyString());
+    }
+
     /** A name that is no address fails to mail each time and is never refused: the two must read the same. */
     @Test
     @DisplayName("a name whose mail fails reads as an account whose request was refused")
     void aFailedMailReadsAsARefusedRequest() throws Exception {
         service.destroy();
         filterWith(false);
+        service.setUserStore(() -> new InMemoryUserDetailsManager(User.withUsername("nobody").password("{noop}x").build()));
         doThrow(new IllegalStateException("No such mailbox")).when(mail).sendHtmlMessage(eq("nobody"), anyString(), anyString());
 
         post(REGISTERED);

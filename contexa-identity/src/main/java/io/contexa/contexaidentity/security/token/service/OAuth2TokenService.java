@@ -49,11 +49,13 @@ import org.springframework.security.oauth2.core.OAuth2RefreshToken;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
-
+
 @Slf4j
 public class OAuth2TokenService implements TokenService {
 
@@ -66,6 +68,7 @@ public class OAuth2TokenService implements TokenService {
     private final TokenTransportStrategy transportStrategy;
     private volatile ZeroTrustActionRepository zeroTrustActionRepository;
     private volatile AccountTokenGuard accountGuard;
+    private volatile RegisteredClientRepository registeredClients;
 
     private static final String CLIENT_REGISTRATION_ID = "aidc-internal";
 
@@ -194,6 +197,7 @@ public class OAuth2TokenService implements TokenService {
             throw new OAuth2AuthenticationException(
                     new OAuth2Error("invalid_token", "Authorization not found", null));
         }
+        refuseTokenOfAnotherClient(authorization);
 
         OAuth2Authorization.Token<OAuth2RefreshToken> refreshTokenMeta = authorization.getRefreshToken();
         if (refreshTokenMeta == null || refreshTokenMeta.isInvalidated()) {
@@ -268,8 +272,36 @@ public class OAuth2TokenService implements TokenService {
         this.accountGuard = accountGuard;
     }
 
+    public void setRegisteredClients(@Nullable RegisteredClientRepository registeredClients) {
+        this.registeredClients = registeredClients;
+    }
+
     private void rejectWhenZeroTrustForbidsRefresh(String principalName) {
         AccountTokenGuard.refuseWhileRestricted(this.zeroTrustActionRepository, principalName);
+    }
+
+    /**
+     * Only what the internal client was issued is renewed here: the caller authenticates as no client, and the internal
+     * client answers for it. The token endpoint refuses another client's token, but a still valid access token never gets
+     * that far, and would go to whoever holds the refresh token without the secret of its client. Answered as a token that
+     * is not there: the caller learns nothing of tokens it has no client for.
+     */
+    private void refuseTokenOfAnotherClient(OAuth2Authorization authorization) {
+        RegisteredClientRepository clients = this.registeredClients;
+        if (clients == null) {
+            return;
+        }
+        ClientRegistration internal = clientRegistrationRepository.findByRegistrationId(CLIENT_REGISTRATION_ID);
+        if (internal == null) {
+            return;
+        }
+        RegisteredClient issuedTo = clients.findById(authorization.getRegisteredClientId());
+        if (issuedTo == null || !internal.getClientId().equals(issuedTo.getClientId())) {
+            log.warn("A refresh token of another client was refused: registeredClientId={}",
+                    authorization.getRegisteredClientId());
+            throw new OAuth2AuthenticationException(
+                    new OAuth2Error("invalid_token", "Authorization not found", null));
+        }
     }
 
     /**

@@ -34,6 +34,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.ott.GenerateOneTimeTokenRequest;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -125,6 +128,8 @@ class StepUpOptionsStoreAutoConfigurationTest {
     void theMailOfACodeClaimsInTheStoreOfTheContext() {
         contexts.withPropertyValues("contexa.bridge.ownership=CONTEXA_OWNED")
                 .withUserConfiguration(TheApplicationsOwnStore.class)
+                .withBean(UserDetailsService.class, () -> new InMemoryUserDetailsManager(
+                        User.withUsername("alice@contexa.io").password("{noop}x").build()))
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(StepUpOptionsStore.class);

@@ -8,6 +8,35 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A sign-in by code no longer mails any address a stranger types.** Before a sign-in the name of a code request is what
+  the form says, and a name of no account was mailed as an address: with `.ott()` anybody could have your mail server send a
+  code, and the name itself in the text of the mail, to any mailbox. A code now goes to the address on record, or to the name
+  of an account of the store the sign-in reads, the application's own included, so an application whose users sign in with
+  their address goes on as before. Any other name is answered exactly as a mailed one, and nothing is made or sent. A store
+  that cannot answer sends nothing and says so at ERROR. Such a code could sign in to nothing, so no working sign-in changes.
+- **A risk signal that ends sessions now ends the tokens too.** A session revoked, a credential compromised and an account
+  disabled or purged, sent by your identity provider, signed the subject out of its sessions and left its tokens running: a
+  token client went on until the access token ran out, and then renewed it with the refresh token. These events now end the
+  subject's access and refresh tokens as well, those an agent's client got for the subject by token exchange included, as a
+  new password does. A restriction in force stays. A store that is down fails no event: what could not be ended keeps
+  running and the log says so at ERROR.
+- **A client named like a person no longer gets the person's rights.** A client's own token has the client's ID as its
+  subject, and an account of that name was looked up first: a client registered as `alice` authenticated with everything
+  the person `alice` holds, without being an approved agent or a listed service client. A client's own token now reads no
+  account: it carries its scopes when the client is an approved agent or in `contexa.auth.oauth2.service-client-ids`, and is
+  refused otherwise. Registering an agent's client under the name of an existing account is refused too. **Check:** a client
+  that relied on an account of its own name gets its scopes only: give the scopes it needs to the client. A person named
+  exactly as `contexa.auth.oauth2.client-id` can no longer sign in with a token, as that token now reads as the internal
+  client's.
+- **The refresh entry point no longer hands out what another client was issued.** `/api/refresh` asks for no client
+  authentication, and a still valid access token never reached the token endpoint, which is what refuses a token of another
+  client: whoever held a refresh token of an application you registered yourself got that application's access token back
+  without its secret. The entry point now renews only what Contexa's internal client was issued, and answers any other token
+  as one that is not there. That application goes on renewing its tokens at `/oauth2/token` with its secret.
+- **A blocked address no longer locks an account through the password page.** `POST /contexa/password-change` refused a
+  blocked address but still counted the attempt against the account it named, the right password too, so that address went
+  on locking its owner out where a sign-in would have counted nothing. The attempt is now refused as before and counted
+  against nobody.
 - **A sign-in no longer wipes the failures of its address.** A password that was right took the address's count back, so
   whoever held one account of their own could try any number of others from that address. The address now keeps its count
   until its window ends; the count of each account is reset as before. Behind a shared address a public NAT counts everyone's

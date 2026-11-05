@@ -70,9 +70,9 @@ public class PasswordChangeService {
      * who holds the password belongs at the sign-in and its second factor: a change here would pass that factor by and
      * lock the owner out.
      * <p>
-     * A wrong password counts as a failed sign-in (the lock, the address throttle), and whatever refuses, an unknown name,
-     * a locked account, a blocked address or the right password of someone who may not change it here, answers exactly as
-     * a wrong password does.
+     * A wrong password counts as a failed sign-in (the lock, the address throttle), unless the address is blocked, and
+     * whatever refuses, an unknown name, a locked account, a blocked address or the right password of someone who may not
+     * change it here, answers exactly as a wrong password does.
      * <p>
      * {@code noRollbackFor}: the failure is counted in this transaction and has to outlive the exception that reports it.
      */
@@ -107,8 +107,10 @@ public class PasswordChangeService {
             log.warn("[PasswordChange] The right current password was refused: username={}", user.getUsername());
             throw new PasswordChangeException(CURRENT_PASSWORD_REFUSED);
         }
-        // A locked account is not counted again: whoever keeps trying would keep extending the lock of its owner.
-        if (policy != null && !locked) {
+        // A locked account is not counted again: whoever keeps trying would keep extending the lock of its owner. A blocked
+        // address is refused unheard, as at a sign-in: its attempt says nothing of the account, and counting it would hand
+        // the address the lock of anyone's account.
+        if (policy != null && !locked && !addressBlocked) {
             policy.onLoginFailure(username, clientIp, "PasswordChange", POLICY_SOURCE);
         }
         throw new PasswordChangeException(CURRENT_PASSWORD_REFUSED);

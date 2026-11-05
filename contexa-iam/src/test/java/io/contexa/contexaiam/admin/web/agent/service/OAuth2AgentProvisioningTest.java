@@ -127,6 +127,17 @@ class OAuth2AgentProvisioningTest {
     }
 
     @Test
+    void aClientIsNotNamedAfterAnAccount() {
+        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(new Users()));
+
+        assertThatThrownBy(() -> provisioning.register(registration("agent-5", "carol", "alice"), "admin-1"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("account named alice");
+
+        assertThat(clients.findByClientId("alice")).isNull();
+        assertThat(registry.find(null, "agent-5")).isEmpty();
+    }
+
+    @Test
     void anObservedAgentIsRegisteredAsItIs() {
         registry.observe(new AgentSighting(null, "seen-agent", "AUTONOMOUS_AGENT", null, Instant.now()));
 

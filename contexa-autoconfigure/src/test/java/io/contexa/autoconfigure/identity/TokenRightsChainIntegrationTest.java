@@ -303,9 +303,10 @@ class TokenRightsChainIntegrationTest {
                                                      OAuth2AuthorizationService authorizations,
                                                      TokenValidator validator, ObjectMapper objectMapper,
                                                      ObjectProvider<ZeroTrustActionRepository> actions,
-                                                     ObjectProvider<AccountTokenGuard> accountGuard) {
+                                                     ObjectProvider<AccountTokenGuard> accountGuard,
+                                                     RegisteredClientRepository clients) {
             TokenService service = contexaOAuth2.oauth2TokenService(manager, registrations, authorizations, validator,
-                    objectMapper, actions, accountGuard);
+                    objectMapper, actions, accountGuard, clients);
             return (OAuth2TokenService) service;
         }
     }

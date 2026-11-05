@@ -695,7 +695,8 @@ public class IdentityOAuth2AutoConfiguration {
             TokenValidator contexaOauth2TokenValidator,
             @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             ObjectProvider<ZeroTrustActionRepository> zeroTrustActionRepositoryProvider,
-            ObjectProvider<AccountTokenGuard> accountGuard) {
+            ObjectProvider<AccountTokenGuard> accountGuard,
+            RegisteredClientRepository registeredClientRepository) {
 
         TokenTransportStrategy transport = TokenTransportStrategyFactory.create(authContextProperties);
 
@@ -709,6 +710,7 @@ public class IdentityOAuth2AutoConfiguration {
                 transport);
         tokenService.setZeroTrustActionRepository(zeroTrustActionRepositoryProvider.getIfAvailable());
         tokenService.setAccountGuard(accountGuard.getIfAvailable());
+        tokenService.setRegisteredClients(registeredClientRepository);
         return tokenService;
     }
 

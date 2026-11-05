@@ -209,12 +209,15 @@ class PasswordChangeServiceTest {
     }
 
     @Test
-    @DisplayName("a blocked address is refused even with the right password")
+    @DisplayName("a blocked address is refused even with the right password, and its attempt counts against nobody")
     void blockedAddress() {
         expired();
         when(policy.isIpBlocked(IP)).thenReturn(true);
 
         assertRefusedAsWrong("admin", "correct");
+        assertRefusedAsWrong("admin", "guess");
+
+        verify(policy, never()).onLoginFailure(anyString(), any(), anyString(), anyString());
     }
 
     @Test
