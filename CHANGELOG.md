@@ -25,6 +25,11 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **A double click on the right code no longer ends the sign-in.** A second request that reached a flow being verified
+  ended the flow: both clicks failed and the user started again with a new code. The second request is now answered
+  `429 MFA_BUSY_RETRY` and changes nothing, so wrong codes sent at once are read one at a time and the limit on the codes
+  read stands. A verification that has not moved for `contexa.auth.mfa.state-machine-timeout-ms` (10 seconds, a setting
+  without effect until now) ends the flow as before.
 - **A synchronous call no longer waits 40 seconds for a store that is down.** The analysis of a synchronous call runs off
   the request's thread, on the application's own Redis client. While a store is down the request now waits three more
   seconds at most: a verdict in that time still answers, a restriction in force stands, and otherwise the call is the
