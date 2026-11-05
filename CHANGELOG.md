@@ -91,7 +91,7 @@ The format is based on Keep a Changelog and the project follows semantic version
   cannot be told without a paid call and fails at the first call of that layer.
 - A decision record names the model that answered, else the model that was asked. A decision that never reached a
   model (`QUEUE_TIMEOUT`, `REJECTED_BACKPRESSURE`) names none; it used to name the configured model.
-- **Contexa no longer fills the application's heap under load (PR-91).** Every request kept a snapshot of its session
+- **Contexa no longer fills the application's heap under load.** Every request kept a snapshot of its session
   for 30 minutes after its decision, each with up to a hundred decoded decisions, so 10,000 requests took hundreds of
   megabytes and a 384 MB application stopped with `OutOfMemoryError` after about 1,500 decisions, in both infrastructure
   modes. What the requests hold now has a limit in bytes, a twentieth of the maximum heap between 16 MiB and 256 MiB: past
