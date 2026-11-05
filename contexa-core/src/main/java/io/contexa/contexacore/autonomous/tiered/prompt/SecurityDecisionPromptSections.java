@@ -224,6 +224,10 @@ public class SecurityDecisionPromptSections {
     static final String EVENT_BUNDLE_VERSION = "promptBundleSelection.version";
     static final String EVENT_BUNDLE_SOURCE = "promptBundleSelection.source";
     private static final String SECOND_PASS_LAYOUT = "v20-second-pass";
+    /** PR-91: the canonical contexts kept may take a thirty-second of the maximum heap, within these bounds. */
+    private static final int CANONICAL_CONTEXT_HEAP_SHARE_DIVISOR = 32;
+    private static final long MIN_CANONICAL_CONTEXT_BYTES = 8L * 1024 * 1024;
+    private static final long MAX_CANONICAL_CONTEXT_BYTES = 128L * 1024 * 1024;
     private static final String PROMPT_CACHE_KEY_PREFIX = "contexa-";
     /** The event metadata that says whether past records reached the user prompt the model gets (BR-C8, QF-16). */
     static final String RAG_PROJECTED_TO_FINAL_PROMPT = "ragProjectedToFinalPrompt";
@@ -275,8 +279,10 @@ public class SecurityDecisionPromptSections {
         this.promptRuntimeGovernanceRuleApplier = new PromptRuntimeGovernanceRuleApplier();
         this.learningContextEvidenceAssembler = new LearningContextEvidenceAssembler();
         this.canonicalContextSnapshotMapper = new ObjectMapper().findAndRegisterModules();
+        // PR-91: its bytes, not its entries, are what a small heap has room for: a context takes tens of kilobytes.
         this.canonicalSecurityContextCache = Caffeine.newBuilder()
-                .maximumSize(2000)
+                .maximumWeight(defaultCanonicalContextBudgetBytes(Runtime.getRuntime().maxMemory()))
+                .weigher((String key, byte[] snapshot) -> snapshot.length + 2 * key.length())
                 .expireAfterWrite(15, TimeUnit.MINUTES)
                 .build();
         this.systemSectionsCache = Caffeine.newBuilder()
@@ -3558,6 +3564,25 @@ public class SecurityDecisionPromptSections {
         resolved.ifPresent(context -> cacheCanonicalSecurityContext(event, context));
         return resolved.flatMap(context -> restoreCanonicalContext(snapshotCanonicalContext(context)))
                 .or(() -> resolved);
+    }
+
+    /**
+     * PR-91: the limit of the canonical contexts kept for a maximum heap of {@code maxHeapBytes}: a thirty-second of it,
+     * between 8 MiB and 128 MiB. A 384 MiB heap gives 12 MiB, 512 MiB 16 MiB, 2 GiB 64 MiB, 4 GiB or more 128 MiB.
+     */
+    static long defaultCanonicalContextBudgetBytes(long maxHeapBytes) {
+        return Math.max(MIN_CANONICAL_CONTEXT_BYTES,
+                Math.min(MAX_CANONICAL_CONTEXT_BYTES, maxHeapBytes / CANONICAL_CONTEXT_HEAP_SHARE_DIVISOR));
+    }
+
+    /** The bytes of the canonical contexts kept (PR-91). */
+    long canonicalContextCacheBytes() {
+        canonicalSecurityContextCache.cleanUp();
+        return canonicalSecurityContextCache.asMap().values().stream().mapToLong(snapshot -> snapshot.length).sum();
+    }
+
+    void clearCanonicalContextCache() {
+        canonicalSecurityContextCache.invalidateAll();
     }
 
     private void cacheCanonicalSecurityContext(SecurityEvent event, CanonicalSecurityContext context) {
