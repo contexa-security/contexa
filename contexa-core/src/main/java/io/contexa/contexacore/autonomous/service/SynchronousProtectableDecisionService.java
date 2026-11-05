@@ -364,7 +364,8 @@ public class SynchronousProtectableDecisionService {
                                                        String contextBindingHash) {
         Map<String, Object> payload = event.getPayload();
         return new AgentDecisionFlights.Request(decisionKey(event, userId), contextBindingHash,
-                AgentAllowReuse.operation(payload, event.getResource()), event.getResource(),
+                AgentAllowReuse.operation(payload, event.getResource()),
+                AgentAllowReuse.resource(payload, event.getResource()),
                 AgentAllowReuse.sensitive(payload), ResourceImportanceResolver.explicitlyNonSensitive(payload),
                 synchronous(event));
     }
@@ -496,7 +497,8 @@ public class SynchronousProtectableDecisionService {
                 && AgentRequestConfirmation.current() == null
                 && !agentAllowReuse.answers(decisionKey(event, event.getUserId()),
                 zeroTrustEventListener.generateAuthorizationContextBindingHash(event),
-                AgentAllowReuse.operation(event.getPayload(), event.getResource()), event.getResource(),
+                AgentAllowReuse.operation(event.getPayload(), event.getResource()),
+                AgentAllowReuse.resource(event.getPayload(), event.getResource()),
                 AgentAllowReuse.sensitive(event.getPayload()))) {
             return AsyncProtectableGate.DECIDE_IN_PLACE;
         }
@@ -699,7 +701,8 @@ public class SynchronousProtectableDecisionService {
     private void agentDecided(ZeroTrustSpringEvent event, String contextBindingHash) {
         if (agentAllowReuse != null && agentRequest(event)) {
             agentAllowReuse.decided(decisionKey(event, event.getUserId()), contextBindingHash,
-                    AgentAllowReuse.operation(event.getPayload(), event.getResource()), event.getResource(),
+                    AgentAllowReuse.operation(event.getPayload(), event.getResource()),
+                    AgentAllowReuse.resource(event.getPayload(), event.getResource()),
                     AgentAllowReuse.sensitive(event.getPayload()));
         }
         if (agentDecisionFlights != null && agentRequest(event)) {

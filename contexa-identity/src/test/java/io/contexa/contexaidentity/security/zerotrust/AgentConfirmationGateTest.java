@@ -57,8 +57,16 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
@@ -71,6 +79,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 /**
  * docs/agent A5-2, A5-9, F-2: an agent's request a CHALLENGE (or an ended delegation) holds waits for its accountable
@@ -298,13 +309,7 @@ class AgentConfirmationGateTest {
     /** docs/agent A5-4: outside the narrowed scope a request is refused, unless the person confirmed that one. */
     @Test
     void aRequestOutsideTheNarrowedScopeIsRefusedUnlessThePersonConfirmedIt() throws Exception {
-        AgentScopeService scopes = new AgentScopeService(new InMemoryAgentScopeStore(),
-                new ReadOnlyAgentScopeNarrower(Duration.ofHours(1), 0.7), null, clock);
-        SecurityEvent decided = SecurityEvent.builder().userId("alice").build();
-        decided.addMetadata("executionSubjectKind", "DELEGATED_AGENT");
-        decided.addMetadata("agentId", "report-agent");
-        scopes.onDecision(decided, ProcessingResult.builder().success(true).action("BLOCK").riskScore(0.9).build());
-        gate.setScopes(scopes);
+        narrowed();
 
         Recording refused = send(request(BODY), ZeroTrustAction.ALLOW);
         assertThat(refused.went()).isFalse();
@@ -326,6 +331,33 @@ class AgentConfirmationGateTest {
         assertThat(ran.went()).isTrue();
         assertThat(ran.confirmation()).isEqualTo(asked.confirmationId());
         assertThat(send(request(BODY), ZeroTrustAction.ALLOW).went()).isFalse();
+    }
+
+    /** A narrowed agent reaches no write and no export by the way its path is spelled, as the application routes it. */
+    @Test
+    void aNarrowedAgentReachesNoWriteAndNoExportByTheWayItsPathIsSpelled() throws Exception {
+        narrowed();
+        Routed application = new Routed();
+        MockMvc gated = MockMvcBuilders.standaloneSetup(application).addFilter(
+                (request, response, chain) -> gate.filter((HttpServletRequest) request,
+                        (HttpServletResponse) response, chain, subject, ZeroTrustAction.ALLOW)).build();
+
+        // Without the gate this reaches the export: the spelling is what routing reads.
+        MockMvcBuilders.standaloneSetup(application).build().perform(get(URI.create("/api/%65xport/x")));
+        assertThat(application.reached).containsExactly("export");
+        application.reached.clear();
+
+        gated.perform(get(URI.create("/api/%65xport/x")));
+        assertThat(writer.details).containsEntry("error", AgentConfirmationGate.SCOPE_NARROWED)
+                .containsEntry("operation", "EXPORT");
+        gated.perform(delete("/api/lists/7"));
+        assertThat(writer.details).containsEntry("operation", "DELETE");
+        gated.perform(post("/api/search/x"));
+        assertThat(writer.details).containsEntry("operation", "WRITE");
+        assertThat(application.reached).isEmpty();
+
+        gated.perform(get("/api/lists/7"));
+        assertThat(application.reached).containsExactly("list");
     }
 
     /** docs/agent A5-7: past its call limit an agent is slowed down; its refusals count toward the denial alarm. */
@@ -392,6 +424,17 @@ class AgentConfirmationGateTest {
         return send(request, action, subject);
     }
 
+    /** A decision narrowed the agent to reading. */
+    private void narrowed() {
+        AgentScopeService scopes = new AgentScopeService(new InMemoryAgentScopeStore(),
+                new ReadOnlyAgentScopeNarrower(Duration.ofHours(1), 0.7), null, clock);
+        SecurityEvent decided = SecurityEvent.builder().userId("alice").build();
+        decided.addMetadata("executionSubjectKind", "DELEGATED_AGENT");
+        decided.addMetadata("agentId", "report-agent");
+        scopes.onDecision(decided, ProcessingResult.builder().success(true).action("BLOCK").riskScore(0.9).build());
+        gate.setScopes(scopes);
+    }
+
     private Recording send(MockHttpServletRequest request, ZeroTrustAction action, ZeroTrustSubject from)
             throws Exception {
         Recording recording = new Recording();
@@ -423,6 +466,28 @@ class AgentConfirmationGateTest {
         return new AgentDelegationRequest(tenantId, delegator, "report-agent", null, "REPORTING",
                 "Export this week's HX-310 design review packages", List.of("EXPORT"), List.of("HX-310"), null, null,
                 null, from, until, null, null);
+    }
+
+    /** An application with the routes an agent is after. */
+    @RestController
+    private static final class Routed {
+
+        private final List<String> reached = new ArrayList<>();
+
+        @GetMapping("/api/export/{id}")
+        void export(@PathVariable("id") String id) {
+            reached.add("export");
+        }
+
+        @RequestMapping("/api/lists/{id}")
+        void list(@PathVariable("id") String id) {
+            reached.add("list");
+        }
+
+        @PostMapping("/api/search/{id}")
+        void search(@PathVariable("id") String id) {
+            reached.add("search");
+        }
     }
 
     /** The application's answer to a request, written after the gate let it on. */

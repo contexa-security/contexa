@@ -39,6 +39,35 @@ The format is based on Keep a Changelog and the project follows semantic version
   blocked address but still counted the attempt against the account it named, the right password too, so that address went
   on locking its owner out where a sign-in would have counted nothing. The attempt is now refused as before and counted
   against nobody.
+- **The ALLOW of one sensitive record no longer answers the next one named in the query.** An agent's ALLOW answers one
+  sensitive resource, and a resource was its path: after `GET /api/customers?id=1` an asynchronous `@Protectable` method
+  answered `?id=2`, `?id=3` and on, up to the request limit, without a decision. For a sensitive resource the query now
+  tells one resource from another, so each other query is decided again. The event carries a reference of the query
+  (`queryReference`) that holds none of its values and reads differently in another process. **Check:** the pages of a
+  sensitive list are now decided one by one, a model call each. A general resource stays its path: its queries count as
+  one resource, up to the request limit.
+- **An agent's asks for a confirmation now count against its call limits.** `POST /contexa/api/agent-confirmations` stayed
+  out of the gate so that an agent can follow its confirmation, so one token could mail its accountable person once for
+  every target it made up, without end. An ask now counts as any call of the agent does: past
+  `contexa.security.zerotrust.agent.call-limit.*` it gets the gate's `429 AGENT_CALL_LIMIT` with `Retry-After`, nothing is
+  kept and nobody is told. Polling a confirmation is not counted. The limit is that of calls, 120 a minute for a delegation
+  by default, and an agent within it can still ask that often. A reason the agent wrote now reaches the mail after
+  Contexa's own words and marked as the agent's, as the confirmation page shows it: it read as part of Contexa's sentence.
+- **An agent no longer writes a delegation in the person's name.** The delegation API told an agent by the `act` claim, a
+  client's own token and an agent's account. A token exchange without an `actor_token` is issued in the person's name with
+  no `act`, so the agent it went to passed as the person at `/contexa/api/agent-delegations` and could give itself a
+  delegation, read the person's and revoke them. The same went for a token of another authorization server that names
+  the agent in `azp`, `agent_id` or a delegation marker. The API now answers `403` to whatever the bridge reads as an
+  agent's request, as the confirmation pages do. Token exchange is off by default.
+- **An agent narrowed to reading no longer writes through a path that sounds like reading.** The operation of a request was
+  read from the words of its path before its method, and from the path as it was sent: `DELETE /api/lists/7` and
+  `POST /api/search/x` passed as reads, and `GET /api/%65xport/x` reached the export as one. The words of a path, read as
+  the application routes it, may now make a request graver than its method, never lighter: only `GET`, `HEAD` and `OPTIONS`
+  read, and a word that says writing leaves a `DELETE` a deletion. The ALLOW of a read no longer answers these requests at
+  an asynchronous `@Protectable` method either, unless the host declared the action or the method's name states it, and
+  they no longer count as reads for `contexa.security.zerotrust.agent.flight.pass-families`. **Check:** a read served over
+  `POST`, such as a search, is now a write: while an agent is narrowed it gets `403 AGENT_SCOPE_NARROWED` until the period
+  ends or its accountable person confirms that request.
 - **A sign-in no longer wipes the failures of its address.** A password that was right took the address's count back, so
   whoever held one account of their own could try any number of others from that address. The address now keeps its count
   until its window ends; the count of each account is reset as before. Behind a shared address a public NAT counts everyone's

@@ -31,6 +31,7 @@ import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService.AsyncProtectableGate;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService.SyncDecisionResult;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import org.aopalliance.intercept.MethodInvocation;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
@@ -321,6 +322,29 @@ class AgentFlightsServiceTest {
         SyncDecisionResult result = service.analyze(invocation, authentication);
 
         assertThat(result.action()).isEqualTo(ZeroTrustAction.BLOCK);
+    }
+
+    /** A sensitive record named in the query: a flight's ALLOW answers that record, the next one is analysed. */
+    @Test
+    void theAllowOfAFlightAnswersOnlyTheSensitiveRecordItsQueryNames() throws Exception {
+        SynchronousProtectableDecisionService service = service(true, 3, 20, 5_000, 3);
+        analysisMillis = 0;
+        Map<String, Object> record = request("DELEGATED_AGENT", "/api/customers", false, "SENSITIVE", null);
+        record.put(RequestFactRedaction.QUERY_REFERENCE, "qry-1");
+        Map<String, Object> another = new LinkedHashMap<>(record);
+        another.put(RequestFactRedaction.QUERY_REFERENCE, "qry-2");
+
+        current.set(record);
+        assertThat(service.analyze(invocation, authentication).action()).isEqualTo(ZeroTrustAction.ALLOW);
+        assertThat(started.get()).isEqualTo(1);
+
+        current.set(record);
+        assertThat(service.analyze(invocation, authentication).action()).isEqualTo(ZeroTrustAction.ALLOW);
+        assertThat(started.get()).as("the record decided").isEqualTo(1);
+
+        current.set(another);
+        assertThat(service.analyze(invocation, authentication).action()).isEqualTo(ZeroTrustAction.ALLOW);
+        assertThat(started.get()).as("another record").isEqualTo(2);
     }
 
     /** PR-86: an ALLOW the store kept out leaves an anchor, and an anchor only reaches as far as an ALLOW in force. */

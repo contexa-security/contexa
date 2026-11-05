@@ -17,6 +17,10 @@ package io.contexa.contexacore.autonomous.utils;
 
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HexFormat;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** Q-11 (PR-59, PR-64): what of a request may be kept. */
@@ -80,5 +84,26 @@ class RequestFactRedactionTest {
     void noQueryHasNoNames() {
         assertThat(RequestFactRedaction.queryNames(null)).isNull();
         assertThat(RequestFactRedaction.queryNames(" ")).isNull();
+    }
+
+    /** Two requests for two records differ in a value only, and no record may keep a value. */
+    @Test
+    void aQueryReferenceTellsOneQueryFromAnotherAndHoldsNoValue() {
+        String reference = RequestFactRedaction.queryReference("id=4831&pin=1234");
+
+        assertThat(reference).startsWith("qry-").hasSize(28).doesNotContain("4831").doesNotContain("1234");
+        assertThat(RequestFactRedaction.queryReference("id=4831&pin=1234")).isEqualTo(reference);
+        assertThat(RequestFactRedaction.queryReference("id=4832&pin=1234")).isNotEqualTo(reference);
+        assertThat(RequestFactRedaction.queryReference(null)).isNull();
+        assertThat(RequestFactRedaction.queryReference(" ")).isNull();
+    }
+
+    /** A short value could be tried against a plain digest of the query: the reference is keyed by the process. */
+    @Test
+    void aQueryReferenceIsNoPlainDigestOfTheQuery() throws Exception {
+        byte[] digest = MessageDigest.getInstance("SHA-256").digest("pin=1234".getBytes(StandardCharsets.UTF_8));
+
+        assertThat(RequestFactRedaction.queryReference("pin=1234"))
+                .isNotEqualTo("qry-" + HexFormat.of().formatHex(digest, 0, 12));
     }
 }

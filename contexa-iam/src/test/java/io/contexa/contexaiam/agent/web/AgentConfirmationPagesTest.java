@@ -21,12 +21,16 @@ import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.security.subject.SubjectKind;
+import io.contexa.contexacore.autonomous.agent.AgentCallGuard;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmation;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmationService;
 import io.contexa.contexacore.autonomous.agent.AgentDelegation;
 import io.contexa.contexacore.autonomous.agent.AgentDelegationRequest;
+import io.contexa.contexacore.autonomous.agent.AgentNotice;
+import io.contexa.contexacore.autonomous.agent.AgentNotices;
 import io.contexa.contexacore.autonomous.agent.AgentRequestBinding;
 import io.contexa.contexacore.autonomous.agent.InMemoryAgentConfirmationStore;
+import io.contexa.contexacore.autonomous.agent.InMemoryAgentNoticeStore;
 import io.contexa.contexacore.autonomous.agent.InMemoryDelegationRegistry;
 import io.contexa.contexacore.autonomous.agent.SignedAgentConfirmationAuthorizer;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
@@ -38,12 +42,16 @@ import io.contexa.contexacore.autonomous.agent.AgentStatus;
 import io.contexa.contexacore.autonomous.agent.InMemoryAgentRegistry;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.agent.service.AgentContainmentAdminService;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockServletContext;
@@ -61,6 +69,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
@@ -257,7 +266,8 @@ class AgentConfirmationPagesTest {
         assertThat(api.status(asked.confirmationId(), new TestingAuthenticationToken("alice", null),
                 new MockHttpServletRequest()).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
-        AgentConfirmationApiController.ConfirmationStatus requested = api.ask(
+        AgentConfirmationApiController.ConfirmationStatus requested =
+                (AgentConfirmationApiController.ConfirmationStatus) api.ask(
                 new AgentConfirmationApiController.ConfirmationAsk("post", "/api/exports?format=zip", null,
                         "The weekly export was moved to tonight"),
                 new TestingAuthenticationToken("alice", null), fromAgent).getBody();
@@ -277,7 +287,8 @@ class AgentConfirmationPagesTest {
         fromAgent.setAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP, new AuthenticationStamp("alice", null,
                 null, true, null, null, null, null, null, null, List.of(), Map.of("tenantId", "tenant-a")));
 
-        AgentConfirmationApiController.ConfirmationStatus requested = api.ask(
+        AgentConfirmationApiController.ConfirmationStatus requested =
+                (AgentConfirmationApiController.ConfirmationStatus) api.ask(
                 new AgentConfirmationApiController.ConfirmationAsk("POST", "/api/exports?format=zip", null, null),
                 new TestingAuthenticationToken("alice", null), fromAgent).getBody();
 
@@ -286,6 +297,72 @@ class AgentConfirmationPagesTest {
             assertThat(asked.requestHash()).isEqualTo(AgentRequestBinding.hash("tenant-a", "alice", "report-agent",
                     "POST", "/api/exports", "format=zip", null, null));
         });
+    }
+
+    /**
+     * Every ask of another request mails a person, so it counts as any call of the agent does: past the limit it is
+     * slowed down as the gate slows the agent down, nothing is kept and no one is told. Polling mails no one and is free.
+     */
+    @Test
+    void anAgentsAsksCountAgainstItsCallLimitAndPastItNoOneIsMailed() {
+        List<AgentNotice> mailed = new ArrayList<>();
+        AgentNotices notices = new AgentNotices(new InMemoryAgentNoticeStore(), notice -> {
+            mailed.add(notice);
+            return "MAIL";
+        });
+        AgentConfirmationService mailing = new AgentConfirmationService(store,
+                new SignedAgentConfirmationAuthorizer(HmacEvidenceSigner.of(Map.of("k1", Base64.getEncoder()
+                        .encodeToString("0123456789abcdef0123456789abcdef".getBytes())), "k1")), notices, null, null,
+                Duration.ofMinutes(15), null);
+        SecurityZeroTrustProperties.CallLimit limits = new SecurityZeroTrustProperties.CallLimit();
+        limits.setPerDelegationPerMinute(3);
+        AgentConfirmationApiController api = new AgentConfirmationApiController(mailing);
+        api.setCallGuard(new AgentCallGuard(limits, new SecurityZeroTrustProperties.DenialAlarm(), notices, null, null,
+                null));
+        TestingAuthenticationToken token = new TestingAuthenticationToken("alice", null);
+        MockHttpServletRequest fromAgent = agentRequest("alice", "report-agent");
+
+        List<HttpStatusCode> answers = new ArrayList<>();
+        ResponseEntity<?> last = null;
+        for (int target = 1; target <= 6; target++) {
+            last = api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", "/api/export/" + target, null,
+                    null), token, fromAgent);
+            answers.add(last.getStatusCode());
+        }
+
+        assertThat(answers).containsExactly(HttpStatus.ACCEPTED, HttpStatus.ACCEPTED, HttpStatus.ACCEPTED,
+                HttpStatus.TOO_MANY_REQUESTS, HttpStatus.TOO_MANY_REQUESTS, HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(mailed).hasSize(3);
+        assertThat(store.forRecipient("alice", 10)).hasSize(3);
+        assertThat(last.getHeaders().getFirst("Retry-After")).isNotBlank();
+        assertThat(last.getBody()).asInstanceOf(InstanceOfAssertFactories.map(String.class, Object.class))
+                .containsEntry("error", "AGENT_CALL_LIMIT").containsEntry("scope", "DELEGATION")
+                .containsEntry("limit", 3).containsKey("retryAfterSeconds");
+
+        // Waiting for the confirmations it holds costs the agent nothing.
+        String waiting = store.forRecipient("alice", 1).get(0).confirmationId();
+        for (int poll = 0; poll < 5; poll++) {
+            assertThat(api.status(waiting, token, fromAgent).getStatusCode()).isEqualTo(HttpStatus.OK);
+        }
+    }
+
+    /** The report-only mode lets the ask on, as it does every other call past a limit. */
+    @Test
+    void inTheReportOnlyModeAnAskPastTheLimitGoesOn() {
+        SecurityZeroTrustProperties.CallLimit limits = new SecurityZeroTrustProperties.CallLimit();
+        limits.setPerDelegationPerMinute(1);
+        AgentCallGuard guard = new AgentCallGuard(limits, new SecurityZeroTrustProperties.DenialAlarm(), null, null,
+                null, null);
+        guard.setEnforcing(() -> false);
+        AgentConfirmationApiController api = new AgentConfirmationApiController(service);
+        api.setCallGuard(guard);
+        TestingAuthenticationToken token = new TestingAuthenticationToken("alice", null);
+        MockHttpServletRequest fromAgent = agentRequest("alice", "report-agent");
+
+        for (int target = 1; target <= 3; target++) {
+            assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", "/api/export/" + target,
+                    null, null), token, fromAgent).getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        }
     }
 
     private AgentConfirmation ask() {

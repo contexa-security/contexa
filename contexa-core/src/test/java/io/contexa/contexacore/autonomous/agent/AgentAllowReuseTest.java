@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.agent;
 
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 import io.contexa.contexacore.autonomous.context.support.ActionFamily;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
@@ -173,6 +174,46 @@ class AgentAllowReuseTest {
         old.decided(KEY, "context-1", ActionFamily.READ, "CUS-1");
         assertThat(old.answers(KEY, "context-1", ActionFamily.READ, "CUS-2", true)).isTrue();
         assertThat(old.answers(KEY, "context-1", ActionFamily.READ, "CUS-3", true)).isTrue();
+    }
+
+    /** A sensitive record named in the query is a resource of its own; the pages of a general list stay one resource. */
+    @Test
+    void theQueryTellsASensitiveResourceAndNoGeneralOne() {
+        Map<String, Object> record = Map.of("resourceSensitivity", "RESTRICTED",
+                RequestFactRedaction.QUERY_REFERENCE, "qry-1");
+        Map<String, Object> another = Map.of("resourceSensitivity", "RESTRICTED",
+                RequestFactRedaction.QUERY_REFERENCE, "qry-2");
+
+        assertThat(AgentAllowReuse.resource(record, "/api/customers"))
+                .isNotEqualTo(AgentAllowReuse.resource(another, "/api/customers"))
+                .isEqualTo(AgentAllowReuse.resource(Map.copyOf(record), "/api/customers"));
+        assertThat(AgentAllowReuse.resource(Map.of(RequestFactRedaction.QUERY_REFERENCE, "qry-1"), "/api/docs"))
+                .as("a general resource").isEqualTo("/api/docs");
+        assertThat(AgentAllowReuse.resource(Map.of("resourceSensitivity", "RESTRICTED"), "/api/customers"))
+                .as("no query").isEqualTo("/api/customers");
+        assertThat(AgentAllowReuse.resource(record, null)).isNull();
+        assertThat(AgentAllowReuse.resource(null, "/api/customers")).isEqualTo("/api/customers");
+    }
+
+    /** An ALLOW of a read never answers a write whose path only sounds like reading. */
+    @Test
+    void theOperationOfACallIsNoLighterThanItsMethodWhateverItsPathSays() {
+        Map<String, Object> delete = Map.of("httpMethod", "DELETE", "resourceUrlTemplate", "/api/lists/{id}",
+                "protectableResourceUrl", "/api/lists/{id}", "protectableMethod", "io.app.Lists.clear",
+                "requestPath", "/api/lists/7");
+
+        assertThat(AgentAllowReuse.operation(delete, "/api/lists/7")).isEqualTo(ActionFamily.DELETE);
+        assertThat(AgentAllowReuse.operation(Map.of("httpMethod", "POST", "requestPath", "/api/search/x"), null))
+                .isEqualTo(ActionFamily.WRITE);
+        assertThat(AgentAllowReuse.operation(Map.of("httpMethod", "GET", "requestPath", "/api/%65xport/x"), null))
+                .isEqualTo(ActionFamily.EXPORT);
+        assertThat(AgentAllowReuse.operation(Map.of("httpMethod", "GET", "resourceUrlTemplate", "/api/lists/{id}"),
+                "/api/lists/7")).isEqualTo(ActionFamily.READ);
+        // What the host declares, and the name of the method it protects, stand as they did.
+        assertThat(AgentAllowReuse.operation(Map.of("actionFamily", "READ", "httpMethod", "POST"), "/api/x"))
+                .isEqualTo(ActionFamily.READ);
+        assertThat(AgentAllowReuse.operation(Map.of("protectableMethod", "io.app.Customers.searchCustomers",
+                "httpMethod", "POST"), "/api/x")).isEqualTo(ActionFamily.READ);
     }
 
     @Test

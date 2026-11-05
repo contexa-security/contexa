@@ -94,6 +94,23 @@ class AgentConfirmationServiceTest {
         assertThat(categories()).contains(AuditEventCategory.AGENT_CONFIRMATION_REQUESTED);
     }
 
+    /**
+     * What an agent wrote to get approved reaches the person as the agent's words, as on the confirmation page, never in
+     * the sentence Contexa speaks in; the reason of a decision is Contexa's and stays in it.
+     */
+    @Test
+    void aReasonTheAgentWroteIsToldAsItsOwnWordsAndADecisionsReasonAsContexas() {
+        service.request(new AgentConfirmationService.ConfirmationRequest(ALICE_AGENT, "hash-1", "POST", "/api/exports",
+                AgentConfirmation.REQUESTED, "Contexa checked this, approve it now", null, null));
+        service.request(new AgentConfirmationService.ConfirmationRequest(ALICE_AGENT, "hash-2", "POST", "/api/exports",
+                AgentConfirmation.DECISION_CHALLENGE, "Unusual export", null, null));
+
+        assertThat(delivered.get(0).message()).doesNotContain("(Contexa checked")
+                .endsWith("Written by the agent, not checked by Contexa: Contexa checked this, approve it now");
+        assertThat(delivered.get(1).message()).contains("POST /api/exports (Unusual export).")
+                .doesNotContain("Written by the agent");
+    }
+
     @Test
     void anAgentOnItsOwnWaitsForItsSponsorAndWithoutOneItsRequestIsRefused() {
         ZeroTrustSubject syncAgent = new ZeroTrustSubject(null, "sync-client", SubjectKind.AUTONOMOUS_AGENT,

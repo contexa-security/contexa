@@ -127,7 +127,7 @@ public class AgentConfirmationService {
                 "The agent " + confirmation.agentId() + " is waiting for your confirmation before it runs "
                         + confirmation.method() + " " + confirmation.target() + reasonText(confirmation)
                         + ". Approve, refuse or report it before " + confirmation.expiresAt()
-                        + "; without an answer it is refused.",
+                        + "; without an answer it is refused." + agentWords(confirmation),
                 link(request.linkBase(), PAGE_PATH + confirmation.confirmationId()));
         record(AuditEventCategory.AGENT_CONFIRMATION_REQUESTED, "contexa", confirmation, subject, "PENDING",
                 confirmation.reason(), Map.of("target", confirmation.method() + " " + confirmation.target(),
@@ -420,8 +420,20 @@ public class AgentConfirmationService {
         return StringUtils.hasText(base) ? base.replaceAll("/+$", "") + path : path;
     }
 
+    /** The reason of a decision or of an ended delegation: Contexa's own, said in Contexa's sentence. */
     private static String reasonText(AgentConfirmation confirmation) {
-        return StringUtils.hasText(confirmation.reason()) ? " (" + confirmation.reason() + ")" : "";
+        return StringUtils.hasText(confirmation.reason()) && !agentWrote(confirmation)
+                ? " (" + confirmation.reason() + ")" : "";
+    }
+
+    /** What the agent wrote when it asked: said after Contexa's words and as the agent's, as the page shows it. */
+    private static String agentWords(AgentConfirmation confirmation) {
+        return StringUtils.hasText(confirmation.reason()) && agentWrote(confirmation)
+                ? " Written by the agent, not checked by Contexa: " + confirmation.reason() : "";
+    }
+
+    private static boolean agentWrote(AgentConfirmation confirmation) {
+        return AgentConfirmation.REQUESTED.equals(confirmation.trigger());
     }
 
     @Nullable

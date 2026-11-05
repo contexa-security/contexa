@@ -32,8 +32,15 @@ import io.contexa.contexacore.autonomous.handler.handler.SecurityDecisionEnforce
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageLevel;
+import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageReport;
+import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
+import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
+import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
+import io.contexa.contexacommon.security.context.RequestSecurityContextAttributes;
 import io.contexa.contexacore.autonomous.agent.AgentAllowReuse;
 import io.contexa.contexacore.autonomous.context.support.ActionFamily;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import org.aopalliance.intercept.MethodInvocation;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,6 +50,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -50,9 +58,11 @@ import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -533,6 +543,74 @@ class SynchronousProtectableDecisionServiceTest {
         // The same records with no sensitivity declared keep the general limit of three.
         assertThat(gateFor("DELEGATED_AGENT", "/api/customers/2", null).decideInPlace()).isFalse();
         assertThat(gateFor("DELEGATED_AGENT", "/api/customers/3", null).decideInPlace()).isFalse();
+    }
+
+    /**
+     * A record is often named by a value of the query, not by the path, and the event keeps only the query's names: the
+     * ALLOW of one sensitive record answers that record and no other. The events are built from real requests.
+     */
+    @Test
+    @DisplayName("an agent's ALLOW of a sensitive record named in the query answers that record, not the next one")
+    void asyncGate_aSensitiveRecordNamedInTheQueryIsDecidedOnItsOwn() throws Exception {
+        SynchronousProtectableDecisionService gate = withRealEvents();
+
+        bindRequest(agentRequest("id=1", "RESTRICTED"));
+        gate.analyze(methodInvocation, authentication);
+
+        bindRequest(agentRequest("id=1", "RESTRICTED"));
+        assertThat(gate.asyncGate(methodInvocation, authentication).decideInPlace()).as("the record decided").isFalse();
+        for (int id = 2; id <= 10; id++) {
+            bindRequest(agentRequest("id=" + id, "RESTRICTED"));
+            assertThat(gate.asyncGate(methodInvocation, authentication).decideInPlace()).as("record %d", id).isTrue();
+        }
+    }
+
+    /** A general resource keeps its path as the resource: the pages of a list are one resource, up to the request limit. */
+    @Test
+    @DisplayName("an agent's ALLOW of a general resource answers its other queries within the request limit")
+    void asyncGate_theQueriesOfAGeneralResourceAreOneResource() throws Exception {
+        SynchronousProtectableDecisionService gate = withRealEvents();
+
+        bindRequest(agentRequest("page=1", null));
+        gate.analyze(methodInvocation, authentication);
+
+        for (int page = 2; page <= 5; page++) {
+            bindRequest(agentRequest("page=" + page, null));
+            assertThat(gate.asyncGate(methodInvocation, authentication).decideInPlace()).as("page %d", page).isFalse();
+        }
+    }
+
+    /** The gate over the events the publisher builds from the bound request; the ALLOW of the first request is in force. */
+    private SynchronousProtectableDecisionService withRealEvents() throws Exception {
+        SynchronousProtectableDecisionService gate = new SynchronousProtectableDecisionService(
+                new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties()),
+                eventListener, securityPlaneAgent, actionRepository);
+        gate.setAgentAllowReuse(new AgentAllowReuse(10, 3, 1, null));
+        when(methodInvocation.getMethod()).thenReturn(Object.class.getMethod("toString"));
+        when(eventListener.generateAuthorizationContextBindingHash(any())).thenReturn(CONTEXT_HASH);
+        when(eventListener.shouldPublishSynchronousAuthorizationEvent(any())).thenReturn(true);
+        when(securityPlaneAgent.processSecurityEvent(any(SecurityEvent.class))).thenReturn(mock(SecurityEventContext.class));
+        lenient().when(actionRepository.getCurrentAction(any(), any())).thenReturn(ZeroTrustAction.ALLOW);
+        return gate;
+    }
+
+    /** An agent's read of {@code /api/customers}, as the bridge leaves it. */
+    private MockHttpServletRequest agentRequest(String query, String sensitivity) {
+        MockHttpServletRequest request = request("/api/customers");
+        request.setQueryString(query);
+        request.setAttribute(BridgeRequestAttributes.RESOLUTION_RESULT, new BridgeResolutionResult(
+                new RequestContextSnapshot("/api/customers", "GET", "203.0.113.10", "JUnit", "session-1", "request-1",
+                        "/api/customers", null, false, Instant.now()),
+                null,
+                null,
+                new DelegationStamp(USER_ID, "report-agent", true, null, null, null, List.of(), List.of(), null, null,
+                        null, null, Map.of("delegationResolver", "TOKEN")),
+                new BridgeCoverageReport(BridgeCoverageLevel.DELEGATION_CONTEXT, 90, Set.of(), "summary", List.of())));
+        if (sensitivity != null) {
+            request.setAttribute(RequestSecurityContextAttributes.Field.RESOURCE_SENSITIVITY.canonicalAttributeKey(),
+                    sensitivity);
+        }
+        return request;
     }
 
     private SynchronousProtectableDecisionService.AsyncProtectableGate gateFor(String subjectKind, String resource) {

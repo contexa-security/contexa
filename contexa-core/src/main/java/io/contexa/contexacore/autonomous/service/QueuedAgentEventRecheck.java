@@ -77,7 +77,8 @@ public class QueuedAgentEventRecheck implements SecurityPlaneAgent.QueuedEventRe
             if (!answered && action == ZeroTrustAction.ALLOW && agentAllowReuse != null) {
                 String path = text(event.getMetadata().get("requestPath"));
                 answered = agentAllowReuse.answers(key, contextHash,
-                        AgentAllowReuse.operation(event.getMetadata(), path), path,
+                        AgentAllowReuse.operation(event.getMetadata(), path),
+                        AgentAllowReuse.resource(event.getMetadata(), path),
                         AgentAllowReuse.sensitive(event.getMetadata()));
             }
             if (answered && unanalysedRequestRecorder != null) {
