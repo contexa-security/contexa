@@ -6,6 +6,8 @@ import io.contexa.contexacommon.security.bridge.AuthObjectLocation;
 import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import io.contexa.contexacommon.security.bridge.SecurityMode;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.StandardEnvironment;
 
@@ -65,6 +67,55 @@ class AiSecurityImportSelectorTest {
         selector.setEnvironment(new StandardEnvironment());
 
         assertThat(selector.selectImports(AnnotationMetadata.introspect(DefaultSandboxApplication.class))).isEmpty();
+    }
+
+    /** Every part of Contexa reads the engine's decisions: without it the start ended on a bean nobody could explain. */
+    @ParameterizedTest
+    @ValueSource(strings = {"false", "FALSE", "no", "off", "0", ""})
+    void anApplicationThatKeepsItsSignInStartsWithContexaOffWithoutTheEngine(String value) {
+        StandardEnvironment environment = withEngineSetting(value);
+        AiSecurityImportSelector selector = new AiSecurityImportSelector(unreachable -> null, unreachable -> null);
+        selector.setEnvironment(environment);
+
+        assertThat(selector.selectImports(AnnotationMetadata.introspect(DefaultSandboxApplication.class))).isEmpty();
+        assertThat(environment.getPropertySources().contains(AiSecurityImportSelector.ACTIVATION_SOURCE))
+                .as("nothing of Contexa is active").isFalse();
+    }
+
+    @ParameterizedTest
+    @ValueSource(classes = {FullModeApplication.class, DefaultSandboxApplication.class})
+    void anApplicationWhoseSignInContexaOwnsIsToldWhyItDoesNotStartWithoutTheEngine(Class<?> application) {
+        StandardEnvironment environment = withEngineSetting("false");
+        if (application == DefaultSandboxApplication.class) {
+            environment.getPropertySources().addFirst(new MapPropertySource("operator",
+                    Map.of(AiSecurityImportSelector.PROP_MODE, "FULL")));
+        }
+        AiSecurityImportSelector selector = new AiSecurityImportSelector(unreachable -> null, unreachable -> null);
+        selector.setEnvironment(environment);
+
+        assertThatThrownBy(() -> selector.selectImports(AnnotationMetadata.introspect(application)))
+                .isInstanceOf(ContexaOperatingProfileException.class)
+                .hasMessageContaining("contexa.autonomous.enabled=false")
+                .hasMessageContaining("nobody could sign in")
+                .satisfies(refusal -> assertThat(((ContexaOperatingProfileException) refusal).action())
+                        .contains("contexa.security.zerotrust.mode=DISABLED"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"true", "TRUE", "True"})
+    void theEngineSwitchedOnStartsContexaAsBefore(String value) {
+        StandardEnvironment environment = withEngineSetting(value);
+        AiSecurityImportSelector selector = new AiSecurityImportSelector(unreachable -> null, unreachable -> null);
+        selector.setEnvironment(environment);
+
+        assertThat(selector.selectImports(AnnotationMetadata.introspect(DefaultSandboxApplication.class))).isNotEmpty();
+    }
+
+    private static StandardEnvironment withEngineSetting(String value) {
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(new MapPropertySource("application",
+                Map.of("contexa.autonomous.enabled", value)));
+        return environment;
     }
 
     @Test

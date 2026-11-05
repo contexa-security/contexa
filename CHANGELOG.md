@@ -149,7 +149,10 @@ The format is based on Keep a Changelog and the project follows semantic version
   application's user under the application's name for it.
 - The start names an `actions` value of `@Protectable` outside the action families; the value had no effect on the request.
 - The guidance for running without decisions names `contexa.security.zerotrust.mode=DISABLED`. The
-  `contexa.autonomous.enabled=false` it named stops the start of an application with `@EnableAISecurity`.
+  `contexa.autonomous.enabled=false` it named stopped the start of an application with `@EnableAISecurity`, on a bean of
+  Contexa's. That setting takes away the decision engine all of Contexa reads, so an application that keeps its sign-in now
+  writes one ERROR and starts without Contexa, as with Contexa's database down; where Contexa owns the sign-in the start is
+  refused and says why. To turn off only the decisions, use `contexa.security.zerotrust.mode=DISABLED`.
 - A new session of a user no longer writes `Context binding hash mismatch` at ERROR: it is the ordinary way to a new decision.
 - Contexa adds no `BeanPostProcessorChecker` line to an application's start log.
 - **A store outage is no longer an outage of the application.** Redis or Contexa's database that stops, freezes or runs out

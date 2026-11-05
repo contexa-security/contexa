@@ -2,6 +2,7 @@
 package io.contexa.contexacommon.annotation;
 
 import io.contexa.contexacommon.operating.ContexaOperatingProfile;
+import io.contexa.contexacommon.operating.ContexaOperatingProfileException;
 import io.contexa.contexacommon.security.bridge.AuthObjectLocation;
 import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import io.contexa.contexacommon.security.bridge.SecurityMode;
@@ -37,6 +38,10 @@ public class AiSecurityImportSelector implements DeferredImportSelector, Ordered
     public static final String PROP_BRIDGE_OWNERSHIP = ContexaOperatingProfile.PROP_OWNERSHIP;
     public static final String PROP_CONTEXA_OWNED_APPLICATION =
             ContexaOperatingProfile.PROP_APPLICATION_DATA;
+    /** Switches off the decision engine, the auto-configurations every other part of Contexa reads its decisions from. */
+    public static final String PROP_ENGINE_ENABLED = "contexa.autonomous.enabled";
+    /** What keeps Contexa running with its decisions off. */
+    private static final String DECISIONS_OFF = "contexa.security.zerotrust.mode=DISABLED";
     /** What this selector publishes once it switched Contexa on. An application's own settings can name the mode, not this. */
     public static final String ACTIVATION_SOURCE = "contexaAiSecurityAnnotation";
     private static final String AI_SECURITY_CONFIGURATION = "io.contexa.autoconfigure.ai.AiSecurityConfiguration";
@@ -100,7 +105,7 @@ public class AiSecurityImportSelector implements DeferredImportSelector, Ordered
         ContexaOperatingProfile.refuseReactive(environment);
         ContexaOperatingProfile.refuseDistributedWithoutRedis(environment, getClass().getClassLoader());
         ContexaOperatingProfile profile = ContexaOperatingProfile.of(ContexaOperatingProfile.modeSet(environment, mode), environment);
-        if (staysOffWithoutItsDatabase(profile)) {
+        if (staysOffWithoutItsEngine(profile) || staysOffWithoutItsDatabase(profile)) {
             return new String[0];
         }
 
@@ -115,6 +120,30 @@ public class AiSecurityImportSelector implements DeferredImportSelector, Ordered
         // First, for the one spelling. Every value above already gave way to what an operator set, as with any Spring setting.
         environment.getPropertySources().addFirst(new MapPropertySource(ACTIVATION_SOURCE, activation));
         return new String[]{AI_SECURITY_CONFIGURATION};
+    }
+
+    /**
+     * The engine cannot be left out of a running Contexa: its console, its filters and its method security all read the
+     * decisions the engine stores. An application that keeps its own sign-in then runs without Contexa, as with its database
+     * down. Where Contexa owns the sign-in nobody could sign in, so the start is refused with the reason. The setting is read
+     * as the conditions of the engine read it: anything but true switches it off.
+     */
+    private boolean staysOffWithoutItsEngine(ContexaOperatingProfile profile) {
+        String enabled = environment.getProperty(PROP_ENGINE_ENABLED);
+        if (enabled == null || "true".equalsIgnoreCase(enabled)) {
+            return false;
+        }
+        if (profile.ownership() != SecurityOwnershipMode.HOST_OWNED) {
+            throw new ContexaOperatingProfileException(
+                    PROP_ENGINE_ENABLED + "=" + enabled + " switches off the decision engine, and Contexa owns the sign-in of this"
+                            + " application: nobody could sign in without it.",
+                    "Remove " + PROP_ENGINE_ENABLED + ". To run without decisions, set " + DECISIONS_OFF + ".");
+        }
+        LoggerFactory.getLogger(AiSecurityImportSelector.class).error(
+                "{}={} switches off the decision engine, which all of Contexa reads: the application starts without Contexa, and "
+                        + "nothing of it is active. To turn off only the decisions, remove it and set {}.",
+                PROP_ENGINE_ENABLED, enabled, DECISIONS_OFF);
+        return true;
     }
 
     /**
