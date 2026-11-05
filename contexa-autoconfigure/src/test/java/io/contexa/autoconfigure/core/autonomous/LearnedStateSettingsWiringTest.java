@@ -70,7 +70,7 @@ class LearnedStateSettingsWiringTest {
         InMemorySecurityContextDataStore memory = new CoreAutonomousAutoConfiguration()
                 .inMemorySecurityContextDataStore(provider(properties), provider(null));
         RedisSecurityContextDataStore redis = new CoreAutonomousAutoConfiguration.DistributedRepositoryConfiguration()
-                .redisSecurityContextDataStore(redisTemplate, provider(properties));
+                .redisSecurityContextDataStore(redisTemplate, provider(properties), provider(null));
 
         assertThat(memory.observationCapacity()).isEqualTo(8_000);
         assertThat(redis.observationCapacity()).isEqualTo(8_000);

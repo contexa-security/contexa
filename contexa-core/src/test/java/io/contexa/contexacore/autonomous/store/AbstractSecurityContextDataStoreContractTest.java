@@ -37,6 +37,8 @@ abstract class AbstractSecurityContextDataStoreContractTest {
 
     protected abstract SecurityContextDataStore createStoreWithLoginFailureRetention(Duration retention);
 
+    protected abstract SecurityContextDataStore createStoreWithAllowValidity(Duration validity);
+
     /** BR-C14: a store keeping the given number of observations in each scope. */
     protected abstract SecurityContextDataStore createStoreWithObservationCapacity(int capacity);
 
@@ -255,6 +257,26 @@ abstract class AbstractSecurityContextDataStoreContractTest {
         store.holdVerificationLearning("user-held", "request-3", "{}");
         store.deleteUserData("user-held");
         assertThat(store.takeVerificationLearning("user-held", "request-3")).isNull();
+    }
+
+    @Test
+    @DisplayName("a verified stopped request lasts as long as the ALLOW the step-up writes, the one left out too (Q-28)")
+    void stoppedRequests_lastAsLongAsTheAllow() {
+        SecurityContextDataStore store = createStoreWithAllowValidity(Duration.ofSeconds(40));
+        store.holdStoppedRequest("user-window", "POST /api/a");
+        store.holdStoppedRequest("user-window", "POST /api/b");
+        store.holdStoppedRequest("user-window-late", "POST /api/a");
+
+        store.verifyStoppedRequests("user-window", "POST /api/a");
+        store.verifyStoppedRequests("user-window-late", null);
+        passTime(Duration.ofSeconds(35));
+
+        assertThat(store.takeVerifiedStoppedRequest("user-window", "POST /api/a")).as("left out").isFalse();
+        assertThat(store.takeVerifiedStoppedRequest("user-window", "POST /api/b")).as("within the time").isTrue();
+
+        passTime(Duration.ofSeconds(6));
+
+        assertThat(store.takeVerifiedStoppedRequest("user-window-late", "POST /api/a")).as("past the time").isFalse();
     }
 
     @Test

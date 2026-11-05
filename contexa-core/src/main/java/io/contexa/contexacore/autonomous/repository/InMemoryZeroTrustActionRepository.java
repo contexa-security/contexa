@@ -101,6 +101,17 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
     /** What a stored ESCALATE is replaced with when it is read; null keeps it. */
     private volatile ZeroTrustAction escalateReplacement;
 
+    private volatile Duration allowValidity = ZeroTrustAction.ALLOW.getDefaultTtl();
+
+    /** Q-28: how long an ALLOW answers its context without a new analysis. */
+    public void setAllowValidity(Duration allowValidity) {
+        this.allowValidity = ZeroTrustActionPrecedence.allowValidity(allowValidity);
+    }
+
+    public Duration allowValidity() {
+        return allowValidity;
+    }
+
     public InMemoryZeroTrustActionRepository() {
         this(DEFAULT_FAIL_COUNT_TTL, Clock.systemUTC());
     }
@@ -879,8 +890,8 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         return entry != null && entry.action != null ? entry : null;
     }
 
-    private static Duration ttlOf(ZeroTrustAction action, Map<String, Object> fields) {
-        Duration ttl = ZeroTrustActionPrecedence.ttlOf(action, fields);
+    private Duration ttlOf(ZeroTrustAction action, Map<String, Object> fields) {
+        Duration ttl = ZeroTrustActionPrecedence.ttlOf(action, fields, allowValidity);
         return ttl != null ? ttl : NO_TTL;
     }
 

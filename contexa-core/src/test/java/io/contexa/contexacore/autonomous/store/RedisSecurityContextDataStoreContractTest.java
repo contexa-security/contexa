@@ -84,6 +84,13 @@ class RedisSecurityContextDataStoreContractTest extends AbstractSecurityContextD
     }
 
     @Override
+    protected SecurityContextDataStore createStoreWithAllowValidity(Duration validity) {
+        RedisSecurityContextDataStore store = new RedisSecurityContextDataStore(redisTemplate);
+        store.setAllowValidity(validity);
+        return store;
+    }
+
+    @Override
     protected SecurityContextDataStore createStoreWithLoginFailureRetention(Duration retention) {
         RedisSecurityContextDataStore store = new RedisSecurityContextDataStore(redisTemplate);
         store.setLoginFailureRetention(retention);

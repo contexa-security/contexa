@@ -132,6 +132,13 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
     /** What a stored ESCALATE is replaced with when it is read; null keeps it. */
     private volatile ZeroTrustAction escalateReplacement;
 
+    private volatile Duration allowValidity = ZeroTrustAction.ALLOW.getDefaultTtl();
+
+    /** Q-28: how long an ALLOW answers its context without a new analysis. */
+    public void setAllowValidity(Duration allowValidity) {
+        this.allowValidity = ZeroTrustActionPrecedence.allowValidity(allowValidity);
+    }
+
     public ZeroTrustActionRedisRepository(RedisTemplate<String, Object> redisTemplate,
                                           StringRedisTemplate stringRedisTemplate) {
         this(redisTemplate, stringRedisTemplate, DEFAULT_FAIL_COUNT_TTL);
@@ -469,7 +476,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 fields.putAll(additionalFields);
             }
 
-            Duration ttl = ZeroTrustActionPrecedence.ttlOf(action, additionalFields);
+            Duration ttl = ZeroTrustActionPrecedence.ttlOf(action, additionalFields, allowValidity);
             replaceAnalysisAtomically(analysisKey, fields, ttl);
 
             String lastActionKey = ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId);
@@ -564,7 +571,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             fields.put("action", newAction.name());
             fields.put("updatedAt", Instant.now().toString());
 
-            Duration ttl = newAction.getDefaultTtl();
+            Duration ttl = ZeroTrustActionPrecedence.ttlOf(newAction, null, allowValidity);
             replaceAnalysisAtomically(analysisKey, fields, ttl);
 
             String lastActionKey = ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId);
@@ -599,7 +606,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 fields.put("contextBindingHash", contextBindingHash);
             }
 
-            Duration ttl = newAction.getDefaultTtl();
+            Duration ttl = ZeroTrustActionPrecedence.ttlOf(newAction, null, allowValidity);
             replaceAnalysisAtomically(analysisKey, fields, ttl);
 
             String lastActionKey = ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId);
@@ -865,7 +872,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             fields.put("action", newAction.name());
             fields.put("updatedAt", Instant.now().toString());
 
-            Duration ttl = newAction.getDefaultTtl();
+            Duration ttl = ZeroTrustActionPrecedence.ttlOf(newAction, null, allowValidity);
             redisTemplate.execute(new SessionCallback<List<Object>>() {
                 @Override
                 public List<Object> execute(RedisOperations operations) throws DataAccessException {
@@ -1021,7 +1028,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             args.add(serialize(hashValueSerializer, known.name()));
         }
 
-        Duration ttl = ZeroTrustActionPrecedence.ttlOf(action, additionalFields);
+        Duration ttl = ZeroTrustActionPrecedence.ttlOf(action, additionalFields, allowValidity);
         args.add(utf8(Long.toString(ttl != null ? ttl.toMillis() : 0L)));
         args.add(utf8(action.name()));
         args.add(utf8(Long.toString(LAST_VERIFIED_ACTION_TTL.toMillis())));

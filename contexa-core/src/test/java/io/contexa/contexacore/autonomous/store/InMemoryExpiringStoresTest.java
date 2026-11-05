@@ -69,9 +69,10 @@ class InMemoryExpiringStoresTest {
     @Test
     void stoppedRequestsLastAsLongAsTheChallengeAndTheirVerificationAsLongAsTheAllow() {
         // N-LRN-3: a stopped request waits for the step-up while the challenge is in force (30 min); once verified it
-        // is sent again under the ALLOW the step-up writes (15 s).
+        // is sent again under the ALLOW the step-up writes, set here to 15 s.
         InMemorySecurityContextDataStore store = new InMemorySecurityContextDataStore(
                 Duration.ofHours(24), Duration.ofDays(7), Duration.ofDays(7), clock);
+        store.setAllowValidity(Duration.ofSeconds(15));
         store.holdStoppedRequest("erin", "POST /api/exports");
         store.holdStoppedRequest("frank", "POST /api/exports");
         store.holdStoppedRequest("gina", "POST /api/exports");

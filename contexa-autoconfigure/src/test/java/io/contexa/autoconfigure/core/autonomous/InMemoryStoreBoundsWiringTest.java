@@ -15,6 +15,7 @@
  */
 package io.contexa.autoconfigure.core.autonomous;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.event.CompositeLlmAnalysisEventListener;
 import io.contexa.contexacore.autonomous.processor.ColdPathEventProcessor;
 import io.contexa.contexacore.autonomous.processor.PromptShadowRunner;
@@ -27,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 
+import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,6 +44,7 @@ class InMemoryStoreBoundsWiringTest {
     void theStandaloneDecisionStoreTakesItsBoundOnUsersFromTheSetting() {
         SecurityZeroTrustProperties properties = new SecurityZeroTrustProperties();
         properties.getStandalone().setMaxDecisionUsers(1_234);
+        properties.setAllowValidity(Duration.ofMinutes(12));
 
         InMemoryZeroTrustActionRepository configured =
                 new CoreAutonomousAutoConfiguration().inMemoryZeroTrustActionRepository(provider(properties));
@@ -52,6 +55,9 @@ class InMemoryStoreBoundsWiringTest {
                         .getBeanProvider(SecurityZeroTrustProperties.class));
 
         assertThat(configured.maxUsers()).isEqualTo(1_234);
+        assertThat(configured.allowValidity()).isEqualTo(Duration.ofMinutes(12));
+        assertThat(derived.allowValidity()).isEqualTo(ZeroTrustAction.ALLOW.getDefaultTtl());
+        assertThat(withoutProperties.allowValidity()).isEqualTo(ZeroTrustAction.ALLOW.getDefaultTtl());
         assertThat(derived.maxUsers()).isEqualTo(new InMemoryZeroTrustActionRepository(0).maxUsers())
                 .isBetween(1_000, 1_000_000);
         assertThat(withoutProperties.maxUsers()).isEqualTo(derived.maxUsers());

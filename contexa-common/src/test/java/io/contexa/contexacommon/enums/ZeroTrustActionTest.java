@@ -123,9 +123,9 @@ class ZeroTrustActionTest {
         }
 
         @Test
-        @DisplayName("Should return Duration for ALLOW with 15 seconds")
+        @DisplayName("Should return the production time for ALLOW, within 10 to 20 minutes")
         void shouldReturnDurationForAllow() {
-            assertThat(ZeroTrustAction.ALLOW.getDefaultTtl()).isEqualTo(Duration.ofSeconds(15));
+            assertThat(ZeroTrustAction.ALLOW.getDefaultTtl()).isEqualTo(Duration.ofMinutes(15));
         }
 
         @Test

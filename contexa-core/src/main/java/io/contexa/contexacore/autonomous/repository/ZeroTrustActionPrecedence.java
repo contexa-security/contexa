@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.repository;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.Map;
@@ -33,7 +34,11 @@ import java.util.Map;
  * BLOCK by the access filter. That holds with allow-escalate-final-action on; off, an ESCALATE is
  * internal to the analysis, and one left in the store ends as the terminal action when it is read.</p>
  */
+@Slf4j
 final class ZeroTrustActionPrecedence {
+
+    private static final Duration PRODUCTION_ALLOW_FROM = Duration.ofMinutes(10);
+    private static final Duration PRODUCTION_ALLOW_TO = Duration.ofMinutes(20);
 
     private ZeroTrustActionPrecedence() {
     }
@@ -94,6 +99,28 @@ final class ZeroTrustActionPrecedence {
     static Duration ttlOf(ZeroTrustAction action, Map<String, Object> fields) {
         return isTechnicalChallenge(action, fields) ? ZeroTrustActionRepository.TECHNICAL_CHALLENGE_TTL
                 : action.getDefaultTtl();
+    }
+
+    /** The TTL of the decision where an ALLOW lasts what the installation set (Q-28). */
+    static Duration ttlOf(ZeroTrustAction action, Map<String, Object> fields, Duration allowValidity) {
+        return action == ZeroTrustAction.ALLOW ? allowValidity : ttlOf(action, fields);
+    }
+
+    /**
+     * Q-28: the validity an installation set for an ALLOW. A repository reads a time that is not positive as no expiry,
+     * which would keep an ALLOW for ever, so it reads as the default. Outside the production range the time is kept
+     * and said once: a test lowers it on purpose, and left in production it changes how often requests are decided.
+     */
+    static Duration allowValidity(Duration configured) {
+        Duration validity = ZeroTrustAction.allowValidity(configured);
+        if (!validity.equals(configured)) {
+            log.error("[ZeroTrust] contexa.security.zerotrust.allow-validity {} is not a positive time, {} is used",
+                    configured, validity);
+        } else if (validity.compareTo(PRODUCTION_ALLOW_FROM) < 0 || validity.compareTo(PRODUCTION_ALLOW_TO) > 0) {
+            log.warn("[ZeroTrust] contexa.security.zerotrust.allow-validity {} is outside the production range {} to {}",
+                    validity, PRODUCTION_ALLOW_FROM, PRODUCTION_ALLOW_TO);
+        }
+        return validity;
     }
 
     private static boolean decidedByTheModel(Map<String, Object> fields) {

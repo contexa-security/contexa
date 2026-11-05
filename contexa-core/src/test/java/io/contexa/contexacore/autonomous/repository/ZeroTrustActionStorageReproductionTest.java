@@ -149,7 +149,8 @@ class ZeroTrustActionStorageReproductionTest {
 
     @Test
     void inMemoryAllowLapsesToPendingAfterAnalysisTtl() {
-        ZeroTrustActionRepository repository = new InMemoryZeroTrustActionRepository();
+        InMemoryZeroTrustActionRepository repository = new InMemoryZeroTrustActionRepository();
+        repository.setAllowValidity(Duration.ofSeconds(15));
         String user = user();
         assertThat(repository.saveFinalAction(user, ZeroTrustAction.ALLOW, fields(SESSION_A))).isTrue();
         assertThat(repository.getCurrentAction(user, SESSION_A)).isEqualTo(ZeroTrustAction.ALLOW);
@@ -163,7 +164,9 @@ class ZeroTrustActionStorageReproductionTest {
     @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
     void redisAllowLapsesToPendingAfterAnalysisTtl() {
         String user = user();
+        redis.setAllowValidity(Duration.ofSeconds(15));
         assertThat(redis.saveFinalAction(user, ZeroTrustAction.ALLOW, fields(SESSION_A))).isTrue();
+        redis.setAllowValidity(ZeroTrustAction.ALLOW.getDefaultTtl());
         assertThat(redis.getCurrentAction(user, SESSION_A)).isEqualTo(ZeroTrustAction.ALLOW);
         Awaitility.await().atMost(Duration.ofSeconds(20)).pollInterval(Duration.ofMillis(250)).untilAsserted(() -> {
             assertThat(redis.getAnalysisData(user).action()).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS.name());
@@ -244,7 +247,7 @@ class ZeroTrustActionStorageReproductionTest {
         assertThat(repository.saveFinalAction(user, ZeroTrustAction.ESCALATE, fields(SESSION_A))).isTrue();
         repository.approveOverrideAtomically(user, ZeroTrustAction.ALLOW);
 
-        clock.advance(ZeroTrustAction.ESCALATE.getDefaultTtl().plusSeconds(1));
+        clock.advance(ZeroTrustAction.ALLOW.getDefaultTtl().plusSeconds(1));
 
         assertThat(repository.getCurrentAction(user, SESSION_A)).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
     }
