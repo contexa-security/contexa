@@ -238,7 +238,6 @@ The format is based on Keep a Changelog and the project follows semantic version
   context. An AI operation that fails or streams to its end no longer leaves its audit entry in memory.
 - **What an administrator changes reaches the sessions that are open.** Disabling a user ends the user's sessions at once,
   and a change of groups, roles, permissions or the role hierarchy is read again by each open session on its next request.
-  A bearer token keeps the rights it was issued with until it expires; disabling the account ends it.
 - **The console's administrator is not the application's user of that name** under `HOST_OWNED`: a BLOCK of one no longer
   locks the console of the other, in either direction, and the block list stays open to a console session.
 - **A session under a BLOCK no longer lifts it itself.** The block list stays open to a blocked console session, but its own

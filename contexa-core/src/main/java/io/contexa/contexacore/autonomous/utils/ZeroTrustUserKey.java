@@ -29,8 +29,9 @@ import java.util.concurrent.atomic.AtomicReference;
  * the name as typed, so a BLOCK of {@code plain-k9} would not reach {@code PLAIN-K9}: every spelling of a name reads and
  * writes one key, the Unicode compatibility form without the spaces around it and without case.
  * <p>
- * Only what enforces a decision uses this key. What is recorded about a user (baselines, audit, the blocked user's
- * record) keeps the name as the application gave it. An application whose names differ by case alone turns it off with
+ * Only what enforces a decision uses this key. What is recorded about a user (baselines, audit) keeps the name as the
+ * application gave it, and so does the blocked user's record, unless the name has the shape of an internal key: that
+ * record then holds the key {@link #person} makes. An application whose names differ by case alone turns it off with
  * {@code contexa.security.zerotrust.normalize-user-keys=false}; a restriction of one such user would otherwise reach
  * the other.
  * <p>
