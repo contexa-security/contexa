@@ -29,7 +29,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * The arguments of a protected method's call as the decision reads them (A2-8): what the caller asked the method to
@@ -39,6 +41,11 @@ import java.util.UUID;
  * never by its {@code toString}, which may print its whole state. The summary is kept short. The
  * {@link ArgumentOrigins} parameter a host may pass (CQ-1) is no argument of the caller's: it is left out, and carried
  * under its own payload key.
+ *
+ * <p>This summary is the only form of the arguments after the call (Q-11): the event carries it, so the v21 prompt, the
+ * seal, the observation and a replay all read the same text. A value a decision may read cannot be kept from the seal,
+ * which holds what the model got, so what must not be kept is hidden here, by the argument's name; a name says nothing
+ * of a secret passed under another name.</p>
  */
 public final class InvocationArguments {
 
@@ -51,7 +58,12 @@ public final class InvocationArguments {
     static final int MAX_DEPTH = 2;
     static final String HIDDEN = "<hidden>";
     private static final List<String> SECRET_WORDS = List.of(
-            "password", "passwd", "secret", "token", "credential", "apikey", "api_key", "privatekey", "private_key");
+            "password", "passwd", "passphrase", "passcode", "pwd", "pincode", "secret", "token", "credential", "apikey",
+            "api_key", "privatekey", "private_key");
+    /** Too short to look for inside a name, where "pin" lies in "shipping" and "ssn" in "className": whole words only. */
+    private static final Set<String> SECRET_NAME_WORDS = Set.of("pin", "pass", "otp", "totp", "ssn", "rrn", "cvv", "cvc");
+    private static final Pattern NAME_WORD_BREAK =
+            Pattern.compile("[^A-Za-z0-9]+|(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])");
 
     private InvocationArguments() {
     }
@@ -175,7 +187,8 @@ public final class InvocationArguments {
 
     private static boolean secretName(String name) {
         String lower = name.toLowerCase(Locale.ROOT);
-        return SECRET_WORDS.stream().anyMatch(lower::contains);
+        return SECRET_WORDS.stream().anyMatch(lower::contains) || NAME_WORD_BREAK.splitAsStream(name)
+                .map(word -> word.toLowerCase(Locale.ROOT)).anyMatch(SECRET_NAME_WORDS::contains);
     }
 
     private static String cut(String text, int limit) {
