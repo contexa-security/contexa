@@ -24,6 +24,7 @@ import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher
 import io.contexa.contexacore.autonomous.repository.ProtectableRapidReentryRepository;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexacommon.store.ContexaStores;
 import io.contexa.contexaiam.security.xacml.pep.AuthorizationManagerMethodInterceptor;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableLlmSuppressionWriter;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableMethodAuthorizationManager;
@@ -41,6 +42,7 @@ import org.springframework.aop.support.Pointcuts;
 import org.springframework.beans.factory.annotation.Qualifier;
 import io.contexa.contexaiam.security.xacml.pep.DelegatorAuthority;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.beans.factory.config.BeanDefinition;
@@ -124,6 +126,13 @@ public class IamInfrastructureAutoConfiguration {
         });
         advisor.set(interceptor);
         return interceptor;
+    }
+
+    /** The advisor exists before the stores do: it is told about them once every singleton exists. */
+    @Bean(name = "contexaProtectableAdvisorStores")
+    public SmartInitializingSingleton protectableAdvisorStores(
+            ObjectProvider<AuthorizationManagerMethodInterceptor> advisor, ObjectProvider<ContexaStores> contexaStores) {
+        return () -> contexaStores.ifAvailable(stores -> advisor.ifAvailable(found -> found.setContexaStores(stores)));
     }
 
     @Bean(name = "contexaProtectableLlmSuppressionWriter")

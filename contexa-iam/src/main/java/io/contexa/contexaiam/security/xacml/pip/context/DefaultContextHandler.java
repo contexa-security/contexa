@@ -23,6 +23,7 @@ import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import io.contexa.contexacommon.entity.UserGroup;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.store.StoreFailures;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -109,7 +110,22 @@ public class DefaultContextHandler implements ContextHandler {
         return AopUtils.getMostSpecificMethod(method, targetClass);
     }
 
+    /**
+     * The policies decide on the authentication when the subject's record cannot be read: a store that does not answer
+     * must not cost a policy that can still be evaluated, a DENY among them (Q-7).
+     */
     private Users getSubjectEntity(Authentication authentication, HttpServletRequest request) {
+        try {
+            return readSubjectEntity(authentication, request);
+        } catch (RuntimeException unreadable) {
+            if (!StoreFailures.isStoreFailure(unreadable)) {
+                throw unreadable;
+            }
+            return null;
+        }
+    }
+
+    private Users readSubjectEntity(Authentication authentication, HttpServletRequest request) {
         Users bridgeSubject = getBridgeSubjectEntity(request);
         if (bridgeSubject != null) {
             return bridgeSubject;

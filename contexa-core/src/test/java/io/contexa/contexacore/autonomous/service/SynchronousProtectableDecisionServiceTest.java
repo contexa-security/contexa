@@ -17,6 +17,8 @@ package io.contexa.contexacore.autonomous.service;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.store.ContexaStores;
+import io.contexa.contexacommon.store.StoreUnavailableException;
 import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.audit.AgentDecisionRecord;
@@ -25,6 +27,8 @@ import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
+import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedException;
+import io.contexa.contexacore.autonomous.handler.handler.SecurityDecisionEnforcementHandler;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
@@ -39,8 +43,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -49,6 +55,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -93,6 +100,105 @@ class SynchronousProtectableDecisionServiceTest {
     @AfterEach
     void tearDown() {
         RequestContextHolder.resetRequestAttributes();
+    }
+
+    private void aRequestToBeDecided() {
+        aRequestToBeDecided(methodEvent("/admin/reports"));
+    }
+
+    /** A request that ends in a failure reads less of the store than one that ends in a decision. */
+    private void aRequestToBeDecided(ZeroTrustSpringEvent event) {
+        bindRequest(request("/admin/reports"));
+        lenient().when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null))
+                .thenReturn(event);
+        lenient().when(eventListener.generateAuthorizationContextBindingHash(event)).thenReturn(CONTEXT_HASH);
+        lenient().when(eventListener.shouldPublishSynchronousAuthorizationEvent(event)).thenReturn(true);
+        lenient().when(actionRepository.getCurrentAction(USER_ID, CONTEXT_HASH)).thenReturn(ZeroTrustAction.PENDING_ANALYSIS);
+        lenient().when(actionRepository.getAnalysisData(USER_ID)).thenReturn(ZeroTrustActionRepository.ZeroTrustAnalysisData.pending());
+    }
+
+    /** What the enforcement leaves on the event when the record of a decision could not be written. */
+    private void theStoreDidNotTakeTheDecision(ZeroTrustAction decided) {
+        when(securityPlaneAgent.processSecurityEvent(any(SecurityEvent.class))).thenAnswer(call -> {
+            SecurityEvent event = call.getArgument(0);
+            event.addMetadata(SecurityDecisionEnforcementHandler.AUDIT_PENDING_PROCESSING_RESULT,
+                    ProcessingResult.builder().success(true).action(decided.name()).build());
+            throw new IllegalStateException("Security event pipeline did not produce a final result");
+        });
+    }
+
+    @Test
+    @DisplayName("Q-7: a restriction the model decided stands for this request though the store did not take it")
+    void aRestrictionTheStoreDidNotTakeAnswersTheRequest() {
+        aRequestToBeDecided();
+        theStoreDidNotTakeTheDecision(ZeroTrustAction.BLOCK);
+
+        assertThat(service.analyze(methodInvocation, authentication).action()).isEqualTo(ZeroTrustAction.BLOCK);
+    }
+
+    @Test
+    @DisplayName("Q-7: an ALLOW the store did not take reads as an outage: the call goes on undecided, without a server error")
+    void anAllowTheStoreDidNotTakeIsAnOutage() {
+        aRequestToBeDecided();
+        theStoreDidNotTakeTheDecision(ZeroTrustAction.ALLOW);
+
+        assertThatThrownBy(() -> service.analyze(methodInvocation, authentication))
+                .isInstanceOf(StoreUnavailableException.class);
+    }
+
+    @Test
+    @DisplayName("Q-7: an analysis a store ended reads as an outage")
+    void anAnalysisAStoreEndedIsAnOutage() {
+        aRequestToBeDecided();
+        when(securityPlaneAgent.processSecurityEvent(any(SecurityEvent.class))).thenThrow(new RuntimeException(
+                "Event processing failed", new CannotCreateTransactionException("no connection")));
+
+        assertThatThrownBy(() -> service.analyze(methodInvocation, authentication))
+                .isInstanceOf(StoreUnavailableException.class);
+    }
+
+    @Test
+    @DisplayName("Q-7: a failure that is not a store's stays what it is")
+    void anotherFailureStaysWhatItIs() {
+        aRequestToBeDecided();
+        when(securityPlaneAgent.processSecurityEvent(any(SecurityEvent.class)))
+                .thenThrow(new IllegalStateException("a bug"));
+
+        assertThatThrownBy(() -> service.analyze(methodInvocation, authentication))
+                .isInstanceOf(IllegalStateException.class).hasMessage("a bug");
+    }
+
+    @Test
+    @DisplayName("Q-7: no decision while a store is down reads as an outage; with the stores up it stays no decision")
+    void noDecisionWhileAStoreIsDown() {
+        aRequestToBeDecided();
+        when(securityPlaneAgent.processSecurityEvent(any(SecurityEvent.class))).thenReturn(mock(SecurityEventContext.class));
+
+        assertThat(service.analyze(methodInvocation, authentication).action()).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+
+        ContexaStores stores = new ContexaStores();
+        stores.redis().watchWith(() -> {
+            throw new IllegalStateException("still down");
+        });
+        stores.redis().fail(new QueryTimeoutException("no answer"));
+        service.setContexaStores(stores);
+        try {
+            assertThatThrownBy(() -> service.analyze(methodInvocation, authentication))
+                    .isInstanceOf(StoreUnavailableException.class);
+        } finally {
+            stores.destroy();
+        }
+    }
+
+    @Test
+    @DisplayName("Q-7, A1-5: an agent is never let through without a verdict: an outage refuses it as busy")
+    void anAgentIsRefusedAsBusy() {
+        aRequestToBeDecided(subjectEvent("DELEGATED_AGENT"));
+        when(securityPlaneAgent.processSecurityEvent(any(SecurityEvent.class))).thenThrow(new RuntimeException(
+                "Event processing failed", new CannotCreateTransactionException("no connection")));
+
+        assertThatThrownBy(() -> service.analyze(methodInvocation, authentication))
+                .isInstanceOf(ZeroTrustAccessDeniedException.class);
     }
 
     @Test

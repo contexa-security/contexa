@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacommon.security.bridge.runtime;
 
+import io.contexa.contexacommon.store.ContexaStores;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -52,6 +53,32 @@ class RequestPathDatabaseGuardTest {
         long started = System.nanoTime();
         call.run();
         return Duration.ofNanos(System.nanoTime() - started).toMillis();
+    }
+
+    /** Q-7: one request pays for the outage; while the gate is down nothing reaches the database. */
+    @Test
+    void aWaitThatEndsLowersTheGateAndTheNextRequestDoesNotWait() {
+        ContexaStores stores = new ContexaStores();
+        stores.database().watchWith(() -> {
+            throw new IllegalStateException("still down");
+        });
+        RequestPathDatabaseGuard gated = new RequestPathDatabaseGuard(WAIT, 2, stores.database());
+        try {
+            assertThat(gated.call(this::hanging, "unavailable")).isEqualTo("unavailable");
+            assertThat(stores.database().isDown()).isTrue();
+
+            AtomicBoolean worked = new AtomicBoolean();
+            long millis = millisOf(() -> assertThat(gated.call(() -> {
+                worked.set(true);
+                return "answer";
+            }, "unavailable")).isEqualTo("unavailable"));
+
+            assertThat(worked).isFalse();
+            assertThat(millis).isLessThan(WAIT.toMillis());
+        } finally {
+            gated.destroy();
+            stores.destroy();
+        }
     }
 
     @Test

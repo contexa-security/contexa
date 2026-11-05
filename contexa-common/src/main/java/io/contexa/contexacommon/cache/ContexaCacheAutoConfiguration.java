@@ -58,8 +58,10 @@ public class ContexaCacheAutoConfiguration {
         public RedisContexaCacheService contexaCacheService(
                 ContexaCacheProperties properties,
                 StringRedisTemplate redisTemplate,
+                @Qualifier("contexaStringRedisTemplate") ObjectProvider<StringRedisTemplate> contexaStrings,
                 @Qualifier("contexaObjectMapper") ObjectProvider<ObjectMapper> objectMapper) {
-            return new RedisContexaCacheService(properties, redisTemplate, objectMapper.getIfAvailable(ContexaCacheAutoConfiguration::ownObjectMapper));
+            return new RedisContexaCacheService(properties, contexaStrings.getIfAvailable(() -> redisTemplate),
+                    objectMapper.getIfAvailable(ContexaCacheAutoConfiguration::ownObjectMapper));
         }
 
         @Bean

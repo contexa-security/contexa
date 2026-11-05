@@ -20,6 +20,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
+import io.contexa.contexacommon.store.StoreFailures;
 import jakarta.annotation.PostConstruct;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -79,7 +80,9 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
                     return value;
                 }
             } catch (Exception e) {
-                log.error("L2 cache lookup failed: {}", key, e);
+                if (!StoreFailures.isReportedOutage(e)) {
+                    log.error("L2 cache lookup failed: {}", key, e);
+                }
             }
         }
 
@@ -103,11 +106,22 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
             if (properties.getType() != ContexaCacheProperties.CacheType.LOCAL) {
                 String redisKey = properties.getRedis().getKeyPrefix() + key;
                 int ttlSeconds = getRedisTtl(domain);
-                redisTemplate.opsForValue().set(redisKey, json, ttlSeconds, TimeUnit.SECONDS);
+                writeThrough(key, redisKey, json, ttlSeconds);
             }
 
         } catch (JsonProcessingException e) {
             log.error("Cache serialization failed: {}", key, e);
+        }
+    }
+
+    /** D-2 (PR-84): a cache Redis does not take is a cache without the entry, as a local cache never fails its caller. */
+    private void writeThrough(String key, String redisKey, String json, int ttlSeconds) {
+        try {
+            redisTemplate.opsForValue().set(redisKey, json, ttlSeconds, TimeUnit.SECONDS);
+        } catch (RuntimeException e) {
+            if (!StoreFailures.isReportedOutage(e)) {
+                log.error("L2 cache write failed: {}", key, e);
+            }
         }
     }
 

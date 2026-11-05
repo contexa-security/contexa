@@ -23,6 +23,9 @@ import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionS
 import io.contexa.contexacore.metrics.AuthorizationMetrics;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.store.ContexaStores;
+import io.contexa.contexacommon.store.RequestPathScope;
+import io.contexa.contexacommon.store.StoreUnavailableException;
 import io.contexa.contexaiam.security.xacml.pep.AuthorizationManagerMethodInterceptor;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableMethodAuthorizationManager;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableRapidReentryGuard;
@@ -37,6 +40,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.aop.Pointcut;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.authorization.AuthorizationDeniedException;
@@ -44,10 +48,14 @@ import org.springframework.security.authorization.method.AuthorizationIntercepto
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -528,6 +536,171 @@ class AuthorizationManagerMethodInterceptorTest {
 
             assertThat(interceptor.invoke(methodInvocation)).isEqualTo("result");
             verify(synchronousProtectableDecisionService, never()).analyze(any(), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("A store that does not answer (Q-7, PR-51, PR-55, PR-56, PR-84)")
+    class StoreOutageTests {
+
+        private void enforcing() {
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
+            SecurityZeroTrustProperties enforce = new SecurityZeroTrustProperties();
+            enforce.setMode(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
+            interceptor.setSecurityZeroTrustProperties(enforce);
+        }
+
+        @Test
+        @DisplayName("a check the database could not finish lets the method run, as the operating mode specifies")
+        void aCheckTheDatabaseCouldNotFinishLetsTheMethodRun() throws Throwable {
+            enforcing();
+            doThrow(new CannotCreateTransactionException("Could not open JPA EntityManager for transaction"))
+                    .when(authorizationManager).protectable(any(), eq(methodInvocation));
+            when(methodInvocation.proceed()).thenReturn("result");
+
+            assertThat(interceptor.invoke(methodInvocation)).isEqualTo("result");
+        }
+
+        @Test
+        @DisplayName("a check a store ended is recorded as unknown: it is never a denial, and never a BLOCK's ground")
+        void aCheckAStoreEndedIsNoDenial() throws Throwable {
+            enforcing();
+            doThrow(new QueryTimeoutException("Redis command timed out"))
+                    .when(authorizationManager).protectable(any(), eq(methodInvocation));
+            when(methodInvocation.proceed()).thenReturn("result");
+
+            interceptor.invoke(methodInvocation);
+
+            verify(zeroTrustEventPublisher).publishUncheckedMethodAuthorization(eq(methodInvocation), eq(authentication),
+                    eq("QueryTimeoutException"), eq(ZeroTrustEventPublisher.METHOD_COMPLETED), isNull());
+            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a check that failed for another reason stops the call as before, and is no denial either")
+        void aCheckThatFailedIsNoDenial() throws Throwable {
+            enforcing();
+            doThrow(new IllegalStateException("a bug in a policy"))
+                    .when(authorizationManager).protectable(any(), eq(methodInvocation));
+
+            assertThatThrownBy(() -> interceptor.invoke(methodInvocation)).isInstanceOf(IllegalStateException.class);
+
+            verify(methodInvocation, never()).proceed();
+            verify(zeroTrustEventPublisher).publishUncheckedMethodAuthorization(eq(methodInvocation), eq(authentication),
+                    eq("IllegalStateException"), isNull(), isNull());
+            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a real denial stays a denial while a store is away")
+        void aRealDenialStaysADenial() throws Throwable {
+            enforcing();
+            doThrow(new AuthorizationDeniedException("role cannot read customers"))
+                    .when(authorizationManager).protectable(any(), eq(methodInvocation));
+
+            assertThatThrownBy(() -> interceptor.invoke(methodInvocation)).isInstanceOf(AuthorizationDeniedException.class);
+
+            verify(methodInvocation, never()).proceed();
+        }
+
+        @Test
+        @DisplayName("a restriction in force stops the call although the method policies could not be read")
+        void aRestrictionStaysInForceWhenThePoliciesCannotBeRead() throws Throwable {
+            enforcing();
+            interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
+            doThrow(new CannotCreateTransactionException("no connection"))
+                    .when(authorizationManager).protectable(any(), eq(methodInvocation));
+            when(synchronousProtectableDecisionService.asyncGate(methodInvocation, authentication))
+                    .thenReturn(SynchronousProtectableDecisionService.AsyncProtectableGate.restricted(ZeroTrustAction.BLOCK));
+
+            assertThatThrownBy(() -> interceptor.invoke(methodInvocation)).isInstanceOf(ZeroTrustAccessDeniedException.class);
+
+            verify(methodInvocation, never()).proceed();
+        }
+
+        @Test
+        @DisplayName("a synchronous decision a store could not finish lets the method run, without a server error")
+        void aSynchronousDecisionAStoreEnded() throws Throwable {
+            Method method = SyncProtectableService.class.getMethod("protectedMethod");
+            when(methodInvocation.getMethod()).thenReturn(method);
+            when(methodInvocation.getThis()).thenReturn(new SyncProtectableService());
+            enforcing();
+            interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
+            when(synchronousProtectableDecisionService.analyze(methodInvocation, authentication))
+                    .thenThrow(new StoreUnavailableException("Redis"));
+            when(methodInvocation.proceed()).thenReturn("result");
+
+            assertThat(interceptor.invoke(methodInvocation)).isEqualTo("result");
+        }
+
+        @Test
+        @DisplayName("the gate of an asynchronous method a store could not finish lets the method run")
+        void aGateAStoreEnded() throws Throwable {
+            enforcing();
+            interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
+            when(synchronousProtectableDecisionService.asyncGate(methodInvocation, authentication))
+                    .thenThrow(new CannotCreateTransactionException("no connection"));
+            when(methodInvocation.proceed()).thenReturn("result");
+
+            assertThat(interceptor.invoke(methodInvocation)).isEqualTo("result");
+        }
+
+        @Test
+        @DisplayName("the calls that go on while a store is down are counted")
+        void theCallsAreCounted() throws Throwable {
+            enforcing();
+            ContexaStores stores = new ContexaStores();
+            List<ContexaStores.UndecidedCalls> records = new ArrayList<>();
+            stores.setRecorder(records::add);
+            stores.redis().watchWith(() -> {
+                throw new IllegalStateException("still down");
+            });
+            stores.redis().fail(new QueryTimeoutException("no answer"));
+            interceptor.setContexaStores(stores);
+            when(methodInvocation.proceed()).thenReturn("result");
+
+            try {
+                interceptor.invoke(methodInvocation);
+            } finally {
+                stores.destroy();
+            }
+
+            assertThat(records).singleElement().extracting(ContexaStores.UndecidedCalls::calls).isEqualTo(1L);
+        }
+
+        @Test
+        @DisplayName("a call with the stores up counts for nothing")
+        void aCallWithTheStoresUpCountsForNothing() throws Throwable {
+            enforcing();
+            ContexaStores stores = new ContexaStores();
+            List<ContexaStores.UndecidedCalls> records = new ArrayList<>();
+            stores.setRecorder(records::add);
+            interceptor.setContexaStores(stores);
+            when(methodInvocation.proceed()).thenReturn("result");
+
+            interceptor.invoke(methodInvocation);
+
+            assertThat(records).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Contexa's own work is bounded, the application's method is not")
+        void theApplicationsMethodIsNotBounded() throws Throwable {
+            enforcing();
+            AtomicBoolean inContexaWork = new AtomicBoolean(true);
+            doAnswer(call -> {
+                assertThat(RequestPathScope.inContexaWork()).as("the check is Contexa's work").isTrue();
+                return null;
+            }).when(authorizationManager).protectable(any(), eq(methodInvocation));
+            when(methodInvocation.proceed()).thenAnswer(call -> {
+                inContexaWork.set(RequestPathScope.inContexaWork());
+                return "result";
+            });
+
+            interceptor.invoke(methodInvocation);
+
+            assertThat(inContexaWork).as("the application's method is its own").isFalse();
+            assertThat(RequestPathScope.inContexaWork()).as("the thread leaves with nothing left on it").isFalse();
         }
     }
 

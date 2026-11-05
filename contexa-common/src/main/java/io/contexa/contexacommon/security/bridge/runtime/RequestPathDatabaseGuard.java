@@ -15,9 +15,12 @@
  */
 package io.contexa.contexacommon.security.bridge.runtime;
 
+import io.contexa.contexacommon.store.StoreGate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.DisposableBean;
+import org.springframework.lang.Nullable;
 
+import java.sql.SQLTransientConnectionException;
 import java.time.Duration;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -53,12 +56,24 @@ public final class RequestPathDatabaseGuard implements DisposableBean {
     private final ThreadPoolExecutor workers;
     private final AtomicLong skipped = new AtomicLong();
     private final AtomicLong lastReport = new AtomicLong();
+    @Nullable
+    private final StoreGate gate;
 
     public RequestPathDatabaseGuard() {
         this(DEFAULT_WAIT, DEFAULT_WORKERS);
     }
 
+    /** A gate that is down answers at once, and a wait that ends without an answer lowers it. */
+    public RequestPathDatabaseGuard(@Nullable StoreGate gate) {
+        this(DEFAULT_WAIT, DEFAULT_WORKERS, gate);
+    }
+
     public RequestPathDatabaseGuard(Duration wait, int maximumWorkers) {
+        this(wait, maximumWorkers, null);
+    }
+
+    RequestPathDatabaseGuard(Duration wait, int maximumWorkers, @Nullable StoreGate gate) {
+        this.gate = gate;
         this.waitNanos = wait.toNanos();
         AtomicInteger number = new AtomicInteger();
         this.workers = new ThreadPoolExecutor(0, maximumWorkers, WORKER_IDLE_SECONDS, TimeUnit.SECONDS, new SynchronousQueue<>(), work -> {
@@ -73,6 +88,10 @@ public final class RequestPathDatabaseGuard implements DisposableBean {
      * caller as it would have without this guard.
      */
     public <T> T call(Supplier<T> work, T whenUnavailable) {
+        if (gate != null && gate.isDown()) {
+            report();
+            return whenUnavailable;
+        }
         Future<T> answer;
         try {
             answer = workers.submit(work::get);
@@ -84,6 +103,9 @@ public final class RequestPathDatabaseGuard implements DisposableBean {
             return answer.get(waitNanos, TimeUnit.NANOSECONDS);
         } catch (TimeoutException late) {
             report();
+            if (gate != null) {
+                gate.fail(new SQLTransientConnectionException("No answer within the request's wait", late));
+            }
             return whenUnavailable;
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();

@@ -26,6 +26,7 @@ import io.contexa.contexacommon.security.bridge.handoff.DefaultContexaAuthBridge
 import io.contexa.contexacommon.security.bridge.resolver.*;
 import io.contexa.contexacommon.security.bridge.runtime.BridgeRuntimeSupport;
 import io.contexa.contexacommon.security.bridge.runtime.RequestPathDatabaseGuard;
+import io.contexa.contexacommon.store.ContexaStores;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextCollector;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncService;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
@@ -206,8 +207,9 @@ public class AiBridgeConfiguration {
     /** An outage of Contexa's database must not hold the application's request threads. */
     @Bean(name = "contexaRequestPathDatabaseGuard")
     @ConditionalOnMissingBean
-    public RequestPathDatabaseGuard requestPathDatabaseGuard() {
-        return new RequestPathDatabaseGuard();
+    public RequestPathDatabaseGuard requestPathDatabaseGuard(ObjectProvider<ContexaStores> contexaStores) {
+        ContexaStores stores = contexaStores.getIfAvailable();
+        return new RequestPathDatabaseGuard(stores != null ? stores.database() : null);
     }
 
     @Bean

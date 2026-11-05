@@ -38,6 +38,14 @@ public interface IBlockedUserRecorder {
 
     void resolveBlock(String userId, String adminId, String resolvedAction, String reason);
 
+    /**
+     * Whether the record holds a block in force for the user: the second copy of a BLOCK, read while the decision store
+     * does not answer. A recorder that keeps no record knows of none.
+     */
+    default boolean isBlockInForce(String userId) {
+        return false;
+    }
+
     default void markMfaVerified(String userId) {}
 
     default void markMfaFailed(String userId) {}

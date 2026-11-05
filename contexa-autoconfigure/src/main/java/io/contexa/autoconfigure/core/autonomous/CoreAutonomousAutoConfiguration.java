@@ -33,6 +33,7 @@ import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
 import io.contexa.contexacore.autonomous.service.LearningPromotionService;
 import io.contexa.contexacore.autonomous.service.LearningStoreRejectionPolicy;
 import io.contexa.contexacore.autonomous.service.VerificationLearningService;
+import io.contexa.autoconfigure.core.infra.StandaloneEnforcementStateWarning;
 import io.contexa.autoconfigure.core.infra.StandaloneLearningStateWarning;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.autonomous.SecurityEventProcessor;
@@ -44,6 +45,9 @@ import io.contexa.contexacommon.security.bridge.runtime.RequestPathDatabaseGuard
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.audit.AuditPersistenceListener;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexacore.autonomous.audit.UndecidedCallsAudit;
+import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
+import io.contexa.contexacommon.store.ContexaStores;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.context.*;
 import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
@@ -993,17 +997,26 @@ public class CoreAutonomousAutoConfiguration {
         public ZeroTrustActionRedisRepository zeroTrustActionRedisRepository(
                 @Qualifier("contexaGeneralRedisTemplate") RedisTemplate<String, Object> redisTemplate,
                 StringRedisTemplate stringRedisTemplate,
-                ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustProperties) {
-            ZeroTrustActionRedisRepository repository = new ZeroTrustActionRedisRepository(redisTemplate, stringRedisTemplate);
+                ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustProperties,
+                @Qualifier("contexaStringRedisTemplate") ObjectProvider<StringRedisTemplate> contexaStrings,
+                ObjectProvider<IBlockedUserRecorder> blockedUserRecorder) {
+            ZeroTrustActionRedisRepository repository = new ZeroTrustActionRedisRepository(redisTemplate,
+                    contexaStrings.getIfAvailable(() -> stringRedisTemplate));
             securityZeroTrustProperties.ifAvailable(properties -> repository.setAllowValidity(properties.getAllowValidity()));
+            // Resolved at the read: the recorder needs this repository.
+            repository.setBlockRecord(userId -> {
+                IBlockedUserRecorder recorder = blockedUserRecorder.getIfUnique();
+                return recorder != null && recorder.isBlockInForce(userId);
+            });
             return repository;
         }
 
         @Bean(name = "contexaRedisProtectableRapidReentryRepository")
         @ConditionalOnMissingBean(ProtectableRapidReentryRepository.class)
         public RedisProtectableRapidReentryRepository redisProtectableRapidReentryRepository(
-                StringRedisTemplate stringRedisTemplate) {
-            return new RedisProtectableRapidReentryRepository(stringRedisTemplate);
+                StringRedisTemplate stringRedisTemplate,
+                @Qualifier("contexaStringRedisTemplate") ObjectProvider<StringRedisTemplate> contexaStrings) {
+            return new RedisProtectableRapidReentryRepository(contexaStrings.getIfAvailable(() -> stringRedisTemplate));
         }
 
         @Bean(name = "contexaRedisThreatScoreUtil")
@@ -1124,6 +1137,27 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<SecurityContextDataStore> securityContextDataStore) {
         return new StandaloneLearningStateWarning(baselineDataStore::getIfAvailable,
                 securityContextDataStore::getIfAvailable);
+    }
+
+    /**
+     * Q-7: what the outage of a store means for the decisions. The decision service tells an outage from a decision, and
+     * the calls that went on without one are written to the audit log.
+     */
+    @Bean(name = "contexaDecisionStores")
+    public SmartInitializingSingleton decisionStores(ObjectProvider<ContexaStores> contexaStores,
+            ObjectProvider<SynchronousProtectableDecisionService> decisions, ObjectProvider<CentralAuditFacade> audit) {
+        return () -> contexaStores.ifAvailable(stores -> {
+            decisions.ifAvailable(service -> service.setContexaStores(stores));
+            audit.ifAvailable(facade -> stores.setRecorder(new UndecidedCallsAudit(facade)));
+        });
+    }
+
+    /** Q-6: one warning at startup says that a restart ends the decisions in force when they are kept in memory. */
+    @Bean(name = "contexaStandaloneEnforcementStateWarning")
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
+    public StandaloneEnforcementStateWarning standaloneEnforcementStateWarning(
+            ObjectProvider<ZeroTrustActionRepository> actionRepository) {
+        return new StandaloneEnforcementStateWarning(actionRepository::getIfAvailable);
     }
 
     /** Discards the late writes of a deleted account's requests for the analysis budget and a margin (Q-15). */

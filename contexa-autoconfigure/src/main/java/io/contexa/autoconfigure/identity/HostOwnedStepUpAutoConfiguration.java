@@ -92,8 +92,9 @@ public class HostOwnedStepUpAutoConfiguration {
         @Bean(name = "contexaStepUpOptionsStore")
         @ConditionalOnMissingBean(StepUpOptionsStore.class)
         @ConditionalOnBean(StringRedisTemplate.class)
-        public StepUpOptionsStore stepUpOptionsStore(StringRedisTemplate redis) {
-            return new RedisStepUpOptionsStore(redis);
+        public StepUpOptionsStore stepUpOptionsStore(StringRedisTemplate redis,
+                @Qualifier("contexaStringRedisTemplate") ObjectProvider<StringRedisTemplate> contexaStrings) {
+            return new RedisStepUpOptionsStore(contexaStrings.getIfAvailable(() -> redis));
         }
     }
 

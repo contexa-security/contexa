@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.repository;
 
+import io.contexa.contexacommon.store.StoreFailures;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -43,7 +44,9 @@ public class RedisProtectableRapidReentryRepository implements ProtectableRapidR
             Boolean acquired = stringRedisTemplate.opsForValue().setIfAbsent(key, "1", window);
             return Boolean.TRUE.equals(acquired);
         } catch (Exception e) {
-            log.error("[ProtectableRapidReentry] Failed to acquire rapid reentry guard: userId={}", userId, e);
+            if (!StoreFailures.isReportedOutage(e)) {
+                log.error("[ProtectableRapidReentry] Failed to acquire rapid reentry guard: userId={}", userId, e);
+            }
             return true;
         }
     }

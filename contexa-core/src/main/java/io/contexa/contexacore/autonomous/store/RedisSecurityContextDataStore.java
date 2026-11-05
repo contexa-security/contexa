@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.store;
 
 import java.time.Instant;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.store.StoreFailures;
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import lombok.RequiredArgsConstructor;
@@ -697,7 +698,9 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
                     ? Instant.ofEpochMilli(Long.parseLong(text))
                     : null;
         } catch (Exception e) {
-            log.error("[SecurityContextDataStore] Failed to read MFA verification time: userId={}", userId, e);
+            if (!StoreFailures.isReportedOutage(e)) {
+                log.error("[SecurityContextDataStore] Failed to read MFA verification time: userId={}", userId, e);
+            }
             return null;
         }
     }
@@ -773,7 +776,9 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
             }
             return new EventProcessingLease(EventProcessingClaim.IN_FLIGHT, null);
         } catch (Exception e) {
-            log.error("[SecurityContextDataStore] Failed to claim event processing: eventId={}", eventId, e);
+            if (!StoreFailures.isReportedOutage(e)) {
+                log.error("[SecurityContextDataStore] Failed to claim event processing: eventId={}", eventId, e);
+            }
             return new EventProcessingLease(EventProcessingClaim.IN_FLIGHT, null);
         }
     }
@@ -1247,7 +1252,9 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
                     ZeroTrustRedisKeys.authenticationLoginFailuresByUser(userId.trim()), windowStartMs, currentTimeMs);
             return count != null ? count.intValue() : null;
         } catch (Exception e) {
-            log.error("[SecurityContextDataStore] Failed to count login failures: userId={}", userId, e);
+            if (!StoreFailures.isReportedOutage(e)) {
+                log.error("[SecurityContextDataStore] Failed to count login failures: userId={}", userId, e);
+            }
             return null;
         }
     }

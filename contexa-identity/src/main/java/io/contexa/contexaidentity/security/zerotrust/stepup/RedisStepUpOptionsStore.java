@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.zerotrust.stepup;
 
+import io.contexa.contexacommon.store.StoreFailures;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.lang.Nullable;
@@ -52,19 +53,35 @@ public class RedisStepUpOptionsStore implements StepUpOptionsStore {
         this.redis = redis;
     }
 
+    /** D-19: an option Redis does not take is an option the answer will not find, and the step-up starts again. */
     @Override
     public void put(String key, Serializable value) {
-        redis.opsForValue().set(PREFIX + key, encode(value), TIME_TO_LIVE);
+        String encoded = encode(value);
+        try {
+            redis.opsForValue().set(PREFIX + key, encoded, TIME_TO_LIVE);
+        } catch (RuntimeException unavailable) {
+            report("keep a step-up option", unavailable);
+        }
     }
 
+    /** A claim Redis cannot give is not given: what it guards does not happen, and the user stays stopped. */
     @Override
     public boolean claim(String key, Duration holdFor) {
-        return Boolean.TRUE.equals(redis.opsForValue().setIfAbsent(PREFIX + CLAIM + key, "1", holdFor));
+        try {
+            return Boolean.TRUE.equals(redis.opsForValue().setIfAbsent(PREFIX + CLAIM + key, "1", holdFor));
+        } catch (RuntimeException unavailable) {
+            report("claim a step-up option", unavailable);
+            return false;
+        }
     }
 
     @Override
     public void release(String key) {
-        redis.delete(PREFIX + CLAIM + key);
+        try {
+            redis.delete(PREFIX + CLAIM + key);
+        } catch (RuntimeException unavailable) {
+            report("release a step-up claim", unavailable);
+        }
     }
 
     @Override
@@ -75,12 +92,24 @@ public class RedisStepUpOptionsStore implements StepUpOptionsStore {
     @Override
     @Nullable
     public <T extends Serializable> T take(String key, Class<T> type) {
-        String stored = redis.opsForValue().getAndDelete(PREFIX + key);
+        String stored;
+        try {
+            stored = redis.opsForValue().getAndDelete(PREFIX + key);
+        } catch (RuntimeException unavailable) {
+            report("read a step-up option", unavailable);
+            return null;
+        }
         if (stored == null) {
             return null;
         }
         Object value = decode(stored);
         return type.isInstance(value) ? type.cast(value) : null;
+    }
+
+    private static void report(String what, RuntimeException failure) {
+        if (!StoreFailures.isReportedOutage(failure)) {
+            log.error("[StepUp] Redis did not {}", what, failure);
+        }
     }
 
     private static String encode(Serializable value) {

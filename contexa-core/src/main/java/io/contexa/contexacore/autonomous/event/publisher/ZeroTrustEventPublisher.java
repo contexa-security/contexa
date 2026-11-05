@@ -150,6 +150,8 @@ public class ZeroTrustEventPublisher {
     public static final String METHOD_COMPLETED = "COMPLETED";
     /** The method ran and threw: a business failure, not an authorization result. */
     public static final String METHOD_FAILED = "FAILED";
+    /** What is known of a check that did not finish. */
+    private static final String EFFECT_UNKNOWN = "UNKNOWN";
 
     public void publishMethodAuthorization(
             MethodInvocation methodInvocation,
@@ -180,6 +182,25 @@ public class ZeroTrustEventPublisher {
                 executionFailure
         );
         eventPublisher.publishEvent(event);
+    }
+
+    /**
+     * The event of a call whose authorization check did not finish (PR-55, PR-84). A store that did not answer, or a check
+     * that failed, says nothing about the user: it was recorded as a DENY, and a DENY requires a BLOCK whatever the model
+     * answers, so an outage ended in a permanent BLOCK of normal users. What the check would have said is not known.
+     *
+     * @param checkFailure     the type of the failure that ended the check
+     * @param executionOutcome {@link #METHOD_COMPLETED} or {@link #METHOD_FAILED} after the method ran, null if it did not
+     * @param executionFailure the failure's type when the method threw
+     */
+    public void publishUncheckedMethodAuthorization(
+            MethodInvocation methodInvocation,
+            Authentication authentication,
+            String checkFailure,
+            String executionOutcome,
+            String executionFailure) {
+        eventPublisher.publishEvent(buildMethodAuthorizationEvent(methodInvocation, authentication, null, null,
+                executionOutcome, executionFailure, checkFailure));
     }
 
     /** The event of an authorization check made before the method runs (a synchronous decision). */
@@ -223,6 +244,19 @@ public class ZeroTrustEventPublisher {
             String denialReason,
             String executionOutcome,
             String executionFailure) {
+        return buildMethodAuthorizationEvent(methodInvocation, authentication, Boolean.valueOf(granted), denialReason,
+                executionOutcome, executionFailure, null);
+    }
+
+    /** {@code granted} is null, and {@code checkFailure} set, when the check did not finish. */
+    private ZeroTrustSpringEvent buildMethodAuthorizationEvent(
+            MethodInvocation methodInvocation,
+            Authentication authentication,
+            Boolean granted,
+            String denialReason,
+            String executionOutcome,
+            String executionFailure,
+            String checkFailure) {
 
         RequestInfo requestInfo = extractRequestInfoFromContext();
         String effectiveUserId = resolveEffectiveUserId(authentication);
@@ -234,7 +268,7 @@ public class ZeroTrustEventPublisher {
                 : methodResource;
 
         Map<String, Object> payload = new HashMap<>();
-        payload.put("granted", granted);
+        payload.put("granted", granted != null ? granted : EFFECT_UNKNOWN);
         payload.put("denialReason", denialReason != null ? denialReason : "");
         if (executionOutcome != null) {
             payload.put("methodExecutionOutcome", executionOutcome);
@@ -407,7 +441,11 @@ public class ZeroTrustEventPublisher {
 
         populateAuthenticationFallback(authentication, payload);
         populateStoredSecurityContext(effectiveUserId, requestInfo, payload);
-        reconcileAuthorizationDecision(granted, payload);
+        if (granted != null) {
+            reconcileAuthorizationDecision(granted, payload);
+        } else {
+            recordUnfinishedCheck(checkFailure, payload);
+        }
         putIfAbsent(payload, "decisionBoundaryMode", securityZeroTrustMode());
 
         if (actionRedisRepository != null && authentication != null) {
@@ -915,6 +953,19 @@ public class ZeroTrustEventPublisher {
         } catch (RuntimeException exception) {
             log.error("Failed to populate stored authentication context: userId={}", userId, exception);
         }
+    }
+
+    /** An effect the bridge reported stands: it came from the application's own check, which did finish. */
+    private void recordUnfinishedCheck(String checkFailure, Map<String, Object> payload) {
+        payload.put("authorizationCheckFailure", checkFailure);
+        String existingEffect = textValue(payload.get("authorizationEffect"));
+        if (StringUtils.hasText(existingEffect) && !EFFECT_UNKNOWN.equalsIgnoreCase(existingEffect)) {
+            payload.putIfAbsent("bridgeAuthorizationEffect", existingEffect);
+            payload.putIfAbsent("authorizationEffectProvenance", "BRIDGE_AUTHORIZATION_STAMP");
+            return;
+        }
+        payload.put("authorizationEffect", EFFECT_UNKNOWN);
+        payload.put("authorizationEffectProvenance", "METHOD_AUTHORIZATION_UNAVAILABLE");
     }
 
     private void reconcileAuthorizationDecision(boolean granted, Map<String, Object> payload) {

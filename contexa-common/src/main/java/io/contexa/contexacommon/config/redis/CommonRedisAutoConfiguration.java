@@ -20,13 +20,18 @@ import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.contexa.contexacommon.store.ContexaStores;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
+import org.springframework.boot.autoconfigure.data.redis.RedisConnectionDetails;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Fallback;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -34,6 +39,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
+import org.springframework.lang.Nullable;
 
 
 @Slf4j
@@ -44,6 +50,14 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 public class CommonRedisAutoConfiguration {
 
     
+    @Nullable
+    private ObjectProvider<ContexaRedisRequestPath> requestPaths;
+
+    @Autowired
+    void setRequestPaths(ObjectProvider<ContexaRedisRequestPath> requestPaths) {
+        this.requestPaths = requestPaths;
+    }
+
     /**
      * Shared Contexa template for polymorphic values. It is a fallback candidate so that an
      * application-defined {@code RedisTemplate<String, Object>} wins plain by-type injection;
@@ -54,8 +68,7 @@ public class CommonRedisAutoConfiguration {
     @ConditionalOnMissingBean(name = "contexaGeneralRedisTemplate")
     public RedisTemplate<String, Object> generalRedisTemplate(RedisConnectionFactory connectionFactory) {
         
-        RedisTemplate<String, Object> template = new RedisTemplate<>();
-        template.setConnectionFactory(connectionFactory);
+        RedisTemplate<String, Object> template = newTemplate(connectionFactory);
 
         ObjectMapper objectMapper = ContexaJsonRedisSerializer.activateDefaultTyping(createBaseObjectMapper());
 
@@ -78,8 +91,7 @@ public class CommonRedisAutoConfiguration {
     @ConditionalOnMissingBean(name = "contexaEventRedisTemplate")
     public RedisTemplate<String, Object> eventRedisTemplate(RedisConnectionFactory connectionFactory) {
         
-        RedisTemplate<String, Object> template = new RedisTemplate<>();
-        template.setConnectionFactory(connectionFactory);
+        RedisTemplate<String, Object> template = newTemplate(connectionFactory);
 
         ObjectMapper objectMapper = createBaseObjectMapper();
 
@@ -115,8 +127,7 @@ public class CommonRedisAutoConfiguration {
     @ConditionalOnMissingBean(name = "contexaTrustScoreRedisTemplate")
     public RedisTemplate<String, Double> trustScoreRedisTemplate(RedisConnectionFactory connectionFactory) {
         
-        RedisTemplate<String, Double> template = new RedisTemplate<>();
-        template.setConnectionFactory(connectionFactory);
+        RedisTemplate<String, Double> template = newTemplate(connectionFactory);
 
         StringRedisSerializer stringSerializer = new StringRedisSerializer();
 
@@ -132,6 +143,48 @@ public class CommonRedisAutoConfiguration {
     }
 
     
+    /**
+     * The strings of Contexa's own code. The {@link StringRedisTemplate} an application has is the application's, with its
+     * client and its waits; a request must not wait as long on what Contexa reads for it (PR-84).
+     */
+    @Bean(name = "contexaStringRedisTemplate", defaultCandidate = false)
+    @ConditionalOnMissingBean(name = "contexaStringRedisTemplate")
+    public StringRedisTemplate contexaStringRedisTemplate(RedisConnectionFactory connectionFactory) {
+        ContexaRedisRequestPath requestPath = requestPath();
+        StringRedisTemplate template = requestPath != null ? new WatchedStringRedisTemplate(requestPath.gate()) : new StringRedisTemplate();
+        template.setConnectionFactory(requestPath != null ? requestPath.connections() : connectionFactory);
+        template.setEnableTransactionSupport(false);
+        template.afterPropertiesSet();
+        return template;
+    }
+
+    /** Only the distributed mode keeps Contexa's state in Redis; an application's own Redis gets no client of Contexa's. */
+    @Bean(name = "contexaRedisRequestPath")
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
+    ContexaRedisRequestPath contexaRedisRequestPath(RedisConnectionFactory connectionFactory, ObjectProvider<ContexaStores> stores) {
+        return new ContexaRedisRequestPath(connectionFactory, stores.getIfAvailable(ContexaStores::new).redis());
+    }
+
+    /** Q-25: a Redis Cluster is named at the start; only the distributed mode keeps Contexa's state in Redis. */
+    @Bean(name = "contexaRedisClusterNotice", defaultCandidate = false)
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
+    RedisClusterNotice redisClusterNotice(RedisConnectionFactory connectionFactory,
+                                          ObjectProvider<RedisConnectionDetails> connectionDetails) {
+        return new RedisClusterNotice(connectionFactory, connectionDetails.getIfAvailable());
+    }
+
+    private <K, V> RedisTemplate<K, V> newTemplate(RedisConnectionFactory connectionFactory) {
+        ContexaRedisRequestPath requestPath = requestPath();
+        RedisTemplate<K, V> template = requestPath != null ? new WatchedRedisTemplate<>(requestPath.gate()) : new RedisTemplate<>();
+        template.setConnectionFactory(requestPath != null ? requestPath.connections() : connectionFactory);
+        return template;
+    }
+
+    @Nullable
+    private ContexaRedisRequestPath requestPath() {
+        return requestPaths != null ? requestPaths.getIfAvailable() : null;
+    }
+
     private ObjectMapper createBaseObjectMapper() {
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
