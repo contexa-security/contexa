@@ -20,6 +20,7 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.service.IForceLogoutService;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -78,6 +80,43 @@ class RiskSignalReceiverTest {
         assertThat(receiver.receive(revoked).subjects()).isEmpty();
 
         verify(zeroTrust).invalidateAllUserSessions(eq("carol"), anyString());
+    }
+
+    private RiskSignalReceiver receiverWith(IForceLogoutService forceLogout) {
+        return new RiskSignalReceiver(actions, zeroTrust, subjectId -> RiskSignalReceiver.userOf(subjectId, null), audit,
+                forceLogout);
+    }
+
+    @Test
+    void anEventThatEndsSessionsEndsWhatTheForcedLogoutReaches() {
+        IForceLogoutService forceLogout = mock(IForceLogoutService.class);
+
+        receiverWith(forceLogout).receive(token("jti-6", Map.of(
+                SecurityEventToken.CREDENTIAL_COMPROMISE, Map.of("subject", issSub("alice")))));
+
+        verify(forceLogout).forceLogoutByUserId(eq("alice"), anyString());
+    }
+
+    @Test
+    void anEventThatOnlyDecidesAgainEndsNothing() {
+        IForceLogoutService forceLogout = mock(IForceLogoutService.class);
+
+        receiverWith(forceLogout).receive(token("jti-7", Map.of(
+                SecurityEventToken.RISK_LEVEL_CHANGE, Map.of("subject", issSub("alice")))));
+
+        verify(forceLogout, never()).forceLogoutByUserId(anyString(), anyString());
+    }
+
+    @Test
+    void aForcedLogoutThatFailsCostsNeitherTheAnswerNorTheAudit() {
+        IForceLogoutService forceLogout = mock(IForceLogoutService.class);
+        doThrow(new IllegalStateException("store down")).when(forceLogout).forceLogoutByUserId(anyString(), anyString());
+
+        RiskSignalReceiver.Receipt receipt = receiverWith(forceLogout).receive(token("jti-8", Map.of(
+                SecurityEventToken.ACCOUNT_DISABLED, Map.of("subject", issSub("alice")))));
+
+        assertThat(receipt.subjects()).containsExactly("alice");
+        assertThat(categories()).containsOnly(AuditEventCategory.RISK_SIGNAL_RECEIVED);
     }
 
     @Test

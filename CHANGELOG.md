@@ -8,6 +8,12 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A risk signal that ends sessions now ends the tokens too.** A session revoked, a credential compromised and an account
+  disabled or purged, sent by your identity provider, signed the subject out of its sessions and left its tokens running: a
+  token client went on until the access token ran out, and then renewed it with the refresh token. These events now end the
+  subject's access and refresh tokens as well, those an agent's client got for the subject by token exchange included, as a
+  new password does. A restriction in force stays. A store that is down fails no event: what could not be ended keeps
+  running and the log says so at ERROR.
 - **A client named like a person no longer gets the person's rights.** A client's own token has the client's ID as its
   subject, and an account of that name was looked up first: a client registered as `alice` authenticated with everything
   the person `alice` holds, without being an approved agent or a listed service client. A client's own token now reads no

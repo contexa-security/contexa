@@ -19,6 +19,7 @@ import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.service.IForceLogoutService;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
 import lombok.extern.slf4j.Slf4j;
@@ -38,7 +39,8 @@ import java.util.function.Function;
  * revocation; OpenID SSF, CAEP, RISC). For every event of a verified token, the subject's decision in force is
  * invalidated with its cache, so the subject's next request is decided again; a restriction in force (BLOCK,
  * ESCALATE, CHALLENGE) stays, since a signal never weakens a decision. An event that ends sessions (session revoked,
- * credential compromised, account disabled or purged) also signs the subject out. Every event is audited.
+ * credential compromised, account disabled or purged) also signs the subject out and ends its tokens. Every event is
+ * audited.
  */
 @Slf4j
 public class RiskSignalReceiver {
@@ -51,6 +53,7 @@ public class RiskSignalReceiver {
     private final ZeroTrustSecurityService zeroTrust;
     private final Function<Map<String, Object>, String> subjects;
     private final CentralAuditFacade audit;
+    private final IForceLogoutService forceLogout;
     /** The identifiers of the tokens acted on lately: a token pushed again is acknowledged and not acted on twice. */
     private final Map<String, Boolean> seen = Collections.synchronizedMap(new LinkedHashMap<>(256, 0.75f,
             false) {
@@ -67,10 +70,18 @@ public class RiskSignalReceiver {
      */
     public RiskSignalReceiver(ZeroTrustActionRepository actions, @Nullable ZeroTrustSecurityService zeroTrust,
                               Function<Map<String, Object>, String> subjects, @Nullable CentralAuditFacade audit) {
+        this(actions, zeroTrust, subjects, audit, null);
+    }
+
+    /** @param forceLogout what ends the subject's tokens along with its sessions, where tokens are issued here */
+    public RiskSignalReceiver(ZeroTrustActionRepository actions, @Nullable ZeroTrustSecurityService zeroTrust,
+                              Function<Map<String, Object>, String> subjects, @Nullable CentralAuditFacade audit,
+                              @Nullable IForceLogoutService forceLogout) {
         this.actions = Objects.requireNonNull(actions, "actions");
         this.zeroTrust = zeroTrust;
         this.subjects = Objects.requireNonNull(subjects, "subjects");
         this.audit = audit;
+        this.forceLogout = forceLogout;
     }
 
     /** Invalidates the decisions of the subjects the token's events name. */
@@ -103,9 +114,27 @@ public class RiskSignalReceiver {
         actions.removeLogoutData(ZeroTrustUserKey.person(user));
         if (zeroTrust != null) {
             zeroTrust.invalidateDecisionCache(user);
-            if (SecurityEventToken.endsSessions(type)) {
-                zeroTrust.invalidateAllUserSessions(user, "Risk signal: " + type);
+        }
+        if (SecurityEventToken.endsSessions(type)) {
+            signOut(user, "Risk signal: " + type);
+        }
+    }
+
+    /**
+     * Ends the subject's sessions and tokens, as a new password does: a token left running would be renewed when it runs
+     * out, and the subject would go on. What the forced logout cannot end must not cost the audit of the event.
+     */
+    private void signOut(String user, String reason) {
+        if (forceLogout == null) {
+            if (zeroTrust != null) {
+                zeroTrust.invalidateAllUserSessions(user, reason);
             }
+            return;
+        }
+        try {
+            forceLogout.forceLogoutByUserId(user, reason);
+        } catch (RuntimeException e) {
+            log.error("Risk signal could not end what the subject has open: user={}, reason={}", user, reason, e);
         }
     }
 

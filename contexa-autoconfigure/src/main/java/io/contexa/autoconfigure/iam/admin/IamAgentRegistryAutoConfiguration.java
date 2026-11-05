@@ -98,6 +98,7 @@ import io.contexa.contexaidentity.security.core.adapter.state.oauth2.DeviceAware
 import io.contexa.contexaidentity.security.service.ott.EmailService;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.service.IForceLogoutService;
 import io.contexa.contexacore.autonomous.signal.RiskSignalReceiver;
 import io.contexa.contexacore.autonomous.signal.SecurityEventTokenVerifier;
 import io.contexa.contexacore.autonomous.service.UserEngineStatePurger;
@@ -344,12 +345,13 @@ public class IamAgentRegistryAutoConfiguration {
         RiskSignalReceiver riskSignalReceiver(ZeroTrustActionRepository actionRepository,
                                               ObjectProvider<ZeroTrustSecurityService> zeroTrustSecurityService,
                                               ObjectProvider<UserRepository> userRepository,
-                                              ObjectProvider<CentralAuditFacade> auditFacade) {
+                                              ObjectProvider<CentralAuditFacade> auditFacade,
+                                              ObjectProvider<IForceLogoutService> forceLogoutService) {
             UserRepository users = userRepository.getIfAvailable();
             return new RiskSignalReceiver(actionRepository, zeroTrustSecurityService.getIfAvailable(),
                     subjectId -> RiskSignalReceiver.userOf(subjectId, email -> users == null ? null
                             : users.findFirstByEmailIgnoreCase(email).map(Users::getUsername).orElse(null)),
-                    auditFacade.getIfAvailable());
+                    auditFacade.getIfAvailable(), forceLogoutService.getIfAvailable());
         }
 
         @Bean(name = "contexaRiskSignalReceiverController")
