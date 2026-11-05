@@ -415,6 +415,11 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
     @Nullable
     private Instant challengedAt(String decisionKey) {
         try {
+            // Q-12: another session's answer replaced the decision, and this session still has the CHALLENGE to answer.
+            Instant heldSince = actions.challengeHeldSince(decisionKey);
+            if (heldSince != null) {
+                return heldSince;
+            }
             ZeroTrustActionRepository.ZeroTrustAnalysisData analysis = actions.getAnalysisData(decisionKey);
             return analysis != null && analysis.updatedAt() != null ? Instant.parse(analysis.updatedAt()) : null;
         } catch (DateTimeParseException | IllegalArgumentException e) {

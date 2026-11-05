@@ -86,6 +86,12 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:autonomous:action:last-verified-context:%s", NAMESPACE, ZeroTrustUserKey.of(userId));
     }
 
+    /** Q-12: the contexts that answered the CHALLENGE still held for the user's other sessions. */
+    public static String autonomousChallengeHold(String userId) {
+        validateUserId(userId);
+        return String.format("%s:autonomous:action:challenge-hold:%s", NAMESPACE, ZeroTrustUserKey.of(userId));
+    }
+
     public static String autonomousDecisionAuditPending(String userId) {
         validateUserId(userId);
         return String.format("%s:autonomous:action:audit-pending:%s", NAMESPACE, ZeroTrustUserKey.of(userId));

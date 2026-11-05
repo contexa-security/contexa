@@ -26,6 +26,7 @@ import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -88,6 +89,8 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
     private static final String DECISION_AUDIT_NO_CONTEXT = "no-context";
     /** Z-16 (1-d): each BLOCK MFA verification, with when it lapses. */
     private final ExpiringKeySpace<Instant> blockMfaVerifiedUntil;
+    /** Q-12: each CHALLENGE still in force for the sessions that did not answer it, until it would have lapsed. */
+    private final ExpiringKeySpace<ChallengeHold> challengeHolds;
 
     /**
      * QF-42: when each user's state was last written, bounded by {@link #maxUsers}: past it the oldest write goes first,
@@ -129,6 +132,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         this.mfaPending = ExpiringKeySpace.<Boolean>builder(clock).ttl(MFA_PENDING_TTL).build();
         this.escalateRetries = ExpiringKeySpace.<Boolean>builder(clock).build();
         this.blockMfaVerifiedUntil = ExpiringKeySpace.<Instant>builder(clock).build();
+        this.challengeHolds = ExpiringKeySpace.<ChallengeHold>builder(clock).build();
         this.lastWrittenMs = ExpiringKeySpace.<Long>builder(clock)
                 .ttl(WRITE_ORDER_SPAN)
                 .bound(this.maxUsers)
@@ -182,11 +186,11 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
 
         AnalysisEntry entry = settledAnalysis(userId);
         if (entry != null) {
-            return ZeroTrustAction.fromString(entry.action);
+            return heldBack(userId, null, ZeroTrustAction.fromString(entry.action));
         }
         // Outside a request the Redis repository answers with the 24 h last verified action, which would keep an
         // ALLOW or CHALLENGE in force a day past its TTL; here it lapses as in a request (QF-47).
-        return unresolvedEscalationOrPending(userId);
+        return heldBack(userId, null, unresolvedEscalationOrPending(userId));
     }
 
     @Override
@@ -203,14 +207,67 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         AnalysisEntry entry = settledAnalysis(userId);
         if (entry == null) {
             // QF-47: without an analysis in its TTL only an unresolved ESCALATE stays, as in the Redis repository.
-            return unresolvedEscalationOrPending(userId);
+            return heldBack(userId, contextBindingHash, unresolvedEscalationOrPending(userId));
         }
         ZeroTrustAction action = ZeroTrustAction.fromString(entry.action);
         if (requiresFreshAnalysis(action, contextBindingHash, entry.contextBindingHash)) {
             log.error("[InMemoryZTARepository] Context binding hash mismatch detected: userId={}, action={}", userId, action);
-            return ZeroTrustAction.PENDING_ANALYSIS;
+            return heldBack(userId, contextBindingHash, ZeroTrustAction.PENDING_ANALYSIS);
         }
-        return action;
+        return heldBack(userId, contextBindingHash, action);
+    }
+
+    /** Q-12: what the context reads under a CHALLENGE held for the sessions that did not answer it. */
+    private ZeroTrustAction heldBack(String userId, String contextBindingHash, ZeroTrustAction action) {
+        if (!ZeroTrustActionPrecedence.keepsActiveRestriction(ZeroTrustAction.CHALLENGE, action)) {
+            return action;
+        }
+        ChallengeHold hold = challengeHolds.get(userId);
+        return hold != null && !hold.answeredIn(contextBindingHash) ? ZeroTrustAction.CHALLENGE : action;
+    }
+
+    /**
+     * Q-12: as the Redis repository, a CHALLENGE in force starts what is held with the time it has left, replacing what
+     * an earlier CHALLENGE left, and an answer without one adds its session to what is held.
+     */
+    @Override
+    public void holdChallengeForOtherSessions(String userId, String contextBindingHash) {
+        userId = ZeroTrustUserKey.of(userId);
+        if (isBlank(userId)) {
+            return;
+        }
+        ReentrantLock lock = lockUser(userId);
+        try {
+            AnalysisEntry stored = liveAnalysis(userId);
+            if (stored != null && ZeroTrustAction.fromString(stored.action) == ZeroTrustAction.CHALLENGE) {
+                challengeHolds.put(userId, ChallengeHold.startedBy(stored.updatedAt, contextBindingHash),
+                        timeLeft(analyses.expiresAtMs(userId)));
+            } else {
+                ChallengeHold hold = challengeHolds.get(userId);
+                if (hold != null) {
+                    challengeHolds.put(userId, hold.answeredBy(contextBindingHash),
+                            timeLeft(challengeHolds.expiresAtMs(userId)));
+                }
+            }
+        } finally {
+            lock.unlock();
+        }
+        recordWrite(userId);
+    }
+
+    @Override
+    public Instant challengeHeldSince(String userId) {
+        userId = ZeroTrustUserKey.of(userId);
+        if (isBlank(userId)) {
+            return null;
+        }
+        ChallengeHold hold = challengeHolds.get(userId);
+        return hold != null ? Instant.parse(hold.since()) : null;
+    }
+
+    private Duration timeLeft(long expiresAtMs) {
+        long left = expiresAtMs - clock.millis();
+        return left > 0 && expiresAtMs != Long.MAX_VALUE ? Duration.ofMillis(left) : ZeroTrustAction.CHALLENGE.getDefaultTtl();
     }
 
     @Override
@@ -423,7 +480,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
                     && ZeroTrustActionPrecedence.keepsActiveRestriction(ZeroTrustAction.fromString(active.action), action);
             boolean flagKeeps = blockedUsers.contains(userId)
                     && ZeroTrustActionPrecedence.keepsActiveRestriction(ZeroTrustAction.BLOCK, action);
-            boolean keepsActiveRestriction = analysisKeeps || flagKeeps;
+            boolean keepsActiveRestriction = analysisKeeps || flagKeeps || holdKeeps(userId, action, additionalFields);
             if (!keepsActiveRestriction) {
                 saveAction(userId, action, additionalFields);
             } else {
@@ -433,6 +490,16 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         } finally {
             lock.unlock();
         }
+    }
+
+    /** Q-12: a less strict result of a session that did not answer the CHALLENGE held for it stays out. */
+    private boolean holdKeeps(String userId, ZeroTrustAction action, Map<String, Object> fields) {
+        ChallengeHold hold = challengeHolds.get(userId);
+        if (hold == null || !ZeroTrustActionPrecedence.keepsActiveRestriction(ZeroTrustAction.CHALLENGE, action)) {
+            return false;
+        }
+        Object context = fields.get("contextBindingHash");
+        return !hold.answeredIn(context != null ? context.toString() : null);
     }
 
     private static boolean boundToItsObservation(Map<String, Object> fields) {
@@ -589,6 +656,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         escalateRetries.remove(userId);
         decisionAuditPending.remove(userId);
         blockMfaVerifiedUntil.remove(userId);
+        challengeHolds.remove(userId);
         lastWrittenMs.remove(userId);
         retireLockIfUnused(userId);
     }
@@ -609,6 +677,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         escalateRetries.removeIf(agentsOfTheUser);
         decisionAuditPending.keySet().removeIf(agentsOfTheUser);
         blockMfaVerifiedUntil.removeIf(agentsOfTheUser);
+        challengeHolds.removeIf(agentsOfTheUser);
         lastWrittenMs.removeIf(agentsOfTheUser);
         userLocks.keySet().stream().filter(agentsOfTheUser).toList()
                 .forEach(this::retireLockIfUnused);
@@ -699,6 +768,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         mfaPending.removeExpired();
         escalateRetries.removeExpired();
         blockMfaVerifiedUntil.removeExpired();
+        challengeHolds.removeExpired();
         for (String userId : decisionAuditPending.keySet()) {
             decisionAuditPending.computeIfPresent(userId, (key, contexts) -> withoutExpiredMarkers(contexts));
         }
@@ -786,11 +856,11 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
     /**
      * Whether the user's state restricts, now or until it is resolved: the BLOCK flag, an analysis in its TTL that
      * restricts, a last verified ESCALATE (it reads as ESCALATE until resolved) or BLOCK (a logout keeps it), a pending
-     * BLOCK MFA or its failure count, an ESCALATE retry or a decision audit marker in force. The bound on users never
-     * releases such a user.
+     * BLOCK MFA or its failure count, an ESCALATE retry or a decision audit marker in force, a CHALLENGE held for other
+     * sessions. The bound on users never releases such a user.
      */
     private boolean restricts(String userId) {
-        if (blockedUsers.contains(userId)) {
+        if (blockedUsers.contains(userId) || challengeHolds.containsKey(userId)) {
             return true;
         }
         AnalysisEntry analysis = liveAnalysis(userId);
@@ -881,6 +951,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         ReentrantLock lock = lockUser(userId);
         try {
             blockedUsers.remove(userId);
+            challengeHolds.remove(userId);
             AnalysisEntry existing = liveAnalysis(userId);
             AnalysisEntry entry = existing != null ? existing.copy() : new AnalysisEntry();
             entry.action = newAction.name();
@@ -966,6 +1037,28 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         log.warn("[InMemoryZTARepository] Stored ESCALATE ended: userId={}, action={}", userId, replacement);
     }
 
+    /** Q-12: a CHALLENGE no longer stored, in force for every context but those that answered it. */
+    private record ChallengeHold(String since, Set<String> answered) {
+
+        static ChallengeHold startedBy(String decidedAt, String context) {
+            return new ChallengeHold(decidedAt != null ? decidedAt : Instant.now().toString(),
+                    context != null ? Set.of(context) : Set.of());
+        }
+
+        ChallengeHold answeredBy(String context) {
+            if (context == null) {
+                return this;
+            }
+            Set<String> contexts = new HashSet<>(answered);
+            contexts.add(context);
+            return new ChallengeHold(since, Set.copyOf(contexts));
+        }
+
+        boolean answeredIn(String context) {
+            return context != null && answered.contains(context);
+        }
+    }
+
     private static class AnalysisEntry {
         String action;
         String previousAction;
@@ -1011,7 +1104,8 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         return analyses.holds(userId) || lastVerified.holds(userId)
                 || mfaPending.holds(userId) || escalateRetries.holds(userId)
                 || mfaFailCounts.holds(userId) || blockedUsers.contains(userId)
-                || decisionAuditPending.containsKey(userId) || blockMfaVerifiedUntil.holds(userId);
+                || decisionAuditPending.containsKey(userId) || blockMfaVerifiedUntil.holds(userId)
+                || challengeHolds.holds(userId);
     }
 
     boolean holdsLastVerifiedFor(String userId) {
