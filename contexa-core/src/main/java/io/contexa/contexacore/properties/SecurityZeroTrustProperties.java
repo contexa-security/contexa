@@ -377,7 +377,8 @@ public class SecurityZeroTrustProperties {
         /**
          * docs/agent RL-12: what the engine does when one agent's requests come in numbers: the same question is
          * analysed once, the analyses one agent has running at once are limited, and a restriction stored while requests
-         * wait answers them. Off by default.
+         * wait answers them. Off by default. Its {@code wait} applies on or off, and to a person's synchronous request as
+         * well: see {@link Flight#wait}.
          */
         private Flight flight = new Flight();
 
@@ -407,6 +408,10 @@ public class SecurityZeroTrustProperties {
      * docs/agent RL-12. Requests that the engine cannot take in within {@code queueCapacity} and {@code wait} are
      * refused with HTTP 429; no request is let through for lack of a verdict, except the few reads of a resource the host
      * declared non-sensitive that {@code passBudget} allows while the first one is being decided.
+     * <p>
+     * {@code wait} is the one setting here that is not only an agent's. Every synchronous request, a person's
+     * included, waits for its verdict at most this long, with the flights on or off. No setting of its own was added for
+     * that, so raising it for agents raises it for people too.
      */
     @Data
     public static class Flight {
