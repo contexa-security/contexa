@@ -8,6 +8,17 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **A layer model set in `contexa.security.tiered.llm.layer1.model` or `layer2.model` runs with Anthropic from the
+  settings alone.** The second layer used to run on the first layer's model without a word, and one chat model bean of
+  the second layer's model pulled the first layer onto it too. Each layer's model is now made from the Anthropic chat
+  model, with the same client and default options of its own, so a model that refuses sampling values is not sent the
+  defaults of another one. No chat model bean of your own is needed.
+- A layer model that cannot be made (no `contexa.llm.bindings.chat` binding and a provider other than OpenAI or
+  Anthropic, or another provider's model id on Anthropic) is told at the start in one ERROR line: the layer, the model
+  set and the model that runs in its place. The application starts as it did. A wrong model id of the same provider
+  cannot be told without a paid call and fails at the first call of that layer.
+- A decision record names the model that answered, else the model that was asked. A decision that never reached a
+  model (`QUEUE_TIMEOUT`, `REJECTED_BACKPRESSURE`) names none; it used to name the configured model.
 - **A user can answer a CHALLENGE in `contexa.infrastructure.mode=distributed` whatever the sign-in is made of.** An MFA
   flow stored in Redis could not be read back when the sign-in held a read-only collection (a one-time token or a
   remember-me sign-in with Contexa's user or Spring's `User`, a JWT, an OAuth2 login) or an object the reading node

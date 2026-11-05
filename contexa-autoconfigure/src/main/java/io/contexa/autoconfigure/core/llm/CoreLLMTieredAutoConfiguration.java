@@ -163,12 +163,15 @@ public class CoreLLMTieredAutoConfiguration {
         return registry;
     }
 
+    /** No condition on the primary chat model: this bean is read before that one, and would never be registered. */
     @Bean(name = "contexaTieredLayerModelVerifier")
     @ConditionalOnMissingBean
-    @ConditionalOnBean(name = "contexaPrimaryChatModel")
-    public TieredLayerModelVerifier tieredLayerModelVerifier(DynamicModelRegistry contexaDynamicModelRegistry,
-                                                             TieredLLMProperties tieredLLMProperties) {
-        return new TieredLayerModelVerifier(contexaDynamicModelRegistry, tieredLLMProperties);
+    public TieredLayerModelVerifier tieredLayerModelVerifier(
+            DynamicModelRegistry contexaDynamicModelRegistry,
+            TieredLLMProperties tieredLLMProperties,
+            @Qualifier("contexaPrimaryChatModel") ObjectProvider<ChatModel> primaryChatModel) {
+        return new TieredLayerModelVerifier(contexaDynamicModelRegistry, tieredLLMProperties,
+                primaryChatModel::getIfAvailable);
     }
 
     @Bean(name = "contexaPrimaryChatModel", defaultCandidate = false)
