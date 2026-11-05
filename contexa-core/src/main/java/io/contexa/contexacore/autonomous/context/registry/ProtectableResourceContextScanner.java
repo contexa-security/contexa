@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.context.registry;
 
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacore.autonomous.context.model.ResourceContextDescriptor;
+import io.contexa.contexacore.autonomous.context.support.ActionFamily;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.SmartInitializingSingleton;
@@ -35,6 +36,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Registers every {@code @Protectable} method of the application's beans in the resource registry once all singletons
@@ -43,10 +45,16 @@ import java.util.Set;
  * <p>
  * A protected class is reached through a class proxy, which cannot override a final method: the call runs on the proxy
  * instance itself, past the protection and with the bean's fields unset. Nothing Contexa can do at runtime changes that,
- * so the scan names each such method when the application starts.
+ * so the scan names each such method when the application starts. It also names a declared action no family of the
+ * vocabulary reads: the declaration then has no effect on the request's action family, which comes from its HTTP method.
  */
 @Slf4j
 public class ProtectableResourceContextScanner implements SmartInitializingSingleton {
+
+    private static final String ACTION_VOCABULARY = Arrays.stream(ActionFamily.values())
+            .filter(family -> family != ActionFamily.UNKNOWN)
+            .map(Enum::name)
+            .collect(Collectors.joining(", "));
 
     private final ListableBeanFactory beanFactory;
     private final ResourceContextRegistry registry;
@@ -59,9 +67,11 @@ public class ProtectableResourceContextScanner implements SmartInitializingSingl
     @Override
     public void afterSingletonsInstantiated() {
         Set<Class<?>> protectedClasses = new LinkedHashSet<>();
-        scan(protectedClasses).values().forEach(registry::register);
+        Map<String, ResourceContextDescriptor> scanned = scan(protectedClasses);
+        scanned.values().forEach(registry::register);
         beanFactory.getBeansOfType(ResourceContextDescriptor.class).values().forEach(registry::register);
         protectedClasses.forEach(ProtectableResourceContextScanner::reportFinalMethods);
+        scanned.values().forEach(ProtectableResourceContextScanner::reportActionsOutsideTheVocabulary);
     }
 
     /** The descriptors of the protected methods, by resource id; the first method of an overloaded name wins. */
@@ -109,6 +119,16 @@ public class ProtectableResourceContextScanner implements SmartInitializingSingl
                 log.warn("{}#{} is final and cannot be intercepted by the proxy of its @Protectable class: a call runs "
                                 + "without the protection and with the bean's fields unset. Remove final from the method.",
                         method.getDeclaringClass().getName(), method.getName());
+            }
+        }
+    }
+
+    private static void reportActionsOutsideTheVocabulary(ResourceContextDescriptor descriptor) {
+        for (String action : descriptor.allowedActionFamilies()) {
+            if (ActionFamily.of(action) == null) {
+                log.warn("{} declares the action {}, which is none of the action families {}: the request's action family "
+                                + "comes from its HTTP method instead. Declare one of them in actions of @Protectable.",
+                        descriptor.resourceId(), action, ACTION_VOCABULARY);
             }
         }
     }
