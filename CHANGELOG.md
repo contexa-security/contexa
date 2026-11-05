@@ -8,6 +8,12 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **An agent no longer writes a delegation in the person's name.** The delegation API told an agent by the `act` claim, a
+  client's own token and an agent's account. A token exchange without an `actor_token` is issued in the person's name with
+  no `act`, so the agent it went to passed as the person at `/contexa/api/agent-delegations` and could give itself a
+  delegation, read the person's and revoke them. The same went for a token of another authorization server that names
+  the agent in `azp`, `agent_id` or a delegation marker. The API now answers `403` to whatever the bridge reads as an
+  agent's request, as the confirmation pages do. Token exchange is off by default.
 - **An agent narrowed to reading no longer writes through a path that sounds like reading.** The operation of a request was
   read from the words of its path before its method, and from the path as it was sent: `DELETE /api/lists/7` and
   `POST /api/search/x` passed as reads, and `GET /api/%65xport/x` reached the export as one. The words of a path, read as

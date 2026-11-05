@@ -35,8 +35,15 @@ import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.security.bridge.AgentTokenClaims;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
+import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.resolver.TokenDelegationStampResolver;
+import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
 import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
+import io.contexa.contexacore.autonomous.agent.InMemoryDelegationRegistry;
+import io.contexa.contexaiam.admin.web.agent.controller.AgentDelegationApiController;
+import io.contexa.contexaiam.admin.web.agent.controller.AgentDelegationViews.DelegationBody;
+import io.contexa.contexaiam.admin.web.agent.service.AgentDelegationService;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.OAuth2RequestScope;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.OAuth2StateAdapter;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.OAuth2StateConfigurer;
@@ -62,12 +69,16 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockServletContext;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
@@ -84,6 +95,7 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.web.servlet.MockMvc;
@@ -97,6 +109,7 @@ import org.springframework.web.context.support.AnnotationConfigWebApplicationCon
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
 import java.util.List;
@@ -197,6 +210,54 @@ class OAuth2TokenChainIntegrationTest {
         JsonNode caller = json.readTree(mvc.perform(get("/api/orders").header("Authorization", "Bearer " + delegatedToken))
                 .andReturn().getResponse().getContentAsString());
         assertThat(caller.get("name").asText()).isEqualTo("alice");
+    }
+
+    /**
+     * An exchange without an actor token is issued in the person's name: no {@code act}, and the client it went to is
+     * all that tells the agent. The bridge reads it so, and the delegation API takes it for the agent it is.
+     */
+    @Test
+    void anExchangeWithoutAnActorTokenIsStillTheAgentsAndRecordsNoDelegationForThePerson() throws Exception {
+        start(true);
+
+        MvcResult exchanged = mvc.perform(post("/oauth2/token")
+                        .header("Authorization", basic(AGENT_CLIENT, AGENT_SECRET))
+                        .param("grant_type", TOKEN_EXCHANGE)
+                        .param("subject_token", userToken())
+                        .param("subject_token_type", ACCESS_TOKEN_TYPE)
+                        .param("scope", "reports.read"))
+                .andReturn();
+
+        assertThat(exchanged.getResponse().getStatus()).as(exchanged.getResponse().getContentAsString()).isEqualTo(200);
+        Jwt claims = decode(json.readTree(exchanged.getResponse().getContentAsString()).get("access_token").asText());
+        assertThat(claims.getSubject()).isEqualTo("alice");
+        assertThat(claims.hasClaim("act")).isFalse();
+        assertThat(claims.getClaimAsString("client_id")).isEqualTo(AGENT_CLIENT);
+
+        Authentication token = new JwtAuthenticationToken(claims, List.of(), "alice");
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        SecurityContextHolder.getContext().setAuthentication(token);
+        DelegationStamp stamp;
+        try {
+            stamp = new TokenDelegationStampResolver(directory()).resolve(request, null, new BridgeProperties())
+                    .orElseThrow();
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+        assertThat(stamp.agentId()).isEqualTo("report-bot");
+        assertThat(stamp.subjectId()).isEqualTo("alice");
+        request.setAttribute(BridgeRequestAttributes.DELEGATION_STAMP, stamp);
+
+        InMemoryDelegationRegistry delegations = new InMemoryDelegationRegistry();
+        AgentDelegationApiController api = new AgentDelegationApiController(
+                new AgentDelegationService(delegations, directory(), null));
+        Instant now = Instant.now();
+        ResponseEntity<?> answer = api.record(new DelegationBody(null, null, "report-bot", null, "REPORTING",
+                "Weekly report", List.of("READ"), List.of("HX-310"), false, null, null, now.minusSeconds(60),
+                now.plusSeconds(3600), null, null), token, request);
+
+        assertThat(answer.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(delegations.list(null, "alice", null, 10)).isEmpty();
     }
 
     @Test
