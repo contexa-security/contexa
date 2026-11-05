@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.store;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import org.awaitility.Awaitility;
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -70,6 +72,130 @@ abstract class AbstractBlockMfaStateStoreContractTest {
         if (store.getVerifiedAt("user1") != null) {
             assertThat(store.getVerifiedAt("user1")).isBeforeOrEqualTo(store.getVerifiedExpiresAt("user1"));
         }
+    }
+
+    @Test
+    @DisplayName("a verification opens the context that passed it and no other")
+    void verified_opensItsContextOnly() {
+        store.setVerified("admin", "context-a");
+
+        assertThat(store.isVerified("admin", "context-a")).isTrue();
+        assertThat(store.isVerified("admin", "context-b")).as("another session").isFalse();
+        assertThat(store.isVerified("admin", "context")).as("a part of it").isFalse();
+        assertThat(store.isVerified("admin", "a")).as("the end of it").isFalse();
+        assertThat(store.isVerified("admin", "")).as("an empty context").isFalse();
+        assertThat(store.isVerified("admin", null)).as("no context").isFalse();
+        assertThat(store.isVerified("someone-else", "context-a")).as("another user").isFalse();
+    }
+
+    @Test
+    @DisplayName("what asks of the user alone still reads the verification")
+    void verified_stillReadForTheUser() {
+        store.setVerified("admin", "context-a");
+
+        assertThat(store.isVerified("admin")).isTrue();
+        assertThat(store.getVerifiedAt("admin")).isNotNull();
+        assertThat(store.getVerifiedExpiresAt("admin")).isNotNull();
+    }
+
+    @Test
+    @DisplayName("a verification kept without a context opens none")
+    void verified_withoutAContextOpensNone() {
+        store.setVerified("admin");
+
+        assertThat(store.isVerified("admin", "context-a")).isFalse();
+        assertThat(store.isVerified("admin", null)).isFalse();
+
+        store.setVerified("other", null);
+
+        assertThat(store.isVerified("other")).isTrue();
+        assertThat(store.isVerified("other", null)).isFalse();
+    }
+
+    @Test
+    @DisplayName("the last context that passed takes the place of the one before")
+    void verified_lastContextWins() {
+        store.setVerified("admin", "context-a");
+        store.setVerified("admin", "context-b");
+
+        assertThat(store.isVerified("admin", "context-a")).isFalse();
+        assertThat(store.isVerified("admin", "context-b")).isTrue();
+    }
+
+    @Test
+    @DisplayName("every spelling of a name reads one verification, and a console's is not the application's user's")
+    void verified_spellings() {
+        store.setVerified("console::rcboss", "context-a");
+
+        assertThat(store.isVerified("console::RCBOSS", "context-a")).isTrue();
+        assertThat(store.isVerified("CONSOLE::rcboss", "context-a")).isTrue();
+        assertThat(store.isVerified("console::\uFF52\uFF43\uFF42\uFF4F\uFF53\uFF53", "context-a")).isTrue();
+        assertThat(store.isVerified("rcboss", "context-a")).as("the application's user of that name").isFalse();
+    }
+
+    @Test
+    @DisplayName("a verification for a context lapses with the rest")
+    void verified_contextExpiresAfterTtl() {
+        BlockMfaStateStore ttlStore = createStoreWithVerifiedTtl(actionRepository, Duration.ofMillis(200));
+        ttlStore.setVerified("user-ttl", "context-a");
+
+        assertThat(ttlStore.isVerified("user-ttl", "context-a")).isTrue();
+
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(5))
+                .pollInterval(Duration.ofMillis(100))
+                .untilAsserted(() -> assertThat(ttlStore.isVerified("user-ttl", "context-a")).isFalse());
+    }
+
+    @Test
+    @DisplayName("a verification answers the BLOCK it was passed under: the release ends it, so the next BLOCK needs its own")
+    void verified_endsWithTheBlock() {
+        store.setVerified("admin", "context-a");
+        actionRepository.saveAction("admin", ZeroTrustAction.BLOCK, Map.of());
+        actionRepository.setBlockedFlag("admin");
+
+        actionRepository.approveOverrideAtomically("admin", ZeroTrustAction.ALLOW);
+
+        assertThat(store.isVerified("admin", "context-a")).isFalse();
+        assertThat(store.isVerified("admin")).isFalse();
+
+        actionRepository.saveAction("admin", ZeroTrustAction.BLOCK, Map.of());
+        actionRepository.setBlockedFlag("admin");
+
+        assertThat(store.isVerified("admin", "context-a")).as("the next BLOCK").isFalse();
+    }
+
+    @Test
+    @DisplayName("the release that goes by the flag alone ends it too")
+    void verified_endsWithTheBlockedFlag() {
+        store.setVerified("admin", "context-a");
+
+        actionRepository.removeBlockedFlag("admin");
+
+        assertThat(store.isVerified("admin", "context-a")).isFalse();
+    }
+
+    @Test
+    @DisplayName("a BLOCK decided again while one stands leaves the verification of it")
+    void verified_survivesTheSameBlockDecidedAgain() {
+        actionRepository.saveAction("admin", ZeroTrustAction.BLOCK, Map.of());
+        actionRepository.setBlockedFlag("admin");
+        store.setVerified("admin", "context-a");
+
+        actionRepository.saveAction("admin", ZeroTrustAction.BLOCK, Map.of());
+        actionRepository.setBlockedFlag("admin");
+
+        assertThat(store.isVerified("admin", "context-a")).isTrue();
+    }
+
+    @Test
+    @DisplayName("the removal of a user's data takes the verification of a context with it")
+    void verified_clearedWithTheUser() {
+        store.setVerified("admin", "context-a");
+
+        store.clearUser("admin");
+
+        assertThat(store.isVerified("admin", "context-a")).isFalse();
     }
 
     @Test

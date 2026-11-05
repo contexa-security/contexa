@@ -95,6 +95,22 @@ class BlockedUserServiceChallengeReleaseTest {
         assertThat(actions.getCurrentAction("no-mail", "context-a")).isEqualTo(ZeroTrustAction.BLOCK);
     }
 
+    /** A CHALLENGE answered in one session leaves a hold behind, and that hold was enough to wipe a later BLOCK. */
+    @Test
+    @DisplayName("a BLOCK decided over a held CHALLENGE is not lifted this way either")
+    void aBlockOverAHeldChallengeStays() {
+        actions.saveAction("no-mail", ZeroTrustAction.CHALLENGE, Map.of());
+        actions.holdChallengeForOtherSessions("no-mail", "context-a");
+        actions.saveActionWithPrevious("no-mail", ZeroTrustAction.ALLOW, "context-a");
+        actions.saveAction("no-mail", ZeroTrustAction.BLOCK, Map.of());
+        actions.setBlockedFlag("no-mail");
+
+        assertThat(service.releaseChallenge("no-mail", "admin", "called the user")).isFalse();
+
+        assertThat(actions.getCurrentAction("no-mail", "context-a")).isEqualTo(ZeroTrustAction.BLOCK);
+        verify(audit, never()).recordAsync(any());
+    }
+
     @Test
     @DisplayName("a release says who and why")
     void aReleaseSaysWhoAndWhy() {

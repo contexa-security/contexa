@@ -29,6 +29,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.support.StaticMessageSource;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -192,13 +193,38 @@ class BlacklistApiControllerTest {
                 .andExpect(jsonPath("$.error").doesNotExist());
 
         doThrow(new RuntimeException("Cannot delete active block"))
-                .when(blockedUserService).deleteBlockRecord(8L);
+                .when(blockedUserService).deleteBlockRecord(8L, "admin");
 
         mockMvc.perform(delete("/contexa/admin/api/blacklist/8"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error").value("Cannot delete active block"))
                 .andExpect(jsonPath("$.id").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("an own release refused is a 403 that says why, not a server error")
+    void anOwnReleaseIsForbidden() throws Exception {
+        doThrow(new AccessDeniedException("Another administrator lifts it"))
+                .when(blockedUserService).resolveBlockById(7L, "admin", "ALLOW", "it was me");
+
+        mockMvc.perform(post("/contexa/admin/api/blacklist/7/resolve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"resolvedAction\":\"ALLOW\",\"reason\":\"it was me\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error").value("Another administrator lifts it"));
+    }
+
+    @Test
+    @DisplayName("deleting an own record refused is a 403 too")
+    void deletingAnOwnRecordIsForbidden() throws Exception {
+        doThrow(new AccessDeniedException("Another administrator lifts it"))
+                .when(blockedUserService).deleteBlockRecord(7L, "admin");
+
+        mockMvc.perform(delete("/contexa/admin/api/blacklist/7"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("Another administrator lifts it"));
     }
 
     private BlockedUser sampleBlockedUser() {

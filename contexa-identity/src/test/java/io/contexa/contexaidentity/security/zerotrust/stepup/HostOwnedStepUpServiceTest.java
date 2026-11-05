@@ -18,12 +18,15 @@ package io.contexa.contexaidentity.security.zerotrust.stepup;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
 import io.contexa.contexaidentity.security.zerotrust.ChallengeResolution;
+import io.contexa.contexaidentity.security.zerotrust.HostOwnedStepUp;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,6 +38,7 @@ import org.springframework.security.core.Authentication;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -155,8 +159,130 @@ class HostOwnedStepUpServiceTest {
         when(oneTimeTokens.consume(any())).thenReturn(new DefaultOneTimeToken("654321", "step-up:42", Instant.now()));
 
         assertThat(service.verifyCode(request, alice, "654321")).isTrue();
-        verify(resolution).releaseBlockByMfa("alice");
+        verify(resolution).releaseBlockByMfa("alice", SessionFingerprintUtil.verificationContext(request));
         verify(resolution, never()).releaseChallenge(anyString(), any(), any(), any());
+    }
+
+    private final Authentication console = new TestingAuthenticationToken("rcboss", null, "ROLE_ADMIN");
+
+    private MockHttpServletRequest consoleRequest() {
+        MockHttpServletRequest marked = new MockHttpServletRequest("POST", HostOwnedStepUp.CONSOLE_STEP_UP_PATH);
+        marked.setRequestedSessionId("console-session");
+        ConsoleSession.mark(marked);
+        return marked;
+    }
+
+    private Users account(String name, String address, boolean bridgeManaged) {
+        Users user = mock(Users.class);
+        when(user.getId()).thenReturn(7L);
+        when(user.getUsername()).thenReturn(name);
+        when(user.getEmail()).thenReturn(address);
+        when(user.isBridgeManaged()).thenReturn(bridgeManaged);
+        when(users.findByUsername(name)).thenReturn(Optional.of(user));
+        return user;
+    }
+
+    @Test
+    @DisplayName("a console session under a BLOCK verifies its own key, without the user's pending flag")
+    void aConsoleSessionVerifiesItsOwnKey() {
+        when(actions.getCurrentAction(eq("console::rcboss"), any())).thenReturn(ZeroTrustAction.BLOCK);
+        account("rcboss", "boss@corp.example", false);
+
+        HostOwnedStepUpService.Situation situation = service.situation(consoleRequest(), console);
+
+        assertThat(situation.decisionKey()).isEqualTo("console::rcboss");
+        assertThat(situation.purpose()).isEqualTo(HostOwnedStepUpService.Purpose.BLOCK);
+        assertThat(situation.oneTimeCode()).isTrue();
+    }
+
+    @Test
+    @DisplayName("the BLOCK of the application's user of that name is nothing to a console session")
+    void theApplicationsBlockIsNotTheConsoles() {
+        when(actions.getCurrentAction(eq("rcboss"), any())).thenReturn(ZeroTrustAction.BLOCK);
+        when(actions.getCurrentAction(eq("console::rcboss"), any())).thenReturn(ZeroTrustAction.ALLOW);
+        account("rcboss", "boss@corp.example", false);
+
+        assertThat(service.situation(consoleRequest(), console).purpose()).isNull();
+    }
+
+    @Test
+    @DisplayName("a request of the application's chain never reaches the console's key or its account")
+    void theApplicationsChainStaysOnItsSide() {
+        when(actions.getCurrentAction(eq("rcboss"), any())).thenReturn(ZeroTrustAction.BLOCK);
+        Authentication applicationUser = new TestingAuthenticationToken("rcboss", null, "ROLE_ADMIN");
+
+        HostOwnedStepUpService.Situation situation = service.situation(request, applicationUser);
+
+        assertThat(situation.decisionKey()).isEqualTo("rcboss");
+        assertThat(situation.purpose()).as("the pending flag is still the user's way in").isNull();
+        assertThat(situation.user()).isNull();
+        verify(users, never()).findByUsername(anyString());
+    }
+
+    @Test
+    @DisplayName("the bridge's copy of an application user is no account of the console: no factor goes to it")
+    void aBridgedCopyIsNoConsoleAccount() {
+        when(actions.getCurrentAction(eq("console::rcboss"), any())).thenReturn(ZeroTrustAction.BLOCK);
+        account("rcboss", "someone@corp.example", true);
+
+        HostOwnedStepUpService.Situation situation = service.situation(consoleRequest(), console);
+
+        assertThat(situation.user()).isNull();
+        assertThat(situation.oneTimeCode()).isFalse();
+        assertThat(service.sendCode(consoleRequest(), console)).isEqualTo(HostOwnedStepUpService.CodeSending.UNAVAILABLE);
+        verifyNoInteractions(oneTimeTokens);
+    }
+
+    @Test
+    @DisplayName("a console session is offered no passkey to enrol, and not the application's re-login")
+    void aConsoleSessionIsOfferedNoEnrolment() {
+        when(actions.getCurrentAction(eq("console::rcboss"), any())).thenReturn(ZeroTrustAction.ALLOW);
+        account("rcboss", "boss@corp.example", false);
+
+        HostOwnedStepUpService.Situation situation = service.situation(consoleRequest(), console);
+
+        assertThat(situation.passkeyEnrollable()).isFalse();
+        assertThat(situation.passkeyRegistrable()).isFalse();
+        assertThat(situation.reauthenticationUrl()).isNull();
+    }
+
+    @Test
+    @DisplayName("the code of a console session answers its own key, for its own context")
+    void theCodeOfAConsoleSession() {
+        when(actions.getCurrentAction(eq("console::rcboss"), any())).thenReturn(ZeroTrustAction.BLOCK);
+        account("rcboss", "boss@corp.example", false);
+        when(oneTimeTokens.consume(any())).thenReturn(new DefaultOneTimeToken("654321", "step-up:7", Instant.now()));
+        MockHttpServletRequest marked = consoleRequest();
+
+        assertThat(service.verifyCode(marked, console, "654321")).isTrue();
+
+        verify(resolution).releaseBlockByMfa("console::rcboss", SessionFingerprintUtil.verificationContext(marked));
+    }
+
+    @Test
+    @DisplayName("a code made for another account answers nothing")
+    void theCodeOfAnotherAccount() {
+        when(actions.getCurrentAction(eq("console::rcboss"), any())).thenReturn(ZeroTrustAction.BLOCK);
+        account("rcboss", "boss@corp.example", false);
+        when(oneTimeTokens.consume(any())).thenReturn(new DefaultOneTimeToken("654321", "step-up:8", Instant.now()));
+
+        assertThat(service.verifyCode(consoleRequest(), console, "654321")).isFalse();
+
+        verify(resolution, never()).releaseBlockByMfa(anyString(), any());
+    }
+
+    @Test
+    @DisplayName("with no way to verify the page says so and nothing is released")
+    void noWayToVerify() {
+        when(actions.getCurrentAction(eq("console::rcboss"), any())).thenReturn(ZeroTrustAction.BLOCK);
+        when(email.isMailSenderConfigured()).thenReturn(false);
+        account("rcboss", "boss@corp.example", false);
+
+        HostOwnedStepUpService.Situation situation = service.situation(consoleRequest(), console);
+
+        assertThat(situation.oneTimeCode()).isFalse();
+        assertThat(situation.passkey()).isFalse();
+        assertThat(service.verifyCode(consoleRequest(), console, "654321")).isFalse();
     }
 
     @Test

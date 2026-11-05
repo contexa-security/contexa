@@ -18,6 +18,7 @@ package io.contexa.contexaidentity.security.zerotrust.stepup;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexaidentity.security.zerotrust.HostOwnedStepUp;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -48,16 +49,21 @@ import java.util.Map;
  * The pages of the verification-only step-up of HOST_OWNED (ownership design S-2). They are reached through the
  * application's own Spring Security chain, so the user is the one the application signed in, and the application's
  * CSRF protection applies to the posts. Nothing here writes the application's authentication, session or cookies.
+ * <p>
+ * Under {@link HostOwnedStepUp#CONSOLE_STEP_UP_PATH} the same pages answer a console session, behind the console's chain
+ * and its CSRF protection, and lead back to the block list.
  */
 @Slf4j
 @Controller
-@RequestMapping(HostOwnedStepUp.STEP_UP_PATH)
+@RequestMapping({HostOwnedStepUp.STEP_UP_PATH, HostOwnedStepUp.CONSOLE_STEP_UP_PATH})
 public class HostOwnedStepUpController {
 
     private static final TypeReference<PublicKeyCredential<AuthenticatorAssertionResponse>> ASSERTION =
             new TypeReference<>() { };
     private static final TypeReference<PublicKeyCredential<AuthenticatorAttestationResponse>> ATTESTATION =
             new TypeReference<>() { };
+
+    private static final String BLOCK_LIST = "/contexa/admin/blacklist";
 
     private final HostOwnedStepUpService service;
     private final ObjectMapper json = new ObjectMapper().registerModule(new WebauthnJackson2Module());
@@ -72,8 +78,8 @@ public class HostOwnedStepUpController {
         model.addAttribute("situation", situation);
         model.addAttribute("purpose", situation != null && situation.purpose() != null
                 ? situation.purpose().name() : null);
-        model.addAttribute("returnUrl", request.getContextPath() + "/");
-        model.addAttribute("stepUpBase", request.getContextPath() + HostOwnedStepUp.STEP_UP_PATH);
+        model.addAttribute("returnUrl", returnUrl(request));
+        model.addAttribute("stepUpBase", stepUpBase(request));
         return "contexa/zero-trust/step-up";
     }
 
@@ -103,8 +109,7 @@ public class HostOwnedStepUpController {
         // Q-1: the moment the user proved who they are is the moment to offer the passkey that spares the next code.
         HostOwnedStepUpService.Situation situation = service.situation(request, user);
         return situation != null && situation.passkeyRegistrable()
-                ? ResponseEntity.ok(Map.of("verified", true,
-                        "redirectUrl", request.getContextPath() + HostOwnedStepUp.STEP_UP_PATH))
+                ? ResponseEntity.ok(Map.of("verified", true, "redirectUrl", stepUpBase(request)))
                 : verified(request, true);
     }
 
@@ -174,8 +179,17 @@ public class HostOwnedStepUpController {
 
     private static ResponseEntity<Map<String, Object>> verified(HttpServletRequest request, boolean verified) {
         return verified
-                ? ResponseEntity.ok(Map.of("verified", true, "redirectUrl", request.getContextPath() + "/"))
+                ? ResponseEntity.ok(Map.of("verified", true, "redirectUrl", returnUrl(request)))
                 : ResponseEntity.status(400).body(Map.of("verified", false));
+    }
+
+    private static String stepUpBase(HttpServletRequest request) {
+        return request.getContextPath()
+                + (ConsoleSession.of(request) ? HostOwnedStepUp.CONSOLE_STEP_UP_PATH : HostOwnedStepUp.STEP_UP_PATH);
+    }
+
+    private static String returnUrl(HttpServletRequest request) {
+        return request.getContextPath() + (ConsoleSession.of(request) ? BLOCK_LIST : "/");
     }
 
     private static ResponseEntity<Map<String, Object>> unauthorized() {

@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.utils;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.bridge.AgentSessionKey;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import jakarta.servlet.http.HttpServletRequest;
@@ -107,6 +108,7 @@ public class SessionFingerprintUtil {
         }
     }
 
+    private static final String CONSOLE_CONTEXT = "console:";
     private static final String CONTEXT_BINDING_HASH_ATTR = "contexa.contextBindingHash";
     /** Set while the binding reads the request's security context (see {@link #currentAuthentication}). */
     private static final String READING_CONTEXT_ATTR = "contexa.contextBindingHash.readingContext";
@@ -241,6 +243,18 @@ public class SessionFingerprintUtil {
         TieredStrategyProperties.Security security = clientIpSecurity();
         return security.isTrustedProxyValidationEnabled()
                 && (security.getTrustedProxies() == null || security.getTrustedProxies().isEmpty());
+    }
+
+    /**
+     * The context a passed verification of a BLOCK is kept for. A console session shares its HTTP session, address and
+     * client with the application's user of that browser, and that user may be named like the console's key, so the
+     * console's context stands apart: what the application's chain verified answers nothing in the console.
+     */
+    @Nullable
+    public static String verificationContext(HttpServletRequest request) {
+        String contextBindingHash = generateContextBindingHash(request);
+        return contextBindingHash != null && ConsoleSession.of(request) ? CONSOLE_CONTEXT + contextBindingHash
+                : contextBindingHash;
     }
 
     private static TieredStrategyProperties.Security clientIpSecurity() {

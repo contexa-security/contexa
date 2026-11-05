@@ -19,6 +19,7 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.lang.Nullable;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -33,6 +34,9 @@ public class RedisBlockMfaStateStore implements BlockMfaStateStore {
     private final Duration verifiedTtl;
 
     private static final Duration DEFAULT_VERIFIED_TTL = Duration.ofHours(1);
+
+    /** Between the time of a verification and the context it was passed in, in the one key the release removes. */
+    private static final char CONTEXT_SEPARATOR = '|';
 
     public RedisBlockMfaStateStore(StringRedisTemplate stringRedisTemplate,
                                    ZeroTrustActionRepository actionRepository) {
@@ -49,11 +53,32 @@ public class RedisBlockMfaStateStore implements BlockMfaStateStore {
 
     @Override
     public void setVerified(String userId) {
+        setVerified(userId, null);
+    }
+
+    @Override
+    public void setVerified(String userId, @Nullable String contextBindingHash) {
         try {
             String key = ZeroTrustRedisKeys.blockMfaVerified(userId);
-            stringRedisTemplate.opsForValue().set(key, Instant.now().toString(), verifiedTtl);
+            String value = Instant.now() + (contextBindingHash != null ? CONTEXT_SEPARATOR + contextBindingHash : "");
+            stringRedisTemplate.opsForValue().set(key, value, verifiedTtl);
         } catch (Exception e) {
             log.error("[BlockMfaStateStore] Failed to set verified: userId={}", userId, e);
+        }
+    }
+
+    @Override
+    public boolean isVerified(String userId, @Nullable String contextBindingHash) {
+        if (contextBindingHash == null || contextBindingHash.isEmpty()) {
+            return false;
+        }
+        try {
+            String value = stringRedisTemplate.opsForValue().get(ZeroTrustRedisKeys.blockMfaVerified(userId));
+            int separator = value != null ? value.indexOf(CONTEXT_SEPARATOR) : -1;
+            return separator >= 0 && contextBindingHash.equals(value.substring(separator + 1));
+        } catch (Exception e) {
+            log.error("[BlockMfaStateStore] Failed to check verified: userId={}", userId, e);
+            return false;
         }
     }
 
@@ -77,7 +102,8 @@ public class RedisBlockMfaStateStore implements BlockMfaStateStore {
             if (value == null || value.isBlank() || "true".equalsIgnoreCase(value)) {
                 return null;
             }
-            return Instant.parse(value);
+            int separator = value.indexOf(CONTEXT_SEPARATOR);
+            return Instant.parse(separator >= 0 ? value.substring(0, separator) : value);
         } catch (Exception e) {
             return null;
         }

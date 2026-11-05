@@ -19,6 +19,7 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
+import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -90,6 +91,18 @@ class ChallengeResolutionTest {
         assertThat(resolution(repository).releaseChallenge("mail-k5", VICTIM, request, null)).isFalse();
 
         verify(repository, never()).saveActionWithPrevious(anyString(), any(), any());
+    }
+
+    /** A passed MFA answers for the session that passed it, so that is what is kept. */
+    @Test
+    void aBlockReleasedByMfaIsKeptForItsContext() {
+        BlockMfaStateStore verifications = mock(BlockMfaStateStore.class);
+
+        new ChallengeResolution(actions, learning, null, null, null, null, verifications)
+                .releaseBlockByMfa("admin", VICTIM);
+
+        verify(verifications).setVerified("admin", VICTIM);
+        verify(verifications).clearPending("admin");
     }
 
     @Test

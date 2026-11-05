@@ -16,6 +16,14 @@
                 <p class="text-dark-muted mt-1" th:text="#{admin.blacklist.subtitle}">AI Native Zero Trust blocked user management</p>
             </div>
 
+            <div th:if="${ownBlockAwaitsVerification}" class="flex flex-wrap items-center gap-2 mb-6 p-4 rounded-lg"
+                 style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3);">
+                <span class="text-sm" style="flex:1; min-width:12rem; color: #fca5a5;" th:text="#{admin.blacklist.self.desc}">
+                    This console session is blocked. Another administrator can lift it, or verify it is you to lift it here.</span>
+                <a th:href="@{/contexa/admin/blacklist/step-up}" class="px-4 py-2 rounded-lg text-sm font-medium filter-active"
+                   th:text="#{admin.blacklist.self.verify}">Verify it is you</a>
+            </div>
+
             <form th:action="@{/contexa/admin/blacklist/challenge-release}" method="post"
                   class="flex flex-wrap items-center gap-2 mb-6 p-4 rounded-lg" style="background: rgba(30, 41, 59, 0.5); margin-top:0;">
                 <span class="text-sm text-dark-muted" style="flex-basis:100%;" th:text="#{admin.blacklist.challenge.desc}">

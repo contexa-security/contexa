@@ -142,12 +142,22 @@ public class ChallengeResolution {
 
     /** Releases a BLOCK an administrator let the user release by MFA. */
     public void releaseBlockByMfa(String userId) {
+        releaseBlockByMfa(userId, null);
+    }
+
+    /**
+     * Releases a BLOCK an administrator let the user release by MFA, and keeps the verification for the context that
+     * passed it: an administrator lifts their own BLOCK in that session and in no other of the account.
+     *
+     * @param contextBindingHash the context the client goes on in, or null to name none
+     */
+    public void releaseBlockByMfa(String userId, @Nullable String contextBindingHash) {
         try {
             if (blockedUserRecorder != null) {
                 blockedUserRecorder.markMfaVerified(userId);
             }
             if (blockMfaStateStore != null) {
-                blockMfaStateStore.setVerified(userId);
+                blockMfaStateStore.setVerified(userId, contextBindingHash);
                 blockMfaStateStore.clearPending(userId);
             }
             if (blockingSignalBroadcaster != null) {

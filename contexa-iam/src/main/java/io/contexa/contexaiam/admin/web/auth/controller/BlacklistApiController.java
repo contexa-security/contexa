@@ -23,7 +23,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -91,6 +93,8 @@ public class BlacklistApiController {
             blockedUserService.resolveBlockById(id, adminId, request.getResolvedAction(),
                     request.getReason());
             return ResponseEntity.ok(BlacklistActionResponse.resolved(id, request.getResolvedAction()));
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(BlacklistActionResponse.failed(e.getMessage()));
         } catch (Exception e) {
             log.error("[BlacklistApi] Failed to resolve block: id={}", id, e);
             return ResponseEntity.internalServerError()
@@ -102,8 +106,10 @@ public class BlacklistApiController {
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<BlacklistActionResponse> deleteBlockRecord(@PathVariable Long id) {
         try {
-            blockedUserService.deleteBlockRecord(id);
+            blockedUserService.deleteBlockRecord(id, extractCurrentUserId());
             return ResponseEntity.ok(BlacklistActionResponse.deleted(id));
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(BlacklistActionResponse.failed(e.getMessage()));
         } catch (Exception e) {
             log.error("[BlacklistApi] Failed to delete block record: id={}", id, e);
             return ResponseEntity.internalServerError()

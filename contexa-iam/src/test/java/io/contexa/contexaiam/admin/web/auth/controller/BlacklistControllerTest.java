@@ -32,6 +32,7 @@ import org.mockito.quality.Strictness;
 import org.springframework.context.MessageSource;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextImpl;
 import org.springframework.ui.ConcurrentModel;
@@ -251,7 +252,7 @@ class BlacklistControllerTest {
 
             assertThat(view).isEqualTo("redirect:/contexa/admin/blacklist");
             assertThat(ra.getFlashAttributes().get("message")).asString().contains("deleted");
-            verify(blockedUserService).deleteBlockRecord(1L);
+            verify(blockedUserService).deleteBlockRecord(1L, "admin");
         }
 
         @Test
@@ -259,12 +260,66 @@ class BlacklistControllerTest {
         void error() {
             RedirectAttributes ra = new RedirectAttributesModelMap();
             doThrow(new RuntimeException("Cannot delete active block"))
-                    .when(blockedUserService).deleteBlockRecord(1L);
+                    .when(blockedUserService).deleteBlockRecord(1L, "admin");
 
             String view = controller.deleteBlockRecord(1L, ra);
 
             assertThat(view).isEqualTo("redirect:/contexa/admin/blacklist");
             assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("Cannot delete active block");
+        }
+
+        @Test
+        @DisplayName("an own record refused says why, as it is")
+        void ownRecordRefused() {
+            RedirectAttributes ra = new RedirectAttributesModelMap();
+            doThrow(new AccessDeniedException("Another administrator lifts it"))
+                    .when(blockedUserService).deleteBlockRecord(1L, "admin");
+
+            assertThat(controller.deleteBlockRecord(1L, ra)).isEqualTo("redirect:/contexa/admin/blacklist");
+            assertThat(ra.getFlashAttributes().get("errorMessage")).isEqualTo("Another administrator lifts it");
+        }
+    }
+
+    @Nested
+    @DisplayName("a session and its own block")
+    class OwnRelease {
+
+        @Test
+        @DisplayName("a refused own release goes back to the record and says why, as it is")
+        void aRefusedRelease() {
+            RedirectAttributes ra = new RedirectAttributesModelMap();
+            doThrow(new AccessDeniedException("Another administrator lifts it"))
+                    .when(blockedUserService).resolveBlockById(anyLong(), anyString(), anyString(), anyString());
+
+            String view = controller.resolveBlock(1L, "ALLOW", "it was me", ra);
+
+            assertThat(view).isEqualTo("redirect:/contexa/admin/blacklist/1");
+            assertThat(ra.getFlashAttributes().get("errorMessage")).isEqualTo("Another administrator lifts it");
+        }
+
+        @Test
+        @DisplayName("a refused CHALLENGE release says why, as it is")
+        void aRefusedChallengeRelease() {
+            RedirectAttributes ra = new RedirectAttributesModelMap();
+            doThrow(new AccessDeniedException("Another administrator lifts it"))
+                    .when(blockedUserService).releaseChallenge(anyString(), anyString(), anyString());
+
+            String view = controller.releaseChallenge("console::admin", "it was me", ra);
+
+            assertThat(view).isEqualTo("redirect:/contexa/admin/blacklist");
+            assertThat(ra.getFlashAttributes().get("errorMessage")).isEqualTo("Another administrator lifts it");
+        }
+
+        @Test
+        @DisplayName("the list tells a console session under its own BLOCK where to verify")
+        void theListShowsTheWay() {
+            when(blockedUserService.findBlockedUsers("all", null)).thenReturn(List.of());
+            when(blockedUserService.ownBlockAwaitsVerification("admin")).thenReturn(true);
+            Model model = new ConcurrentModel();
+
+            controller.listBlockedUsers("all", null, model);
+
+            assertThat(model.getAttribute("ownBlockAwaitsVerification")).isEqualTo(true);
         }
     }
 }

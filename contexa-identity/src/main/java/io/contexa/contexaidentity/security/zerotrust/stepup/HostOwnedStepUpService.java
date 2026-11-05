@@ -18,10 +18,12 @@ package io.contexa.contexaidentity.security.zerotrust.stepup;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
@@ -77,6 +79,11 @@ import java.util.Locale;
  * A passkey answers a CHALLENGE, so registering one is no matter for the first factor (Q-13): the session has to confirm
  * the user first, with a one-time code or the application's own MFA sign-in moments before. A code passed for a
  * verification counts, so a user who just answered a CHALLENGE is offered the passkey at once.
+ * <p>
+ * A console session verifies itself on the same factors, under the console's key and for Contexa's own account of
+ * that name: the bridge's copies are the application's users. It enrols no passkey here, and the application's
+ * re-authentication says nothing about it. A BLOCK of the session needs no administrator's leave: the verification only
+ * lets the session lift it itself, which it could not do before.
  * <p>
  * The one-time code is Spring Security's ({@code JdbcOneTimeTokenService} over Contexa's {@code ctxa_one_time_tokens}),
  * kept under a short key of the copy ({@code step-up:<id>}): the bridge's user names are longer than the table's
@@ -184,22 +191,24 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
         if (authentication == null || !authentication.isAuthenticated() || isAgentRequest(request)) {
             return null;
         }
-        String decisionKey = authentication.getName();
+        boolean console = ConsoleSession.of(request);
+        String decisionKey = console ? ZeroTrustSubject.CONSOLE_KEY + authentication.getName().trim()
+                : authentication.getName();
         ZeroTrustAction action = actions.getCurrentAction(decisionKey,
                 SessionFingerprintUtil.generateContextBindingHash(request));
         Purpose purpose = null;
         if (action == ZeroTrustAction.CHALLENGE) {
             purpose = Purpose.CHALLENGE;
-        } else if (action == ZeroTrustAction.BLOCK && actions.isBlockMfaPending(decisionKey)) {
+        } else if (action == ZeroTrustAction.BLOCK && (console || actions.isBlockMfaPending(decisionKey))) {
             purpose = Purpose.BLOCK;
         }
-        Users user = bridgedUser(decisionKey);
+        Users user = console ? consoleAccount(authentication.getName()) : bridgedUser(decisionKey);
         boolean passkey = user != null && hasPasskey(user);
         boolean restricted = action == ZeroTrustAction.CHALLENGE || action == ZeroTrustAction.BLOCK
                 || action == ZeroTrustAction.ESCALATE;
-        boolean enrollable = user != null && relyingParty != null && !passkey && !restricted;
+        boolean enrollable = !console && user != null && relyingParty != null && !passkey && !restricted;
         return new Situation(decisionKey, purpose, user, passkey, user != null && canSendCode(user), enrollable,
-                enrollable && userConfirmed(request, decisionKey), reauthenticationUrl);
+                enrollable && userConfirmed(request, decisionKey), console ? null : reauthenticationUrl);
     }
 
     /** Whether the session passed a one-time code in the last minutes, or the application signed in with MFA just now. */
@@ -384,7 +393,7 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
 
     private void complete(HttpServletRequest request, Situation situation, @Nullable Instant verifiedAt) {
         if (situation.purpose() == Purpose.BLOCK) {
-            resolution.releaseBlockByMfa(situation.decisionKey());
+            resolution.releaseBlockByMfa(situation.decisionKey(), SessionFingerprintUtil.verificationContext(request));
         } else {
             resolution.releaseChallenge(situation.decisionKey(),
                     SessionFingerprintUtil.generateContextBindingHash(request), request, null);
@@ -410,6 +419,17 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
             return null;
         } catch (RuntimeException e) {
             log.error("[StepUp] The bridged user could not be read: principal={}", principal, e);
+            return null;
+        }
+    }
+
+    /** The console signs in with Contexa's own accounts; a bridge's copy is an application's user. */
+    @Nullable
+    private Users consoleAccount(String principal) {
+        try {
+            return users.findByUsername(principal).filter(user -> !user.isBridgeManaged()).orElse(null);
+        } catch (RuntimeException e) {
+            log.error("[StepUp] The console's account could not be read: principal={}", principal, e);
             return null;
         }
     }

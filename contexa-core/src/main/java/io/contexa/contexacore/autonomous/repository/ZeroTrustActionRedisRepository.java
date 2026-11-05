@@ -924,7 +924,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
 
         try {
             stringRedisTemplate.delete(List.of(ZeroTrustRedisKeys.userBlocked(userId),
-                    ZeroTrustRedisKeys.userBlockedAsTyped(userId)));
+                    ZeroTrustRedisKeys.userBlockedAsTyped(userId), ZeroTrustRedisKeys.blockMfaVerified(userId)));
         } catch (Exception e) {
             log.error("[ZeroTrustActionRedisRepository] Failed to remove blocked flag: userId={}", userId, e);
         }
@@ -1094,6 +1094,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             String blockKey = ZeroTrustRedisKeys.userBlocked(userId);
             String typedBlockKey = ZeroTrustRedisKeys.userBlockedAsTyped(userId);
             String holdKey = ZeroTrustRedisKeys.autonomousChallengeHold(userId);
+            String verifiedKey = ZeroTrustRedisKeys.blockMfaVerified(userId);
             String analysisKey = ZeroTrustRedisKeys.autonomousActionAnalysis(userId);
             String lastActionKey = ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId);
 
@@ -1110,6 +1111,8 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                     operations.delete(blockKey);
                     operations.delete(typedBlockKey);
                     operations.delete(holdKey);
+                    // A verification answers the BLOCK it was passed under, so the next BLOCK needs its own.
+                    operations.delete(verifiedKey);
                     operations.delete(analysisKey);
                     operations.opsForHash().putAll(analysisKey, fields);
 

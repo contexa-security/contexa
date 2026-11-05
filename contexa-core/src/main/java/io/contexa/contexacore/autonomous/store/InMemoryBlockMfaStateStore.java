@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.store;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
+import org.springframework.lang.Nullable;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -60,12 +61,29 @@ public class InMemoryBlockMfaStateStore implements BlockMfaStateStore, ExpiringS
 
     @Override
     public void setVerified(String userId) {
+        setVerified(userId, null);
+    }
+
+    @Override
+    public void setVerified(String userId, @Nullable String contextBindingHash) {
         if (decisions != null) {
-            decisions.setBlockMfaVerified(userId, verifiedTtl);
+            decisions.setBlockMfaVerified(userId, verifiedTtl, contextBindingHash);
             return;
         }
         Instant now = clock.instant();
-        verifications.put(ZeroTrustUserKey.of(userId), new Verification(now, now.plus(verifiedTtl)));
+        verifications.put(ZeroTrustUserKey.of(userId), new Verification(now, now.plus(verifiedTtl), contextBindingHash));
+    }
+
+    @Override
+    public boolean isVerified(String userId, @Nullable String contextBindingHash) {
+        if (contextBindingHash == null || contextBindingHash.isEmpty()) {
+            return false;
+        }
+        if (decisions != null) {
+            return contextBindingHash.equals(decisions.getBlockMfaVerifiedContext(userId));
+        }
+        Verification verification = verifications.get(ZeroTrustUserKey.of(userId));
+        return verification != null && contextBindingHash.equals(verification.contextBindingHash());
     }
 
     @Override
@@ -132,7 +150,7 @@ public class InMemoryBlockMfaStateStore implements BlockMfaStateStore, ExpiringS
                 || (decisions != null && decisions.getBlockMfaVerifiedUntil(userId) != null);
     }
 
-    /** When the user verified and when the verification lapses. */
-    private record Verification(Instant verifiedAt, Instant expiresAt) {
+    /** When the user verified, when the verification lapses and the context it was passed in, if one was named. */
+    private record Verification(Instant verifiedAt, Instant expiresAt, @Nullable String contextBindingHash) {
     }
 }

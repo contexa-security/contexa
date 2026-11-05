@@ -173,6 +173,15 @@ The format is based on Keep a Changelog and the project follows semantic version
   A bearer token keeps the rights it was issued with until it expires; disabling the account ends it.
 - **The console's administrator is not the application's user of that name** under `HOST_OWNED`: a BLOCK of one no longer
   locks the console of the other, in either direction, and the block list stays open to a console session.
+- **A session under a BLOCK no longer lifts it itself.** The block list stays open to a blocked console session, but its own
+  record and its own CHALLENGE take another administrator, or a verification passed in that session: the list then offers
+  a one-time code to the account's address, or its passkey, at `/contexa/admin/blacklist/step-up`. No spelling of the name
+  gets around this. An administrator's own record can no longer be deleted that way either, and the attempt is audited:
+  `BlockedUserService.deleteBlockRecord` takes the acting administrator now. **A sole administrator needs mail configured
+  and a real address on the account, or a second administrator**: without a factor nothing lifts the console's own BLOCK
+  from the console. Under `CONTEXA_OWNED` the same rule reads the shared account, and its own record takes another
+  administrator.
+- A BLOCK decided over a CHALLENGE that other sessions still held could be lifted through the CHALLENGE release. It stays.
 - **Behind a proxy nobody named, one person's typing no longer stops everyone.** When requests carry `X-Forwarded-For` and
   `contexa.security.tiered.security.trusted-proxies` is empty, the address limit of sign-ins is not applied and an ERROR
   names the setting. The lock of each account works as before. **Set the setting if you run behind a proxy**: until you do,
