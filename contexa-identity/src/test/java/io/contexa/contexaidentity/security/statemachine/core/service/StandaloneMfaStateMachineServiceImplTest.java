@@ -252,6 +252,34 @@ class StandaloneMfaStateMachineServiceImplTest {
     }
 
     @Test
+    @DisplayName("sendEvent refuses the event when the stored flow cannot be restored, and writes nothing")
+    void sendEventRefusedWhenRestoreFails() throws Exception {
+        FactorContext context = new FactorContext("session-1", authentication, MfaState.FACTOR_VERIFICATION_PENDING, "test-flow");
+        doThrow(new IllegalStateException("unreadable")).when(stateMachinePersister).restore(stateMachine, "session-1");
+
+        assertThatThrownBy(() -> service.sendEvent(MfaEvent.FACTOR_VERIFIED_SUCCESS, context, request))
+                .isInstanceOf(AbstractMfaStateMachineService.MfaStateMachineException.class)
+                .hasRootCauseMessage("unreadable");
+
+        verify(stateMachine, never()).sendEvent(any(Mono.class));
+        verify(stateMachineAccessor, never()).resetStateMachineReactively(any());
+        verify(stateMachinePersister, never()).persist(any(), anyString());
+    }
+
+    @Test
+    @DisplayName("saveFactorContext refuses to save when the stored flow cannot be restored, and writes nothing")
+    void saveFactorContextRefusedWhenRestoreFails() throws Exception {
+        FactorContext context = new FactorContext("session-1", authentication, MfaState.FACTOR_VERIFICATION_PENDING, "test-flow");
+        doThrow(new IllegalStateException("unreadable")).when(stateMachinePersister).restore(stateMachine, "session-1");
+
+        assertThatThrownBy(() -> service.saveFactorContext(context))
+                .isInstanceOf(AbstractMfaStateMachineService.MfaStateMachineException.class)
+                .hasRootCauseMessage("unreadable");
+
+        verify(stateMachinePersister, never()).persist(any(), anyString());
+    }
+
+    @Test
     @DisplayName("updateStateOnly forces target state and persists")
     void updateStateOnlySuccessfully() throws Exception {
         FactorContext context = new FactorContext("session-1", authentication, MfaState.NONE, "test-flow");

@@ -41,6 +41,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
@@ -136,6 +137,52 @@ class MfaStateMachineServiceImplTest {
         service.beforeSaveFactorContext("session-123");
 
         verify(keys).countExists("RedisRepositoryStateMachine:session-123");
+    }
+
+    @Test
+    @DisplayName("getFactorContext reads a flow that looks gone again under the lock")
+    void getFactorContextReadsAFlowThatLooksGoneAgainUnderTheLock() throws Exception {
+        FactorContext context = mock(FactorContext.class);
+        when(lock.tryLock(anyLong(), anyLong(), any(TimeUnit.class))).thenReturn(true);
+        when(lock.isHeldByCurrentThread()).thenReturn(true);
+
+        try (MockedStatic<StateContextHelper> helperMock = mockStatic(StateContextHelper.class)) {
+            helperMock.when(() -> StateContextHelper.getFactorContext(any(StateMachine.class))).thenReturn(null, context);
+
+            assertThat(service.getFactorContext("session-123")).isSameAs(context);
+        }
+
+        verify(stateMachinePersister, times(2)).restore(stateMachine, "session-123");
+        verify(lock).unlock();
+    }
+
+    @Test
+    @DisplayName("getFactorContext takes no lock for a flow it finds")
+    void getFactorContextTakesNoLockForAFlowItFinds() throws Exception {
+        FactorContext context = mock(FactorContext.class);
+
+        try (MockedStatic<StateContextHelper> helperMock = mockStatic(StateContextHelper.class)) {
+            helperMock.when(() -> StateContextHelper.getFactorContext(any(StateMachine.class))).thenReturn(context);
+
+            assertThat(service.getFactorContext("session-123")).isSameAs(context);
+        }
+
+        verify(lock, never()).tryLock(anyLong(), anyLong(), any(TimeUnit.class));
+    }
+
+    @Test
+    @DisplayName("getFactorContext still reads when the lock stays with a long write")
+    void getFactorContextReadsAgainWithoutTheLock() throws Exception {
+        when(lock.tryLock(anyLong(), anyLong(), any(TimeUnit.class))).thenReturn(false);
+
+        try (MockedStatic<StateContextHelper> helperMock = mockStatic(StateContextHelper.class)) {
+            helperMock.when(() -> StateContextHelper.getFactorContext(any(StateMachine.class))).thenReturn(null);
+
+            assertThat(service.getFactorContext("session-123")).isNull();
+        }
+
+        verify(stateMachinePersister, times(2)).restore(stateMachine, "session-123");
+        verify(lock, never()).unlock();
     }
 
     @Test

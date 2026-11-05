@@ -6,6 +6,21 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ## [Unreleased]
 
+### Fixed
+
+- **A user can answer a CHALLENGE in `contexa.infrastructure.mode=distributed` whatever the sign-in is made of.** An MFA
+  flow stored in Redis could not be read back when the sign-in held a read-only collection (a one-time token or a
+  remember-me sign-in with Contexa's user or Spring's `User`, a JWT, an OAuth2 login) or an object the reading node
+  cannot load, and the user could not go on. A stored flow now keeps of a sign-in of any kind only what the flow reads:
+  the name, the authorities, whether it is authenticated and the facts of the login. The principal, the credentials and
+  the application's classes no longer reach Redis, and a stored flow keeps the login's method and time as the in-memory
+  flow does. An attribute that cannot be stored or read back (a value of the application's policy) is left out with an
+  error in the log, and the rest of the flow stays.
+- A stored flow that cannot be read now stops the request and stays as it is. It used to be replaced by the copy the
+  request held, without the version check.
+- A request running beside a write no longer finds no flow in Redis and ends it.
+- Flows in progress in Redis when this version starts cannot be read and start again: the stored form changed.
+
 ### Changed
 
 - **Every database object Contexa creates starts with `ctxa_`**: tables, views, sequences, indexes and named

@@ -110,6 +110,23 @@ public class LoginFactsDetails extends WebAuthenticationDetails {
         return new LoginFactsDetails(remoteAddress, sessionId, login, verifiedAt);
     }
 
+    private LoginFactsDetails(LoginFactsDetails login) {
+        super(null, null);
+        this.authenticationType = login.authenticationType;
+        this.amr = login.amr;
+        this.mfaCompleted = login.mfaCompleted;
+        this.authenticationTime = login.authenticationTime;
+        this.authenticationAssurance = login.authenticationAssurance;
+        this.principalType = login.principalType;
+        this.challengeVerifiedAt = login.challengeVerifiedAt;
+        this.signInId = login.signInId;
+    }
+
+    /** The same facts without the request they came with: a store does not keep its address or its servlet session. */
+    public LoginFactsDetails withoutRequest() {
+        return new LoginFactsDetails(this);
+    }
+
     public String getAuthenticationType() {
         return authenticationType;
     }

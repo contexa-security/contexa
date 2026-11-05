@@ -19,16 +19,25 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.contexa.contexaidentity.security.handler.login.LoginFactsDetails;
+import io.contexa.contexaidentity.security.handler.login.LoginFactsRecorder;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.stream.Collectors;
 
+/**
+ * What a stored MFA flow keeps of a sign-in of any kind: its name, its authorities, whether it is authenticated and the
+ * facts of its login. That is what the flow reads of it. The principal, the credentials and every other detail stay out:
+ * they are the application's objects (its user, the token of an identity provider), which another node may not be able
+ * to load or rebuild, and they hold what the store must not see (a password hash). The sign-in reads back as a
+ * username and password token named after the user.
+ */
 public class MinimalAuthenticationSerializer extends Serializer<Authentication> {
 
     @Override
@@ -42,9 +51,11 @@ public class MinimalAuthenticationSerializer extends Serializer<Authentication> 
         output.writeString(authentication.getName());
 
         Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
+        // An authority may state no text (GrantedAuthority allows it), and a simple authority cannot be made of none.
         List<String> authorityStrings = authorities != null
                 ? authorities.stream()
                     .map(GrantedAuthority::getAuthority)
+                    .filter(StringUtils::hasText)
                     .toList()
                 : new ArrayList<>();
 
@@ -52,6 +63,10 @@ public class MinimalAuthenticationSerializer extends Serializer<Authentication> 
         for (String authority : authorityStrings) {
             output.writeString(authority);
         }
+
+        output.writeBoolean(authentication.isAuthenticated());
+        LoginFactsDetails login = LoginFactsRecorder.loginOf(authentication, null, null);
+        kryo.writeObjectOrNull(output, login != null ? login.withoutRequest() : null, LoginFactsDetails.class);
     }
 
     @Override
@@ -70,6 +85,14 @@ public class MinimalAuthenticationSerializer extends Serializer<Authentication> 
             authorities.add(new SimpleGrantedAuthority(authority));
         }
 
-        return new UsernamePasswordAuthenticationToken(username, null, authorities);
+        boolean authenticated = input.readBoolean();
+        LoginFactsDetails login = kryo.readObjectOrNull(input, LoginFactsDetails.class);
+
+        UsernamePasswordAuthenticationToken restored = new UsernamePasswordAuthenticationToken(username, null, authorities);
+        if (!authenticated) {
+            restored.setAuthenticated(false);
+        }
+        restored.setDetails(login);
+        return restored;
     }
 }

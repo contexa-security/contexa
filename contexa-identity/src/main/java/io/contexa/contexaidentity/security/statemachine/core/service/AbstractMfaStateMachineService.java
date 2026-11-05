@@ -278,7 +278,7 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
                     log.error("[MFA SM Service] [{}] State is null after SM restore. Starting fresh.", sessionId);
                 }
             } catch (Exception e) {
-                log.error("[MFA SM Service] [{}] SM restore failed. Starting fresh. Error: {}", sessionId, e.getMessage());
+                throw restoreRefused(sessionId, e);
             }
 
             if (!restored) {
@@ -414,10 +414,22 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
                 }
             }
         } catch (Exception e) {
-            log.error("[MFA SM Service] [{}] StateMachine restore failed or new session. Setting initial state: {}. Error: {}", machineId, initialStateIfNotRestored, e.getMessage());
-            updateAndStartStateMachine(stateMachine, machineId, initialStateIfNotRestored, initialFactorContextForReset);
+            releaseStateMachineInstance(stateMachine, machineId);
+            throw restoreRefused(machineId, e);
         }
         return stateMachine;
+    }
+
+    /**
+     * A stored flow that cannot be read stops the request and stays as it is. It is never replaced by the caller's copy
+     * or by the initial state: the copy may be behind what is stored (a flow that ended, an attempt that was counted),
+     * and it would pass without the version check and the idempotency record. A flow that is not stored is no failure:
+     * the persister restores it to the initial state without an exception.
+     */
+    private MfaStateMachineException restoreRefused(String sessionId, Exception cause) {
+        log.error("[MFA SM Service] [{}] Stored MFA flow could not be restored. The request is refused. Error: {}",
+                sessionId, cause.getMessage());
+        return new MfaStateMachineException("Stored MFA flow could not be restored: " + sessionId, cause);
     }
 
     protected void updateAndStartStateMachine(StateMachine<MfaState, MfaEvent> stateMachine, String machineId, MfaState targetState, FactorContext factorContext) {

@@ -21,13 +21,17 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 
-public class UnmodifiableListSerializer extends Serializer<List<?>> {
+/**
+ * The read-only views of {@link Collections} over a list or a plain collection. Kryo's collection reader refills the
+ * collection it made, which a read-only view refuses, so the elements are kept and the view is made again.
+ */
+public class UnmodifiableListSerializer extends Serializer<Collection<?>> {
 
     @Override
-    public void write(Kryo kryo, Output output, List<?> object) {
+    public void write(Kryo kryo, Output output, Collection<?> object) {
         
         output.writeInt(object.size(), true);
         for (Object element : object) {
@@ -36,8 +40,7 @@ public class UnmodifiableListSerializer extends Serializer<List<?>> {
     }
 
     @Override
-    @SuppressWarnings({"rawtypes"})
-    public List<?> read(Kryo kryo, Input input, Class<? extends List<?>> type) {
+    public Collection<?> read(Kryo kryo, Input input, Class<? extends Collection<?>> type) {
         int size = input.readInt(true);
         ArrayList<Object> list = new ArrayList<>(size); 
         for (int i = 0; i < size; i++) {
