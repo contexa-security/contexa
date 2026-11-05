@@ -17,6 +17,8 @@ package io.contexa.contexacore.autonomous.service;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.store.ContexaStores;
+import io.contexa.contexacommon.store.StoreUnavailableException;
 import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
@@ -26,13 +28,16 @@ import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher
 import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedException;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.QueryTimeoutException;
 
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -52,11 +57,38 @@ class SynchronousDecisionWaitTest {
     private static final String USER = "alice";
     private static final String CONTEXT = "context-a";
     private static final Duration WAIT = Duration.ofMillis(150);
+    /** Far longer than a store that is down may hold a request. */
+    private static final Duration LONG_WAIT = Duration.ofSeconds(5);
+    private static final Duration WHILE_DOWN = Duration.ofMillis(200);
 
     private final ZeroTrustEventListener listener = mock(ZeroTrustEventListener.class);
     private final SecurityPlaneAgent agent = mock(SecurityPlaneAgent.class);
     private final ZeroTrustActionRepository repository = mock(ZeroTrustActionRepository.class);
     private SynchronousProtectableDecisionService service;
+    private ContexaStores stores;
+
+    @AfterEach
+    void tearDown() {
+        if (stores != null) {
+            stores.destroy();
+        }
+    }
+
+    /** M21: the analysis reads the store on the application's client, so a store that is down holds it for long. */
+    private void aStoreIsDown() {
+        stores = new ContexaStores();
+        stores.redis().watchWith(() -> {
+            throw new IllegalStateException("still down");
+        });
+        stores.redis().fail(new QueryTimeoutException("no answer"));
+        service.setContexaStores(stores);
+        service.setDecisionWait(LONG_WAIT);
+        service.setStoreDownWait(WHILE_DOWN);
+    }
+
+    private long millisSince(long began) {
+        return (System.nanoTime() - began) / 1_000_000;
+    }
 
     @BeforeEach
     void setUp() {
@@ -136,6 +168,51 @@ class SynchronousDecisionWaitTest {
         when(repository.getCurrentAction(USER, CONTEXT)).thenReturn(ZeroTrustAction.BLOCK);
 
         assertThat(service.analyze(person()).action()).isEqualTo(ZeroTrustAction.BLOCK);
+    }
+
+    @Test
+    void aStoreThatIsDownEndsTheWaitAndThePersonIsAnOutage() {
+        aStoreIsDown();
+        when(agent.processSecurityEventOffThread(any())).thenReturn(new CompletableFuture<>());
+
+        long began = System.nanoTime();
+        assertThatThrownBy(() -> service.analyze(person())).isInstanceOf(StoreUnavailableException.class);
+
+        assertThat(millisSince(began)).isLessThan(LONG_WAIT.toMillis() / 2);
+    }
+
+    @Test
+    void aStoreThatIsDownEndsTheWaitAndTheAgentIsBusy() {
+        aStoreIsDown();
+        when(agent.processSecurityEventOffThread(any())).thenReturn(new CompletableFuture<>());
+
+        long began = System.nanoTime();
+        assertThatThrownBy(() -> service.analyze(agentRequest())).isInstanceOf(ZeroTrustAccessDeniedException.class);
+
+        assertThat(millisSince(began)).isLessThan(LONG_WAIT.toMillis() / 2);
+    }
+
+    @Test
+    void aRestrictionInForceStandsWhileAStoreIsDown() {
+        aStoreIsDown();
+        when(agent.processSecurityEventOffThread(any())).thenReturn(new CompletableFuture<>());
+
+        when(repository.getCurrentAction(USER, CONTEXT)).thenReturn(ZeroTrustAction.BLOCK);
+        assertThat(service.analyze(person()).action()).isEqualTo(ZeroTrustAction.BLOCK);
+
+        when(repository.getCurrentAction(USER, CONTEXT)).thenReturn(ZeroTrustAction.CHALLENGE);
+        assertThat(service.analyze(person()).action()).isEqualTo(ZeroTrustAction.CHALLENGE);
+    }
+
+    @Test
+    void aVerdictThatComesInTheShortWaitIsStillTheAnswer() {
+        aStoreIsDown();
+        CompletableFuture<SecurityEventContext> soon = new CompletableFuture<>();
+        when(agent.processSecurityEventOffThread(any())).thenReturn(soon);
+        CompletableFuture.delayedExecutor(50, TimeUnit.MILLISECONDS)
+                .execute(() -> soon.complete(decided("CHALLENGE")));
+
+        assertThat(service.analyze(person()).action()).isEqualTo(ZeroTrustAction.CHALLENGE);
     }
 
     @Test

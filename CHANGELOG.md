@@ -25,6 +25,10 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **A synchronous call no longer waits 40 seconds for a store that is down.** The analysis of a synchronous call runs off
+  the request's thread, on the application's own Redis client. While a store is down the request now waits three more
+  seconds at most: a verdict in that time still answers, a restriction in force stands, and otherwise the call is the
+  outage it is, which lets a person through and answers an agent that the analysis is busy.
 - **A store outage is no longer an outage of the application.** Redis or Contexa's database that stops, freezes or runs out
   of connections used to hold every request of a signed-in user, the pages no decision protects included: a minute for each
   read on Redis, and a minute on the pool. A request now waits about a second once and then not at all, and everything

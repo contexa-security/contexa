@@ -42,6 +42,7 @@ import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedExceptio
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -60,6 +61,12 @@ public class SynchronousProtectableDecisionService {
     private static final Duration DEFAULT_BEHIND_WAIT = Duration.ofSeconds(3);
     private static final long VERDICT_POLL_MS = 100L;
     private static final int STORE_RETRY_AFTER_SECONDS = 5;
+    /**
+     * Q-7: how long a verdict may still come while a store is down. The analysis runs on the application's own client,
+     * which waits far longer than a request should, so the request stops waiting for it; a verdict that comes in this
+     * time still answers, as a restriction the store did not take does.
+     */
+    private static final Duration DEFAULT_STORE_DOWN_WAIT = Duration.ofSeconds(3);
 
     private final ZeroTrustEventPublisher zeroTrustEventPublisher;
     private final ZeroTrustEventListener zeroTrustEventListener;
@@ -72,6 +79,7 @@ public class SynchronousProtectableDecisionService {
             SecurityZeroTrustProperties.UnrecordedAgentRequest.DECIDE_IN_PLACE;
     private Duration decisionWait;
     private Duration behindWait = DEFAULT_BEHIND_WAIT;
+    private Duration storeDownWait = DEFAULT_STORE_DOWN_WAIT;
     private BooleanSupplier enforcing = () -> true;
     private ContexaStores contexaStores = new ContexaStores();
 
@@ -94,6 +102,11 @@ public class SynchronousProtectableDecisionService {
     public void setDecisionWait(Duration decisionWait) {
         this.decisionWait = decisionWait != null && !decisionWait.isZero() && !decisionWait.isNegative()
                 ? decisionWait : null;
+    }
+
+    /** Q-7: how long a verdict may still come while a store is down. */
+    void setStoreDownWait(Duration storeDownWait) {
+        this.storeDownWait = storeDownWait;
     }
 
     /** Q-23: how long a sensitive request waits for its verdict while the analysis is behind. */
@@ -206,10 +219,7 @@ public class SynchronousProtectableDecisionService {
             return securityPlaneAgent.processSecurityEvent(securityEvent);
         }
         try {
-            return securityPlaneAgent.processSecurityEventOffThread(securityEvent)
-                    .get(wait.toMillis(), TimeUnit.MILLISECONDS);
-        } catch (TimeoutException waitedLongEnough) {
-            throw new DecisionNotInTimeException();
+            return verdictInTime(securityPlaneAgent.processSecurityEventOffThread(securityEvent), wait);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             throw new DecisionNotInTimeException();
@@ -235,6 +245,10 @@ public class SynchronousProtectableDecisionService {
      */
     private SyncDecisionResult withoutAVerdict(ZeroTrustSpringEvent event, String userId, String contextBindingHash) {
         ZeroTrustAction inForce = currentAction(event, userId, contextBindingHash);
+        if ((inForce == null || !inForce.isAccessRestricted()) && contexaStores.anyDown()) {
+            // Q-7: the store held the analysis back, which says nothing of the request.
+            throw undecided(event, null);
+        }
         boolean restricted = inForce == ZeroTrustAction.BLOCK || inForce == ZeroTrustAction.ESCALATE;
         if (!restricted && agentRequest(event)) {
             throw ZeroTrustAccessDeniedException.analysisBusy(event.getResource(),
@@ -242,6 +256,25 @@ public class SynchronousProtectableDecisionService {
         }
         return new SyncDecisionResult(event, contextBindingHash, restricted ? inForce : ZeroTrustAction.CHALLENGE,
                 actionRepository.getAnalysisData(decisionKey(event, userId)), null);
+    }
+
+    /** The verdict within the wait, or within the shorter one from the moment a store is seen down. */
+    private SecurityEventContext verdictInTime(Future<SecurityEventContext> verdict, Duration wait)
+            throws InterruptedException, ExecutionException {
+        long left = wait.toMillis();
+        long leftWhileDown = storeDownWait.toMillis();
+        while (true) {
+            long slice = Math.max(1L, Math.min(VERDICT_POLL_MS, left));
+            try {
+                return verdict.get(slice, TimeUnit.MILLISECONDS);
+            } catch (TimeoutException stillRunning) {
+                left -= slice;
+                leftWhileDown = contexaStores.anyDown() ? leftWhileDown - slice : storeDownWait.toMillis();
+                if (left <= 0 || leftWhileDown <= 0) {
+                    throw new DecisionNotInTimeException();
+                }
+            }
+        }
     }
 
     /** Whether the flights take this request: an agent's request, with the flights on. */
