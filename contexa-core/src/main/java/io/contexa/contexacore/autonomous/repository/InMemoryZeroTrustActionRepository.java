@@ -658,9 +658,9 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         ReentrantLock lock = lockUser(userId);
         try {
             if (!keptOnLogout(userId)) {
+                // The context of the last decision stays, as in the Redis repository.
                 analyses.remove(userId);
                 lastVerified.remove(userId);
-                lastVerifiedContexts.remove(userId);
                 blockedUsers.remove(userId);
                 mfaPending.remove(userId);
                 mfaFailCounts.remove(userId);

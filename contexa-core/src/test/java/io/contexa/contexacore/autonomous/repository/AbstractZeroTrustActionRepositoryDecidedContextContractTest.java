@@ -212,13 +212,14 @@ abstract class AbstractZeroTrustActionRepositoryDecidedContextContractTest {
     }
 
     @Test
-    @DisplayName("a logout takes the record with the user's other state")
-    void aLogoutTakesTheRecord() {
+    @DisplayName("a logout ends the ALLOW and keeps the record: a session stolen elsewhere is still compared with it")
+    void aLogoutKeepsTheRecord() {
         decided(ZeroTrustAction.ALLOW, HOME);
 
         repository.removeLogoutData(user);
 
-        assertThat(repository.decidedContext(user)).isNull();
+        assertThat(repository.getCurrentAction(user, HOME)).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+        assertThat(repository.decidedContext(user)).isEqualTo(HOME);
     }
 
     @Test

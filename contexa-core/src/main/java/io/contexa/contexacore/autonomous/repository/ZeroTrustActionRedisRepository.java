@@ -959,7 +959,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         DefaultRedisScript<Long> script = new DefaultRedisScript<>("""
                 local action = redis.call('HGET', KEYS[1], 'action')
                 local lastVerified = redis.call('GET', KEYS[2])
-                if redis.call('GET', KEYS[4]) == 'true'
+                if redis.call('GET', KEYS[3]) == 'true'
                     or lastVerified == ARGV[1] then
                     return 0
                 end
@@ -973,10 +973,11 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 end
                 return redis.call('DEL', unpack(KEYS))
                 """, Long.class);
+        // The context of the last decision stays: the logout ends one session, and another one stolen elsewhere is
+        // still compared with it. It answers nothing by itself and lapses with its own time.
         stringRedisTemplate.execute(script, List.of(
                 ZeroTrustRedisKeys.autonomousActionAnalysis(userId),
                 ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId),
-                ZeroTrustRedisKeys.autonomousLastVerifiedActionContext(userId),
                 ZeroTrustRedisKeys.userBlocked(userId),
                 ZeroTrustRedisKeys.blockMfaPending(userId),
                 ZeroTrustRedisKeys.blockMfaVerified(userId),
