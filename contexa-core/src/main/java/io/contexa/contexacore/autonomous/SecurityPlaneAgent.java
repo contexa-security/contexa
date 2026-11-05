@@ -136,6 +136,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private static final int MAX_WAITING_TO_JUDGE_AGAIN = 1024;
     private static final String JUDGED_AGAIN_TIMES = "judgedAgainTimes";
     private static final String JUDGED_AGAIN_EVENT = "judgedAgainEvent";
+    private static final String EVENT_PROCESSING_IN_FLIGHT = "event_processing_in_flight";
 
     /**
      * docs/agent RL-12 (QD): asked when a queued event's turn comes, before it is analysed. An event the stored decisions
@@ -178,6 +179,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private final AtomicInteger analysesInProgress = new AtomicInteger();
     private volatile Duration judgeAgainInterval = DEFAULT_JUDGE_AGAIN_INTERVAL;
     private final Set<String> waitingToJudgeAgain = ConcurrentHashMap.newKeySet();
+    private final AtomicInteger waitingForAnOwner = new AtomicInteger();
     private ScheduledExecutorService judgeAgainTimer;
 
     public void setQueuedEventRecheck(QueuedEventRecheck queuedEventRecheck) {
@@ -279,16 +281,19 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             }
 
             Runnable analysis = AnalysisTurn.of(() -> {
+                boolean over = false;
                 try {
                     event.addMetadata("analysisStartedAt", System.currentTimeMillis());
                     if (answeredWhileQueued(event)) {
                         event.addMetadata("analysisSkipped", "ANSWERED_BY_DECISION_IN_FORCE");
                         event.addMetadata("analysisFinishedAt", System.currentTimeMillis());
+                        over = true;
                         return;
                     }
                     rememberDecided(analysisKey, processSecurityEventWithinBudget(event));
                     processedEvents.incrementAndGet();
                     event.addMetadata("analysisFinishedAt", System.currentTimeMillis());
+                    over = true;
                 } catch (Exception e) {
                     event.addMetadata("analysisFinishedAt", System.currentTimeMillis());
                     if (!isProcessingStrategyUnavailable(event)
@@ -297,6 +302,8 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                                 event.getEventId(), e.getMessage());
                         return;
                     }
+                    // What stopped the analysis with an Error may stop the node: the event stays to be delivered again.
+                    over = !hasCause(e, Error.class);
                     if (!isProcessingFailureReported(event)) {
                         log.error("[SecurityPlaneAgent] Error processing event: {}", event.getEventId(), e);
                     }
@@ -311,6 +318,9 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                     }
                 } finally {
                     leaveThePlace(share);
+                    if (over) {
+                        analysisIsOver(event);
+                    }
                 }
             }, firstDecision);
             try {
@@ -386,16 +396,24 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
+    /** The event is not analysed: it ends here, whatever became of it, and holds nothing back. */
     private void leftOut(SecurityEvent event) {
         QueuedEventRecheck recheck = queuedEventRecheck;
-        if (recheck == null) {
-            return;
-        }
         try {
-            recheck.leftOut(event);
+            if (recheck != null) {
+                recheck.leftOut(event);
+            }
         } catch (RuntimeException failure) {
             log.error("[SecurityPlaneAgent] A request past the user's share could not be kept: eventId={}",
                     event.getEventId(), failure);
+        }
+        analysisIsOver(event);
+    }
+
+    /** What took the event in may let it go. An event asked about again came from no record of its own. */
+    private void analysisIsOver(SecurityEvent event) {
+        if (event.getMetadata() == null || !event.getMetadata().containsKey(JUDGED_AGAIN_EVENT)) {
+            securityMonitor.settled(event);
         }
     }
 
@@ -420,7 +438,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             return "event_processing_timeout";
         }
         if (hasCause(exception, EventProcessingInFlightException.class)) {
-            return "event_processing_in_flight";
+            return EVENT_PROCESSING_IN_FLIGHT;
         }
         if (hasCause(exception, RejectedExecutionException.class)) {
             return "llm_executor_rejected";
@@ -506,7 +524,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                     .securityEvent(event)
                     .processingStatus(SecurityEventContext.ProcessingStatus.SKIPPED)
                     .build();
-            skippedContext.addMetadata("skipReason", "event_processing_in_flight");
+            skippedContext.addMetadata("skipReason", EVENT_PROCESSING_IN_FLIGHT);
             return skippedContext;
         }
         SecurityEventContext reconciledContext = reconcilePersistedFinalDecision(event, claimed);
@@ -952,7 +970,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             event.addMetadata(SecurityEventProcessor.PROCESSING_TIMED_OUT, false);
             if (context != null
                     && context.getProcessingStatus() == SecurityEventContext.ProcessingStatus.SKIPPED
-                    && "event_processing_in_flight".equals(context.getMetadata().get("skipReason"))) {
+                    && EVENT_PROCESSING_IN_FLIGHT.equals(context.getMetadata().get("skipReason"))) {
                 throw new EventProcessingInFlightException(event.getEventId());
             }
             return context;
@@ -1046,8 +1064,40 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             event.addMetadata("deferErrorClass", exception.getClass().getName());
             event.addMetadata("deferErrorMessage", exception.getMessage());
         }
-        securityMonitor.deferEvent(event, reason);
+        defer(event, reason, deferredCount);
         return true;
+    }
+
+    /**
+     * An event another owner holds is looked at again at once and then further and further apart: the owner may have
+     * finished it, or be gone, which takes the time its signs of life need to run out. Tries spent at once would all be
+     * over before that, and an event that came back after a crash would be dropped.
+     */
+    private void defer(SecurityEvent event, String reason, int deferredCount) {
+        ScheduledExecutorService timer = judgeAgainTimer;
+        long waitMs = EVENT_PROCESSING_IN_FLIGHT.equals(reason) ? judgeAgainInterval.toMillis() * deferredCount : 0L;
+        if (waitMs > 0L && timer != null && waitingForAnOwner.get() < MAX_WAITING_TO_JUDGE_AGAIN) {
+            waitingForAnOwner.incrementAndGet();
+            try {
+                timer.schedule(() -> {
+                    waitingForAnOwner.decrementAndGet();
+                    lookAgain(event, reason);
+                }, waitMs, TimeUnit.MILLISECONDS);
+                return;
+            } catch (RejectedExecutionException stopped) {
+                waitingForAnOwner.decrementAndGet();
+            }
+        }
+        securityMonitor.deferEvent(event, reason);
+    }
+
+    private void lookAgain(SecurityEvent event, String reason) {
+        try {
+            securityMonitor.deferEvent(event, reason);
+        } catch (RuntimeException failure) {
+            log.error("[SecurityPlaneAgent] An event another owner held could not be looked at again: eventId={}",
+                    event.getEventId(), failure);
+        }
     }
 
     private boolean isProcessingFailureReported(SecurityEvent event) {

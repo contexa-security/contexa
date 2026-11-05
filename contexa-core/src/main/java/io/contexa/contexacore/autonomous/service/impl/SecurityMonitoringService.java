@@ -184,6 +184,16 @@ public class SecurityMonitoringService {
         }
     }
 
+    /** Tells the collector the analysis is done with the event; see {@link SecurityEventCollector#settled}. */
+    public void settled(SecurityEvent event) {
+        try {
+            eventCollector.settled(event);
+        } catch (RuntimeException failure) {
+            log.error("[SecurityMonitoringService] The collector could not be told an event is settled: eventId={}",
+                    event != null ? event.getEventId() : null, failure);
+        }
+    }
+
     private void requeueAtFront(List<SecurityEvent> batch, Exception failure) {
         if (batch == null || batch.isEmpty()) {
             return;
@@ -192,6 +202,7 @@ public class SecurityMonitoringService {
         for (int i = batch.size() - 1; i >= 0; i--) {
             SecurityEvent event = batch.get(i);
             if (!markBatchDispatchFailureForRetry(event, failure)) {
+                settled(event);
                 continue;
             }
             try {
@@ -291,6 +302,11 @@ public class SecurityMonitoringService {
             }
 
             enqueueForProcessing(List.of(processed));
+        }
+
+        @Override
+        public boolean settlesItsEvents() {
+            return true;
         }
 
         @Override

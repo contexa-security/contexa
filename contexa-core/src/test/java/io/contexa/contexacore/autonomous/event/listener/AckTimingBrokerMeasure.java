@@ -56,6 +56,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -82,9 +83,10 @@ import static org.mockito.Mockito.when;
  * <p>
  * Arguments: the broker port, the file the results are appended to, then one case per argument, written
  * {@code arm:maxPollRecords:burst:modelMs:backlog:slowEvery:slowMs}. The arm is {@code immediate} (the record is
- * acknowledged when it is taken in, as today), {@code async} (Spring Kafka's asyncAcks, acknowledged once decided) or
- * {@code watermark} (no pause; the offset below every undecided record is acknowledged). The backlog is {@code first}
- * (sessions with no decision yet) or {@code decided} (sessions decided before).
+ * acknowledged when it is taken in, as it was), {@code async} (Spring Kafka's asyncAcks, acknowledged once decided),
+ * {@code watermark} (no pause; the offset below every undecided record is acknowledged, a stand-in made to compare) or
+ * {@code decided} (the product: {@link DecidedRecordAcknowledger} and the path of the agent's settlement). The backlog
+ * is {@code first} (sessions with no decision yet) or {@code decided} (sessions decided before).
  */
 public final class AckTimingBrokerMeasure {
 
@@ -204,6 +206,11 @@ public final class AckTimingBrokerMeasure {
         };
         KafkaSecurityEventCollector collector =
                 new KafkaSecurityEventCollector(reader, null, new SecurityKafkaProperties());
+        DecidedRecordAcknowledger acknowledger = new DecidedRecordAcknowledger(Duration.ofMinutes(13));
+        boolean decidedArm = "decided".equals(measured.arm());
+        if (decidedArm) {
+            collector.setDecidedRecordAcknowledger(acknowledger);
+        }
         SecurityMonitoringService monitor = new SecurityMonitoringService(collector, properties);
         ThreadPoolTaskExecutor pool = new AsyncConfig(properties).llmAnalysisExecutor();
         pool.afterPropertiesSet();
@@ -242,6 +249,9 @@ public final class AckTimingBrokerMeasure {
         containerProperties.setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
         containerProperties.setAsyncAcks(async);
         containerProperties.setMessageListener(listener);
+        if (decidedArm) {
+            containerProperties.setConsumerRebalanceListener(acknowledger);
+        }
         ConcurrentMessageListenerContainer<String, String> container = new ConcurrentMessageListenerContainer<>(
                 new DefaultKafkaConsumerFactory<>(consumer), containerProperties);
         container.setConcurrency(1);

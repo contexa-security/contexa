@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.autonomous.event;
 
+import io.contexa.contexacommon.domain.SecurityEvent;
+
 import java.util.Map;
 
 /**
@@ -28,4 +30,11 @@ public interface SecurityEventCollector {
     void unregisterListener(SecurityEventListener listener);
 
     Map<String, Object> getStatistics();
+
+    /**
+     * The analysis is done with the event, with a decision or having given up on it, so what took the event in may let
+     * it go. An event the analysis has not finished is what a node that dies leaves behind.
+     */
+    default void settled(SecurityEvent event) {
+    }
 }

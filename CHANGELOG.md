@@ -8,6 +8,17 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **Killing the application no longer takes its decisions away.** A Kafka event was acknowledged the moment it was taken in,
+  so everything still in analysis was lost with the process, and whoever could bring the application down escaped the decision
+  on what they had just done. What is committed of a partition now stays below its first event the analysis is not done with.
+  The consumer reads on as before, without a pause, and a node that dies leaves those events to be delivered again and decided
+  by the next one; one decided already costs no second model call, so more may be delivered again than was lost. An event whose
+  analysis does not end within the budget of one request (`event-timeout-ms` for each retry, and the margin) stops holding the
+  commit and is reported. The standalone mode has no broker to deliver anything again: what it holds in memory dies with it.
+- **An event left behind by a restarted container is decided.** An analysis cut short kept its claim for 30 minutes unless the
+  process came back on the same host under another PID, and the event delivered again was dropped after retries spent in a
+  moment. A process now says in Redis that it lives, every 5 seconds, and its claims pass to the next one within 15 seconds of
+  its last word, whatever the host name and the PID. Tries on an event another owner holds are spread over half a minute.
 - **A sign-in no longer wipes the failures of its address.** A password that was right took the address's count back, so
   whoever held one account of their own could try any number of others from that address. The address now keeps its count
   until its window ends; the count of each account is reset as before. Behind a shared address a public NAT counts everyone's

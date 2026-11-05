@@ -16,6 +16,9 @@
 package io.contexa.contexacore.infra.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.event.listener.DecidedRecordAcknowledger;
+import io.contexa.contexacore.autonomous.service.DeletedAccountWriteFence;
+import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -58,6 +61,7 @@ public class KafkaConfiguration {
     private final KafkaProperties kafkaProperties;
     private final ObjectProvider<SslBundles> sslBundles;
     private final ObjectProvider<KafkaConnectionDetails> connectionDetails;
+    private final ObjectProvider<SecurityPlaneProperties> securityPlaneProperties;
 
     /**
      * How often the consumer looks for topics its pattern matches. Kafka's default is five minutes, so a topic that
@@ -70,7 +74,7 @@ public class KafkaConfiguration {
      * The consumer starts from what Spring Boot makes of the application's settings, so everything that says how to reach
      * and enter the cluster is the application's ({@code spring.kafka.security.*}, {@code ssl.*}, {@code properties.*}, the
      * consumer's own of these), and so are its group and how it reads. What Contexa's reading depends on is set here over
-     * them: it reads strings and acknowledges a record itself, once the record is taken in (PR-88).
+     * them: it reads strings and acknowledges a record itself, once the analysis is done with it (PR-88).
      */
     @Bean(name = "contexaConsumerConfigs", defaultCandidate = false)
     public Map<String, Object> consumerConfigs() {
@@ -167,6 +171,14 @@ public class KafkaConfiguration {
         return new KafkaTemplate<>(contexaProducerFactory);
     }
 
+    /** A record holds the commit of its partition for as long as the analysis of one request may take. */
+    @Bean(name = "contexaDecidedRecordAcknowledger", defaultCandidate = false)
+    public DecidedRecordAcknowledger decidedRecordAcknowledger() {
+        SecurityPlaneProperties.AgentSettings agent = securityPlaneProperties.getIfAvailable(SecurityPlaneProperties::new).getAgent();
+        return new DecidedRecordAcknowledger(DeletedAccountWriteFence.retention(agent.getEventTimeoutMs(),
+                agent.getMaxDeferredRetries(), agent.getDeletedAccountFenceMarginMs()));
+    }
+
     @Bean(name = "contexaKafkaListenerContainerFactory", defaultCandidate = false)
     public ConcurrentKafkaListenerContainerFactory<String, String> kafkaListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, String> factory = 
@@ -177,6 +189,7 @@ public class KafkaConfiguration {
         factory.setConcurrency(concurrency);
 
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
+        factory.getContainerProperties().setConsumerRebalanceListener(decidedRecordAcknowledger());
 
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(new FixedBackOff(1000L, 3));
         factory.setCommonErrorHandler(errorHandler);
