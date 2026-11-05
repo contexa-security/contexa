@@ -35,6 +35,8 @@ import org.springframework.security.authentication.ott.GenerateOneTimeTokenReque
 import org.springframework.security.authentication.ott.InvalidOneTimeTokenException;
 import org.springframework.security.authentication.ott.OneTimeToken;
 import org.springframework.security.authentication.ott.OneTimeTokenAuthenticationToken;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -85,6 +87,7 @@ class EmailOneTimeTokenServiceTest {
                 "username VARCHAR(256) NOT NULL, " +
                 "email VARCHAR(256) NOT NULL, " +
                 "PRIMARY KEY (username))");
+        jdbcTemplate.update("INSERT INTO ctxa_users(username, email) VALUES(?, ?)", "testuser", "user@contexa.io");
 
         when(authContextProperties.getMfa()).thenReturn(mfaSettings);
         when(mfaSettings.getOtpTokenValiditySeconds()).thenReturn(300); // 5 minutes
@@ -101,7 +104,6 @@ class EmailOneTimeTokenServiceTest {
     @DisplayName("generate should create a token, store it in PostgreSQL, and send HTML email successfully")
     void generateTokenSuccess() {
         when(emailService.isMailSenderConfigured()).thenReturn(true);
-        jdbcTemplate.update("INSERT INTO ctxa_users(username, email) VALUES(?, ?)", "testuser", "user@contexa.io");
 
         EmailOneTimeTokenService service = new EmailOneTimeTokenService(
                 emailService, jdbcTemplate, transactionTemplate, authContextProperties, true
@@ -128,14 +130,17 @@ class EmailOneTimeTokenServiceTest {
         );
     }
 
+    /** The application's own users are in no table of Contexa's, and an application may sign in with an address. */
     @Test
-    @DisplayName("generate should use username as recipient email if not found in users table")
+    @DisplayName("generate should use username as recipient email for an account of the store the sign-in reads")
     void generateTokenUsesUsernameAsFallbackEmail() {
         when(emailService.isMailSenderConfigured()).thenReturn(true);
 
         EmailOneTimeTokenService service = new EmailOneTimeTokenService(
                 emailService, jdbcTemplate, transactionTemplate, authContextProperties, true
         );
+        service.setUserStore(() -> new InMemoryUserDetailsManager(
+                User.withUsername("fallback@contexa.io").password("{noop}x").build()));
 
         GenerateOneTimeTokenRequest request = new GenerateOneTimeTokenRequest("fallback@contexa.io");
         OneTimeToken token = service.generate(request);
@@ -148,10 +153,46 @@ class EmailOneTimeTokenServiceTest {
     }
 
     @Test
+    @DisplayName("generate should mail nothing and make no code for a name of no account")
+    void generateMailsNothingToANameOfNoAccount() {
+        when(emailService.isMailSenderConfigured()).thenReturn(true);
+
+        EmailOneTimeTokenService service = new EmailOneTimeTokenService(
+                emailService, jdbcTemplate, transactionTemplate, authContextProperties, true
+        );
+        service.setUserStore(() -> new InMemoryUserDetailsManager(
+                User.withUsername("fallback@contexa.io").password("{noop}x").build()));
+
+        OneTimeToken token = service.generate(new GenerateOneTimeTokenRequest("victim@example.test"));
+
+        assertThat(token.getUsername()).isEqualTo("victim@example.test");
+        assertThat(token.getTokenValue()).isEmpty();
+        verify(emailService, never()).sendHtmlMessage(anyString(), anyString(), anyString());
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM ctxa_one_time_tokens", Integer.class)).isZero();
+    }
+
+    @Test
+    @DisplayName("generate should mail nothing to a name a store that fails cannot vouch for, and answer all the same")
+    void generateMailsNothingWhenTheStoreFails() {
+        when(emailService.isMailSenderConfigured()).thenReturn(true);
+
+        EmailOneTimeTokenService service = new EmailOneTimeTokenService(
+                emailService, jdbcTemplate, transactionTemplate, authContextProperties, true
+        );
+        service.setUserStore(() -> name -> {
+            throw new IllegalStateException("The store is down");
+        });
+
+        OneTimeToken token = service.generate(new GenerateOneTimeTokenRequest("alice@contexa.io"));
+
+        assertThat(token.getTokenValue()).isEmpty();
+        verify(emailService, never()).sendHtmlMessage(anyString(), anyString(), anyString());
+    }
+
+    @Test
     @DisplayName("generate should allow requested email only when it matches the registered user email")
     void generateTokenAllowsMatchingRequestedEmail() {
         when(emailService.isMailSenderConfigured()).thenReturn(true);
-        jdbcTemplate.update("INSERT INTO ctxa_users(username, email) VALUES(?, ?)", "testuser", "user@contexa.io");
 
         EmailOneTimeTokenService service = new EmailOneTimeTokenService(
                 emailService, jdbcTemplate, transactionTemplate, authContextProperties, true
@@ -171,7 +212,6 @@ class EmailOneTimeTokenServiceTest {
     @DisplayName("generate should reject requested email that differs from the registered user email")
     void generateTokenRejectsMismatchedRequestedEmail() {
         when(emailService.isMailSenderConfigured()).thenReturn(true);
-        jdbcTemplate.update("INSERT INTO ctxa_users(username, email) VALUES(?, ?)", "testuser", "user@contexa.io");
 
         EmailOneTimeTokenService service = new EmailOneTimeTokenService(
                 emailService, jdbcTemplate, transactionTemplate, authContextProperties, true

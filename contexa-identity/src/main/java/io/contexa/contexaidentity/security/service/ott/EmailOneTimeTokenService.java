@@ -26,8 +26,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.ott.*;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.Assert;
+import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -37,6 +40,7 @@ import java.time.Instant;
 import java.util.HexFormat;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 @Slf4j
 public class EmailOneTimeTokenService implements OneTimeTokenService, DisposableBean {
@@ -44,8 +48,9 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
     private static final String MAIL_SENT = "ott-mail-sent:";
 
     /**
-     * What a request inside the resend interval gets: no code was made and nothing was mailed, so it has no value. It
-     * carries the user, which is what the success handlers read, and the request is answered as a mailed one is.
+     * What a request inside the resend interval or for a name of no account gets: no code was made and nothing was mailed,
+     * so it has no value. It carries the user, which is what the success handlers read, and the request is answered as a
+     * mailed one is.
      */
     private record NothingMailed(String username, Instant expiresAt) implements OneTimeToken {
 
@@ -73,6 +78,7 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
     private final boolean failOnEmailError;
     private final StepUpOptionsStore claims;
     private final Duration resendInterval;
+    private volatile Supplier<UserDetailsService> userStore = () -> null;
 
     /** The resend interval is then this instance's own: a distributed deployment hands in the store it shares. */
     public EmailOneTimeTokenService(EmailService emailService,
@@ -98,6 +104,14 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
         this.failOnEmailError = failOnEmailError;
         this.claims = claims;
         this.resendInterval = resendInterval(authContextProperties.getMfa());
+    }
+
+    /**
+     * The store the sign-in reads, which may be the application's: its users are in no table of Contexa's, and their name
+     * is the address they are mailed at. Read when a code is asked for.
+     */
+    public void setUserStore(Supplier<UserDetailsService> userStore) {
+        this.userStore = userStore != null ? userStore : () -> null;
     }
 
     /** No limit is not what a wrong value may mean: it would give back the mail a password alone can send. */
@@ -137,15 +151,25 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
     /**
      * Makes a code and mails it, once per address in the resend interval: asking for a code takes a password at most,
      * and the mailbox is someone's. The claim comes first, so requests at once find it held and leave no code behind.
-     * A store that gives no claim mails nothing, as for a claim that is held.
+     * A store that gives no claim mails nothing, as for a claim that is held. A name of no account is mailed nothing:
+     * before a sign-in the name is what a form says, so the code would go to any address a stranger typed, and it would
+     * sign in to nothing.
      *
-     * @return the code, or inside the interval a token of the user with an empty value: the code mailed before stays good
+     * @return the code, or a token of the user with an empty value: inside the interval, where the code mailed before stays
+     * good, and for a name of no account
      */
     public OneTimeToken generateAndSendVerificationCode(String username, String emailPurpose, String customEmail) {
         Assert.hasText(username, "Username cannot be empty");
         Assert.hasText(emailPurpose, "Email purpose cannot be empty");
 
-        String to = resolveRecipientEmail(username, customEmail);
+        String registeredEmail = lookupRegisteredEmail(username);
+        refuseAnotherAddress(username, registeredEmail, customEmail);
+        if (!StringUtils.hasText(registeredEmail) && !signsIn(username)) {
+            log.debug("OTT email not sent, the name is no account: username={}", username);
+            return new NothingMailed(username, Instant.now());
+        }
+
+        String to = recipient(username, registeredEmail);
         String interval = intervalKey(to);
         if (!claims.claim(interval, resendInterval)) {
             log.debug("OTT email not sent, the resend interval is running: username={}", username);
@@ -212,8 +236,9 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
     }
 
     /**
-     * One key per mailbox, however the address is written (capitals, spaces, a name before it): a name that is no
-     * account is mailed as an address, and each spelling would be a new key. The address itself stays out of the store.
+     * One key per mailbox, however the address is written (capitals, spaces, a name before it): the name of an account of
+     * the application's is mailed as an address, and each spelling would be a new key. The address itself stays out of the
+     * store.
      */
     private static String intervalKey(String to) {
         return MAIL_SENT + digest(mailbox(to).toLowerCase(Locale.ROOT));
@@ -236,23 +261,32 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
         }
     }
 
-    private String resolveRecipientEmail(String username, String requestedEmail) {
-        String registeredEmail = lookupRegisteredEmail(username);
-        if (requestedEmail != null && !requestedEmail.isBlank()) {
-            String normalizedRequestedEmail = requestedEmail.trim();
-            if (registeredEmail == null || registeredEmail.isBlank()
-                    || !registeredEmail.trim().equalsIgnoreCase(normalizedRequestedEmail)) {
-                log.warn("Rejected OTT email override for username: {}", username);
-                throw new OneTimeTokenAddressRefusedException("Invalid one-time token delivery request");
-            }
-            return registeredEmail.trim();
+    private static void refuseAnotherAddress(String username, String registeredEmail, String requestedEmail) {
+        if (requestedEmail == null || requestedEmail.isBlank()) {
+            return;
         }
-
-        if (registeredEmail != null && !registeredEmail.isBlank()) {
-            return registeredEmail.trim();
+        if (!StringUtils.hasText(registeredEmail) || !registeredEmail.trim().equalsIgnoreCase(requestedEmail.trim())) {
+            log.warn("Rejected OTT email override for username: {}", username);
+            throw new OneTimeTokenAddressRefusedException("Invalid one-time token delivery request");
         }
+    }
 
-        return username;
+    /** The registered address, or the name of an account the users table does not hold. */
+    private static String recipient(String username, String registeredEmail) {
+        return StringUtils.hasText(registeredEmail) ? registeredEmail.trim() : username;
+    }
+
+    /** Whether the store the sign-in reads knows the name; a store that cannot say leaves the code unmailed. */
+    private boolean signsIn(String username) {
+        try {
+            UserDetailsService store = userStore.get();
+            return store != null && store.loadUserByUsername(username) != null;
+        } catch (UsernameNotFoundException noAccount) {
+            return false;
+        } catch (RuntimeException e) {
+            log.error("The user store could not say whether a name is an account: username={}", username, e);
+            return false;
+        }
     }
 
     private String lookupRegisteredEmail(String username) {
@@ -272,7 +306,8 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
         }
         // The interval waits because the last code is still good. A used one leaves the user without a code, and only
         // who reads the mail could use it: a step-up right after a sign-in gets its code at once.
-        claims.release(intervalKey(resolveRecipientEmail(internalTokenFromStore.getUsername(), null)));
+        String username = internalTokenFromStore.getUsername();
+        claims.release(intervalKey(recipient(username, lookupRegisteredEmail(username))));
         return internalTokenFromStore;
     }
 }

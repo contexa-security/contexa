@@ -32,6 +32,7 @@ import org.springframework.security.authentication.ott.GenerateOneTimeTokenReque
 import org.springframework.security.authentication.ott.InvalidOneTimeTokenException;
 import org.springframework.security.authentication.ott.OneTimeToken;
 import org.springframework.security.authentication.ott.OneTimeTokenAuthenticationToken;
+import org.springframework.security.core.userdetails.User;
 import org.springframework.transaction.TransactionSystemException;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -246,6 +247,7 @@ abstract class AbstractEmailResendIntervalContractTest {
     @DisplayName("every spelling of one address is one address, registered as a user's or typed in as a name")
     void everySpellingIsOneAddress() {
         EmailOneTimeTokenService service = service();
+        service.setUserStore(() -> name -> User.withUsername(name).password("{noop}x").build());
 
         ask(service, username);
         ask(service, address);
@@ -260,6 +262,7 @@ abstract class AbstractEmailResendIntervalContractTest {
     @DisplayName("two addresses are apart")
     void twoAddressesAreApart() {
         EmailOneTimeTokenService service = service();
+        service.setUserStore(() -> name -> User.withUsername(name).password("{noop}x").build());
         String other = "other-" + address;
 
         ask(service, username);

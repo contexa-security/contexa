@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.ott.GenerateOneTimeTokenRequest;
 import org.springframework.security.authentication.ott.OneTimeToken;
+import org.springframework.security.core.userdetails.User;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -76,6 +77,7 @@ class EmailResendIntervalSettingTest {
     private EmailOneTimeTokenService serviceWith(AuthContextProperties properties) {
         service = new EmailOneTimeTokenService(mail, jdbc, new TransactionTemplate(mock(PlatformTransactionManager.class)),
                 properties, true, store);
+        service.setUserStore(() -> name -> User.withUsername(name).password("{noop}x").build());
         return service;
     }
 

@@ -8,6 +8,12 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A sign-in by code no longer mails any address a stranger types.** Before a sign-in the name of a code request is what
+  the form says, and a name of no account was mailed as an address: with `.ott()` anybody could have your mail server send a
+  code, and the name itself in the text of the mail, to any mailbox. A code now goes to the address on record, or to the name
+  of an account of the store the sign-in reads, the application's own included, so an application whose users sign in with
+  their address goes on as before. Any other name is answered exactly as a mailed one, and nothing is made or sent. A store
+  that cannot answer sends nothing and says so at ERROR. Such a code could sign in to nothing, so no working sign-in changes.
 - **A risk signal that ends sessions now ends the tokens too.** A session revoked, a credential compromised and an account
   disabled or purged, sent by your identity provider, signed the subject out of its sessions and left its tokens running: a
   token client went on until the access token ran out, and then renewed it with the refresh token. These events now end the
