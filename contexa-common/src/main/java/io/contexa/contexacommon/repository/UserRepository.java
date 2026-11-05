@@ -203,4 +203,14 @@ public interface UserRepository extends JpaRepository<Users, Long> {
             "WHERE u.username = :username AND u.accountLocked = true AND u.lockExpiresAt IS NOT NULL " +
             "AND u.lockExpiresAt < :now")
     int clearExpiredLock(@Param("username") String username, @Param("now") LocalDateTime now);
+
+    /**
+     * An administrator's release of a lock ahead of its end. It clears the account's lock and count, not the count of the
+     * address the failures came from: that one stands for everyone who tried from there.
+     * @return rows updated (1 if the account was locked, 0 otherwise)
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Users u SET u.accountLocked = false, u.failedLoginAttempts = 0, u.lockExpiresAt = null " +
+            "WHERE u.id = :id AND u.accountLocked = true")
+    int clearLock(@Param("id") Long id);
 }

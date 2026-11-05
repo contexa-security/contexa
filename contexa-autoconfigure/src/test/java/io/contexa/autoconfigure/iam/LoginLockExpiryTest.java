@@ -167,6 +167,43 @@ class LoginLockExpiryTest {
         verify(addresses, times(MAX_FAILED_ATTEMPTS + 1)).incrementFailedAttempts(eq(ADDRESS), any(), eq(ALICE));
     }
 
+    @Test
+    @DisplayName("An administrator's release ends the lock before its time, and the count of failures with it")
+    void anAdministratorsRelease() {
+        failTimes(MAX_FAILED_ATTEMPTS);
+
+        assertThat(users.clearLock(id())).isEqualTo(1);
+
+        assertThat(locked()).isFalse();
+        assertThat(lockExpiresAt()).isNull();
+        assertThat(users.findFailedAttempts(ALICE)).contains(0);
+    }
+
+    @Test
+    @DisplayName("It changes nothing on an account that stands under no lock, and says so")
+    void aReleaseOfNoLock() {
+        failTimes(1);
+
+        assertThat(users.clearLock(id())).isZero();
+
+        assertThat(users.findFailedAttempts(ALICE)).contains(1);
+    }
+
+    @Test
+    @DisplayName("After an administrator's release the limit locks the account again")
+    void lockedAgainAfterARelease() {
+        failTimes(MAX_FAILED_ATTEMPTS);
+        users.clearLock(id());
+
+        failTimes(MAX_FAILED_ATTEMPTS);
+
+        assertThat(locked()).isTrue();
+    }
+
+    private Long id() {
+        return users.findByUsername(ALICE).orElseThrow().getId();
+    }
+
     /** Each failure is its own request, as the filter that clears the request's state makes it in a running server. */
     private void failTimes(int times) {
         for (int attempt = 0; attempt < times; attempt++) {

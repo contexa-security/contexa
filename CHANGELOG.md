@@ -310,6 +310,9 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Added
 
+- **An administrator unlocks an account.** A locked user's page in the console has an Unlock button, and
+  `POST /contexa/admin/users/{id}/unlock` ends the lock and the count of failures ahead of time. The audit records who did
+  it. A limit on the address the failures came from stays.
 - **A way out for a user with neither a mail address nor a passkey.** An application tells a user's address with a
   `BridgeUserEmailProvider` bean. An administrator can enter the address on the user's page, or release a CHALLENGE on the
   block list; the release is recorded in the audit and nothing is learned from it. The user who passes a code is offered

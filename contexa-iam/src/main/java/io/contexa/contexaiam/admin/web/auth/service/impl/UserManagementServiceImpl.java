@@ -289,6 +289,33 @@ public class UserManagementServiceImpl implements UserManagementService {
         return users.map(this::toUserListDto);
     }
 
+    @Override
+    @Transactional(transactionManager = "contexaTransactionManager")
+    @Protectable(verificationRequired = false)
+    public boolean unlockUser(Long id) {
+        Users user = userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException(msg("msg.user.not.found.id", id)));
+        if (userRepository.clearLock(id) == 0) {
+            return false;
+        }
+        try {
+            var auth = SecurityContextHolder.getContext().getAuthentication();
+            centralAuditFacade.recordAsync(AuditRecord.builder()
+                    .eventCategory(AuditEventCategory.USER_MODIFIED)
+                    .principalName(auth != null && auth.getName() != null ? auth.getName() : "SYSTEM")
+                    .resourceIdentifier(user.getUsername() != null ? user.getUsername() : "")
+                    .eventSource("IAM")
+                    .action("USER_UNLOCKED")
+                    .decision("SUCCESS")
+                    .outcome("SUCCESS")
+                    .details(Map.of("userId", id, "username", user.getUsername() != null ? user.getUsername() : ""))
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to audit the release of a lock: {}", user.getUsername(), e);
+        }
+        return true;
+    }
+
     private UserListDto toUserListDto(Users user) {
         UserListDto dto = modelMapper.map(user, UserListDto.class);
         // PR-27: a copy of an application's user is named by a hash; the application's name for the user is what reads.

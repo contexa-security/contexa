@@ -20,6 +20,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.contexa.contexacommon.domain.UserDto;
+import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.UserGroup;
 import io.contexa.contexacommon.entity.Users;
@@ -31,14 +32,17 @@ import io.contexa.contexacommon.security.UserAccountDeletedEvent;
 import io.contexa.contexacommon.security.UserAccountDisabledEvent;
 import io.contexa.contexacommon.security.UserAuthoritiesChangedEvent;
 import io.contexa.contexacommon.security.UserPasswordChangedEvent;
+import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexaiam.domain.dto.UserListDto;
 import io.contexa.contexaiam.testsupport.I18nTestSupport;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -50,6 +54,9 @@ import org.mockito.quality.Strictness;
 import org.modelmapper.ModelMapper;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
+import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.context.SecurityContextImpl;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDateTime;
@@ -97,6 +104,65 @@ class UserManagementServiceImplTest {
 
     @InjectMocks
     private UserManagementServiceImpl service;
+
+    @Nested
+    @DisplayName("unlockUser")
+    class UnlockUser {
+
+        @AfterEach
+        void clearSecurityContext() {
+            SecurityContextHolder.clearContext();
+        }
+
+        @Test
+        @DisplayName("lifts the lock and leaves in the audit who did it and for whom")
+        void unlocked() {
+            SecurityContextHolder.setContext(new SecurityContextImpl(new TestingAuthenticationToken("second-admin", "x")));
+            when(userRepository.findById(5L)).thenReturn(Optional.of(buildUser(5L, "alice", "Alice")));
+            when(userRepository.clearLock(5L)).thenReturn(1);
+
+            assertThat(service.unlockUser(5L)).isTrue();
+
+            ArgumentCaptor<AuditRecord> record = ArgumentCaptor.forClass(AuditRecord.class);
+            verify(centralAuditFacade).recordAsync(record.capture());
+            assertThat(record.getValue().getEventCategory()).isEqualTo(AuditEventCategory.USER_MODIFIED);
+            assertThat(record.getValue().getAction()).isEqualTo("USER_UNLOCKED");
+            assertThat(record.getValue().getPrincipalName()).isEqualTo("second-admin");
+            assertThat(record.getValue().getResourceIdentifier()).isEqualTo("alice");
+            assertThat(record.getValue().getOutcome()).isEqualTo("SUCCESS");
+        }
+
+        @Test
+        @DisplayName("an account under no lock changes nothing and leaves no record")
+        void notLocked() {
+            when(userRepository.findById(5L)).thenReturn(Optional.of(buildUser(5L, "alice", "Alice")));
+            when(userRepository.clearLock(5L)).thenReturn(0);
+
+            assertThat(service.unlockUser(5L)).isFalse();
+
+            verify(centralAuditFacade, never()).recordAsync(any());
+        }
+
+        @Test
+        @DisplayName("an unknown account is an error, not a lock lifted")
+        void unknown() {
+            when(userRepository.findById(5L)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.unlockUser(5L)).isInstanceOf(IllegalArgumentException.class);
+
+            verify(userRepository, never()).clearLock(any());
+        }
+
+        @Test
+        @DisplayName("an audit that fails does not bring the lock back")
+        void anAuditThatFails() {
+            when(userRepository.findById(5L)).thenReturn(Optional.of(buildUser(5L, "alice", "Alice")));
+            when(userRepository.clearLock(5L)).thenReturn(1);
+            doThrow(new IllegalStateException("audit down")).when(centralAuditFacade).recordAsync(any());
+
+            assertThat(service.unlockUser(5L)).isTrue();
+        }
+    }
 
     // ===== Helper methods =====
 
