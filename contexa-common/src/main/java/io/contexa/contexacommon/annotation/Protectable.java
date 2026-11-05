@@ -23,12 +23,13 @@ import java.lang.annotation.Target;
 /**
  * Declares a resource as protected by the Contexa zero-trust framework.
  * <p>
- * At application startup {@code ProtectableResourceCatalogService} auto-scans
- * annotated beans and registers matching methods into
- * {@code ctxa_protectable_resource_registry}. Registered resources can be evaluated
- * by the prompt quality inspection flow before they are used for LLM
- * zero-trust operation. Enterprise deployments may add certificate and
- * promotion gates on top of that inspection result.
+ * At application startup {@code ProtectableResourceContextScanner} reads the
+ * annotated methods of the application's beans, so that a request to one of them
+ * carries what the annotation declares into the decision. The console lists them
+ * in {@code ctxa_managed_resource} when an administrator refreshes the resources.
+ * A method of a controller is left out of that list: the console lists a controller
+ * by its URL. Enterprise deployments may add a registry, inspection, certificate and
+ * promotion gates on top of this.
  * <p>
  * A call on a thread that holds neither a user nor a request, such as a
  * scheduled job or an asynchronous method whose executor does not carry the
