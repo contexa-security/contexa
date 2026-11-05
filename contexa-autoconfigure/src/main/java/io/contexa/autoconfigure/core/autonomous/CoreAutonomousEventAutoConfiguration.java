@@ -129,8 +129,14 @@ public class CoreAutonomousEventAutoConfiguration {
         @ConditionalOnBean(name = "contexaKafkaTemplate")
         public KafkaSecurityEventPublisher kafkaSecurityEventPublisher(
                 @Qualifier("contexaKafkaTemplate") KafkaTemplate<String, Object> contexaKafkaTemplate,
-                SecurityKafkaProperties securityKafkaProperties) {
-            return new KafkaSecurityEventPublisher(contexaKafkaTemplate, securityKafkaProperties);
+                SecurityKafkaProperties securityKafkaProperties,
+                ObjectProvider<KafkaSecurityEventCollector> kafkaSecurityEventCollector) {
+            KafkaSecurityEventPublisher publisher =
+                    new KafkaSecurityEventPublisher(contexaKafkaTemplate, securityKafkaProperties);
+            // Q-26: what Kafka does not take is analysed on this node.
+            publisher.setLocalAnalysis(event -> kafkaSecurityEventCollector.ifAvailable(
+                    collector -> collector.analyseHere(event)));
+            return publisher;
         }
     }
 

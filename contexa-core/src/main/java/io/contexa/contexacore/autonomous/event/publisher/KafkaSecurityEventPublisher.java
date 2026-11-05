@@ -31,18 +31,25 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 /**
  * Hands security events to Kafka from a thread of its own (PR-79). A producer waits up to its limit for a topic it
  * cannot find or a broker it cannot reach, and a publication is made on the thread of the request it is for, so that
  * wait and a send's failure stay here: the request goes on at once. Events leave one by one in the order they came.
- * Past the queue's capacity, or past a send's own limit in it, an event is dropped, counted and reported.
+ * <p>
+ * Q-26: an event Kafka did not take, or that waited past a send's own limit, is counted, reported and analysed on this
+ * node, as standalone analyses it, so a topic that cannot be used costs no decision. Every event leaves with an id of
+ * its own: one that reached the broker although its send failed, or that comes back from the dead letters, is the same
+ * event to the agent's processing claim and to the decision on record, on any node, and is not analysed twice. Only
+ * past the queue's capacity, where nothing may hold the request's thread, is an event dropped, counted and reported.
  */
 @Slf4j
 public class KafkaSecurityEventPublisher implements SecurityEventPublisher, DisposableBean {
@@ -52,6 +59,7 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher, Disp
     /** A send's own limit (the producer's delivery timeout): later, the event would be analysed as a moment long gone. */
     static final Duration MAX_QUEUE_WAIT = Duration.ofSeconds(10);
     static final String SENDER_THREAD = "contexa-kafka-event-sender";
+    private static final String EVENT_ID = "eventId";
     private static final Duration SHUTDOWN_WAIT = Duration.ofSeconds(5);
     private static final Duration FAILURE_LOG_INTERVAL = Duration.ofMinutes(1);
 
@@ -66,6 +74,8 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher, Disp
     private final AtomicLong dlqDispatchRequestedCount = new AtomicLong(0);
     private final AtomicLong dlqDispatchConfirmedCount = new AtomicLong(0);
     private final AtomicLong dlqDispatchFailedCount = new AtomicLong(0);
+    private final AtomicLong analysedHereCount = new AtomicLong(0);
+    private volatile Consumer<ZeroTrustSpringEvent> localAnalysis;
 
     public KafkaSecurityEventPublisher(KafkaTemplate<String, Object> kafkaTemplate,
                                        SecurityKafkaProperties securityKafkaProperties) {
@@ -77,6 +87,32 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher, Disp
         this.kafkaTemplate = kafkaTemplate;
         this.securityKafkaProperties = securityKafkaProperties;
         this.clock = clock;
+    }
+
+    /** Q-26: where an event Kafka did not take is analysed. */
+    public void setLocalAnalysis(Consumer<ZeroTrustSpringEvent> localAnalysis) {
+        this.localAnalysis = localAnalysis;
+    }
+
+    /** The event with an id of its own, which it keeps however it reaches the analysis (Q-26). */
+    static ZeroTrustSpringEvent withEventId(ZeroTrustSpringEvent event) {
+        Object eventId = event.getPayload().get(EVENT_ID);
+        if (eventId != null && !eventId.toString().isBlank()) {
+            return event;
+        }
+        Map<String, Object> payload = new HashMap<>(event.getPayload());
+        payload.put(EVENT_ID, UUID.randomUUID().toString());
+        return ZeroTrustSpringEvent.builder(event.getSource())
+                .category(event.getCategory())
+                .eventType(event.getEventType())
+                .userId(event.getUserId())
+                .sessionId(event.getSessionId())
+                .clientIp(event.getClientIp())
+                .userAgent(event.getUserAgent())
+                .resource(event.getResource())
+                .eventTimestamp(event.getEventTimestamp())
+                .payload(payload)
+                .build();
     }
 
     private static ExecutorService newSender() {
@@ -91,8 +127,9 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher, Disp
     public void publishGenericSecurityEvent(ZeroTrustSpringEvent event) {
         publishRequestedCount.incrementAndGet();
         long queuedAt = clock.millis();
+        ZeroTrustSpringEvent identified = withEventId(event);
         try {
-            sender.execute(() -> send(event, queuedAt));
+            sender.execute(() -> send(identified, queuedAt));
         } catch (RejectedExecutionException noRoom) {
             publishFailedCount.incrementAndGet();
             reportFailure(event, "the publisher's queue is full or shut down", queuedAt, noRoom);
@@ -103,6 +140,7 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher, Disp
         if (clock.millis() - queuedAt > MAX_QUEUE_WAIT.toMillis()) {
             publishFailedCount.incrementAndGet();
             reportFailure(event, "it waited too long for the broker", queuedAt, null);
+            analyseHere(event);
             return;
         }
         try {
@@ -120,15 +158,41 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher, Disp
         }
     }
 
-    /** The producer tells a delivery's failure on its own thread, which a send that waits would stop, so the dead letter leaves from here. */
+    /**
+     * The producer tells a delivery's failure on its own thread, which a send that waits would stop, so the analysis
+     * and the dead letter leave from here.
+     */
     private void failed(ZeroTrustSpringEvent event, long queuedAt, Throwable failure) {
         publishFailedCount.incrementAndGet();
         reportFailure(event, failure.getMessage(), queuedAt, failure);
+        Runnable afterTheFailure = () -> {
+            analyseHere(event);
+            sendToDeadLetterQueueAsync(event, failure);
+        };
+        if (SENDER_THREAD.equals(Thread.currentThread().getName())) {
+            afterTheFailure.run();
+            return;
+        }
         try {
-            sender.execute(() -> sendToDeadLetterQueueAsync(event, failure));
+            sender.execute(afterTheFailure);
         } catch (RejectedExecutionException noRoom) {
             dlqDispatchRequestedCount.incrementAndGet();
             dlqDispatchFailedCount.incrementAndGet();
+        }
+    }
+
+    /** Q-26: the event goes to this node's analysis; a failure there stops neither the dead letter nor the next event. */
+    private void analyseHere(ZeroTrustSpringEvent event) {
+        Consumer<ZeroTrustSpringEvent> analysis = localAnalysis;
+        if (analysis == null) {
+            return;
+        }
+        try {
+            analysis.accept(event);
+            analysedHereCount.incrementAndGet();
+        } catch (RuntimeException failure) {
+            log.error("[KafkaPublisher] An event Kafka did not take could not reach this node's analysis - category={}, "
+                    + "type={}", event.getCategory(), event.getEventType(), failure);
         }
     }
 
@@ -201,6 +265,7 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher, Disp
         stats.put("dlq_dispatch_requested_count", dlqDispatchRequestedCount.get());
         stats.put("dlq_dispatch_confirmed_count", dlqDispatchConfirmedCount.get());
         stats.put("dlq_dispatch_failed_count", dlqDispatchFailedCount.get());
+        stats.put("analysed_here_count", analysedHereCount.get());
         return stats;
     }
 

@@ -18,6 +18,12 @@ The format is based on Keep a Changelog and the project follows semantic version
   a fact of the context it was passed in (the session, its address and its client): the requests of that context carry
   `mfaVerified`, `challengeVerifiedAt` and `lastMfaUsedAt`, under both ownerships. Another session of the user still reads
   it as `RecentMfaElsewhere`. The facts changed, not the wording of a prompt; what the model decides with them stands.
+- **An event Kafka does not take is analysed where it was made.** Where a topic cannot be used (a broker that does not
+  create topics, a broker that is down) a sign-in and an asynchronous `@Protectable` reached no decision. An event whose
+  send fails, or that waited past a send's limit, now goes to the analysis of the node that had it, as in standalone,
+  and to the dead letters as before. Every event keeps one id, so one that reached the broker after all, or that is
+  replayed from the dead letters, is the same event and is not analysed twice. The publisher's queue still drops, counts
+  and reports what it has no room for: nothing may hold the request's thread.
 - **A synchronous `@Protectable` no longer holds the application's thread as long as the model is given.** A request
   waits for its verdict at most `contexa.security.zerotrust.agent.flight.wait` (40 seconds), a person's as an agent's.
   Past it the request is refused with a CHALLENGE that is not stored, the analysis goes on and stores its decision for

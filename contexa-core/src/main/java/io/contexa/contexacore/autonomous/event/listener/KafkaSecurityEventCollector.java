@@ -48,6 +48,9 @@ import org.springframework.messaging.handler.annotation.Payload;
 @Slf4j
 public class KafkaSecurityEventCollector implements SecurityEventCollector {
 
+    /** Q-26: on an event whose publication failed, so that it was analysed by the node that had it. */
+    public static final String ANALYSED_ON_THE_PUBLISHING_NODE = "analysedOnThePublishingNode";
+
     private final ObjectMapper objectMapper;
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final SecurityKafkaProperties securityKafkaProperties;
@@ -135,6 +138,21 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
             sendToDeadLetterQueueAsync(message, topic, partition, offset, e);
             throw new IllegalStateException("Kafka security event processing failed - redelivery scheduled", e);
         }
+    }
+
+    /**
+     * Q-26: hands an event Kafka did not take to the listeners of this node, as a consumed event is handed to them. Its
+     * id is the one it was published under, so a copy that reached the broker after all is the same event to the
+     * analysis.
+     */
+    public void analyseHere(ZeroTrustSpringEvent zeroTrustEvent) {
+        SecurityEvent event = ZeroTrustSecurityEventConverter.convert(zeroTrustEvent);
+        event.addMetadata("zerotrust.category", zeroTrustEvent.getCategory().name());
+        event.addMetadata("zerotrust.eventType", zeroTrustEvent.getEventType());
+        event.addMetadata("ingestAt", System.currentTimeMillis());
+        event.addMetadata(ANALYSED_ON_THE_PUBLISHING_NODE, true);
+        processEvent(event);
+        eventCount.incrementAndGet();
     }
 
     @Override
