@@ -61,6 +61,7 @@ io.contexa.autoconfigure.identity.IdentityMfaAutoConfiguration
 
 # Identity Security Core
 io.contexa.autoconfigure.identity.IdentitySecurityCoreAutoConfiguration
+io.contexa.autoconfigure.identity.StepUpOptionsStoreAutoConfiguration
 io.contexa.autoconfigure.identity.HostOwnedStepUpAutoConfiguration
 
 # Identity ASEP (Security Exception Handler)

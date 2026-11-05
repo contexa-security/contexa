@@ -77,7 +77,7 @@ class OneTimeTokenSchedulerLifecycleTest {
         long before = schedulerThreads();
         AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
         context.registerBean("emailService", EmailOneTimeTokenService.class, () -> new EmailOneTimeTokenService(
-                mock(EmailService.class), mock(JdbcTemplate.class), new TransactionTemplate(), mock(AuthContextProperties.class), false));
+                mock(EmailService.class), mock(JdbcTemplate.class), new TransactionTemplate(), new AuthContextProperties(), false));
         context.refresh();
         try {
             assertThat(awaitSchedulerThreads(before + 1)).as("the delegate runs one scheduler").isTrue();

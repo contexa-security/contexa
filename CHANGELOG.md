@@ -8,6 +8,13 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A password alone no longer fills the user's mailbox.** Every request for a code mailed one, so twenty requests sent
+  twenty mails. Contexa's own sign-in now mails an address once in `contexa.auth.mfa.email-resend-interval-seconds` (120
+  seconds, a setting without effect until now), requests at once included, on every node with the Redis store. A request
+  inside the interval is answered as any other and stays at the code: the code mailed before stays good, and nothing tells
+  whether an account exists. A mail that failed starts no wait and a used code ends it. Zero or less keeps 120 seconds and
+  logs an error at start. While the Redis store is down no code is mailed. A `OneTimeTokenGenerationSuccessHandler` of your
+  own gets a token with an empty value for such a request.
 - **A stored ALLOW no longer waives the second step of a new sign-in.** The decision was reached for another request and
   the sign-in read it by user alone, so a stolen password met no second step from any address or browser while the
   victim's ALLOW lasted. Under `CONTEXA_OWNED` a person's sign-in through an MFA flow now always meets the second step,
