@@ -205,6 +205,12 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
                 "MFA_PROCESSING_ERROR", error.getMessage(), request.getRequestURI(), errorResponse);
     }
 
+    @Override
+    public void handleVerificationRunning(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        request.setAttribute(MfaStateMachineIntegrator.MFA_BUSY_RETRY_REASON_ATTRIBUTE, "VERIFICATION_RUNNING");
+        writeBusyRetryResponse(request, response);
+    }
+
     private void processRequestByType(MfaRequestType requestType, HttpServletRequest request,
                                       HttpServletResponse response, FactorContext context,
                                       FilterChain filterChain) throws ServletException, IOException {

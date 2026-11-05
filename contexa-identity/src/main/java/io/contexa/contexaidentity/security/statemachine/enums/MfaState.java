@@ -60,6 +60,16 @@ public enum MfaState {
                 this == MFA_SYSTEM_ERROR;
     }
 
+    /**
+     * A credential was submitted and the request that submitted it is still at work: the next state comes from that
+     * request, and no step of the user leads out of these.
+     */
+    public boolean isVerificationRunning() {
+        return this == FACTOR_VERIFICATION_PENDING ||
+                this == FACTOR_VERIFICATION_COMPLETED ||
+                this == ALL_FACTORS_COMPLETED;
+    }
+
     public boolean isProcessing() {
         return this == AWAITING_FACTOR_CHALLENGE_INITIATION ||
                 this == FACTOR_CHALLENGE_INITIATED ||

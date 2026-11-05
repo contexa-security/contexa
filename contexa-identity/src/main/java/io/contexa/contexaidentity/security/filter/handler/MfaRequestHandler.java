@@ -35,4 +35,7 @@ public interface MfaRequestHandler {
 
     void handleGenericError(HttpServletRequest request, HttpServletResponse response,
                             FactorContext context, Exception error) throws ServletException, IOException;
+
+    /** Another request of the flow is verifying a credential: this one is told to retry and changes nothing. */
+    void handleVerificationRunning(HttpServletRequest request, HttpServletResponse response) throws IOException;
 }
