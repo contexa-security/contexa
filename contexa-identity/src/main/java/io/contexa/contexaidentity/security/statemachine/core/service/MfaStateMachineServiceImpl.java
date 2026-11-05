@@ -50,6 +50,33 @@ public class MfaStateMachineServiceImpl extends AbstractMfaStateMachineService {
         this.redissonClient = redissonClient;
     }
 
+    /**
+     * Redis replaces a record in two commands (Spring Data deletes the key, then sets it) and this read takes no lock,
+     * so a read between them finds no flow while the flow exists. The filters end a flow they do not find, so a flow that
+     * looks gone is read again once the lock says no write is under way. A flow that cannot be read does not get here:
+     * its read fails.
+     */
+    @Override
+    public FactorContext getFactorContext(String sessionId) {
+        FactorContext context = super.getFactorContext(sessionId);
+        return context != null ? context : readBehindWrites(sessionId);
+    }
+
+    private FactorContext readBehindWrites(String sessionId) {
+        boolean lockAcquired = false;
+        try {
+            lockAcquired = tryAcquireLock(sessionId, userRequestLockWaitTimeMillis(), TimeUnit.MILLISECONDS);
+            return super.getFactorContext(sessionId);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new MfaStateMachineException("FactorContext retrieval interrupted: " + sessionId, e);
+        } finally {
+            if (lockAcquired) {
+                releaseLock(sessionId);
+            }
+        }
+    }
+
     @Override
     protected boolean tryAcquireLock(String sessionId, long waitTime, TimeUnit unit) throws InterruptedException {
         RLock lock = redissonClient.getLock(LOCK_KEY_PREFIX + sessionId);

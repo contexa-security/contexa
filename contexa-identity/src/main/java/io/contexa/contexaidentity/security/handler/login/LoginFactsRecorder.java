@@ -159,8 +159,8 @@ public final class LoginFactsRecorder {
      * principal is the token, also when Zero Trust re-wrapped it) the login the token states in its claims.
      */
     @Nullable
-    private static LoginFactsDetails loginOf(@Nullable Authentication challenged, @Nullable String remoteAddress,
-                                             @Nullable String sessionId) {
+    public static LoginFactsDetails loginOf(@Nullable Authentication challenged, @Nullable String remoteAddress,
+                                            @Nullable String sessionId) {
         if (challenged == null) {
             return null;
         }
