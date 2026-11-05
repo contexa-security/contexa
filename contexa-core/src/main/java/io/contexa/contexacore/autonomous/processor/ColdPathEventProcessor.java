@@ -27,6 +27,7 @@ import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -861,7 +862,7 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
         if (event != null) {
             putIfNotNull(metadata, "eventId", event.getEventId());
             putIfNotNull(metadata, "userId", event.getUserId());
-            putIfNotNull(metadata, "sessionId", event.getSessionId());
+            putIfNotNull(metadata, "sessionId", RequestFactRedaction.sessionReference(event.getSessionId()));
             putIfNotNull(metadata, "clientIp", event.getSourceIp());
             putIfNotNull(metadata, "userAgent", event.getUserAgent());
         }

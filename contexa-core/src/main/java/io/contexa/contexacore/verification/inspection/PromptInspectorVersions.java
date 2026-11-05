@@ -91,7 +91,9 @@ public final class PromptInspectorVersions {
                     + "checked against them (CQ-1)"),
             new Version(27, "a v21 past record line with the learned field and, for a record with arguments from a tool's "
                     + "output, the arguments field, compared with the sealed records that keep how they were learned "
-                    + "(BR-C6)"));
+                    + "(BR-C6)"),
+            new Version(28, "a package without the signature it should carry, whatever schema it names, and one whose "
+                    + "predecessor is gone inside the retention, pointed at (Q-21)"));
 
     private PromptInspectorVersions() {
     }

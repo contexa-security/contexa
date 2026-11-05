@@ -264,7 +264,8 @@ public class DynamicModelRegistry {
             log.error("[DynamicModelRegistry] The primary chat model to copy for {} is not available", canonicalId, e);
             return null;
         }
-        ChatModel variant = ChatModelVariants.withModel(primary, canonicalId).orElse(null);
+        ChatModel variant = isAnotherProvidersModel(primary, canonicalId) ? null
+                : ChatModelVariants.withModel(primary, canonicalId).orElse(null);
         if (variant != null) {
             String provider = ChatModelProviders.providerOf(variant);
             ModelDescriptor descriptor = modelDescriptors.get(canonicalId);
@@ -276,6 +277,17 @@ public class DynamicModelRegistry {
             }
         }
         return variant;
+    }
+
+    /**
+     * Claude's API answers for Claude models only, so a model id that names another provider is not made from an
+     * Anthropic chat model: every call would fail where the primary model answers. An OpenAI chat model may stand for a
+     * gateway to any model, and a model id that names no provider cannot be told.
+     */
+    private boolean isAnotherProvidersModel(ChatModel base, String modelId) {
+        String named = inferProviderFromModelName(modelId);
+        return "anthropic".equals(ChatModelProviders.providerOf(base)) && !"anthropic".equals(named)
+                && !"spring".equals(named);
     }
 
     public Collection<ModelDescriptor> getAllModels() {

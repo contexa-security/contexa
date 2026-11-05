@@ -13,9 +13,11 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.aop.AopAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import javax.sql.DataSource;
 import java.lang.reflect.Method;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 
@@ -58,6 +60,19 @@ class SealedEvidenceStoreAutoConfigurationTest {
                             .containsExactly("contexaPqaCanonicalSecurityContextSerializer");
                     assertThat(context).hasSingleBean(SealedEvidenceCaptureHandler.class);
                     assertThat(context).hasSingleBean(SealedEvidencePackageRetentionScheduler.class);
+                });
+    }
+
+    /** Q-21: the integrity that tells a package's state reads the packages around it from the store. */
+    @Test
+    void theIntegrityReadsTheChainFromTheStore() {
+        runner.withBean("contexaJdbcTemplate", JdbcTemplate.class, () -> new JdbcTemplate(mock(DataSource.class)))
+                .withPropertyValues("contexa.pqa.oss.sealed-evidence.retention.clean-period=P7D")
+                .run(context -> {
+                    SealedEvidencePackageIntegrity integrity = context.getBean(SealedEvidencePackageIntegrity.class);
+                    assertThat(ReflectionTestUtils.getField(integrity, "chain"))
+                            .isSameAs(context.getBean(SealedEvidencePackageRepository.class));
+                    assertThat(ReflectionTestUtils.getField(integrity, "keptAtLeast")).isEqualTo(Duration.ofDays(7));
                 });
     }
 

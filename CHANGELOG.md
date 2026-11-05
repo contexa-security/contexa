@@ -22,6 +22,36 @@ The format is based on Keep a Changelog and the project follows semantic version
   request failed with `AuthenticationCredentialsNotFoundException`. There is no one to decide for, so it now runs: the first
   run of each method writes a warning, and `ctxa_ai_security_llm_trigger_suppression` keeps a `RAN_WITHOUT_USER` row a minute
   per method with the calls counted. A user carried into the thread is decided, and a request with no user stays refused.
+- **A live session id no longer leaves the running application.** The sealed evidence, the audit log, the decision
+  observations, the vector store and the model's input name a session by a reference (`sid-` and 24 hex digits of its
+  SHA-256): two records of one session carry the same reference, and the reference signs nobody in. The session stores
+  and the event a node hands to another keep the id, since they are keyed by it. Rows already stored stay as they are.
+  The `session_id` of the audit log and the observations is now that reference, so it cannot be matched to a live
+  session: `ctxa_active_sessions` and the session store still hold the id.
+- A query string keeps the names of its parameters, not their values (`pin&newPwd`): in the sealed evidence, the decision
+  observations and the session's records. A part without `=` is left out, since it may be the value itself. The model's
+  input never held a query.
+- **A sealed package changed without the signing key no longer passes the re-inspection.** Where the installation signs,
+  a package without the signature it should carry fails instead of reading as not verifiable, whatever schema it names:
+  a decision changed, its schema lowered and its hash computed again used to pass in full. Packages captured before the
+  oldest signed package kept are the ones sealed before a key existed and stay as they were. Run a re-inspection after
+  this version to read the packages already kept: the inspector version moves to 28.
+- The re-inspection follows `previous_package_hash`: the package after one that was removed fails, naming the hash that
+  is gone. A package the retention may have taken (older than the shorter of `retention.period` and
+  `retention.clean-period`) is no finding. The limits of the seal are in `SECURITY.md`.
+- The console's version comparison and shadow pairs read the sealed decision, which the package hash covers, not the
+  `decision_jsonb` copy beside it.
+- **A layer model set in `contexa.security.tiered.llm.layer1.model` or `layer2.model` runs with Anthropic from the
+  settings alone.** The second layer used to run on the first layer's model without a word, and one chat model bean of
+  the second layer's model pulled the first layer onto it too. Each layer's model is now made from the Anthropic chat
+  model, with the same client and default options of its own, so a model that refuses sampling values is not sent the
+  defaults of another one. No chat model bean of your own is needed.
+- A layer model that cannot be made (no `contexa.llm.bindings.chat` binding and a provider other than OpenAI or
+  Anthropic, or another provider's model id on Anthropic) is told at the start in one ERROR line: the layer, the model
+  set and the model that runs in its place. The application starts as it did. A wrong model id of the same provider
+  cannot be told without a paid call and fails at the first call of that layer.
+- A decision record names the model that answered, else the model that was asked. A decision that never reached a
+  model (`QUEUE_TIMEOUT`, `REJECTED_BACKPRESSURE`) names none; it used to name the configured model.
 - **A user can answer a CHALLENGE in `contexa.infrastructure.mode=distributed` whatever the sign-in is made of.** An MFA
   flow stored in Redis could not be read back when the sign-in held a read-only collection (a one-time token or a
   remember-me sign-in with Contexa's user or Spring's `User`, a JWT, an OAuth2 login) or an object the reading node
