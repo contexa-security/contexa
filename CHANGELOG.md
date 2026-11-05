@@ -8,6 +8,11 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **The refresh entry point no longer hands out what another client was issued.** `/api/refresh` asks for no client
+  authentication, and a still valid access token never reached the token endpoint, which is what refuses a token of another
+  client: whoever held a refresh token of an application you registered yourself got that application's access token back
+  without its secret. The entry point now renews only what Contexa's internal client was issued, and answers any other token
+  as one that is not there. That application goes on renewing its tokens at `/oauth2/token` with its secret.
 - **A blocked address no longer locks an account through the password page.** `POST /contexa/password-change` refused a
   blocked address but still counted the attempt against the account it named, the right password too, so that address went
   on locking its owner out where a sign-in would have counted nothing. The attempt is now refused as before and counted
