@@ -81,8 +81,18 @@ public class EmbeddingDimensionConsistencyVerifier implements SmartInitializingS
                     Embedding dimension mismatch before vector storage starts.
                     selectedProvider=%s, selectedModel=%s, expectedDimension=%d, configuredPgVectorDimension=%d.
                     Keep contexa.vectorstore.pgvector.dimensions and provider embedding dimensions identical.
+                    Name the provider with contexa.llm.selection.embedding.priority when the application has more than one.
                     Existing vectors must be regenerated when the dimension changes.
                     """.formatted(expected.provider(), expected.modelId(), expected.dimensions(), configuredDimension).trim());
+        }
+
+        OptionalInt produced = EmbeddingDimensionResolver.modelOutputDimensions(environment, expected.provider(), expected.modelId());
+        if (produced.isPresent() && produced.getAsInt() != configuredDimension) {
+            throw new IllegalStateException("""
+                    The embedding model's vectors do not fit the vector store.
+                    selectedProvider=%s, selectedModel=%s, modelOutputDimension=%d, configuredPgVectorDimension=%d.
+                    Set contexa.vectorstore.pgvector.dimensions to the model's output, or configure the model to produce %d dimensions.
+                    """.formatted(expected.provider(), expected.modelId(), produced.getAsInt(), configuredDimension, configuredDimension).trim());
         }
 
         OptionalInt existingTableDimension = readExistingPgVectorTableDimension();
@@ -90,8 +100,9 @@ public class EmbeddingDimensionConsistencyVerifier implements SmartInitializingS
             throw new IllegalStateException("""
                     Existing vector_store table dimension does not match active embedding profile.
                     selectedProvider=%s, selectedModel=%s, configuredPgVectorDimension=%d, existingTableDimension=%d.
-                    Recreate the vector table or re-embed existing documents before starting with this embedding profile.
-                    """.formatted(expected.provider(), expected.modelId(), configuredDimension, existingTableDimension.getAsInt()).trim());
+                    Recreate the vector table or re-embed existing documents before starting with this embedding profile.%s
+                    """.formatted(expected.provider(), expected.modelId(), configuredDimension, existingTableDimension.getAsInt(),
+                            earlierOpenAiStoreHint(expected.provider(), existingTableDimension.getAsInt())).trim());
         }
 
         log.info("Embedding vector dimension verified: provider={}, model={}, dimension={}, source={}",
@@ -173,6 +184,17 @@ public class EmbeddingDimensionConsistencyVerifier implements SmartInitializingS
                 .filter(StringUtils::hasText)
                 .distinct()
                 .toList();
+    }
+
+    /** Earlier versions asked OpenAI for this on the application's behalf: declared by the application, nothing is embedded again. */
+    private String earlierOpenAiStoreHint(String provider, int tableDimension) {
+        if (!"openai".equals(normalize(provider)) || tableDimension != EmbeddingDimensionResolver.PRODUCT_DEFAULT_DIMENSIONS) {
+            return "";
+        }
+        return """
+
+                A store made by an earlier Contexa keeps its vectors with spring.ai.openai.embedding.options.model=text-embedding-3-small
+                and spring.ai.openai.embedding.options.dimensions=%d.""".formatted(tableDimension);
     }
 
     private OptionalInt readExistingPgVectorTableDimension() {

@@ -24,8 +24,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class EmbeddingDimensionResolverTest {
 
     @Test
-    @DisplayName("resolves OpenAI text-embedding-3-small to the 1024 product default")
-    void resolvesOpenAiSmallToProductDefault() {
+    @DisplayName("follows Spring AI's own default when the application names no OpenAI model")
+    void followsSpringAiWhenTheApplicationNamesNoOpenAiModel() {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty("contexa.llm.selection.embedding.priority", "openai");
 
@@ -33,8 +33,8 @@ class EmbeddingDimensionResolverTest {
                 EmbeddingDimensionResolver.resolveForEnvironment(environment);
 
         assertThat(resolved.provider()).isEqualTo("openai");
-        assertThat(resolved.modelId()).isEqualTo("text-embedding-3-small");
-        assertThat(resolved.dimensions()).isEqualTo(1024);
+        assertThat(resolved.modelId()).isEqualTo("text-embedding-ada-002");
+        assertThat(resolved.dimensions()).isEqualTo(1536);
         assertThat(resolved.modelKnown()).isTrue();
         assertThat(resolved.explicit()).isFalse();
     }
@@ -97,5 +97,61 @@ class EmbeddingDimensionResolverTest {
         assertThat(resolved.modelKnown()).isTrue();
         assertThat(resolved.explicit()).isTrue();
         assertThat(resolved.dimensions()).isEqualTo(1536);
+    }
+
+    /** Contexa asks nothing of the application's model, so what counts is what each model produces by itself. */
+    @Test
+    @DisplayName("reads what the named OpenAI model produces by itself")
+    void readsWhatTheNamedOpenAiModelProducesByItself() {
+        assertThat(resolveOpenAi("text-embedding-ada-002").dimensions()).isEqualTo(1536);
+        assertThat(resolveOpenAi("text-embedding-3-small").dimensions()).isEqualTo(1536);
+        assertThat(resolveOpenAi("text-embedding-3-large").dimensions()).isEqualTo(3072);
+        assertThat(resolveOpenAi("a-model-nobody-knows").modelKnown()).isFalse();
+    }
+
+    @Test
+    @DisplayName("keeps the length the application asked of its OpenAI model")
+    void keepsTheLengthTheApplicationAskedFor() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("contexa.llm.selection.embedding.priority", "openai")
+                .withProperty("spring.ai.openai.embedding.options.model", "text-embedding-3-small")
+                .withProperty("spring.ai.openai.embedding.options.dimensions", "1024");
+
+        assertThat(EmbeddingDimensionResolver.resolveForEnvironment(environment).dimensions()).isEqualTo(1024);
+    }
+
+    @Test
+    @DisplayName("reads an unnamed provider from what the application selected in Spring AI")
+    void readsAnUnnamedProviderFromSpringAisSelection() {
+        MockEnvironment environment = new MockEnvironment().withProperty("spring.ai.model.embedding", "ollama");
+
+        EmbeddingDimensionResolver.ResolvedDimension resolved = EmbeddingDimensionResolver.resolveForEnvironment(environment);
+
+        assertThat(resolved.provider()).isEqualTo("ollama");
+        assertThat(resolved.dimensions()).isEqualTo(1024);
+    }
+
+    /** Ollama's vectors are 1024 long and cannot be asked for more: 1536 here would stop an application that only has Ollama. */
+    @Test
+    @DisplayName("does not assume OpenAI of an application that does not have it")
+    void doesNotAssumeOpenAiOfAnApplicationThatDoesNotHaveIt() {
+        assertThat(EmbeddingDimensionResolver.providerOnClassPath(new ClassLoader(null) {
+        })).isEqualTo("ollama");
+        assertThat(EmbeddingDimensionResolver.providerOnClassPath(getClass().getClassLoader())).isEqualTo("openai");
+    }
+
+    @Test
+    @DisplayName("tells what the model produces from what the store was told")
+    void tellsWhatTheModelProducesFromWhatTheStoreWasTold() {
+        MockEnvironment environment = new MockEnvironment().withProperty("contexa.vectorstore.pgvector.dimensions", "1024");
+
+        assertThat(EmbeddingDimensionResolver.modelOutputDimensions(environment, "openai", "text-embedding-ada-002")).hasValue(1536);
+        assertThat(EmbeddingDimensionResolver.modelOutputDimensions(environment, "ollama", "custom-embed")).isEmpty();
+    }
+
+    private static EmbeddingDimensionResolver.ResolvedDimension resolveOpenAi(String model) {
+        return EmbeddingDimensionResolver.resolveForEnvironment(new MockEnvironment()
+                .withProperty("contexa.llm.selection.embedding.priority", "openai")
+                .withProperty("spring.ai.openai.embedding.options.model", model));
     }
 }

@@ -37,6 +37,7 @@ import static org.mockito.Mockito.when;
 class LearningLossMetricsTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
+            .withPropertyValues("contexa.llm.selection.embedding.priority=ollama")
             .withConfiguration(AutoConfigurations.of(CoreRAGAutoConfiguration.class))
             .withBean(AIStrategyRegistry.class, () -> mock(AIStrategyRegistry.class))
             .withBean(AuditLogger.class, () -> mock(AuditLogger.class))

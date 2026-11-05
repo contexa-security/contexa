@@ -76,8 +76,8 @@ class DependencyOnlyEnvironmentIsolationIntegrationTest {
             assertThat(environment.containsProperty("spring.ai.vectorstore.pgvector.initialize-schema")).isFalse();
             assertThat(environment.getProperty("spring.ai.vectorstore.pgvector.dimensions")).isNull();
             assertThat(environment.getProperty("contexa.vectorstore.pgvector.initialize-schema")).isEqualTo("true");
-            assertThat(environment.getProperty("spring.ai.openai.embedding.options.model"))
-                    .isEqualTo("text-embedding-3-small");
+            // and so does its embedding model: Contexa follows it
+            assertThat(environment.getProperty("spring.ai.openai.embedding.options.model")).isNull();
             // the application's metrics stay the application's, also once Contexa is active
             assertThat(Binder.get(environment)
                     .bind("management.metrics.enable", Bindable.mapOf(String.class, Boolean.class))
@@ -90,15 +90,16 @@ class DependencyOnlyEnvironmentIsolationIntegrationTest {
         try (ConfigurableApplicationContext context = new SpringApplicationBuilder(DependencyOnlyApplication.class)
                 .properties(
                         "spring.main.banner-mode=off",
-                        "spring.main.web-application-type=none")
+                        "spring.main.web-application-type=none",
+                        "contexa.llm.selection.embedding.priority=ollama")
                 .run()) {
             ConfigurableEnvironment environment = context.getEnvironment();
-            assertThat(environment.getProperty("spring.ai.openai.embedding.options.model")).isNull();
+            assertThat(environment.getProperty("spring.ai.model.embedding")).isNull();
 
             environment.getPropertySources().addFirst(new MapPropertySource(
                     "contexaAiSecurityAnnotation", Map.of("contexa.ai.security.mode", "SANDBOX")));
 
-            assertThat(environment.getProperty("spring.ai.openai.embedding.options.model")).isEqualTo("text-embedding-3-small");
+            assertThat(environment.getProperty("spring.ai.model.embedding")).isEqualTo("ollama");
         }
     }
 

@@ -95,9 +95,14 @@ public class IamSeedDataAutoConfiguration {
             "ctxa_ai_security_decision_observation"
     };
 
+    private static final String VECTOR_DIMENSIONS_PROPERTY = "contexa.vectorstore.pgvector.dimensions";
+    private static final int SCHEMA_VECTOR_DIMENSIONS = 1024;
+    private static final int HNSW_MAX_DIMENSIONS = 2000;
+    private static final Pattern VECTOR_INDEX =
+            Pattern.compile("(?is)create\\s+index\\s+\\S+\\s+on\\s+ctxa_vector_store\\s+using\\s+hnsw[^;]*;");
+
     static final String[] SEED_LOCATIONS = {
             "META-INF/contexa/db/data.sql",
-            "META-INF/contexa/db/data-hcad-removal.sql",
             "META-INF/contexa/db/data-menu.sql",
             "META-INF/contexa/db/data-system-settings.sql"
     };
@@ -182,7 +187,8 @@ public class IamSeedDataAutoConfiguration {
                 contexaOssSchemaGovernance.assertNoOssOwnershipCollisions(preInstallationObjects);
             }
             initializeSchemaAndSeedData(dataSource, schemaInstallState, enterpriseManaged,
-                    enterpriseRequested ? maintenanceBacklog : null, seedLocations(environment));
+                    enterpriseRequested ? maintenanceBacklog : null, seedLocations(environment),
+                        environment.getProperty(VECTOR_DIMENSIONS_PROPERTY, Integer.class, SCHEMA_VECTOR_DIMENSIONS));
             seedAdministrator(dataSource, environment);
             OssSchemaGovernance.GovernanceReport report = contexaOssSchemaGovernance.initializeAndRecordOss(
                     schemaInstallState == SchemaInstallState.ABSENT ? preInstallationObjects : null);
@@ -222,7 +228,8 @@ public class IamSeedDataAutoConfiguration {
             SchemaInstallState schemaInstallState,
             boolean enterpriseManaged,
             OssSchemaMaintenanceBacklog deferTo,
-            List<String> seedLocations)
+            List<String> seedLocations,
+            int vectorDimensions)
             throws SQLException, IOException {
         if (schemaInstallState == SchemaInstallState.PARTIAL) {
             throw new IllegalStateException(
@@ -237,7 +244,7 @@ public class IamSeedDataAutoConfiguration {
                     continue;
                 }
                 String sql = sanitizeSchemaSqlForInstalledDatabase(
-                        schema.getContentAsString(StandardCharsets.UTF_8));
+                        sizeVectorTable(schema.getContentAsString(StandardCharsets.UTF_8), vectorDimensions));
                 executeSchemaSql(dataSource, location, sql);
                 log.info("[IamSeedData] {} executed", location);
             }
@@ -469,7 +476,7 @@ public class IamSeedDataAutoConfiguration {
             seedState = detectPqaOfficialSeedState(dataSource);
         }
         if (seedState != PqaOfficialSeedState.COMPLETE) {
-            log.warn("[IamSeedData] PQA official contract catalog seed is {}; attempting catalog completion",
+            log.info("[IamSeedData] PQA official contract catalog seed is {}; attempting catalog completion",
                     seedState);
             completePqaOfficialContractCatalog(dataSource);
             seedState = detectPqaOfficialSeedState(dataSource);
@@ -723,6 +730,15 @@ public class IamSeedDataAutoConfiguration {
     private static String abbreviate(String sqlStatement) {
         String singleLine = sqlStatement.replaceAll("\\s+", " ").trim();
         return singleLine.length() <= 500 ? singleLine : singleLine.substring(0, 500) + "...";
+    }
+
+    /**
+     * The vector table is made for the embedding model in use, which is the application's choice: vectors of another size cannot
+     * be stored. pgvector's HNSW index stops at 2000 dimensions, and the vector store says what to do about that at start.
+     */
+    static String sizeVectorTable(String sql, int dimensions) {
+        String sized = sql.replace("embedding vector(" + SCHEMA_VECTOR_DIMENSIONS + ")", "embedding vector(" + dimensions + ")");
+        return dimensions > HNSW_MAX_DIMENSIONS ? VECTOR_INDEX.matcher(sized).replaceAll("") : sized;
     }
 
     static String sanitizeSchemaSqlForInstalledDatabase(String sql) {

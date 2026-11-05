@@ -18,17 +18,23 @@ package io.contexa.autoconfigure.compat;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.PropertySource;
+import org.springframework.util.ClassUtils;
 import org.springframework.util.StringUtils;
 
 import java.util.Locale;
 import java.util.Optional;
+import java.util.OptionalInt;
 
 public final class EmbeddingDimensionResolver {
 
     public static final int PRODUCT_DEFAULT_DIMENSIONS = 1024;
-    public static final String DEFAULT_OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
+    /** What Spring AI uses when the application names no model: Contexa follows the application's embeddings, it does not set them. */
+    public static final String DEFAULT_OPENAI_EMBEDDING_MODEL = "text-embedding-ada-002";
     public static final String DEFAULT_OLLAMA_EMBEDDING_MODEL = "mxbai-embed-large";
 
+    private static final int OPENAI_DEFAULT_DIMENSIONS = 1536;
+    private static final int OPENAI_LARGE_DIMENSIONS = 3072;
+    private static final String OPENAI_EMBEDDING_MODEL_CLASS = "org.springframework.ai.openai.OpenAiEmbeddingModel";
     private static final String DEFAULT_SOURCE_NAME = ContexaDefaultPropertiesPostProcessor.SOURCE_NAME;
 
     private EmbeddingDimensionResolver() {
@@ -86,6 +92,20 @@ public final class EmbeddingDimensionResolver {
         return new ResolvedDimension(provider, model, PRODUCT_DEFAULT_DIMENSIONS, "product-default-unknown-model", false, false);
     }
 
+    /**
+     * What the model produces, whatever the vector store was told to keep; empty when that is not known. A size declared for the
+     * model counts as what it produces, because the model's options carry it.
+     */
+    public static OptionalInt modelOutputDimensions(Environment environment, String provider, String modelId) {
+        Optional<Integer> declared = readInt(environment, true, "contexa.llm.embedding.dimensions")
+                .or(() -> readProviderDimensions(environment, provider, true));
+        if (declared.isPresent()) {
+            return OptionalInt.of(declared.get());
+        }
+        ModelDimensionPolicy policy = policyFor(provider, modelId);
+        return policy.known() ? OptionalInt.of(policy.defaultDimensions()) : OptionalInt.empty();
+    }
+
     private static Optional<Integer> readProviderDimensions(Environment environment, String provider, boolean ignoreContexaDefaults) {
         String normalizedProvider = normalize(provider);
         if ("openai".equals(normalizedProvider)) {
@@ -106,16 +126,13 @@ public final class EmbeddingDimensionResolver {
 
         if ("openai".equals(providerKey)) {
             if (!StringUtils.hasText(modelKey) || DEFAULT_OPENAI_EMBEDDING_MODEL.equals(modelKey)) {
-                return ModelDimensionPolicy.known(PRODUCT_DEFAULT_DIMENSIONS, "openai-text-embedding-3-small-product-default");
+                return ModelDimensionPolicy.known(OPENAI_DEFAULT_DIMENSIONS, "openai-ada-fixed-default");
+            }
+            if ("text-embedding-3-small".equals(modelKey)) {
+                return ModelDimensionPolicy.known(OPENAI_DEFAULT_DIMENSIONS, "openai-text-embedding-3-small-default");
             }
             if ("text-embedding-3-large".equals(modelKey)) {
-                return ModelDimensionPolicy.known(PRODUCT_DEFAULT_DIMENSIONS, "openai-text-embedding-3-large-product-default");
-            }
-            if ("text-embedding-ada-002".equals(modelKey)) {
-                return ModelDimensionPolicy.known(1536, "openai-ada-fixed-default");
-            }
-            if (modelKey.startsWith("text-embedding-3")) {
-                return ModelDimensionPolicy.known(PRODUCT_DEFAULT_DIMENSIONS, "openai-text-embedding-3-product-default");
+                return ModelDimensionPolicy.known(OPENAI_LARGE_DIMENSIONS, "openai-text-embedding-3-large-default");
             }
             return ModelDimensionPolicy.unknown();
         }
@@ -136,15 +153,21 @@ public final class EmbeddingDimensionResolver {
     private static String firstProvider(Environment environment) {
         String priority = firstText(environment,
                 "contexa.llm.selection.embedding.priority",
-                "contexa.llm.embedding-model-priority")
-                .orElse("openai");
+                "contexa.llm.embedding-model-priority",
+                "spring.ai.model.embedding")
+                .orElseGet(() -> providerOnClassPath(EmbeddingDimensionResolver.class.getClassLoader()));
         for (String part : priority.split(",")) {
             String provider = normalize(part);
             if (StringUtils.hasText(provider)) {
                 return provider;
             }
         }
-        return "openai";
+        return providerOnClassPath(EmbeddingDimensionResolver.class.getClassLoader());
+    }
+
+    /** With no provider named: OpenAI only when the application has its embedding model, Ollama's vectors do not fit OpenAI's size. */
+    static String providerOnClassPath(ClassLoader classLoader) {
+        return ClassUtils.isPresent(OPENAI_EMBEDDING_MODEL_CLASS, classLoader) ? "openai" : "ollama";
     }
 
     public static String modelForProvider(Environment environment, String provider) {

@@ -52,6 +52,7 @@ import static org.mockito.Mockito.mock;
 class CoreRAGAutoConfigurationGuardTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
+            .withPropertyValues("contexa.llm.selection.embedding.priority=ollama")
             .withConfiguration(AutoConfigurations.of(CoreRAGAutoConfiguration.class))
             .withBean(AIStrategyRegistry.class, () -> mock(AIStrategyRegistry.class))
             .withBean(AuditLogger.class, () -> mock(AuditLogger.class))

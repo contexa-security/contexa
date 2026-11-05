@@ -55,8 +55,6 @@ public class ContexaDefaultPropertiesPostProcessor implements EnvironmentPostPro
         defaults.put("contexa.vectorstore.pgvector.initialize-schema", "true");
         defaults.put("contexa.vectorstore.pgvector.schema-name", "public");
         defaults.put("contexa.vectorstore.pgvector.table-name", "ctxa_vector_store");
-        defaults.put("spring.ai.openai.embedding.options.model", EmbeddingDimensionResolver.DEFAULT_OPENAI_EMBEDDING_MODEL);
-        defaults.put("spring.ai.openai.embedding.options.dimensions", dimensionValue);
         addExplicitModelSelectionDefaults(environment, defaults);
         return defaults;
     }

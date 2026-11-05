@@ -569,4 +569,31 @@ class IamSeedDataAutoConfigurationTest {
         field.setAccessible(true);
         return field.getInt(null);
     }
+
+    private static final String VECTOR_TABLE = """
+            create table ctxa_vector_store
+            (
+                embedding vector(1024)
+            );
+
+            create index ctxa_vector_store_embedding_idx
+                on ctxa_vector_store using hnsw (embedding vector_cosine_ops);
+
+            create table ctxa_next (id bigint);
+            """;
+
+    /** A new installation with OpenAI's vectors did not start: the table was 1024 long whatever the model produced. */
+    @Test
+    void theVectorTableIsMadeForTheEmbeddingModelInUse() {
+        String sized = IamSeedDataAutoConfiguration.sizeVectorTable(VECTOR_TABLE, 1536);
+
+        assertThat(sized).contains("embedding vector(1536)").doesNotContain("vector(1024)").contains("using hnsw");
+    }
+
+    @Test
+    void aSizeTheIndexCannotHoldLeavesTheIndexOutAndTheRestIn() {
+        String sized = IamSeedDataAutoConfiguration.sizeVectorTable(VECTOR_TABLE, 3072);
+
+        assertThat(sized).contains("embedding vector(3072)").doesNotContain("using hnsw").contains("create table ctxa_next");
+    }
 }

@@ -53,6 +53,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @ConditionalOnProperty(name = "spring.ai.vectorstore.type", havingValue = "pgvector", matchIfMissing = true)
 public class ContexaPgVectorStoreAutoConfiguration {
 
+    private static final int HNSW_MAX_DIMENSIONS = 2000;
+
     /**
      * Spring AI's settings type, bound from Contexa's keys. Not a default candidate: Spring AI's auto-configuration takes this type for the application's own
      * store and must find its own bean, bound from its own keys.
@@ -74,6 +76,7 @@ public class ContexaPgVectorStoreAutoConfiguration {
                                      ObjectProvider<ObservationRegistry> observationRegistry,
                                      ObjectProvider<VectorStoreObservationConvention> customObservationConvention,
                                      ObjectProvider<BatchingStrategy> batchingStrategy) {
+        refuseWhatTheIndexCannotHold(properties);
         return PgVectorStore.builder(contexaJdbcTemplate, contexaEmbeddingModel)
                 .schemaName(properties.getSchemaName())
                 .idType(properties.getIdType())
@@ -89,5 +92,17 @@ public class ContexaPgVectorStoreAutoConfiguration {
                 .batchingStrategy(batchingStrategy.getIfAvailable(TokenCountBatchingStrategy::new))
                 .maxDocumentBatchSize(properties.getMaxDocumentBatchSize())
                 .build();
+    }
+
+    /** The database would only say that the index failed: what to do about it is said here. */
+    private static void refuseWhatTheIndexCannotHold(PgVectorStoreProperties properties) {
+        if (properties.isInitializeSchema() && properties.getIndexType() == PgVectorStore.PgIndexType.HNSW
+                && properties.getDimensions() > HNSW_MAX_DIMENSIONS) {
+            throw new IllegalStateException("""
+                    The vector store cannot create its index: an HNSW index holds at most %d dimensions and %d were asked for.
+                    Configure a smaller output, for example spring.ai.openai.embedding.options.dimensions=1536 with text-embedding-3-large,
+                    or create the table yourself and set contexa.vectorstore.pgvector.initialize-schema=false.
+                    """.formatted(HNSW_MAX_DIMENSIONS, properties.getDimensions()).trim());
+        }
     }
 }

@@ -43,20 +43,21 @@ class ContexaDefaultPropertiesPostProcessorTest {
     }
 
     @Test
-    @DisplayName("injects zero-configuration 1024-dimension vector and OpenAI embedding defaults")
+    @DisplayName("injects zero-configuration vector defaults and follows the application's OpenAI embedding model")
     void injectsZeroConfigurationDefaults() {
         MockEnvironment environment = activeEnvironment();
 
         postProcessor.postProcessEnvironment(environment, new SpringApplication());
 
-        assertThat(environment.getProperty("contexa.vectorstore.pgvector.dimensions")).isEqualTo("1024");
+        assertThat(environment.getProperty("contexa.vectorstore.pgvector.dimensions")).isEqualTo("1536");
         assertThat(environment.getProperty("contexa.vectorstore.pgvector.initialize-schema")).isEqualTo("true");
         assertThat(environment.getProperty("contexa.vectorstore.pgvector.schema-name")).isEqualTo("public");
         assertThat(environment.getProperty("contexa.vectorstore.pgvector.table-name")).isEqualTo("ctxa_vector_store");
         assertThat(environment.containsProperty("spring.ai.vectorstore.pgvector.initialize-schema"))
                 .as("Spring AI's keys belong to the application's own store").isFalse();
-        assertThat(environment.getProperty("spring.ai.openai.embedding.options.model")).isEqualTo("text-embedding-3-small");
-        assertThat(environment.getProperty("spring.ai.openai.embedding.options.dimensions")).isEqualTo("1024");
+        assertThat(environment.containsProperty("spring.ai.openai.embedding.options.model"))
+                .as("the application's embedding model is the application's").isFalse();
+        assertThat(environment.containsProperty("spring.ai.openai.embedding.options.dimensions")).isFalse();
         assertThat(environment.getProperty("contexa.llm.selection.embedding.mode")).isNull();
         assertThat(environment.getProperty("contexa.llm.selection.embedding.priority")).isNull();
         assertThat(environment.getProperty("spring.ai.model.chat")).isNull();
@@ -78,15 +79,15 @@ class ContexaDefaultPropertiesPostProcessorTest {
     }
 
     @Test
-    @DisplayName("aligns default OpenAI embedding dimensions with explicit vector-store dimensions")
-    void alignsOpenAiDimensionsWithExplicitVectorStoreDimensions() {
+    @DisplayName("keeps explicit vector-store dimensions away from the application's OpenAI model")
+    void keepsExplicitVectorStoreDimensionsAwayFromTheApplicationsModel() {
         MockEnvironment environment = activeEnvironment()
                 .withProperty("contexa.vectorstore.pgvector.dimensions", "1536");
 
         postProcessor.postProcessEnvironment(environment, new SpringApplication());
 
         assertThat(environment.getProperty("contexa.vectorstore.pgvector.dimensions")).isEqualTo("1536");
-        assertThat(environment.getProperty("spring.ai.openai.embedding.options.dimensions")).isEqualTo("1536");
+        assertThat(environment.containsProperty("spring.ai.openai.embedding.options.dimensions")).isFalse();
     }
 
     @Test
@@ -99,7 +100,7 @@ class ContexaDefaultPropertiesPostProcessorTest {
         postProcessor.postProcessEnvironment(environment, new SpringApplication());
 
         assertThat(environment.getProperty("contexa.vectorstore.pgvector.dimensions")).isEqualTo("1024");
-        assertThat(environment.getProperty("spring.ai.openai.embedding.options.dimensions")).isEqualTo("1024");
+        assertThat(environment.containsProperty("spring.ai.openai.embedding.options.dimensions")).isFalse();
         assertThat(environment.getProperty("spring.ai.model.chat")).isEqualTo("ollama");
         assertThat(environment.getProperty("spring.ai.model.embedding")).isEqualTo("ollama");
         assertThat(environment.getProperty("spring.ai.model.image")).isNull();

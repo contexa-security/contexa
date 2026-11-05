@@ -28,6 +28,25 @@ class ContexaPgVectorStoreAutoConfigurationTest {
                     PgVectorStoreAutoConfiguration.class))
             .withPropertyValues("spring.ai.vectorstore.pgvector.initialize-schema=false");
 
+    /** text-embedding-3-large produces 3072 by itself, and the database would only say that the index failed. */
+    @Test
+    void aSizeTheIndexCannotHoldIsRefusedWithWhatToDo() {
+        runner.withUserConfiguration(TwoDatabases.class)
+                .withPropertyValues("contexa.vectorstore.pgvector.dimensions=3072",
+                        "contexa.vectorstore.pgvector.initialize-schema=true")
+                .run(context -> assertThat(context.getStartupFailure()).rootCause()
+                        .hasMessageContaining("at most 2000 dimensions and 3072 were asked for")
+                        .hasMessageContaining("contexa.vectorstore.pgvector.initialize-schema=false"));
+    }
+
+    @Test
+    void aTableTheApplicationMadeItselfIsNotJudged() {
+        runner.withUserConfiguration(TwoDatabases.class)
+                .withPropertyValues("contexa.vectorstore.pgvector.dimensions=3072",
+                        "contexa.vectorstore.pgvector.initialize-schema=false")
+                .run(context -> assertThat(context).hasNotFailed());
+    }
+
     @Test
     void theVectorStoreUsesTheContexaDatabaseNotTheApplicationsOwn() {
         runner.withUserConfiguration(TwoDatabases.class).run(context -> {
