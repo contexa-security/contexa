@@ -16,7 +16,10 @@
 package io.contexa.contexacore.autonomous.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.store.StoreFailures;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import java.time.Duration;
@@ -29,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -53,6 +57,23 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
     private static final Duration DEFAULT_FAIL_COUNT_TTL = Duration.ofHours(24);
     private static final ObjectMapper LEGACY_HASH_VALUE_READER = new ObjectMapper();
     private static final RedisSerializer<Long> SCRIPT_RESULT_SERIALIZER = new GenericToStringSerializer<>(Long.class);
+    /** The users a server keeps a restriction for: far more than are restricted at one time. */
+    private static final int RESTRICTIONS_KEPT = 100_000;
+    /** How long the record's answer for a user stands while Redis does not answer: one read, not one per request. */
+    private static final Duration BLOCK_RECORD_ANSWER_TTL = Duration.ofSeconds(30);
+
+    /** A restriction this server read, and until when it holds; a BLOCK holds until a read says otherwise. */
+    private record Restriction(ZeroTrustAction action, long untilMillis) {
+
+        static Restriction of(ZeroTrustAction action) {
+            Duration ttl = action.getDefaultTtl();
+            return new Restriction(action, ttl != null ? System.currentTimeMillis() + ttl.toMillis() : Long.MAX_VALUE);
+        }
+
+        boolean inForce() {
+            return System.currentTimeMillis() < untilMillis;
+        }
+    }
 
     /**
      * Replaces the analysis hash and the last verified keys unless the stored action refuses the
@@ -122,6 +143,17 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
     /** What a stored ESCALATE is replaced with when it is read; null keeps it. */
     private volatile ZeroTrustAction escalateReplacement;
 
+    /**
+     * D-1 (PR-84): the restrictions this server read last. A read that fails used to answer PENDING_ANALYSIS, which every
+     * reader lets through, so a Redis outage lifted every BLOCK and CHALLENGE. Each read refreshes this, so a restriction
+     * lifted while Redis answers is gone from it too.
+     */
+    private final Cache<String, Restriction> restrictionsRead = Caffeine.newBuilder().maximumSize(RESTRICTIONS_KEPT).build();
+    private final Cache<String, Boolean> blockRecordAnswers = Caffeine.newBuilder().maximumSize(RESTRICTIONS_KEPT)
+            .expireAfterWrite(BLOCK_RECORD_ANSWER_TTL).build();
+    /** Whether the database's record holds a block in force for a user; the second copy of a BLOCK. */
+    private volatile Predicate<String> blockRecord;
+
     public ZeroTrustActionRedisRepository(RedisTemplate<String, Object> redisTemplate,
                                           StringRedisTemplate stringRedisTemplate) {
         this(redisTemplate, stringRedisTemplate, DEFAULT_FAIL_COUNT_TTL);
@@ -138,6 +170,62 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
     @Override
     public void setEscalateTerminalAction(ZeroTrustAction action) {
         this.escalateReplacement = ZeroTrustActionPrecedence.storedEscalateReplacement(action);
+    }
+
+    /**
+     * What to ask about a user this server read no restriction for, while Redis does not answer. A BLOCK decided on
+     * another server, or before this one started, is known only there.
+     */
+    public void setBlockRecord(Predicate<String> blockRecord) {
+        this.blockRecord = blockRecord;
+    }
+
+    /** Keeps what a read found for the moment Redis stops answering, and passes it on. */
+    private ZeroTrustAction read(String userId, ZeroTrustAction action) {
+        if (action.isAccessRestricted()) {
+            restrictionsRead.put(userId, Restriction.of(action));
+        } else {
+            restrictionsRead.invalidate(userId);
+        }
+        return action;
+    }
+
+    /**
+     * The action in force for a user whose stored decision cannot be read: the restriction this server read last, or the
+     * block the database records. Nothing else is known, so anything else goes on undecided, as the operating mode
+     * specifies; the store's gate reports the outage and the protected calls that passed.
+     */
+    private ZeroTrustAction inForceWhileUnreadable(String userId, Exception failure) {
+        if (!StoreFailures.isReportedOutage(failure)) {
+            log.error("[ZeroTrustActionRedisRepository] Failed to get current action: userId={}", userId, failure);
+        }
+        Restriction restriction = restrictionsRead.getIfPresent(userId);
+        if (restriction != null && restriction.inForce()) {
+            return restriction.action();
+        }
+        return blockRecorded(userId) ? ZeroTrustAction.BLOCK : ZeroTrustAction.PENDING_ANALYSIS;
+    }
+
+    private boolean blockRecorded(String userId) {
+        Predicate<String> record = blockRecord;
+        if (record == null) {
+            return false;
+        }
+        Boolean answered = blockRecordAnswers.getIfPresent(userId);
+        if (answered != null) {
+            return answered;
+        }
+        boolean recorded;
+        try {
+            recorded = record.test(userId);
+        } catch (RuntimeException unavailable) {
+            if (!StoreFailures.isReportedOutage(unavailable)) {
+                log.error("[ZeroTrustActionRedisRepository] Failed to read the block record: userId={}", userId, unavailable);
+            }
+            return false;
+        }
+        blockRecordAnswers.put(userId, recorded);
+        return recorded;
     }
 
     public ZeroTrustAction getCurrentAction(String userId) {
@@ -158,24 +246,27 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
 
         try {
-            String blockKey = ZeroTrustRedisKeys.userBlocked(userId);
-            if ("true".equals(stringRedisTemplate.opsForValue().get(blockKey))) {
-                return ZeroTrustAction.BLOCK;
-            }
-
-            Map<Object, Object> analysis = settledAnalysis(userId);
-            Object actionValue = analysis.get("action");
-            if (actionValue != null) {
-                return ZeroTrustAction.fromString(actionValue.toString());
-            }
-
-            // Z-16 (1-a): outside a request a decision past its TTL lapses as it does in one
-            // (ZeroTrustActionPrecedence: an ALLOW or CHALLENGE lapses with its TTL); only an unresolved ESCALATE stays.
-            return unresolvedEscalationOrPending(userId);
+            return read(userId, storedAction(userId));
         } catch (Exception e) {
-            log.error("[ZeroTrustActionRedisRepository] Failed to get current action: userId={}", userId, e);
-            return ZeroTrustAction.PENDING_ANALYSIS;
+            return inForceWhileUnreadable(userId, e);
         }
+    }
+
+    private ZeroTrustAction storedAction(String userId) {
+        String blockKey = ZeroTrustRedisKeys.userBlocked(userId);
+        if ("true".equals(stringRedisTemplate.opsForValue().get(blockKey))) {
+            return ZeroTrustAction.BLOCK;
+        }
+
+        Map<Object, Object> analysis = settledAnalysis(userId);
+        Object actionValue = analysis.get("action");
+        if (actionValue != null) {
+            return ZeroTrustAction.fromString(actionValue.toString());
+        }
+
+        // Z-16 (1-a): outside a request a decision past its TTL lapses as it does in one
+        // (ZeroTrustActionPrecedence: an ALLOW or CHALLENGE lapses with its TTL); only an unresolved ESCALATE stays.
+        return unresolvedEscalationOrPending(userId);
     }
 
     public ZeroTrustAction getCurrentAction(String userId, String contextBindingHash) {
@@ -184,49 +275,52 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
 
         try {
-            String blockKey = ZeroTrustRedisKeys.userBlocked(userId);
-            if ("true".equals(stringRedisTemplate.opsForValue().get(blockKey))) {
-                return ZeroTrustAction.BLOCK;
-            }
+            return read(userId, storedAction(userId, contextBindingHash));
+        } catch (Exception e) {
+            return inForceWhileUnreadable(userId, e);
+        }
+    }
 
-            Map<Object, Object> analysis = settledAnalysis(userId);
-            if (analysis.isEmpty()) {
-                return unresolvedEscalationOrPending(userId);
-            }
-            Object actionValue = analysis.get("action");
-            Object storedHash = analysis.get("contextBindingHash");
+    private ZeroTrustAction storedAction(String userId, String contextBindingHash) {
+        String blockKey = ZeroTrustRedisKeys.userBlocked(userId);
+        if ("true".equals(stringRedisTemplate.opsForValue().get(blockKey))) {
+            return ZeroTrustAction.BLOCK;
+        }
 
-            if (actionValue != null) {
-                ZeroTrustAction action = ZeroTrustAction.fromString(actionValue.toString());
-                if (ZeroTrustActionPrecedence.isContextBound(action)
-                        && contextBindingHash != null
-                        && storedHash != null
-                        && !storedHash.toString().equals(contextBindingHash)) {
-                    log.error("[ZeroTrustActionRedisRepository] Context binding hash mismatch detected: userId={}, action={}", userId, action);
+        Map<Object, Object> analysis = settledAnalysis(userId);
+        if (analysis.isEmpty()) {
+            return unresolvedEscalationOrPending(userId);
+        }
+        Object actionValue = analysis.get("action");
+        Object storedHash = analysis.get("contextBindingHash");
+
+        if (actionValue != null) {
+            ZeroTrustAction action = ZeroTrustAction.fromString(actionValue.toString());
+            if (ZeroTrustActionPrecedence.isContextBound(action)
+                    && contextBindingHash != null
+                    && storedHash != null
+                    && !storedHash.toString().equals(contextBindingHash)) {
+                log.error("[ZeroTrustActionRedisRepository] Context binding hash mismatch detected: userId={}, action={}", userId, action);
+                return ZeroTrustAction.PENDING_ANALYSIS;
+            }
+            return action;
+        }
+
+        String lastAction = readLastVerifiedAction(userId);
+        if (lastAction != null) {
+            ZeroTrustAction action = ZeroTrustAction.fromString(lastAction);
+            if (ZeroTrustActionPrecedence.isContextBound(action)
+                    && contextBindingHash != null) {
+                String lastContextHash = readLastVerifiedActionContext(userId);
+                if (lastContextHash != null && !lastContextHash.equals(contextBindingHash)) {
+                    log.error("[ZeroTrustActionRedisRepository] Last verified context binding hash mismatch: userId={}, action={}", userId, action);
                     return ZeroTrustAction.PENDING_ANALYSIS;
                 }
-                return action;
             }
-
-            String lastAction = readLastVerifiedAction(userId);
-            if (lastAction != null) {
-                ZeroTrustAction action = ZeroTrustAction.fromString(lastAction);
-                if (ZeroTrustActionPrecedence.isContextBound(action)
-                        && contextBindingHash != null) {
-                    String lastContextHash = readLastVerifiedActionContext(userId);
-                    if (lastContextHash != null && !lastContextHash.equals(contextBindingHash)) {
-                        log.error("[ZeroTrustActionRedisRepository] Last verified context binding hash mismatch: userId={}, action={}", userId, action);
-                        return ZeroTrustAction.PENDING_ANALYSIS;
-                    }
-                }
-                return action;
-            }
-
-            return ZeroTrustAction.PENDING_ANALYSIS;
-        } catch (Exception e) {
-            log.error("[ZeroTrustActionRedisRepository] Failed to get current action with context: userId={}", userId, e);
-            return ZeroTrustAction.PENDING_ANALYSIS;
+            return action;
         }
+
+        return ZeroTrustAction.PENDING_ANALYSIS;
     }
 
     // An ESCALATE whose analysis hash expires without resolution keeps reading as ESCALATE through the 24 h
@@ -308,7 +402,9 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                     entries.get("llmProposedAction") != null ? entries.get("llmProposedAction").toString() : null
             );
         } catch (Exception e) {
-            log.error("[ZeroTrustActionRedisRepository] Failed to get analysis data: userId={}", userId, e);
+            if (!StoreFailures.isReportedOutage(e)) {
+                log.error("[ZeroTrustActionRedisRepository] Failed to get analysis data: userId={}", userId, e);
+            }
             return ZeroTrustAnalysisData.pending();
         }
     }
@@ -376,7 +472,9 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             String key = ZeroTrustRedisKeys.blockMfaPending(userId);
             return "true".equals(stringRedisTemplate.opsForValue().get(key));
         } catch (Exception e) {
-            log.error("[ZeroTrustActionRedisRepository] Failed to check block-mfa-pending: userId={}", userId, e);
+            if (!StoreFailures.isReportedOutage(e)) {
+                log.error("[ZeroTrustActionRedisRepository] Failed to check block-mfa-pending: userId={}", userId, e);
+            }
             return false;
         }
     }
@@ -403,7 +501,9 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             String retryKey = "security:escalate:retry:" + userId;
             return Boolean.TRUE.equals(stringRedisTemplate.hasKey(retryKey));
         } catch (Exception e) {
-            log.error("[ZeroTrustActionRedisRepository] Failed to check escalate retry: userId={}", userId, e);
+            if (!StoreFailures.isReportedOutage(e)) {
+                log.error("[ZeroTrustActionRedisRepository] Failed to check escalate retry: userId={}", userId, e);
+            }
             return false;
         }
     }
@@ -642,7 +742,9 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             String value = stringRedisTemplate.opsForValue().get(key);
             return value != null ? Long.parseLong(value) : 0;
         } catch (Exception e) {
-            log.error("[ZeroTrustActionRedisRepository] Failed to get block MFA fail count: userId={}", userId, e);
+            if (!StoreFailures.isReportedOutage(e)) {
+                log.error("[ZeroTrustActionRedisRepository] Failed to get block MFA fail count: userId={}", userId, e);
+            }
             return 0;
         }
     }
@@ -799,7 +901,9 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             }
             return System.currentTimeMillis() < Long.parseLong(expiresAt.toString().trim());
         } catch (Exception e) {
-            log.error("[ZeroTrustActionRedisRepository] Failed to read decision audit pending marker: userId={}", userId, e);
+            if (!StoreFailures.isReportedOutage(e)) {
+                log.error("[ZeroTrustActionRedisRepository] Failed to read decision audit pending marker: userId={}", userId, e);
+            }
             return false;
         }
     }

@@ -17,6 +17,7 @@ package io.contexa.contexacore.infra.session.impl;
 
 import java.util.Locale;
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.store.StoreFailures;
 import io.contexa.contexacore.infra.ContexaBackgroundExecution;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.infra.session.SessionIdGenerationException;
@@ -153,8 +154,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
             return null;
         }
 
-        String redisKey = SESSION_PREFIX + sessionIdFromCookie;
-        if (redisTemplate.hasKey(redisKey)) {
+        if (existsSession(sessionIdFromCookie)) {
             request.setAttribute(TEMP_SESSION_ATTR, sessionIdFromCookie);
             return sessionIdFromCookie;
         }
@@ -219,7 +219,16 @@ public class RedisMfaRepository implements MfaSessionRepository {
             return false;
         }
         String redisKey = SESSION_PREFIX + sessionId;
-        return redisTemplate.hasKey(redisKey);
+        try {
+            return redisTemplate.hasKey(redisKey);
+        } catch (RuntimeException unreadable) {
+            // D-19 (PR-84): an MFA flow that cannot be read is one this request does not have, as the other repositories
+            // answer; the screen starts over instead of ending in a server error.
+            if (!StoreFailures.isReportedOutage(unreadable)) {
+                log.error("Failed to read an MFA session; it is taken as absent: {}", sessionId, unreadable);
+            }
+            return false;
+        }
     }
 
     @Override

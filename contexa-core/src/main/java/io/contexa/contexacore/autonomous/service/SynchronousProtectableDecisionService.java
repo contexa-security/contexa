@@ -17,6 +17,9 @@ package io.contexa.contexacore.autonomous.service;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.security.subject.SubjectKind;
+import io.contexa.contexacommon.store.ContexaStores;
+import io.contexa.contexacommon.store.StoreFailures;
+import io.contexa.contexacommon.store.StoreUnavailableException;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityEventContext;
@@ -24,6 +27,7 @@ import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.event.support.ZeroTrustSecurityEventConverter;
+import io.contexa.contexacore.autonomous.handler.handler.SecurityDecisionEnforcementHandler;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
@@ -40,6 +44,8 @@ import org.springframework.util.StringUtils;
 
 public class SynchronousProtectableDecisionService {
 
+    private static final int STORE_RETRY_AFTER_SECONDS = 5;
+
     private final ZeroTrustEventPublisher zeroTrustEventPublisher;
     private final ZeroTrustEventListener zeroTrustEventListener;
     private final SecurityPlaneAgent securityPlaneAgent;
@@ -49,6 +55,7 @@ public class SynchronousProtectableDecisionService {
     private AgentDecisionFlights agentDecisionFlights;
     private SecurityZeroTrustProperties.UnrecordedAgentRequest unrecordedAgentRequest =
             SecurityZeroTrustProperties.UnrecordedAgentRequest.DECIDE_IN_PLACE;
+    private ContexaStores contexaStores = new ContexaStores();
 
     public SynchronousProtectableDecisionService(
             ZeroTrustEventPublisher zeroTrustEventPublisher,
@@ -63,6 +70,10 @@ public class SynchronousProtectableDecisionService {
 
     public void setUnanalysedRequestRecorder(UnanalysedRequestRecorder unanalysedRequestRecorder) {
         this.unanalysedRequestRecorder = unanalysedRequestRecorder;
+    }
+
+    public void setContexaStores(ContexaStores contexaStores) {
+        this.contexaStores = contexaStores;
     }
 
     public SyncDecisionResult analyze(MethodInvocation methodInvocation, Authentication authentication) {
@@ -101,9 +112,49 @@ public class SynchronousProtectableDecisionService {
         SecurityEvent securityEvent = ZeroTrustSecurityEventConverter.convert(event);
         // The engine takes the request in here, as a collector does for an analysis it queues (Q-15).
         securityEvent.addMetadata(DeletedAccountWriteFence.TAKEN_IN_AT, System.currentTimeMillis());
-        SecurityEventContext processingContext = securityPlaneAgent.processSecurityEvent(securityEvent);
+        SecurityEventContext processingContext;
+        try {
+            processingContext = securityPlaneAgent.processSecurityEvent(securityEvent);
+        } catch (RuntimeException failure) {
+            ZeroTrustAction decided = decidedButNotKept(securityEvent);
+            if (decided != null && decided.isAccessRestricted()) {
+                // The model restricted the request and the store did not take it: the restriction answers this request.
+                return new SyncDecisionResult(event, contextBindingHash, decided, null, null);
+            }
+            if (decided == null && !StoreFailures.isStoreFailure(failure)) {
+                throw failure;
+            }
+            throw undecided(event, failure);
+        }
         agentDecided(event, contextBindingHash);
-        return currentResult(event, userId, contextBindingHash, processingContext);
+        SyncDecisionResult result = currentResult(event, userId, contextBindingHash, processingContext);
+        if (result.action() == ZeroTrustAction.PENDING_ANALYSIS && contexaStores.anyDown()) {
+            throw undecided(event, null);
+        }
+        return result;
+    }
+
+    /** The decision the enforcement kept on the event because the store did not take its record, or null. */
+    private static ZeroTrustAction decidedButNotKept(SecurityEvent securityEvent) {
+        Object kept = securityEvent.getMetadata() != null
+                ? securityEvent.getMetadata().get(SecurityDecisionEnforcementHandler.AUDIT_PENDING_PROCESSING_RESULT) : null;
+        return kept instanceof ProcessingResult result && StringUtils.hasText(result.getAction())
+                ? ZeroTrustAction.fromString(result.getAction()) : null;
+    }
+
+    /**
+     * A store kept this request from being decided. A person's protected call goes on then, as the operating mode
+     * specifies; an agent is never let through without a verdict (A1-5, RL-12), so it is refused as busy.
+     */
+    private RuntimeException undecided(ZeroTrustSpringEvent event, RuntimeException failure) {
+        if (agentRequest(event)) {
+            return ZeroTrustAccessDeniedException.analysisBusy(event.getResource(), STORE_RETRY_AFTER_SECONDS);
+        }
+        StoreUnavailableException unavailable = new StoreUnavailableException("The store of Contexa's decisions");
+        if (failure != null) {
+            unavailable.addSuppressed(failure);
+        }
+        return unavailable;
     }
 
     /** Whether the flights take this request: an agent's request, with the flights on. */

@@ -18,6 +18,9 @@ package io.contexa.contexaiam.security.xacml.pep;
 import io.contexa.contexacore.autonomous.service.AuthorizationDenialRecorder;
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.store.ContexaStores;
+import io.contexa.contexacommon.store.RequestPathScope;
+import io.contexa.contexacommon.store.StoreFailures;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.execution.RapidProtectableReentryDeniedException;
 import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedException;
@@ -75,6 +78,7 @@ public class AuthorizationManagerMethodInterceptor
     private ProtectableResourceCertificationGate protectableResourceCertificationGate;
     private ProtectableLlmSuppressionWriter protectableLlmSuppressionWriter;
     private AuthorizationDenialRecorder authorizationDenialRecorder;
+    private ContexaStores contexaStores = new ContexaStores();
     private AuthenticationTrustResolver authenticationTrustResolver = new AuthenticationTrustResolverImpl();
 
     public AuthorizationManagerMethodInterceptor(
@@ -122,10 +126,12 @@ public class AuthorizationManagerMethodInterceptor
         String denialReason = null;
         boolean invoked = false;
         String executionFailure = null;
+        String checkFailure = null;
         Protectable protectable = resolveProtectable(mi);
         boolean llmAnalysisAllowed = isLlmAnalysisAllowed();
         boolean rapidReentryAllowed = true;
 
+        RequestPathScope.enter();
         try {
             if (!llmAnalysisAllowed) {
                 publishEvent = false;
@@ -148,7 +154,16 @@ public class AuthorizationManagerMethodInterceptor
                 }
             }
 
-            authorizationManager.protectable(() -> authentication, mi);
+            try {
+                authorizationManager.protectable(() -> authentication, mi);
+            } catch (RuntimeException unfinished) {
+                if (!StoreFailures.isStoreFailure(unfinished)) {
+                    throw unfinished;
+                }
+                // A store that did not answer says nothing about the user: the method policies stay unknown and the call
+                // goes on, as the operating mode specifies (Q-7).
+                checkFailure = unfinished.getClass().getSimpleName();
+            }
             checkDelegatorAuthority(mi, authentication);
             if (llmAnalysisAllowed) {
                 enforcePromptQualityCertificateGate(mi, authentication, protectable);
@@ -190,7 +205,13 @@ public class AuthorizationManagerMethodInterceptor
                     syncDecision = evaluateSynchronousProtectable(mi, authentication);
                 } catch (RuntimeException syncEvaluationFailure) {
                     if (!isEnforcementDisabled()) {
-                        throw syncEvaluationFailure;
+                        if (!StoreFailures.isStoreFailure(syncEvaluationFailure)) {
+                            throw syncEvaluationFailure;
+                        }
+                        contexaStores.passedWithoutDecision();
+                        granted = true;
+                        invoked = true;
+                        return proceed(mi);
                     }
                     log.error("[ZeroTrust][SHADOW] sync Protectable evaluation failed and was not enforced. Access will proceed. resource={}",
                             buildResourceId(mi, protectable), syncEvaluationFailure);
@@ -213,6 +234,9 @@ public class AuthorizationManagerMethodInterceptor
                 }
             }
 
+            if (llmAnalysisAllowed && (checkFailure != null || contexaStores.anyDown())) {
+                contexaStores.passedWithoutDecision();
+            }
             granted = true;
             invoked = true;
             return proceed(mi);
@@ -236,22 +260,31 @@ public class AuthorizationManagerMethodInterceptor
                 // The method ran and threw: authorization let it run, so this is a business failure, not a denial.
                 executionFailure = e.getClass().getSimpleName();
             } else {
+                // No check said no: a failure of the check is no refusal, and it is not recorded as one (PR-55).
                 granted = false;
                 denialReason = e.getMessage();
+                checkFailure = e.getClass().getSimpleName();
             }
             throw e;
 
         } finally {
-            if (publishEvent && llmAnalysisAllowed) {
-                String executionOutcome = invoked
-                        ? (executionFailure != null ? ZeroTrustEventPublisher.METHOD_FAILED : ZeroTrustEventPublisher.METHOD_COMPLETED)
-                        : null;
-                publishAuthorizationEvent(mi, authentication, granted, denialReason, executionOutcome, executionFailure);
+            try {
+                if (publishEvent && llmAnalysisAllowed) {
+                    String executionOutcome = invoked
+                            ? (executionFailure != null ? ZeroTrustEventPublisher.METHOD_FAILED : ZeroTrustEventPublisher.METHOD_COMPLETED)
+                            : null;
+                    publishAuthorizationEvent(mi, authentication, granted, denialReason, executionOutcome, executionFailure,
+                            checkFailure);
+                }
+            } finally {
+                RequestPathScope.leave();
             }
         }
     }
 
+    /** The method is the application's: what it does with its time is not bounded as Contexa's own work is. */
     private Object proceed(MethodInvocation mi) throws Throwable {
+        int contexaWork = RequestPathScope.suspend();
         try {
             return mi.proceed();
         } catch (AuthorizationDeniedException ex) {
@@ -259,6 +292,8 @@ public class AuthorizationManagerMethodInterceptor
                 return handler.handleDeniedInvocation(mi, ex);
             }
             return defaultHandler.handleDeniedInvocation(mi, ex);
+        } finally {
+            RequestPathScope.resume(contexaWork);
         }
     }
 
@@ -346,9 +381,17 @@ public class AuthorizationManagerMethodInterceptor
         if (synchronousProtectableDecisionService == null || authentication == null) {
             return SynchronousProtectableDecisionService.AsyncProtectableGate.PROCEED;
         }
-        SynchronousProtectableDecisionService.AsyncProtectableGate gate =
-                synchronousProtectableDecisionService.asyncGate(mi, authentication);
-        return gate != null ? gate : SynchronousProtectableDecisionService.AsyncProtectableGate.PROCEED;
+        try {
+            SynchronousProtectableDecisionService.AsyncProtectableGate gate =
+                    synchronousProtectableDecisionService.asyncGate(mi, authentication);
+            return gate != null ? gate : SynchronousProtectableDecisionService.AsyncProtectableGate.PROCEED;
+        } catch (RuntimeException unfinished) {
+            // The stored restrictions answer from what the repository keeps; a gate a store ended found none of them.
+            if (!StoreFailures.isStoreFailure(unfinished)) {
+                throw unfinished;
+            }
+            return SynchronousProtectableDecisionService.AsyncProtectableGate.PROCEED;
+        }
     }
 
     private ZeroTrustAccessDeniedException toZeroTrustAccessDeniedException(
@@ -474,6 +517,11 @@ public class AuthorizationManagerMethodInterceptor
         this.authorizationDenialRecorder = authorizationDenialRecorder;
     }
 
+    /** The stores a decision needs, and the record of the calls that went on without one (Q-7). */
+    public void setContexaStores(ContexaStores contexaStores) {
+        this.contexaStores = contexaStores;
+    }
+
     private void recordSuppressedProtectable(Authentication authentication, MethodInvocation mi, String reason) {
         if (protectableLlmSuppressionWriter == null) {
             return;
@@ -498,7 +546,7 @@ public class AuthorizationManagerMethodInterceptor
 
     private void publishAuthorizationEvent(MethodInvocation mi, Authentication authentication,
                                            boolean granted, String denialReason,
-                                           String executionOutcome, String executionFailure) {
+                                           String executionOutcome, String executionFailure, String checkFailure) {
         if (zeroTrustEventPublisher == null) {
             return;
         }
@@ -506,14 +554,24 @@ public class AuthorizationManagerMethodInterceptor
         try {
             long startTime = System.nanoTime();
 
-            zeroTrustEventPublisher.publishMethodAuthorization(
-                mi,
-                authentication,
-                granted,
-                denialReason,
-                executionOutcome,
-                executionFailure
-            );
+            if (checkFailure != null) {
+                zeroTrustEventPublisher.publishUncheckedMethodAuthorization(
+                    mi,
+                    authentication,
+                    checkFailure,
+                    executionOutcome,
+                    executionFailure
+                );
+            } else {
+                zeroTrustEventPublisher.publishMethodAuthorization(
+                    mi,
+                    authentication,
+                    granted,
+                    denialReason,
+                    executionOutcome,
+                    executionFailure
+                );
+            }
 
             long duration = System.nanoTime() - startTime;
 

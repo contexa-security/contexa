@@ -324,6 +324,18 @@ public class BlockedUserService implements IBlockedUserRecorder {
         };
     }
 
+    /** Every status but RESOLVED keeps the user blocked: a request to unblock and a timed-out block are answered by no one yet. */
+    @Override
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    public boolean isBlockInForce(String userId) {
+        if (!StringUtils.hasText(userId)) {
+            return false;
+        }
+        return blockedUserJpaRepository.findFirstByUserIdOrderByBlockedAtDesc(userId)
+                .map(blockedUser -> blockedUser.getStatus() != BlockedUserStatus.RESOLVED)
+                .orElse(false);
+    }
+
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public boolean hasLatestStatus(String userId, BlockedUserStatus status) {
         if (!StringUtils.hasText(userId) || status == null) {

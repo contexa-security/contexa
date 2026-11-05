@@ -400,10 +400,16 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
             String lockOwner,
             Duration lockLeaseTime,
             Duration lockWaitTime) {
-        if (lockWaitTime == null || lockWaitTime.isZero() || lockWaitTime.isNegative()) {
-            return lockService.tryLock(lockKey, lockOwner, lockLeaseTime);
+        try {
+            if (lockWaitTime == null || lockWaitTime.isZero() || lockWaitTime.isNegative()) {
+                return lockService.tryLock(lockKey, lockOwner, lockLeaseTime);
+            }
+            return lockService.tryLockWithWait(lockKey, lockOwner, lockLeaseTime, lockWaitTime);
+        } catch (DistributedLockService.LockAcquisitionException unavailable) {
+            // D-19: no flow can start while the store of the locks is away; the user stays stopped and is told to retry.
+            log.error("The lock of a challenge could not be taken: lockKey={}", lockKey, unavailable);
+            return false;
         }
-        return lockService.tryLockWithWait(lockKey, lockOwner, lockLeaseTime, lockWaitTime);
     }
 
     private Duration resolveLockWaitTime() {

@@ -8,6 +8,22 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **A store outage is no longer an outage of the application.** Redis or Contexa's database that stops, freezes or runs out
+  of connections used to hold every request of a signed-in user, the pages no decision protects included: a minute for each
+  read on Redis, and a minute on the pool. A request now waits about a second once and then not at all, and everything
+  comes back by itself. The application's own Redis client and pool settings are not touched, and the engine's threads keep
+  their waits. While a store is away a protected call goes on as the operating mode specifies, and the interval is written
+  to the log and the audit log as calls without a decision.
+- **A restriction outlives the outage.** A BLOCK, CHALLENGE or ESCALATE this server read stays in force while Redis does not
+  answer, and a BLOCK this server never read is found in `ctxa_blocked_user`.
+- **A technical failure is no denial.** An authorization check that did not finish is recorded as `UNKNOWN`, not `DENY`, so
+  an outage no longer ends in a permanent BLOCK of normal users.
+- **Authenticated Kafka works.** Contexa's clients take `spring.kafka.security.*`, `ssl.*`, `properties.*` and SSL bundles as
+  Spring Boot does; what Contexa's delivery depends on stays Contexa's.
+- A start that Redisson's JCache provider stopped says why and names `spring.cache.type=caffeine`.
+- The start names Redis Cluster at ERROR, which this release does not support, and, in standalone, that a restart ends a
+  BLOCK and a CHALLENGE in force.
+
 - **A user can answer a CHALLENGE in `contexa.infrastructure.mode=distributed` whatever the sign-in is made of.** An MFA
   flow stored in Redis could not be read back when the sign-in held a read-only collection (a one-time token or a
   remember-me sign-in with Contexa's user or Spring's `User`, a JWT, an OAuth2 login) or an object the reading node

@@ -224,6 +224,24 @@ class ZeroTrustChallengeFilterTest {
         verify(filterChain, never()).doFilter(any(), any());
     }
 
+    /** D-19: Redis away, a user under a CHALLENGE stays stopped and is told to retry, not given a server error. */
+    @Test
+    @DisplayName("a lock Redis cannot give answers as a lock someone holds")
+    void aLockRedisCannotGive() throws Exception {
+        when(request.getRequestURI()).thenReturn("/dashboard");
+        setUpChallengeAuthentication();
+        when(sessionRepository.getSessionId(request)).thenReturn(null);
+        when(actionRepository.getCurrentAction(eq("testUser"), any())).thenReturn(ZeroTrustAction.CHALLENGE);
+        when(lockService.tryLock(anyString(), anyString(), any()))
+                .thenThrow(new DistributedLockService.LockAcquisitionException("Redis is unavailable"));
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(responseWriter).writeErrorResponse(eq(response), eq(HttpServletResponse.SC_SERVICE_UNAVAILABLE),
+                eq("MFA_BUSY_RETRY"), any(), eq("/dashboard"), any());
+        verify(filterChain, never()).doFilter(any(), any());
+    }
+
     @Test
     @DisplayName("기존 challenge 세션이 없으면 새 MFA challenge flow를 초기화한다")
     @SuppressWarnings("unchecked")

@@ -91,6 +91,47 @@ class ZeroTrustEventPublisherTest {
         RequestContextHolder.resetRequestAttributes();
     }
 
+    /** PR-55, PR-84: a DENY requires a BLOCK whatever the model answers; a store that did not answer is no DENY. */
+    @Test
+    @DisplayName("a check that did not finish is recorded as unknown, never as a denial")
+    void aCheckThatDidNotFinishIsUnknown() throws Exception {
+        ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        when(invocation.getMethod()).thenReturn(SampleService.class.getDeclaredMethod("approve"));
+
+        new ZeroTrustEventPublisher(events, new TieredStrategyProperties()).publishUncheckedMethodAuthorization(
+                invocation, new UsernamePasswordAuthenticationToken("alice", "n/a"), "CannotCreateTransactionException",
+                ZeroTrustEventPublisher.METHOD_COMPLETED, null);
+
+        ArgumentCaptor<ZeroTrustSpringEvent> published = ArgumentCaptor.forClass(ZeroTrustSpringEvent.class);
+        verify(events).publishEvent(published.capture());
+        assertThat(published.getValue().getPayload())
+                .containsEntry("authorizationEffect", "UNKNOWN")
+                .containsEntry("authorizationEffectProvenance", "METHOD_AUTHORIZATION_UNAVAILABLE")
+                .containsEntry("authorizationCheckFailure", "CannotCreateTransactionException")
+                .containsEntry("granted", "UNKNOWN")
+                .containsEntry("methodExecutionOutcome", ZeroTrustEventPublisher.METHOD_COMPLETED)
+                .doesNotContainKey("methodAuthorizationGranted");
+    }
+
+    @Test
+    @DisplayName("a check that did not finish leaves what the application's own check said")
+    void anUnfinishedCheckLeavesTheBridgesEffect() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports");
+        request.setAttribute(BridgeRequestAttributes.RESOLUTION_RESULT, createBridgeResolutionResultWithEffect(AuthorizationEffect.DENY));
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        when(invocation.getMethod()).thenReturn(SampleService.class.getDeclaredMethod("approve"));
+
+        new ZeroTrustEventPublisher(events, new TieredStrategyProperties()).publishUncheckedMethodAuthorization(
+                invocation, new UsernamePasswordAuthenticationToken("alice", "n/a"), "QueryTimeoutException", null, null);
+
+        ArgumentCaptor<ZeroTrustSpringEvent> published = ArgumentCaptor.forClass(ZeroTrustSpringEvent.class);
+        verify(events).publishEvent(published.capture());
+        assertThat(published.getValue().getPayload()).containsEntry("authorizationEffect", "DENY");
+    }
+
     @Test
     @DisplayName("the bridge's provenance and conflict facts reach the payload (W1-14)")
     void shouldCarryTheBridgeProvenanceAndConflicts() throws Exception {
