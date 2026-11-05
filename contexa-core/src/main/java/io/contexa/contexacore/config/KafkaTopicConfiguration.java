@@ -17,6 +17,7 @@ package io.contexa.contexacore.config;
 
 import io.contexa.contexacore.autonomous.event.SecurityEventTopics;
 import io.contexa.contexacore.infra.kafka.ContexaKafkaTopics;
+import io.contexa.contexacore.infra.kafka.KafkaConfiguration;
 import io.contexa.contexacore.properties.SecurityKafkaProperties;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AdminClientConfig;
@@ -24,6 +25,7 @@ import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.common.config.TopicConfig;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.kafka.KafkaConnectionDetails;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.boot.ssl.SslBundles;
 import org.springframework.context.annotation.Bean;
@@ -42,17 +44,21 @@ public class KafkaTopicConfiguration {
 
     @Bean(name = "contexaKafkaTopics", defaultCandidate = false)
     public ContexaKafkaTopics contexaKafkaTopics(KafkaProperties kafkaProperties, ObjectProvider<SslBundles> sslBundles,
-                                                 ObjectProvider<SecurityKafkaProperties> securityKafkaProperties) {
+                                                 ObjectProvider<SecurityKafkaProperties> securityKafkaProperties,
+                                                 ObjectProvider<KafkaConnectionDetails> connectionDetails) {
         String deadLetterTopic = securityKafkaProperties.getIfAvailable(SecurityKafkaProperties::new).getTopic().getDlq();
         Set<String> needed = new HashSet<>(SecurityEventTopics.DECLARED);
         needed.add(deadLetterTopic);
-        return new ContexaKafkaTopics(() -> Admin.create(adminConfig(kafkaProperties, sslBundles)),
+        return new ContexaKafkaTopics(() -> Admin.create(adminConfig(kafkaProperties, sslBundles, connectionDetails)),
                 allSecurityTopics(deadLetterTopic), needed, kafkaProperties.getAdmin().isAutoCreate());
     }
 
     /** The application's admin settings, with waits that a start can afford. */
-    private Map<String, Object> adminConfig(KafkaProperties kafkaProperties, ObjectProvider<SslBundles> sslBundles) {
+    private Map<String, Object> adminConfig(KafkaProperties kafkaProperties, ObjectProvider<SslBundles> sslBundles,
+                                            ObjectProvider<KafkaConnectionDetails> connectionDetails) {
         Map<String, Object> config = kafkaProperties.buildAdminProperties(sslBundles.getIfAvailable());
+        KafkaConnectionDetails details = connectionDetails.getIfAvailable();
+        KafkaConfiguration.applyConnection(config, details != null ? details.getAdmin() : null);
         int limit = (int) ContexaKafkaTopics.ANSWER_LIMIT.toMillis();
         config.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, limit);
         config.put(AdminClientConfig.DEFAULT_API_TIMEOUT_MS_CONFIG, limit);
