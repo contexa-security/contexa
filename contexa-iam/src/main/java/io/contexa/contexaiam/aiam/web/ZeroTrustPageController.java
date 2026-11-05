@@ -15,10 +15,12 @@
  */
 package io.contexa.contexaiam.aiam.web;
 
+import io.contexa.contexacommon.security.SameAppPath;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -65,33 +67,19 @@ public class ZeroTrustPageController {
 
     @GetMapping("/challenge-required")
     public String challengeRequired(
-            @RequestParam(value = "mfaUrl", required = false) String mfaUrl, Model model) {
-        if (mfaUrl == null || mfaUrl.isBlank()) {
-            mfaUrl = "/mfa/select-factor";
-        }
-        String safeMfaUrl = sanitizeRelativeUrl(mfaUrl, "/mfa/select-factor");
-        model.addAttribute("mfaUrl", safeMfaUrl);
+            @RequestParam(value = "mfaUrl", required = false) String mfaUrl,
+            HttpServletRequest request, Model model) {
+        String contextPath = request.getContextPath();
+        model.addAttribute("mfaUrl", SameAppPath.orElse(mfaUrl, contextPath, contextPath + "/mfa/select-factor"));
         return "contexa/zero-trust/challenge-required";
-    }
-
-    private String sanitizeRelativeUrl(String url, String fallback) {
-        if (url == null || url.isBlank()) {
-            return fallback;
-        }
-        if (url.contains("://") || url.startsWith("//")) {
-            return fallback;
-        }
-        if (!url.startsWith("/")) {
-            return fallback;
-        }
-        return url;
     }
 
     @GetMapping("/analysis-pending")
     public String analysisPending(
-            @RequestParam(required = false, defaultValue = "/") String returnUrl,
-            Model model) {
-        model.addAttribute("returnUrl", returnUrl);
+            @RequestParam(required = false) String returnUrl,
+            HttpServletRequest request, Model model) {
+        String contextPath = request.getContextPath();
+        model.addAttribute("returnUrl", SameAppPath.orElse(returnUrl, contextPath, contextPath + "/"));
         return "contexa/zero-trust/analysis-pending";
     }
 }

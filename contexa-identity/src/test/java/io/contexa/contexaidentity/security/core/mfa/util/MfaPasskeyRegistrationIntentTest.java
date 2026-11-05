@@ -92,7 +92,8 @@ class MfaPasskeyRegistrationIntentTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"https://evil.example/", "//evil.example/", "/\\evil.example", "javascript:alert(1)", " "})
+    @ValueSource(strings = {"https://evil.example/", "//evil.example/", "/\\evil.example", "javascript:alert(1)", " ",
+            "/\t/evil.example", "/%2Fevil.example", "/%5Cevil.example", "/%252Fevil.example", "/../evil"})
     @DisplayName("Return URLs outside the application are not stored")
     void foreignReturnUrlsAreRejected(String returnUrl) {
         MockHttpServletRequest request = new MockHttpServletRequest();
