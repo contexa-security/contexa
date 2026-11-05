@@ -20,19 +20,23 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.QueryTimeoutException;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -50,6 +54,35 @@ class RiskSignalReceiverTest {
     private final RiskSignalReceiver receiver = new RiskSignalReceiver(actions, zeroTrust,
             subjectId -> RiskSignalReceiver.userOf(subjectId,
                     email -> "carol@example.test".equals(email) ? "carol" : null), audit);
+
+    @Test
+    void aTokenAStoreDidNotLetBeActedOnAsksForTheLogoutAndIsActedOnWhenSentAgain() {
+        ZeroTrustActionRepository failing = mock(ZeroTrustActionRepository.class);
+        doThrow(new QueryTimeoutException("no answer")).doNothing().when(failing).removeLogoutData("alice");
+        RiskSignalReceiver acting = new RiskSignalReceiver(failing, zeroTrust,
+                subjectId -> RiskSignalReceiver.userOf(subjectId, email -> null), audit);
+        SecurityEventToken revoked = token("jti-outage", Map.of(
+                SecurityEventToken.SESSION_REVOKED, Map.of("subject", issSub("alice"))));
+
+        assertThatThrownBy(() -> acting.receive(revoked)).isInstanceOf(QueryTimeoutException.class);
+        verify(zeroTrust).invalidateAllUserSessions(eq("alice"), anyString());
+
+        assertThat(acting.receive(revoked).subjects()).containsExactly("alice");
+    }
+
+    @Test
+    void aFailureThatIsNoOutageKeepsTheTokenAsSeen() {
+        ZeroTrustActionRepository failing = mock(ZeroTrustActionRepository.class);
+        doThrow(new IllegalStateException("a bug")).when(failing).removeLogoutData("alice");
+        RiskSignalReceiver acting = new RiskSignalReceiver(failing, zeroTrust,
+                subjectId -> RiskSignalReceiver.userOf(subjectId, email -> null), audit);
+        SecurityEventToken revoked = token("jti-bug", Map.of(
+                SecurityEventToken.SESSION_REVOKED, Map.of("subject", issSub("alice"))));
+
+        assertThatThrownBy(() -> acting.receive(revoked)).isInstanceOf(IllegalStateException.class);
+
+        assertThat(acting.receive(revoked).subjects()).isEmpty();
+    }
 
     @Test
     void aRiskSignalHasTheSubjectDecidedAgainAndARestrictionStays() {

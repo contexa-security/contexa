@@ -36,6 +36,40 @@ class StoreGateTest {
     private final AtomicInteger back = new AtomicInteger();
     private final StoreGate gate = new StoreGate("Redis", back::incrementAndGet, Duration.ofMillis(20));
 
+    @Test
+    @DisplayName("what waited for the store runs when it is back, and each time it is")
+    void whatWaitedRunsWhenTheStoreIsBack() {
+        AtomicInteger waited = new AtomicInteger();
+        gate.whenBack(waited::incrementAndGet);
+        gate.watchWith(() -> {
+        });
+
+        gate.fail(new QueryTimeoutException("no answer"));
+        await().atMost(Duration.ofSeconds(2)).until(() -> waited.get() == 1);
+        await().atMost(Duration.ofSeconds(2)).until(() -> !gate.isDown());
+        gate.fail(new QueryTimeoutException("no answer"));
+
+        await().atMost(Duration.ofSeconds(2)).until(() -> waited.get() == 2);
+    }
+
+    @Test
+    @DisplayName("work that fails holds back neither the other work nor the gate")
+    void workThatFailsHoldsBackNothing(CapturedOutput output) {
+        AtomicBoolean ran = new AtomicBoolean();
+        gate.whenBack(() -> {
+            throw new IllegalStateException("a bug");
+        });
+        gate.whenBack(() -> ran.set(true));
+        gate.watchWith(() -> {
+        });
+
+        gate.fail(new QueryTimeoutException("no answer"));
+
+        await().atMost(Duration.ofSeconds(2)).untilTrue(ran);
+        assertThat(gate.isDown()).isFalse();
+        assertThat(output).contains("Work that waited for Redis failed");
+    }
+
     @AfterEach
     void stop() {
         gate.stop();

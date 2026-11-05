@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.signal;
 
 import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacommon.store.StoreFailures;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
@@ -77,9 +78,23 @@ public class RiskSignalReceiver {
     public Receipt receive(SecurityEventToken token) {
         List<String> invalidated = new ArrayList<>();
         List<String> types = new ArrayList<>();
-        if (seen.putIfAbsent(token.issuer() + "|" + token.jti(), Boolean.TRUE) != null) {
+        String seenKey = token.issuer() + "|" + token.jti();
+        if (seen.putIfAbsent(seenKey, Boolean.TRUE) != null) {
             return new Receipt(token.jti(), invalidated, types);
         }
+        try {
+            act(token, invalidated, types);
+        } catch (RuntimeException failure) {
+            if (StoreFailures.isStoreFailure(failure)) {
+                // The token was not acted on, and its transmitter sends a token again on an error.
+                seen.remove(seenKey);
+            }
+            throw failure;
+        }
+        return new Receipt(token.jti(), invalidated, types);
+    }
+
+    private void act(SecurityEventToken token, List<String> invalidated, List<String> types) {
         token.events().forEach((type, event) -> {
             Object eventSubject = event != null ? event.get("subject") : null;
             @SuppressWarnings("unchecked")
@@ -95,16 +110,19 @@ public class RiskSignalReceiver {
             invalidated.add(user);
             record(token, type, user, SecurityEventToken.endsSessions(type) ? "SIGNED_OUT" : "DECIDED_AGAIN");
         });
-        return new Receipt(token.jti(), invalidated, types);
     }
 
     private void invalidate(String user, String type) {
-        // A restriction in force stays; an ALLOW or a pending decision goes, so the next request is decided again.
-        actions.removeLogoutData(ZeroTrustUserKey.person(user));
-        if (zeroTrust != null) {
-            zeroTrust.invalidateDecisionCache(user);
-            if (SecurityEventToken.endsSessions(type)) {
-                zeroTrust.invalidateAllUserSessions(user, "Risk signal: " + type);
+        try {
+            // A restriction in force stays; an ALLOW or a pending decision goes, so the next request is decided again.
+            actions.removeLogoutData(ZeroTrustUserKey.person(user));
+        } finally {
+            // A store that is away keeps the subject's logout for when it is back.
+            if (zeroTrust != null) {
+                zeroTrust.invalidateDecisionCache(user);
+                if (SecurityEventToken.endsSessions(type)) {
+                    zeroTrust.invalidateAllUserSessions(user, "Risk signal: " + type);
+                }
             }
         }
     }

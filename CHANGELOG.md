@@ -108,6 +108,12 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **A forced logout outlives a Redis outage.** A logout asked for while Redis was away, for a disabled or deleted account or
+  by a risk signal, ended in an ERROR line and nothing else. It now waits in the memory of the node that was asked and is
+  applied once Redis is back, the sessions and what a logout removes with them; the version that makes open sessions read
+  their accounts moves on too. The audit log shows that it waited and that it was applied. Until then the sessions go on, and
+  a restart of that node during the outage loses it: an ERROR says so at the stop, and the audit record stays. A risk signal
+  a store did not let Contexa act on is answered with an error and is acted on when it is sent again.
 - **A sensitive resource does not go on without its method policies.** While the database does not answer, a call whose
   policies could not be read went on, and a DENY among them was missed. A call to a resource declared sensitive is now
   refused for that request with a CHALLENGE, whatever the model answered: a decision does not speak for a policy. A general

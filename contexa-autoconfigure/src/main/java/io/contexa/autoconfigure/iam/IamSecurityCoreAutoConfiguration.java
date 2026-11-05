@@ -51,6 +51,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import io.contexa.contexacommon.store.ContexaStores;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -135,9 +137,14 @@ public class IamSecurityCoreAutoConfiguration {
                 @Qualifier("contexaGeneralRedisTemplate") RedisTemplate<String, Object> redisTemplate,
                 ThreatScoreUtil threatScoreUtil,
                 SecurityZeroTrustProperties securityZeroTrustProperties,
-                ZeroTrustActionRepository actionRedisRepository) {
-            return new RedisZeroTrustSecurityService(redisTemplate,
+                ZeroTrustActionRepository actionRedisRepository,
+                ObjectProvider<ContexaStores> contexaStores,
+                ObjectProvider<CentralAuditFacade> centralAuditFacade) {
+            RedisZeroTrustSecurityService service = new RedisZeroTrustSecurityService(redisTemplate,
                     threatScoreUtil, securityZeroTrustProperties, actionRedisRepository);
+            contexaStores.ifAvailable(service::setContexaStores);
+            service.setAudit(centralAuditFacade::getIfAvailable);
+            return service;
         }
 
         @Bean(name = "contexaRedisSessionIdResolver")

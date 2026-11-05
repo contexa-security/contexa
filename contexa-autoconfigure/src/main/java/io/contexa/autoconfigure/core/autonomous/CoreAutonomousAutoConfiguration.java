@@ -1224,8 +1224,11 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     public UserAccountChangeListener userAccountChangeListener(
             ObjectProvider<SecurityContextDataStore> securityContextDataStore,
-            ObjectProvider<IForceLogoutService> forceLogoutService) {
-        return new UserAccountChangeListener(securityContextDataStore, forceLogoutService);
+            ObjectProvider<IForceLogoutService> forceLogoutService,
+            ObjectProvider<ContexaStores> contexaStores) {
+        UserAccountChangeListener listener = new UserAccountChangeListener(securityContextDataStore, forceLogoutService);
+        contexaStores.ifAvailable(listener::setContexaStores);
+        return listener;
     }
 
     @Bean(name = "contexaInMemoryStateSweeper", destroyMethod = "close")

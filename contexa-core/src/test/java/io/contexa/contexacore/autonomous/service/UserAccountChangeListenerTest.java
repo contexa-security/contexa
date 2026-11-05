@@ -22,9 +22,11 @@ import ch.qos.logback.core.read.ListAppender;
 import io.contexa.contexacommon.security.UserAccountDisabledEvent;
 import io.contexa.contexacommon.security.UserAuthoritiesChangedEvent;
 import io.contexa.contexacommon.security.UserPasswordChangedEvent;
+import io.contexa.contexacommon.store.ContexaStores;
 import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
 import io.contexa.contexacore.autonomous.store.RedisSecurityContextDataStore;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -33,6 +35,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.transaction.TransactionDefinition;
@@ -41,6 +44,7 @@ import org.springframework.transaction.support.AbstractPlatformTransactionManage
 import org.springframework.transaction.support.DefaultTransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -50,6 +54,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -70,6 +75,85 @@ class UserAccountChangeListenerTest {
     @AfterEach
     void stopListening() {
         logger.detachAppender(logged);
+    }
+
+    /** The version is what ends a session the forced logout does not know, so it is not lost with the outage. */
+    private UserAccountChangeListener listenerOf(SecurityContextDataStore dataStore) {
+        StaticListableBeanFactory beans = new StaticListableBeanFactory();
+        beans.addBean("store", dataStore);
+        beans.addBean("forceLogout", forceLogout);
+        ObjectProvider<SecurityContextDataStore> stores = beans.getBeanProvider(SecurityContextDataStore.class);
+        ObjectProvider<IForceLogoutService> logouts = beans.getBeanProvider(IForceLogoutService.class);
+        return new UserAccountChangeListener(stores, logouts);
+    }
+
+    @Test
+    @DisplayName("a version Redis did not take moves on once Redis is back")
+    void aVersionRedisDidNotTake() {
+        SecurityContextDataStore dataStore = mock(SecurityContextDataStore.class);
+        doThrow(new QueryTimeoutException("no answer")).doNothing().when(dataStore).advanceAuthoritiesVersion();
+        ContexaStores stores = new ContexaStores();
+        stores.redis().watchWith(() -> {
+        });
+        UserAccountChangeListener listener = listenerOf(dataStore);
+        listener.setContexaStores(stores);
+        stores.redis().fail(new QueryTimeoutException("no answer"));
+
+        try {
+            listener.onAccountDisabled(new UserAccountDisabledEvent("alice"));
+
+            Awaitility.await().atMost(Duration.ofSeconds(5))
+                    .untilAsserted(() -> verify(dataStore, times(2)).advanceAuthoritiesVersion());
+        } finally {
+            stores.destroy();
+        }
+    }
+
+    @Test
+    @DisplayName("a version that moved on owes nothing when Redis comes back")
+    void aVersionThatMovedOnOwesNothing() {
+        SecurityContextDataStore dataStore = mock(SecurityContextDataStore.class);
+        ContexaStores stores = new ContexaStores();
+        AtomicBoolean back = new AtomicBoolean();
+        stores.redis().watchWith(() -> {
+        });
+        UserAccountChangeListener listener = listenerOf(dataStore);
+        listener.setContexaStores(stores);
+        stores.redis().whenBack(() -> back.set(true));
+
+        try {
+            listener.onAuthoritiesChanged(new UserAuthoritiesChangedEvent());
+            stores.redis().fail(new QueryTimeoutException("no answer"));
+
+            Awaitility.await().atMost(Duration.ofSeconds(5)).untilTrue(back);
+            verify(dataStore, times(1)).advanceAuthoritiesVersion();
+        } finally {
+            stores.destroy();
+        }
+    }
+
+    @Test
+    @DisplayName("a failure that is no outage is not kept for later")
+    void aFailureThatIsNoOutage() {
+        SecurityContextDataStore dataStore = mock(SecurityContextDataStore.class);
+        doThrow(new IllegalStateException("a bug")).when(dataStore).advanceAuthoritiesVersion();
+        ContexaStores stores = new ContexaStores();
+        AtomicBoolean back = new AtomicBoolean();
+        stores.redis().watchWith(() -> {
+        });
+        UserAccountChangeListener listener = listenerOf(dataStore);
+        listener.setContexaStores(stores);
+        stores.redis().whenBack(() -> back.set(true));
+
+        try {
+            listener.onAuthoritiesChanged(new UserAuthoritiesChangedEvent());
+            stores.redis().fail(new QueryTimeoutException("no answer"));
+
+            Awaitility.await().atMost(Duration.ofSeconds(5)).untilTrue(back);
+            verify(dataStore, times(1)).advanceAuthoritiesVersion();
+        } finally {
+            stores.destroy();
+        }
     }
 
     private UserAccountChangeListener listener(boolean withForceLogout) {

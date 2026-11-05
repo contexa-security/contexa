@@ -18,11 +18,15 @@ package io.contexa.contexacore.autonomous.service;
 import io.contexa.contexacommon.security.UserAccountDisabledEvent;
 import io.contexa.contexacommon.security.UserAuthoritiesChangedEvent;
 import io.contexa.contexacommon.security.UserPasswordChangedEvent;
+import io.contexa.contexacommon.store.ContexaStores;
+import io.contexa.contexacommon.store.StoreFailures;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Carries a change of accounts to the sessions that are open, once it has committed (Q-14): a session reading its
@@ -36,11 +40,18 @@ public class UserAccountChangeListener {
 
     private final ObjectProvider<SecurityContextDataStore> store;
     private final ObjectProvider<IForceLogoutService> forceLogout;
+    /** The version did not move on because Redis was away; it does once Redis is back. */
+    private final AtomicBoolean versionOwed = new AtomicBoolean();
 
     public UserAccountChangeListener(ObjectProvider<SecurityContextDataStore> store,
                                      ObjectProvider<IForceLogoutService> forceLogout) {
         this.store = store;
         this.forceLogout = forceLogout;
+    }
+
+    /** A change of accounts Redis did not take reaches the open sessions once Redis is back. */
+    public void setContexaStores(ContexaStores stores) {
+        stores.redis().whenBack(this::advanceOwedVersion);
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
@@ -76,6 +87,12 @@ public class UserAccountChangeListener {
         }
     }
 
+    private void advanceOwedVersion() {
+        if (versionOwed.compareAndSet(true, false)) {
+            advanceVersion();
+        }
+    }
+
     private void advanceVersion() {
         SecurityContextDataStore dataStore = store.getIfAvailable();
         if (dataStore == null) {
@@ -84,6 +101,9 @@ public class UserAccountChangeListener {
         try {
             dataStore.advanceAuthoritiesVersion();
         } catch (RuntimeException e) {
+            if (StoreFailures.isStoreFailure(e)) {
+                versionOwed.set(true);
+            }
             log.error("[UserAccountChange] Failed to tell open sessions that accounts changed", e);
         }
     }
