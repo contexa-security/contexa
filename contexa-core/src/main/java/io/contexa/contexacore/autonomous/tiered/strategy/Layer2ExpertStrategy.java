@@ -32,6 +32,7 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
@@ -618,7 +619,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         }
         try {
             SoarContext soarContext = new SoarContext();
-            soarContext.setSessionId(event.getSessionId());
+            soarContext.setSessionId(RequestFactRedaction.sessionReference(event.getSessionId()));
             soarContext.setOrganizationId(resolveOrganizationId(event));
             soarContext.setCreatedAt(LocalDateTime.now());
 

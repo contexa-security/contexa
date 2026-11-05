@@ -35,6 +35,8 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
+import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.soar.approval.ApprovalService;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
@@ -48,6 +50,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.document.Document;
@@ -224,6 +227,20 @@ class Layer2ExpertStrategyTest {
                 Map.entry("reasoning", "PLATFORM_FALLBACK"),
                 Map.entry("mitre", "PLATFORM_FALLBACK"),
                 Map.entry("evidenceRefs", "PLATFORM_FALLBACK"));
+    }
+
+    /** A live session signs its owner in, so an approval names it by the reference that opens nothing. */
+    @Test
+    void anApprovalRequestCarriesTheReferenceOfTheSession() {
+        SecurityEvent event = buildTestEvent();
+
+        ReflectionTestUtils.invokeMethod(strategy, "handleApprovalProcess",
+                SecurityDecision.builder().action(ZeroTrustAction.BLOCK).build(), event);
+
+        ArgumentCaptor<SoarContext> context = ArgumentCaptor.forClass(SoarContext.class);
+        verify(approvalService).requestApproval(context.capture(), any());
+        assertThat(context.getValue().getSessionId()).isEqualTo(RequestFactRedaction.sessionReference("session-002"))
+                .doesNotContain("session-002");
     }
 
     /** allow-escalate-final-action keeps what it has always done: a failed call ends as ESCALATE, held for review. */

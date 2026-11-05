@@ -230,6 +230,10 @@ The format is based on Keep a Changelog and the project follows semantic version
 - **A decision record follows the same rule.** Once older sealed records are kept, a record without its hash or signature
   shows as changed on the security monitor instead of as not verifiable, and so does one that names a key never held once
   older records are signed with the active key. A custom `EvidenceSigner` answers `keepsItsKeys()` to take part in this.
+- What a person is asked to confirm for an agent keeps the request's path and query, but a value that opens something is
+  masked: by the name of its parameter (`token`, `pin`, `password`, ...), by its own shape (a signed token, a provider's key,
+  a national id), or inside a nested URL. The confirmation stays bound to the very request.
+- A session id no longer reaches an approval request or the audit line of a model call: both name it by its reference.
 - **A layer model set in `contexa.security.tiered.llm.layer1.model` or `layer2.model` runs with Anthropic from the
   settings alone.** The second layer used to run on the first layer's model without a word, and one chat model bean of
   the second layer's model pulled the first layer onto it too. Each layer's model is now made from the Anthropic chat
