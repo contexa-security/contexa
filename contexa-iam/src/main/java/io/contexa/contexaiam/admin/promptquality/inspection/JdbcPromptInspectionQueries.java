@@ -210,7 +210,8 @@ public class JdbcPromptInspectionQueries {
     /**
      * W7-14: the sealed decisions of a capture period per bundle version, stage and action, with the verdicts of their
      * latest inspection result; the behaviour difference of the version comparison. The two stage words are
-     * {@link #DECISION_STAGE} and {@link #SHADOW_STAGE}.
+     * {@link #DECISION_STAGE} and {@link #SHADOW_STAGE}. The decision is read from the sealed column, which the package
+     * hash covers: the jsonb copy beside it is outside the hash (Q-21).
      */
     private static final String BUNDLE_OUTCOMES = """
             with latest as (
@@ -224,9 +225,9 @@ public class JdbcPromptInspectionQueries {
                 select p.package_id,
                        contexa_safe_jsonb(p.prompt_execution_metadata_json) #>> '{%s,promptBundleVersion}'
                            as bundle_version,
-                       case when p.decision_jsonb ->> 'decisionAppliedStage' = 'SHADOW' then 'SHADOW'
+                       case when contexa_safe_jsonb(p.decision_json) ->> 'decisionAppliedStage' = 'SHADOW' then 'SHADOW'
                             else 'DECISION' end as stage,
-                       coalesce(p.decision_jsonb ->> 'action', '') as action
+                       coalesce(contexa_safe_jsonb(p.decision_json) ->> 'action', '') as action
                   from ctxa_sealed_evidence_package p
                  where p.captured_at between ? and ?
             )
@@ -275,13 +276,13 @@ public class JdbcPromptInspectionQueries {
     private static final String SHADOW_PAIRS = """
             with shadow_seals as (
                 select p.package_id, p.captured_at,
-                       p.decision_jsonb ->> '%2$s' as original_request_id,
+                       contexa_safe_jsonb(p.decision_json) ->> '%2$s' as original_request_id,
                        contexa_safe_jsonb(p.prompt_execution_metadata_json) #>> '{%1$s,promptBundleVersion}'
                            as bundle_version,
-                       coalesce(p.decision_jsonb ->> 'action', '') as action
+                       coalesce(contexa_safe_jsonb(p.decision_json) ->> 'action', '') as action
                   from ctxa_sealed_evidence_package p
                  where p.captured_at between ? and ?
-                   and p.decision_jsonb ->> 'decisionAppliedStage' = 'SHADOW'
+                   and contexa_safe_jsonb(p.decision_json) ->> 'decisionAppliedStage' = 'SHADOW'
             ),
             shadows as (
                 select * from shadow_seals where bundle_version in (%3$s)
@@ -290,10 +291,10 @@ public class JdbcPromptInspectionQueries {
                 select distinct on (d.correlation_id) d.package_id, d.correlation_id,
                        contexa_safe_jsonb(d.prompt_execution_metadata_json) #>> '{%1$s,promptBundleVersion}'
                            as bundle_version,
-                       coalesce(d.decision_jsonb ->> 'action', '') as action
+                       coalesce(contexa_safe_jsonb(d.decision_json) ->> 'action', '') as action
                   from ctxa_sealed_evidence_package d
                  where d.correlation_id in (select original_request_id from shadows)
-                   and coalesce(d.decision_jsonb ->> 'decisionAppliedStage', '') <> 'SHADOW'
+                   and coalesce(contexa_safe_jsonb(d.decision_json) ->> 'decisionAppliedStage', '') <> 'SHADOW'
                  order by d.correlation_id, d.captured_at desc, d.id desc
             )
             select s.original_request_id, s.captured_at, s.package_id as shadow_package_id,

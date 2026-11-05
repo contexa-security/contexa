@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.admin.promptquality.evidence;
 
+import io.contexa.contexacore.verification.evidence.SealedEvidenceChain;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
@@ -17,7 +18,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-public final class JdbcSealedEvidencePackageRepository implements SealedEvidencePackageRepository {
+public final class JdbcSealedEvidencePackageRepository implements SealedEvidencePackageRepository, SealedEvidenceChain {
 
     private static final String SELECT_COLUMNS = """
             select id, package_id, correlation_id, idempotency_key, tenant_id, user_id, captured_at,
@@ -57,6 +58,25 @@ public final class JdbcSealedEvidencePackageRepository implements SealedEvidence
             select package_hash from ctxa_sealed_evidence_package
              where schema_version >= ? order by id desc limit 1
             """;
+    /** Q-21: the capture time of the oldest signed package kept, from the capture time index. */
+    private static final String OLDEST_SIGNED_SQL = """
+            select captured_at from ctxa_sealed_evidence_package
+             where package_signature is not null order by captured_at limit 1
+            """;
+    /** Q-21: walks back from the package by its key, so the package right before it answers at once. */
+    private static final String PREVIOUS_KEPT_SQL = """
+            select 1 from ctxa_sealed_evidence_package
+             where id < ? and package_hash = ? order by id desc limit 1
+            """;
+    /** Q-21: the later capture time of the package kept right before this one and of the signed one kept before it. */
+    private static final String CAPTURED_BEFORE_SQL = """
+            select max(captured_at) from (
+                (select captured_at from ctxa_sealed_evidence_package where id < ? order by id desc limit 1)
+                union all
+                (select captured_at from ctxa_sealed_evidence_package
+                  where id < ? and package_signature is not null order by id desc limit 1)
+            ) kept
+            """;
     private final JdbcOperations jdbcOperations;
     /** Seals linked packages in the order this store inserts them. */
     private final Object sealLock = new Object();
@@ -72,6 +92,24 @@ public final class JdbcSealedEvidencePackageRepository implements SealedEvidence
      */
     public void setIntegrity(SealedEvidencePackageIntegrity integrity) {
         this.integrity = integrity;
+    }
+
+    @Override
+    public Optional<Instant> signedSince() {
+        return jdbcOperations.queryForList(OLDEST_SIGNED_SQL, Timestamp.class).stream().findFirst()
+                .map(Timestamp::toInstant);
+    }
+
+    @Override
+    public boolean previousKept(SealedEvidencePackage pkg) {
+        return !jdbcOperations.queryForList(PREVIOUS_KEPT_SQL, Integer.class, pkg.getId(),
+                pkg.getPreviousPackageHash()).isEmpty();
+    }
+
+    @Override
+    public Optional<Instant> capturedBefore(SealedEvidencePackage pkg) {
+        return Optional.ofNullable(jdbcOperations.queryForObject(CAPTURED_BEFORE_SQL, Timestamp.class, pkg.getId(),
+                pkg.getId())).map(Timestamp::toInstant);
     }
 
     @Override

@@ -10,15 +10,22 @@ import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySuppor
 import io.contexa.contexacore.verification.capture.SealedEvidencePromptTraceStore;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.verification.evidence.CanonicalSecurityContextSerializer;
+import io.contexa.contexacore.verification.evidence.HmacEvidenceSigner;
+import io.contexa.contexacore.verification.evidence.SealedEvidenceChain;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageAssembler;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -77,6 +84,61 @@ class SealIntegrityCheckTest {
         PromptInspectionFinding finding = single(check(sealed));
         assertThat(finding.outcome()).isEqualTo(PromptInspectionOutcome.UNVERIFIABLE);
         assertThat(finding.sourceRef()).isEqualTo("sealedPackage.packageHash");
+    }
+
+    /** Q-21 (PR-75): where the installation signs, a package without its signature fails the inspection. */
+    @Test
+    void aPackageWithoutItsSignatureFailsTheInspection() {
+        SealedEvidencePackageIntegrity signing = new SealedEvidencePackageIntegrity(HmacEvidenceSigner.of(
+                Map.of("k1", Base64.getEncoder().encodeToString("k1-0123456789abcdef0123456789abcd".getBytes())), null));
+        SealedEvidencePackage sealed = seal("user prompt", "user prompt", Map.of());
+        sealed.setSchemaVersion(SealedEvidencePackageIntegrity.LINKED_SCHEMA_VERSION);
+        sealed.setPackageHash(signing.computeHash(sealed));
+
+        PromptInspectionResult result = new PromptInspector(List.of(new SealIntegrityCheck(signing)), JSON).inspect(sealed);
+
+        assertThat(result.verdict()).isEqualTo(PromptInspectionVerdict.FAIL);
+        assertThat(result.checks().get(0).findings()).singleElement().satisfies(finding -> {
+            assertThat(finding.outcome()).isEqualTo(PromptInspectionOutcome.MISMATCH);
+            assertThat(finding.entry()).isEqualTo("packageSignature");
+            assertThat(finding.sourceRef()).isEqualTo("sealedPackage.packageSignature");
+        });
+    }
+
+    /** Q-21 (PR-76): the package after one that was removed names where the chain breaks. */
+    @Test
+    void aPackageWhosePredecessorIsGoneNamesTheBreakInTheChain() {
+        SealedEvidencePackageIntegrity signing = new SealedEvidencePackageIntegrity(HmacEvidenceSigner.of(
+                Map.of("k1", Base64.getEncoder().encodeToString("k1-0123456789abcdef0123456789abcd".getBytes())), null));
+        signing.setChain(new SealedEvidenceChain() {
+            @Override
+            public Optional<Instant> signedSince() {
+                return Optional.empty();
+            }
+
+            @Override
+            public boolean previousKept(SealedEvidencePackage pkg) {
+                return false;
+            }
+
+            @Override
+            public Optional<Instant> capturedBefore(SealedEvidencePackage pkg) {
+                return Optional.of(Instant.now());
+            }
+        }, Duration.ofDays(30), Clock.systemUTC());
+        SealedEvidencePackage sealed = seal("user prompt", "user prompt", Map.of());
+        sealed.setId(5L);
+        sealed.setSchemaVersion(SealedEvidencePackageIntegrity.LINKED_SCHEMA_VERSION);
+        signing.seal(sealed, "removed-package-hash");
+
+        PromptInspectionResult result = new PromptInspector(List.of(new SealIntegrityCheck(signing)), JSON).inspect(sealed);
+
+        assertThat(result.verdict()).isEqualTo(PromptInspectionVerdict.FAIL);
+        assertThat(result.checks().get(0).findings()).singleElement().satisfies(finding -> {
+            assertThat(finding.entry()).isEqualTo("previousPackageHash");
+            assertThat(finding.expected()).isEqualTo("removed-package-hash");
+            assertThat(finding.actual()).isEqualTo("missing");
+        });
     }
 
     @Test

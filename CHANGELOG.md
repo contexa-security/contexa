@@ -8,6 +8,16 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **A sealed package changed without the signing key no longer passes the re-inspection.** Where the installation signs,
+  a package without the signature it should carry fails instead of reading as not verifiable, whatever schema it names:
+  a decision changed, its schema lowered and its hash computed again used to pass in full. Packages captured before the
+  oldest signed package kept are the ones sealed before a key existed and stay as they were. Run a re-inspection after
+  this version to read the packages already kept: the inspector version moves to 28.
+- The re-inspection follows `previous_package_hash`: the package after one that was removed fails, naming the hash that
+  is gone. A package the retention may have taken (older than the shorter of `retention.period` and
+  `retention.clean-period`) is no finding. The limits of the seal are in `SECURITY.md`.
+- The console's version comparison and shadow pairs read the sealed decision, which the package hash covers, not the
+  `decision_jsonb` copy beside it.
 - **A layer model set in `contexa.security.tiered.llm.layer1.model` or `layer2.model` runs with Anthropic from the
   settings alone.** The second layer used to run on the first layer's model without a word, and one chat model bean of
   the second layer's model pulled the first layer onto it too. Each layer's model is now made from the Anthropic chat
