@@ -33,7 +33,9 @@ import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
 import io.contexa.contexacommon.security.network.ClientIpResolutionPolicy;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
 import org.springframework.beans.factory.DisposableBean;
+import io.contexa.autoconfigure.iam.IamSecurityCoreAutoConfiguration;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.security.SecurityProperties;
@@ -219,6 +221,7 @@ public class AiBridgeConfiguration {
             RequestContextCollector contexaRequestContextCollector,
             BridgeCoverageEvaluator contexaBridgeCoverageEvaluator,
             BridgeRuntimeSupport contexaBridgeRuntimeSupport,
+            @Qualifier(IamSecurityCoreAutoConfiguration.SESSION_CONTEXT_REPOSITORY)
             ObjectProvider<AISessionSecurityContextRepository> aiSessionSecurityContextRepository) {
         return new DefaultContexaAuthBridgeHandler(
                 properties,

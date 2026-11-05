@@ -34,6 +34,8 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.authentication.ott.OneTimeTokenAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
@@ -126,6 +128,58 @@ class AISessionSecurityContextRepositoryAccountChangeTest {
         assertThat(authoritiesOf(nextRequest(request))).contains("ROLE_USER").doesNotContain("ROLE_KEEPER");
         assertThat(authoritiesOf(nextRequest(request))).doesNotContain("ROLE_KEEPER");
         verify(accounts, times(1)).loadUserByUsername(user);
+    }
+
+    /** A sign-in that ends with the mail code: what the session really holds after MFA, as measured (Q-14). */
+    private MockHttpServletRequest signedInWithACode(Object details, String... authorities) {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/orders");
+        UnifiedCustomUserDetails account = account(user, true, false, authorities);
+        OneTimeTokenAuthenticationToken authentication =
+                new OneTimeTokenAuthenticationToken(account, account.getAuthorities());
+        authentication.setDetails(details);
+        SecurityContext context = new SecurityContextImpl(authentication);
+        request.getSession().setAttribute("SPRING_SECURITY_CONTEXT", context);
+        repository.saveContext(context, request, new MockHttpServletResponse());
+        return request;
+    }
+
+    @Test
+    @DisplayName("a session signed in with a mail code follows the change, and keeps the facts of its login")
+    void aSessionOfAMailCode() {
+        Object loginFacts = "the facts of the login";
+        MockHttpServletRequest request = signedInWithACode(loginFacts, "ROLE_USER");
+        when(accounts.loadUserByUsername(user)).thenReturn(account(user, true, false, "ROLE_USER", "ROLE_READER"));
+
+        store.advanceAuthoritiesVersion();
+
+        Authentication refreshed = repository.loadDeferredContext(nextRequest(request)).get().getAuthentication();
+        assertThat(refreshed.getAuthorities()).extracting("authority").contains("ROLE_READER");
+        assertThat(refreshed.getDetails()).isSameAs(loginFacts);
+        assertThat(refreshed.getName()).isEqualTo(user);
+    }
+
+    @Test
+    @DisplayName("a session signed in with a mail code ends with its account")
+    void aDisabledAccountOfAMailCode() {
+        MockHttpServletRequest request = signedInWithACode(null, "ROLE_USER");
+        when(accounts.loadUserByUsername(user)).thenReturn(account(user, false, false, "ROLE_USER"));
+
+        store.advanceAuthoritiesVersion();
+
+        assertThat(repository.loadDeferredContext(nextRequest(request)).get().getAuthentication()).isNull();
+    }
+
+    @Test
+    @DisplayName("the forced logout reaches a session the repository saw: it is tracked on its first request")
+    void aForcedLogoutReachesAnOpenSession() {
+        MockHttpServletRequest request = signedInWithACode(null, "ROLE_USER");
+        MockHttpSession session = (MockHttpSession) request.getSession(false);
+        repository.loadDeferredContext(nextRequest(request)).get();
+
+        service.invalidateAllUserSessions(user, "ACCOUNT_DISABLED");
+
+        assertThat(repository.loadDeferredContext(nextRequest(request)).get().getAuthentication()).isNull();
+        assertThat(session.isInvalid()).isTrue();
     }
 
     @Test

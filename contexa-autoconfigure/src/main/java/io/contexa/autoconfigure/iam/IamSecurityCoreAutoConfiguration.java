@@ -66,6 +66,12 @@ import java.time.Clock;
 @Import(IamSecurityCoreContexaOwnedConfiguration.class)
 public class IamSecurityCoreAutoConfiguration {
 
+    /**
+     * The session repository is no default candidate, so that an application asking for a SecurityContextRepository by
+     * type never meets it: Contexa's own chains take it by this name, or they get nothing and no session is checked.
+     */
+    public static final String SESSION_CONTEXT_REPOSITORY = "contexaAiSessionSecurityContextRepository";
+
     @Bean(name = "contexaLoginAttemptIpUpserter")
     @ConditionalOnMissingBean
     public LoginAttemptIpUpserter loginAttemptIpUpserter(LoginAttemptIpRepository loginAttemptIpRepository) {
@@ -92,7 +98,7 @@ public class IamSecurityCoreAutoConfiguration {
         return new AISecurityContextSupport(securityZeroTrustProperties, contexaZeroTrustSecurityService, sessionIdResolver);
     }
 
-    @Bean(name = "contexaAiSessionSecurityContextRepository", defaultCandidate = false)
+    @Bean(name = SESSION_CONTEXT_REPOSITORY, defaultCandidate = false)
     @ConditionalOnMissingBean
     public AISessionSecurityContextRepository aiSessionSecurityContextRepository(
             AISecurityContextSupport contexaAiSecurityContextSupport,

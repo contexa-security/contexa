@@ -26,7 +26,9 @@ import io.contexa.contexaidentity.security.core.bootstrap.configurer.SessionSecu
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.dsl.IdentityDslRegistry;
 import io.contexa.contexaidentity.security.core.dsl.common.SafeHttpCustomizer;
+import io.contexa.autoconfigure.iam.IamSecurityCoreAutoConfiguration;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -135,6 +137,7 @@ public class AiSecurityConfiguration {
     @Bean(name = "contexaSessionSecurityContextRepositoryConfigurer")
     @ConditionalOnMissingBean
     public SessionSecurityContextRepositoryConfigurer sessionSecurityContextRepositoryConfigurer(
+            @Qualifier(IamSecurityCoreAutoConfiguration.SESSION_CONTEXT_REPOSITORY)
             ObjectProvider<AISessionSecurityContextRepository> aiSessionSecurityContextRepositoryProvider) {
         return new SessionSecurityContextRepositoryConfigurer(
                 aiSessionSecurityContextRepositoryProvider.getIfAvailable());

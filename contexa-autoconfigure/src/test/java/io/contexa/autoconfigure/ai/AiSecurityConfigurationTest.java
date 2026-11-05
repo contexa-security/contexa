@@ -15,16 +15,50 @@
  */
 package io.contexa.autoconfigure.ai;
 
+import io.contexa.autoconfigure.iam.IamSecurityCoreAutoConfiguration;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.SessionSecurityContextRepositoryConfigurer;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 class AiSecurityConfigurationTest {
+
+    /** The repository as IamSecurityCoreAutoConfiguration declares it: no default candidate, so only its name finds it. */
+    @Configuration(proxyBeanMethods = false)
+    static class DeclaredRepository {
+
+        @Bean(name = IamSecurityCoreAutoConfiguration.SESSION_CONTEXT_REPOSITORY, defaultCandidate = false)
+        AISessionSecurityContextRepository repository() {
+            return mock(AISessionSecurityContextRepository.class);
+        }
+    }
+
+    /**
+     * Q-14: with a plain type lookup the chains got nothing and fell back to Spring's repository, so no open session was
+     * ever checked: neither the forced logout nor the change of an account reached it, whatever the code around them did.
+     */
+    @Test
+    void q14_theChainsGetTheRepositoryAsItIsDeclared() {
+        new ApplicationContextRunner()
+                .withUserConfiguration(AiSecurityConfiguration.class, DeclaredRepository.class)
+                .withBean(PlatformConfig.class, () -> PlatformConfig.builder().build())
+                .run(context -> {
+                    SessionSecurityContextRepositoryConfigurer configurer =
+                            context.getBean(SessionSecurityContextRepositoryConfigurer.class);
+
+                    assertThat(ReflectionTestUtils.getField(configurer, "aiSessionSecurityContextRepository"))
+                            .as("what the chains install").isNotNull();
+                    assertThat(context.getBeanProvider(AISessionSecurityContextRepository.class).getIfAvailable())
+                            .as("what the MFA success handler saves through").isNotNull();
+                });
+    }
 
     @Test
     void shouldRegisterSessionSecurityContextRepositoryConfigurerWhenUserProvidesPlatformConfig() {
