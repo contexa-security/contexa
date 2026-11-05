@@ -200,6 +200,25 @@ class ContexaKafkaTopicsBrokerTest {
         });
     }
 
+    /** spring.kafka.admin.auto-create=false is the application's word: nothing is made, what is missing is named. */
+    @Test
+    @EnabledIfEnvironmentVariable(named = PORT, matches = "[0-9]+")
+    void anApplicationThatForbidsMakingTopicsIsObeyed(CapturedOutput output) throws Exception {
+        String bootstrap = bootstrap(PORT);
+        deleteSecurityEventTopics(bootstrap);
+
+        runner(bootstrap).withPropertyValues("spring.kafka.admin.auto-create=false").run(context -> {
+            assertThat(context).hasNotFailed();
+            try (Admin admin = admin(bootstrap)) {
+                assertThat(admin.listTopics().names().get()).doesNotContainAnyElementsOf(SecurityEventTopics.DECLARED);
+            }
+        });
+        List<String> reported = (output.getOut() + output.getErr()).lines()
+                .filter(line -> line.contains("[ContexaKafkaTopics]")).toList();
+        assertThat(reported).hasSize(1);
+        assertThat(reported.get(0)).contains(SecurityEventTopics.DECLARED).contains("auto-create");
+    }
+
     /** A broker that refuses the topics: the application starts, the topics are named, and a request is not held. */
     @Test
     @EnabledIfEnvironmentVariable(named = REFUSING_PORT, matches = "[0-9]+")
