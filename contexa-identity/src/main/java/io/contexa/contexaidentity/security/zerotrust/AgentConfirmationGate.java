@@ -30,6 +30,7 @@ import io.contexa.contexacore.autonomous.agent.AgentScopeService;
 import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.security.zerotrust.ConfirmedAgentAuthentication;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
@@ -426,8 +427,10 @@ public class AgentConfirmationGate {
         return StringUtils.hasText(context) && uri.startsWith(context) ? uri.substring(context.length()) : uri;
     }
 
+    /** What the person reads: the values stay, as they are what is confirmed, but for what opens something. */
     private static String target(HttpServletRequest request) {
-        return path(request) + (StringUtils.hasText(request.getQueryString()) ? "?" + request.getQueryString() : "");
+        return RequestFactRedaction.readableTarget(
+                path(request) + (StringUtils.hasText(request.getQueryString()) ? "?" + request.getQueryString() : ""));
     }
 
     private record Bound(HttpServletRequest request, @Nullable String hash) {

@@ -16,6 +16,8 @@
 package io.contexa.contexacore.autonomous.utils;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -80,5 +82,79 @@ class RequestFactRedactionTest {
     void noQueryHasNoNames() {
         assertThat(RequestFactRedaction.queryNames(null)).isNull();
         assertThat(RequestFactRedaction.queryNames(" ")).isNull();
+    }
+
+    private static final String SECRET = "s3cr3t-value";
+    private static final String SIGNED_TOKEN = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbGljZSJ9.c2lnbmF0dXJlLXZhbHVl";
+
+    /** A person confirms what the agent asks, but what opens something is not for them to read, or for the record. */
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "token", "TOKEN", "Token", "access_token", "accessToken", "accesstoken", "refresh-token", "id_token", "token_value",
+            "api_key", "apiKey", "apikey", "x-api-key", "X-API-KEY", "API-KEY", "secret", "client_secret", "clientSecret",
+            "secret_key", "password", "PASSWORD", "newPassword", "new_password", "newpassword", "user[password]", "user.password",
+            "passwd", "pwd", "newPwd", "newpwd", "pin", "PIN", "cardPin", "card_pin", "otp", "ssn", "user_ssn", "cvv", "cvc",
+            "session", "sessionId", "session_id", "JSESSIONID", "sid", "signature", "sig", "authorization", "auth", "auth_code",
+            "credential", "credentials", "cookie", "private_key", "access_key", "passphrase", "passcode",
+            "%74oken", "pass%77ord", "api%5Fkey", "api%2Dkey", "user%5Bpassword%5D", "%70%69%6E", "token%00", "to%zzken"})
+    void theValueOfANameThatSaysSecretIsMasked(String name) {
+        String target = RequestFactRedaction.readableTarget("/api/reports?format=zip&" + name + "=" + SECRET + "&page=2");
+
+        assertThat(target).doesNotContain(SECRET).startsWith("/api/reports?format=zip&" + name + "=")
+                .endsWith("&page=2");
+    }
+
+    /** A value can give itself away, whatever the name in front of it. */
+    @ParameterizedTest
+    @ValueSource(strings = {
+            SIGNED_TOKEN, "Bearer%20abcdef0123456789", "bearer+abcdef0123456789", "sk-abcdefghij0123456789",
+            "AKIAIOSFODNN7EXAMPLE", "ghp_abcdefghijklmnopqrstuvwxyz0123456789", "xoxb-1234567890-abcdefghij",
+            "900101-1234567", "123-45-6789", "-----BEGIN%20PRIVATE%20KEY-----",
+            "https%3A%2F%2Fa.test%2Fcb%3Ftoken%3Ds3cr3t-value",
+            "https%253A%252F%252Fa.test%252Fcb%253Ftoken%253Ds3cr3t-value",
+            "%2Fcb%3Fa%3D1%26password%3Ds3cr3t-value"})
+    void aValueThatLooksLikeASecretIsMasked(String value) {
+        String target = RequestFactRedaction.readableTarget("/api/reports?next=" + value);
+
+        assertThat(target).isEqualTo("/api/reports?next=[MASKED]");
+    }
+
+    @Test
+    void everySeparatorOfAQueryIsReadAndKept() {
+        assertThat(RequestFactRedaction.readableTarget("/a?format=zip;token=" + SECRET + "&page=2"))
+                .isEqualTo("/a?format=zip;token=[MASKED]&page=2");
+        assertThat(RequestFactRedaction.readableTarget("/a?token=" + SECRET + "&token=" + SECRET))
+                .isEqualTo("/a?token=[MASKED]&token=[MASKED]");
+        assertThat(RequestFactRedaction.readableTarget("/a?token=a=b=" + SECRET)).isEqualTo("/a?token=[MASKED]");
+        assertThat(RequestFactRedaction.readableTarget("/a?" + SIGNED_TOKEN)).as("a value sent as the whole query")
+                .isEqualTo("/a?[MASKED]");
+        assertThat(RequestFactRedaction.readableTarget("/a?page=2&" + SIGNED_TOKEN)).isEqualTo("/a?page=2&[MASKED]");
+    }
+
+    /** The path can carry them too. */
+    @Test
+    void thePathIsReadAsWell() {
+        assertThat(RequestFactRedaction.readableTarget("/a;jsessionid=" + SECRET + "?format=zip"))
+                .isEqualTo("/a;jsessionid=[MASKED]?format=zip");
+        assertThat(RequestFactRedaction.readableTarget("/a;v=1;token=" + SECRET + "/b"))
+                .isEqualTo("/a;v=1;token=[MASKED]/b");
+        assertThat(RequestFactRedaction.readableTarget("/reset/" + SIGNED_TOKEN + "/confirm"))
+                .isEqualTo("/reset/[MASKED]/confirm");
+    }
+
+    /** What a person is asked to confirm stays readable: the point is that they see it. */
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "/api/exports", "/api/exports?format=zip", "/api/exports?format=zip&project=HX-310&documents=40",
+            "/api/search?q=hello%20world&author=bob&spinner=1&pinned=true&keyword=x&tokens=3&sessions=2&secretary=kim",
+            "/api/a?b", "/api/a?", "/api/a?&&", "/api/a?=", "/api/orders/2026-11-05", "/api/orders/123456-1234"})
+    void whatIsNoSecretStaysAsItIs(String target) {
+        assertThat(RequestFactRedaction.readableTarget(target)).isEqualTo(target);
+    }
+
+    @Test
+    void noTargetStaysNone() {
+        assertThat(RequestFactRedaction.readableTarget(null)).isNull();
+        assertThat(RequestFactRedaction.readableTarget("")).isEmpty();
     }
 }
