@@ -46,6 +46,9 @@ The format is based on Keep a Changelog and the project follows semantic version
   `Invalid username or password.`, as the MFA flows do, instead of `User not found: <name>`, `Invalid password` or
   `Account is locked`. A refused sign-in also costs one password comparison whether the account exists or not, so the
   time of the answer tells nothing either.
+- **An attempt during a lock no longer moves the lock's end**: trying a locked account, even with the right password,
+  pushed `lock_expires_at` back, so that anyone could keep the account locked. The count of failures still starts over
+  when the lock has run out.
 
 ## [0.1.1] - 2026-11-02
 

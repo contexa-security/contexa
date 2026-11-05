@@ -145,11 +145,14 @@ public interface UserRepository extends JpaRepository<Users, Long> {
     Optional<Integer> findFailedAttempts(@Param("username") String username);
 
     /**
-     * Atomically lock the account and set lockExpiresAt.
-     * @return rows updated
+     * Atomically lock an account that is not locked yet and set lockExpiresAt. A lock that is in force is left as it
+     * is: an attempt made during a lock must not move its end, or anyone could keep the account locked by trying it
+     * from time to time.
+     * @return rows updated (1 if the account was locked by this call, 0 otherwise)
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("UPDATE Users u SET u.accountLocked = true, u.lockExpiresAt = :expiresAt WHERE u.username = :username")
+    @Query("UPDATE Users u SET u.accountLocked = true, u.lockExpiresAt = :expiresAt " +
+            "WHERE u.username = :username AND u.accountLocked = false")
     int lockAccount(@Param("username") String username, @Param("expiresAt") LocalDateTime expiresAt);
 
     /**
