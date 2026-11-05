@@ -31,28 +31,72 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 @Slf4j
 public class ProtectableLlmSuppressionWriter {
 
+    /** The reason of a row that says a protected method ran with no user, so nothing was decided. */
+    public static final String RAN_WITHOUT_USER = "RAN_WITHOUT_USER";
+    /** A job can run every second: its calls share a row per interval and method. */
+    private static final long WITHOUT_USER_ROW_INTERVAL_NANOS = Duration.ofMinutes(1).toNanos();
+
     private final Supplier<JdbcOperations> jdbcOperationsSupplier;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
+    private final LongSupplier clock;
+    private final ConcurrentHashMap<String, CallsWithoutUser> callsWithoutUser = new ConcurrentHashMap<>();
 
     public ProtectableLlmSuppressionWriter(
             Supplier<JdbcOperations> jdbcOperationsSupplier,
             ObjectMapper objectMapper,
             PlatformTransactionManager transactionManager) {
+        this(jdbcOperationsSupplier, objectMapper, transactionManager, System::nanoTime);
+    }
+
+    ProtectableLlmSuppressionWriter(
+            Supplier<JdbcOperations> jdbcOperationsSupplier,
+            ObjectMapper objectMapper,
+            PlatformTransactionManager transactionManager,
+            LongSupplier clock) {
+        this.clock = clock;
         this.jdbcOperationsSupplier = jdbcOperationsSupplier == null ? () -> null : jdbcOperationsSupplier;
         this.objectMapper = objectMapper;
         this.transactionTemplate = transactionManager == null ? null : new TransactionTemplate(transactionManager);
         if (this.transactionTemplate != null) {
             this.transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
             this.transactionTemplate.setReadOnly(false);
+        }
+    }
+
+    /**
+     * Q-10: a protected method ran with no user and no request, so there was nothing to decide. An operator is told once
+     * per method; the row counts the calls since the last one, so a job that runs every second costs a row a minute.
+     */
+    public void recordRanWithoutUser(MethodInvocation invocation, String zeroTrustMode) {
+        if (invocation == null) {
+            return;
+        }
+        String resourceId = resourceIdOf(invocation);
+        CallsWithoutUser calls = callsWithoutUser.computeIfAbsent(resourceId, key -> new CallsWithoutUser());
+        long callsToRecord = calls.count(clock.getAsLong());
+        if (callsToRecord == 0) {
+            return;
+        }
+        if (calls.firstRecord()) {
+            log.warn("[Contexa] @Protectable method {} ran with no user and no request, so it was not decided. Pass the "
+                    + "user's security context to its thread to have it decided.", resourceId);
+        }
+        JdbcOperations jdbcOperations = jdbcOperationsSupplier.get();
+        if (jdbcOperations != null) {
+            write(jdbcOperations, null, invocation, RAN_WITHOUT_USER, zeroTrustMode,
+                    Map.of("callsSinceLastRecord", callsToRecord));
         }
     }
 
@@ -65,10 +109,13 @@ public class ProtectableLlmSuppressionWriter {
         if (jdbcOperations == null || authentication == null || invocation == null) {
             return;
         }
+        write(jdbcOperations, authentication.getName(), invocation, suppressionReason, zeroTrustMode, Map.of());
+    }
 
+    private void write(JdbcOperations jdbcOperations, String userId, MethodInvocation invocation, String suppressionReason,
+                       String zeroTrustMode, Map<String, Object> details) {
         HttpServletRequest request = currentRequest();
         String suppressionId = UUID.randomUUID().toString();
-        String userId = authentication.getName();
         String contextBindingHash = request == null ? null : SessionFingerprintUtil.generateContextBindingHash(request);
         // The same server id the engine records for this request; the caller's own id is kept for correlation only.
         String requestId = request == null ? suppressionId : RequestInfoExtractor.extractRequestId(request);
@@ -79,8 +126,7 @@ public class ProtectableLlmSuppressionWriter {
                 request == null ? null : request.getParameter("perfRun"));
         String path = request == null ? null : request.getRequestURI();
         String method = request == null ? null : request.getMethod();
-        String resourceId = invocation.getMethod().getDeclaringClass().getSimpleName()
-                + "." + invocation.getMethod().getName();
+        String resourceId = resourceIdOf(invocation);
         String actorSessionKey = buildActorSessionKey(userId, contextBindingHash);
         String suppressionKey = buildSuppressionKey(userId, contextBindingHash, resourceId);
 
@@ -94,6 +140,7 @@ public class ProtectableLlmSuppressionWriter {
         if (clientRequestId != null) {
             metadata.put("clientRequestId", clientRequestId);
         }
+        metadata.putAll(details);
 
         try {
             Runnable insert = () -> jdbcOperations.update("""
@@ -151,6 +198,10 @@ public class ProtectableLlmSuppressionWriter {
         }
     }
 
+    private static String resourceIdOf(MethodInvocation invocation) {
+        return invocation.getMethod().getDeclaringClass().getSimpleName() + "." + invocation.getMethod().getName();
+    }
+
     private HttpServletRequest currentRequest() {
         try {
             ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
@@ -190,5 +241,32 @@ public class ProtectableLlmSuppressionWriter {
             }
         }
         return null;
+    }
+
+    /** The calls of one method with no user since its last row. */
+    private static final class CallsWithoutUser {
+
+        private long waiting;
+        private long lastRecordNanos;
+        private boolean recorded;
+        private boolean firstRecord;
+
+        /** Counts this call; the calls a row now has to record, zero while the interval runs. */
+        synchronized long count(long now) {
+            waiting++;
+            if (recorded && now - lastRecordNanos < WITHOUT_USER_ROW_INTERVAL_NANOS) {
+                return 0;
+            }
+            firstRecord = !recorded;
+            recorded = true;
+            lastRecordNanos = now;
+            long calls = waiting;
+            waiting = 0;
+            return calls;
+        }
+
+        synchronized boolean firstRecord() {
+            return firstRecord;
+        }
     }
 }
