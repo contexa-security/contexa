@@ -162,6 +162,26 @@ class TechnicalChallengeStoreTest {
         assertShortAndMarked(redis());
     }
 
+    /** On a real Redis, where the mark comes back through the hash's serializers. */
+    @Test
+    @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
+    void redisWhatAServerKeepsOfItIsAsShortAsItIs() {
+        ZeroTrustActionRedisRepository repository = new ZeroTrustActionRedisRepository(
+                RedisTestTemplates.newProductionAlignedRedisTemplate(factory), strings);
+        String technicalUser = user();
+        String modelUser = user();
+        assertWrite(repository, technicalUser, ZeroTrustAction.CHALLENGE, technical(), FinalActionWrite.APPLIED);
+        assertWrite(repository, modelUser, ZeroTrustAction.CHALLENGE, modelDecided(), FinalActionWrite.APPLIED);
+
+        assertThat(repository.getCurrentAction(technicalUser, CONTEXT)).isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThat(repository.getCurrentAction(modelUser, CONTEXT)).isEqualTo(ZeroTrustAction.CHALLENGE);
+
+        assertThat(repository.restrictionHeldMillis(technicalUser))
+                .isBetween(1L, ZeroTrustActionRepository.TECHNICAL_CHALLENGE_TTL.toMillis());
+        assertThat(repository.restrictionHeldMillis(modelUser))
+                .isGreaterThan(ZeroTrustActionRepository.TECHNICAL_CHALLENGE_TTL.toMillis());
+    }
+
     private static void assertTheModelsChallengeKeepsItsOwnTime(Store store) {
         String user = user();
         assertWrite(store.repository(), user, ZeroTrustAction.CHALLENGE, modelDecided(), FinalActionWrite.APPLIED);

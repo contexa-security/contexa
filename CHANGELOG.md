@@ -108,6 +108,9 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **A CHALLENGE no model decided stays short through a Redis outage.** What a server read last stands while Redis does not
+  answer, and it stood for a CHALLENGE's half hour even when the CHALLENGE came from a failed analysis and lasts a minute. It
+  now stands for that minute, and a CHALLENGE held for other sessions stands as long as what Redis holds of it.
 - **A forced logout outlives a Redis outage.** A logout asked for while Redis was away, for a disabled or deleted account or
   by a risk signal, ended in an ERROR line and nothing else. It now waits in the memory of the node that was asked and is
   applied once Redis is back, the sessions and what a logout removes with them; the version that makes open sessions read

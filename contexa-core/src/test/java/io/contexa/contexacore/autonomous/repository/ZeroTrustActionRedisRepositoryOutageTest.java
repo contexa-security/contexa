@@ -26,6 +26,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -33,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -270,6 +272,111 @@ class ZeroTrustActionRedisRepositoryOutageTest {
     void aDecisionOfAnotherSessionStaysThatSessions() {
         stored(ZeroTrustAction.ALLOW, CONTEXT);
         assertThat(repository.getCurrentAction(USER, "another-context")).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+    }
+
+    private void storedAChallengeNoModelDecided(Object mark) {
+        Map<Object, Object> entries = new HashMap<>();
+        entries.put("action", ZeroTrustAction.CHALLENGE.name());
+        entries.put("contextBindingHash", CONTEXT);
+        entries.put(ZeroTrustActionRepository.TECHNICAL_CHALLENGE, mark);
+        when(analysis.entries(ZeroTrustRedisKeys.autonomousActionAnalysis(USER))).thenReturn(entries);
+    }
+
+    @Test
+    @DisplayName("A CHALLENGE no model decided stands no longer than its own short time through an outage")
+    void aChallengeNoModelDecidedStaysShort() {
+        storedAChallengeNoModelDecided(true);
+        assertThat(repository.getCurrentAction(USER, CONTEXT)).isEqualTo(ZeroTrustAction.CHALLENGE);
+
+        redisStopsAnswering();
+
+        assertThat(repository.getCurrentAction(USER, CONTEXT)).as("it still stands").isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThat(repository.restrictionHeldMillis(USER))
+                .isBetween(1L, ZeroTrustActionRepository.TECHNICAL_CHALLENGE_TTL.toMillis());
+    }
+
+    @Test
+    @DisplayName("The read without a context knows the mark too")
+    void theReadWithoutAContextKnowsTheMark() {
+        storedAChallengeNoModelDecided(true);
+
+        assertThat(repository.getCurrentAction(USER)).isEqualTo(ZeroTrustAction.CHALLENGE);
+
+        assertThat(repository.restrictionHeldMillis(USER))
+                .isBetween(1L, ZeroTrustActionRepository.TECHNICAL_CHALLENGE_TTL.toMillis());
+    }
+
+    @Test
+    @DisplayName("The mark is a field that is there, whatever it holds, as the script asks with HEXISTS")
+    void theMarkIsAFieldThatIsThere() {
+        storedAChallengeNoModelDecided("1");
+
+        assertThat(repository.getCurrentAction(USER, CONTEXT)).isEqualTo(ZeroTrustAction.CHALLENGE);
+
+        assertThat(repository.restrictionHeldMillis(USER))
+                .isBetween(1L, ZeroTrustActionRepository.TECHNICAL_CHALLENGE_TTL.toMillis());
+    }
+
+    @Test
+    @DisplayName("A CHALLENGE the model decided keeps its own time")
+    void aChallengeTheModelDecidedKeepsItsOwnTime() {
+        stored(ZeroTrustAction.CHALLENGE, CONTEXT);
+
+        assertThat(repository.getCurrentAction(USER, CONTEXT)).isEqualTo(ZeroTrustAction.CHALLENGE);
+
+        assertThat(repository.restrictionHeldMillis(USER))
+                .isGreaterThan(ZeroTrustActionRepository.TECHNICAL_CHALLENGE_TTL.toMillis())
+                .isLessThanOrEqualTo(ZeroTrustAction.CHALLENGE.getDefaultTtl().toMillis());
+    }
+
+    @Test
+    @DisplayName("The mark on any other action changes nothing")
+    void theMarkOnAnotherActionChangesNothing() {
+        Map<Object, Object> entries = new HashMap<>();
+        entries.put("action", ZeroTrustAction.ESCALATE.name());
+        entries.put(ZeroTrustActionRepository.TECHNICAL_CHALLENGE, true);
+        when(analysis.entries(ZeroTrustRedisKeys.autonomousActionAnalysis(USER))).thenReturn(entries);
+
+        assertThat(repository.getCurrentAction(USER, CONTEXT)).isEqualTo(ZeroTrustAction.ESCALATE);
+
+        assertThat(repository.restrictionHeldMillis(USER))
+                .isGreaterThan(ZeroTrustActionRepository.TECHNICAL_CHALLENGE_TTL.toMillis());
+    }
+
+    @Test
+    @DisplayName("A CHALLENGE held for other sessions stands as long as what is held in Redis")
+    void aHoldStandsAsLongAsItsKey() {
+        heldForTheOtherSessions("answered-session");
+        when(strings.getExpire(ZeroTrustRedisKeys.autonomousChallengeHold(USER), TimeUnit.MILLISECONDS)).thenReturn(40_000L);
+
+        assertThat(repository.getCurrentAction(USER, "another-session")).isEqualTo(ZeroTrustAction.CHALLENGE);
+
+        assertThat(repository.restrictionHeldMillis(USER)).isBetween(1L, 40_000L);
+    }
+
+    @Test
+    @DisplayName("A hold whose time cannot be told stands as a CHALLENGE does")
+    void aHoldWithoutATimeStandsAsAChallengeDoes() {
+        heldForTheOtherSessions("answered-session");
+        when(strings.getExpire(ZeroTrustRedisKeys.autonomousChallengeHold(USER), TimeUnit.MILLISECONDS)).thenReturn(-1L);
+
+        assertThat(repository.getCurrentAction(USER, "another-session")).isEqualTo(ZeroTrustAction.CHALLENGE);
+
+        assertThat(repository.restrictionHeldMillis(USER))
+                .isGreaterThan(ZeroTrustActionRepository.TECHNICAL_CHALLENGE_TTL.toMillis());
+    }
+
+    @Test
+    @DisplayName("A BLOCK stands until a read says otherwise, and nothing is held for an ALLOW")
+    void aBlockStandsAndAnAllowHoldsNothing() {
+        when(values.get(ZeroTrustRedisKeys.userBlocked(USER))).thenReturn("true");
+        assertThat(repository.getCurrentAction(USER, CONTEXT)).isEqualTo(ZeroTrustAction.BLOCK);
+        assertThat(repository.restrictionHeldMillis(USER)).isGreaterThan(Duration.ofDays(1000).toMillis());
+
+        when(values.get(ZeroTrustRedisKeys.userBlocked(USER))).thenReturn(null);
+        stored(ZeroTrustAction.ALLOW, CONTEXT);
+        assertThat(repository.getCurrentAction(USER, CONTEXT)).isEqualTo(ZeroTrustAction.ALLOW);
+        assertThat(repository.restrictionHeldMillis(USER)).isZero();
     }
 
     @Test
