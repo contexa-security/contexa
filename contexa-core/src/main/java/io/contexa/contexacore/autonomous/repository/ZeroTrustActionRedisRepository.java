@@ -360,7 +360,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                     && contextBindingHash != null
                     && storedHash != null
                     && !storedHash.toString().equals(contextBindingHash)) {
-                log.error("[ZeroTrustActionRedisRepository] Context binding hash mismatch detected: userId={}, action={}", userId, action);
+                log.debug("[ZeroTrustActionRedisRepository] Context binding hash mismatch detected: userId={}, action={}", userId, action);
                 return ZeroTrustAction.PENDING_ANALYSIS;
             }
             return action;
@@ -373,7 +373,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                     && contextBindingHash != null) {
                 String lastContextHash = readLastVerifiedActionContext(userId);
                 if (lastContextHash != null && !lastContextHash.equals(contextBindingHash)) {
-                    log.error("[ZeroTrustActionRedisRepository] Last verified context binding hash mismatch: userId={}, action={}", userId, action);
+                    log.debug("[ZeroTrustActionRedisRepository] Last verified context binding hash mismatch: userId={}, action={}", userId, action);
                     return ZeroTrustAction.PENDING_ANALYSIS;
                 }
             }

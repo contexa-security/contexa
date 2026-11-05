@@ -60,6 +60,10 @@ class OrdinaryFlowLogLevelContractTest {
         DEBUG.put("ResourceRegistryServiceImpl.java", List.of(
                 "Empty batch, skipping processing", "No valid resources, skipping AI suggestion", "AI did not return suggestion for resource"));
         DEBUG.put("AutoConditionTemplateService.java", List.of("Unique name generation required timestamp fallback"));
+        DEBUG.put("InMemoryZeroTrustActionRepository.java", List.of("[InMemoryZTARepository] Context binding hash mismatch detected"));
+        DEBUG.put("ZeroTrustActionRedisRepository.java", List.of(
+                "[ZeroTrustActionRedisRepository] Context binding hash mismatch detected",
+                "[ZeroTrustActionRedisRepository] Last verified context binding hash mismatch"));
 
         INFO.put("NoOpSecurityActionEventPublisher.java", List.of("[NoOpActionPublisher] SOAR auto-response is disabled"));
         INFO.put("AuditLogRetentionScheduler.java", List.of("Audit log retention: deleted"));
