@@ -15,6 +15,7 @@
  */
 package io.contexa.autoconfigure.identity;
 
+import io.contexa.contexaidentity.security.core.adapter.state.oauth2.AuthorizationServerIssuer;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.OAuth2StateAdapter;
 import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import io.contexa.contexacommon.operating.ConditionalOnOwnership;
@@ -201,8 +202,7 @@ public class IdentityOAuth2AutoConfiguration {
     @ConditionalOnMissingBean(JwtDecoder.class)
     public JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource,
                                  ObjectProvider<AuthorizationServerSettings> authorizationServerSettings) {
-        AuthorizationServerSettings serverSettings = authorizationServerSettings.getIfAvailable();
-        return jwtDecoder(jwkSource, serverSettings != null ? serverSettings.getIssuer() : null);
+        return jwtDecoder(jwkSource, authorizationServerSettings.getIfAvailable());
     }
 
     /** Beside the application's own decoders it stays out of their way. */
@@ -215,19 +215,18 @@ public class IdentityOAuth2AutoConfiguration {
 
     /** The decoder for tokens of this authorization server, which issues them under its settings' issuer. */
     public JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource) {
-        return jwtDecoder(jwkSource, authorizationServerSettings().getIssuer());
+        return jwtDecoder(jwkSource, authorizationServerSettings());
     }
 
     /**
      * Checks a token's lifetime, its issuer and its configured audiences (A1-7). The expected issuer is the one the
-     * authorization server issues under; without one, {@code issuer-uri}.
+     * authorization server issues under.
      */
-    private JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource, String serverIssuer) {
+    private JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource, AuthorizationServerSettings serverSettings) {
         JwtDecoder decoder = OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource);
         if (decoder instanceof NimbusJwtDecoder nimbusDecoder) {
             OAuth2TokenSettings oauth2 = authContextProperties.getOauth2();
-            String expectedIssuer = StringUtils.hasText(serverIssuer) ? serverIssuer : oauth2.getIssuerUri();
-            nimbusDecoder.setJwtValidator(ResourceServerTokenValidators.of(oauth2, expectedIssuer));
+            nimbusDecoder.setJwtValidator(ResourceServerTokenValidators.of(oauth2, AuthorizationServerIssuer.of(serverSettings, oauth2)));
         }
         return decoder;
     }
@@ -459,7 +458,7 @@ public class IdentityOAuth2AutoConfiguration {
         if (StringUtils.hasText(issuerUri)) {
             builder.issuer(issuerUri);
         } else {
-            log.info("[OAuth2] Issuer URI not configured (spring.auth.oauth2.issuer-uri) - Spring Authorization Server will "
+            log.info("[OAuth2] Issuer URI not configured (contexa.auth.oauth2.issuer-uri) - Spring Authorization Server will "
                     + "resolve the issuer from the current request for the internal token engine.");
         }
 

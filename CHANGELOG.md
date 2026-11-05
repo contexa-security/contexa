@@ -49,6 +49,19 @@ The format is based on Keep a Changelog and the project follows semantic version
 - **An attempt during a lock no longer moves the lock's end**: trying a locked account, even with the right password,
   pushed `lock_expires_at` back, so that anyone could keep the account locked. The count of failures still starts over
   when the lock has run out.
+### Fixed
+
+- **OAuth2 tokens: the second sign-in of a user no longer fails.** Spring Authorization Server reads the type of its
+  columns from the database under the standard table name; under the `ctxa_` name it found none and wrote bytes into the
+  text columns, which PostgreSQL keeps in hex form. It now reads the columns of `ctxa_oauth2_authorization`, and a
+  table with `bytea` token columns keeps working. The script of the authorization server's tables now creates the same
+  `text` columns as the schema. A stored row that cannot be read is removed at the user's next sign-in, which no longer
+  fails on it: a person holding such a row signs in again.
+- **OAuth2 tokens: the server accepts the tokens it issues.** Spring Boot's settings bean, which has no issuer, took the
+  place of Contexa's, so `contexa.auth.oauth2.issuer-uri` reached the decoder and not the chain, and a token named the
+  path of the login as its issuer. The chain now issues under the issuer of the settings or, when they name none, under
+  `contexa.auth.oauth2.issuer-uri` (default `http://localhost:9000`), the rule the decoder already had. Set the key to
+  the public address of the application.
 
 ## [0.1.1] - 2026-11-02
 
