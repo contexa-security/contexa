@@ -74,7 +74,8 @@ public interface ZeroTrustActionRepository {
      * user-level CHALLENGE or ESCALATE when the decision is less strict, whichever session it was
      * analysed for, and return {@code true} because the stricter action stays in effect.
      *
-     * @return {@code false} only when the decision could not be written and verified
+     * @return {@code false} only when the decision could not be written; a later decision of the same user that has
+     *         replaced it since is no failed write
      */
     default boolean saveFinalAction(
             String userId,
@@ -90,7 +91,7 @@ public interface ZeroTrustActionRepository {
         APPLIED,
         /** A stricter user-level action stays in effect, so the less strict decision was not written. */
         KEPT_STRICTER,
-        /** The decision could not be written and verified. */
+        /** The decision could not be written. */
         FAILED
     }
 
