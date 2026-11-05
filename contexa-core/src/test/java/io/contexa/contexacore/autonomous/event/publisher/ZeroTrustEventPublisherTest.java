@@ -31,6 +31,7 @@ import io.contexa.contexacommon.security.bridge.ArgumentOrigins;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.DefaultCanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.context.inference.ContextCoverageEvaluator;
+import io.contexa.contexacore.autonomous.event.support.HostSignInEvents;
 import io.contexa.contexacore.autonomous.event.support.ZeroTrustSecurityEventConverter;
 import io.contexa.contexacore.autonomous.tiered.prompt.AgentLineValues;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
@@ -832,6 +833,62 @@ class ZeroTrustEventPublisherTest {
                 .containsEntry("failedLoginAttempts", 3)
                 // W3-12: the count states the window it was counted in (the default 5 minutes).
                 .containsEntry("failedLoginWindowMinutes", 5);
+    }
+
+    @Test
+    @DisplayName("the failures of a name spelled as an internal key are read under the person's key")
+    void theFailuresAreReadUnderThePersonsKey() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        when(invocation.getMethod()).thenReturn(SampleService.class.getDeclaredMethod("protectableApprove"));
+        SecurityContextDataStore dataStore = mock(SecurityContextDataStore.class);
+        when(dataStore.findRecentLoginFailures(eq(ZeroTrustUserKey.person("console::admin")), anyLong(), anyLong()))
+                .thenReturn(3);
+
+        ZeroTrustSpringEvent event = new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class),
+                new TieredStrategyProperties(), dataStore, new SecurityPlaneProperties())
+                .buildMethodAuthorizationEvent(invocation, new UsernamePasswordAuthenticationToken("console::admin", "n/a"),
+                        true, null);
+
+        assertThat(event.getPayload()).containsEntry("failedLoginAttempts", 3);
+    }
+
+    /** What a protected call says of the failures of a name, with the application's sign-ins heard of or not. */
+    private Map<String, Object> callAfterSignInsThatFailed(int onRecord, boolean heard) throws Exception {
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(
+                new MockHttpServletRequest("GET", "/reports/export")));
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        when(invocation.getMethod()).thenReturn(SampleService.class.getDeclaredMethod("protectableApprove"));
+        SecurityContextDataStore dataStore = mock(SecurityContextDataStore.class);
+        when(dataStore.findRecentLoginFailures(eq("alice"), anyLong(), anyLong())).thenReturn(onRecord);
+        ZeroTrustEventPublisher publisher = new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class),
+                new TieredStrategyProperties(), dataStore, new SecurityPlaneProperties());
+        HostSignInEvents events = new HostSignInEvents();
+        if (heard) {
+            events.reached();
+        }
+        ReflectionTestUtils.setField(publisher, "hostSignInEvents", events);
+        return publisher.buildMethodAuthorizationEvent(invocation, new UsernamePasswordAuthenticationToken("alice", "n/a"),
+                true, null).getPayload();
+    }
+
+    @Test
+    @DisplayName("no failure on record says nothing while the application's sign-ins do not reach Contexa")
+    void noFailureOnRecordIsNotKnownWithoutTheApplicationsEvents() throws Exception {
+        assertThat(callAfterSignInsThatFailed(0, false).get("failedLoginAttempts")).isNull();
+    }
+
+    @Test
+    @DisplayName("no failure on record says no failure once the application's sign-ins reach Contexa")
+    void noFailureOnRecordIsZeroWithTheApplicationsEvents() throws Exception {
+        assertThat(callAfterSignInsThatFailed(0, true)).containsEntry("failedLoginAttempts", 0);
+    }
+
+    @Test
+    @DisplayName("a failure on record is a fact whoever kept it, another server of the application for one")
+    void aFailureOnRecordIsAFactWhoeverKeptIt() throws Exception {
+        assertThat(callAfterSignInsThatFailed(2, false)).containsEntry("failedLoginAttempts", 2);
     }
 
     /** Q-16 (PR-66): a request of the context the step-up was passed in, as the application left the sign-in. */

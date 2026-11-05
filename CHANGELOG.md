@@ -8,6 +8,15 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A wrong password at the application now reaches the decision.** Under `HOST_OWNED` Contexa heard nothing of a failed
+  sign-in, so the decision on the sign-in after it, and on the calls after that, read no failure. Contexa now listens to
+  Spring Security's failure events and keeps a failure for the decisions alone: neither the lock of an account nor the limit
+  of an address counts it, and the application's authentication is only read. An authentication manager that publishes no
+  events, such as a `ProviderManager` built by hand, leaves the count unknown, and the prompt says so instead of zero. What
+  a store keeps of failed sign-ins now has limits, the same in memory and in Redis: 10,000 names and addresses, the latest
+  1,000 failures of each, names of up to 256 characters, all gone with their window. Past the first limit the keys written
+  the longest ago go, and for a window a name without a record reads as unknown, not as no failures. Every spelling of a
+  name counts as one person.
 - **A sign-in after a run of wrong passwords no longer reads as any other sign-in.** Under `HOST_OWNED` the model decided the
   application's sign-in without what a protected call of the same request tells it: the signals the application states on
   the request, the authorities of the account, the failures on record and the bridge's stamps. A sign-in now carries all of

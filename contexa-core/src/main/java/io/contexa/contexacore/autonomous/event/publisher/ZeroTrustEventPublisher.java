@@ -21,6 +21,7 @@ import io.contexa.contexacommon.security.bridge.ArgumentOrigins;
 import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.CredentialFacts;
+import io.contexa.contexacore.autonomous.event.support.HostSignInEvents;
 import io.contexa.contexacore.autonomous.event.support.InvocationArguments;
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.annotation.ResourceImportance;
@@ -109,6 +110,10 @@ public class ZeroTrustEventPublisher {
     /** A2-11: the token claim names the bridge reads; the defaults when the bridge is not configured. */
     @Autowired(required = false)
     private BridgeProperties bridgeProperties;
+
+    /** Whether the application's sign-ins reach Contexa; absent when Contexa owns the sign-in. */
+    @Autowired(required = false)
+    private HostSignInEvents hostSignInEvents;
 
     /** Reads the stamps of a sign-in; asked for when one comes, the bridge being a servlet filter built apart. */
     @Autowired(required = false)
@@ -986,8 +991,9 @@ public class ZeroTrustEventPublisher {
                 long windowStart = now - windowMinutes * 60_000L;
                 // The user's own failures only: other users failing from the same address are not this user's.
                 // Unknown stays out of the payload, so the prompt says it is unknown rather than zero.
-                Integer failures = securityContextDataStore.findRecentLoginFailures(userId, windowStart, now);
-                if (failures != null) {
+                Integer failures = securityContextDataStore.findRecentLoginFailures(ZeroTrustUserKey.person(userId),
+                        windowStart, now);
+                if (failures != null && (failures > 0 || failedSignInsReachContexa())) {
                     payload.put("failedLoginAttempts", failures);
                     payload.put("failedLoginWindowMinutes", windowMinutes);
                 }
@@ -995,6 +1001,11 @@ public class ZeroTrustEventPublisher {
         } catch (RuntimeException exception) {
             log.error("Failed to populate stored authentication context: userId={}", userId, exception);
         }
+    }
+
+    /** Whether no failure on record means no failure: Contexa keeps its own sign-ins, the application's reach it by events. */
+    private boolean failedSignInsReachContexa() {
+        return hostSignInEvents == null || hostSignInEvents.reaching();
     }
 
     /** An effect the bridge reported stands: it came from the application's own check, which did finish. */

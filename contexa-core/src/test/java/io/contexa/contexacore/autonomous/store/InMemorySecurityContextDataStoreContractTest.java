@@ -62,6 +62,14 @@ class InMemorySecurityContextDataStoreContractTest extends AbstractSecurityConte
         clock.advance(elapsed);
     }
 
+    /** A sweep first, as a Redis key past its TTL is gone without one. */
+    @Override
+    protected long heldLoginFailureKeys() {
+        InMemorySecurityContextDataStore memory = (InMemorySecurityContextDataStore) store;
+        memory.removeExpiredEntries();
+        return memory.keyCounts().get("loginFailures");
+    }
+
     /** The only session risk of the test; a sweep first, so that a risk past its TTL is not counted. */
     @Override
     protected boolean holdsSessionRisk(String sessionId) {

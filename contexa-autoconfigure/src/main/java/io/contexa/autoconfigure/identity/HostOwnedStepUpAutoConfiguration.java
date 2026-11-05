@@ -36,8 +36,10 @@ import io.contexa.contexaidentity.security.webauthn.codec.PasskeyCreationOptions
 import io.contexa.autoconfigure.ai.HostOwnedEnforcementOrder;
 import io.contexa.contexaidentity.security.zerotrust.ChallengeResolution;
 import io.contexa.contexaidentity.security.zerotrust.HostOwnedUserPathGuard;
+import io.contexa.contexaidentity.security.zerotrust.HostOwnedSignInFailureListener;
 import io.contexa.contexaidentity.security.zerotrust.HostOwnedSignInListener;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
+import io.contexa.contexacore.autonomous.event.support.HostSignInEvents;
 import io.contexa.contexaidentity.security.zerotrust.stepup.HostOwnedStepUpController;
 import io.contexa.contexaidentity.security.zerotrust.stepup.HostOwnedStepUpService;
 import io.contexa.contexaidentity.security.zerotrust.stepup.StepUpOptionsStore;
@@ -133,6 +135,23 @@ public class HostOwnedStepUpAutoConfiguration {
     @ConditionalOnBean(ZeroTrustEventPublisher.class)
     public HostOwnedSignInListener hostOwnedSignInListener(ZeroTrustEventPublisher contexaZeroTrustEventPublisher) {
         return new HostOwnedSignInListener(contexaZeroTrustEventPublisher);
+    }
+
+    /** Whether the application's sign-ins reach Contexa: what a count of no failed sign-ins is worth. */
+    @Bean(name = "contexaHostSignInEvents")
+    @ConditionalOnMissingBean
+    public HostSignInEvents hostSignInEvents() {
+        return new HostSignInEvents();
+    }
+
+    /** The application's failed sign-ins, for the decisions to read; no lock or address limit counts them. */
+    @Bean(name = "contexaHostOwnedSignInFailureListener")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(ZeroTrustEventPublisher.class)
+    public HostOwnedSignInFailureListener hostOwnedSignInFailureListener(
+            ObjectProvider<SecurityContextDataStore> securityContextDataStore,
+            HostSignInEvents contexaHostSignInEvents) {
+        return new HostOwnedSignInFailureListener(securityContextDataStore::getIfAvailable, contexaHostSignInEvents);
     }
 
     /** Contexa's pages for the signed-in user answer only a signed-in user (ownership design S-3). */

@@ -152,6 +152,16 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:context:authentication:failure:user:%s", NAMESPACE, userId);
     }
 
+    /** The keys of failed sign-ins, ordered by their last failure, so that their number keeps within its bound. */
+    public static String authenticationLoginFailureKeys() {
+        return String.format("%s:context:authentication:failures:keys", NAMESPACE);
+    }
+
+    /** Held while a name without a record of failures may have lost it to that bound. */
+    public static String authenticationLoginFailuresLost() {
+        return String.format("%s:context:authentication:failures:lost", NAMESPACE);
+    }
+
     public static String authenticationLoginFailuresByIp(String clientIp) {
         if (clientIp == null || clientIp.trim().isEmpty()) {
             throw new IllegalArgumentException("Client IP cannot be null or empty");

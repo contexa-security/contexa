@@ -123,6 +123,13 @@ class RedisSecurityContextDataStoreContractTest extends AbstractSecurityContextD
     }
 
     @Override
+    protected long heldLoginFailureKeys() {
+        long keys = redisTemplate.keys("security:context:authentication:failure:*").size();
+        Long ordered = redisTemplate.opsForZSet().zCard(ZeroTrustRedisKeys.authenticationLoginFailureKeys());
+        return Math.max(keys, ordered != null ? ordered : 0);
+    }
+
+    @Override
     protected boolean holdsSessionRisk(String sessionId) {
         return Boolean.TRUE.equals(redisTemplate.hasKey(ZeroTrustRedisKeys.sessionRisk(sessionId)));
     }

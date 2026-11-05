@@ -140,6 +140,8 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         this.verificationLearning = learningSpace(this::releaseHeldRecords);
         this.promotionLearning = learningSpace(this::releaseHeldRecords);
         this.stoppedRequests = ExpiringKeySpace.<StoppedRequests>builder(clock).build();
+        this.loginFailures = ExpiringKeySpace.<ConcurrentSkipListMap<Long, String>>builder(clock)
+                .bound(LoginFailureRecording.MAX_KEYS).evictWith(this::evictLoginFailures).build();
         this.mfaVerifiedAt = ExpiringKeySpace.<Long>builder(clock).ttl(MFA_VERIFIED_TTL).build();
         this.challengeVerifiedAt = ExpiringKeySpace.<Long>builder(clock).ttl(MFA_VERIFIED_TTL).build();
         this.accountDeletions = ExpiringKeySpace.<Instant>builder(clock).build();
@@ -158,8 +160,8 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
                 sessionProtectableAccesses, sessionRequestIntervals, sessionStartedAt, sessionLastRequestTimes,
                 sessionPreviousPaths, sessionFirstClients, sessionPreviousIds, sessionRisks, lastRequestTimes,
                 previousPaths, workProfileObservations, roleScopeObservations, permissionChangeObservations,
-                authorizationScopeStates, verificationLearning, promotionLearning, stoppedRequests, mfaVerifiedAt,
-                challengeVerifiedAt, accountDeletions, userSessions, processingEventOwners, processedEvents, soarExecutions,
+                authorizationScopeStates, verificationLearning, promotionLearning, stoppedRequests, loginFailures,
+                mfaVerifiedAt, challengeVerifiedAt, accountDeletions, userSessions, processingEventOwners, processedEvents, soarExecutions,
                 verificationOutcomes);
     }
 
@@ -189,8 +191,10 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private final ExpiringKeySpace<String> authorizationScopeStates;
     private final ExpiringKeySpace<Long> lastRequestTimes;
     private final ExpiringKeySpace<String> previousPaths;
-    private final ConcurrentHashMap<String, ConcurrentSkipListMap<Long, String>> loginFailureCounters =
-            new ConcurrentHashMap<>();
+    /** The failed sign-ins of each name and address, within the bounds of {@link LoginFailureRecording}. */
+    private final ExpiringKeySpace<ConcurrentSkipListMap<Long, String>> loginFailures;
+    /** Until when a name without a record of failures may have lost it to the bound. */
+    private volatile long loginFailuresLostUntilMs;
     /** When each user last completed MFA, on the request clock, while the mark lasts. */
     private final ExpiringKeySpace<Long> mfaVerifiedAt;
     /** Q-16: when the user passed a step-up in a context, by user and context. */
@@ -534,7 +538,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     @Override
     public void recordLoginFailure(String userId, String clientIp, long currentTimeMs) {
         if (hasText(userId)) {
-            recordLoginFailureCounter("user:" + userId.trim(), currentTimeMs);
+            recordLoginFailureCounter(loginFailureKey(userId), currentTimeMs);
         }
         if (hasText(clientIp)) {
             recordLoginFailureCounter("ip:" + clientIp.trim(), currentTimeMs);
@@ -545,12 +549,28 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     public int getRecentLoginFailureCount(
             String userId, String clientIp, long windowStartMs, long currentTimeMs) {
         int userCount = hasText(userId)
-                ? countLoginFailures("user:" + userId.trim(), windowStartMs, currentTimeMs)
+                ? countLoginFailures(loginFailureKey(userId), windowStartMs, currentTimeMs)
                 : 0;
         int ipCount = hasText(clientIp)
                 ? countLoginFailures("ip:" + clientIp.trim(), windowStartMs, currentTimeMs)
                 : 0;
         return Math.max(userCount, ipCount);
+    }
+
+    @Override
+    public Integer findRecentLoginFailures(String userId, long windowStartMs, long currentTimeMs) {
+        if (!hasText(userId)) {
+            return null;
+        }
+        String key = loginFailureKey(userId);
+        if (loginFailures.get(key) == null && clock.millis() < loginFailuresLostUntilMs) {
+            return null;
+        }
+        return countLoginFailures(key, windowStartMs, currentTimeMs);
+    }
+
+    private static String loginFailureKey(String userId) {
+        return "user:" + LoginFailureRecording.subject(userId);
     }
 
     @Override
@@ -813,7 +833,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         previousPaths.remove(userId);
         mfaVerifiedAt.remove(userKey);
         challengeVerifiedAt.removeIf(key -> key.startsWith(userKey + CHALLENGE_VERIFIED_KEY_SEPARATOR));
-        loginFailureCounters.remove("user:" + userId.trim());
+        loginFailures.remove(loginFailureKey(userKey));
         userSessions.remove(userId);
     }
 
@@ -984,13 +1004,11 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
 
     /**
      * Releases every record no read can return any more, as the Redis store's keys expire (Z-16: the reads already
-     * ignore them), keeps every bounded space within its bound for the writes that left it to the sweep, and releases
-     * the login failures past the longest queried window.
+     * ignore them) and keeps every bounded space within its bound for the writes that left it to the sweep.
      */
     @Override
     public void removeExpiredEntries() {
         spaces.forEach(ExpiringKeySpace::removeExpired);
-        removeExpiredLoginFailures(clock.millis());
         releaseHeldLearningOverBudget();
     }
 
@@ -1126,29 +1144,34 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         });
     }
 
-    private void removeExpiredLoginFailures(long nowMs) {
-        long staleBefore = (nowMs - loginFailureRetention.toMillis()) * 1_000_000L;
-        for (String key : loginFailureCounters.keySet()) {
-            loginFailureCounters.computeIfPresent(key, (ignored, counter) ->
-                    counter.isEmpty() || counter.lastKey() < staleBefore ? null : counter);
-        }
-    }
-
     private void recordLoginFailureCounter(String key, long currentTimeMs) {
-        loginFailureCounters.compute(key, (ignored, counter) -> {
+        Duration retention = loginFailureRetention;
+        loginFailures.compute(key, (ignored, counter) -> {
             ConcurrentSkipListMap<Long, String> values = counter != null
                     ? counter
                     : new ConcurrentSkipListMap<>();
             long sequence = authenticationEventSequence.incrementAndGet() % 1_000_000L;
             values.put(currentTimeMs * 1_000_000L + sequence, Long.toString(currentTimeMs));
-            long cutoff = (currentTimeMs - loginFailureRetention.toMillis()) * 1_000_000L;
+            long cutoff = (currentTimeMs - retention.toMillis()) * 1_000_000L;
             values.headMap(cutoff).clear();
+            while (values.size() > LoginFailureRecording.MAX_PER_KEY) {
+                values.pollFirstEntry();
+            }
             return values;
-        });
+        }, retention);
+    }
+
+    /** The bound lets the key go: for as long as its failures would count, a name without a record may have lost it. */
+    private void evictLoginFailures(String key) {
+        loginFailures.evict(key);
+        long now = clock.millis();
+        Duration retention = loginFailureRetention;
+        loginFailuresLostUntilMs = now + retention.toMillis();
+        LoginFailureRecording.reportLoss(now, retention);
     }
 
     private int countLoginFailures(String key, long windowStartMs, long currentTimeMs) {
-        ConcurrentSkipListMap<Long, String> counter = loginFailureCounters.get(key);
+        ConcurrentSkipListMap<Long, String> counter = loginFailures.get(key);
         if (counter == null) {
             return 0;
         }
@@ -1245,11 +1268,12 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         counts.put("verificationLearning", verificationLearning.size());
         counts.put("promotionLearning", promotionLearning.size());
         counts.put("userSessions", userSessions.size());
+        counts.put("loginFailures", loginFailures.size());
         return counts;
     }
 
     boolean holdsUserRecordsFor(String userId) {
         return mfaVerifiedAt.holds(userId) || userSessions.holds(userId)
-                || loginFailureCounters.containsKey("user:" + userId) || stoppedRequests.holds(userId);
+                || loginFailures.holds(loginFailureKey(userId)) || stoppedRequests.holds(userId);
     }
 }

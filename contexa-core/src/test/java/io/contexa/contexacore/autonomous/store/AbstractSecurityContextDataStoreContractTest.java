@@ -52,6 +52,9 @@ abstract class AbstractSecurityContextDataStoreContractTest {
     /** Z-16 D-8: whether {@link #store} still holds a risk score for the session (no read of it is offered). */
     protected abstract boolean holdsSessionRisk(String sessionId);
 
+    /** How many keys of failed sign-ins {@link #store} holds, the order they are kept in included. */
+    protected abstract long heldLoginFailureKeys();
+
     @Test
     void q14_theVersionOfAccountsMovesOnWithEachChange() {
         SecurityContextDataStore store = createStore();
@@ -459,6 +462,112 @@ abstract class AbstractSecurityContextDataStoreContractTest {
                 .untilAsserted(() -> assertThat(store.accountDeletedAt("user-deleted"))
                         .as("the deletion is forgotten once its retention has passed")
                         .isNull());
+    }
+
+    @Test
+    @DisplayName("sign-ins under names nobody has do not make the store grow")
+    void loginFailures_aFloodOfNamesStaysWithinTheBound() {
+        long now = System.currentTimeMillis();
+
+        floodWithNames(now);
+
+        assertThat(heldLoginFailureKeys()).isLessThanOrEqualTo(LoginFailureRecording.MAX_KEYS);
+    }
+
+    @Test
+    @DisplayName("a name the flood pushed out reads as not known, never as no failures")
+    void loginFailures_aNamePushedOutIsNotKnown() {
+        long now = System.currentTimeMillis();
+        store.recordLoginFailure("victim", null, now);
+        store.recordLoginFailure("victim", null, now);
+        store.recordLoginFailure("victim", null, now);
+        passTime(Duration.ofSeconds(1));
+
+        floodWithNames(now);
+
+        assertThat(store.findRecentLoginFailures("victim", now - 60_000, now + 1_000)).isNull();
+        assertThat(store.findRecentLoginFailures("never-seen", now - 60_000, now + 1_000)).isNull();
+    }
+
+    @Test
+    @DisplayName("a failure after the flood is counted: the latest failures stay")
+    void loginFailures_theLatestFailuresStay() {
+        long now = System.currentTimeMillis();
+        floodWithNames(now);
+        passTime(Duration.ofSeconds(1));
+
+        store.recordLoginFailure("victim", null, now + 1);
+
+        assertThat(store.findRecentLoginFailures("victim", now - 60_000, now + 1_000)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("once a window has passed since a name was pushed out, no record means no failures again")
+    void loginFailures_theWindowEndsWhatTheFloodMadeUnknown() {
+        long now = System.currentTimeMillis();
+        floodWithNames(now);
+
+        passTime(Duration.ofMinutes(11));
+
+        assertThat(store.findRecentLoginFailures("never-seen", now, now + 1_000)).isZero();
+    }
+
+    @Test
+    @DisplayName("the failures of a name keep to their bound, the latest ones staying")
+    void loginFailures_oneNameKeepsToItsBound() {
+        long now = System.currentTimeMillis();
+        for (int failure = 0; failure < LoginFailureRecording.MAX_PER_KEY + 25; failure++) {
+            store.recordLoginFailure("hammered", null, now + failure);
+        }
+
+        assertThat(store.findRecentLoginFailures("hammered", now, now + 2 * LoginFailureRecording.MAX_PER_KEY))
+                .isEqualTo(LoginFailureRecording.MAX_PER_KEY);
+        assertThat(store.findRecentLoginFailures("hammered", now, now + 24)).isZero();
+    }
+
+    @Test
+    @DisplayName("a failed sign-in leaves with its window, its key and the order of the keys alike")
+    void loginFailures_expireWithTheirWindow() {
+        store.recordLoginFailure("passing", "203.0.113.20", System.currentTimeMillis());
+        assertThat(heldLoginFailureKeys()).isPositive();
+
+        passTime(Duration.ofMinutes(11));
+
+        assertThat(heldLoginFailureKeys()).isZero();
+    }
+
+    @Test
+    @DisplayName("every spelling of a name counts as one person, as a decision of the name reaches them all")
+    void loginFailures_everySpellingIsOneName() {
+        long now = System.currentTimeMillis();
+        store.recordLoginFailure("Alice", null, now);
+        store.recordLoginFailure("ALICE ", null, now);
+        store.recordLoginFailure("alice", null, now);
+
+        assertThat(store.findRecentLoginFailures("aLiCe", now - 60_000, now + 1_000)).isEqualTo(3);
+        assertThat(store.getRecentLoginFailureCount("ALICE", null, now - 60_000, now + 1_000)).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("deleting a user removes the failures of the user's name, whatever its spelling or form")
+    void deleteUserData_removesTheFailuresOfTheName() {
+        long now = System.currentTimeMillis();
+        store.recordLoginFailure("Carol", null, now);
+        String moved = ZeroTrustUserKey.person("console::mallory");
+        store.recordLoginFailure(moved, null, now);
+
+        store.deleteUserData("carol");
+        store.deleteUserData("console::mallory");
+
+        assertThat(store.findRecentLoginFailures("Carol", now - 60_000, now + 1_000)).isZero();
+        assertThat(store.findRecentLoginFailures(moved, now - 60_000, now + 1_000)).isZero();
+        assertThat(heldLoginFailureKeys()).isZero();
+    }
+
+    private void floodWithNames(long now) {
+        for (int name = 0; name < LoginFailureRecording.MAX_KEYS + 50; name++) {
+            store.recordLoginFailure("nobody-" + name, null, now);
+        }
     }
 
     @Test

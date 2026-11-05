@@ -285,7 +285,8 @@ public interface SecurityContextDataStore {
 
     /**
      * The user's own failed sign-ins in the window: failures of other users from the same address are not counted.
-     * Null when the user is unknown or the store cannot tell.
+     * Null when the user is unknown or the store cannot tell, as for a name without a record while the store has just let
+     * go of others to keep within {@link LoginFailureRecording#MAX_KEYS}.
      */
     default Integer findRecentLoginFailures(String userId, long windowStartMs, long currentTimeMs) {
         if (userId == null || userId.isBlank()) {
