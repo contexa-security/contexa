@@ -17,6 +17,7 @@ package io.contexa.contexaiam.security.xacml.pep;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import jakarta.servlet.http.HttpServletRequest;
@@ -126,7 +127,8 @@ public class ProtectableLlmSuppressionWriter {
                     requestId,
                     testRunId,
                     userId,
-                    request == null || request.getSession(false) == null ? null : request.getSession(false).getId(),
+                    request == null || request.getSession(false) == null ? null
+                            : RequestFactRedaction.sessionReference(request.getSession(false).getId()),
                     contextBindingHash,
                     actorSessionKey,
                     suppressionKey,

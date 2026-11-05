@@ -12,6 +12,7 @@ import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptShadowRun;
 import io.contexa.contexacore.verification.capture.SealedEvidencePromptSnapshot;
@@ -254,7 +255,7 @@ public class SealedEvidencePackageAssembler {
         putIfPresent(facts, "userId", event.getUserId());
         facts.put("clientIp", event.getSourceIp());
         facts.put("userAgent", event.getUserAgent());
-        facts.put("sessionId", event.getSessionId());
+        facts.put("sessionId", RequestFactRedaction.sessionReference(event.getSessionId()));
         putFromMetadata(facts, event, "httpMethod");
         putFromMetadata(facts, event, "requestPath");
         putFromMetadata(facts, event, "servletPath");

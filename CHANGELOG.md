@@ -8,6 +8,15 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **A live session id no longer leaves the running application.** The sealed evidence, the audit log, the decision
+  observations, the vector store and the model's input name a session by a reference (`sid-` and 24 hex digits of its
+  SHA-256): two records of one session carry the same reference, and the reference signs nobody in. The session stores
+  and the event a node hands to another keep the id, since they are keyed by it. Rows already stored stay as they are.
+  The `session_id` of the audit log and the observations is now that reference, so it cannot be matched to a live
+  session: `ctxa_active_sessions` and the session store still hold the id.
+- A query string keeps the names of its parameters, not their values (`pin&newPwd`): in the sealed evidence, the decision
+  observations and the session's records. A part without `=` is left out, since it may be the value itself. The model's
+  input never held a query.
 - **A sealed package changed without the signing key no longer passes the re-inspection.** Where the installation signs,
   a package without the signature it should carry fails instead of reading as not verifiable, whatever schema it names:
   a decision changed, its schema lowered and its hash computed again used to pass in full. Packages captured before the

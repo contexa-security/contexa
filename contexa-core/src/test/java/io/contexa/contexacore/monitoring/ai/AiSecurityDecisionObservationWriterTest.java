@@ -17,6 +17,7 @@ package io.contexa.contexacore.monitoring.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import org.junit.jupiter.api.DisplayName;
@@ -63,6 +64,27 @@ class AiSecurityDecisionObservationWriterTest {
 
         assertThat(firstInsertArgs(jdbcOperations).get("metadata_json")).asString()
                 .contains("\"finalDecisionReasonCodes\":[{\"code\":\"DEVIATION_TIME\",\"fact\":\"F1\"}]");
+    }
+
+    /** Q-11 (PR-59): an observation names the session by its reference, in its column and in its metadata. */
+    @Test
+    void recordDecision_keepsNoLiveSessionId() {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        AiSecurityDecisionObservationWriter writer = new AiSecurityDecisionObservationWriter(
+                () -> jdbcOperations, new ObjectMapper(), "openai", "gpt-6-luna");
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-session")
+                .userId("user-1")
+                .sessionId("LIVE-SESSION-1")
+                .metadata(Map.of("protectableDeclared", true, "requestId", "request-session",
+                        "sessionId", "LIVE-SESSION-1"))
+                .build();
+
+        writer.recordDecision(event, null, ZeroTrustAction.PENDING_ANALYSIS);
+
+        Map<String, Object> args = firstInsertArgs(jdbcOperations);
+        assertThat(args.get("session_id")).isEqualTo(RequestFactRedaction.sessionReference("LIVE-SESSION-1"));
+        assertThat(String.valueOf(args)).doesNotContain("LIVE-SESSION-1");
     }
 
     /**

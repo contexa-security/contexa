@@ -8,6 +8,7 @@ import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.verification.capture.SealedEvidencePromptTraceStore;
@@ -54,6 +55,16 @@ class SealedEvidencePackageAssemblerSealsWhatIsReadTest {
 
         assertThat(kept.getExpiresAt()).isBetween(before.plus(Duration.ofDays(30)), after.plus(Duration.ofDays(30)));
         assertThat(defaulted.getExpiresAt()).isBetween(before.plus(Duration.ofDays(90)), after.plus(Duration.ofDays(90)));
+    }
+
+    /** Q-11 (PR-59): the request facts name the session by its reference, the same for the same session. */
+    @Test
+    void theRequestFactsNameTheSessionByItsReference() throws Exception {
+        SealedEvidencePackage sealed = seal("req-q11", "user prompt", Map.of(), List.of(), Map.of());
+
+        Map<String, Object> facts = JSON.readValue(sealed.getRequestFactsJson(), MAP);
+        assertThat(facts).containsEntry("sessionId", RequestFactRedaction.sessionReference("s-1"));
+        assertThat(facts.get("contextBindingHash")).as("the binding is kept").isNotNull();
     }
 
     /** W4-3: the decision record keeps the reason codes the model gave with the fact IDs they cite. */

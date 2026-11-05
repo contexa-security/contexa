@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -162,6 +163,8 @@ public class AiSecurityDecisionObservationWriter {
                     event.getSessionId(), event.getSourceIp(), event.getUserAgent());
         }
         Map<String, Object> storedMetadata = metadataWithLatencyBreakdown(metadata, result, System.currentTimeMillis());
+        storedMetadata.computeIfPresent("sessionId",
+                (key, session) -> RequestFactRedaction.sessionReference(String.valueOf(session)));
         if (result != null && result.getReasoning() != null) {
             storedMetadata.put("finalDecisionReasoning", SensitiveValueSanitizer.sanitizeText(result.getReasoning()));
         }
@@ -260,7 +263,7 @@ public class AiSecurityDecisionObservationWriter {
                     correlationId,
                     testRunId,
                     userId,
-                    event.getSessionId(),
+                    RequestFactRedaction.sessionReference(event.getSessionId()),
                     contextBindingHash,
                     actorSessionKey,
                     windowId,
