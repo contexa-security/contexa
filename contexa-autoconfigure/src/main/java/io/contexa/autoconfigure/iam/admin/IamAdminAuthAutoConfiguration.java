@@ -26,6 +26,8 @@ import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.security.bridge.BridgeProperties;
+import io.contexa.contexaidentity.security.service.ott.EmailService;
 import io.contexa.contexacommon.repository.UserRolePermissionRepository;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.admin.web.auth.controller.*;
@@ -36,6 +38,7 @@ import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
 import io.contexa.contexaiam.admin.web.auth.service.UserManagementService;
+import io.contexa.contexaiam.admin.web.auth.service.VerificationCoverageService;
 import io.contexa.contexaiam.admin.web.metadata.service.FunctionCatalogService;
 import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
 import io.contexa.contexaiam.repository.FunctionCatalogRepository;
@@ -147,6 +150,20 @@ public class IamAdminAuthAutoConfiguration {
                 userRepository, groupRepository, roleRepository, ContexaOwnBeans.passwordEncoder(beanFactory), contexaModelMapper,
                 contexaCentralAuditFacade, contexaPasswordPolicyService, contexaSystemSettingsService, messageSource,
                 userRolePermissionRepository, bridgeUserProfileRepository, eventPublisher);
+    }
+
+    /** Q-1: who could not answer a CHALLENGE, for the start and the console's user list. */
+    @Bean(name = "contexaVerificationCoverageService")
+    @ConditionalOnMissingBean
+    public VerificationCoverageService verificationCoverageService(
+            UserRepository userRepository,
+            ObjectProvider<BridgeProperties> bridgeProperties,
+            ObjectProvider<EmailService> emailService) {
+        BridgeProperties bridge = bridgeProperties.getIfAvailable(BridgeProperties::new);
+        return new VerificationCoverageService(userRepository, bridge.getSync().getSyntheticEmailDomain(), () -> {
+            EmailService mail = emailService.getIfAvailable();
+            return mail != null && mail.isMailSenderConfigured();
+        });
     }
 
     @Bean(name = "contexaRoleService")

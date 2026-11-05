@@ -17,6 +17,7 @@ package io.contexa.contexaidentity.security.zerotrust;
 
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.RequestPaths;
 import io.contexa.contexacommon.security.ZeroTrustScreens;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
@@ -168,6 +169,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = RequestPaths.of(request);
         return RequestPaths.isExactly(path, LOGOUT_PATH)
+                || ConsoleSession.onReleasePath(request)
                 || ZeroTrustScreens.isScreenResource(path)
                 || ZeroTrustScreens.isDiscoveryDocument(path)
                 || DECISION_FOLDERS.stream().anyMatch(folder -> RequestPaths.isWithin(path, folder));
@@ -402,7 +404,9 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                                HttpServletResponse response,
                                String userId) throws IOException {
 
-        String redirectUrl = request.getContextPath() + "/contexa/zero-trust/blocked";
+        // The screens of a decision answer the application's user; a console session goes where a block is lifted.
+        String redirectUrl = request.getContextPath()
+                + (ConsoleSession.of(request) ? "/contexa/admin/blacklist" : "/contexa/zero-trust/blocked");
 
         Map<String, Object> body = new HashMap<>();
         body.put("error", "ACCOUNT_BLOCKED");

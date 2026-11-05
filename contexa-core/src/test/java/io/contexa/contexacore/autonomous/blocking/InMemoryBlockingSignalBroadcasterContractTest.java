@@ -21,6 +21,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.Locale;
 import java.util.function.LongSupplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,6 +33,21 @@ class InMemoryBlockingSignalBroadcasterContractTest extends BlockingSignalBroadc
     @Override
     protected BlockingSignalBroadcaster create(BlockedStateProbe probe, Duration probeInterval, LongSupplier clock) {
         return new InMemoryBlockingSignalBroadcaster(probe, probeInterval, clock);
+    }
+
+    @Test
+    @DisplayName("Q-18: a signal for one spelling of a name reaches the responses of every spelling, and its release too")
+    void aSignalReachesEverySpelling() {
+        BlockingSignalBroadcaster signals = new InMemoryBlockingSignalBroadcaster();
+        String user = user();
+
+        signals.registerBlock(user.toUpperCase(Locale.ROOT));
+
+        assertThat(signals.isBlocked(user)).isTrue();
+
+        signals.registerUnblock(" " + user + " ");
+
+        assertThat(signals.isBlocked(user.toUpperCase(Locale.ROOT))).isFalse();
     }
 
     @Test

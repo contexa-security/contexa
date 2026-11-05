@@ -29,6 +29,18 @@ public interface SecurityContextDataStore {
     int DEFAULT_OBSERVATION_CAPACITY = 5_000;
 
     /**
+     * Q-14: moves on each time what accounts may do changes, across the nodes that share this store. A session behind
+     * it reads its account again. A store of the application's own that keeps no version leaves sessions as they are.
+     */
+    default long authoritiesVersion() {
+        return 0L;
+    }
+
+    /** Q-14: tells open sessions that accounts changed. */
+    default void advanceAuthoritiesVersion() {
+    }
+
+    /**
      * BR-C14: how many work profile or role scope observations each scope keeps, the oldest leaving first; the
      * collectors read the usual behaviour from up to this many.
      */

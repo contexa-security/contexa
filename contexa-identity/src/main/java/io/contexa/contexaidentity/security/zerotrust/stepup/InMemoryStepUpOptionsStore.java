@@ -70,6 +70,12 @@ public class InMemoryStepUpOptionsStore implements StepUpOptionsStore {
     }
 
     @Override
+    public boolean holds(String key) {
+        Entry entry = entries.get(key);
+        return entry != null && entry.expiresAt().isAfter(clock.instant());
+    }
+
+    @Override
     @Nullable
     public <T extends Serializable> T take(String key, Class<T> type) {
         Entry entry = entries.remove(key);

@@ -97,7 +97,15 @@ public class HostOwnedStepUpController {
         if (user == null) {
             return unauthorized();
         }
-        return verified(request, service.verifyCode(request, user, code));
+        if (!service.verifyCode(request, user, code)) {
+            return verified(request, false);
+        }
+        // Q-1: the moment the user proved who they are is the moment to offer the passkey that spares the next code.
+        HostOwnedStepUpService.Situation situation = service.situation(request, user);
+        return situation != null && situation.passkeyRegistrable()
+                ? ResponseEntity.ok(Map.of("verified", true,
+                        "redirectUrl", request.getContextPath() + HostOwnedStepUp.STEP_UP_PATH))
+                : verified(request, true);
     }
 
     @PostMapping(value = "/passkey/options", produces = MediaType.APPLICATION_JSON_VALUE)

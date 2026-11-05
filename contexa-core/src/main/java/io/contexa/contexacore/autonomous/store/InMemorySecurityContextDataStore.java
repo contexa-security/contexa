@@ -208,6 +208,8 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     /** Taken by the releases over the budget and by the pass that drops stale entries from the order. */
     private final ReentrantLock heldLearningReleaseLock = new ReentrantLock();
     private final AtomicLong authenticationEventSequence = new AtomicLong();
+    /** Q-14: moves on each time what accounts may do changes. */
+    private final AtomicLong authoritiesVersion = new AtomicLong();
     /** Guards the moves of an event between its processing claim and its processed mark. */
     private final Object eventProcessingLock = new Object();
     /** The owner of each event in processing, for {@link #EVENT_PROCESSING_TTL} (Z-16 D-6). */
@@ -738,6 +740,16 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         }
         String suffix = LearningSubject.AGENT_KEY + agentId;
         return workProfileObservations.removeIf(key -> key.endsWith(suffix));
+    }
+
+    @Override
+    public long authoritiesVersion() {
+        return authoritiesVersion.get();
+    }
+
+    @Override
+    public void advanceAuthoritiesVersion() {
+        authoritiesVersion.incrementAndGet();
     }
 
     @Override

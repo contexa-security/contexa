@@ -41,6 +41,7 @@ public final class CanonicalExecutionEventMetadataSupport {
                 .actorType(text(metadata.get("actorType")))
                 .principalType(text(metadata.get("principalType")))
                 .serviceClientPrincipal(Boolean.TRUE.equals(resolveBoolean(metadata.get("serviceClientPrincipal"))))
+                .consoleSession(Boolean.TRUE.equals(resolveBoolean(metadata.get("consoleSession"))))
                 .build());
         String subjectType = subjectKind.subjectType();
         String executionMode = subjectKind.executionMode();

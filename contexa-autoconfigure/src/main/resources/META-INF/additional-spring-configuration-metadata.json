@@ -1,6 +1,12 @@
 {
   "properties": [
     {
+      "name": "contexa.security.zerotrust.normalize-user-keys",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether every spelling of a name (capitals, full-width letters, surrounding spaces) reads one decision, so that a BLOCK of plain-k9 also stops PLAIN-K9. Turn it off when names of the application differ by case alone."
+    },
+    {
       "name": "contexa.pqa.routes.official-api-root",
       "type": "java.lang.String",
       "defaultValue": "/contexa/admin/api/prompt-quality",

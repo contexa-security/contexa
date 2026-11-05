@@ -582,15 +582,15 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     }
 
     /**
-     * docs/agent A5-1: the key the request's decision is stored under. An agent acting for a person keeps its decisions
-     * apart from the person's; everyone else keeps the user ID.
+     * docs/agent A5-1, Q-17: the key the request's decision is stored under. An agent acting for a person and a console
+     * session keep their decisions apart from the person of that name; everyone else keeps the user ID.
      */
     private static String decisionKey(SecurityEvent event, String userId) {
         if (userId == null || userId.isBlank()) {
             return userId;
         }
         ZeroTrustSubject subject = ZeroTrustSubject.of(event);
-        return subject != null && subject.delegatedAgent() ? subject.storageKey() : userId;
+        return subject != null && (subject.delegatedAgent() || subject.console()) ? subject.storageKey() : userId;
     }
 
     private void handleBlockDecision(String userId, SecurityEvent event, ProcessingResult result) {

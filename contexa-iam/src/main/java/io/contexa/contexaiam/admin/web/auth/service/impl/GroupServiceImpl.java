@@ -42,7 +42,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 @CacheConfig(cacheManager = "contexaCacheManager")
-public class GroupServiceImpl implements GroupService {
+public class GroupServiceImpl extends AccountAuthoritiesService implements GroupService {
     private final GroupRepository groupRepository;
     private final RoleRepository roleRepository;
     private final RoleHierarchyRepository roleHierarchyRepository;
@@ -99,6 +99,7 @@ public class GroupServiceImpl implements GroupService {
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     @Protectable
     public void deleteGroup(Long id) {
+        authoritiesChanged();
         groupRepository.deleteById(id);
     }
 
@@ -106,6 +107,7 @@ public class GroupServiceImpl implements GroupService {
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     @Protectable
     public Group updateGroup(Group group, List<Long> selectedRoleIds) {
+        authoritiesChanged();
         Group existingGroup = groupRepository.findByIdWithRoles(group.getId())
                 .orElseThrow(() -> new IllegalArgumentException("Group not found."));
 

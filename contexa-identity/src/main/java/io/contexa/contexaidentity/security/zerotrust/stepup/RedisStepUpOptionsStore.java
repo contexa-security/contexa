@@ -68,6 +68,11 @@ public class RedisStepUpOptionsStore implements StepUpOptionsStore {
     }
 
     @Override
+    public boolean holds(String key) {
+        return Boolean.TRUE.equals(redis.hasKey(PREFIX + key));
+    }
+
+    @Override
     @Nullable
     public <T extends Serializable> T take(String key, Class<T> type) {
         String stored = redis.opsForValue().getAndDelete(PREFIX + key);

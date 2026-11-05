@@ -44,7 +44,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 @CacheConfig(cacheManager = "contexaCacheManager")
-public class PermissionServiceImpl implements PermissionService {
+public class PermissionServiceImpl extends AccountAuthoritiesService implements PermissionService {
     private final PermissionRepository permissionRepository;
     private final ManagedResourceRepository managedResourceRepository;
     private final PolicyRepository policyRepository;
@@ -118,6 +118,7 @@ public class PermissionServiceImpl implements PermissionService {
     )
     @Override
     public void deletePermission(Long id) {
+        authoritiesChanged();
         long roleCount = permissionRepository.countRoleAssignments(id);
         if (roleCount > 0) {
             throw new IllegalStateException(
@@ -145,6 +146,7 @@ public class PermissionServiceImpl implements PermissionService {
     @Transactional(transactionManager = "contexaTransactionManager")
     @Override
     public Permission updatePermission(Long id, PermissionDto permissionDto) {
+        authoritiesChanged();
         Permission permission = permissionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Permission not found: " + id));
 

@@ -16,6 +16,18 @@
                 <p class="text-dark-muted mt-1" th:text="#{admin.blacklist.subtitle}">AI Native Zero Trust blocked user management</p>
             </div>
 
+            <form th:action="@{/contexa/admin/blacklist/challenge-release}" method="post"
+                  class="flex flex-wrap items-center gap-2 mb-6 p-4 rounded-lg" style="background: rgba(30, 41, 59, 0.5); margin-top:0;">
+                <span class="text-sm text-dark-muted" style="flex-basis:100%;" th:text="#{admin.blacklist.challenge.desc}">
+                    A user with no way to verify stays under a CHALLENGE. Release it here.</span>
+                <input type="text" name="userId" required class="px-3 py-2 rounded-lg text-sm"
+                       th:placeholder="#{admin.blacklist.challenge.user}" placeholder="User">
+                <input type="text" name="reason" required class="px-3 py-2 rounded-lg text-sm" style="flex:1; min-width:12rem;"
+                       th:placeholder="#{admin.blacklist.challenge.reason}" placeholder="Reason">
+                <button type="submit" class="px-4 py-2 rounded-lg text-sm font-medium filter-active"
+                        th:text="#{admin.blacklist.challenge.release}">Release the CHALLENGE</button>
+            </form>
+
             <div class="flex flex-wrap gap-2 mb-6 items-center" id="blacklistTabs">
                 <a th:href="@{/contexa/admin/blacklist}" class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 filter-active"
                    th:text="#{admin.blacklist.tab.people}">People</a>

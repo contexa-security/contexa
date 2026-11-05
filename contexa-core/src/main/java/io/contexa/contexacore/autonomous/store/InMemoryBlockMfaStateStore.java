@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.store;
 
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -64,7 +65,7 @@ public class InMemoryBlockMfaStateStore implements BlockMfaStateStore, ExpiringS
             return;
         }
         Instant now = clock.instant();
-        verifications.put(userId, new Verification(now, now.plus(verifiedTtl)));
+        verifications.put(ZeroTrustUserKey.of(userId), new Verification(now, now.plus(verifiedTtl)));
     }
 
     @Override
@@ -72,7 +73,7 @@ public class InMemoryBlockMfaStateStore implements BlockMfaStateStore, ExpiringS
         if (decisions != null) {
             return decisions.getBlockMfaVerifiedUntil(userId) != null;
         }
-        return verifications.containsKey(userId);
+        return verifications.containsKey(ZeroTrustUserKey.of(userId));
     }
 
     @Override
@@ -81,7 +82,7 @@ public class InMemoryBlockMfaStateStore implements BlockMfaStateStore, ExpiringS
             Instant until = decisions.getBlockMfaVerifiedUntil(userId);
             return until != null ? until.minus(verifiedTtl) : null;
         }
-        Verification verification = verifications.get(userId);
+        Verification verification = verifications.get(ZeroTrustUserKey.of(userId));
         return verification != null ? verification.verifiedAt() : null;
     }
 
@@ -90,7 +91,7 @@ public class InMemoryBlockMfaStateStore implements BlockMfaStateStore, ExpiringS
         if (decisions != null) {
             return decisions.getBlockMfaVerifiedUntil(userId);
         }
-        Verification verification = verifications.get(userId);
+        Verification verification = verifications.get(ZeroTrustUserKey.of(userId));
         return verification != null ? verification.expiresAt() : null;
     }
 
@@ -117,7 +118,7 @@ public class InMemoryBlockMfaStateStore implements BlockMfaStateStore, ExpiringS
         if (decisions != null) {
             decisions.clearBlockMfaVerified(userId);
         }
-        verifications.remove(userId);
+        verifications.remove(ZeroTrustUserKey.of(userId));
         actionRepository.clearBlockMfaPending(userId);
     }
 
@@ -127,7 +128,7 @@ public class InMemoryBlockMfaStateStore implements BlockMfaStateStore, ExpiringS
     }
 
     boolean holdsVerificationFor(String userId) {
-        return verifications.holds(userId)
+        return verifications.holds(ZeroTrustUserKey.of(userId))
                 || (decisions != null && decisions.getBlockMfaVerifiedUntil(userId) != null);
     }
 

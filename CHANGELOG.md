@@ -6,6 +6,23 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ## [Unreleased]
 
+### Security
+
+- **The code the victim passes no longer frees the attacker's session.** A CHALLENGE is answered per session: the
+  session that passed the code goes on, and every other session of the user stays stopped until it answers for itself
+  or the CHALLENGE would have lapsed. A user on several devices verifies on each. An administrator's override ends it.
+- **A stolen password no longer registers a passkey.** A passkey answers a CHALLENGE, so registering one now needs a
+  confirmed user. Under `HOST_OWNED`: a code mailed to the user's own address, or the application's own MFA sign-in in
+  the last five minutes. Under `CONTEXA_OWNED`: a session that completed MFA; any other verifies first and comes back.
+  A CHALLENGE is answered first, and a BLOCK or an ESCALATE refuses it.
+- **Logging out ends the sign-in it left waiting for a code.** With the Redis store the `MFA_SID` cookie and the code could
+  finish it from another browser. A session that ends, by logout or otherwise, now ends the MFA flow it started, in both
+  stores.
+- **Every spelling of a name meets the decision of that name.** A BLOCK of `plain-k9` also stops `PLAIN-K9` and a
+  full-width spelling. If names of your application differ by case alone, set
+  `contexa.security.zerotrust.normalize-user-keys=false`: with it on, a restriction of one reaches the other. A BLOCK
+  stored by an earlier version stays in force; other decisions under a name with capitals start again after the upgrade.
+
 ### Fixed
 
 - **`@EnableAISecurity` can stand on any configuration class.** Declared on the class that also declares the application's
@@ -66,6 +83,15 @@ The format is based on Keep a Changelog and the project follows semantic version
   again to the same result. The prompt snapshots waiting for their sealing are held within a twentieth of the heap, the
   oldest going first. The event collectors keep the id and time of the recent events, not the events with their whole
   context. An AI operation that fails or streams to its end no longer leaves its audit entry in memory.
+- **What an administrator changes reaches the sessions that are open.** Disabling a user ends the user's sessions at once,
+  and a change of groups, roles, permissions or the role hierarchy is read again by each open session on its next request.
+  A bearer token keeps the rights it was issued with until it expires; disabling the account ends it.
+- **The console's administrator is not the application's user of that name** under `HOST_OWNED`: a BLOCK of one no longer
+  locks the console of the other, in either direction, and the block list stays open to a console session.
+- **Behind a proxy nobody named, one person's typing no longer stops everyone.** When requests carry `X-Forwarded-For` and
+  `contexa.security.tiered.security.trusted-proxies` is empty, the address limit of sign-ins is not applied and an ERROR
+  names the setting. The lock of each account works as before. **Set the setting if you run behind a proxy**: until you do,
+  no address limit applies, and a client that adds the header itself escapes it too.
 - **A user can answer a CHALLENGE in `contexa.infrastructure.mode=distributed` whatever the sign-in is made of.** An MFA
   flow stored in Redis could not be read back when the sign-in held a read-only collection (a one-time token or a
   remember-me sign-in with Contexa's user or Spring's `User`, a JWT, an OAuth2 login) or an object the reading node
@@ -78,6 +104,14 @@ The format is based on Keep a Changelog and the project follows semantic version
   request held, without the version check.
 - A request running beside a write no longer finds no flow in Redis and ends it.
 - Flows in progress in Redis when this version starts cannot be read and start again: the stored form changed.
+
+### Added
+
+- **A way out for a user with neither a mail address nor a passkey.** An application tells a user's address with a
+  `BridgeUserEmailProvider` bean. An administrator can enter the address on the user's page, or release a CHALLENGE on the
+  block list; the release is recorded in the audit and nothing is learned from it. The user who passes a code is offered
+  a passkey at once, and `/contexa/step-up` is the page to link from your account menu. The start log and the console's user
+  list say how many users could not answer a CHALLENGE.
 
 ### Changed
 

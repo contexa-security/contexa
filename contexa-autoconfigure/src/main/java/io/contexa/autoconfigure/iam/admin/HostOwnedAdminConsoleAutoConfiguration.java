@@ -23,6 +23,8 @@ import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.ContexaConsolePaths;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacommon.security.authority.AuthorityResolver;
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.security.SessionAccountRefresher;
 import io.contexa.contexacore.security.UnifiedUserDetailsService;
 import io.contexa.contexaiam.admin.web.auth.controller.LoginController;
 import io.contexa.contexaidentity.security.zerotrust.HostOwnedUserPathGuard;
@@ -44,6 +46,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
@@ -90,10 +93,11 @@ public class HostOwnedAdminConsoleAutoConfiguration {
                                                                       UserRepository userRepository,
                                                                       AuthorityResolver contexaAuthorityResolver,
                                                                       BeanFactory beanFactory,
-                                                                      ObjectProvider<LoginPolicyHandler> loginPolicy)
+                                                                      ObjectProvider<LoginPolicyHandler> loginPolicy,
+                                                                      ObjectProvider<SecurityContextDataStore> dataStore)
             throws Exception {
-        DaoAuthenticationProvider provider =
-                new DaoAuthenticationProvider(new UnifiedUserDetailsService(userRepository, contexaAuthorityResolver));
+        UnifiedUserDetailsService accounts = new UnifiedUserDetailsService(userRepository, contexaAuthorityResolver);
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(accounts);
         provider.setPasswordEncoder(ContexaOwnBeans.passwordEncoder(beanFactory));
         // The console's sign-ins count against Contexa's accounts (failed attempts, lock, address throttle); the
         // application's own never do (the policy's event listener runs only when Contexa owns sign-in).
@@ -110,10 +114,15 @@ public class HostOwnedAdminConsoleAutoConfiguration {
         requestCache.setRequestMatcher(new NegatedRequestMatcher(
                 PathPatternRequestMatcher.withDefaults().matcher("/contexa/admin/api/**")));
 
+        SecurityContextDataStore store = dataStore.getIfAvailable();
+        ConsoleSessionFilter consoleSession = new ConsoleSessionFilter(CONTEXT_KEY,
+                store != null ? new SessionAccountRefresher(store, accounts) : null);
+
         String login = LoginController.HOST_OWNED_LOGIN_PROCESSING_URL;
         return http
                 .securityMatcher(consoleRequests())
                 .authenticationManager(manager)
+                .addFilterAfter(consoleSession, SecurityContextHolderFilter.class)
                 .securityContext(context -> context.securityContextRepository(contextRepository))
                 .csrf(csrf -> csrf.csrfTokenRepository(csrfRepository))
                 .requestCache(cache -> cache.requestCache(requestCache))

@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import java.time.Duration;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -56,12 +57,13 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
 
     /**
      * Replaces the analysis hash and the last verified keys unless the stored action refuses the
-     * new one. KEYS: analysis hash, last verified action, last verified context, BLOCK flag. ARGV:
-     * hash field names of action and previousAction, whether the BLOCK flag refuses the new action
-     * ('1' when it is less strict than a BLOCK), the refusing stored action values, the plain and
-     * stored value of every action, the analysis TTL in milliseconds (0 keeps no TTL), the action
-     * name, the last verified TTL in milliseconds, a context flag and value, then the hash
-     * field/value pairs. Returns 0 when refused and 1 when written.
+     * new one. KEYS: analysis hash, last verified action, last verified context, BLOCK flag, the
+     * CHALLENGE held for other sessions. ARGV: hash field names of action and previousAction, whether
+     * the BLOCK flag refuses the new action ('1' when it is less strict than a BLOCK), the refusing
+     * stored action values, the plain and stored value of every action, the analysis TTL in
+     * milliseconds (0 keeps no TTL), the action name, the last verified TTL in milliseconds, a context
+     * flag and value, whether a held CHALLENGE refuses it ('1' when it is less strict, unless its
+     * context answered), then the hash field/value pairs. Returns 0 when refused and 1 when written.
      */
     private static final DefaultRedisScript<Long> SAVE_FINAL_ACTION_SCRIPT = new DefaultRedisScript<>("""
             local actionField = ARGV[1]
@@ -93,7 +95,12 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             local lastTtl = ARGV[index + 2]
             local contextPresent = ARGV[index + 3]
             local context = ARGV[index + 4]
-            index = index + 5
+            local heldBack = ARGV[index + 5]
+            index = index + 6
+            if heldBack == '1' and redis.call('EXISTS', KEYS[5]) == 1
+                    and (contextPresent ~= '1' or redis.call('HEXISTS', KEYS[5], context) == 0) then
+                return 0
+            end
             redis.call('DEL', KEYS[1])
             if previous then
                 redis.call('HSET', KEYS[1], previousField, previous)
@@ -112,6 +119,41 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             end
             return 1
             """, Long.class);
+
+    /**
+     * Q-12: starts what is held for the other sessions from the CHALLENGE in force, with the time it has left, or adds
+     * a session to what is held. KEYS: analysis hash, held contexts. ARGV: hash field name of action, the plain and
+     * stored CHALLENGE, the field of the decision's time and that time, the context (empty without one), the TTL to
+     * use when the CHALLENGE shows none. Returns 1 when something is held and 0 when nothing is.
+     */
+    private static final DefaultRedisScript<Long> HOLD_CHALLENGE_SCRIPT = new DefaultRedisScript<>("""
+            local action = redis.call('HGET', KEYS[1], ARGV[1])
+            local context = ARGV[6]
+            if action == ARGV[2] or action == ARGV[3] then
+                local ttl = redis.call('PTTL', KEYS[1])
+                if ttl <= 0 then
+                    ttl = tonumber(ARGV[7])
+                end
+                redis.call('DEL', KEYS[2])
+                redis.call('HSET', KEYS[2], ARGV[4], ARGV[5])
+                if context ~= '' then
+                    redis.call('HSET', KEYS[2], context, '1')
+                end
+                redis.call('PEXPIRE', KEYS[2], ttl)
+                return 1
+            end
+            if redis.call('EXISTS', KEYS[2]) == 1 then
+                if context ~= '' then
+                    redis.call('HSET', KEYS[2], context, '1')
+                end
+                return 1
+            end
+            return 0
+            """, Long.class);
+
+    /** The field of a held CHALLENGE that says when it was decided; the other fields are the contexts that answered. */
+    private static final String HOLD_SINCE_FIELD = "since";
+
     private final RedisTemplate<String, Object> redisTemplate;
     private final StringRedisTemplate stringRedisTemplate;
     private final Duration failCountTtl;
@@ -158,20 +200,19 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
 
         try {
-            String blockKey = ZeroTrustRedisKeys.userBlocked(userId);
-            if ("true".equals(stringRedisTemplate.opsForValue().get(blockKey))) {
+            if (blockedFlagStands(userId)) {
                 return ZeroTrustAction.BLOCK;
             }
 
             Map<Object, Object> analysis = settledAnalysis(userId);
             Object actionValue = analysis.get("action");
             if (actionValue != null) {
-                return ZeroTrustAction.fromString(actionValue.toString());
+                return heldBack(userId, null, ZeroTrustAction.fromString(actionValue.toString()));
             }
 
             // Z-16 (1-a): outside a request a decision past its TTL lapses as it does in one
             // (ZeroTrustActionPrecedence: an ALLOW or CHALLENGE lapses with its TTL); only an unresolved ESCALATE stays.
-            return unresolvedEscalationOrPending(userId);
+            return heldBack(userId, null, unresolvedEscalationOrPending(userId));
         } catch (Exception e) {
             log.error("[ZeroTrustActionRedisRepository] Failed to get current action: userId={}", userId, e);
             return ZeroTrustAction.PENDING_ANALYSIS;
@@ -184,49 +225,112 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
 
         try {
-            String blockKey = ZeroTrustRedisKeys.userBlocked(userId);
-            if ("true".equals(stringRedisTemplate.opsForValue().get(blockKey))) {
+            if (blockedFlagStands(userId)) {
                 return ZeroTrustAction.BLOCK;
             }
-
-            Map<Object, Object> analysis = settledAnalysis(userId);
-            if (analysis.isEmpty()) {
-                return unresolvedEscalationOrPending(userId);
-            }
-            Object actionValue = analysis.get("action");
-            Object storedHash = analysis.get("contextBindingHash");
-
-            if (actionValue != null) {
-                ZeroTrustAction action = ZeroTrustAction.fromString(actionValue.toString());
-                if (ZeroTrustActionPrecedence.isContextBound(action)
-                        && contextBindingHash != null
-                        && storedHash != null
-                        && !storedHash.toString().equals(contextBindingHash)) {
-                    log.error("[ZeroTrustActionRedisRepository] Context binding hash mismatch detected: userId={}, action={}", userId, action);
-                    return ZeroTrustAction.PENDING_ANALYSIS;
-                }
-                return action;
-            }
-
-            String lastAction = readLastVerifiedAction(userId);
-            if (lastAction != null) {
-                ZeroTrustAction action = ZeroTrustAction.fromString(lastAction);
-                if (ZeroTrustActionPrecedence.isContextBound(action)
-                        && contextBindingHash != null) {
-                    String lastContextHash = readLastVerifiedActionContext(userId);
-                    if (lastContextHash != null && !lastContextHash.equals(contextBindingHash)) {
-                        log.error("[ZeroTrustActionRedisRepository] Last verified context binding hash mismatch: userId={}, action={}", userId, action);
-                        return ZeroTrustAction.PENDING_ANALYSIS;
-                    }
-                }
-                return action;
-            }
-
-            return ZeroTrustAction.PENDING_ANALYSIS;
+            return heldBack(userId, contextBindingHash, storedAction(userId, contextBindingHash));
         } catch (Exception e) {
             log.error("[ZeroTrustActionRedisRepository] Failed to get current action with context: userId={}", userId, e);
             return ZeroTrustAction.PENDING_ANALYSIS;
         }
+    }
+
+    private ZeroTrustAction storedAction(String userId, String contextBindingHash) {
+        Map<Object, Object> analysis = settledAnalysis(userId);
+        if (analysis.isEmpty()) {
+            return unresolvedEscalationOrPending(userId);
+        }
+        Object actionValue = analysis.get("action");
+        Object storedHash = analysis.get("contextBindingHash");
+
+        if (actionValue != null) {
+            ZeroTrustAction action = ZeroTrustAction.fromString(actionValue.toString());
+            if (ZeroTrustActionPrecedence.isContextBound(action)
+                    && contextBindingHash != null
+                    && storedHash != null
+                    && !storedHash.toString().equals(contextBindingHash)) {
+                log.error("[ZeroTrustActionRedisRepository] Context binding hash mismatch detected: userId={}, action={}", userId, action);
+                return ZeroTrustAction.PENDING_ANALYSIS;
+            }
+            return action;
+        }
+
+        String lastAction = readLastVerifiedAction(userId);
+        if (lastAction != null) {
+            ZeroTrustAction action = ZeroTrustAction.fromString(lastAction);
+            if (ZeroTrustActionPrecedence.isContextBound(action)
+                    && contextBindingHash != null) {
+                String lastContextHash = readLastVerifiedActionContext(userId);
+                if (lastContextHash != null && !lastContextHash.equals(contextBindingHash)) {
+                    log.error("[ZeroTrustActionRedisRepository] Last verified context binding hash mismatch: userId={}, action={}", userId, action);
+                    return ZeroTrustAction.PENDING_ANALYSIS;
+                }
+            }
+            return action;
+        }
+
+        return ZeroTrustAction.PENDING_ANALYSIS;
+    }
+
+    /**
+     * Q-12: what the context reads under a CHALLENGE held for the sessions that did not answer it. Only a read that
+     * would be less strict is looked at, so what is stricter than the CHALLENGE costs nothing.
+     */
+    private ZeroTrustAction heldBack(String userId, String contextBindingHash, ZeroTrustAction action) {
+        if (!ZeroTrustActionPrecedence.keepsActiveRestriction(ZeroTrustAction.CHALLENGE, action)) {
+            return action;
+        }
+        List<Object> held = stringRedisTemplate.opsForHash().multiGet(ZeroTrustRedisKeys.autonomousChallengeHold(userId),
+                List.of(HOLD_SINCE_FIELD, contextBindingHash != null ? contextBindingHash : HOLD_SINCE_FIELD));
+        boolean answered = contextBindingHash != null && held.get(1) != null;
+        return held.get(0) != null && !answered ? ZeroTrustAction.CHALLENGE : action;
+    }
+
+    /** The write fails with an exception: an answer that could not be kept to its session releases no one. */
+    @Override
+    @SuppressWarnings("unchecked")
+    public void holdChallengeForOtherSessions(String userId, String contextBindingHash) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+        RedisSerializer<Object> hashKeySerializer = (RedisSerializer<Object>) redisTemplate.getHashKeySerializer();
+        RedisSerializer<Object> hashValueSerializer = (RedisSerializer<Object>) redisTemplate.getHashValueSerializer();
+        Object decidedAt = readAnalysis(userId).get("updatedAt");
+        stringRedisTemplate.execute(HOLD_CHALLENGE_SCRIPT, RedisSerializer.byteArray(), SCRIPT_RESULT_SERIALIZER,
+                List.of(ZeroTrustRedisKeys.autonomousActionAnalysis(userId), ZeroTrustRedisKeys.autonomousChallengeHold(userId)),
+                (Object[]) new byte[][] {
+                        serialize(hashKeySerializer, "action"),
+                        utf8(ZeroTrustAction.CHALLENGE.name()),
+                        serialize(hashValueSerializer, ZeroTrustAction.CHALLENGE.name()),
+                        utf8(HOLD_SINCE_FIELD),
+                        utf8(decidedAt != null ? decidedAt.toString() : Instant.now().toString()),
+                        utf8(contextBindingHash != null ? contextBindingHash : ""),
+                        utf8(Long.toString(ZeroTrustAction.CHALLENGE.getDefaultTtl().toMillis()))});
+    }
+
+    @Override
+    public Instant challengeHeldSince(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return null;
+        }
+        try {
+            Object since = stringRedisTemplate.opsForHash().get(ZeroTrustRedisKeys.autonomousChallengeHold(userId),
+                    HOLD_SINCE_FIELD);
+            return since != null ? Instant.parse(since.toString()) : null;
+        } catch (Exception e) {
+            log.error("[ZeroTrustActionRedisRepository] Failed to read a held challenge: userId={}", userId, e);
+            return null;
+        }
+    }
+
+    /** The user's BLOCK flag, or the one an earlier version stored under the name as typed. */
+    private boolean blockedFlagStands(String userId) {
+        String blockKey = ZeroTrustRedisKeys.userBlocked(userId);
+        if ("true".equals(stringRedisTemplate.opsForValue().get(blockKey))) {
+            return true;
+        }
+        String typedKey = ZeroTrustRedisKeys.userBlockedAsTyped(userId);
+        return !typedKey.equals(blockKey) && "true".equals(stringRedisTemplate.opsForValue().get(typedKey));
     }
 
     // An ESCALATE whose analysis hash expires without resolution keeps reading as ESCALATE through the 24 h
@@ -271,7 +375,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 .filter(action -> action != ZeroTrustAction.ESCALATE).toList();
         Long written = stringRedisTemplate.execute(SAVE_FINAL_ACTION_SCRIPT, RedisSerializer.byteArray(),
                 SCRIPT_RESULT_SERIALIZER, finalActionKeys(userId),
-                actionScriptArgs(replacement, kept, true, otherActions).toArray());
+                actionScriptArgs(replacement, kept, true, otherActions, false).toArray());
         if (written != null && written == 1L) {
             log.warn("[ZeroTrustActionRedisRepository] Stored ESCALATE ended: userId={}, action={}", userId, replacement);
         }
@@ -400,7 +504,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             return false;
         }
         try {
-            String retryKey = "security:escalate:retry:" + userId;
+            String retryKey = ZeroTrustRedisKeys.escalateRetry(userId);
             return Boolean.TRUE.equals(stringRedisTemplate.hasKey(retryKey));
         } catch (Exception e) {
             log.error("[ZeroTrustActionRedisRepository] Failed to check escalate retry: userId={}", userId, e);
@@ -414,7 +518,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             return;
         }
         try {
-            String retryKey = "security:escalate:retry:" + userId;
+            String retryKey = ZeroTrustRedisKeys.escalateRetry(userId);
             if (!Boolean.TRUE.equals(stringRedisTemplate.hasKey(retryKey))) {
                 stringRedisTemplate.opsForValue().set(retryKey, "1", ttl);
             }
@@ -665,8 +769,8 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
 
         try {
-            String userBlockedKey = ZeroTrustRedisKeys.userBlocked(userId);
-            stringRedisTemplate.delete(userBlockedKey);
+            stringRedisTemplate.delete(List.of(ZeroTrustRedisKeys.userBlocked(userId),
+                    ZeroTrustRedisKeys.userBlockedAsTyped(userId)));
         } catch (Exception e) {
             log.error("[ZeroTrustActionRedisRepository] Failed to remove blocked flag: userId={}", userId, e);
         }
@@ -728,11 +832,13 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                     ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId),
                     ZeroTrustRedisKeys.autonomousLastVerifiedActionContext(userId),
                     ZeroTrustRedisKeys.userBlocked(userId),
+                    ZeroTrustRedisKeys.userBlockedAsTyped(userId),
                     ZeroTrustRedisKeys.blockMfaPending(userId),
                     ZeroTrustRedisKeys.blockMfaVerified(userId),
                     ZeroTrustRedisKeys.blockMfaFailCount(userId),
                     ZeroTrustRedisKeys.autonomousDecisionAuditPending(userId),
-                    "security:escalate:retry:" + userId
+                    ZeroTrustRedisKeys.autonomousChallengeHold(userId),
+                    ZeroTrustRedisKeys.escalateRetry(userId)
             );
             stringRedisTemplate.delete(stringKeys);
         } catch (Exception e) {
@@ -745,7 +851,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         if (userId == null || userId.isBlank()) {
             return;
         }
-        String agentKeys = ZeroTrustRedisKeys.globLiteral(userId) + LearningSubject.AGENT_KEY + "*";
+        String agentKeys = ZeroTrustRedisKeys.globLiteral(ZeroTrustUserKey.of(userId)) + LearningSubject.AGENT_KEY + "*";
         List<String> keys = new ArrayList<>();
         for (String pattern : List.of(
                 ZeroTrustRedisKeys.autonomousActionAnalysis(agentKeys),
@@ -756,7 +862,8 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 ZeroTrustRedisKeys.blockMfaVerified(agentKeys),
                 ZeroTrustRedisKeys.blockMfaFailCount(agentKeys),
                 ZeroTrustRedisKeys.autonomousDecisionAuditPending(agentKeys),
-                "security:escalate:retry:" + agentKeys)) {
+                ZeroTrustRedisKeys.autonomousChallengeHold(agentKeys),
+                ZeroTrustRedisKeys.escalateRetry(agentKeys))) {
             try (Cursor<String> cursor = stringRedisTemplate.scan(
                     ScanOptions.scanOptions().match(pattern).count(500).build())) {
                 cursor.forEachRemaining(keys::add);
@@ -829,6 +936,8 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
 
         try {
             String blockKey = ZeroTrustRedisKeys.userBlocked(userId);
+            String typedBlockKey = ZeroTrustRedisKeys.userBlockedAsTyped(userId);
+            String holdKey = ZeroTrustRedisKeys.autonomousChallengeHold(userId);
             String analysisKey = ZeroTrustRedisKeys.autonomousActionAnalysis(userId);
             String lastActionKey = ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId);
 
@@ -842,6 +951,8 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 public List<Object> execute(RedisOperations operations) throws DataAccessException {
                     operations.multi();
                     operations.delete(blockKey);
+                    operations.delete(typedBlockKey);
+                    operations.delete(holdKey);
                     operations.delete(analysisKey);
                     operations.opsForHash().putAll(analysisKey, fields);
 
@@ -943,7 +1054,8 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         return List.of(ZeroTrustRedisKeys.autonomousActionAnalysis(userId),
                 ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId),
                 ZeroTrustRedisKeys.autonomousLastVerifiedActionContext(userId),
-                ZeroTrustRedisKeys.userBlocked(userId));
+                ZeroTrustRedisKeys.userBlocked(userId),
+                ZeroTrustRedisKeys.autonomousChallengeHold(userId));
     }
 
     private List<byte[]> finalActionScriptArgs(ZeroTrustAction action, Map<String, Object> additionalFields) {
@@ -952,7 +1064,8 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 .filter(active -> ZeroTrustActionPrecedence.keepsActiveRestriction(active, action))
                 .toList();
         return actionScriptArgs(action, additionalFields,
-                ZeroTrustActionPrecedence.keepsActiveRestriction(ZeroTrustAction.BLOCK, action), refusing);
+                ZeroTrustActionPrecedence.keepsActiveRestriction(ZeroTrustAction.BLOCK, action), refusing,
+                ZeroTrustActionPrecedence.keepsActiveRestriction(ZeroTrustAction.CHALLENGE, action));
     }
 
     /**
@@ -962,10 +1075,12 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
      *
      * @param refusedByBlockFlag whether a standing BLOCK flag refuses the write
      * @param refusing           the stored actions that refuse the write
+     * @param refusedByHold      whether a CHALLENGE held for the sessions that did not answer it refuses the write
      */
     @SuppressWarnings("unchecked")
     private List<byte[]> actionScriptArgs(ZeroTrustAction action, Map<String, Object> additionalFields,
-                                          boolean refusedByBlockFlag, List<ZeroTrustAction> refusing) {
+                                          boolean refusedByBlockFlag, List<ZeroTrustAction> refusing,
+                                          boolean refusedByHold) {
         RedisSerializer<Object> hashKeySerializer = (RedisSerializer<Object>) redisTemplate.getHashKeySerializer();
         RedisSerializer<Object> hashValueSerializer = (RedisSerializer<Object>) redisTemplate.getHashValueSerializer();
         List<byte[]> args = new ArrayList<>();
@@ -995,6 +1110,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         Object contextBindingHash = additionalFields.get("contextBindingHash");
         args.add(utf8(contextBindingHash != null ? "1" : "0"));
         args.add(utf8(contextBindingHash != null ? contextBindingHash.toString() : ""));
+        args.add(utf8(refusedByHold ? "1" : "0"));
 
         Map<String, Object> fields = new HashMap<>();
         fields.put("action", action.name());

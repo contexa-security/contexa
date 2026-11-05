@@ -228,6 +228,21 @@ public class SessionFingerprintUtil {
         return RequestInfoExtractor.extractClientIp(request, clientIpSecurity());
     }
 
+    /**
+     * Q-24: whether the request came through a proxy Contexa was not told about. It carries X-Forwarded-For while no
+     * proxy is trusted, so the peer may well be that proxy and every user behind it has this one address. With proxies
+     * named, a peer outside them is a client and its header proves nothing; with the validation off the header is
+     * believed anyway. Neither leaves the address in doubt.
+     */
+    public static boolean forwardedWithoutTrustedProxy(@Nullable HttpServletRequest request) {
+        if (request == null || request.getHeader("X-Forwarded-For") == null) {
+            return false;
+        }
+        TieredStrategyProperties.Security security = clientIpSecurity();
+        return security.isTrustedProxyValidationEnabled()
+                && (security.getTrustedProxies() == null || security.getTrustedProxies().isEmpty());
+    }
+
     private static TieredStrategyProperties.Security clientIpSecurity() {
         TieredStrategyProperties bound = BOUND_CLIENT_IP_PROPERTIES.get();
         TieredStrategyProperties.Security security = bound != null ? bound.getSecurity() : null;

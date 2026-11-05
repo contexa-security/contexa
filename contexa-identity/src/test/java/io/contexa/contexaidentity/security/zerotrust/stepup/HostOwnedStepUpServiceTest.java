@@ -179,6 +179,19 @@ class HostOwnedStepUpServiceTest {
         verify(resolution).markMfaVerified("alice", challengedAt.plusSeconds(60));
     }
 
+    @Test
+    @DisplayName("Q-12: a session another session's answer left stopped answers with the application's re-authentication too")
+    void theApplicationsReauthenticationOfASessionStillHeld() {
+        Instant challengedAt = Instant.parse("2026-11-03T10:00:00Z");
+        when(actions.challengeHeldSince("alice")).thenReturn(challengedAt);
+        when(actions.getAnalysisData("alice")).thenReturn(ZeroTrustActionRepository.ZeroTrustAnalysisData.pending());
+        when(resolution.releaseChallenge(eq("alice"), any(), eq(request), any())).thenReturn(true);
+
+        request.setAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP, stamp(true, challengedAt.plusSeconds(60)));
+
+        assertThat(service.resolvedByHostReauthentication(request, alice, "alice")).isTrue();
+    }
+
     /**
      * Exception test E-S8 (2026-11-03): fifteen code requests in a row under a CHALLENGE sent fifteen mails, so a
      * session under a CHALLENGE could flood the user's mailbox.

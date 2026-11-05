@@ -23,6 +23,7 @@ import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.security.AISecurityContextSupport;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
 import io.contexa.contexacore.security.AIOAuth2SecurityContextRepository;
+import io.contexa.contexacore.security.SessionAccountRefresher;
 import io.contexa.contexacore.security.async.AsyncSecurityContextProvider;
 import io.contexa.contexacore.security.session.InMemorySessionIdResolver;
 import io.contexa.contexacore.security.session.RedisSessionIdResolver;
@@ -51,6 +52,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.data.redis.core.RedisTemplate;
 
 import java.time.Clock;
@@ -95,11 +97,17 @@ public class IamSecurityCoreAutoConfiguration {
     public AISessionSecurityContextRepository aiSessionSecurityContextRepository(
             AISecurityContextSupport contexaAiSecurityContextSupport,
             @Nullable SecurityContextDataStore securityContextDataStore,
-            @Nullable AsyncSecurityContextProvider contexaAsyncSecurityContextProvider) {
-        return new AISessionSecurityContextRepository(
+            @Nullable AsyncSecurityContextProvider contexaAsyncSecurityContextProvider,
+            @Qualifier("contexaUnifiedUserDetailsService") ObjectProvider<UserDetailsService> contexaAccounts) {
+        AISessionSecurityContextRepository repository = new AISessionSecurityContextRepository(
                 contexaAiSecurityContextSupport,
                 securityContextDataStore,
                 contexaAsyncSecurityContextProvider);
+        UserDetailsService accounts = contexaAccounts.getIfAvailable();
+        if (securityContextDataStore != null && accounts != null) {
+            repository.setAccountRefresher(new SessionAccountRefresher(securityContextDataStore, accounts));
+        }
+        return repository;
     }
 
     @Bean(name = "contexaAiOAuth2SecurityContextRepository")
