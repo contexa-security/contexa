@@ -33,6 +33,7 @@ import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
 import io.contexa.contexacore.autonomous.service.LearningPromotionService;
 import io.contexa.contexacore.autonomous.service.LearningStoreRejectionPolicy;
 import io.contexa.contexacore.autonomous.service.VerificationLearningService;
+import io.contexa.autoconfigure.core.infra.StandaloneEnforcementStateWarning;
 import io.contexa.autoconfigure.core.infra.StandaloneLearningStateWarning;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.autonomous.SecurityEventProcessor;
@@ -1065,6 +1066,14 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<SecurityContextDataStore> securityContextDataStore) {
         return new StandaloneLearningStateWarning(baselineDataStore::getIfAvailable,
                 securityContextDataStore::getIfAvailable);
+    }
+
+    /** Q-6: one warning at startup says that a restart ends the decisions in force when they are kept in memory. */
+    @Bean(name = "contexaStandaloneEnforcementStateWarning")
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
+    public StandaloneEnforcementStateWarning standaloneEnforcementStateWarning(
+            ObjectProvider<ZeroTrustActionRepository> actionRepository) {
+        return new StandaloneEnforcementStateWarning(actionRepository::getIfAvailable);
     }
 
     /** Discards the late writes of a deleted account's requests for the analysis budget and a margin (Q-15). */
