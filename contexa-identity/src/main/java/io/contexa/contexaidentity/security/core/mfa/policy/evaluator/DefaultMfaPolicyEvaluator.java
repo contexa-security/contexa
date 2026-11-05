@@ -84,9 +84,6 @@ public class DefaultMfaPolicyEvaluator extends AbstractMfaPolicyEvaluator {
         if (decisionType == MfaDecision.DecisionType.ESCALATED) {
             return MfaDecision.escalated(buildReason(user, context, decisionType));
         }
-        if (decisionType == MfaDecision.DecisionType.NO_MFA_REQUIRED) {
-            return MfaDecision.noMfaRequired();
-        }
 
         List<AuthType> availableFactorsList = new ArrayList<>(availableFactors);
         List<AuthType> requiredFactors = determineRequiredFactors(

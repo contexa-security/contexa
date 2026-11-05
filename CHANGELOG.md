@@ -8,6 +8,12 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A stored ALLOW no longer waives the second step of a new sign-in.** The decision was reached for another request and
+  the sign-in read it by user alone, so a stolen password met no second step from any address or browser while the
+  victim's ALLOW lasted. Under `CONTEXA_OWNED` a person's sign-in through an MFA flow now always meets the second step,
+  after a sign-in moments before too. The ALLOW still answers the requests of its own context, a stored BLOCK, ESCALATE
+  and CHALLENGE answer the password step as they did, and an approved agent's account keeps its own policy. A policy of
+  your own can still waive MFA: see the evaluators and the provider you can replace.
 - **The code the victim passes no longer frees the attacker's session.** A CHALLENGE is answered per session: the
   session that passed the code goes on, and every other session of the user stays stopped until it answers for itself
   or the CHALLENGE would have lapsed. A user on several devices verifies on each. An administrator's override ends it.
