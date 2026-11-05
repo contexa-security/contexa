@@ -315,6 +315,19 @@ public interface SecurityContextDataStore {
     }
 
     /**
+     * Q-16: keeps that the user passed the step-up of a CHALLENGE in this context (the session, its address and its
+     * client), at the given time on the request clock, for as long as the user's MFA mark lasts. Unlike that mark it is
+     * a fact of the context: only a request of the same context is told it passed.
+     */
+    default void markChallengeVerified(String userId, String contextBindingHash, Instant verifiedAt) {
+    }
+
+    /** Q-16: when the user passed a step-up in this context, while that lasts; null when unknown. */
+    default Instant getChallengeVerifiedAt(String userId, String contextBindingHash) {
+        return null;
+    }
+
+    /**
      * Removes every per-user record of a user whose account is deleted, in all tenants: work-profile, permission
      * change and authorization scope observations, request tracking, MFA verification, login failures by user and
      * the tracked sessions. Shared records (role scopes, sessions, events) are kept. Stores that cannot delete must

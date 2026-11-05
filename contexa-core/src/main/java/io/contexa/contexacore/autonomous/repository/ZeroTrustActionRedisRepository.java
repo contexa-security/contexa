@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.RedisOperations;
@@ -60,10 +59,12 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
      * new one. KEYS: analysis hash, last verified action, last verified context, BLOCK flag, the
      * CHALLENGE held for other sessions. ARGV: hash field names of action and previousAction, whether
      * the BLOCK flag refuses the new action ('1' when it is less strict than a BLOCK), the refusing
-     * stored action values, the plain and stored value of every action, the analysis TTL in
-     * milliseconds (0 keeps no TTL), the action name, the last verified TTL in milliseconds, a context
-     * flag and value, whether a held CHALLENGE refuses it ('1' when it is less strict, unless its
-     * context answered), then the hash field/value pairs. Returns 0 when refused and 1 when written.
+     * stored action values, the hash field of the technical CHALLENGE mark and the stored action
+     * values that refuse the new action unless that mark is there (Q-5), the plain and stored value
+     * of every action, the analysis TTL in milliseconds (0 keeps no TTL), the action name, the last
+     * verified TTL in milliseconds, a context flag and value, whether a held CHALLENGE refuses it
+     * ('1' when it is less strict, unless its context answered), then the hash field/value pairs.
+     * Returns 0 when refused and 1 when written.
      */
     private static final DefaultRedisScript<Long> SAVE_FINAL_ACTION_SCRIPT = new DefaultRedisScript<>("""
             local actionField = ARGV[1]
@@ -81,6 +82,15 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 end
             end
             index = index + refusedCount
+            local technical = redis.call('HEXISTS', KEYS[1], ARGV[index]) == 1
+            local unmarkedCount = tonumber(ARGV[index + 1])
+            index = index + 2
+            for i = index, index + unmarkedCount - 1 do
+                if current == ARGV[i] and not technical then
+                    return 0
+                end
+            end
+            index = index + unmarkedCount
             local previous = current
             local formCount = tonumber(ARGV[index])
             index = index + 1
@@ -386,7 +396,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 .filter(action -> action != ZeroTrustAction.ESCALATE).toList();
         Long written = stringRedisTemplate.execute(SAVE_FINAL_ACTION_SCRIPT, RedisSerializer.byteArray(),
                 SCRIPT_RESULT_SERIALIZER, finalActionKeys(userId),
-                actionScriptArgs(replacement, kept, true, otherActions, false).toArray());
+                actionScriptArgs(replacement, kept, true, otherActions, List.of(), false).toArray());
         if (written != null && written == 1L) {
             log.warn("[ZeroTrustActionRedisRepository] Stored ESCALATE ended: userId={}, action={}", userId, replacement);
         }
@@ -442,6 +452,22 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         } catch (Exception e) {
             log.error("[ZeroTrustActionRedisRepository] Failed to get action from hash: userId={}", userId, e);
             return null;
+        }
+    }
+
+    @Override
+    public boolean isTechnicalChallenge(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return false;
+        }
+        try {
+            Map<Object, Object> analysis = readAnalysis(userId);
+            Object action = analysis.get("action");
+            return action != null && ZeroTrustAction.fromString(action.toString()) == ZeroTrustAction.CHALLENGE
+                    && analysis.containsKey(TECHNICAL_CHALLENGE);
+        } catch (Exception e) {
+            log.error("[ZeroTrustActionRedisRepository] Failed to read the technical CHALLENGE mark: userId={}", userId, e);
+            return false;
         }
     }
 
@@ -558,7 +584,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 fields.putAll(additionalFields);
             }
 
-            Duration ttl = action.getDefaultTtl();
+            Duration ttl = ZeroTrustActionPrecedence.ttlOf(action, additionalFields);
             replaceAnalysisAtomically(analysisKey, fields, ttl);
 
             String lastActionKey = ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId);
@@ -648,6 +674,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                     : ZeroTrustAction.PENDING_ANALYSIS.name();
 
             Map<String, Object> fields = mutableAnalysis(userId);
+            fields.remove(TECHNICAL_CHALLENGE);
             fields.put("previousAction", previousActionStr);
             fields.put("action", newAction.name());
             fields.put("updatedAt", Instant.now().toString());
@@ -679,6 +706,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                     : ZeroTrustAction.PENDING_ANALYSIS.name();
 
             Map<String, Object> fields = mutableAnalysis(userId);
+            fields.remove(TECHNICAL_CHALLENGE);
             fields.put("previousAction", previousActionStr);
             fields.put("action", newAction.name());
             fields.put("updatedAt", Instant.now().toString());
@@ -953,6 +981,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             String lastActionKey = ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId);
 
             Map<String, Object> fields = mutableAnalysis(userId);
+            fields.remove(TECHNICAL_CHALLENGE);
             fields.put("action", newAction.name());
             fields.put("updatedAt", Instant.now().toString());
 
@@ -1070,13 +1099,18 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
     }
 
     private List<byte[]> finalActionScriptArgs(ZeroTrustAction action, Map<String, Object> additionalFields) {
-        List<ZeroTrustAction> refusing = Stream.of(ZeroTrustAction.BLOCK, ZeroTrustAction.CHALLENGE,
-                        ZeroTrustAction.ESCALATE)
-                .filter(active -> ZeroTrustActionPrecedence.keepsActiveRestriction(active, action))
+        List<ZeroTrustAction> restrictions = List.of(ZeroTrustAction.BLOCK, ZeroTrustAction.CHALLENGE,
+                ZeroTrustAction.ESCALATE);
+        List<ZeroTrustAction> refusing = restrictions.stream()
+                .filter(active -> ZeroTrustActionPrecedence.keepsActiveRestriction(active, true, action, additionalFields))
+                .toList();
+        List<ZeroTrustAction> refusingUnmarked = restrictions.stream()
+                .filter(active -> !refusing.contains(active)
+                        && ZeroTrustActionPrecedence.keepsActiveRestriction(active, false, action, additionalFields))
                 .toList();
         return actionScriptArgs(action, additionalFields,
                 ZeroTrustActionPrecedence.keepsActiveRestriction(ZeroTrustAction.BLOCK, action), refusing,
-                ZeroTrustActionPrecedence.keepsActiveRestriction(ZeroTrustAction.CHALLENGE, action));
+                refusingUnmarked, ZeroTrustActionPrecedence.keepsActiveRestriction(ZeroTrustAction.CHALLENGE, action));
     }
 
     /**
@@ -1086,12 +1120,13 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
      *
      * @param refusedByBlockFlag whether a standing BLOCK flag refuses the write
      * @param refusing           the stored actions that refuse the write
+     * @param refusingUnmarked   the stored actions that refuse the write unless they are a technical CHALLENGE
      * @param refusedByHold      whether a CHALLENGE held for the sessions that did not answer it refuses the write
      */
     @SuppressWarnings("unchecked")
     private List<byte[]> actionScriptArgs(ZeroTrustAction action, Map<String, Object> additionalFields,
                                           boolean refusedByBlockFlag, List<ZeroTrustAction> refusing,
-                                          boolean refusedByHold) {
+                                          List<ZeroTrustAction> refusingUnmarked, boolean refusedByHold) {
         RedisSerializer<Object> hashKeySerializer = (RedisSerializer<Object>) redisTemplate.getHashKeySerializer();
         RedisSerializer<Object> hashValueSerializer = (RedisSerializer<Object>) redisTemplate.getHashValueSerializer();
         List<byte[]> args = new ArrayList<>();
@@ -1099,13 +1134,9 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         args.add(serialize(hashKeySerializer, "previousAction"));
         args.add(utf8(refusedByBlockFlag ? "1" : "0"));
 
-        List<byte[]> refusingValues = new ArrayList<>();
-        for (ZeroTrustAction active : refusing) {
-            refusingValues.add(utf8(active.name()));
-            refusingValues.add(serialize(hashValueSerializer, active.name()));
-        }
-        args.add(utf8(Integer.toString(refusingValues.size())));
-        args.addAll(refusingValues);
+        addStoredValues(args, refusing, hashValueSerializer);
+        args.add(serialize(hashKeySerializer, TECHNICAL_CHALLENGE));
+        addStoredValues(args, refusingUnmarked, hashValueSerializer);
 
         ZeroTrustAction[] knownActions = ZeroTrustAction.values();
         args.add(utf8(Integer.toString(knownActions.length)));
@@ -1114,7 +1145,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             args.add(serialize(hashValueSerializer, known.name()));
         }
 
-        Duration ttl = action.getDefaultTtl();
+        Duration ttl = ZeroTrustActionPrecedence.ttlOf(action, additionalFields);
         args.add(utf8(Long.toString(ttl != null ? ttl.toMillis() : 0L)));
         args.add(utf8(action.name()));
         args.add(utf8(Long.toString(LAST_VERIFIED_ACTION_TTL.toMillis())));
@@ -1132,6 +1163,16 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             args.add(serialize(hashValueSerializer, canonicalizeRedisValue(value)));
         });
         return args;
+    }
+
+    /** Their count, then the plain and the serialized value of each action. */
+    private static void addStoredValues(List<byte[]> args, List<ZeroTrustAction> actions,
+                                        RedisSerializer<Object> hashValueSerializer) {
+        args.add(utf8(Integer.toString(actions.size() * 2)));
+        for (ZeroTrustAction action : actions) {
+            args.add(utf8(action.name()));
+            args.add(serialize(hashValueSerializer, action.name()));
+        }
     }
 
     private static byte[] serialize(RedisSerializer<Object> serializer, Object value) {

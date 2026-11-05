@@ -135,17 +135,23 @@ public class UnanalysedRequestRecorder {
      * that follows: nothing yet says that what it did is the user's usual behaviour.
      */
     public void recordPassed(ZeroTrustSpringEvent event) {
-        if (event == null) {
+        if (event != null) {
+            recordPassed(ZeroTrustSecurityEventConverter.convert(event));
+        }
+    }
+
+    /** The same for an event that is already a security event: a request past the user's share of the analysis (Q-23). */
+    public void recordPassed(SecurityEvent securityEvent) {
+        if (securityEvent == null) {
             return;
         }
         try {
-            SecurityEvent securityEvent = ZeroTrustSecurityEventConverter.convert(event);
             if (recorder.committed(securityEvent)) {
                 return;
             }
             commit(securityEvent, ZeroTrustAction.ALLOW, false);
         } catch (RuntimeException e) {
-            log.error("Failed to record a request that passed before its verdict: userId={}", event.getUserId(), e);
+            log.error("Failed to record a request that passed before its verdict: userId={}", securityEvent.getUserId(), e);
         }
     }
 

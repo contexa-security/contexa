@@ -141,6 +141,12 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:context:authentication:mfa:verified:%s", NAMESPACE, userId);
     }
 
+    /** Q-16: the contexts the user passed a step-up in, each with when that ends and when it was passed. */
+    public static String authenticationChallengeVerified(String userId) {
+        validateUserId(userId);
+        return String.format("%s:context:authentication:challenge:verified:%s", NAMESPACE, userId);
+    }
+
     public static String authenticationLoginFailuresByUser(String userId) {
         validateUserId(userId);
         return String.format("%s:context:authentication:failure:user:%s", NAMESPACE, userId);

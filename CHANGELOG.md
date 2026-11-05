@@ -95,6 +95,36 @@ The format is based on Keep a Changelog and the project follows semantic version
   `contexa.security.tiered.security.trusted-proxies` is empty, the address limit of sign-ins is not applied and an ERROR
   names the setting. The lock of each account works as before. **Set the setting if you run behind a proxy**: until you do,
   no address limit applies, and a client that adds the header itself escapes it too.
+- **A model outage no longer locks users out for half an hour.** A CHALLENGE no model decided (the analysis failed: an
+  HTTP error, an empty or unreadable answer, a time-out) is marked, lasts 60 seconds instead of 30 minutes and gives way
+  to what the model decides next. While it lasts the model is asked again about the same request, every 10 seconds, at
+  most three times, so a model that is back frees the user without any step of theirs. A CHALLENGE or a BLOCK the model
+  decided stands as it did: the mark never shortens or replaces one, in Redis or in memory.
+- **The decisions after a passed step-up are told of it.** Under HOST_OWNED the application's sign-in stays as it was,
+  so every later decision read `MfaVerified: false`, however recent the code. A passed step-up is now kept for an hour as
+  a fact of the context it was passed in (the session, its address and its client): the requests of that context carry
+  `mfaVerified`, `challengeVerifiedAt` and `lastMfaUsedAt`, under both ownerships. Another session of the user still reads
+  it as `RecentMfaElsewhere`. The facts changed, not the wording of a prompt; what the model decides with them stands.
+- **An event Kafka does not take is analysed where it was made.** Where a topic cannot be used (a broker that does not
+  create topics, a broker that is down) a sign-in and an asynchronous `@Protectable` reached no decision. An event whose
+  send fails, or that waited past a send's limit, now goes to the analysis of the node that had it, as in standalone,
+  and to the dead letters as before. Every event keeps one id, so one that reached the broker after all, or that is
+  replayed from the dead letters, is the same event and is not analysed twice. The publisher's queue still drops, counts
+  and reports what it has no room for: nothing may hold the request's thread.
+- **Filling the analysis no longer keeps a decision away.** With a slow model and many users a user the model would stop
+  got no decision for as long as the load lasted. A session without a decision of the model now goes first at every
+  line of the analysis (the session's turn, the analysis threads, a model server's gate), one user holds at most eight
+  analyses however many sessions it opens, and a person's queued call that a decision in force answers is not analysed
+  again: calls that waited behind a decision cost that decision and not one each. A sign-in is always analysed.
+- **While the analysis is behind, a sensitive resource does not go without a decision.** Behind means as many analyses
+  in progress as `security.plane.llm-executor.backpressure-queue-threshold` (96). A call to a resource declared
+  `importance = SENSITIVE`, or whose sensitivity is `HIGH`, `CONFIDENTIAL`, `RESTRICTED` or the like, with no decision in
+  force asks for its analysis, waits three seconds for the verdict and is then refused with a CHALLENGE that is not
+  stored. Any other resource passes as it did, and nothing changes while the analysis keeps up.
+- **A synchronous `@Protectable` no longer holds the application's thread as long as the model is given.** A request
+  waits for its verdict at most `contexa.security.zerotrust.agent.flight.wait` (40 seconds), a person's as an agent's.
+  Past it the request is refused with a CHALLENGE that is not stored, the analysis goes on and stores its decision for
+  the next request. An application on a slower model raises that setting.
 - **A user can answer a CHALLENGE in `contexa.infrastructure.mode=distributed` whatever the sign-in is made of.** An MFA
   flow stored in Redis could not be read back when the sign-in held a read-only collection (a one-time token or a
   remember-me sign-in with Contexa's user or Spring's `User`, a JWT, an OAuth2 login) or an object the reading node

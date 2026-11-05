@@ -411,7 +411,9 @@ public class SecurityZeroTrustProperties {
          * The longest a request waits for a place, or for the verdict it follows. It covers one whole analysis: the
          * first layer takes 4 to 10 seconds, and a case it passes to the second layer took 22 seconds on the showcase
          * engine (the second layer's own limit is 30 seconds). A wait shorter than that refused requests whose
-         * verdict was a few seconds away (RL-12, I-25).
+         * verdict was a few seconds away (RL-12, I-25). It is also the longest any synchronous request, a person's
+         * too, holds the application's thread for its verdict, whether the flights are on or not (PR-54): past it the
+         * request is refused and the analysis goes on. An application on a model slower than this raises it.
          */
         private Duration wait = Duration.ofSeconds(40);
         /** The requests that may pass before the first verdict is in; 0 for none. */

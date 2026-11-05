@@ -62,12 +62,21 @@ public class AiSecurityDecisionObservationWriter {
             String requestId,
             String decisionBoundaryMode,
             String runtimeEnforcementMode,
-            String reasoning) {
+            String reasoning,
+            Boolean llmDecisionPresent) {
         public PersistedFinalDecision(String observationId, String tenantId, String userId,
                                       String finalAction, String contextBindingHash,
                                       String processingGeneration, String requestId) {
             this(observationId, tenantId, userId, finalAction, contextBindingHash,
                     processingGeneration, requestId, null, null, null);
+        }
+
+        public PersistedFinalDecision(String observationId, String tenantId, String userId,
+                                      String finalAction, String contextBindingHash,
+                                      String processingGeneration, String requestId,
+                                      String decisionBoundaryMode, String runtimeEnforcementMode, String reasoning) {
+            this(observationId, tenantId, userId, finalAction, contextBindingHash, processingGeneration, requestId,
+                    decisionBoundaryMode, runtimeEnforcementMode, reasoning, null);
         }
     }
 
@@ -332,7 +341,8 @@ public class AiSecurityDecisionObservationWriter {
                            processing_generation,
                            request_id,
                            decision_boundary_mode,
-                           metadata_json
+                           metadata_json,
+                           llm_decision_present
                       FROM ctxa_ai_security_decision_observation
                      WHERE idempotency_key = ?
                        AND success = TRUE
@@ -350,7 +360,8 @@ public class AiSecurityDecisionObservationWriter {
                             resultSet.getString("request_id"),
                             resultSet.getString("decision_boundary_mode"),
                             persistedMetadataText(resultSet.getString("metadata_json"), "runtimeEnforcementMode"),
-                            persistedMetadataText(resultSet.getString("metadata_json"), "finalDecisionReasoning")),
+                            persistedMetadataText(resultSet.getString("metadata_json"), "finalDecisionReasoning"),
+                            resultSet.getObject("llm_decision_present", Boolean.class)),
                     normalizedKey);
             return decisions.isEmpty() ? null : decisions.get(0);
         } catch (DataAccessException exception) {

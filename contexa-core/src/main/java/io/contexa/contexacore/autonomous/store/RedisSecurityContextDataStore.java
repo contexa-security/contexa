@@ -144,6 +144,7 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     private static final Duration USER_SESSIONS_TTL = Duration.ofDays(7);
     private static final Duration LOGIN_FAILURE_MINIMUM_RETENTION = Duration.ofMinutes(5);
     private static final Duration LOGIN_FAILURE_EXPIRY_MARGIN = Duration.ofMinutes(5);
+    private static final String CHALLENGE_VERIFIED_VALUE_SEPARATOR = ":";
     private static final Duration MFA_VERIFIED_TTL = Duration.ofHours(1);
     private final AtomicLong authenticationEventSequence = new AtomicLong();
     private volatile Duration loginFailureRetention = LOGIN_FAILURE_MINIMUM_RETENTION;
@@ -698,6 +699,44 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     }
 
     @Override
+    public void markChallengeVerified(String userId, String contextBindingHash, Instant verifiedAt) {
+        if (userId == null || contextBindingHash == null || contextBindingHash.isBlank()) {
+            return;
+        }
+        try {
+            String key = ZeroTrustRedisKeys.authenticationChallengeVerified(userId);
+            long now = System.currentTimeMillis();
+            // Each context ends on its own, as an in-memory entry does: the key lasts as long as the latest of them.
+            redisTemplate.opsForHash().put(key, contextBindingHash, (now + MFA_VERIFIED_TTL.toMillis())
+                    + CHALLENGE_VERIFIED_VALUE_SEPARATOR + (verifiedAt != null ? verifiedAt.toEpochMilli() : now));
+            redisTemplate.expire(key, MFA_VERIFIED_TTL);
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to keep a passed step-up: userId={}", userId, e);
+        }
+    }
+
+    @Override
+    public Instant getChallengeVerifiedAt(String userId, String contextBindingHash) {
+        if (userId == null || contextBindingHash == null || contextBindingHash.isBlank()) {
+            return null;
+        }
+        try {
+            Object value = redisTemplate.opsForHash()
+                    .get(ZeroTrustRedisKeys.authenticationChallengeVerified(userId), contextBindingHash);
+            if (value == null) {
+                return null;
+            }
+            String[] parts = value.toString().replace("\"", "").trim().split(CHALLENGE_VERIFIED_VALUE_SEPARATOR);
+            return parts.length == 2 && System.currentTimeMillis() < Long.parseLong(parts[0])
+                    ? Instant.ofEpochMilli(Long.parseLong(parts[1]))
+                    : null;
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to read a passed step-up: userId={}", userId, e);
+            return null;
+        }
+    }
+
+    @Override
     public EventProcessingClaim claimEventProcessing(String eventId) {
         return claimEventProcessingLease(eventId).claim();
     }
@@ -1076,6 +1115,7 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
                 ZeroTrustRedisKeys.userLastRequestTime(userId),
                 ZeroTrustRedisKeys.userPreviousPath(userId),
                 ZeroTrustRedisKeys.authenticationMfaVerified(userId),
+                ZeroTrustRedisKeys.authenticationChallengeVerified(userId),
                 ZeroTrustRedisKeys.authenticationLoginFailuresByUser(userId.trim()),
                 ZeroTrustRedisKeys.userSessions(userId),
                 // QF-57: the session ids Zero Trust tracks for the user, which used to share the list above.

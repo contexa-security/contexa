@@ -35,12 +35,26 @@ import io.contexa.contexacore.autonomous.agent.AgentAllowReuse;
 import io.contexa.contexacore.autonomous.agent.AgentDecisionFlights;
 import io.contexa.contexacore.autonomous.context.support.ResourceImportanceResolver;
 import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedException;
+import java.time.Duration;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.BooleanSupplier;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
 
 public class SynchronousProtectableDecisionService {
+
+    /**
+     * Q-23: how long a sensitive request waits for its verdict while the analysis is behind: the three seconds a request
+     * of a synchronous {@code @Protectable} is meant to take. It is the wait of one request, on a resource the host called
+     * sensitive, and only then.
+     */
+    private static final Duration DEFAULT_BEHIND_WAIT = Duration.ofSeconds(3);
+    private static final long VERDICT_POLL_MS = 100L;
 
     private final ZeroTrustEventPublisher zeroTrustEventPublisher;
     private final ZeroTrustEventListener zeroTrustEventListener;
@@ -51,6 +65,9 @@ public class SynchronousProtectableDecisionService {
     private AgentDecisionFlights agentDecisionFlights;
     private SecurityZeroTrustProperties.UnrecordedAgentRequest unrecordedAgentRequest =
             SecurityZeroTrustProperties.UnrecordedAgentRequest.DECIDE_IN_PLACE;
+    private Duration decisionWait;
+    private Duration behindWait = DEFAULT_BEHIND_WAIT;
+    private BooleanSupplier enforcing = () -> true;
 
     public SynchronousProtectableDecisionService(
             ZeroTrustEventPublisher zeroTrustEventPublisher,
@@ -65,6 +82,22 @@ public class SynchronousProtectableDecisionService {
 
     public void setUnanalysedRequestRecorder(UnanalysedRequestRecorder unanalysedRequestRecorder) {
         this.unanalysedRequestRecorder = unanalysedRequestRecorder;
+    }
+
+    /** PR-54: the longest a synchronous decision holds the request's thread; null analyses in the request. */
+    public void setDecisionWait(Duration decisionWait) {
+        this.decisionWait = decisionWait != null && !decisionWait.isZero() && !decisionWait.isNegative()
+                ? decisionWait : null;
+    }
+
+    /** Q-23: how long a sensitive request waits for its verdict while the analysis is behind. */
+    void setBehindWait(Duration behindWait) {
+        this.behindWait = behindWait;
+    }
+
+    /** Q-23: whether decisions are enforced; where they are not nothing is held for one. */
+    public void setEnforcing(BooleanSupplier enforcing) {
+        this.enforcing = enforcing != null ? enforcing : () -> true;
     }
 
     public SyncDecisionResult analyze(MethodInvocation methodInvocation, Authentication authentication) {
@@ -103,9 +136,65 @@ public class SynchronousProtectableDecisionService {
         SecurityEvent securityEvent = ZeroTrustSecurityEventConverter.convert(event);
         // The engine takes the request in here, as a collector does for an analysis it queues (Q-15).
         securityEvent.addMetadata(DeletedAccountWriteFence.TAKEN_IN_AT, System.currentTimeMillis());
-        SecurityEventContext processingContext = securityPlaneAgent.processSecurityEvent(securityEvent);
+        SecurityEventContext processingContext;
+        try {
+            processingContext = decidedInTime(securityEvent);
+        } catch (DecisionNotInTimeException notInTime) {
+            return withoutAVerdict(event, userId, contextBindingHash);
+        }
         agentDecided(event, contextBindingHash);
         return currentResult(event, userId, contextBindingHash, processingContext);
+    }
+
+    /**
+     * PR-54: the analysis, for as long as the request may wait for it. Past the wait it goes on by itself on the
+     * analysis threads and stores its decision for the next request, so a model that does not answer does not hold the
+     * application's thread for as long as the model is given.
+     *
+     * @throws DecisionNotInTimeException when the verdict did not come in time, or there is no room for the analysis
+     */
+    private SecurityEventContext decidedInTime(SecurityEvent securityEvent) {
+        Duration wait = decisionWait;
+        if (wait == null) {
+            return securityPlaneAgent.processSecurityEvent(securityEvent);
+        }
+        try {
+            return securityPlaneAgent.processSecurityEventOffThread(securityEvent)
+                    .get(wait.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException waitedLongEnough) {
+            throw new DecisionNotInTimeException();
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new DecisionNotInTimeException();
+        } catch (ExecutionException failed) {
+            if (failed.getCause() instanceof RejectedExecutionException) {
+                throw new DecisionNotInTimeException();
+            }
+            if (failed.getCause() instanceof RuntimeException failure) {
+                throw failure;
+            }
+            if (failed.getCause() instanceof Error error) {
+                throw error;
+            }
+            throw new IllegalStateException("The analysis of a synchronous request failed", failed.getCause());
+        }
+    }
+
+    /**
+     * The answer to a synchronous request whose verdict did not come in time: it is not let through without one, an
+     * ALLOW of an earlier request says nothing of it, and a stricter decision that landed meanwhile answers it. The
+     * answer is this request's: nothing is stored, the analysis still decides. An agent is told the engine is busy, as
+     * it is when the flights have no place for it (RL-12).
+     */
+    private SyncDecisionResult withoutAVerdict(ZeroTrustSpringEvent event, String userId, String contextBindingHash) {
+        ZeroTrustAction inForce = currentAction(event, userId, contextBindingHash);
+        boolean restricted = inForce == ZeroTrustAction.BLOCK || inForce == ZeroTrustAction.ESCALATE;
+        if (!restricted && agentRequest(event)) {
+            throw ZeroTrustAccessDeniedException.analysisBusy(event.getResource(),
+                    (int) Math.max(1, decisionWait.toSeconds()));
+        }
+        return new SyncDecisionResult(event, contextBindingHash, restricted ? inForce : ZeroTrustAction.CHALLENGE,
+                actionRepository.getAnalysisData(decisionKey(event, userId)), null);
     }
 
     /** Whether the flights take this request: an agent's request, with the flights on. */
@@ -285,7 +374,50 @@ public class SynchronousProtectableDecisionService {
                 AgentAllowReuse.sensitive(event.getPayload()))) {
             return AsyncProtectableGate.DECIDE_IN_PLACE;
         }
+        if (action == ZeroTrustAction.PENDING_ANALYSIS && !agentRequest(event) && enforcing.getAsBoolean()
+                && AgentAllowReuse.sensitive(event.getPayload()) && securityPlaneAgent.isBehind()) {
+            return heldForItsVerdict(methodInvocation, authentication, event, gateContext);
+        }
         return AsyncProtectableGate.PROCEED;
+    }
+
+    /**
+     * Q-23: while the analysis is behind, a request to a sensitive resource does not go without a decision, or filling
+     * the line would be a way past it. Its analysis is asked for first, among the first decisions; it waits a moment
+     * for the verdict and is then refused. The refusal is this request's: nothing is stored, the user's other requests
+     * go on, and the verdict that comes answers the next one. A general resource passes as it does while the engine
+     * keeps up, and stopping every request would turn a slow model into a stopped application.
+     */
+    private AsyncProtectableGate heldForItsVerdict(MethodInvocation methodInvocation, Authentication authentication,
+                                                   ZeroTrustSpringEvent event, String gateContext) {
+        zeroTrustEventPublisher.publishMethodAuthorization(methodInvocation, authentication, true, null,
+                ZeroTrustEventPublisher.METHOD_NOT_RUN, null);
+        ZeroTrustAction verdict = awaitVerdict(event, gateContext);
+        if (verdict == ZeroTrustAction.ALLOW) {
+            return AsyncProtectableGate.PASS_AND_RECORD;
+        }
+        return AsyncProtectableGate.restricted(verdict == ZeroTrustAction.PENDING_ANALYSIS
+                ? ZeroTrustAction.CHALLENGE : verdict);
+    }
+
+    private ZeroTrustAction awaitVerdict(ZeroTrustSpringEvent event, String gateContext) {
+        long until = System.nanoTime() + behindWait.toNanos();
+        while (true) {
+            ZeroTrustAction action = currentAction(event, event.getUserId(), gateContext);
+            if (action != ZeroTrustAction.PENDING_ANALYSIS) {
+                return action;
+            }
+            long left = until - System.nanoTime();
+            if (left <= 0L) {
+                return ZeroTrustAction.PENDING_ANALYSIS;
+            }
+            try {
+                TimeUnit.MILLISECONDS.sleep(Math.min(VERDICT_POLL_MS, TimeUnit.NANOSECONDS.toMillis(left) + 1L));
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return ZeroTrustAction.PENDING_ANALYSIS;
+            }
+        }
     }
 
     /** docs/agent F-1: how far an ALLOW in force answers an agent's later requests. */
@@ -479,6 +611,15 @@ public class SynchronousProtectableDecisionService {
 
         public static AsyncProtectableGate restricted(ZeroTrustAction restriction) {
             return new AsyncProtectableGate(restriction, false, false, false);
+        }
+    }
+
+    /** The verdict of a synchronous request did not come in time. */
+    private static final class DecisionNotInTimeException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
+        private DecisionNotInTimeException() {
+            super(null, null, false, false);
         }
     }
 
