@@ -41,16 +41,21 @@ import io.contexa.contexacore.autonomous.context.support.ResourceImportanceResol
 import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedException;
 import java.time.Duration;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
+import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
 
+@Slf4j
 public class SynchronousProtectableDecisionService {
 
     /**
@@ -61,6 +66,7 @@ public class SynchronousProtectableDecisionService {
     private static final Duration DEFAULT_BEHIND_WAIT = Duration.ofSeconds(3);
     private static final long VERDICT_POLL_MS = 100L;
     private static final int STORE_RETRY_AFTER_SECONDS = 5;
+    private static final int WAITING_ROOM_RETRY_AFTER_SECONDS = 5;
     /**
      * Q-7: how long a verdict may still come while a store is down. The analysis runs on the application's own client,
      * which waits far longer than a request should, so the request stops waiting for it; a verdict that comes in this
@@ -82,6 +88,8 @@ public class SynchronousProtectableDecisionService {
     private Duration storeDownWait = DEFAULT_STORE_DOWN_WAIT;
     private BooleanSupplier enforcing = () -> true;
     private ContexaStores contexaStores = new ContexaStores();
+    /** The verdicts this server is reaching for changed contexts, one for each subject and context. */
+    private final Map<String, VerdictUnderWay> changedContextVerdicts = new ConcurrentHashMap<>();
 
     public SynchronousProtectableDecisionService(
             ZeroTrustEventPublisher zeroTrustEventPublisher,
@@ -156,6 +164,19 @@ public class SynchronousProtectableDecisionService {
 
     /** The analysis of one request, in the request's own thread. */
     private SyncDecisionResult decideInPlace(ZeroTrustSpringEvent event, String userId, String contextBindingHash) {
+        try {
+            return verdictOf(event, userId, contextBindingHash);
+        } catch (DecisionNotInTimeException notInTime) {
+            return withoutAVerdict(event, userId, contextBindingHash);
+        }
+    }
+
+    /**
+     * The verdict of one request.
+     *
+     * @throws DecisionNotInTimeException when the verdict did not come in time, or there is no room for the analysis
+     */
+    private SyncDecisionResult verdictOf(ZeroTrustSpringEvent event, String userId, String contextBindingHash) {
         SecurityEvent securityEvent = ZeroTrustSecurityEventConverter.convert(event);
         // The engine takes the request in here, as a collector does for an analysis it queues (Q-15).
         securityEvent.addMetadata(DeletedAccountWriteFence.TAKEN_IN_AT, System.currentTimeMillis());
@@ -163,7 +184,7 @@ public class SynchronousProtectableDecisionService {
         try {
             processingContext = decidedInTime(securityEvent);
         } catch (DecisionNotInTimeException notInTime) {
-            return withoutAVerdict(event, userId, contextBindingHash);
+            throw notInTime;
         } catch (RuntimeException failure) {
             ZeroTrustAction decided = decidedButNotKept(securityEvent);
             if (decided != null && decided.isAccessRestricted()) {
@@ -259,8 +280,7 @@ public class SynchronousProtectableDecisionService {
     }
 
     /** The verdict within the wait, or within the shorter one from the moment a store is seen down. */
-    private SecurityEventContext verdictInTime(Future<SecurityEventContext> verdict, Duration wait)
-            throws InterruptedException, ExecutionException {
+    private <T> T verdictInTime(Future<T> verdict, Duration wait) throws InterruptedException, ExecutionException {
         long left = wait.toMillis();
         long leftWhileDown = storeDownWait.toMillis();
         while (true) {
@@ -405,8 +425,10 @@ public class SynchronousProtectableDecisionService {
     /**
      * What an asynchronous {@code @Protectable} does before it runs: the restriction in force ({@link
      * #storedRestriction}), or, A1-5, a decision in place for an agent request with no decision on record. An agent
-     * is not let through without a decision (OWASP ASI02, ASI05); a person's request proceeds while it is analysed, as
-     * before. {@code contexa.security.zerotrust.protectable.unrecorded-agent-request=proceed} treats agents as people.
+     * is not let through without a decision (OWASP ASI02, ASI05); a person's request proceeds while it is analysed,
+     * unless its session, address or browser changed since the user's last decision: it then waits for its verdict.
+     * {@code contexa.security.zerotrust.protectable.unrecorded-agent-request=proceed} lets an agent's request proceed
+     * while it is analysed as well.
      */
     public AsyncProtectableGate asyncGate(MethodInvocation methodInvocation, Authentication authentication) {
         ZeroTrustSpringEvent event = zeroTrustEventPublisher.buildMethodAuthorizationEvent(
@@ -460,11 +482,146 @@ public class SynchronousProtectableDecisionService {
                 AgentAllowReuse.sensitive(event.getPayload()))) {
             return AsyncProtectableGate.DECIDE_IN_PLACE;
         }
-        if (action == ZeroTrustAction.PENDING_ANALYSIS && !agentRequest(event) && enforcing.getAsBoolean()
-                && AgentAllowReuse.sensitive(event.getPayload()) && securityPlaneAgent.isBehind()) {
-            return heldForItsVerdict(methodInvocation, authentication, event, gateContext);
+        if (action == ZeroTrustAction.PENDING_ANALYSIS && !agentRequest(event) && enforcing.getAsBoolean()) {
+            if (personRequest(event) && contextChanged(event, gateContext)) {
+                return answerToAChangedContext(event, gateContext);
+            }
+            if (AgentAllowReuse.sensitive(event.getPayload()) && securityPlaneAgent.isBehind()) {
+                return heldForItsVerdict(methodInvocation, authentication, event, gateContext);
+            }
         }
         return AsyncProtectableGate.PROCEED;
+    }
+
+    /**
+     * Whether the request comes from another context than the user's decision was reached for: another session, address
+     * or browser. With nothing on record there is nothing to compare, so no change. A record that cannot be read tells
+     * neither: a general resource goes on as a store outage lets it, and a sensitive one is taken for a change, as it
+     * does not go without a decision.
+     */
+    private boolean contextChanged(ZeroTrustSpringEvent event, String gateContext) {
+        try {
+            String decided = actionRepository.decidedContext(decisionKey(event, event.getUserId()));
+            return decided != null && gateContext != null && !decided.equals(gateContext);
+        } catch (RuntimeException unreadable) {
+            if (!StoreFailures.isReportedOutage(unreadable)) {
+                log.error("[ZeroTrust] The context of the user's decision could not be read: userId={}",
+                        event.getUserId(), unreadable);
+            }
+            return AgentAllowReuse.sensitive(event.getPayload());
+        }
+    }
+
+    /**
+     * The answer to a person's request from a changed context, which comes after its verdict: a stolen session used from
+     * elsewhere is this request, and a verdict after the response would come after its data. The requests of one context
+     * ask the model once: the first analyses, on the wait of a synchronous request, and the others wait for its end and
+     * are answered by what it left in force. So a page's calls at once after a change of network all run on one verdict,
+     * and none is refused because another is being analysed. On several servers each asks for itself.
+     */
+    private AsyncProtectableGate answerToAChangedContext(ZeroTrustSpringEvent event, String gateContext) {
+        String question = decisionKey(event, event.getUserId()) + '\u0000' + gateContext;
+        VerdictUnderWay mine = new VerdictUnderWay();
+        VerdictUnderWay underWay = changedContextVerdicts.putIfAbsent(question, mine);
+        if (underWay != null) {
+            return answerAfter(underWay, event, gateContext);
+        }
+        try {
+            return answerOfItsVerdict(event, gateContext);
+        } finally {
+            changedContextVerdicts.remove(question, mine);
+            mine.end.complete(null);
+        }
+    }
+
+    /**
+     * The answer to a request that waits for the verdict another request asked for. The waiting room holds as many as the
+     * flights' queue: the requests of one context must not take the application's threads while a model is slow. A request
+     * past it is told to come back, and is never let through for lack of room.
+     */
+    private AsyncProtectableGate answerAfter(VerdictUnderWay underWay, ZeroTrustSpringEvent event, String gateContext) {
+        int room = (agentDecisionFlights != null ? agentDecisionFlights.settings()
+                : AgentDecisionFlights.Settings.defaults()).queueCapacity();
+        if (underWay.waiting.incrementAndGet() > room) {
+            underWay.waiting.decrementAndGet();
+            throw ZeroTrustAccessDeniedException.analysisBusy(event.getResource(), WAITING_ROOM_RETRY_AFTER_SECONDS);
+        }
+        try {
+            awaitTheEnd(underWay.end);
+        } finally {
+            underWay.waiting.decrementAndGet();
+        }
+        return answerInForce(event, gateContext);
+    }
+
+    /**
+     * The verdict of the request that asks. A decision that landed since the gate read the store answers it, and one
+     * that waits for its audit record is not asked for again. Its event is the analysis, so nothing is published after
+     * the method: a request let through is only recorded.
+     */
+    private AsyncProtectableGate answerOfItsVerdict(ZeroTrustSpringEvent event, String gateContext) {
+        if (!zeroTrustEventListener.shouldPublishAuthorizationEvent(event)) {
+            return answerInForce(event, gateContext);
+        }
+        ZeroTrustAction verdict = null;
+        try {
+            verdict = verdictOf(event, event.getUserId(), gateContext).action();
+        } catch (DecisionNotInTimeException notInTime) {
+            log.debug("[ZeroTrust] No verdict in time for a changed context: userId={}", event.getUserId());
+        } catch (RuntimeException failure) {
+            // Neither a model nor a store that fails is the application's failure: what is in force answers.
+            if (!StoreFailures.isStoreFailure(failure)) {
+                log.error("[ZeroTrust] The analysis of a changed context failed: userId={}", event.getUserId(), failure);
+            }
+        }
+        if (verdict == ZeroTrustAction.ALLOW) {
+            return AsyncProtectableGate.PASS_AND_RECORD;
+        }
+        if (verdict != null && verdict.isAccessRestricted()) {
+            return AsyncProtectableGate.restricted(verdict);
+        }
+        AsyncProtectableGate answer = answerInForce(event, gateContext);
+        return answer == AsyncProtectableGate.PROCEED ? AsyncProtectableGate.PASS_AND_RECORD : answer;
+    }
+
+    /** The end of the analysis a request waits for, within a synchronous request's wait. */
+    private void awaitTheEnd(Future<Void> analysis) {
+        try {
+            if (decisionWait != null) {
+                verdictInTime(analysis, decisionWait);
+            } else {
+                analysis.get();
+            }
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+        } catch (ExecutionException | DecisionNotInTimeException notEnded) {
+            log.debug("[ZeroTrust] The analysis of a changed context did not end in time");
+        }
+    }
+
+    /**
+     * What answers a request of a changed context from what is in force. Without a verdict a general resource goes on,
+     * as it does while the analysis is behind and while a store is down: stopping it would turn a slow model into a
+     * stopped application. A sensitive resource does not go on: the refusal is this request's and nothing is stored. It
+     * is asked to verify, or to come back while a store is down, when no verification could be kept.
+     */
+    private AsyncProtectableGate answerInForce(ZeroTrustSpringEvent event, String gateContext) {
+        ZeroTrustAction inForce = currentAction(event, event.getUserId(), gateContext);
+        if (inForce == ZeroTrustAction.ALLOW) {
+            return AsyncProtectableGate.PROCEED;
+        }
+        if (inForce != null && inForce.isAccessRestricted()) {
+            recordUnanalysed(event, inForce);
+            return AsyncProtectableGate.restricted(inForce);
+        }
+        if (!AgentAllowReuse.sensitive(event.getPayload())) {
+            recordPassed(event);
+            return AsyncProtectableGate.PASS_AND_RECORD;
+        }
+        if (contexaStores.anyDown()) {
+            throw ZeroTrustAccessDeniedException.analysisBusy(event.getResource(), STORE_RETRY_AFTER_SECONDS);
+        }
+        return AsyncProtectableGate.restricted(ZeroTrustAction.CHALLENGE);
     }
 
     /**
@@ -534,6 +691,12 @@ public class SynchronousProtectableDecisionService {
         this.unrecordedAgentRequest = unrecordedAgentRequest != null
                 ? unrecordedAgentRequest
                 : SecurityZeroTrustProperties.UnrecordedAgentRequest.DECIDE_IN_PLACE;
+    }
+
+    /** Whether a person makes the request: neither an agent nor a client acting with its own token. */
+    private static boolean personRequest(ZeroTrustSpringEvent event) {
+        ZeroTrustSubject subject = ZeroTrustSubject.ofFacts(event.getUserId(), event.getPayload());
+        return subject != null && (subject.kind() == SubjectKind.HUMAN_USER || subject.console());
     }
 
     /** The subject the publisher recorded on the event (A1-3). */
@@ -692,12 +855,18 @@ public class SynchronousProtectableDecisionService {
         public static final AsyncProtectableGate DECIDE_IN_PLACE = new AsyncProtectableGate(null, true, false, false);
         /** It passes; its event is analysed in the background, and that analysis is the verdict the others wait for. */
         public static final AsyncProtectableGate PASS_AND_ANALYSE = new AsyncProtectableGate(null, false, true, true);
-        /** It passes and is only recorded: a verdict is already pending. */
+        /** It passes and is only recorded: a verdict is in, or already pending. */
         public static final AsyncProtectableGate PASS_AND_RECORD = new AsyncProtectableGate(null, false, true, false);
 
         public static AsyncProtectableGate restricted(ZeroTrustAction restriction) {
             return new AsyncProtectableGate(restriction, false, false, false);
         }
+    }
+
+    /** The verdict one request asked for, the end of its analysis and the requests waiting for it. */
+    private static final class VerdictUnderWay {
+        private final CompletableFuture<Void> end = new CompletableFuture<>();
+        private final AtomicInteger waiting = new AtomicInteger();
     }
 
     /** The verdict of a synchronous request did not come in time. */

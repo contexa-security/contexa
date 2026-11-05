@@ -70,6 +70,19 @@ public interface ZeroTrustActionRepository {
     ZeroTrustAction getLastVerifiedAction(String userId);
 
     /**
+     * The context the user's decision was reached for: the one of the decision in its TTL, else the last verified one,
+     * which outlasts it by up to 24 hours. A request from any other context changed session, address or browser. Null
+     * when nothing is on record, which is no change: a repository that keeps no such record answers null.
+     * <p>
+     * Unlike the reads of an action, this read does not answer for a store it could not read: null would let a request
+     * go on as one of the context on record, so a failure stays a failure for its caller.
+     */
+    @Nullable
+    default String decidedContext(String userId) {
+        return null;
+    }
+
+    /**
      * Q-5: whether the action in force is a CHALLENGE no model decided. A repository that keeps no such mark answers
      * false: its CHALLENGE stands as a decided one.
      */

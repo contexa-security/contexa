@@ -872,6 +872,16 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
     }
 
+    /** A read that fails is thrown: an empty answer would say no decision is on record. */
+    @Override
+    public String decidedContext(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return null;
+        }
+        Object context = readAnalysis(userId).get("contextBindingHash");
+        return context != null ? context.toString() : readLastVerifiedActionContext(userId);
+    }
+
     public long incrementBlockMfaFailCount(String userId) {
         if (userId == null || userId.isBlank()) {
             return 0;

@@ -180,7 +180,8 @@ public class AuthorizationManagerMethodInterceptor
             boolean decideInPlace = isSyncProtectable(protectable);
             if (llmAnalysisAllowed && !decideInPlace) {
                 // A stored BLOCK, CHALLENGE or ESCALATE restricts every request of the user; an asynchronous method
-                // does not wait for a new decision, so the one in force is enforced before it runs.
+                // does not wait for a new decision, so the one in force is enforced before it runs. A person's call
+                // whose session, address or browser changed does wait: the gate holds it and answers with its verdict.
                 SynchronousProtectableDecisionService.AsyncProtectableGate gate = asyncGate(mi, authentication);
                 ZeroTrustAction restriction = gate.restriction();
                 if (restriction != null) {

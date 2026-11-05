@@ -315,7 +315,8 @@ public class SecurityZeroTrustProperties {
         /**
          * How an agent's request to an asynchronous {@code @Protectable} method with no decision on record is handled.
          * By default it is decided in the request, so an agent is not let through without a decision (OWASP ASI02,
-         * ASI05); a person's request keeps proceeding while it is analysed.
+         * ASI05); a person's request keeps proceeding while it is analysed, unless its session, address or browser
+         * changed since the user's last decision.
          */
         private UnrecordedAgentRequest unrecordedAgentRequest = UnrecordedAgentRequest.DECIDE_IN_PLACE;
     }
@@ -413,7 +414,10 @@ public class SecurityZeroTrustProperties {
         private boolean enabled = false;
         /** The analyses one agent may have running at once, whatever the contexts it works in. */
         private int maxInFlightAnalyses = 3;
-        /** The requests of one agent that may wait for a place to be analysed. */
+        /**
+         * The requests of one agent that may wait for a place to be analysed. As many of a person's requests wait for
+         * the verdict of their changed session, address or browser; past that they are told to come back.
+         */
         private int queueCapacity = 20;
         /**
          * The longest a request waits for a place, or for the verdict it follows. It covers one whole analysis: the
@@ -421,7 +425,9 @@ public class SecurityZeroTrustProperties {
          * engine (the second layer's own limit is 30 seconds). A wait shorter than that refused requests whose
          * verdict was a few seconds away (RL-12, I-25). It is also the longest any synchronous request, a person's
          * too, holds the application's thread for its verdict, whether the flights are on or not (PR-54): past it the
-         * request is refused and the analysis goes on. An application on a model slower than this raises it.
+         * request is refused and the analysis goes on. A person's request from a changed session, address or browser
+         * waits as long: past it a sensitive resource is refused and a general one goes on. An application on a model
+         * slower than this raises it.
          */
         private Duration wait = Duration.ofSeconds(40);
         /** The requests that may pass before the first verdict is in; 0 for none. */
