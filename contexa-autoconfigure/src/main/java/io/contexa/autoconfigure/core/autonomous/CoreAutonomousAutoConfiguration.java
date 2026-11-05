@@ -50,6 +50,7 @@ import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.execution.DelegatedExecutionFingerprintService;
 import io.contexa.contexacore.autonomous.execution.ZeroTrustChallengeFlowStarter;
+import io.contexa.contexacore.autonomous.execution.ZeroTrustEnforcementExceptionResolver;
 import io.contexa.contexacore.autonomous.execution.ZeroTrustExceptionHandler;
 import io.contexa.contexacore.autonomous.handler.handler.AuditingHandler;
 import io.contexa.contexacore.autonomous.handler.handler.SecurityDecisionEnforcementHandler;
@@ -118,6 +119,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -131,6 +133,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import java.time.Duration;
 import java.util.List;
@@ -925,6 +928,22 @@ public class CoreAutonomousAutoConfiguration {
             ZeroTrustChallengeFlowStarter starter = challengeFlowStarters.getIfUnique();
             return starter == null ? Optional.empty() : starter.start(request, response);
         });
+    }
+
+    /**
+     * The decisions of a protected method are answered ahead of the application's exception handlers (Q-9). Its own class
+     * so that an application without Spring MVC, where nothing answers through a resolver, does not load the type. An
+     * application that looks for a resolver by type does not meet this one; the DispatcherServlet finds it all the same.
+     */
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnClass(HandlerExceptionResolver.class)
+    static class EnforcementAnswerConfiguration {
+
+        @Bean(name = "contexaZeroTrustEnforcementExceptionResolver", defaultCandidate = false)
+        @ConditionalOnMissingBean
+        ZeroTrustEnforcementExceptionResolver zeroTrustEnforcementExceptionResolver(ZeroTrustExceptionHandler answers) {
+            return new ZeroTrustEnforcementExceptionResolver(answers);
+        }
     }
 
 

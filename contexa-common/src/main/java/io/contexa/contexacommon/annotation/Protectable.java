@@ -29,6 +29,12 @@ import java.lang.annotation.Target;
  * by the prompt quality inspection flow before they are used for LLM
  * zero-trust operation. Enterprise deployments may add certificate and
  * promotion gates on top of that inspection result.
+ * <p>
+ * A call on a thread that holds neither a user nor a request, such as a
+ * scheduled job or an asynchronous method whose executor does not carry the
+ * security context, has no one to decide for: it runs and the run is recorded.
+ * A call that carries its user is decided on any thread, and a request with no
+ * user is refused.
  */
 @Target({ElementType.METHOD, ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)

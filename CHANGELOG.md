@@ -8,6 +8,20 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **`@EnableAISecurity` can stand on any configuration class.** Declared on the class that also declares the application's
+  `PlatformConfig`, or on one parsed before it, the application stopped at start with two `PlatformConfig` beans. The
+  application's configuration classes are now parsed first, so every conditional bean of Contexa's configuration gives way
+  to the application's wherever that is declared. Contexa's values reach the `Environment` after those classes are parsed
+  and before the auto-configurations.
+- **A decision at a protected method is answered by Contexa whatever exception handlers the application has.** A catch-all
+  `@ExceptionHandler(Exception.class)` at the top order turned a CHALLENGE into its own answer and ended a BLOCK with a
+  broken connection. `ZeroTrustEnforcementExceptionResolver` now answers Contexa's own exceptions ahead of every advice, of
+  a handler inside a controller and of an application's resolver. The answer is always JSON, in Contexa's field names; every
+  other exception stays the application's.
+- **A `@Protectable` method runs in `@Scheduled` and `@Async` work.** A call on a thread that holds neither a user nor a
+  request failed with `AuthenticationCredentialsNotFoundException`. There is no one to decide for, so it now runs: the first
+  run of each method writes a warning, and `ctxa_ai_security_llm_trigger_suppression` keeps a `RAN_WITHOUT_USER` row a minute
+  per method with the calls counted. A user carried into the thread is decided, and a request with no user stays refused.
 - **A user can answer a CHALLENGE in `contexa.infrastructure.mode=distributed` whatever the sign-in is made of.** An MFA
   flow stored in Redis could not be read back when the sign-in held a read-only collection (a one-time token or a
   remember-me sign-in with Contexa's user or Spring's `User`, a JWT, an OAuth2 login) or an object the reading node
@@ -81,6 +95,10 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A BLOCK cuts a response that started under an ALLOW too.** Only a response started while the analysis was pending
+  could be cut, so a stream begun in the 15 seconds an ALLOW lasts ran to its end past the BLOCK. Every response of a
+  signed-in user under ENFORCE can now be cut, and carries `X-Contexa-Monitored` and `X-Contexa-Blocked-Redirect` unless
+  `contexa.security.zerotrust.monitoring-headers=false`. What cuts a response stays a BLOCK received after it started.
 - **The screens of a decision only lead to paths of the application**: `returnUrl` of
   `/contexa/zero-trust/analysis-pending` went to the browser unchecked, and `mfaUrl` of
   `/contexa/zero-trust/challenge-required` let a backslash, a tab or an encoded slash through. Anything but a path of the

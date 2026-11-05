@@ -202,7 +202,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         if (currentAction != ZeroTrustAction.BLOCK
                 && currentAction != ZeroTrustAction.ESCALATE
                 && currentAction != ZeroTrustAction.PENDING_ANALYSIS) {
-            filterChain.doFilter(request, response);
+            passUntilBlocked(request, response, filterChain, userId, responseStartNanos);
             return;
         }
 
@@ -222,7 +222,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                 recordStopped(auth, ZeroTrustAction.ESCALATE);
                 handleEscalate(request, response, userId, subject);
             }
-            case PENDING_ANALYSIS -> handlePendingAnalysis(request, response, filterChain, userId, responseStartNanos);
+            case PENDING_ANALYSIS -> passUntilBlocked(request, response, filterChain, userId, responseStartNanos);
             default -> filterChain.doFilter(request, response);
         }
     }
@@ -580,11 +580,15 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                 ? stamp : null;
     }
 
-    private void handlePendingAnalysis(HttpServletRequest request,
-                                        HttpServletResponse response,
-                                        FilterChain filterChain,
-                                        String userId,
-                                        long responseStartNanos) throws ServletException, IOException {
+    /**
+     * Lets the request go on with a response a BLOCK received after its start cuts. An ALLOW says nothing of what follows
+     * it: a stream started in the seconds an ALLOW lasts runs far past it, and only a response that is wrapped can stop.
+     */
+    private void passUntilBlocked(HttpServletRequest request,
+                                  HttpServletResponse response,
+                                  FilterChain filterChain,
+                                  String userId,
+                                  long responseStartNanos) throws ServletException, IOException {
         if (blockingDecisionRegistry == null) {
             filterChain.doFilter(request, response);
             return;
