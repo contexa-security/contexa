@@ -16,6 +16,7 @@
 package io.contexa.autoconfigure.iam.aiam;
 
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.autonomous.store.InMemoryBlockMfaStateStore;
@@ -68,8 +69,14 @@ public class IamAiamWebAutoConfiguration {
     @ConditionalOnMissingBean
     public ZeroTrustPageController zeroTrustPageController(BlockMfaStateStore blockMfaStateStore,
                                                             BlockedUserService contexaBlockedUserService,
-                                                            SecurityZeroTrustProperties securityZeroTrustProperties) {
-        return new ZeroTrustPageController(blockMfaStateStore, contexaBlockedUserService, securityZeroTrustProperties);
+                                                            SecurityZeroTrustProperties securityZeroTrustProperties,
+                                                            ObjectProvider<BridgeProperties> bridgeProperties) {
+        ZeroTrustPageController controller = new ZeroTrustPageController(blockMfaStateStore, contexaBlockedUserService,
+                securityZeroTrustProperties);
+        // Where the application owns sign-in the block list lies behind the console's own sign-in.
+        BridgeProperties bridge = bridgeProperties.getIfAvailable();
+        controller.setBlockListOffered(bridge == null || !bridge.ownershipBehaviour().enforcesFromServletFilters());
+        return controller;
     }
 
     @Bean(name = "contexaZeroTrustUnblockController")

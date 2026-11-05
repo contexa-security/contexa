@@ -22,6 +22,7 @@ import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
 import io.contexa.contexaiam.aiam.web.dto.UnblockRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.ui.ExtendedModelMap;
 
 import java.security.Principal;
@@ -47,7 +48,8 @@ class ZeroTrustBlockedScreensNamedKeyTest {
     @Test
     @DisplayName("the blocked screen reads the user's own state, not the console's")
     void theBlockedScreenReadsTheUsersState() {
-        new ZeroTrustPageController(blockMfa, blocks, properties).blocked(user, new ExtendedModelMap());
+        new ZeroTrustPageController(blockMfa, blocks, properties).blocked(user, new ExtendedModelMap(),
+                new MockHttpServletRequest());
 
         verify(blockMfa).getFailCount(OWN);
         verify(blockMfa).isVerified(OWN);

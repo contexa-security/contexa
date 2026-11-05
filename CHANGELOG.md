@@ -168,6 +168,15 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **A CHALLENGE no model decided stays short through a Redis outage.** What a server read last stands while Redis does not
+  answer, and it stood for a CHALLENGE's half hour even when the CHALLENGE came from a failed analysis and lasts a minute. It
+  now stands for that minute, and a CHALLENGE held for other sessions stands as long as what Redis holds of it.
+- **A forced logout outlives a Redis outage.** A logout asked for while Redis was away, for a disabled or deleted account or
+  by a risk signal, ended in an ERROR line and nothing else. It now waits in the memory of the node that was asked and is
+  applied once Redis is back, the sessions and what a logout removes with them; the version that makes open sessions read
+  their accounts moves on too. The audit log shows that it waited and that it was applied. Until then the sessions go on, and
+  a restart of that node during the outage loses it: an ERROR says so at the stop, and the audit record stays. A risk signal
+  a store did not let Contexa act on is answered with an error and is acted on when it is sent again.
 - **A sensitive resource does not go on without its method policies.** While the database does not answer, a call whose
   policies could not be read went on, and a DENY among them was missed. A call to a resource declared sensitive is now
   refused for that request with a CHALLENGE, whatever the model answered: a decision does not speak for a policy. A general
@@ -177,6 +186,16 @@ The format is based on Keep a Changelog and the project follows semantic version
   `429 MFA_BUSY_RETRY` and changes nothing, so wrong codes sent at once are read one at a time and the limit on the codes
   read stands. A verification that has not moved for `contexa.auth.mfa.state-machine-timeout-ms` (10 seconds, a setting
   without effect until now) ends the flow as before.
+- **The in-memory stores have a limit in bytes.** The session histories, the work profile and role scope observations and
+  the personal and organization baselines of standalone mode were bounded by count only: by calculation 8 GB of session
+  history at worst, and about a hundred users' work profiles past a usual heap. Each now keeps within a twentieth of the
+  heap, between 16 MiB and 512 MiB; past it the session, user, scope or baseline written the longest ago goes whole, and a
+  WARN says so at most once a minute. What a decision reads changes only past the limit, by the oldest input. Redis keeps
+  to its own memory limit.
+- **The line of analyses has a limit.** Events coming in faster than they were analysed queued without end. A twentieth of
+  the heap, at most the monitoring queue's size, now bounds what is accepted and not finished. An event past it is not
+  analysed: it stays a fact of its session, it is counted, and an ERROR says so at most once a minute. Nothing upstream
+  waits for room, and a full line counts as the analysis being behind.
 - **A synchronous call no longer waits 40 seconds for a store that is down.** The analysis of a synchronous call runs off
   the request's thread, on the application's own Redis client. While a store is down the request now waits three more
   seconds at most: a verdict in that time still answers, a restriction in force stands, and otherwise the call is the
@@ -271,6 +290,10 @@ The format is based on Keep a Changelog and the project follows semantic version
 - **A decision record follows the same rule.** Once older sealed records are kept, a record without its hash or signature
   shows as changed on the security monitor instead of as not verifiable, and so does one that names a key never held once
   older records are signed with the active key. A custom `EvidenceSigner` answers `keepsItsKeys()` to take part in this.
+- What a person is asked to confirm for an agent keeps the request's path and query, but a value that opens something is
+  masked: by the name of its parameter (`token`, `pin`, `password`, ...), by its own shape (a signed token, a provider's key,
+  a national id), or inside a nested URL. The confirmation stays bound to the very request.
+- A session id no longer reaches an approval request or the audit line of a model call: both name it by its reference.
 - **A layer model set in `contexa.security.tiered.llm.layer1.model` or `layer2.model` runs with Anthropic from the
   settings alone.** The second layer used to run on the first layer's model without a word, and one chat model bean of
   the second layer's model pulled the first layer onto it too. Each layer's model is now made from the Anthropic chat
@@ -307,8 +330,17 @@ The format is based on Keep a Changelog and the project follows semantic version
   `BlockedUserService.deleteBlockRecord` takes the acting administrator now. **A sole administrator needs mail configured
   and a real address on the account, or a second administrator**: without a factor nothing lifts the console's own BLOCK
   from the console. Under `CONTEXA_OWNED` the same rule reads the shared account, and its own record takes another
-  administrator.
+  administrator or a verification passed in that session.
+- **The only administrator under a BLOCK has a way out** under `CONTEXA_OWNED`, where the console and the application share
+  one account. After passing MFA on the screen of the BLOCK, an administrator reaches the people of the block list in that
+  session, and no other page of the console or the application, the agents' tab included. A verification is kept for the
+  session that passed it and ends with the BLOCK it answered.
 - A BLOCK decided over a CHALLENGE that other sessions still held could be lifted through the CHALLENGE release. It stays.
+- **A save of the console's system settings no longer fixes the zero trust mode.** While no mode is stored,
+  `contexa.security.zerotrust.mode` applies and the form shows it; saving any other setting used to store that mode, and
+  the setting of the next deployment then silently no longer applied. A form that names no mode, or the mode in effect, now
+  leaves it unset, and another mode is stored as before. A row an earlier save filled keeps its value: set
+  `security_zerotrust_mode` of `ctxa_system_settings` to NULL to hand the mode back to the setting.
 - **Behind a proxy nobody named, one person's typing no longer stops everyone, and a forged header escapes nothing.** A
   sign-in is counted against the address it connected from, whatever `X-Forwarded-For` says, and the header never switches
   the address limit off or lifts a block of it. When a request carries the header,

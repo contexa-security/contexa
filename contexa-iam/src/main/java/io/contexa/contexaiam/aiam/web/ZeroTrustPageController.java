@@ -15,14 +15,17 @@
  */
 package io.contexa.contexaiam.aiam.web;
 
+import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.SameAppPath;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -42,12 +45,19 @@ public class ZeroTrustPageController {
     private final BlockMfaStateStore blockMfaStateStore;
     private final BlockedUserService blockedUserService;
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
+    private boolean blockListOffered = true;
+
+    /** Whether this screen leads a verified administrator to the block list; not behind the console's own chain. */
+    public void setBlockListOffered(boolean blockListOffered) {
+        this.blockListOffered = blockListOffered;
+    }
 
     @GetMapping("/blocked")
-    public String blocked(Principal principal, Model model) {
+    public String blocked(Principal principal, Model model, HttpServletRequest request) {
 
         boolean mfaVerified = false;
         boolean mfaFailed = false;
+        boolean blockListOpen = false;
         int mfaFailCount = 0;
         if (principal != null) {
             String userId = ZeroTrustUserKey.person(principal.getName());
@@ -56,14 +66,21 @@ public class ZeroTrustPageController {
 
             mfaVerified = blockMfaStateStore.isVerified(userId);
             mfaFailCount = blockMfaStateStore.getFailCount(userId);
+            blockListOpen = blockListOffered && administrator(principal)
+                    && blockMfaStateStore.isVerified(userId, SessionFingerprintUtil.verificationContext(request));
         }
         int maxAttempts = securityZeroTrustProperties.getMaxBlockMfaAttempts();
         model.addAttribute("mfaVerified", mfaVerified);
         model.addAttribute("mfaFailed", mfaFailed);
+        model.addAttribute("blockListOpen", blockListOpen);
         model.addAttribute("mfaFailCount", mfaFailCount);
         model.addAttribute("maxMfaAttempts", maxAttempts);
         model.addAttribute("mfaExhausted", mfaFailed || mfaFailCount >= maxAttempts);
         return "contexa/zero-trust/blocked";
+    }
+
+    private static boolean administrator(Principal principal) {
+        return principal instanceof Authentication authentication && ConsoleSession.administrator(authentication);
     }
 
     @GetMapping("/challenge-required")

@@ -18,11 +18,15 @@ package io.contexa.contexaiam.admin.web.auth.service;
 import io.contexa.contexacommon.entity.SystemSettings;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.SystemSettingsRepository;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.SystemSettingsForm;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -152,6 +156,127 @@ class SystemSettingsServiceTest {
             assertThat(existing.getPolicyCombiningAlgorithm()).isEqualTo("DENY_UNLESS_PERMIT");
             assertThat(existing.getNoMatchingUrlPolicyDecision()).isEqualTo("DENY");
             assertThat(existing.getMissingMethodPolicyDecision()).isEqualTo("DENY");
+        }
+
+        private SecurityZeroTrustProperties running(SecurityZeroTrustProperties.EnforcementMode mode) {
+            SecurityZeroTrustProperties properties = new SecurityZeroTrustProperties();
+            properties.setMode(mode);
+            service.setZeroTrustProperties(properties);
+            return properties;
+        }
+
+        private SystemSettings aRowWithMode(String mode) {
+            SystemSettings row = SystemSettings.builder().securityZeroTrustMode(mode).build();
+            when(repository.findAll()).thenReturn(List.of(row));
+            return row;
+        }
+
+        private void saved(String mode) {
+            SystemSettingsForm form = validForm();
+            form.setSecurityZeroTrustMode(mode);
+            service.updateSettings(form);
+        }
+
+        @Test
+        @DisplayName("A save of another setting shows the mode in effect and does not store it as a choice")
+        void theFormsOwnModeIsNoChoice() {
+            running(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
+            SystemSettings row = aRowWithMode(null);
+            SystemSettingsForm form = validForm();
+            form.setSecurityZeroTrustMode("ENFORCE");
+            form.setMvcResourceScannerBasePackages("com.example.");
+
+            service.updateSettings(form);
+
+            verify(repository).save(row);
+            assertThat(row.getSecurityZeroTrustMode()).isNull();
+            assertThat(row.getMvcResourceScannerBasePackages()).isEqualTo("com.example.");
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"enforce", " ENFORCE ", "Enforce"})
+        @DisplayName("The mode in effect in another spelling is no choice either")
+        void aSpellingOfTheModeInEffect(String submitted) {
+            running(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
+            SystemSettings row = aRowWithMode(null);
+
+            saved(submitted);
+
+            assertThat(row.getSecurityZeroTrustMode()).isNull();
+        }
+
+        @ParameterizedTest
+        @NullSource
+        @ValueSource(strings = {"", "   "})
+        @DisplayName("A form that names no mode stores none: it used to store the built-in default")
+        void aFormWithoutAMode(String submitted) {
+            running(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
+            SystemSettings row = aRowWithMode(null);
+
+            saved(submitted);
+
+            assertThat(row.getSecurityZeroTrustMode()).isNull();
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"", "  "})
+        @DisplayName("A stored blank reads as not set, here as where the mode is applied")
+        void aBlankStoredModeIsNotSet(String stored) {
+            running(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
+            SystemSettings row = aRowWithMode(stored);
+
+            saved("ENFORCE");
+
+            assertThat(row.getSecurityZeroTrustMode()).isEqualTo(stored);
+        }
+
+        @Test
+        @DisplayName("A later deployment's mode is the one compared: the row stays free to follow the setting")
+        void aLaterDeployment() {
+            SecurityZeroTrustProperties properties = running(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
+            SystemSettings row = aRowWithMode(null);
+
+            saved("ENFORCE");
+            properties.setMode(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
+            saved("SHADOW");
+
+            assertThat(row.getSecurityZeroTrustMode()).isNull();
+        }
+
+        @Test
+        @DisplayName("Another mode is the operator's choice and is stored")
+        void anotherModeIsStored() {
+            running(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
+            SystemSettings row = aRowWithMode(null);
+
+            saved("SHADOW");
+
+            assertThat(row.getSecurityZeroTrustMode()).isEqualTo("SHADOW");
+        }
+
+        @Test
+        @DisplayName("A mode already stored follows the form as before, the mode in effect included")
+        void aStoredModeFollowsTheForm() {
+            running(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
+            SystemSettings row = aRowWithMode("SHADOW");
+
+            saved("SHADOW");
+            assertThat(row.getSecurityZeroTrustMode()).isEqualTo("SHADOW");
+
+            saved("ENFORCE");
+            assertThat(row.getSecurityZeroTrustMode()).as("back to the mode in effect").isEqualTo("ENFORCE");
+        }
+
+        @Test
+        @DisplayName("A mode that does not exist is still refused, on an empty row too")
+        void anUnknownModeIsRefused() {
+            running(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
+            SystemSettingsForm form = validForm();
+            form.setSecurityZeroTrustMode("OFF-ISH");
+
+            assertThatThrownBy(() -> service.updateSettings(form)).isInstanceOf(IllegalArgumentException.class);
+
+            verify(repository, never()).save(any());
         }
 
         @Test

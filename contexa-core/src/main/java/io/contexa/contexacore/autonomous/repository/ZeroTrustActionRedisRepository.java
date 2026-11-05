@@ -71,13 +71,34 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
     private record Restriction(ZeroTrustAction action, long untilMillis, String answeredContext) {
 
         static Restriction of(ZeroTrustAction action, String answeredContext) {
-            Duration ttl = action.getDefaultTtl();
+            return of(action, action.getDefaultTtl(), answeredContext);
+        }
+
+        static Restriction of(ZeroTrustAction action, Duration ttl, String answeredContext) {
             return new Restriction(action, ttl != null ? System.currentTimeMillis() + ttl.toMillis() : Long.MAX_VALUE,
                     answeredContext);
         }
 
         boolean holdsFor(String context) {
             return System.currentTimeMillis() < untilMillis && (answeredContext == null || !answeredContext.equals(context));
+        }
+    }
+
+    /** What the store holds for a user, and whether it is a CHALLENGE no model decided. */
+    private record StoredAction(ZeroTrustAction action, boolean technical) {
+
+        static StoredAction of(ZeroTrustAction action) {
+            return new StoredAction(action, false);
+        }
+
+        /** The mark is read as the script reads it: the field is there, whatever it holds. */
+        static StoredAction of(ZeroTrustAction action, Map<Object, Object> analysis) {
+            return new StoredAction(action, action == ZeroTrustAction.CHALLENGE && analysis.containsKey(TECHNICAL_CHALLENGE));
+        }
+
+        /** How long what was read stands while Redis does not answer: as long as it lasts by itself. */
+        Duration ttl() {
+            return technical ? TECHNICAL_CHALLENGE_TTL : action.getDefaultTtl();
         }
     }
 
@@ -247,11 +268,13 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
 
     /**
      * Keeps what a read found for the moment Redis stops answering, and passes it on. It is kept under the key a restriction
-     * is enforced under (Q-18), so every spelling of a name meets it.
+     * is enforced under, so every spelling of a name meets it. It stands as long as it lasts by itself: a CHALLENGE
+     * no model decided is short, and an outage of the store does not make it long.
      */
-    private ZeroTrustAction read(String userId, ZeroTrustAction action) {
+    private ZeroTrustAction read(String userId, StoredAction stored) {
+        ZeroTrustAction action = stored.action();
         if (action.isAccessRestricted()) {
-            restrictionsRead.put(ZeroTrustUserKey.of(userId), Restriction.of(action, null));
+            restrictionsRead.put(ZeroTrustUserKey.of(userId), Restriction.of(action, stored.ttl(), null));
         } else {
             restrictionsRead.invalidate(ZeroTrustUserKey.of(userId));
         }
@@ -272,6 +295,12 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             return restriction.action();
         }
         return blockRecorded(userId) ? ZeroTrustAction.BLOCK : ZeroTrustAction.PENDING_ANALYSIS;
+    }
+
+    /** How long what this server read of the user stands while Redis does not answer; 0 when it read no restriction. */
+    long restrictionHeldMillis(String userId) {
+        Restriction restriction = restrictionsRead.getIfPresent(ZeroTrustUserKey.of(userId));
+        return restriction != null ? Math.max(0L, restriction.untilMillis() - System.currentTimeMillis()) : 0L;
     }
 
     private boolean blockRecorded(String userId) {
@@ -316,15 +345,16 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
 
         try {
             if (blockedFlagStands(userId)) {
-                return read(userId, ZeroTrustAction.BLOCK);
+                return read(userId, StoredAction.of(ZeroTrustAction.BLOCK));
             }
 
             Map<Object, Object> analysis = settledAnalysis(userId);
             Object actionValue = analysis.get("action");
             // Z-16 (1-a): outside a request a decision past its TTL lapses as it does in one
             // (ZeroTrustActionPrecedence: an ALLOW or CHALLENGE lapses with its TTL); only an unresolved ESCALATE stays.
-            ZeroTrustAction stored = actionValue != null
-                    ? ZeroTrustAction.fromString(actionValue.toString()) : unresolvedEscalationOrPending(userId);
+            StoredAction stored = actionValue != null
+                    ? StoredAction.of(ZeroTrustAction.fromString(actionValue.toString()), analysis)
+                    : StoredAction.of(unresolvedEscalationOrPending(userId));
             return heldBack(userId, null, read(userId, stored));
         } catch (Exception e) {
             return inForceWhileUnreadable(userId, null, e);
@@ -338,7 +368,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
 
         try {
             if (blockedFlagStands(userId)) {
-                return read(userId, ZeroTrustAction.BLOCK);
+                return read(userId, StoredAction.of(ZeroTrustAction.BLOCK));
             }
             return heldBack(userId, contextBindingHash, read(userId, storedAction(userId, contextBindingHash)));
         } catch (Exception e) {
@@ -346,10 +376,10 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
     }
 
-    private ZeroTrustAction storedAction(String userId, String contextBindingHash) {
+    private StoredAction storedAction(String userId, String contextBindingHash) {
         Map<Object, Object> analysis = settledAnalysis(userId);
         if (analysis.isEmpty()) {
-            return unresolvedEscalationOrPending(userId);
+            return StoredAction.of(unresolvedEscalationOrPending(userId));
         }
         Object actionValue = analysis.get("action");
         Object storedHash = analysis.get("contextBindingHash");
@@ -361,9 +391,9 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                     && storedHash != null
                     && !storedHash.toString().equals(contextBindingHash)) {
                 log.debug("[ZeroTrustActionRedisRepository] Context binding hash mismatch detected: userId={}, action={}", userId, action);
-                return ZeroTrustAction.PENDING_ANALYSIS;
+                return StoredAction.of(ZeroTrustAction.PENDING_ANALYSIS);
             }
-            return action;
+            return StoredAction.of(action, analysis);
         }
 
         String lastAction = readLastVerifiedAction(userId);
@@ -374,13 +404,13 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 String lastContextHash = readLastVerifiedActionContext(userId);
                 if (lastContextHash != null && !lastContextHash.equals(contextBindingHash)) {
                     log.debug("[ZeroTrustActionRedisRepository] Last verified context binding hash mismatch: userId={}, action={}", userId, action);
-                    return ZeroTrustAction.PENDING_ANALYSIS;
+                    return StoredAction.of(ZeroTrustAction.PENDING_ANALYSIS);
                 }
             }
-            return action;
+            return StoredAction.of(action);
         }
 
-        return ZeroTrustAction.PENDING_ANALYSIS;
+        return StoredAction.of(ZeroTrustAction.PENDING_ANALYSIS);
     }
 
     /**
@@ -397,9 +427,12 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             return action;
         }
         boolean answered = contextBindingHash != null && held.get(1) != null;
-        // The hold outlives an outage as a restriction does: the sessions that did not answer stay stopped.
+        // The hold outlives an outage as a restriction does: the sessions that did not answer stay stopped. It has the
+        // time of the CHALLENGE it was made from, a short one when no model decided it, and stands no longer than that.
+        Long left = stringRedisTemplate.getExpire(ZeroTrustRedisKeys.autonomousChallengeHold(userId), TimeUnit.MILLISECONDS);
+        Duration ttl = left != null && left > 0 ? Duration.ofMillis(left) : ZeroTrustAction.CHALLENGE.getDefaultTtl();
         restrictionsRead.put(ZeroTrustUserKey.of(userId),
-                Restriction.of(ZeroTrustAction.CHALLENGE, answered ? contextBindingHash : null));
+                Restriction.of(ZeroTrustAction.CHALLENGE, ttl, answered ? contextBindingHash : null));
         return answered ? action : ZeroTrustAction.CHALLENGE;
     }
 
@@ -572,8 +605,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         try {
             Map<Object, Object> analysis = readAnalysis(userId);
             Object action = analysis.get("action");
-            return action != null && ZeroTrustAction.fromString(action.toString()) == ZeroTrustAction.CHALLENGE
-                    && analysis.containsKey(TECHNICAL_CHALLENGE);
+            return action != null && StoredAction.of(ZeroTrustAction.fromString(action.toString()), analysis).technical();
         } catch (Exception e) {
             log.error("[ZeroTrustActionRedisRepository] Failed to read the technical CHALLENGE mark: userId={}", userId, e);
             return false;

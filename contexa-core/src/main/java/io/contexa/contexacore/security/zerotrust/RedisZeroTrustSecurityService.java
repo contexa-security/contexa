@@ -15,12 +15,19 @@
  */
 package io.contexa.contexacore.security.zerotrust;
 
+import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacommon.store.ContexaStores;
+import io.contexa.contexacommon.store.StoreFailures;
+import io.contexa.contexacore.autonomous.audit.AuditRecord;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -35,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * Redis-backed Zero Trust service. QF-57: the user's tracked session ids are kept in two keys of their own, the ids with
@@ -44,9 +52,13 @@ import java.util.Set;
  * user's sessions, whose recent requests the analysis counts; tracking does not write it, and a forced logout still
  * invalidates every id it holds. Z-16 (D-8, 2-d): neither a logout nor a forced logout removes that list or a session's
  * records in the context store; they lapse with their TTLs, as in the in-memory service.
+ * <p>
+ * A forced logout Redis does not take while it is away waits in {@link DeferredForcedLogouts} and is applied
+ * once Redis is back. Until then the user's sessions go on, since nothing can tell them. The in-memory service has no
+ * such moment: its store cannot be away.
  */
 @Slf4j
-public class RedisZeroTrustSecurityService extends AbstractZeroTrustSecurityService {
+public class RedisZeroTrustSecurityService extends AbstractZeroTrustSecurityService implements DisposableBean {
 
     /**
      * Registers an id with a deadline (KEYS[1] the deadlines, KEYS[2] the ids without one; ARGV[1] the id, ARGV[2] its
@@ -91,6 +103,9 @@ public class RedisZeroTrustSecurityService extends AbstractZeroTrustSecurityServ
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final Clock clock;
+    private final DeferredForcedLogouts deferredLogouts = new DeferredForcedLogouts();
+    private volatile ContexaStores contexaStores;
+    private volatile Supplier<CentralAuditFacade> audit = () -> null;
 
     public RedisZeroTrustSecurityService(
             RedisTemplate<String, Object> redisTemplate,
@@ -111,6 +126,31 @@ public class RedisZeroTrustSecurityService extends AbstractZeroTrustSecurityServ
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
+    /** The forced logouts Redis did not take are applied as soon as this gate is up again. */
+    public void setContexaStores(ContexaStores contexaStores) {
+        this.contexaStores = contexaStores;
+        contexaStores.redis().whenBack(this::applyDeferredLogouts);
+    }
+
+    /** Where it stays on record that a forced logout waited for Redis, and that it was applied. */
+    public void setAudit(Supplier<CentralAuditFacade> audit) {
+        this.audit = audit;
+    }
+
+    int forcedLogoutsWaiting() {
+        return deferredLogouts.size();
+    }
+
+    /** What waits in memory does not outlive the node, and an operator has to hear of it. */
+    @Override
+    public void destroy() {
+        int waiting = deferredLogouts.size();
+        if (waiting > 0) {
+            log.error("[ZeroTrust] {} forced logouts were still waiting for Redis when this node stopped and will not be "
+                    + "applied; the audit log names them as FORCED_LOGOUT_WAITING_FOR_REDIS.", waiting);
+        }
+    }
+
     @Autowired(required = false)
     public void setBlockingSignalBroadcaster(BlockingSignalBroadcaster broadcaster) {
         this.blockingSignalBroadcaster = broadcaster;
@@ -127,20 +167,23 @@ public class RedisZeroTrustSecurityService extends AbstractZeroTrustSecurityServ
             return;
         }
         try {
-            String invalidKey = ZeroTrustRedisKeys.invalidSession(sessionId);
-
-            Map<String, Object> invalidationRecord = new HashMap<>();
-            invalidationRecord.put("sessionId", sessionId);
-            invalidationRecord.put("userId", userId);
-            invalidationRecord.put("reason", reason);
-            invalidationRecord.put("timestamp", System.currentTimeMillis());
-
-            redisTemplate.opsForValue().set(invalidKey, invalidationRecord,
-                    Duration.ofHours(securityZeroTrustProperties.getCache().getTtlHours()));
-
+            writeInvalidation(sessionId, userId, reason);
         } catch (Exception e) {
             log.error("[ZeroTrust] Failed to invalidate session: {}", sessionId, e);
         }
+    }
+
+    private void writeInvalidation(String sessionId, String userId, String reason) {
+        String invalidKey = ZeroTrustRedisKeys.invalidSession(sessionId);
+
+        Map<String, Object> invalidationRecord = new HashMap<>();
+        invalidationRecord.put("sessionId", sessionId);
+        invalidationRecord.put("userId", userId);
+        invalidationRecord.put("reason", reason);
+        invalidationRecord.put("timestamp", System.currentTimeMillis());
+
+        redisTemplate.opsForValue().set(invalidKey, invalidationRecord,
+                Duration.ofHours(securityZeroTrustProperties.getCache().getTtlHours()));
     }
 
     @Override
@@ -200,7 +243,8 @@ public class RedisZeroTrustSecurityService extends AbstractZeroTrustSecurityServ
 
     /**
      * Invalidates every id of the user's session list and every tracked id not past its deadline, then stops tracking
-     * them. The session list stays until its TTL (Z-16, D-8).
+     * them. The session list stays until its TTL (Z-16, D-8). What Redis does not take while it is away is applied once
+     * it is back.
      */
     @Override
     public void invalidateAllUserSessions(String userId, String reason) {
@@ -209,23 +253,81 @@ public class RedisZeroTrustSecurityService extends AbstractZeroTrustSecurityServ
         }
 
         try {
-            String sessionsKey = ZeroTrustRedisKeys.userSessions(userId);
-            String deadlinesKey = ZeroTrustRedisKeys.userSessionDeadlines(userId);
-            String untimedKey = ZeroTrustRedisKeys.userUntimedSessions(userId);
-            Set<String> sessions = new LinkedHashSet<>();
-            addAll(sessions, redisTemplate.opsForSet().members(sessionsKey));
-            addAll(sessions, redisTemplate.opsForZSet().rangeByScore(deadlinesKey,
-                    now().toEpochMilli(), Double.POSITIVE_INFINITY));
-            addAll(sessions, redisTemplate.opsForZSet().range(untimedKey, 0, -1));
-
-            for (String sessionId : sessions) {
-                invalidateSession(sessionId, userId, reason);
-            }
-
-            redisTemplate.delete(List.of(deadlinesKey, untimedKey));
-
+            endAllSessions(userId, reason);
         } catch (Exception e) {
-            log.error("[ZeroTrust] Failed to invalidate all sessions for user: {}", userId, e);
+            if (StoreFailures.isStoreFailure(e)) {
+                deferredLogouts.defer(userId, reason);
+                log.error("[ZeroTrust] Redis did not take the forced logout of {}: it is applied once Redis is back, and "
+                        + "the user's sessions go on until then.", userId);
+                recordForcedLogout(userId, reason, "FORCED_LOGOUT_WAITING_FOR_REDIS", "WAITING");
+            } else {
+                log.error("[ZeroTrust] Failed to invalidate all sessions for user: {}", userId, e);
+            }
+        }
+    }
+
+    private void endAllSessions(String userId, String reason) {
+        String sessionsKey = ZeroTrustRedisKeys.userSessions(userId);
+        String deadlinesKey = ZeroTrustRedisKeys.userSessionDeadlines(userId);
+        String untimedKey = ZeroTrustRedisKeys.userUntimedSessions(userId);
+        Set<String> sessions = new LinkedHashSet<>();
+        addAll(sessions, redisTemplate.opsForSet().members(sessionsKey));
+        addAll(sessions, redisTemplate.opsForZSet().rangeByScore(deadlinesKey,
+                now().toEpochMilli(), Double.POSITIVE_INFINITY));
+        addAll(sessions, redisTemplate.opsForZSet().range(untimedKey, 0, -1));
+
+        for (String sessionId : sessions) {
+            writeInvalidation(sessionId, userId, reason);
+        }
+
+        redisTemplate.delete(List.of(deadlinesKey, untimedKey));
+    }
+
+    /**
+     * What waited for Redis, whole: the sessions and what a logout removes with them. The gate calls it as Redis
+     * comes back; the sweep is there for a failure that came after the gate rose, and leaves a Redis that is down alone,
+     * because its thread would wait for it.
+     */
+    private void applyDeferredLogouts() {
+        deferredLogouts.applyAll((userId, reason) -> {
+            endAllSessions(userId, reason);
+            actionRepository.removeLogoutData(ZeroTrustUserKey.person(userId));
+            doCleanupSessionData(userId, null);
+            invalidateDecisionCache(userId);
+            log.warn("[ZeroTrust] A forced logout that waited for Redis was applied: userId={}", userId);
+            recordForcedLogout(userId, reason, "FORCED_LOGOUT_APPLIED_AFTER_OUTAGE", "APPLIED");
+        });
+    }
+
+    @Override
+    protected void doRemoveExpiredSessionData() {
+        ContexaStores stores = contexaStores;
+        if (deferredLogouts.size() > 0 && (stores == null || !stores.redis().isDown())) {
+            applyDeferredLogouts();
+        }
+    }
+
+    private void recordForcedLogout(String userId, String reason, String action, String decision) {
+        CentralAuditFacade facade = audit.get();
+        if (facade == null) {
+            return;
+        }
+        try {
+            facade.recordAsync(AuditRecord.builder()
+                    .eventCategory(AuditEventCategory.SECURITY_ERROR)
+                    .principalName(userId)
+                    .eventSource("CORE")
+                    .resourceIdentifier("ZeroTrustSecurityService")
+                    .resourceUri("/errors/ZeroTrustSecurityService")
+                    .action(action)
+                    .decision(decision)
+                    .outcome("STORE_UNAVAILABLE")
+                    .reason(reason)
+                    .details(Map.of("userId", userId))
+                    .build());
+        } catch (RuntimeException failure) {
+            log.error("[ZeroTrust] The audit log did not take the record of a forced logout: userId={}, action={}", userId,
+                    action, failure);
         }
     }
 

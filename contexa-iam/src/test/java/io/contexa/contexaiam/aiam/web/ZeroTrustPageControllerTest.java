@@ -15,7 +15,10 @@
  */
 package io.contexa.contexaiam.aiam.web;
 
+import io.contexa.contexacommon.domain.UserDto;
+import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,16 +29,23 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.ui.ConcurrentModel;
+import org.springframework.ui.Model;
 import org.springframework.web.servlet.view.AbstractView;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Set;
 import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -59,6 +69,67 @@ class ZeroTrustPageControllerTest {
                 }
             })
             .build();
+
+    private final BlockMfaStateStore verifications = mock(BlockMfaStateStore.class);
+    private final ZeroTrustPageController blockedScreen = new ZeroTrustPageController(verifications,
+            mock(BlockedUserService.class), mock(SecurityZeroTrustProperties.class));
+
+    private boolean blockListOffered(String... authorities) {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/contexa/zero-trust/blocked");
+        request.setRequestedSessionId("session");
+        when(verifications.isVerified("rcboss")).thenReturn(true);
+        when(verifications.isVerified("rcboss", SessionFingerprintUtil.verificationContext(request))).thenReturn(true);
+        Model model = new ConcurrentModel();
+        blockedScreen.blocked(new TestingAuthenticationToken("rcboss", "x", authorities), model, request);
+        return Boolean.TRUE.equals(model.getAttribute("blockListOpen"));
+    }
+
+    @Test
+    @DisplayName("The screen of a BLOCK leads an administrator who passed MFA here to the block list")
+    void theAdministratorIsLedToTheList() {
+        assertThat(blockListOffered("ROLE_ADMIN")).isTrue();
+    }
+
+    @Test
+    @DisplayName("as a session reads the account under the BLOCK, with the authority of the BLOCK alone")
+    void theAdministratorOfANarrowedSessionIsLedToTheList() {
+        UnifiedCustomUserDetails account = new UnifiedCustomUserDetails(UserDto.builder().username("rcboss").build(),
+                Set.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/contexa/zero-trust/blocked");
+        request.setRequestedSessionId("session");
+        when(verifications.isVerified("rcboss", SessionFingerprintUtil.verificationContext(request))).thenReturn(true);
+        Model model = new ConcurrentModel();
+
+        blockedScreen.blocked(new TestingAuthenticationToken(account, "x", "ROLE_BLOCKED"), model, request);
+
+        assertThat(model.getAttribute("blockListOpen")).isEqualTo(true);
+    }
+
+    @Test
+    @DisplayName("A user who is no administrator is not")
+    void aPlainUserIsNot() {
+        assertThat(blockListOffered("ROLE_USER")).isFalse();
+    }
+
+    @Test
+    @DisplayName("A verification of another session leads nowhere")
+    void anotherSessionIsNot() {
+        when(verifications.isVerified("rcboss")).thenReturn(true);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/contexa/zero-trust/blocked");
+        Model model = new ConcurrentModel();
+
+        blockedScreen.blocked(new TestingAuthenticationToken("rcboss", "x", "ROLE_ADMIN"), model, request);
+
+        assertThat(model.getAttribute("blockListOpen")).isEqualTo(false);
+    }
+
+    @Test
+    @DisplayName("Where the application owns sign-in the console has a sign-in of its own, and nothing is offered here")
+    void hostOwnedOffersNothing() {
+        blockedScreen.setBlockListOffered(false);
+
+        assertThat(blockListOffered("ROLE_ADMIN")).isFalse();
+    }
 
     private static Stream<String> addressesOutsideTheApplication() {
         return Stream.of(

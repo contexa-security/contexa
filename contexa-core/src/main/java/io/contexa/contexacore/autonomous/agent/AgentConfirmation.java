@@ -35,7 +35,7 @@ import java.time.Instant;
  * @param recipientId     the person who confirms
  * @param requestHash     the request it is bound to ({@link AgentRequestBinding})
  * @param method          the request's method
- * @param target          the request's path and query
+ * @param target          the request's path and query, as a person reads them: what opens something is masked
  * @param trigger         why a confirmation was asked: {@link #DECISION_CHALLENGE}, {@link #DELEGATION_ENDED} or
  *                        {@link #REQUESTED}
  * @param reason          what the person is shown as the reason, or null

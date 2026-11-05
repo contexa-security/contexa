@@ -18,6 +18,8 @@ package io.contexa.contexacommon.store;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -42,6 +44,7 @@ public final class StoreGate {
     private final String name;
     private final long probeIntervalMillis;
     private final Runnable whenBack;
+    private final List<Runnable> waiting = new CopyOnWriteArrayList<>();
     private final AtomicLong downSince = new AtomicLong(UP);
     private volatile Probe probe;
     private volatile Thread watcher;
@@ -58,6 +61,14 @@ public final class StoreGate {
 
     public String name() {
         return name;
+    }
+
+    /**
+     * Work that waits for the store, run each time it answers again after an outage, on the gate's own thread. Work
+     * that fails is reported and holds back neither the gate nor other work.
+     */
+    public void whenBack(Runnable work) {
+        waiting.add(work);
     }
 
     /** How the gate looks for the store. Without a probe the gate stays up: nothing could raise it again. */
@@ -136,6 +147,13 @@ public final class StoreGate {
         log.warn("[Contexa] {} answers again after {} seconds; requests read it again.", name,
                 Duration.ofMillis(System.currentTimeMillis() - since).toSeconds());
         whenBack.run();
+        for (Runnable work : waiting) {
+            try {
+                work.run();
+            } catch (RuntimeException failure) {
+                log.error("[Contexa] Work that waited for {} failed.", name, failure);
+            }
+        }
     }
 
     void stop() {

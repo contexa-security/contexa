@@ -125,6 +125,16 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
     private static final int INITIAL_LINE_SIZE = 64;
 
+    /**
+     * The analyses accepted and not finished are kept within a twentieth of the maximum heap, an event being taken
+     * at 16 KiB, at most what the monitoring queue holds and at least {@link #MIN_ANALYSIS_LINE}.
+     */
+    private static final int ANALYSIS_LINE_HEAP_SHARE_DIVISOR = 20;
+    private static final long ANALYSIS_LINE_EVENT_BYTES = 16L * 1024;
+    private static final int MIN_ANALYSIS_LINE = 1_000;
+    private static final int DEFAULT_MONITOR_QUEUE = new SecurityPlaneProperties.MonitorSettings().getQueueSize();
+    private static final long LINE_FULL_REPORT_INTERVAL_MS = Duration.ofMinutes(1).toMillis();
+
     /** Q-5: how many times the model is asked again about a request whose analysis failed. */
     static final int JUDGE_AGAIN_TIMES = 3;
     /**
@@ -176,6 +186,9 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             .build();
     private final ConcurrentMap<String, Integer> analysesOfUsers = new ConcurrentHashMap<>();
     private final AtomicInteger analysesInProgress = new AtomicInteger();
+    private volatile int analysisLineBound = Integer.MAX_VALUE;
+    private final AtomicLong analysesLeftOut = new AtomicLong();
+    private final AtomicLong lineFullReportedAt = new AtomicLong();
     private volatile Duration judgeAgainInterval = DEFAULT_JUDGE_AGAIN_INTERVAL;
     private final Set<String> waitingToJudgeAgain = ConcurrentHashMap.newKeySet();
     private ScheduledExecutorService judgeAgainTimer;
@@ -198,6 +211,30 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     /** Q-5: how long the model is left alone before a request whose analysis failed is asked again. */
     void setJudgeAgainInterval(Duration judgeAgainInterval) {
         this.judgeAgainInterval = judgeAgainInterval;
+    }
+
+    /** How many analyses may be accepted and not finished. */
+    void setAnalysisLineBound(int analysisLineBound) {
+        this.analysisLineBound = analysisLineBound;
+    }
+
+    int analysisLineBound() {
+        return analysisLineBound;
+    }
+
+    /** How many events found the line full, kept in their sessions and not analysed, since the start. */
+    long analysesLeftOut() {
+        return analysesLeftOut.get();
+    }
+
+    /**
+     * The default limit of the analyses in line for a maximum heap of {@code maxHeapBytes} and a monitoring queue of
+     * {@code monitorQueueSize}. A 384 MiB heap gives 1,228 events, 2 GiB 6,553, and from about 3.1 GiB the monitoring
+     * queue's size, by default 10,000.
+     */
+    static int defaultAnalysisLineBound(long maxHeapBytes, int monitorQueueSize) {
+        long heapShare = maxHeapBytes / ANALYSIS_LINE_HEAP_SHARE_DIVISOR / ANALYSIS_LINE_EVENT_BYTES;
+        return (int) Math.max(MIN_ANALYSIS_LINE, Math.min(monitorQueueSize, heapShare));
     }
 
     /**
@@ -245,6 +282,9 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         currentState = AgentState.INITIALIZING;
         securityMonitor.setBatchProcessor(this::processBatch);
         initializeStripedExecutors();
+        SecurityPlaneProperties.MonitorSettings monitor = securityPlaneProperties.getMonitor();
+        analysisLineBound = defaultAnalysisLineBound(Runtime.getRuntime().maxMemory(),
+                monitor != null ? monitor.getQueueSize() : DEFAULT_MONITOR_QUEUE);
         judgeAgainTimer = Executors.newSingleThreadScheduledExecutor(task -> {
             Thread thread = new Thread(task, "SecurityPlane-JudgeAgain");
             thread.setDaemon(true);
@@ -275,6 +315,11 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             if (!takeAPlace(share)) {
                 event.addMetadata("analysisSkipped", "PAST_THE_USERS_SHARE");
                 leftOut(event);
+                continue;
+            }
+            if (analysesInProgress.get() > analysisLineBound) {
+                leaveThePlace(share);
+                lineIsFull(event);
                 continue;
             }
 
@@ -384,6 +429,23 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         } catch (IllegalArgumentException unknownKind) {
             return false;
         }
+    }
+
+    /**
+     * The line of analyses is at its limit, so the event is not queued: it stays a fact of its session and is
+     * counted, and the batch goes on, so nothing upstream waits for room. The request it came from was answered when it
+     * was made; its user's next request is analysed once there is room.
+     */
+    private void lineIsFull(SecurityEvent event) {
+        event.addMetadata("analysisSkipped", "PAST_THE_ANALYSIS_LINE");
+        long leftOutSoFar = analysesLeftOut.incrementAndGet();
+        long now = System.currentTimeMillis();
+        long reportedAt = lineFullReportedAt.get();
+        if (now - reportedAt >= LINE_FULL_REPORT_INTERVAL_MS && lineFullReportedAt.compareAndSet(reportedAt, now)) {
+            log.error("[SecurityPlaneAgent] The line of analyses is full at {} events: {} events since the start were "
+                    + "not analysed and are kept only in their sessions.", analysisLineBound, leftOutSoFar);
+        }
+        leftOut(event);
     }
 
     private void leftOut(SecurityEvent event) {
@@ -1082,12 +1144,13 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
     /**
      * Q-23: whether the analysis is behind the requests: as many analyses are in progress as the backpressure threshold
-     * of the LLM executor names, counting what waits before the executor's queue and at a model server's gate as well.
+     * of the LLM executor names, counting what waits before the executor's queue and at a model server's gate as well. A
+     * full line is behind whatever the threshold says.
      */
     public boolean isBehind() {
         SecurityPlaneProperties.LlmExecutorSettings settings = securityPlaneProperties.getLlmExecutor();
-        return settings.isBackpressureEnabled()
-                && analysesInProgress.get() >= Math.max(1, settings.getBackpressureQueueThreshold());
+        return settings.isBackpressureEnabled() && analysesInProgress.get()
+                >= Math.min(analysisLineBound, Math.max(1, settings.getBackpressureQueueThreshold()));
     }
 
     private final class ActorSerialThreadFactory implements ThreadFactory {

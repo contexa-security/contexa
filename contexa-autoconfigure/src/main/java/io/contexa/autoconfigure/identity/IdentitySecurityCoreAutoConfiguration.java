@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
+import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.autoconfigure.ai.HostOwnedEnforcementOrder;
 import io.contexa.contexaidentity.security.zerotrust.HostOwnedStepUp;
 import org.springframework.boot.autoconfigure.security.SecurityProperties;
@@ -378,11 +379,14 @@ public class IdentitySecurityCoreAutoConfiguration {
             ObjectProvider<AgentContainmentService> agentContainment,
             ObjectProvider<BridgeProperties> bridgeProperties,
             ObjectProvider<HostOwnedStepUp> hostOwnedStepUp,
-            ObjectProvider<TieredStrategyProperties> tieredStrategyProperties) {
+            ObjectProvider<TieredStrategyProperties> tieredStrategyProperties,
+            ObjectProvider<BlockMfaStateStore> blockMfaStateStore) {
         ZeroTrustAccessControlFilter filter = new ZeroTrustAccessControlFilter(actionRedisRepository, responseWriter,
                 contexaBlockedUserRecorder, contexaChallengeMfaInitializer, contexaAuthUrlProvider, contexaBlockingDecisionRegistry,
                 securityZeroTrustProperties.getMaxBlockMfaAttempts(), contexaMfaFlowUrlRegistry);
         filter.setUnanalysedRequestRecorder(unanalysedRequestRecorder.getIfAvailable());
+        // An administrator under a BLOCK who passed MFA reaches the block list.
+        filter.setBlockMfaStateStore(blockMfaStateStore.getIfAvailable());
         // Ownership design Q-5: a stored BLOCK or ESCALATE is enforced under ENFORCE only.
         filter.setEnforcing(securityZeroTrustProperties::isEnforcementEnabled);
         filter.setMonitoringHeaders(securityZeroTrustProperties.isMonitoringHeaders());

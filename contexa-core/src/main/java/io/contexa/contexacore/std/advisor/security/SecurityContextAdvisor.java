@@ -17,6 +17,7 @@ package io.contexa.contexacore.std.advisor.security;
 
 import io.contexa.contexacore.security.async.AsyncAuthenticationData;
 import io.contexa.contexacore.security.async.AsyncSecurityContextProvider;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.std.advisor.core.AdvisorException;
 import io.contexa.contexacore.std.advisor.core.BaseAdvisor;
 import io.contexa.contexacore.properties.ContexaAdvisorProperties;
@@ -117,7 +118,8 @@ public class SecurityContextAdvisor extends BaseAdvisor {
         boolean hasResponse = response != null && response.chatResponse() != null;
 
         log.info("LLM audit - userId: {}, sessionId: {}, authenticated: {}, executionTimeMs: {}, hasResponse: {}",
-                userId, sessionId, authenticated, executionTime, hasResponse);
+                userId, sessionId != null ? RequestFactRedaction.sessionReference(sessionId.toString()) : null,
+                authenticated, executionTime, hasResponse);
 
         return response;
     }

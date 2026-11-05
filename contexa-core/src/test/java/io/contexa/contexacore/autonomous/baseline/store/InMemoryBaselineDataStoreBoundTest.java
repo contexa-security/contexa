@@ -37,6 +37,8 @@ class InMemoryBaselineDataStoreBoundTest {
 
     @Test
     void pastTheBoundTheBaselineSavedTheLongestAgoGoesFirst() {
+        // The bound on the number is what is held here; the limit in bytes follows the heap of the test.
+        store.setUserBaselineBudgetBytes(Long.MAX_VALUE);
         for (int user = 0; user < MAX_BASELINES; user++) {
             store.saveUserBaseline("user-" + user, baseline);
             clock.advance(Duration.ofMillis(1));

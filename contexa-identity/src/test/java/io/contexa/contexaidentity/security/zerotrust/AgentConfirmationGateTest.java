@@ -111,6 +111,30 @@ class AgentConfirmationGateTest {
         SecurityContextHolder.clearContext();
     }
 
+    /** The person reads the query, a secret in it excepted; the request confirmed stays the very request. */
+    @Test
+    void aSecretInTheQueryIsMaskedAndTheRequestStaysBound() throws Exception {
+        MockHttpServletRequest asked = request(BODY);
+        asked.setQueryString("format=zip&token=s3cr3t-value&project=HX-310");
+
+        send(asked, ZeroTrustAction.CHALLENGE);
+
+        String id = (String) writer.details.get("confirmationId");
+        assertThat(store.find(id).orElseThrow().target())
+                .isEqualTo("/api/exports?format=zip&token=[MASKED]&project=HX-310");
+        confirmations.approve(id, "alice", null);
+
+        MockHttpServletRequest another = request(BODY);
+        another.setQueryString("format=zip&token=another-value&project=HX-310");
+        another.addHeader(AgentConfirmationGate.CONFIRMATION_HEADER, id);
+        assertThat(send(another, ZeroTrustAction.CHALLENGE).went()).as("another value is another request").isFalse();
+
+        MockHttpServletRequest same = request(BODY);
+        same.setQueryString("format=zip&token=s3cr3t-value&project=HX-310");
+        same.addHeader(AgentConfirmationGate.CONFIRMATION_HEADER, id);
+        assertThat(send(same, ZeroTrustAction.CHALLENGE).went()).isTrue();
+    }
+
     @Test
     void aChallengedRequestWaitsAndTheApprovedRequestRunsOnceWithItsBodyAndAuthorities() throws Exception {
         Recording first = send(request(BODY), ZeroTrustAction.CHALLENGE);
