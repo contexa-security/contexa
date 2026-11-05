@@ -119,10 +119,10 @@ import static org.mockito.Mockito.when;
 @EnabledIf("io.contexa.contexaidentity.security.statemachine.core.service.MfaFlowOnRedisTest#isRedisAvailable")
 class MfaFlowOnRedisTest {
 
-    private static final String REDIS_HOST =
+    static final String REDIS_HOST =
             System.getProperty("contexa.test.redis.host",
                     System.getenv().getOrDefault("CONTEXA_TEST_REDIS_HOST", "localhost"));
-    private static final int REDIS_PORT = Integer.parseInt(
+    static final int REDIS_PORT = Integer.parseInt(
             System.getProperty("contexa.test.redis.port",
                     System.getenv().getOrDefault("CONTEXA_TEST_REDIS_PORT", "6379")));
 
@@ -429,13 +429,13 @@ class MfaFlowOnRedisTest {
         return repository.findById(flow).map(RedisRepositoryStateMachine::getStateMachineContext).orElse(null);
     }
 
-    private static UnifiedCustomUserDetails contexaUser() {
+    static UnifiedCustomUserDetails contexaUser() {
         UserDto user = UserDto.builder().id(7L).username(USERNAME).password("hash").email("alice@example.org")
                 .enabled(true).build();
         return new UnifiedCustomUserDetails(user, new HashSet<>(ROLES));
     }
 
-    private static AuthenticationFlowConfig mfaFlow() {
+    static AuthenticationFlowConfig mfaFlow() {
         AuthenticationStepConfig primary = new AuthenticationStepConfig(FLOW, AuthType.MFA_REST.name(), 0, true);
         AuthenticationStepConfig ott = new AuthenticationStepConfig(FLOW, AuthType.MFA_OTT.name(), 1, false);
         // A configured step holds the options of its DSL: objects a stored flow must not drag along.
