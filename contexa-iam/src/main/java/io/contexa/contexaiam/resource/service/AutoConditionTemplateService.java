@@ -111,7 +111,7 @@ public class AutoConditionTemplateService {
             if (response != null && response.hasTemplates()) {
                 return convertBatchResponseToTemplates(response, methodSignatures);
             }
-            log.error("Specific condition template batch response is empty for {} methods", batch.size());
+            log.warn("Specific condition template batch response is empty for {} methods", batch.size());
             return new ArrayList<>();
 
         } catch (Exception e) {
@@ -130,7 +130,7 @@ public class AutoConditionTemplateService {
             if (response != null && response.hasTemplates()) {
                 return convertUniversalResponseToTemplates(response);
             }
-            log.error("Universal condition template response is empty");
+            log.warn("Universal condition template response is empty");
             return generateFallbackUniversalTemplates();
         } catch (Exception e) {
             log.error("AI universal template generation failed", e);
@@ -218,7 +218,7 @@ public class AutoConditionTemplateService {
                     Optional<String> violation =
                             PolicyExpressionValidator.findTemplateViolation(template.getSpelTemplate());
                     if (violation.isPresent()) {
-                        log.error("Condition template rejected: name={}, reason={}",
+                        log.warn("Condition template rejected: name={}, reason={}",
                                 template.getName(), violation.get());
                         return false;
                     }
@@ -257,7 +257,7 @@ public class AutoConditionTemplateService {
         }
 
         String timestampName = baseName + " (" + System.currentTimeMillis() % 10000 + ")";
-        log.error("Unique name generation required timestamp fallback: {}", timestampName);
+        log.debug("Unique name generation required timestamp fallback: {}", timestampName);
         return timestampName;
     }
 

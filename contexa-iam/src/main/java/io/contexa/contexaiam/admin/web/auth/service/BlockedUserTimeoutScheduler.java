@@ -58,7 +58,7 @@ public class BlockedUserTimeoutScheduler {
                 .findByStatusAndBlockedAtBefore(BlockedUserStatus.BLOCKED, threshold);
 
         for (BlockedUser user : timedOut) {
-            log.error("Blocked user timeout - auto response triggered. userId={}, blockedAt={}",
+            log.warn("Blocked user timeout - auto response triggered. userId={}, blockedAt={}",
                     user.getUserId(), user.getBlockedAt());
 
             Map<String, Object> metadata = new HashMap<>();

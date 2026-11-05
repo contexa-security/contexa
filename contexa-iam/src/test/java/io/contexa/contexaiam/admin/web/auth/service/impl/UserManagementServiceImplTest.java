@@ -15,6 +15,10 @@
  */
 package io.contexa.contexaiam.admin.web.auth.service.impl;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.UserGroup;
@@ -38,6 +42,7 @@ import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
+import org.slf4j.LoggerFactory;
 import org.mockito.quality.Strictness;
 import org.modelmapper.ModelMapper;
 import org.springframework.context.ApplicationEventPublisher;
@@ -191,6 +196,26 @@ class UserManagementServiceImplTest {
 
             assertThat(result).isNotNull();
             assertThat(result.getUsername()).isEqualTo("alice");
+        }
+
+        @Test
+        @DisplayName("should not log an ordinary lookup as an error")
+        void shouldNotLogAnOrdinaryLookupAsAnError() {
+            Users user = buildUser(1L, "alice", "Alice");
+            when(userRepository.findByIdWithGroupsRolesAndPermissions(1L)).thenReturn(Optional.of(user));
+            when(modelMapper.map(user, UserDto.class)).thenReturn(buildUserDto(1L, "alice", "Alice"));
+            Logger logger = (Logger) LoggerFactory.getLogger(UserManagementServiceImpl.class);
+            ListAppender<ILoggingEvent> logged = new ListAppender<>();
+            logged.start();
+            logger.addAppender(logged);
+
+            try {
+                service.getUser(1L);
+            } finally {
+                logger.detachAppender(logged);
+            }
+
+            assertThat(logged.list).noneMatch(event -> event.getLevel() == Level.ERROR);
         }
 
         @Test

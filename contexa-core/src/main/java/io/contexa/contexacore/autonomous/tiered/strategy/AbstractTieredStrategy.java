@@ -269,7 +269,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             if (response != null && response.isValid()) {
                 return validateAndFixResponse(response);
             }
-            log.error("[{}] JSON parsing failed, returning default response", getLayerName());
+            log.warn("[{}] JSON parsing failed, returning default response", getLayerName());
             return createDefaultResponse();
         } catch (Exception e) {
             log.error("[{}] JSON response parsing failed", getLayerName(), e);
@@ -501,7 +501,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         if (zta == ZeroTrustAction.ESCALATE && action != null && !action.isBlank()) {
             String upper = action.trim().toUpperCase(Locale.ROOT);
             if (!ZeroTrustAction.ESCALATE.name().equals(upper) && !"E".equals(upper)) {
-                log.error("[{}] Unknown action '{}' from LLM, converting to ESCALATE",
+                log.warn("[{}] Unknown action '{}' from LLM, converting to ESCALATE",
                         getLayerName(), action);
             }
         }

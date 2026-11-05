@@ -188,20 +188,20 @@ public class OAuth2TokenService implements TokenService {
 
         OAuth2Authorization authorization = authorizationService.findByToken(refreshToken, OAuth2TokenType.REFRESH_TOKEN);
         if (authorization == null) {
-            log.error("OAuth2Authorization not found for refresh token");
+            log.warn("OAuth2Authorization not found for refresh token");
             throw new OAuth2AuthenticationException(
                     new OAuth2Error("invalid_token", "Authorization not found", null));
         }
 
         OAuth2Authorization.Token<OAuth2RefreshToken> refreshTokenMeta = authorization.getRefreshToken();
         if (refreshTokenMeta == null || refreshTokenMeta.isInvalidated()) {
-            log.error("Refresh token is invalidated");
+            log.warn("Refresh token is invalidated");
             throw new OAuth2AuthenticationException(
                     new OAuth2Error("invalid_token", "Refresh token is invalidated", null));
         }
 
         if (refreshTokenMeta.isExpired()) {
-            log.error("Refresh token is expired");
+            log.warn("Refresh token is expired");
             throw new OAuth2AuthenticationException(
                     new OAuth2Error("invalid_token", "Refresh token is expired", null));
         }

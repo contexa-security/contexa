@@ -127,14 +127,14 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
         request.setAttribute(VALIDATION_RESULT_ATTR, validation);
 
         if (validation.hasErrors()) {
-            log.error("Invalid MFA context for request: {} - Errors: {}",
+            log.warn("Invalid MFA context for request: {} - Errors: {}",
                     request.getRequestURI(), validation.getErrors());
             handleInvalidContext(request, response, validation);
             return;
         }
 
         if (validation.hasWarnings()) {
-            log.error("MFA context warnings for request: {} - Warnings: {}",
+            log.warn("MFA context warnings for request: {} - Warnings: {}",
                     request.getRequestURI(), validation.getWarnings());
         }
 

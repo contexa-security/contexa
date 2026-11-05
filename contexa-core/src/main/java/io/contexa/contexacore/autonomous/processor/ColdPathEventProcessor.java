@@ -274,7 +274,7 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
                 int total = sample.total();
                 double escalateRate = sample.escalateRate();
                 if (escalateRate > ESCALATE_RATE_THRESHOLD && total > 10) {
-                    log.error("[ColdPath] Escalate rate {}/{} ({}%) exceeded threshold, applying CHALLENGE fallback: eventId={}",
+                    log.warn("[ColdPath] Escalate rate {}/{} ({}%) exceeded threshold, applying CHALLENGE fallback: eventId={}",
                             escalates, total, String.format(Locale.ROOT, "%.1f", escalateRate * 100), event.getEventId());
                     publishEscalateProtectionTriggered(userId, requestPath, escalates, total);
                     result.setFinalScore(null);

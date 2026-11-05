@@ -197,7 +197,7 @@ public final class OfficialVerificationEvidencePreflight extends AbstractPromptQ
         SealedEvidencePromptEvidenceBackfill.Result result =
                 SealedEvidencePromptEvidenceBackfill.prepare(objectMapper, loaded, messageResolver::resolveRequired);
         if (result.recovered()) {
-            log.error(
+            log.warn(
                     "PQA sealed evidence prompt contract recovered for official verification. packageId={}, recoveredFields={}",
                     loaded == null ? null : loaded.getPackageId(),
                     result.recoveredFields());

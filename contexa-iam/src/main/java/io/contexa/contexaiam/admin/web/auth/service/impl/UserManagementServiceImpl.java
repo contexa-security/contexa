@@ -164,7 +164,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Override
 //    @Protectable
     public void modifyUser(@ModelAttribute UserDto userDto) {
-        log.error("[UserManagementService.modifyUser] findByIdWithGroupsRolesAndPermissions id={}", userDto.getId());
+        log.debug("[UserManagementService.modifyUser] findByIdWithGroupsRolesAndPermissions id={}", userDto.getId());
         Users users = userRepository.findByIdWithGroupsRolesAndPermissions(userDto.getId())
                 .orElseThrow(() -> new IllegalArgumentException(msg("msg.user.not.found.id", userDto.getId())));
 
@@ -230,7 +230,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 //    @Protectable
     public UserDto getUser(Long id) {
-        log.error("[UserManagementService.getUser] findByIdWithGroupsRolesAndPermissions id={}", id);
+        log.debug("[UserManagementService.getUser] findByIdWithGroupsRolesAndPermissions id={}", id);
         Users users = userRepository.findByIdWithGroupsRolesAndPermissions(id)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + id));
         UserDto userDto = modelMapper.map(users, UserDto.class);

@@ -55,7 +55,7 @@ public class HandleFailureAction extends AbstractMfaStateAction {
         int maxRetries = mfaSettings.getMaxRetryAttempts();
 
         if (factorContext.getRetryCount() >= maxRetries) {
-            log.error("Max retry attempts exceeded for session: {}", sessionId);
+            log.warn("Max retry attempts exceeded for session: {}", sessionId);
         }
     }
 }

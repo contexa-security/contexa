@@ -60,12 +60,12 @@ public class IpAccessFilter extends OncePerRequestFilter {
             log.warn("IP access rules could not be read; the request goes on: {}", e.toString());
         }
         if (denied) {
-            log.error("IP access denied for: {}", clientIp);
+            log.warn("IP access denied for: {}", clientIp);
             response.sendError(HttpServletResponse.SC_FORBIDDEN, "Access denied");
             return;
         }
         if (rejected) {
-            log.error("IP access rejected by allow-list: {}", clientIp);
+            log.warn("IP access rejected by allow-list: {}", clientIp);
             response.sendError(HttpServletResponse.SC_FORBIDDEN, "Access denied");
             return;
         }

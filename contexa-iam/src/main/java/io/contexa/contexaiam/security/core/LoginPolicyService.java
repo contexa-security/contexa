@@ -89,7 +89,7 @@ public class LoginPolicyService implements LoginPolicyHandler {
         try {
             int rows = userRepository.resetOnSuccess(username, LocalDateTime.now(), ip);
             if (rows == 0) {
-                log.error("[login-policy] success reset skipped — unknown user {} (sourceTag={})", username, sourceTag);
+                log.debug("[login-policy] success reset skipped — unknown user {} (sourceTag={})", username, sourceTag);
             }
             if (ip != null && !ip.isBlank()) {
                 loginAttemptIpRepository.findByIpAddress(ip).ifPresent(row ->
@@ -262,7 +262,7 @@ public class LoginPolicyService implements LoginPolicyHandler {
             if (row.getFailedAttempts() >= policy.getIpMaxFailedAttempts()) {
                 LocalDateTime blockUntil = now.plusMinutes(Math.max(1, policy.getIpWindowMinutes()));
                 loginAttemptIpRepository.blockIp(ip, blockUntil);
-                log.error("[login-policy] ip blocked ip={} attempts={} until={} username={} failureType={}",
+                log.warn("[login-policy] ip blocked ip={} attempts={} until={} username={} failureType={}",
                         ip, row.getFailedAttempts(), blockUntil, tag, failureType);
             }
         });

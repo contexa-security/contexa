@@ -393,7 +393,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         if (cached != null) {
             return cached;
         }
-        log.error("[Layer2] Session context cache miss for event {}, rebuilding from event data", event.getEventId());
+        log.debug("[Layer2] Session context cache miss for event {}, rebuilding from event data", event.getEventId());
         return rebuildSessionContext(event);
     }
 
@@ -403,7 +403,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         if (cached != null) {
             return cached;
         }
-        log.error("[Layer2] Behavior analysis cache miss for event {}, rebuilding from event data", event.getEventId());
+        log.debug("[Layer2] Behavior analysis cache miss for event {}, rebuilding from event data", event.getEventId());
         return rebuildBehaviorAnalysis(event, ragDocuments);
     }
 

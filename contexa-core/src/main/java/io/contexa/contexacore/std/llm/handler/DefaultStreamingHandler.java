@@ -73,7 +73,7 @@ public class DefaultStreamingHandler implements StreamingHandler {
     public Flux<String> handleStreamingWithTools(ChatClient chatClient, ExecutionContext context, ChatModel selectedModel) {
 
         if (!hasToolsEnabled(context)) {
-            log.error("Tools not enabled. Falling back to standard streaming.");
+            log.debug("Tools not enabled. Falling back to standard streaming.");
             return handleStreaming(chatClient, context, selectedModel);
         }
 
@@ -88,7 +88,7 @@ public class DefaultStreamingHandler implements StreamingHandler {
                     return handleStreamingWithToolProviders(chatClient, context, selectedModel);
                 }
 
-                log.error("No tool configuration found. Processing with standard streaming.");
+                log.debug("No tool configuration found. Processing with standard streaming.");
                 return handleStreaming(chatClient, context, selectedModel);
 
             } catch (Exception e) {

@@ -459,7 +459,7 @@ public class IdentityOAuth2AutoConfiguration {
         if (StringUtils.hasText(issuerUri)) {
             builder.issuer(issuerUri);
         } else {
-            log.error("[OAuth2] Issuer URI not configured (spring.auth.oauth2.issuer-uri) - Spring Authorization Server will "
+            log.info("[OAuth2] Issuer URI not configured (spring.auth.oauth2.issuer-uri) - Spring Authorization Server will "
                     + "resolve the issuer from the current request for the internal token engine.");
         }
 

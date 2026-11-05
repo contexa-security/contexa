@@ -170,7 +170,7 @@ public class ResponseParsingStep implements PipelineStep {
 
                         MapOutputConverter mapConverter = new MapOutputConverter();
                         Map<String, Object> mapResult = mapConverter.convert(cleanJson);
-                        log.error("[{}] Converted to Map successfully (Bean conversion failed)", getStepName());
+                        log.warn("[{}] Converted to Map successfully (Bean conversion failed)", getStepName());
                         return mapResult;
                     }
                 }
@@ -359,7 +359,7 @@ public class ResponseParsingStep implements PipelineStep {
 
             try {
                 objectMapper.readTree(partial);
-                log.error("[{}] Recovered truncated JSON: kept {} of {} chars",
+                log.warn("[{}] Recovered truncated JSON: kept {} of {} chars",
                         getStepName(), partial.length(), truncated.length());
                 return partial;
             } catch (Exception ignored) {

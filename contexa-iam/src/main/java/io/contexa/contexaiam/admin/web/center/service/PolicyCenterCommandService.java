@@ -376,7 +376,7 @@ public class PolicyCenterCommandService {
         try {
             int migrated = executePolicyMigration();
             if (migrated > 0) {
-                log.error("[migration] Auto-migrated {} policy expressions from URL_/METHOD_ to CRUD", migrated);
+                log.info("[migration] Auto-migrated {} policy expressions from URL_/METHOD_ to CRUD", migrated);
             }
         } catch (Exception e) {
             log.error("[migration] Auto-migration failed", e);

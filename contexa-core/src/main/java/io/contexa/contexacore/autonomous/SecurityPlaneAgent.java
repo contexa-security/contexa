@@ -266,7 +266,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         if (running.compareAndSet(false, true)) {
             currentState = AgentState.RUNNING;
         } else {
-            log.error("Agent {} is already running", agentName);
+            log.debug("Agent {} is already running", agentName);
         }
     }
 
@@ -297,7 +297,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         ClaimedProcessing claimed = claimEventProcessing(event);
         SecurityContextDataStore.EventProcessingClaim claim = claimed.claim();
         if (claim == SecurityContextDataStore.EventProcessingClaim.PROCESSED) {
-            log.error("[SecurityPlaneAgent] Event {} already processed, skipping duplicate", event.getEventId());
+            log.debug("[SecurityPlaneAgent] Event {} already processed, skipping duplicate", event.getEventId());
             SecurityEventContext skippedContext = SecurityEventContext.builder()
                     .securityEvent(event)
                     .processingStatus(SecurityEventContext.ProcessingStatus.SKIPPED)
@@ -622,7 +622,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         ClaimedProcessing claimed = claimEventProcessing(event);
         SecurityContextDataStore.EventProcessingClaim claim = claimed.claim();
         if (claim == SecurityContextDataStore.EventProcessingClaim.PROCESSED) {
-            log.error("[SecurityPlaneAgent] Event {} already processed, skipping duplicate", event.getEventId());
+            log.debug("[SecurityPlaneAgent] Event {} already processed, skipping duplicate", event.getEventId());
             SecurityEventContext skippedContext = SecurityEventContext.builder()
                     .securityEvent(event)
                     .processingStatus(SecurityEventContext.ProcessingStatus.SKIPPED)

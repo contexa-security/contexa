@@ -112,7 +112,7 @@ public class AccessCenterService {
     }
 
     public AccessUserDetailResponse getUserDetail(Long userId) {
-        log.error("[AccessCenterController] findByIdWithGroupsRolesAndPermissions userId={}", userId);
+        log.debug("[AccessCenterController] findByIdWithGroupsRolesAndPermissions userId={}", userId);
         Users user = userRepository.findByIdWithGroupsRolesAndPermissions(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
 

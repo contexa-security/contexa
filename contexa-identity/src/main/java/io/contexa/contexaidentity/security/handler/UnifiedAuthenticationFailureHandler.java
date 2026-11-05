@@ -123,7 +123,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                                         AuthType currentProcessingFactor, String usernameForLog,
                                         String sessionIdForLog) throws IOException {
 
-        log.error("MFA Factor Failure using {} repository: Factor '{}' for user '{}' (session ID: '{}') failed. Reason: {}",
+        log.warn("MFA Factor Failure using {} repository: Factor '{}' for user '{}' (session ID: '{}') failed. Reason: {}",
                 sessionRepository.getRepositoryType(), currentProcessingFactor, usernameForLog, sessionIdForLog, exception.getMessage());
 
         if (!sessionRepository.existsSession(factorContext.getMfaSessionId())) {
@@ -283,13 +283,13 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         long failCount = actionRedisRepository.incrementBlockMfaFailCount(userId);
 
         if (failCount >= MAX_BLOCK_MFA_ATTEMPTS) {
-            log.error("[UnifiedAuthFailure] BLOCK MFA max attempts reached, triggering SOAR: userId={}", userId);
+            log.warn("[UnifiedAuthFailure] BLOCK MFA max attempts reached, triggering SOAR: userId={}", userId);
             if (blockedUserRecorder != null) {
                 blockedUserRecorder.markMfaFailed(userId);
             }
             actionRedisRepository.clearBlockMfaPending(userId);
         } else {
-            log.error("[UnifiedAuthFailure] BLOCK MFA failed, attempt {}/{}: userId={}", failCount, MAX_BLOCK_MFA_ATTEMPTS, userId);
+            log.warn("[UnifiedAuthFailure] BLOCK MFA failed, attempt {}/{}: userId={}", failCount, MAX_BLOCK_MFA_ATTEMPTS, userId);
         }
 
         String redirectUrl = request.getContextPath() + "/contexa/zero-trust/blocked";

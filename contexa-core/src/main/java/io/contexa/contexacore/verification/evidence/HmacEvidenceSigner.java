@@ -76,7 +76,7 @@ public final class HmacEvidenceSigner implements EvidenceSigner {
             byte[] secret = new byte[MIN_KEY_BYTES];
             new SecureRandom().nextBytes(secret);
             String id = "ephemeral-" + HexFormat.of().formatHex(secret, 0, 4);
-            log.error("[EvidenceSigning] No evidence signing key configured (contexa.security.evidence.signing.keys) - "
+            log.warn("[EvidenceSigning] No evidence signing key configured (contexa.security.evidence.signing.keys) - "
                     + "using an ephemeral key {}. Decision records and sealed evidence signed now read as not "
                     + "verifiable after a restart; configure a persistent key.", id);
             return new HmacEvidenceSigner(Map.of(id, secret), id);

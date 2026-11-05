@@ -225,7 +225,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         if (isBlockMfaPending(userId)) {
             long failCount = actionRedisRepository.getBlockMfaFailCount(userId);
             if (failCount >= maxBlockMfaAttempts) {
-                log.error("[ZeroTrustAccessControlFilter] BLOCK MFA attempts exhausted, denying MFA: userId={}", userId);
+                log.warn("[ZeroTrustAccessControlFilter] BLOCK MFA attempts exhausted, denying MFA: userId={}", userId);
                 recordStopped(auth, ZeroTrustAction.BLOCK);
                 handleBlocked(request, response, userId);
                 return;
@@ -507,7 +507,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                 }
             }
 
-            log.error("[ZeroTrustAccessControlFilter] ESCALATE promoted to BLOCK: userId={}", userId);
+            log.warn("[ZeroTrustAccessControlFilter] ESCALATE promoted to BLOCK: userId={}", userId);
         } catch (Exception e) {
             log.error("[ZeroTrustAccessControlFilter] Failed to promote ESCALATE to BLOCK: userId={}", userId, e);
         }

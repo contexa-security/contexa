@@ -291,7 +291,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         ZeroTrustAction ztAction;
         if (action == null || action.isBlank()) {
             ztAction = ZeroTrustAction.ESCALATE;
-            log.error("[SecurityDecisionEnforcementHandler] LLM returned no action, defaulting to ESCALATE: userId={}", userId);
+            log.warn("[SecurityDecisionEnforcementHandler] LLM returned no action, defaulting to ESCALATE: userId={}", userId);
         } else {
             ztAction = ZeroTrustAction.fromString(action);
         }

@@ -154,7 +154,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         }
 
         if (decision.isBlocked() || decision.isEscalated()) {
-            log.error("Authentication blocked/escalated for user: {} - Reason: {}",
+            log.warn("Authentication blocked/escalated for user: {} - Reason: {}",
                     factorContext.getUsername(), decision.getReason());
 
             FactorContext blockedContext = stateMachineIntegrator.loadFactorContext(mfaSessionId);
@@ -316,7 +316,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         String blockReason = (String) ctx.getAttribute("blockReason");
         Double riskScore = (Double) ctx.getAttribute("aiRiskScore");
 
-        log.error("SECURITY_ALERT: Authentication blocked for user '{}' - Risk Score: {}, Reason: {}",
+        log.warn("SECURITY_ALERT: Authentication blocked for user '{}' - Risk Score: {}, Reason: {}",
                 ctx.getUsername(), riskScore, blockReason);
 
         Map<String, Object> errorResponse = new HashMap<>();

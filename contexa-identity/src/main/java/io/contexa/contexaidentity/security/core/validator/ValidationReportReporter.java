@@ -67,7 +67,7 @@ public class ValidationReportReporter {
             log.error(reportBuilder.toString());
             throw new DslConfigurationException("DSL configuration validation failed. Check logs for details. (Source: " + dslSourceName + ")");
         } else {
-            log.error(reportBuilder.toString());
+            log.warn(reportBuilder.toString());
         }
     }
 }

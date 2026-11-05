@@ -258,7 +258,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
                     b.setStatus(BlockedUserStatus.MFA_FAILED);
                     blockedUserJpaRepository.save(b);
 
-                    log.error("[BlockedUserService] MFA failed - auto response triggered: userId={}", userId);
+                    log.warn("[BlockedUserService] MFA failed - auto response triggered: userId={}", userId);
 
                     centralAuditFacade.recordAsync(AuditRecord.builder()
                             .eventCategory(AuditEventCategory.MFA_VERIFICATION_FAILED)
