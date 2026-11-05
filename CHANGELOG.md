@@ -117,11 +117,12 @@ The format is based on Keep a Changelog and the project follows semantic version
   `429 MFA_BUSY_RETRY` and changes nothing, so wrong codes sent at once are read one at a time and the limit on the codes
   read stands. A verification that has not moved for `contexa.auth.mfa.state-machine-timeout-ms` (10 seconds, a setting
   without effect until now) ends the flow as before.
-- **The in-memory stores have a limit in bytes.** The session histories, the work profile observations and the personal
-  baselines of standalone mode were bounded by count only: by calculation 8 GB of session history at worst, and about a
-  hundred users' work profiles past a usual heap. Each now keeps within a twentieth of the heap, between 16 MiB and 512 MiB;
-  past it the session or user written the longest ago goes whole, and a WARN says so at most once a minute. What a decision
-  reads changes only past the limit, by the oldest input. Redis keeps to its own memory limit.
+- **The in-memory stores have a limit in bytes.** The session histories, the work profile and role scope observations and
+  the personal and organization baselines of standalone mode were bounded by count only: by calculation 8 GB of session
+  history at worst, and about a hundred users' work profiles past a usual heap. Each now keeps within a twentieth of the
+  heap, between 16 MiB and 512 MiB; past it the session, user, scope or baseline written the longest ago goes whole, and a
+  WARN says so at most once a minute. What a decision reads changes only past the limit, by the oldest input. Redis keeps
+  to its own memory limit.
 - **The line of analyses has a limit.** Events coming in faster than they were analysed queued without end. A twentieth of
   the heap, at most the monitoring queue's size, now bounds what is accepted and not finished. An event past it is not
   analysed: it stays a fact of its session, it is counted, and an ERROR says so at most once a minute. Nothing upstream

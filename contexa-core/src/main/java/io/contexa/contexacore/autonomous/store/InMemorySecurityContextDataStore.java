@@ -104,6 +104,9 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     /** What the work profile observations take, a user going whole. */
     private final ExpiringKeyBudget workProfileBudget =
             new ExpiringKeyBudget("work profile observations", this::evictWorkProfile);
+    /** What the role scope observations take, a scope going whole. */
+    private final ExpiringKeyBudget roleScopeBudget =
+            new ExpiringKeyBudget("role scope observations", this::evictRoleScope);
 
     public InMemorySecurityContextDataStore() {
         this(DEFAULT_EVENT_PROCESSED_TTL, DEFAULT_SOAR_TTL, DEFAULT_USER_SESSIONS_TTL, Clock.systemUTC());
@@ -138,8 +141,8 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         this.previousPaths = userActivitySpace();
         this.workProfileObservations = ExpiringKeySpace.<RecordSequence>builder(clock).ttl(LEARNING_TTL)
                 .bound(MAX_SESSION_ENTRIES).weighed(workProfileBudget, RecordSequence::bytes).build();
-        this.roleScopeObservations = learningSpace(value -> {
-        });
+        this.roleScopeObservations = ExpiringKeySpace.<RecordSequence>builder(clock).ttl(LEARNING_TTL)
+                .bound(MAX_SESSION_ENTRIES).weighed(roleScopeBudget, RecordSequence::bytes).build();
         this.permissionChangeObservations = learningSpace(value -> {
         });
         this.authorizationScopeStates = learningSpace(value -> {
@@ -1036,6 +1039,20 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         return workProfileBudget.bytes();
     }
 
+    /** The bytes the role scope observations may take together; not positive, a share of the maximum heap. */
+    void setRoleScopeBudgetBytes(long budgetBytes) {
+        roleScopeBudget.setLimitBytes(budgetBytes);
+    }
+
+    long roleScopeBudgetBytes() {
+        return roleScopeBudget.limitBytes();
+    }
+
+    /** The bytes the role scope observations take now, as counted against their limit. */
+    long roleScopeBytes() {
+        return roleScopeBudget.bytes();
+    }
+
     /** The bytes the held learning records may take together (QF-42). */
     public long heldLearningBudgetBytes() {
         return heldLearningBudgetBytes;
@@ -1280,6 +1297,10 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
 
     private void evictWorkProfile(String key) {
         workProfileObservations.evict(key);
+    }
+
+    private void evictRoleScope(String key) {
+        roleScopeObservations.evict(key);
     }
 
     private void evictUserActivity(String userId) {

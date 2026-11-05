@@ -27,9 +27,9 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The personal baselines of the in-memory store have a limit in bytes, each baseline counted at its text.
- * Below it nothing changes; past it the baselines saved the longest ago go first. The organization baselines, which
- * every new member is compared with, are not among them.
+ * The personal and the organization baselines of the in-memory store each have a limit in bytes, a baseline counted at
+ * its text. Below it nothing changes; past it the baselines saved the longest ago go first. Neither kind goes for the
+ * other: personal baselines do not push out an organization's, which every new member is compared with.
  */
 class InMemoryBaselineDataStoreByteBudgetTest {
 
@@ -119,9 +119,86 @@ class InMemoryBaselineDataStoreByteBudgetTest {
         assertThat(store.userBaselineBytes()).isEqualTo(bytesOf("user-b"));
     }
 
+    private void saveOrg(String organization) {
+        store.saveOrganizationBaseline(organization, baseline(organization));
+        clock.advance(Duration.ofMillis(1));
+    }
+
+    private int organizations() {
+        int organizations = 0;
+        for (BaselineVector ignored : store.listOrganizationBaselines()) {
+            organizations++;
+        }
+        return organizations;
+    }
+
+    @Test
+    void belowTheLimitEveryOrganizationBaselineStays() {
+        store.setOrgBaselineBudgetBytes(10 * bytesOf("org-0"));
+        for (int organization = 0; organization < 10; organization++) {
+            saveOrg("org-" + organization);
+        }
+
+        assertThat(organizations()).isEqualTo(10);
+        assertThat(store.orgBaselineBytes()).isEqualTo(10 * bytesOf("org-0"));
+    }
+
+    @Test
+    void pastTheLimitTheOrganizationBaselineSavedTheLongestAgoGoesFirst() {
+        store.setOrgBaselineBudgetBytes(3 * bytesOf("org-a"));
+        saveOrg("org-a");
+        saveOrg("org-b");
+        saveOrg("org-c");
+        saveOrg("org-a");
+
+        saveOrg("org-d");
+
+        assertThat(store.getOrganizationBaseline("org-b")).as("saved the longest ago").isNull();
+        assertThat(store.getOrganizationBaseline("org-a")).as("saved again").isNotNull();
+        assertThat(store.getOrganizationBaseline("org-c")).isNotNull();
+        assertThat(store.getOrganizationBaseline("org-d")).isNotNull();
+        assertThat(store.orgBaselineBytes()).isEqualTo(3 * bytesOf("org-a"));
+    }
+
+    @Test
+    void anOrganizationBaselineSavedAgainIsCountedAtWhatItIsNow() {
+        saveOrg("org-a");
+        BaselineVector grown = baseline("org-a");
+        grown.setFrequentPaths(new String[]{"/orders", "/reports", "/invoices", "/customers"});
+
+        store.saveOrganizationBaseline("org-a", grown);
+
+        assertThat(store.orgBaselineBytes()).isEqualTo(2L * grown.toString().length());
+    }
+
+    @Test
+    void anExpiredOrganizationBaselineLeavesTheCount() {
+        saveOrg("org-a");
+
+        clock.advance(Duration.ofDays(31));
+        store.removeExpiredEntries();
+
+        assertThat(store.orgBaselineBytes()).isZero();
+    }
+
+    @Test
+    void anOrganizationBaselinePastItsLimitPushesOutNoPersonalOne() {
+        store.setOrgBaselineBudgetBytes(bytesOf("org-a"));
+        save("user-a");
+
+        saveOrg("org-a");
+        saveOrg("org-b");
+
+        assertThat(store.getUserBaseline("user-a")).isNotNull();
+        assertThat(store.getOrganizationBaseline("org-a")).isNull();
+        assertThat(store.getOrganizationBaseline("org-b")).isNotNull();
+    }
+
     @Test
     void theDefaultLimitFollowsTheHeap() {
         assertThat(new InMemoryBaselineDataStore().userBaselineBudgetBytes())
+                .isEqualTo(ExpiringKeyBudget.defaultLimitBytes(Runtime.getRuntime().maxMemory()));
+        assertThat(new InMemoryBaselineDataStore().orgBaselineBudgetBytes())
                 .isEqualTo(ExpiringKeyBudget.defaultLimitBytes(Runtime.getRuntime().maxMemory()));
     }
 }

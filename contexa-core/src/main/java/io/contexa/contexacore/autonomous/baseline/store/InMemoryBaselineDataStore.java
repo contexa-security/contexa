@@ -31,9 +31,9 @@ import java.util.Objects;
 /**
  * In-memory baselines. Z-16 (F1): as in the Redis store, a baseline lasts the retention from its last save; past
  * 100,000 baselines of a kind the one saved the longest ago goes first, as Redis {@code volatile-ttl} evicts. The sweep
- * releases the baselines past the retention. The personal baselines also keep within a limit in bytes, a share of
- * the heap, the one saved the longest ago going first; an organization baseline, which every new member is compared
- * with, keeps to the number alone.
+ * releases the baselines past the retention. Each kind also keeps within a limit of its own in bytes, a share of the
+ * heap, the one saved the longest ago going first: personal baselines do not push out an organization's, which every
+ * new member is compared with.
  */
 public class InMemoryBaselineDataStore implements BaselineDataStore, ExpiringStateStore {
 
@@ -42,6 +42,8 @@ public class InMemoryBaselineDataStore implements BaselineDataStore, ExpiringSta
 
     /** What the personal baselines take. */
     private final ExpiringKeyBudget userBaselineBudget = new ExpiringKeyBudget("personal baselines", this::evictUserBaseline);
+    /** What the organization baselines take. */
+    private final ExpiringKeyBudget orgBaselineBudget = new ExpiringKeyBudget("organization baselines", this::evictOrgBaseline);
     private final ExpiringKeySpace<BaselineVector> userBaselines;
     private final ExpiringKeySpace<BaselineVector> orgBaselines;
 
@@ -58,7 +60,8 @@ public class InMemoryBaselineDataStore implements BaselineDataStore, ExpiringSta
         Duration ttl = Objects.requireNonNull(baselineTtl, "baselineTtl");
         this.userBaselines = ExpiringKeySpace.<BaselineVector>builder(clock).ttl(ttl).bound(DEFAULT_MAX_BASELINES)
                 .weighed(userBaselineBudget, InMemoryBaselineDataStore::bytesOf).build();
-        this.orgBaselines = ExpiringKeySpace.<BaselineVector>builder(clock).ttl(ttl).bound(DEFAULT_MAX_BASELINES).build();
+        this.orgBaselines = ExpiringKeySpace.<BaselineVector>builder(clock).ttl(ttl).bound(DEFAULT_MAX_BASELINES)
+                .weighed(orgBaselineBudget, InMemoryBaselineDataStore::bytesOf).build();
     }
 
     @Override
@@ -146,8 +149,26 @@ public class InMemoryBaselineDataStore implements BaselineDataStore, ExpiringSta
         return userBaselineBudget.bytes();
     }
 
+    /** The bytes the organization baselines may take together; not positive, a share of the maximum heap. */
+    void setOrgBaselineBudgetBytes(long budgetBytes) {
+        orgBaselineBudget.setLimitBytes(budgetBytes);
+    }
+
+    long orgBaselineBudgetBytes() {
+        return orgBaselineBudget.limitBytes();
+    }
+
+    /** The bytes the organization baselines take now, as counted against their limit. */
+    long orgBaselineBytes() {
+        return orgBaselineBudget.bytes();
+    }
+
     private void evictUserBaseline(String key) {
         userBaselines.evict(key);
+    }
+
+    private void evictOrgBaseline(String key) {
+        orgBaselines.evict(key);
     }
 
     /** Its text at two bytes a character: about what its strings and collections take, whatever fields it has. */

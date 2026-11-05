@@ -32,9 +32,9 @@ import java.util.concurrent.ThreadLocalRandom;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The session histories and the work profile observations of the in-memory context store each have a limit
- * in bytes. Below it nothing a decision reads changes; past it the sessions and the users written the longest ago go
- * first, whole. The count follows every path that adds, trims, moves, expires or removes a record.
+ * The session histories, the work profile observations and the role scope observations of the in-memory context store
+ * each have a limit in bytes. Below it nothing a decision reads changes; past it the sessions, users and scopes written
+ * the longest ago go first, whole. The count follows every path that adds, trims, moves, expires or removes a record.
  */
 @Timeout(value = 60, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
 class InMemoryContextStoreByteBudgetTest {
@@ -260,7 +260,98 @@ class InMemoryContextStoreByteBudgetTest {
         assertThat(store.workProfileBytes()).isZero();
     }
 
-    // ----- the two limits -----
+    // ----- role scope observations -----
+
+    private void roleScopeOf(String scope, int observations) {
+        for (int observation = 0; observation < observations; observation++) {
+            store.addRoleScopeObservation("tenant", scope, RECORD);
+        }
+        clock.advance(Duration.ofMillis(1));
+    }
+
+    @Test
+    void belowTheLimitEveryObservationOfAScopeStays() {
+        store.setRoleScopeBudgetBytes(100 * RECORD_BYTES);
+        for (int scope = 0; scope < 10; scope++) {
+            roleScopeOf("ROLE_" + scope, 10);
+        }
+
+        for (int scope = 0; scope < 10; scope++) {
+            assertThat(store.getRecentRoleScopeObservations("tenant", "ROLE_" + scope, 100)).hasSize(10);
+        }
+        assertThat(store.roleScopeBytes()).isEqualTo(100 * RECORD_BYTES);
+    }
+
+    @Test
+    void pastTheLimitTheScopeWrittenTheLongestAgoGoesWhole() {
+        store.setRoleScopeBudgetBytes(30 * RECORD_BYTES);
+        roleScopeOf("ROLE_A", 10);
+        roleScopeOf("ROLE_B", 10);
+        roleScopeOf("ROLE_C", 10);
+
+        roleScopeOf("ROLE_D", 5);
+
+        assertThat(store.getRecentRoleScopeObservations("tenant", "ROLE_A", 100)).isEmpty();
+        assertThat(store.getRecentRoleScopeObservations("tenant", "ROLE_B", 100)).hasSize(10);
+        assertThat(store.getRecentRoleScopeObservations("tenant", "ROLE_D", 100)).hasSize(5);
+        assertThat(store.roleScopeBytes()).isEqualTo(25 * RECORD_BYTES);
+    }
+
+    @Test
+    void aScopeWrittenAgainIsAmongTheNewest() {
+        store.setRoleScopeBudgetBytes(30 * RECORD_BYTES);
+        roleScopeOf("ROLE_A", 10);
+        roleScopeOf("ROLE_B", 10);
+        roleScopeOf("ROLE_C", 9);
+        roleScopeOf("ROLE_A", 1);
+
+        roleScopeOf("ROLE_D", 5);
+
+        assertThat(store.getRecentRoleScopeObservations("tenant", "ROLE_B", 100)).as("written the longest ago").isEmpty();
+        assertThat(store.getRecentRoleScopeObservations("tenant", "ROLE_A", 100)).hasSize(11);
+    }
+
+    @Test
+    void aScopeAtTheObservationCapacityIsCountedAtWhatItKeeps() {
+        store.setObservationCapacity(20);
+
+        roleScopeOf("ROLE_A", 30);
+
+        assertThat(store.roleScopeBytes()).isEqualTo(20 * RECORD_BYTES);
+    }
+
+    @Test
+    void aScopeLargerThanTheWholeLimitDoesNotStayOverIt() {
+        store.setRoleScopeBudgetBytes(5 * RECORD_BYTES);
+
+        roleScopeOf("ROLE_A", 6);
+
+        assertThat(store.getRecentRoleScopeObservations("tenant", "ROLE_A", 100)).isEmpty();
+        assertThat(store.roleScopeBytes()).isZero();
+    }
+
+    @Test
+    void expiredRoleScopeObservationsLeaveTheCount() {
+        roleScopeOf("ROLE_A", 10);
+
+        clock.advance(Duration.ofDays(31));
+        store.removeExpiredEntries();
+
+        assertThat(store.roleScopeBytes()).isZero();
+    }
+
+    @Test
+    void theWorkProfilesAreNotCountedAgainstTheRoleScopes() {
+        roleScopeOf("ROLE_A", 10);
+        store.setRoleScopeBudgetBytes(10 * RECORD_BYTES);
+
+        observationsOf("user-a", 50);
+
+        assertThat(store.getRecentRoleScopeObservations("tenant", "ROLE_A", 100)).hasSize(10);
+        assertThat(store.roleScopeBytes()).isEqualTo(10 * RECORD_BYTES);
+    }
+
+    // ----- the limits -----
 
     @Test
     void theDefaultLimitIsATwentiethOfTheHeapBetween16And512MiB() {
@@ -273,6 +364,8 @@ class InMemoryContextStoreByteBudgetTest {
                 .isEqualTo(ExpiringKeyBudget.defaultLimitBytes(Runtime.getRuntime().maxMemory()));
         assertThat(new InMemorySecurityContextDataStore().workProfileBudgetBytes())
                 .isEqualTo(ExpiringKeyBudget.defaultLimitBytes(Runtime.getRuntime().maxMemory()));
+        assertThat(new InMemorySecurityContextDataStore().roleScopeBudgetBytes())
+                .isEqualTo(ExpiringKeyBudget.defaultLimitBytes(Runtime.getRuntime().maxMemory()));
     }
 
     @RepeatedTest(5)
@@ -280,6 +373,7 @@ class InMemoryContextStoreByteBudgetTest {
         long limit = 200 * RECORD_BYTES;
         store.setSessionHistoryBudgetBytes(limit);
         store.setWorkProfileBudgetBytes(limit);
+        store.setRoleScopeBudgetBytes(limit);
         ExecutorService threads = Executors.newFixedThreadPool(8);
         List<Future<?>> writers = new ArrayList<>();
         for (int writer = 0; writer < 8; writer++) {
@@ -287,11 +381,12 @@ class InMemoryContextStoreByteBudgetTest {
                 ThreadLocalRandom random = ThreadLocalRandom.current();
                 for (int write = 0; write < 2_000; write++) {
                     String session = "session-" + random.nextInt(40);
-                    switch (random.nextInt(5)) {
+                    switch (random.nextInt(6)) {
                         case 0 -> store.addSessionDecision(session, RECORD);
                         case 1 -> store.addSessionAction(session, RECORD);
                         case 2 -> store.moveSessionRecords(session, "session-" + random.nextInt(40));
                         case 3 -> store.addWorkProfileObservation("tenant", "user-" + random.nextInt(40), RECORD);
+                        case 4 -> store.addRoleScopeObservation("tenant", "ROLE_" + random.nextInt(40), RECORD);
                         default -> store.deleteUserData("user-" + random.nextInt(40));
                     }
                 }
@@ -305,11 +400,13 @@ class InMemoryContextStoreByteBudgetTest {
 
         assertThat(store.sessionHistoryBytes()).isBetween(0L, limit);
         assertThat(store.workProfileBytes()).isBetween(0L, limit);
+        assertThat(store.roleScopeBytes()).isBetween(0L, limit);
 
         clock.advance(Duration.ofDays(31));
         store.removeExpiredEntries();
 
         assertThat(store.sessionHistoryBytes()).isZero();
         assertThat(store.workProfileBytes()).isZero();
+        assertThat(store.roleScopeBytes()).isZero();
     }
 }
