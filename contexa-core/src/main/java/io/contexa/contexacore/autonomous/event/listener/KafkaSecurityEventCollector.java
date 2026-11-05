@@ -28,7 +28,7 @@ import jakarta.annotation.PreDestroy;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.util.Comparator;
+import java.time.Instant;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -52,7 +52,11 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final SecurityKafkaProperties securityKafkaProperties;
     private final List<SecurityEventListener> listeners;
-    private final Map<String, SecurityEvent> eventCache;
+    /**
+     * The recent events by id, with when they happened: only their number is read. PR-91: the events themselves are not
+     * kept, since an analysed event holds its whole context.
+     */
+    private final Map<String, Instant> eventCache;
     private final AtomicLong eventCount;
     private final AtomicLong ackCount;
     private final AtomicLong errorCount;
@@ -160,11 +164,11 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
             event.setEventId(UUID.randomUUID().toString());
         }
 
-        eventCache.put(event.getEventId(), event);
+        eventCache.put(event.getEventId(), event.getTimestamp() != null ? event.getTimestamp() : Instant.EPOCH);
 
         if (eventCache.size() > 10_000) {
             eventCache.entrySet().stream()
-                    .sorted(Map.Entry.comparingByValue(Comparator.comparing(SecurityEvent::getTimestamp)))
+                    .sorted(Map.Entry.comparingByValue())
                     .limit(1_000)
                     .map(Map.Entry::getKey)
                     .forEach(eventCache::remove);

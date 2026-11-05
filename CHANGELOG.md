@@ -52,6 +52,20 @@ The format is based on Keep a Changelog and the project follows semantic version
   cannot be told without a paid call and fails at the first call of that layer.
 - A decision record names the model that answered, else the model that was asked. A decision that never reached a
   model (`QUEUE_TIMEOUT`, `REJECTED_BACKPRESSURE`) names none; it used to name the configured model.
+- **Contexa no longer fills the application's heap under load (PR-91).** Every request kept a snapshot of its session
+  for 30 minutes after its decision, each with up to a hundred decoded decisions, so 10,000 requests took hundreds of
+  megabytes and a 384 MB application stopped with `OutOfMemoryError` after about 1,500 decisions, in both infrastructure
+  modes. What the requests hold now has a limit in bytes, a twentieth of the maximum heap between 16 MiB and 256 MiB: past
+  it the committed requests give up their snapshots first, the longest committed first, and their committed mark stays,
+  so nothing is recorded twice. A request no analysis reaches keeps only that mark. Nothing a decision reads changes: the
+  session's history and the prompt are as they were. A later resolution of a request whose snapshot went reads the
+  session again.
+- The other per-decision places on the heap have a limit in bytes as well: the canonical contexts kept while a prompt is
+  built (a thirty-second of the heap) and the documents of the cached vector searches (a thirty-second of the heap,
+  beside `contexa.security.tiered.vector-cache.max-size`, which still holds); a search or a context not kept is resolved
+  again to the same result. The prompt snapshots waiting for their sealing are held within a twentieth of the heap, the
+  oldest going first. The event collectors keep the id and time of the recent events, not the events with their whole
+  context. An AI operation that fails or streams to its end no longer leaves its audit entry in memory.
 - **A user can answer a CHALLENGE in `contexa.infrastructure.mode=distributed` whatever the sign-in is made of.** An MFA
   flow stored in Redis could not be read back when the sign-in held a read-only collection (a one-time token or a
   remember-me sign-in with Contexa's user or Spring's `User`, a JWT, an OAuth2 login) or an object the reading node

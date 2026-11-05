@@ -94,6 +94,11 @@ public class AuditLogger {
         checkSecurityEvent(entry, request, error);
     }
 
+    /** Ends an audit that has no response to report, a stream's; one that already ended stays as it ended. */
+    public void closeAudit(String auditId) {
+        activeAudits.remove(auditId);
+    }
+
     private String generateAuditId() {
         return "AUDIT-" + UUID.randomUUID().toString().substring(0, 8);
     }
