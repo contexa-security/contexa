@@ -171,6 +171,37 @@ class UnanalysedRequestRecorderTest {
         verify(learning, never()).learnVerifiedResend(any(), any(), any());
     }
 
+    /** PR-91: nothing resolves a request no analysis reaches again, so only its mark stays, not its session's history. */
+    @Test
+    void aRequestNoAnalysisReachesKeepsOnlyItsMark() {
+        ZeroTrustSpringEvent answered = event("request-1", "2026-09-30T03:17:00Z", 300);
+        ZeroTrustSpringEvent passed = event("request-2", "2026-09-30T03:18:00Z", 0);
+
+        unanalysed.record(answered, ZeroTrustAction.ALLOW);
+        unanalysed.recordPassed(passed);
+
+        for (ZeroTrustSpringEvent event : List.of(answered, passed)) {
+            SecurityEvent request = ZeroTrustSecurityEventConverter.convert(event);
+            assertThat(recorder.committed(request)).isTrue();
+            assertThat(recorder.staged(request)).isFalse();
+        }
+        assertThat(store.getRecentSessionDecisions(SESSION, 10)).hasSize(2);
+        assertThat(store.getRecentSessionProtectableAccesses(SESSION, 10)).containsExactly(EXPORTS, EXPORTS);
+    }
+
+    /** PR-91: an analysis of the same request still running reads on what it staged. */
+    @Test
+    void aRequestBeingAnalysedKeepsItsSnapshotWhenTheDecisionInForceAnswersItMeanwhile() {
+        ZeroTrustSpringEvent event = event("request-1", "2026-09-30T03:17:00Z", 300);
+        SecurityEvent analysed = ZeroTrustSecurityEventConverter.convert(event);
+        SessionNarrativeSnapshot snapshot = collector.collect(analysed).orElseThrow();
+
+        unanalysed.record(event, ZeroTrustAction.ALLOW);
+
+        assertThat(collector.collect(analysed)).containsSame(snapshot);
+        assertThat(store.getRecentSessionDecisions(SESSION, 10)).hasSize(1);
+    }
+
     @Test
     void aRestrictedRequestIsRecordedUnderTheRestrictionInForce() {
         unanalysed.record(event("request-1", "2026-09-30T03:17:00Z", 300), ZeroTrustAction.ALLOW);

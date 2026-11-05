@@ -21,15 +21,19 @@ import org.springframework.ai.anthropic.AnthropicChatModel;
 import org.springframework.ai.anthropic.AnthropicChatOptions;
 import org.springframework.ai.anthropic.api.AnthropicApi;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.ChatOptions;
+import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * A chat model of another model id made from a configured one (docs/showcase/판정층-수정계획.md E-7): the same provider,
- * client and options, only the model differs; a provider whose chat model cannot be copied has none.
+ * client and options, only the model differs; a chat model that can be neither copied nor rebuilt has none.
  */
 class ChatModelVariantsTest {
 
@@ -54,15 +58,46 @@ class ChatModelVariantsTest {
         assertThat(((OpenAiChatOptions) layer1.getDefaultOptions()).getModel()).isEqualTo("gpt-6-luna");
     }
 
+    /**
+     * Q-22 (PR-78): Anthropic has no mutate(), so it gives a variant through its builder: a layer model set in
+     * application.yml then runs without a chat model bean of the application's own. This case said before that such a
+     * model gives none, which left every layer on the first layer's model.
+     */
     @Test
-    @DisplayName("a chat model that cannot be copied (Anthropic has no mutate) gives none")
-    void aModelWithoutMutateGivesNone() {
-        AnthropicChatModel anthropic = AnthropicChatModel.builder()
-                .anthropicApi(AnthropicApi.builder().apiKey("test").build())
-                .defaultOptions(AnthropicChatOptions.builder().model("claude-haiku-5-5").build())
+    @DisplayName("an Anthropic chat model gives one of another model id with the same client and options, and stays as it is")
+    void anAnthropicModelGivesAVariantThroughItsBuilder() {
+        AnthropicApi api = AnthropicApi.builder().apiKey("test").build();
+        AnthropicChatModel layer1 = AnthropicChatModel.builder()
+                .anthropicApi(api)
+                .defaultOptions(AnthropicChatOptions.builder().model("claude-haiku-5-5").maxTokens(321).build())
                 .build();
 
-        assertThat(ChatModelVariants.withModel(anthropic, "claude-opus-5-5")).isEmpty();
+        ChatModel layer2 = ChatModelVariants.withModel(layer1, "claude-opus-5-5").orElseThrow();
+
+        assertThat(layer2).isInstanceOf(AnthropicChatModel.class).isNotSameAs(layer1);
+        assertThat(ReflectionTestUtils.getField(layer2, "anthropicApi")).isSameAs(api);
+        AnthropicChatOptions options = (AnthropicChatOptions) layer2.getDefaultOptions();
+        assertThat(options.getModel()).isEqualTo("claude-opus-5-5");
+        assertThat(options.getMaxTokens()).isEqualTo(321);
+        assertThat(((AnthropicChatOptions) layer1.getDefaultOptions()).getModel()).isEqualTo("claude-haiku-5-5");
+    }
+
+    @Test
+    @DisplayName("a chat model with neither mutate nor a builder gives none")
+    void aModelThatCannotBeCopiedGivesNone() {
+        ChatModel custom = new ChatModel() {
+            @Override
+            public ChatResponse call(Prompt prompt) {
+                return null;
+            }
+
+            @Override
+            public ChatOptions getDefaultOptions() {
+                return AnthropicChatOptions.builder().model("claude-haiku-5-5").build();
+            }
+        };
+
+        assertThat(ChatModelVariants.withModel(custom, "claude-opus-5-5")).isEmpty();
     }
 
     @Test

@@ -19,12 +19,14 @@ import io.contexa.contexaiam.admin.web.auth.service.GroupService;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.auth.service.UserManagementService;
+import io.contexa.contexaiam.admin.web.auth.service.VerificationCoverageService;
 import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexaiam.domain.dto.UserListDto;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.Role;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
@@ -53,6 +55,25 @@ public class UserManagementController {
 	private final GroupService groupService;
 	private final PasswordPolicyService passwordPolicyService;
 	private final MessageSource messageSource;
+	private VerificationCoverageService verificationCoverage;
+
+	/** Q-1: who could not answer a CHALLENGE, shown on the list. */
+	@Autowired(required = false)
+	public void setVerificationCoverage(VerificationCoverageService verificationCoverage) {
+		this.verificationCoverage = verificationCoverage;
+	}
+
+	private long usersWithoutFactor() {
+		if (verificationCoverage == null) {
+			return 0;
+		}
+		try {
+			return verificationCoverage.usersWithoutFactor();
+		} catch (RuntimeException e) {
+			log.error("[UserManagement] Could not count the users who cannot answer a CHALLENGE: {}", e.toString());
+			return 0;
+		}
+	}
 
 	private String msg(String key, Object... args) {
 		return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
@@ -66,6 +87,7 @@ public class UserManagementController {
 		model.addAttribute("users", dtoPage.getContent());
 		model.addAttribute("page", dtoPage);
 		model.addAttribute("keyword", keyword);
+		model.addAttribute("usersWithoutFactor", usersWithoutFactor());
 		return "contexa/admin/users";
 	}
 

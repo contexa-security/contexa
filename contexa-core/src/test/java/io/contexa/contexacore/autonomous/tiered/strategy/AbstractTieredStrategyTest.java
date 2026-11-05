@@ -52,6 +52,7 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputCon
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
 import io.contexa.contexacommon.security.baseline.BaselineVector;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
@@ -1667,14 +1668,14 @@ class AbstractTieredStrategyTest {
     @DisplayName("past records leave out the current session, records held back from promotion (W2-8) and quarantined ones (A3-8)")
     void searchRelatedContextBase_leavesOutTheCurrentSessionAndHeldRecords() {
         SimpleVectorStore store = SimpleVectorStore.builder(new ConstantEmbeddingModel()).build();
-        Document otherSession = behaviorRecord("other-session", Map.of("sessionId", "session-1"));
+        Document otherSession = behaviorRecord("other-session", Map.of("sessionId", stored("session-1")));
         Document noSession = behaviorRecord("no-session", Map.of());
         store.add(List.of(
-                behaviorRecord("this-session", Map.of("sessionId", "session-7")),
+                behaviorRecord("this-session", Map.of("sessionId", stored("session-7"))),
                 otherSession,
                 noSession,
-                behaviorRecord("held", Map.of("sessionId", "session-2", "learningState", "HELD")),
-                behaviorRecord("quarantined", Map.of("sessionId", "session-3", "learningState", "QUARANTINED"))));
+                behaviorRecord("held", Map.of("sessionId", stored("session-2"), "learningState", "HELD")),
+                behaviorRecord("quarantined", Map.of("sessionId", stored("session-3"), "learningState", "QUARANTINED"))));
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-session-7")
                 .userId("adm-a")
@@ -1709,7 +1710,7 @@ class AbstractTieredStrategyTest {
                 .isNotEmpty()
                 .allSatisfy(search -> assertThat(String.valueOf(search.getFilterExpression()))
                         // NIN keeps a record without a session; a not-equal test would drop it in pgvector.
-                        .contains("type=NIN, left=Key[key=sessionId], right=Value[value=[session-7]]"));
+                        .contains("type=NIN, left=Key[key=sessionId], right=Value[value=[" + stored("session-7") + "]]"));
         assertThat(searches.getAllValues()).allSatisfy(search -> assertThat(String.valueOf(search.getFilterExpression()))
                 .contains("learningState", "HELD", "QUARANTINED"));
     }
@@ -1719,9 +1720,9 @@ class AbstractTieredStrategyTest {
     void searchRelatedContextBase_leavesOutTheSessionsRecordsUnderItsEarlierIds() {
         SimpleVectorStore store = SimpleVectorStore.builder(new ConstantEmbeddingModel()).build();
         store.add(List.of(
-                behaviorRecord("before-step-up", Map.of("sessionId", "session-6")),
-                behaviorRecord("this-session", Map.of("sessionId", "session-7")),
-                behaviorRecord("other-session", Map.of("sessionId", "session-1"))));
+                behaviorRecord("before-step-up", Map.of("sessionId", stored("session-6"))),
+                behaviorRecord("this-session", Map.of("sessionId", stored("session-7"))),
+                behaviorRecord("other-session", Map.of("sessionId", stored("session-1")))));
         strategy.previousIds.put("session-7", List.of("session-6"));
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-session-7-after-step-up")
@@ -1754,7 +1755,8 @@ class AbstractTieredStrategyTest {
                 .filteredOn(search -> String.valueOf(search.getFilterExpression()).contains("adm-a"))
                 .isNotEmpty()
                 .allSatisfy(search -> assertThat(String.valueOf(search.getFilterExpression()))
-                        .contains("type=NIN, left=Key[key=sessionId], right=Value[value=[session-7, session-6]]"));
+                        .contains("type=NIN, left=Key[key=sessionId], right=Value[value=["
+                                + stored("session-7") + ", " + stored("session-6") + "]]"));
     }
 
     @Test
@@ -1793,6 +1795,11 @@ class AbstractTieredStrategyTest {
                 "requestPath", "/api/projects/" + project + "/exports",
                 "pathFamily", "/api/projects/{projectKey}/exports",
                 "httpMethod", "POST"));
+    }
+
+    /** Q-11: how a record keeps a session. */
+    private static String stored(String sessionId) {
+        return RequestFactRedaction.sessionReference(sessionId);
     }
 
     private static Document behaviorRecord(String id, Map<String, Object> extra) {
@@ -1856,7 +1863,8 @@ class AbstractTieredStrategyTest {
 
         assertThat(result).containsExactly(sameTarget, otherTarget);
         verify(unifiedVectorService, never()).searchSimilar(any(SearchRequest.class));
-        assertThat(query.scope).isEqualTo(new PastRecordScope("alice", "security_investigation", "EXPORT", List.of("session-now")));
+        assertThat(query.scope).isEqualTo(new PastRecordScope("alice", "security_investigation", "EXPORT",
+                List.of(stored("session-now"))));
         assertThat(query.firstPaths).containsExactly(GB500);
         assertThat(query.limit).isEqualTo(5);
         assertThat(event.getMetadata())
@@ -1872,7 +1880,7 @@ class AbstractTieredStrategyTest {
         assertThat(searchScope).containsEntry("userId", "alice")
                 .containsEntry("retrievalPurpose", "security_investigation")
                 .containsEntry("actionFamily", "EXPORT")
-                .containsEntry("excludedSessionIds", List.of("session-now"))
+                .containsEntry("excludedSessionIds", List.of(stored("session-now")))
                 .containsEntry("firstPaths", List.of(GB500))
                 .containsEntry("limit", 5)
                 .containsEntry("filters", RecordingPastRecordQuery.FILTERS)
@@ -2035,7 +2043,7 @@ class AbstractTieredStrategyTest {
         strategy.callSearchRelatedContextBase(event, 5, 0.5d);
 
         assertThat(query.scope).isEqualTo(new PastRecordScope("alice", "security_investigation", "EXPORT",
-                List.of("session-now"), "t-1", "org-1", "report-agent"));
+                List.of(stored("session-now")), "t-1", "org-1", "report-agent"));
         assertThat(PastDeniedDecisions.fromMetadata(event.getMetadata().get(PastDeniedDecisions.EVENT_METADATA_KEY))
                 .entries()).hasSize(1);
         @SuppressWarnings("unchecked")
@@ -2144,6 +2152,7 @@ class AbstractTieredStrategyTest {
 
         @Override
         protected List<String> previousSessionIds(String sessionId) {
+            // Q-11: the context store keeps the ids; a record keeps their references.
             return previousIds.getOrDefault(sessionId, List.of());
         }
 

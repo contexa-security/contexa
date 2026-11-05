@@ -26,11 +26,14 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.event.SecurityEventListener;
 import io.contexa.contexacore.properties.SecurityKafkaProperties;
+import java.lang.ref.WeakReference;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -91,6 +94,46 @@ class KafkaSecurityEventCollectorTest {
         var inOrder = inOrder(listener, acknowledgment);
         inOrder.verify(listener).onSecurityEvent(any());
         inOrder.verify(acknowledgment).acknowledge();
+    }
+
+    /** PR-91: an analysed event holds its whole context, and nothing ever read the events kept here. */
+    @Test
+    @DisplayName("listener 에게 전달한 이벤트를 붙들지 않아야 한다")
+    void shouldNotHoldTheEventOnceItsListenersHaveIt() throws Exception {
+        WeakReference<Object> consumed = consumed();
+
+        for (int attempt = 0; attempt < 100 && consumed.get() != null; attempt++) {
+            System.gc();
+            Thread.sleep(10);
+        }
+
+        assertThat(consumed.get()).isNull();
+        assertThat(collector.getStatistics()).containsEntry("cache_size", 1);
+    }
+
+    private WeakReference<Object> consumed() throws Exception {
+        ZeroTrustSpringEvent event = ZeroTrustSpringEvent.builder("evt")
+                .category(ZeroTrustEventCategory.AUTHORIZATION)
+                .eventType("METHOD")
+                .userId("user-1")
+                .sessionId("session-1")
+                .clientIp("127.0.0.1")
+                .payload(Map.of("action", "ALLOW"))
+                .build();
+        AtomicReference<Object> received = new AtomicReference<>();
+        SecurityEventListener keeping = new SecurityEventListener() {
+            @Override
+            public void onSecurityEvent(SecurityEvent securityEvent) {
+                received.set(securityEvent);
+            }
+        };
+        collector.registerListener(keeping);
+        when(objectMapper.readValue(eq("{json}"), eq(ZeroTrustSpringEvent.class))).thenReturn(event);
+
+        collector.consumeZeroTrustEvents("{json}", "security.events.auth", 0, 10L, acknowledgment);
+
+        collector.unregisterListener(keeping);
+        return new WeakReference<>(received.get());
     }
 
     @Test

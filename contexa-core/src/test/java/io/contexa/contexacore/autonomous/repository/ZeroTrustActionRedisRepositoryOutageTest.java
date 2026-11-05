@@ -26,12 +26,19 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
@@ -49,6 +56,7 @@ class ZeroTrustActionRedisRepositoryOutageTest {
     private RedisTemplate<String, Object> objects;
     private ValueOperations<String, String> values;
     private HashOperations<String, Object, Object> analysis;
+    private HashOperations<String, Object, Object> holds;
     private ZeroTrustActionRedisRepository repository;
 
     @BeforeEach
@@ -58,9 +66,12 @@ class ZeroTrustActionRedisRepositoryOutageTest {
         objects = mock(RedisTemplate.class);
         values = mock(ValueOperations.class);
         analysis = mock(HashOperations.class);
+        holds = mock(HashOperations.class);
         when(strings.opsForValue()).thenReturn(values);
+        when(strings.opsForHash()).thenReturn(holds);
         when(objects.opsForHash()).thenReturn(analysis);
         when(analysis.entries(anyString())).thenReturn(Map.of());
+        when(holds.multiGet(anyString(), anyCollection())).thenReturn(Arrays.asList(null, null));
         repository = new ZeroTrustActionRedisRepository(objects, strings);
     }
 
@@ -76,6 +87,16 @@ class ZeroTrustActionRedisRepositoryOutageTest {
     private void redisStopsAnswering() {
         when(values.get(anyString())).thenThrow(new QueryTimeoutException("Redis command timed out"));
         when(analysis.entries(anyString())).thenThrow(new QueryTimeoutException("Redis command timed out"));
+        when(holds.multiGet(anyString(), anyCollection())).thenThrow(new QueryTimeoutException("Redis command timed out"));
+    }
+
+    /** Q-12: the CHALLENGE is answered by one session and held for the others. */
+    private void heldForTheOtherSessions(String answeredContext) {
+        stored(ZeroTrustAction.ALLOW, answeredContext);
+        when(holds.multiGet(eq(ZeroTrustRedisKeys.autonomousChallengeHold(USER)), anyCollection())).thenAnswer(call -> {
+            List<String> fields = new ArrayList<>(call.<Collection<String>>getArgument(1));
+            return Arrays.asList("2026-11-05T10:00:00Z", answeredContext.equals(fields.get(1)) ? "1" : null);
+        });
     }
 
     @Test
@@ -154,6 +175,41 @@ class ZeroTrustActionRedisRepositoryOutageTest {
         redisStopsAnswering();
 
         assertThat(repository.getCurrentAction(USER, CONTEXT)).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+    }
+
+    @Test
+    @DisplayName("Q-18: every spelling of a name meets what was read under another")
+    void everySpellingMeetsTheRestriction() {
+        when(values.get(ZeroTrustRedisKeys.userBlocked(USER))).thenReturn("true");
+        assertThat(repository.getCurrentAction(USER, CONTEXT)).isEqualTo(ZeroTrustAction.BLOCK);
+
+        redisStopsAnswering();
+
+        assertThat(repository.getCurrentAction(USER.toUpperCase(Locale.ROOT), CONTEXT)).isEqualTo(ZeroTrustAction.BLOCK);
+    }
+
+    @Test
+    @DisplayName("Q-12: a CHALLENGE held for other sessions stays held when the one that answered read last")
+    void aHoldStaysForTheOtherSessions() {
+        heldForTheOtherSessions(CONTEXT);
+        assertThat(repository.getCurrentAction(USER, CONTEXT)).isEqualTo(ZeroTrustAction.ALLOW);
+
+        redisStopsAnswering();
+
+        assertThat(repository.getCurrentAction(USER, "attackers-session")).isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThat(repository.getCurrentAction(USER, CONTEXT)).as("the session that answered is not stopped by the outage")
+                .isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+    }
+
+    @Test
+    @DisplayName("Q-12: a session that did not answer stays stopped when it read last")
+    void aSessionThatDidNotAnswerStaysStopped() {
+        heldForTheOtherSessions(CONTEXT);
+        assertThat(repository.getCurrentAction(USER, "attackers-session")).isEqualTo(ZeroTrustAction.CHALLENGE);
+
+        redisStopsAnswering();
+
+        assertThat(repository.getCurrentAction(USER, "attackers-session")).isEqualTo(ZeroTrustAction.CHALLENGE);
     }
 
     @Test

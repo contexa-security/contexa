@@ -119,6 +119,29 @@ public interface UserRepository extends JpaRepository<Users, Long> {
 
     long countByMfaEnabled(boolean mfaEnabled);
 
+    /**
+     * Q-1: the enabled accounts that could not answer a CHALLENGE: no passkey, and no address a code can reach. An agent
+     * answers no factor made for people and is left out.
+     *
+     * @param mailDelivers  whether a mail server is configured; without one no address reaches anybody
+     * @param syntheticMail the pattern of the addresses the bridge makes up
+     * @param agentMail     the pattern of the addresses of agent accounts
+     */
+    @Query(value = """
+            select count(*) from ctxa_users u
+            where u.enabled = true
+              and lower(u.email) not like :agentMail
+              and (:mailDelivers = false
+                   or position('@' in u.email) = 0
+                   or lower(u.email) like :syntheticMail)
+              and not exists (select 1 from ctxa_user_entities e
+                              join ctxa_user_credentials c on c.user_entity_user_id = e.id
+                              where e.name = u.username)
+            """, nativeQuery = true)
+    long countWithoutVerificationFactor(@Param("mailDelivers") boolean mailDelivers,
+                                        @Param("syntheticMail") String syntheticMail,
+                                        @Param("agentMail") String agentMail);
+
     @Query("SELECT DISTINCT u FROM Users u LEFT JOIN FETCH u.userGroups ug LEFT JOIN FETCH ug.group g LEFT JOIN FETCH g.groupRoles gr LEFT JOIN FETCH gr.role r LEFT JOIN FETCH r.rolePermissions rp LEFT JOIN FETCH rp.permission")
     List<Users> findAllWithGroups();
 

@@ -16,6 +16,7 @@
 package io.contexa.contexaidentity.security.zerotrust;
 
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.HostOwnedIdentityNotice;
 import io.contexa.contexacommon.security.RequestPaths;
 import io.contexa.contexacommon.security.ZeroTrustScreens;
@@ -156,11 +157,16 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
         this.challengeProcedureAvailable = challengeProcedureAvailable;
     }
 
+    /** Whether the host has an MFA flow in which a user can step up. */
+    public boolean challengeProcedureAvailable() {
+        return challengeProcedureAvailable;
+    }
+
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = RequestPaths.of(request);
 
-        if (RequestPaths.isExactly(path, LOGOUT_PATH)) {
+        if (RequestPaths.isExactly(path, LOGOUT_PATH) || ConsoleSession.onReleasePath(request)) {
             return true;
         }
 

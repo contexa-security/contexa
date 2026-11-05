@@ -22,10 +22,14 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -142,6 +146,183 @@ class EvidenceSealingTest {
         integrity.seal(older, "ignored");
         assertThat(older.getPreviousPackageHash()).as("an older schema keeps its form").isNull();
         assertThat(integrity.evaluate(older)).isEqualTo(Status.VERIFIED);
+    }
+
+    /** Q-21 (PR-75): where the installation signs, a package without its signature was changed; it cannot just be unread. */
+    @Test
+    void aPackageWithoutItsSignatureFailsWhereTheInstallationSigns() {
+        SealedEvidencePackageIntegrity integrity = new SealedEvidencePackageIntegrity(signer("k1", K1));
+        SealedEvidencePackage pkg = pkg(SealedEvidencePackageIntegrity.LINKED_SCHEMA_VERSION);
+        integrity.seal(pkg, "previous-package-hash");
+
+        pkg.setDecisionJson("{\"action\":\"ALLOW\"}");
+        pkg.setPackageSignature(null);
+        pkg.setSignatureKeyId(null);
+        pkg.setPackageHash(integrity.computeHash(pkg));
+
+        assertThat(integrity.evaluate(pkg)).isEqualTo(Status.MISMATCH);
+    }
+
+    /** Q-21: a signature made with a key the signer does not hold stays unread: a restart or a retired key gives that. */
+    @Test
+    void aSignatureOfAKeyNotHeldCannotBeVerifiedNorFailed() {
+        SealedEvidencePackageIntegrity first = new SealedEvidencePackageIntegrity(signer("k1", K1));
+        SealedEvidencePackage pkg = pkg(SealedEvidencePackageIntegrity.LINKED_SCHEMA_VERSION);
+        first.seal(pkg, null);
+
+        assertThat(new SealedEvidencePackageIntegrity(signer("k2", K2)).evaluate(pkg)).isEqualTo(Status.UNVERIFIABLE);
+    }
+
+    /** Q-21 (PR-75): measured, a decision changed and its schema lowered read as fully verified with no key at all. */
+    @Test
+    void aPackageLoweredToAnOlderSchemaAfterSigningBeganFails() {
+        Instant signedSince = Instant.parse("2026-10-24T04:00:00Z");
+        SealedEvidencePackageIntegrity integrity = linked(new FakeChain(signedSince));
+        for (int schema : new int[]{2, 1}) {
+            SealedEvidencePackage lowered = pkg(schema);
+            lowered.setPackageHash(integrity.computeHash(lowered));
+
+            assertThat(integrity.evaluate(lowered)).as("schema " + schema).isEqualTo(Status.MISMATCH);
+        }
+    }
+
+    /** Q-21: a package captured before the first signed one was sealed without a key, as its schema says. */
+    @Test
+    void aPackageCapturedBeforeSigningBeganStaysVerified() {
+        SealedEvidencePackageIntegrity integrity = linked(new FakeChain(Instant.parse("2026-10-24T06:00:00Z")));
+        SealedEvidencePackage past = pkg(2);
+        past.setPackageHash(integrity.computeHash(past));
+
+        assertThat(integrity.evaluate(past)).isEqualTo(Status.VERIFIED);
+        assertThat(linked(new FakeChain(null)).evaluate(past)).as("nothing signed yet").isEqualTo(Status.VERIFIED);
+        past.setDecisionJson("{\"action\":\"ALLOW\"}");
+        assertThat(integrity.evaluate(past)).as("its hash still holds it").isEqualTo(Status.MISMATCH);
+    }
+
+    /** Q-21: a blanked hash is no way out of the signature either. */
+    @Test
+    void aPackageWithoutItsHashesFailsWhereASignatureIsDue() {
+        SealedEvidencePackageIntegrity integrity = new SealedEvidencePackageIntegrity(signer("k1", K1));
+        SealedEvidencePackage blanked = pkg(SealedEvidencePackageIntegrity.LINKED_SCHEMA_VERSION);
+        integrity.seal(blanked, null);
+        blanked.setPackageHash(" ");
+        SealedEvidencePackage noPromptHash = pkg(SealedEvidencePackageIntegrity.LINKED_SCHEMA_VERSION);
+        integrity.seal(noPromptHash, null);
+        noPromptHash.setRawUserPromptHash(null);
+        noPromptHash.setPackageHash(integrity.computeHash(noPromptHash));
+
+        assertThat(integrity.evaluate(blanked)).isEqualTo(Status.MISMATCH);
+        assertThat(integrity.evaluate(noPromptHash)).isEqualTo(Status.MISMATCH);
+        assertThat(new SealedEvidencePackageIntegrity().evaluate(blanked)).as("no signer").isEqualTo(Status.UNVERIFIABLE);
+    }
+
+    /** Q-21 (PR-76): measured, removing a package left the next one passing. */
+    @Test
+    void aPackageWhosePredecessorIsGoneInsideTheRetentionFails() {
+        FakeChain chain = new FakeChain(null);
+        chain.previousKept = false;
+        chain.capturedBefore = NOW.minus(Duration.ofHours(1));
+        SealedEvidencePackageIntegrity integrity = linked(chain);
+
+        assertThat(integrity.evaluate(stored(integrity))).isEqualTo(Status.MISMATCH);
+    }
+
+    @Test
+    void aPackageWhosePredecessorIsKeptPasses() {
+        SealedEvidencePackageIntegrity integrity = linked(new FakeChain(null));
+
+        assertThat(integrity.evaluate(stored(integrity))).isEqualTo(Status.VERIFIED);
+    }
+
+    /**
+     * Q-21: the retention removes packages from inside the chain too: a clean package goes after the clean period, one
+     * with a finding stays. A predecessor that may have gone that way, or the retention's oldest edge, is no mismatch.
+     */
+    @Test
+    void aPredecessorTheRetentionMayHaveRemovedIsNoMismatch() {
+        FakeChain chain = new FakeChain(null);
+        chain.previousKept = false;
+        SealedEvidencePackageIntegrity integrity = linked(chain);
+        SealedEvidencePackage pkg = stored(integrity);
+
+        assertThat(integrity.evaluate(pkg)).as("nothing older is kept").isEqualTo(Status.VERIFIED);
+        chain.capturedBefore = NOW.minus(KEPT_AT_LEAST).minus(Duration.ofHours(1));
+        assertThat(integrity.evaluate(pkg)).as("older than the shortest retention").isEqualTo(Status.VERIFIED);
+        chain.capturedBefore = NOW.minus(KEPT_AT_LEAST).plus(Duration.ofHours(1));
+        assertThat(integrity.evaluate(pkg)).as("inside it").isEqualTo(Status.MISMATCH);
+    }
+
+    @Test
+    void theFirstLinkedPackageNamesNoPredecessor() {
+        FakeChain chain = new FakeChain(null);
+        chain.previousKept = false;
+        SealedEvidencePackageIntegrity integrity = linked(chain);
+        SealedEvidencePackage first = pkg(SealedEvidencePackageIntegrity.LINKED_SCHEMA_VERSION);
+        first.setId(1L);
+        integrity.seal(first, null);
+
+        assertThat(integrity.evaluate(first)).isEqualTo(Status.VERIFIED);
+    }
+
+    /** Q-21: a store that does not answer says nothing about the package; a screen or an inspection goes on. */
+    @Test
+    void aChainThatCannotBeReadLeavesThePackageUnread() {
+        FakeChain chain = new FakeChain(null);
+        chain.failure = new IllegalStateException("store down");
+        SealedEvidencePackageIntegrity integrity = linked(chain);
+
+        assertThat(integrity.evaluate(stored(integrity))).isEqualTo(Status.UNVERIFIABLE);
+    }
+
+    private static final Instant NOW = Instant.parse("2026-11-05T00:00:00Z");
+    private static final Duration KEPT_AT_LEAST = Duration.ofDays(30);
+
+    private static HmacEvidenceSigner signer(String id, String key) {
+        return HmacEvidenceSigner.of(Map.of(id, key), null);
+    }
+
+    private static SealedEvidencePackageIntegrity linked(SealedEvidenceChain chain) {
+        SealedEvidencePackageIntegrity integrity = new SealedEvidencePackageIntegrity(signer("k1", K1));
+        integrity.setChain(chain, KEPT_AT_LEAST, Clock.fixed(NOW, ZoneOffset.UTC));
+        return integrity;
+    }
+
+    private static SealedEvidencePackage stored(SealedEvidencePackageIntegrity integrity) {
+        SealedEvidencePackage pkg = pkg(SealedEvidencePackageIntegrity.LINKED_SCHEMA_VERSION);
+        pkg.setId(7L);
+        integrity.seal(pkg, "previous-package-hash");
+        return pkg;
+    }
+
+    /** What a store answers about the packages around a package. */
+    private static final class FakeChain implements SealedEvidenceChain {
+
+        private final Instant signedSince;
+        private boolean previousKept = true;
+        private Instant capturedBefore;
+        private RuntimeException failure;
+
+        private FakeChain(Instant signedSince) {
+            this.signedSince = signedSince;
+        }
+
+        @Override
+        public Optional<Instant> signedSince() {
+            return Optional.ofNullable(signedSince);
+        }
+
+        @Override
+        public boolean previousKept(SealedEvidencePackage pkg) {
+            if (failure != null) {
+                throw failure;
+            }
+            return previousKept;
+        }
+
+        @Override
+        public Optional<Instant> capturedBefore(SealedEvidencePackage pkg) {
+            return Optional.ofNullable(capturedBefore);
+        }
     }
 
     /**

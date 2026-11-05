@@ -48,6 +48,7 @@ import io.contexa.contexacore.autonomous.context.support.NetworkZone;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacore.autonomous.store.SessionDecisionRecord;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -371,10 +372,10 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                         "metadata.tenantId", metadata.get("tenantId"),
                         "metadata.tenant_id", metadata.get("tenant_id")));
         addAliasDiagnostics(aliases, conflicts, "session.sessionId",
-                firstText(event.getSessionId(), metadata.get("sessionId")),
+                sessionReference(event, metadata),
                 aliasSources(
-                        "event.sessionId", event.getSessionId(),
-                        "metadata.sessionId", metadata.get("sessionId")));
+                        "event.sessionId", RequestFactRedaction.sessionReference(event.getSessionId()),
+                        "metadata.sessionId", RequestFactRedaction.sessionReference(firstText(metadata.get("sessionId")))));
         addAliasDiagnostics(aliases, conflicts, "session.clientIp",
                 firstText(event.getSourceIp(), metadata.get("clientIp")),
                 aliasSources(
@@ -638,13 +639,18 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 .build();
     }
 
+    /** Q-11: the context feeds the model's input and the seal, so it names the session without opening it. */
+    private String sessionReference(SecurityEvent event, Map<String, Object> metadata) {
+        return RequestFactRedaction.sessionReference(firstText(event.getSessionId(), metadata.get("sessionId")));
+    }
+
     private CanonicalSecurityContext.Session resolveSession(SecurityEvent event, Map<String, Object> metadata) {
         Integer accessHour = resolveInteger(
                 event != null && event.getTimestamp() != null ? event.getLocalTimestamp().getHour() : null,
                 metadata.get("currentAccessHour"),
                 metadata.get("accessHour"));
         return CanonicalSecurityContext.Session.builder()
-                .sessionId(firstText(event.getSessionId(), metadata.get("sessionId")))
+                .sessionId(sessionReference(event, metadata))
                 .clientIp(firstText(event.getSourceIp(), metadata.get("clientIp")))
                 .userAgent(firstText(event.getUserAgent(), metadata.get("userAgent")))
                 .authenticationType(firstText(

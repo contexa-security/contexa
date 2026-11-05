@@ -31,6 +31,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
@@ -168,6 +169,36 @@ class SecurityDecisionPostProcessorTest {
         assertThat(metadata.get("llmAuditRiskScore")).isEqualTo(0.72);
         assertThat(metadata.get("confidence")).isEqualTo(0.61);
         assertThat(metadata.get("llmAuditConfidence")).isEqualTo(0.61);
+    }
+
+    /** Q-11 (PR-59): a past record names the session by the reference the search leaves out. */
+    @Test
+    void aStoredRecordNamesItsSessionByItsReference() {
+        SecurityDecisionPostProcessor processor = new SecurityDecisionPostProcessor(dataStore, unifiedVectorService);
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-session")
+                .sessionId("LIVE-SESSION-1")
+                .userId("alice")
+                .description("POST /payments")
+                .timestamp(LocalDateTime.of(2026, 3, 30, 9, 24).atZone(ZoneId.systemDefault()).toInstant())
+                .build();
+        event.addMetadata("requestPath", "/payments");
+        event.addMetadata("httpMethod", "POST");
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.ESCALATE)
+                .autonomousAction(ZeroTrustAction.ESCALATE)
+                .reasoning("Critical decision context is incomplete.")
+                .processingLayer(1)
+                .build();
+        doNothing().when(unifiedVectorService).storeDocument(any(Document.class));
+
+        processor.storeInVectorDatabase(event, decision);
+
+        ArgumentCaptor<Document> documentCaptor = ArgumentCaptor.forClass(Document.class);
+        verify(unifiedVectorService).storeDocument(documentCaptor.capture());
+        Document stored = documentCaptor.getValue();
+        assertThat(stored.getMetadata().get("sessionId")).isEqualTo(RequestFactRedaction.sessionReference("LIVE-SESSION-1"));
+        assertThat(stored.getText() + stored.getMetadata()).doesNotContain("LIVE-SESSION-1");
     }
 
     @Test

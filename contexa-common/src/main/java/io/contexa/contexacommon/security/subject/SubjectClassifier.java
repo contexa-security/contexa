@@ -45,7 +45,8 @@ public final class SubjectClassifier {
             String declaredLineageState,
             String actorType,
             String principalType,
-            boolean serviceClientPrincipal) {
+            boolean serviceClientPrincipal,
+            boolean consoleSession) {
 
         public static Builder builder() {
             return new Builder();
@@ -62,6 +63,7 @@ public final class SubjectClassifier {
             private String actorType;
             private String principalType;
             private boolean serviceClientPrincipal;
+            private boolean consoleSession;
 
             private Builder() {
             }
@@ -106,6 +108,11 @@ public final class SubjectClassifier {
                 return this;
             }
 
+            public Builder consoleSession(boolean consoleSession) {
+                this.consoleSession = consoleSession;
+                return this;
+            }
+
             public Builder serviceClientPrincipal(boolean serviceClientPrincipal) {
                 this.serviceClientPrincipal = serviceClientPrincipal;
                 return this;
@@ -113,7 +120,7 @@ public final class SubjectClassifier {
 
             public Facts build() {
                 return new Facts(delegated, agentId, delegationId, declaredSubjectType, declaredExecutionMode,
-                        declaredLineageState, actorType, principalType, serviceClientPrincipal);
+                        declaredLineageState, actorType, principalType, serviceClientPrincipal, consoleSession);
             }
         }
     }
@@ -140,7 +147,9 @@ public final class SubjectClassifier {
                 || (actorType != null && actorType.contains("AGENT"))
                 || SubjectKind.DELEGATED_AGENT.subjectType().equalsIgnoreCase(text(given.declaredSubjectType()));
         SubjectKind kind;
-        if (agent) {
+        if (given.consoleSession()) {
+            kind = SubjectKind.CONSOLE_ADMIN;
+        } else if (agent) {
             kind = Boolean.TRUE.equals(delegation) ? SubjectKind.DELEGATED_AGENT : SubjectKind.AUTONOMOUS_AGENT;
         } else if (imputedServiceClient || given.serviceClientPrincipal() || servicePrincipalType(given.principalType())
                 || SubjectKind.SERVICE_CLIENT.subjectType().equalsIgnoreCase(text(given.declaredSubjectType()))) {

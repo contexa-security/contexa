@@ -15,17 +15,24 @@
  */
 package io.contexa.contexaiam.security.core;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.contexa.contexacommon.entity.LoginAttemptIp;
 import io.contexa.contexacommon.entity.PasswordPolicy;
 import io.contexa.contexacommon.repository.LoginAttemptIpRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.LoginAddressBlockedException;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -33,6 +40,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -172,6 +180,126 @@ class LoginPolicyServiceAddressThrottleTest {
 
         assertThatCode(() -> service.checkSignInAddress("admin")).doesNotThrowAnyException();
         verify(addresses, never()).findByIpAddress(any());
+    }
+
+    private void aRequestThroughAProxy() {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/login");
+        request.setRemoteAddr(ADDRESS);
+        request.addHeader("X-Forwarded-For", "198.51.100.20");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+    }
+
+    private static TieredStrategyProperties proxies(boolean validation, String... trusted) {
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getSecurity().setTrustedProxyValidationEnabled(validation);
+        properties.getSecurity().setTrustedProxies(List.of(trusted));
+        return properties;
+    }
+
+    @Test
+    @DisplayName("Q-24: behind an unnamed proxy one address stands for everyone, so a block of it refuses nobody")
+    void anUnnamedProxyIsNoAddressToRefuse() {
+        aRequestThroughAProxy();
+        when(addresses.findByIpAddress(ADDRESS)).thenReturn(Optional.of(row(30, LocalDateTime.now().plusMinutes(10))));
+
+        assertThatCode(() -> service.checkSignInAddress("admin")).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("Q-24: failures behind an unnamed proxy are not counted against its address, and the account lock stays")
+    void anUnnamedProxyIsNotCountedButTheAccountIs() {
+        aRequestThroughAProxy();
+        when(users.incrementFailedAttempts("admin")).thenReturn(1);
+        when(users.findFailedAttempts("admin")).thenReturn(Optional.of(5));
+        when(users.lockAccount(eq("admin"), any())).thenReturn(1);
+
+        service.onLoginFailure("admin", ADDRESS, "BadCredentialsException", "EVENT");
+
+        verify(addresses, never()).incrementFailedAttempts(anyString(), any(), anyString());
+        verify(addresses, never()).blockIp(anyString(), any());
+        verify(users).lockAccount(eq("admin"), any());
+    }
+
+    @Test
+    @DisplayName("Q-24: the password change reads the same limit")
+    void aPasswordChangeReadsTheSameLimit() {
+        aRequestThroughAProxy();
+        when(addresses.findByIpAddress(ADDRESS)).thenReturn(Optional.of(row(30, LocalDateTime.now().plusMinutes(10))));
+
+        assertThat(service.isIpBlocked(ADDRESS)).isFalse();
+    }
+
+    @Test
+    @DisplayName("Q-24: the ERROR names the setting, once for a burst of attempts")
+    void theErrorNamesTheSettingOnce() {
+        Logger logger = (Logger) LoggerFactory.getLogger(LoginPolicyService.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            aRequestThroughAProxy();
+            when(users.incrementFailedAttempts(anyString())).thenReturn(0);
+
+            service.checkSignInAddress("first");
+            service.onLoginFailure("first", ADDRESS, "BadCredentialsException", "EVENT");
+            service.checkSignInAddress("second");
+
+            List<ILoggingEvent> errors = appender.list.stream().filter(event -> event.getLevel() == Level.ERROR).toList();
+            assertThat(errors).hasSize(1);
+            assertThat(errors.get(0).getFormattedMessage())
+                    .contains("contexa.security.tiered.security.trusted-proxies").contains(ADDRESS);
+        } finally {
+            logger.detachAppender(appender);
+        }
+    }
+
+    @Test
+    @DisplayName("Q-24: without the header the address is the client's own, and the limit holds")
+    void withoutTheHeaderTheLimitHolds() {
+        when(addresses.findByIpAddress(ADDRESS)).thenReturn(Optional.of(row(30, LocalDateTime.now().plusMinutes(10))));
+
+        assertThatThrownBy(() -> service.checkSignInAddress("admin")).isInstanceOf(LoginAddressBlockedException.class);
+    }
+
+    @Test
+    @DisplayName("Q-24: with proxies named, a peer outside them is a client and the header says nothing: the limit holds")
+    void aNamedProxyListKeepsTheLimit() {
+        TieredStrategyProperties properties = proxies(true, "192.0.2.1");
+        SessionFingerprintUtil.bindClientIpResolution(properties);
+        try {
+            aRequestThroughAProxy();
+            when(addresses.findByIpAddress(ADDRESS)).thenReturn(Optional.of(row(30, LocalDateTime.now().plusMinutes(10))));
+
+            assertThatThrownBy(() -> service.checkSignInAddress("admin")).isInstanceOf(LoginAddressBlockedException.class);
+        } finally {
+            SessionFingerprintUtil.unbindClientIpResolution(properties);
+        }
+    }
+
+    @Test
+    @DisplayName("Q-24: with the proxy validation turned off the header is believed, and the limit holds on what it names")
+    void validationOffKeepsTheLimit() {
+        TieredStrategyProperties properties = proxies(false);
+        SessionFingerprintUtil.bindClientIpResolution(properties);
+        try {
+            aRequestThroughAProxy();
+            when(addresses.findByIpAddress("198.51.100.20"))
+                    .thenReturn(Optional.of(row(30, LocalDateTime.now().plusMinutes(10))));
+
+            assertThatThrownBy(() -> service.checkSignInAddress("admin")).isInstanceOf(LoginAddressBlockedException.class);
+        } finally {
+            SessionFingerprintUtil.unbindClientIpResolution(properties);
+        }
+    }
+
+    @Test
+    @DisplayName("Q-24: a sign-in that succeeds takes the address's count back, as it did")
+    void aSuccessTakesTheCountBack() {
+        when(addresses.findByIpAddress(ADDRESS)).thenReturn(Optional.of(row(12, null)));
+
+        service.onLoginSuccess("admin", ADDRESS, "EVENT");
+
+        verify(addresses).resetWindow(eq(ADDRESS), any(), any(), eq("admin"));
     }
 
     /** The follow-up increment counts the attempt: a first row of one would count the first failure twice. */

@@ -21,6 +21,7 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
 import io.contexa.contexacore.autonomous.store.ExpiringStateStore;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
@@ -98,7 +99,7 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
             // docs/agent A5-1: an agent acting for the user reads its own decision. On a token chain the bridge has
             // stamped the request by now; a session's context loads before the bridge runs, so it reads the user's.
             ZeroTrustSubject subject = ZeroTrustSubject.of(userId, delegationStamp(request));
-            String decisionKey = subject != null ? subject.storageKey() : userId;
+            String decisionKey = ZeroTrustUserKey.of(subject != null ? subject.storageKey() : userId);
             CachedZeroTrustDecision cached = decisionCache.getIfPresent(decisionKey);
             if (cached != null && Objects.equals(cached.contextBindingHash, contextBindingHash)) {
                 action = cached.action;
@@ -267,7 +268,7 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
         }
 
         try {
-            decisionCache.invalidate(userId);
+            decisionCache.invalidate(ZeroTrustUserKey.of(userId));
             if (sessionId != null) {
                 registeredSessions.remove(sessionId);
             }
@@ -280,7 +281,7 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
     @Override
     public void invalidateDecisionCache(String userId) {
         if (userId != null) {
-            decisionCache.invalidate(userId);
+            decisionCache.invalidate(ZeroTrustUserKey.of(userId));
         }
     }
 

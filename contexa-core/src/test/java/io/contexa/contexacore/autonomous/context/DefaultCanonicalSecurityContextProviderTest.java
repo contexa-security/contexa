@@ -43,6 +43,7 @@ import io.contexa.contexacore.autonomous.context.model.ContextTrustProfile;
 import io.contexa.contexacore.autonomous.context.model.ResourceContextDescriptor;
 import io.contexa.contexacore.autonomous.context.registry.InMemoryResourceContextRegistry;
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -734,8 +735,11 @@ class DefaultCanonicalSecurityContextProviderTest {
         assertThat(context.getActor().getPrincipalType()).isEqualTo("EMPLOYEE");
         assertThat(context.getActor().getRoleSet()).containsExactly("ANALYST");
         assertThat(context.getAuthorization().getScopeTags()).containsExactly("finance_ops");
-        assertThat(context.getSession().getSessionId()).isEqualTo("session-1");
+        // Q-11: the canonical context feeds the model's input and the seal, so it names the session by its reference.
+        assertThat(context.getSession().getSessionId()).isEqualTo(RequestFactRedaction.sessionReference("session-1"));
         assertThat(context.getResource().getResourceId()).isEqualTo("/api/customer/export");
+        assertThat(String.valueOf(event.getMetadata())).as("what the context keeps of where it read from")
+                .doesNotContain("session-1");
     }
 
     @Test
@@ -1593,7 +1597,7 @@ class DefaultCanonicalSecurityContextProviderTest {
 
         assertThat(context.getActor().getUserId()).isEqualTo("admin");
         assertThat(context.getActor().getTenantId()).isEqualTo("tenant-a");
-        assertThat(context.getSession().getSessionId()).isEqualTo("session-primary");
+        assertThat(context.getSession().getSessionId()).isEqualTo(RequestFactRedaction.sessionReference("session-primary"));
         assertThat(context.getSession().getClientIp()).isEqualTo("10.0.0.10");
         assertThat(context.getResource().getResourceId()).isEqualTo("resource-a");
         assertThat(context.getResource().getRequestPath()).isEqualTo("/api/a");

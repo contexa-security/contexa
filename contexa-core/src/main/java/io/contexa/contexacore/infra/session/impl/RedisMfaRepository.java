@@ -25,6 +25,7 @@ import io.contexa.contexacore.infra.session.generator.SessionIdGenerator;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -57,6 +58,8 @@ public class RedisMfaRepository implements MfaSessionRepository {
     private static final String SESSION_STATS_KEY = "mfa:stats:v2";
     private static final String COOKIE_NAME = "MFA_SID";
     private static final String TEMP_SESSION_ATTR = "_tempMfaSessionId_";
+    /** The MFA session in the HTTP session that started it, as HttpSessionMfaRepository keeps it (PR-89). */
+    private static final String MFA_SESSION_ID_ATTRIBUTE = "MFA_SESSION_ID";
     private static final int MAX_COLLISION_RETRIES = 10;
 
     private Duration sessionTimeout;
@@ -104,6 +107,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
                 setSessionCookie(response, sessionId, request.isSecure());
             }
             request.setAttribute(TEMP_SESSION_ATTR, sessionId);
+            request.getSession(true).setAttribute(MFA_SESSION_ID_ATTRIBUTE, sessionId);
         } else {
 
             log.error("Failed to store session ID {} in Redis. It might already exist or script failed. Result: {}", sessionId, result);
@@ -199,8 +203,26 @@ public class RedisMfaRepository implements MfaSessionRepository {
         String redisKey = SESSION_PREFIX + sessionId;
         redisTemplate.delete(redisKey);
         request.removeAttribute(TEMP_SESSION_ATTR);
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            session.removeAttribute(MFA_SESSION_ID_ATTRIBUTE);
+        }
         if (response != null) {
             invalidateSessionCookie(response, request.isSecure());
+        }
+    }
+
+    /** PR-89: the cookie alone outlives the session, so the session names the flow it started. */
+    @Override
+    @Nullable
+    public String sessionIdOf(HttpSession session) {
+        return session == null ? null : (String) session.getAttribute(MFA_SESSION_ID_ATTRIBUTE);
+    }
+
+    @Override
+    public void forgetSession(String sessionId) {
+        if (StringUtils.hasText(sessionId)) {
+            redisTemplate.delete(SESSION_PREFIX + sessionId);
         }
     }
 

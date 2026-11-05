@@ -29,6 +29,8 @@ import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher
 import io.contexa.contexacore.autonomous.event.support.ZeroTrustSecurityEventConverter;
 import io.contexa.contexacore.autonomous.handler.handler.SecurityDecisionEnforcementHandler;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
+import io.contexa.contexacore.autonomous.audit.AgentDecisionRecord;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionPrecedence;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
@@ -403,6 +405,12 @@ public class SynchronousProtectableDecisionService {
         );
     }
 
+    /**
+     * What the request is answered with. Decisions come out for one user at once, each from its own analysis, and the
+     * store keeps the strictest (RL-13), so a request's own decision is not its answer until the store was looked at:
+     * a restriction in force answers it, as the flights' final gate does for an agent, whichever session it was decided
+     * for (PR-86). What is not stricter than the request's own decision changes nothing.
+     */
     private ZeroTrustAction resolveSynchronousAction(
             ZeroTrustSpringEvent event,
             String userId,
@@ -412,11 +420,27 @@ public class SynchronousProtectableDecisionService {
         if (processingResult != null && isEventShadowBoundary(event)) {
             return ZeroTrustAction.ALLOW;
         }
+        ZeroTrustAction stored = currentAction(event, userId, contextBindingHash);
         ZeroTrustAction processingAction = processingAction(processingResult);
-        if (processingAction != null) {
-            return confirmed(event, processingAction);
+        if (processingAction == null) {
+            return confirmed(event, stored);
         }
-        return confirmed(event, currentAction(event, userId, contextBindingHash));
+        ZeroTrustAction decided = confirmed(event, processingAction);
+        if (decided == ZeroTrustAction.ALLOW && keptOutByStricterAction(processingContext)
+                && (stored == null || !stored.isAccessRestricted())) {
+            // The write said a stricter action stays, and the store shows none: it cannot be read, or it ended this
+            // moment. Either way this ALLOW did not take effect, so it lets nothing through (PR-86).
+            return ZeroTrustAction.PENDING_ANALYSIS;
+        }
+        ZeroTrustAction inForce = confirmed(event, stored);
+        return ZeroTrustActionPrecedence.keepsActiveRestriction(inForce, decided) ? inForce : decided;
+    }
+
+    /** Whether the enforcement left this decision out because a stricter action stayed in effect (W5-3). */
+    private static boolean keptOutByStricterAction(SecurityEventContext processingContext) {
+        SecurityEvent decided = processingContext.getSecurityEvent();
+        return decided != null && decided.getMetadata() != null
+                && AgentDecisionRecord.KEPT_STRICTER.equals(decided.getMetadata().get(AgentDecisionRecord.ENFORCEMENT_OUTCOME));
     }
 
     /**

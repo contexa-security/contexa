@@ -118,8 +118,7 @@ public class UnanalysedRequestRecorder {
             if (recorder.committed(securityEvent)) {
                 return;
             }
-            sessionNarrativeCollector.collect(securityEvent);
-            recorder.commit(securityEvent, action.name(), enforced);
+            commit(securityEvent, action, enforced);
             if (action == ZeroTrustAction.ALLOW && enforced && verificationLearningService != null) {
                 // N-LRN-3: the first request sent again, after the passed step-up, of those a filter stopped under the
                 // challenge is learned; any other request answered by the ALLOW in force is not.
@@ -144,10 +143,22 @@ public class UnanalysedRequestRecorder {
             if (recorder.committed(securityEvent)) {
                 return;
             }
-            sessionNarrativeCollector.collect(securityEvent);
-            recorder.commit(securityEvent, ZeroTrustAction.ALLOW.name(), false);
+            commit(securityEvent, ZeroTrustAction.ALLOW, false);
         } catch (RuntimeException e) {
             log.error("Failed to record a request that passed before its verdict: userId={}", event.getUserId(), e);
+        }
+    }
+
+    /**
+     * Records the request in its session. PR-91: nothing resolves a request no analysis reaches again, so only its
+     * committed mark stays; an analysis of the same request that is still running keeps what it staged.
+     */
+    private void commit(SecurityEvent securityEvent, ZeroTrustAction action, boolean enforced) {
+        boolean analysing = recorder.staged(securityEvent);
+        sessionNarrativeCollector.collect(securityEvent);
+        recorder.commit(securityEvent, action.name(), enforced);
+        if (!analysing) {
+            recorder.release(securityEvent);
         }
     }
 

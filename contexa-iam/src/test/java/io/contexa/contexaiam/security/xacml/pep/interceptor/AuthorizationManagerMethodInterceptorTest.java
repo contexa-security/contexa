@@ -41,6 +41,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.aop.Pointcut;
 import org.springframework.dao.QueryTimeoutException;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.security.authorization.method.AuthorizationInterceptorsOrder;
@@ -48,6 +49,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.CannotCreateTransactionException;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -138,14 +141,19 @@ class AuthorizationManagerMethodInterceptorTest {
         }
 
         @Test
-        @DisplayName("Should throw AuthenticationCredentialsNotFoundException when no authentication")
+        @DisplayName("Should throw AuthenticationCredentialsNotFoundException when a request has no authentication")
         void shouldThrowWhenNoAuthentication() {
             SecurityContext emptyContext = mock(SecurityContext.class);
             when(emptyContext.getAuthentication()).thenReturn(null);
             SecurityContextHolder.setContext(emptyContext);
+            RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(new MockHttpServletRequest()));
 
-            assertThatThrownBy(() -> interceptor.invoke(methodInvocation))
-                    .isInstanceOf(AuthenticationCredentialsNotFoundException.class);
+            try {
+                assertThatThrownBy(() -> interceptor.invoke(methodInvocation))
+                        .isInstanceOf(AuthenticationCredentialsNotFoundException.class);
+            } finally {
+                RequestContextHolder.resetRequestAttributes();
+            }
         }
     }
 

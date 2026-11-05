@@ -23,6 +23,7 @@ import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncService;
 import io.contexa.contexacommon.security.bridge.sync.DefaultBridgeUserMirrorSyncService;
 import org.springframework.beans.factory.BeanFactory;
+import io.contexa.contexacommon.security.bridge.sync.BridgeUserEmailProvider;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -54,13 +55,16 @@ public class AiBridgeUserMirrorSyncAutoConfiguration {
             BridgeUserProfileRepository bridgeUserProfileRepository,
             BridgeProperties properties,
             @Qualifier("contexaObjectMapper") ObjectProvider<ObjectMapper> objectMapperProvider,
-            BeanFactory beanFactory) {
-        return new DefaultBridgeUserMirrorSyncService(
+            BeanFactory beanFactory,
+            ObjectProvider<BridgeUserEmailProvider> emailProvider) {
+        DefaultBridgeUserMirrorSyncService service = new DefaultBridgeUserMirrorSyncService(
                 userRepository,
                 bridgeUserProfileRepository,
                 properties,
                 objectMapperProvider.getIfAvailable(ObjectMapper::new),
                 beanFactory.containsBean("contexaCacheManager") ? beanFactory.getBean("contexaCacheManager", CacheManager.class) : null
         );
+        service.setEmailProvider(emailProvider.getIfUnique());
+        return service;
     }
 }

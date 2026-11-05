@@ -46,6 +46,8 @@ import java.util.concurrent.TimeUnit;
 public class AISessionSecurityContextRepository extends HttpSessionSecurityContextRepository
         implements AISecurityContextRepository {
 
+    private static final String CONTEXT_KEY = "SPRING_SECURITY_CONTEXT";
+
     private final AISecurityContextSupport support;
     private final SecurityContextDataStore securityContextDataStore;
     private final AsyncSecurityContextProvider asyncSecurityContextProvider;
@@ -53,6 +55,7 @@ public class AISessionSecurityContextRepository extends HttpSessionSecurityConte
     private final Cache<String, Boolean> invalidatedSessionsCache;
     private final Cache<String, Instant> lastRedisUpdateCache;
     private final Cache<String, String> previousAuthCache;
+    private SessionAccountRefresher accountRefresher;
 
     public AISessionSecurityContextRepository(
             AISecurityContextSupport support,
@@ -64,7 +67,7 @@ public class AISessionSecurityContextRepository extends HttpSessionSecurityConte
         this.asyncSecurityContextProvider = asyncSecurityContextProvider;
         this.setAllowSessionCreation(true);
         this.setDisableUrlRewriting(true);
-        this.setSpringSecurityContextKey("SPRING_SECURITY_CONTEXT");
+        this.setSpringSecurityContextKey(CONTEXT_KEY);
 
         SecurityZeroTrustProperties properties = support.getProperties();
         this.invalidatedSessionsCache = Caffeine.newBuilder()
@@ -81,6 +84,11 @@ public class AISessionSecurityContextRepository extends HttpSessionSecurityConte
                 .maximumSize(10000)
                 .expireAfterAccess(properties.getCache().getSessionTtlMinutes(), TimeUnit.MINUTES)
                 .build();
+    }
+
+    /** Q-14: keeps open sessions in step with their accounts; without it a session keeps what it signed in with. */
+    public void setAccountRefresher(SessionAccountRefresher accountRefresher) {
+        this.accountRefresher = accountRefresher;
     }
 
     @Override
@@ -118,6 +126,9 @@ public class AISessionSecurityContextRepository extends HttpSessionSecurityConte
 
             try {
                 if (support.isActuallyAuthenticated(auth)) {
+                    if (accountRefresher != null) {
+                        accountRefresher.signedIn(request);
+                    }
                     String userId = auth.getName();
                     previousAuthCache.put(sessionId, userId);
                     saveAsyncAuthenticationContext(auth, sessionId);
@@ -222,27 +233,14 @@ public class AISessionSecurityContextRepository extends HttpSessionSecurityConte
 
                 if (identifier != null && (Boolean.TRUE.equals(invalidatedSessionsCache.getIfPresent(identifier))
                         || support.isSessionInvalidated(identifier))) {
-                    invalidatedSessionsCache.put(identifier, true);
-                    lastRedisUpdateCache.invalidate(identifier);
-                    previousAuthCache.invalidate(identifier);
-                    if (auth != null) {
-                        removeAsyncAuthenticationContext(auth.getName(), identifier);
-                    }
-                    HttpSession session = request.getSession(false);
-                    if (session != null) {
-                        try {
-                            session.invalidate();
-                        } catch (IllegalStateException ignored) {
-                            // Another request may have already invalidated this session.
-                        }
-                    }
-                    cachedContext = SecurityContextHolder.createEmptyContext();
-                    generated = true;
-                    loaded = true;
-                    return cachedContext;
+                    return endedSession(identifier, auth);
                 }
 
                 if (auth != null && support.getTrustResolver().isAuthenticated(auth)) {
+                    if (accountRefresher != null && accountRefresher.refresh(context, request, CONTEXT_KEY)
+                            == SessionAccountRefresher.Outcome.ACCOUNT_ENDED) {
+                        return endedSession(identifier, auth);
+                    }
                     String userId = auth.getName();
                     support.applyZeroTrust(context, userId, identifier, request);
                 }
@@ -250,6 +248,29 @@ public class AISessionSecurityContextRepository extends HttpSessionSecurityConte
                 cachedContext = context;
                 loaded = true;
             }
+            return cachedContext;
+        }
+
+        private SecurityContext endedSession(String identifier, Authentication auth) {
+            if (identifier != null) {
+                invalidatedSessionsCache.put(identifier, true);
+                lastRedisUpdateCache.invalidate(identifier);
+                previousAuthCache.invalidate(identifier);
+                if (auth != null) {
+                    removeAsyncAuthenticationContext(auth.getName(), identifier);
+                }
+            }
+            HttpSession session = request.getSession(false);
+            if (session != null) {
+                try {
+                    session.invalidate();
+                } catch (IllegalStateException ignored) {
+                    // Another request may have already invalidated this session.
+                }
+            }
+            cachedContext = SecurityContextHolder.createEmptyContext();
+            generated = true;
+            loaded = true;
             return cachedContext;
         }
 

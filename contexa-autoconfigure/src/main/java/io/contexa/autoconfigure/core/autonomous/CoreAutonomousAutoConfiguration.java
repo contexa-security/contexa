@@ -54,6 +54,7 @@ import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.execution.DelegatedExecutionFingerprintService;
 import io.contexa.contexacore.autonomous.execution.ZeroTrustChallengeFlowStarter;
+import io.contexa.contexacore.autonomous.execution.ZeroTrustEnforcementExceptionResolver;
 import io.contexa.contexacore.autonomous.execution.ZeroTrustExceptionHandler;
 import io.contexa.contexacore.autonomous.handler.handler.AuditingHandler;
 import io.contexa.contexacore.autonomous.handler.handler.SecurityDecisionEnforcementHandler;
@@ -72,6 +73,7 @@ import org.springframework.lang.Nullable;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
 import io.contexa.contexacore.autonomous.service.DeletedAccountWriteFence;
+import io.contexa.contexacore.autonomous.service.UserAccountChangeListener;
 import io.contexa.contexacore.autonomous.service.UserAccountDeletionListener;
 import io.contexa.contexacore.autonomous.service.UserEngineStatePurger;
 import io.contexa.contexacommon.repository.BridgeUserProfileRepository;
@@ -98,6 +100,7 @@ import io.contexa.contexacore.autonomous.utils.InMemoryThreatScoreUtil;
 import io.contexa.contexacore.autonomous.utils.RedisThreatScoreUtil;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
 import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
 import io.contexa.contexacore.autonomous.baseline.store.InMemoryBaselineDataStore;
@@ -122,6 +125,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -135,6 +139,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import java.time.Duration;
 import java.util.List;
@@ -221,6 +226,18 @@ public class CoreAutonomousAutoConfiguration {
     public DisposableBean contexaClientIpResolutionBinding(TieredStrategyProperties tieredStrategyProperties) {
         SessionFingerprintUtil.bindClientIpResolution(tieredStrategyProperties);
         return () -> SessionFingerprintUtil.unbindClientIpResolution(tieredStrategyProperties);
+    }
+
+    /**
+     * Q-18: binds whether every spelling of a name reads one decision, for the stores and the signals that key by user.
+     * The binding is created eagerly because no other bean depends on it.
+     */
+    @Bean("contexaUserKeyBinding")
+    @Lazy(false)
+    @ConditionalOnMissingBean(name = "contexaUserKeyBinding")
+    public DisposableBean contexaUserKeyBinding(SecurityZeroTrustProperties securityZeroTrustProperties) {
+        ZeroTrustUserKey.bind(securityZeroTrustProperties);
+        return () -> ZeroTrustUserKey.unbind(securityZeroTrustProperties);
     }
 
     /**
@@ -931,6 +948,22 @@ public class CoreAutonomousAutoConfiguration {
         });
     }
 
+    /**
+     * The decisions of a protected method are answered ahead of the application's exception handlers (Q-9). Its own class
+     * so that an application without Spring MVC, where nothing answers through a resolver, does not load the type. An
+     * application that looks for a resolver by type does not meet this one; the DispatcherServlet finds it all the same.
+     */
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnClass(HandlerExceptionResolver.class)
+    static class EnforcementAnswerConfiguration {
+
+        @Bean(name = "contexaZeroTrustEnforcementExceptionResolver", defaultCandidate = false)
+        @ConditionalOnMissingBean
+        ZeroTrustEnforcementExceptionResolver zeroTrustEnforcementExceptionResolver(ZeroTrustExceptionHandler answers) {
+            return new ZeroTrustEnforcementExceptionResolver(answers);
+        }
+    }
+
 
     @Configuration
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
@@ -1159,6 +1192,15 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     public UserAccountDeletionListener userAccountDeletionListener(UserEngineStatePurger contexaUserEngineStatePurger) {
         return new UserAccountDeletionListener(contexaUserEngineStatePurger);
+    }
+
+    /** Q-14: a change of accounts reaches the sessions that are open once it has committed. */
+    @Bean(name = "contexaUserAccountChangeListener")
+    @ConditionalOnMissingBean
+    public UserAccountChangeListener userAccountChangeListener(
+            ObjectProvider<SecurityContextDataStore> securityContextDataStore,
+            ObjectProvider<IForceLogoutService> forceLogoutService) {
+        return new UserAccountChangeListener(securityContextDataStore, forceLogoutService);
     }
 
     @Bean(name = "contexaInMemoryStateSweeper", destroyMethod = "close")

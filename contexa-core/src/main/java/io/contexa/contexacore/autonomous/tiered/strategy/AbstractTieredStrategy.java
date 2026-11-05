@@ -84,6 +84,7 @@ import io.contexa.contexacore.std.pipeline.PipelineFailurePolicy;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.pipeline.step.StructuredOutputExecutionException;
 import io.contexa.contexacore.std.pipeline.step.StructuredOutputPolicy;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.security.AuthorizedPromptContext;
@@ -1628,17 +1629,21 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         return List.of();
     }
 
-    /** The request's session id and the ids the session had, the ones whose records are not past records. */
+    /**
+     * The references of the request's session and of the ids it had, as the records keep them (Q-11): the ones whose
+     * records are not past records.
+     */
     private List<String> sessionIdsOf(SecurityEvent event) {
         String sessionId = event.getSessionId();
         if (!StringUtils.hasText(sessionId)) {
             return List.of();
         }
         List<String> ids = new ArrayList<>();
-        ids.add(sessionId);
+        ids.add(RequestFactRedaction.sessionReference(sessionId));
         List<String> previous = previousSessionIds(sessionId);
         if (previous != null) {
-            previous.stream().filter(StringUtils::hasText).filter(id -> !ids.contains(id)).forEach(ids::add);
+            previous.stream().filter(StringUtils::hasText).map(RequestFactRedaction::sessionReference)
+                    .filter(id -> !ids.contains(id)).forEach(ids::add);
         }
         return ids;
     }

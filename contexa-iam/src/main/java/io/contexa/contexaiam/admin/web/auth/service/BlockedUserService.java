@@ -297,6 +297,42 @@ public class BlockedUserService implements IBlockedUserRecorder {
     }
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    /**
+     * Q-1: an administrator lifts a CHALLENGE, for a user who has no way to answer it, in every session of the user. It
+     * says nothing about the request that was stopped, so nothing is learned from it.
+     *
+     * @return false when no CHALLENGE stands
+     */
+    public boolean releaseChallenge(String userId, String adminId, String reason) {
+        if (userId == null || userId.isBlank() || reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("A user and a reason are required");
+        }
+        String user = userId.trim();
+        if (actionRedisRepository.getActionFromHash(user) != ZeroTrustAction.CHALLENGE
+                && actionRedisRepository.challengeHeldSince(user) == null) {
+            return false;
+        }
+        actionRedisRepository.approveOverrideAtomically(user, ZeroTrustAction.ALLOW);
+        if (blockingDecisionRegistry != null) {
+            blockingDecisionRegistry.registerUnblock(user);
+        }
+        try {
+            centralAuditFacade.recordAsync(AuditRecord.builder()
+                    .eventCategory(AuditEventCategory.ADMIN_OVERRIDE)
+                    .principalName(adminId)
+                    .eventSource("IAM")
+                    .resourceIdentifier(user)
+                    .action("RELEASE_CHALLENGE")
+                    .decision(ZeroTrustAction.ALLOW.name())
+                    .outcome("APPROVED")
+                    .reason(reason)
+                    .build());
+        } catch (RuntimeException e) {
+            log.error("[BlockedUserService] Failed to audit a released challenge: userId={}", user, e);
+        }
+        return true;
+    }
+
     @Protectable(verificationRequired = false)
     public List<BlockedUser> findBlockedUsers(String filter, String keyword) {
         String safeFilter = filter != null ? filter : "all";

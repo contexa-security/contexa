@@ -54,6 +54,7 @@ import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import io.contexa.contexaidentity.security.utils.JsonAuthResponseWriter;
 import io.contexa.contexaidentity.security.zerotrust.ChallengeMfaInitializer;
+import io.contexa.contexaidentity.security.zerotrust.PasskeyRegistrationGate;
 import io.contexa.contexaidentity.security.zerotrust.ZeroTrustAccessControlFilter;
 import io.contexa.contexaidentity.security.zerotrust.ZeroTrustChallengeFilter;
 import io.contexa.contexacore.autonomous.agent.AgentContainmentService;
@@ -77,6 +78,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.env.Environment;
@@ -430,6 +432,28 @@ public class IdentitySecurityCoreAutoConfiguration {
                 environment.getProperty("error.path", "/error"));
         return new MfaPendingAccessControlFilter(contexaAuthUrlProvider, contexaMfaFlowUrlRegistry,
                 contexaMfaSessionRepository, contexaAuthResponseWriter, errorPath);
+    }
+
+    /**
+     * Q-13: holds the passkey registration of Contexa's own sign-in to the gate. The flow is looked up when a request
+     * comes, as the chains that say whether one exists are built after this bean.
+     */
+    @Bean(name = "contexaPasskeyRegistrationGate")
+    @Lazy(false)
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(MfaPendingAccessControlFilter.class)
+    public PasskeyRegistrationGate passkeyRegistrationGate(
+            MfaPendingAccessControlFilter contexaMfaPendingAccessControlFilter,
+            ZeroTrustActionRepository actionRepository,
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            ObjectProvider<ZeroTrustChallengeFilter> challengeFilter) {
+        PasskeyRegistrationGate gate = new PasskeyRegistrationGate(actionRepository,
+                securityZeroTrustProperties::isEnforcementEnabled, () -> {
+                    ZeroTrustChallengeFilter challenge = challengeFilter.getIfAvailable();
+                    return challenge != null && challenge.challengeProcedureAvailable();
+                });
+        contexaMfaPendingAccessControlFilter.setPasskeyRegistrationGate(gate, challengeFilter::getIfAvailable);
+        return gate;
     }
 
     @Bean(name = "contexaMfaPendingAccessControlFilterRegistrationBean")

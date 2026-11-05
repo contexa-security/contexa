@@ -6,6 +6,23 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ## [Unreleased]
 
+### Security
+
+- **The code the victim passes no longer frees the attacker's session.** A CHALLENGE is answered per session: the
+  session that passed the code goes on, and every other session of the user stays stopped until it answers for itself
+  or the CHALLENGE would have lapsed. A user on several devices verifies on each. An administrator's override ends it.
+- **A stolen password no longer registers a passkey.** A passkey answers a CHALLENGE, so registering one now needs a
+  confirmed user. Under `HOST_OWNED`: a code mailed to the user's own address, or the application's own MFA sign-in in
+  the last five minutes. Under `CONTEXA_OWNED`: a session that completed MFA; any other verifies first and comes back.
+  A CHALLENGE is answered first, and a BLOCK or an ESCALATE refuses it.
+- **Logging out ends the sign-in it left waiting for a code.** With the Redis store the `MFA_SID` cookie and the code could
+  finish it from another browser. A session that ends, by logout or otherwise, now ends the MFA flow it started, in both
+  stores.
+- **Every spelling of a name meets the decision of that name.** A BLOCK of `plain-k9` also stops `PLAIN-K9` and a
+  full-width spelling. If names of your application differ by case alone, set
+  `contexa.security.zerotrust.normalize-user-keys=false`: with it on, a restriction of one reaches the other. A BLOCK
+  stored by an earlier version stays in force; other decisions under a name with capitals start again after the upgrade.
+
 ### Fixed
 
 - **A store outage is no longer an outage of the application.** Redis or Contexa's database that stops, freezes or runs out
@@ -23,7 +40,73 @@ The format is based on Keep a Changelog and the project follows semantic version
 - A start that Redisson's JCache provider stopped says why and names `spring.cache.type=caffeine`.
 - The start names Redis Cluster at ERROR, which this release does not support, and, in standalone, that a restart ends a
   BLOCK and a CHALLENGE in force.
-
+- **`@EnableAISecurity` can stand on any configuration class.** Declared on the class that also declares the application's
+  `PlatformConfig`, or on one parsed before it, the application stopped at start with two `PlatformConfig` beans. The
+  application's configuration classes are now parsed first, so every conditional bean of Contexa's configuration gives way
+  to the application's wherever that is declared. Contexa's values reach the `Environment` after those classes are parsed
+  and before the auto-configurations.
+- **A decision at a protected method is answered by Contexa whatever exception handlers the application has.** A catch-all
+  `@ExceptionHandler(Exception.class)` at the top order turned a CHALLENGE into its own answer and ended a BLOCK with a
+  broken connection. `ZeroTrustEnforcementExceptionResolver` now answers Contexa's own exceptions ahead of every advice, of
+  a handler inside a controller and of an application's resolver. The answer is always JSON, in Contexa's field names; every
+  other exception stays the application's.
+- **A `@Protectable` method runs in `@Scheduled` and `@Async` work.** A call on a thread that holds neither a user nor a
+  request failed with `AuthenticationCredentialsNotFoundException`. There is no one to decide for, so it now runs: the first
+  run of each method writes a warning, and `ctxa_ai_security_llm_trigger_suppression` keeps a `RAN_WITHOUT_USER` row a minute
+  per method with the calls counted. A user carried into the thread is decided, and a request with no user stays refused.
+- **A live session id no longer leaves the running application.** The sealed evidence, the audit log, the decision
+  observations, the vector store and the model's input name a session by a reference (`sid-` and 24 hex digits of its
+  SHA-256): two records of one session carry the same reference, and the reference signs nobody in. The session stores
+  and the event a node hands to another keep the id, since they are keyed by it. Rows already stored stay as they are.
+  The `session_id` of the audit log and the observations is now that reference, so it cannot be matched to a live
+  session: `ctxa_active_sessions` and the session store still hold the id.
+- A query string keeps the names of its parameters, not their values (`pin&newPwd`): in the sealed evidence, the decision
+  observations and the session's records. A part without `=` is left out, since it may be the value itself. The model's
+  input never held a query.
+- **A sealed package changed without the signing key no longer passes the re-inspection.** Where the installation signs,
+  a package without the signature it should carry fails instead of reading as not verifiable, whatever schema it names:
+  a decision changed, its schema lowered and its hash computed again used to pass in full. Packages captured before the
+  oldest signed package kept are the ones sealed before a key existed and stay as they were. Run a re-inspection after
+  this version to read the packages already kept: the inspector version moves to 28.
+- The re-inspection follows `previous_package_hash`: the package after one that was removed fails, naming the hash that
+  is gone. A package the retention may have taken (older than the shorter of `retention.period` and
+  `retention.clean-period`) is no finding. The limits of the seal are in `SECURITY.md`.
+- The console's version comparison and shadow pairs read the sealed decision, which the package hash covers, not the
+  `decision_jsonb` copy beside it.
+- **A layer model set in `contexa.security.tiered.llm.layer1.model` or `layer2.model` runs with Anthropic from the
+  settings alone.** The second layer used to run on the first layer's model without a word, and one chat model bean of
+  the second layer's model pulled the first layer onto it too. Each layer's model is now made from the Anthropic chat
+  model, with the same client and default options of its own, so a model that refuses sampling values is not sent the
+  defaults of another one. No chat model bean of your own is needed.
+- A layer model that cannot be made (no `contexa.llm.bindings.chat` binding and a provider other than OpenAI or
+  Anthropic, or another provider's model id on Anthropic) is told at the start in one ERROR line: the layer, the model
+  set and the model that runs in its place. The application starts as it did. A wrong model id of the same provider
+  cannot be told without a paid call and fails at the first call of that layer.
+- A decision record names the model that answered, else the model that was asked. A decision that never reached a
+  model (`QUEUE_TIMEOUT`, `REJECTED_BACKPRESSURE`) names none; it used to name the configured model.
+- **Contexa no longer fills the application's heap under load (PR-91).** Every request kept a snapshot of its session
+  for 30 minutes after its decision, each with up to a hundred decoded decisions, so 10,000 requests took hundreds of
+  megabytes and a 384 MB application stopped with `OutOfMemoryError` after about 1,500 decisions, in both infrastructure
+  modes. What the requests hold now has a limit in bytes, a twentieth of the maximum heap between 16 MiB and 256 MiB: past
+  it the committed requests give up their snapshots first, the longest committed first, and their committed mark stays,
+  so nothing is recorded twice. A request no analysis reaches keeps only that mark. Nothing a decision reads changes: the
+  session's history and the prompt are as they were. A later resolution of a request whose snapshot went reads the
+  session again.
+- The other per-decision places on the heap have a limit in bytes as well: the canonical contexts kept while a prompt is
+  built (a thirty-second of the heap) and the documents of the cached vector searches (a thirty-second of the heap,
+  beside `contexa.security.tiered.vector-cache.max-size`, which still holds); a search or a context not kept is resolved
+  again to the same result. The prompt snapshots waiting for their sealing are held within a twentieth of the heap, the
+  oldest going first. The event collectors keep the id and time of the recent events, not the events with their whole
+  context. An AI operation that fails or streams to its end no longer leaves its audit entry in memory.
+- **What an administrator changes reaches the sessions that are open.** Disabling a user ends the user's sessions at once,
+  and a change of groups, roles, permissions or the role hierarchy is read again by each open session on its next request.
+  A bearer token keeps the rights it was issued with until it expires; disabling the account ends it.
+- **The console's administrator is not the application's user of that name** under `HOST_OWNED`: a BLOCK of one no longer
+  locks the console of the other, in either direction, and the block list stays open to a console session.
+- **Behind a proxy nobody named, one person's typing no longer stops everyone.** When requests carry `X-Forwarded-For` and
+  `contexa.security.tiered.security.trusted-proxies` is empty, the address limit of sign-ins is not applied and an ERROR
+  names the setting. The lock of each account works as before. **Set the setting if you run behind a proxy**: until you do,
+  no address limit applies, and a client that adds the header itself escapes it too.
 - **A user can answer a CHALLENGE in `contexa.infrastructure.mode=distributed` whatever the sign-in is made of.** An MFA
   flow stored in Redis could not be read back when the sign-in held a read-only collection (a one-time token or a
   remember-me sign-in with Contexa's user or Spring's `User`, a JWT, an OAuth2 login) or an object the reading node
@@ -36,6 +119,14 @@ The format is based on Keep a Changelog and the project follows semantic version
   request held, without the version check.
 - A request running beside a write no longer finds no flow in Redis and ends it.
 - Flows in progress in Redis when this version starts cannot be read and start again: the stored form changed.
+
+### Added
+
+- **A way out for a user with neither a mail address nor a passkey.** An application tells a user's address with a
+  `BridgeUserEmailProvider` bean. An administrator can enter the address on the user's page, or release a CHALLENGE on the
+  block list; the release is recorded in the audit and nothing is learned from it. The user who passes a code is offered
+  a passkey at once, and `/contexa/step-up` is the page to link from your account menu. The start log and the console's user
+  list say how many users could not answer a CHALLENGE.
 
 ### Changed
 
@@ -74,6 +165,16 @@ The format is based on Keep a Changelog and the project follows semantic version
   and `/.well-known/*` beyond the paths the running flows and Contexa's discovery documents name. A path with a dot
   segment, an encoded character, a path parameter or a backslash never counts as Contexa's.
 - The console's resource scan covers the application's own packages beside the configured ones.
+- **A request decided in place no longer passes under a stricter decision stored meanwhile.** When a CHALLENGE, an
+  ESCALATE or a BLOCK is stored for the user while another of the user's calls is being decided, that call is answered
+  with the stored decision, whichever session it came from, in memory and on Redis alike. The audit record of the call
+  keeps the decision of its analysis, marked as kept out where the agent decision record shows it. A CHALLENGE an agent's
+  accountable person confirmed, a shadow boundary and an ALLOW of another session change nothing.
+- **A user's password hash no longer reaches the caches.** The copies of a user the access decisions keep in the memory
+  cache and in Redis (`contexa:cache:user_details:<id>`, `contexa:cache:user_details_name:<name>`) hold no `password`
+  field, and `Users` leaves it out of JSON everywhere. Copies an earlier version wrote are read without it and taken out
+  of the store at every start; while old nodes run they can write such copies again, and the last node to start takes
+  those out. `AuthorizationContext.subjectEntity().getPassword()` is empty on a cached copy; nothing in Contexa reads it.
 
 ### Added
 
@@ -87,6 +188,10 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A BLOCK cuts a response that started under an ALLOW too.** Only a response started while the analysis was pending
+  could be cut, so a stream begun in the 15 seconds an ALLOW lasts ran to its end past the BLOCK. Every response of a
+  signed-in user under ENFORCE can now be cut, and carries `X-Contexa-Monitored` and `X-Contexa-Blocked-Redirect` unless
+  `contexa.security.zerotrust.monitoring-headers=false`. What cuts a response stays a BLOCK received after it started.
 - **The screens of a decision only lead to paths of the application**: `returnUrl` of
   `/contexa/zero-trust/analysis-pending` went to the browser unchecked, and `mfaUrl` of
   `/contexa/zero-trust/challenge-required` let a backslash, a tab or an encoded slash through. Anything but a path of the

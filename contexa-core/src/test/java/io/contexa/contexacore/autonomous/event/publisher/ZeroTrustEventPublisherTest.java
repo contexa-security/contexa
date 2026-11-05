@@ -132,6 +132,22 @@ class ZeroTrustEventPublisherTest {
         assertThat(published.getValue().getPayload()).containsEntry("authorizationEffect", "DENY");
     }
 
+    /** Q-10: a call that carries its user is decided on a thread that has no request, so its event has to exist there. */
+    @Test
+    @DisplayName("a user carried into a thread with no request makes an event the decision can read")
+    void aUserCarriedIntoABackgroundCallMakesAnEvent() throws Exception {
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        when(invocation.getMethod()).thenReturn(SampleService.class.getDeclaredMethod("approve"));
+
+        ZeroTrustSpringEvent event = new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class),
+                new TieredStrategyProperties()).buildMethodAuthorizationEvent(
+                invocation, new UsernamePasswordAuthenticationToken("alice", "n/a"), true, null);
+
+        assertThat(event.getUserId()).isEqualTo("alice");
+        assertThat(event.getResource()).isEqualTo("SampleService.approve");
+        assertThat(ZeroTrustSecurityEventConverter.convert(event).getUserId()).isEqualTo("alice");
+    }
+
     @Test
     @DisplayName("the bridge's provenance and conflict facts reach the payload (W1-14)")
     void shouldCarryTheBridgeProvenanceAndConflicts() throws Exception {

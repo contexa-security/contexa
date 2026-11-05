@@ -75,6 +75,12 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
     private static final int PRINCIPAL_TYPE_MAX = 50;
 
     private final Set<String> tooLongSubjects = ConcurrentHashMap.newKeySet();
+    private BridgeUserEmailProvider emailProvider;
+
+    /** Q-1: where the application tells the address of a user who carries none. */
+    public void setEmailProvider(BridgeUserEmailProvider emailProvider) {
+        this.emailProvider = emailProvider;
+    }
 
     @Override
     @Transactional(transactionManager = "contexaTransactionManager")
@@ -390,10 +396,30 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
 
     private String resolveEmail(Users user, AuthenticationStamp authenticationStamp, String bridgeSubjectKey) {
         String email = normalize(attribute(authenticationStamp.attributes(), "email", "mail", "userEmail"));
+        if (email == null) {
+            email = providedEmail(user, authenticationStamp, bridgeSubjectKey);
+        }
         if (email == null || email.length() > LONG_TEXT_MAX) {
             return firstText(user.getEmail(), syntheticEmail(bridgeSubjectKey));
         }
         return email.toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Q-1: the address the application tells, asked only while the copy has no real one: an address an administrator
+     * entered stands. An application that fails to answer stops nothing.
+     */
+    private String providedEmail(Users user, AuthenticationStamp authenticationStamp, String bridgeSubjectKey) {
+        String current = normalize(user.getEmail());
+        if (emailProvider == null || (current != null && !current.equals(syntheticEmail(bridgeSubjectKey)))) {
+            return null;
+        }
+        try {
+            return normalize(emailProvider.emailOf(authenticationStamp.principalId()));
+        } catch (RuntimeException e) {
+            log.error("[Bridge] The application's BridgeUserEmailProvider failed: {}", e.toString());
+            return null;
+        }
     }
 
     private String syntheticEmail(String bridgeSubjectKey) {

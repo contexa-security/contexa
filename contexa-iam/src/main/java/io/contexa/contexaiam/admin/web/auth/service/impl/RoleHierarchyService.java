@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 @CacheConfig(cacheManager = "contexaCacheManager")
-public class RoleHierarchyService {
+public class RoleHierarchyService extends AccountAuthoritiesService {
 
     private final RoleHierarchyRepository roleHierarchyRepository;
     private final RoleRepository roleRepository;
@@ -90,6 +90,7 @@ public class RoleHierarchyService {
     @Transactional(transactionManager = "contexaTransactionManager")
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public RoleHierarchyEntity createRoleHierarchy(RoleHierarchyEntity roleHierarchyEntity) {
+        authoritiesChanged();
         try {
 
             if (roleHierarchyRepository.findByHierarchyString(roleHierarchyEntity.getHierarchyString()).isPresent()) {
@@ -123,6 +124,7 @@ public class RoleHierarchyService {
     @Transactional(transactionManager = "contexaTransactionManager")
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public RoleHierarchyEntity updateRoleHierarchy(RoleHierarchyEntity roleHierarchyEntity) {
+        authoritiesChanged();
         try {
 
             RoleHierarchyEntity existingEntity = roleHierarchyRepository.findById(roleHierarchyEntity.getId())
@@ -157,6 +159,7 @@ public class RoleHierarchyService {
     @Transactional(transactionManager = "contexaTransactionManager")
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public void deleteRoleHierarchy(Long id) {
+        authoritiesChanged();
         roleHierarchyRepository.deleteById(id);
         reloadRoleHierarchyBean();
     }
@@ -164,6 +167,7 @@ public class RoleHierarchyService {
     @Transactional(transactionManager = "contexaTransactionManager")
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public boolean activateRoleHierarchy(Long activeId) {
+        authoritiesChanged();
         RoleHierarchyEntity target = roleHierarchyRepository.findById(activeId)
                 .orElseThrow(() -> new IllegalArgumentException(msg("msg.role.hierarchy.not.found.id", activeId)));
 

@@ -17,7 +17,10 @@ package io.contexa.contexacore.autonomous.repository;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 
+import org.springframework.lang.Nullable;
+
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 
 /**
@@ -110,6 +113,23 @@ public interface ZeroTrustActionRepository {
     void saveActionWithPrevious(String userId, ZeroTrustAction newAction);
 
     void saveActionWithPrevious(String userId, ZeroTrustAction newAction, String contextBindingHash);
+
+    /**
+     * Q-12: called for a session that answered the CHALLENGE, before its ALLOW replaces the decision. A CHALLENGE is
+     * decided for the user, and the answer of one session proves nothing about another: what the stolen password
+     * opened stays stopped when the owner passes the code. So every context but the given one keeps reading CHALLENGE
+     * until the CHALLENGE would have lapsed, an answer of another session adds that session, and an administrator's
+     * override or the removal of the user's data ends it. Nothing changes for a user who is not challenged.
+     * A repository that does not implement this releases the user, as an ALLOW did before.
+     */
+    default void holdChallengeForOtherSessions(String userId, String contextBindingHash) {
+    }
+
+    /** Q-12: when the CHALLENGE still held for other sessions was decided, or null with none held. */
+    @Nullable
+    default Instant challengeHeldSince(String userId) {
+        return null;
+    }
 
 
     void setBlockedFlag(String userId);

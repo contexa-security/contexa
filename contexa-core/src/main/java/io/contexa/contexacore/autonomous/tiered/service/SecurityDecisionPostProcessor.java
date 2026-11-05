@@ -35,6 +35,7 @@ import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.autonomous.context.support.PastDeniedDecisions;
 import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
 import io.contexa.contexacore.autonomous.context.support.VocabularyVersion;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
@@ -518,7 +519,7 @@ public class SecurityDecisionPostProcessor {
             metadata.put("sourceIp", event.getSourceIp());
         }
         if (event.getSessionId() != null) {
-            metadata.put("sessionId", event.getSessionId());
+            metadata.put("sessionId", RequestFactRedaction.sessionReference(event.getSessionId()));
         }
 
         if (decision.getAction() != null) {

@@ -107,7 +107,7 @@ public class AnthropicThinkingSettingsVerifier implements SmartInitializingSingl
                         return claudeModelOf(model);
                     }
                 } catch (RuntimeException ex) {
-                    // The layer model verifier stops the start on a model that cannot be made; checked as configured.
+                    // The layer model verifier tells at the start of a model that cannot be made; checked as configured.
                 }
             }
             return configured;

@@ -1117,6 +1117,18 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
         return keys;
     }
 
+    /** A failure reaches the caller: a version that cannot be read says nothing about the session. */
+    @Override
+    public long authoritiesVersion() {
+        Object version = redisTemplate.opsForValue().get(ZeroTrustRedisKeys.authoritiesVersion());
+        return version != null ? Long.parseLong(version.toString()) : 0L;
+    }
+
+    @Override
+    public void advanceAuthoritiesVersion() {
+        redisTemplate.opsForValue().increment(ZeroTrustRedisKeys.authoritiesVersion());
+    }
+
     @Override
     public void trackUserSession(String userId, String sessionId) {
         try {

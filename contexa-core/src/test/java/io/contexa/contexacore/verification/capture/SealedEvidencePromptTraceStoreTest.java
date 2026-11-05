@@ -198,6 +198,39 @@ class SealedEvidencePromptTraceStoreTest {
         assertThat(store.consume("req-expired-pending")).isNull();
     }
 
+    /** PR-91: a snapshot holds its prompts, documents and event; a count alone lets them take hundreds of megabytes. */
+    @Test
+    void snapshotsNeverConsumedStayWithinTheBudgetTheOldestGoingFirstAndCompletedOnesBeforePendingOnes() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-07-15T00:00:00Z"));
+        long budget = 1L << 20;
+        store = new SealedEvidencePromptTraceStore(new VerificationCaptureStoreOptions(Duration.ofHours(1), 1_000, 1_000),
+                clock, budget);
+        SecurityEvent waiting = buildEvent("req-waiting", "evt-waiting");
+        store.capture(decisionContext(waiting), largePromptResult());
+        clock.advance(Duration.ofSeconds(1));
+
+        for (int index = 1; index <= 100; index++) {
+            SecurityEvent event = buildEvent("req-completed-" + index, "evt-completed-" + index);
+            store.capture(decisionContext(event), largePromptResult());
+            store.complete(event);
+            clock.advance(Duration.ofSeconds(1));
+        }
+
+        assertThat(store.heldBytes()).isLessThanOrEqualTo(budget);
+        assertThat(store.find("req-completed-1")).isNull();
+        assertThat(store.find("req-completed-100")).isNotNull();
+        store.complete(waiting);
+        assertThat(store.consume("req-waiting")).isNotNull();
+    }
+
+    @Test
+    void theBudgetIsATwentiethOfTheHeapWithinItsBounds() {
+        long mebibyte = 1024L * 1024;
+        assertThat(SealedEvidencePromptTraceStore.defaultBudgetBytes(128 * mebibyte)).isEqualTo(16 * mebibyte);
+        assertThat(SealedEvidencePromptTraceStore.defaultBudgetBytes(512 * mebibyte)).isEqualTo(512 * mebibyte / 20);
+        assertThat(SealedEvidencePromptTraceStore.defaultBudgetBytes(Long.MAX_VALUE)).isEqualTo(256 * mebibyte);
+    }
+
     @Test
     void maximumCountsEvictOldestPendingAndCompletedSnapshots() {
         MutableClock clock = new MutableClock(Instant.parse("2026-07-15T00:00:00Z"));
@@ -286,6 +319,13 @@ class SealedEvidencePromptTraceStoreTest {
         private void advance(Duration duration) {
             current = current.plus(duration);
         }
+    }
+
+    private PromptGenerationResult largePromptResult() {
+        PromptGenerationResult result = mockPromptResult();
+        when(result.getUserPrompt()).thenReturn("u".repeat(30_000));
+        when(result.getRawUserPrompt()).thenReturn("r".repeat(30_000));
+        return result;
     }
 
     private PromptGenerationResult mockPromptResult() {

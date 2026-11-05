@@ -17,6 +17,7 @@ package io.contexa.contexaidentity.security.zerotrust;
 
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.RequestPaths;
 import io.contexa.contexacommon.security.ZeroTrustScreens;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
@@ -168,6 +169,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = RequestPaths.of(request);
         return RequestPaths.isExactly(path, LOGOUT_PATH)
+                || ConsoleSession.onReleasePath(request)
                 || ZeroTrustScreens.isScreenResource(path)
                 || ZeroTrustScreens.isDiscoveryDocument(path)
                 || DECISION_FOLDERS.stream().anyMatch(folder -> RequestPaths.isWithin(path, folder));
@@ -202,7 +204,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         if (currentAction != ZeroTrustAction.BLOCK
                 && currentAction != ZeroTrustAction.ESCALATE
                 && currentAction != ZeroTrustAction.PENDING_ANALYSIS) {
-            filterChain.doFilter(request, response);
+            passUntilBlocked(request, response, filterChain, userId, responseStartNanos);
             return;
         }
 
@@ -222,7 +224,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                 recordStopped(auth, ZeroTrustAction.ESCALATE);
                 handleEscalate(request, response, userId, subject);
             }
-            case PENDING_ANALYSIS -> handlePendingAnalysis(request, response, filterChain, userId, responseStartNanos);
+            case PENDING_ANALYSIS -> passUntilBlocked(request, response, filterChain, userId, responseStartNanos);
             default -> filterChain.doFilter(request, response);
         }
     }
@@ -402,7 +404,9 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                                HttpServletResponse response,
                                String userId) throws IOException {
 
-        String redirectUrl = request.getContextPath() + "/contexa/zero-trust/blocked";
+        // The screens of a decision answer the application's user; a console session goes where a block is lifted.
+        String redirectUrl = request.getContextPath()
+                + (ConsoleSession.of(request) ? "/contexa/admin/blacklist" : "/contexa/zero-trust/blocked");
 
         Map<String, Object> body = new HashMap<>();
         body.put("error", "ACCOUNT_BLOCKED");
@@ -580,11 +584,15 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                 ? stamp : null;
     }
 
-    private void handlePendingAnalysis(HttpServletRequest request,
-                                        HttpServletResponse response,
-                                        FilterChain filterChain,
-                                        String userId,
-                                        long responseStartNanos) throws ServletException, IOException {
+    /**
+     * Lets the request go on with a response a BLOCK received after its start cuts. An ALLOW says nothing of what follows
+     * it: a stream started in the seconds an ALLOW lasts runs far past it, and only a response that is wrapped can stop.
+     */
+    private void passUntilBlocked(HttpServletRequest request,
+                                  HttpServletResponse response,
+                                  FilterChain filterChain,
+                                  String userId,
+                                  long responseStartNanos) throws ServletException, IOException {
         if (blockingDecisionRegistry == null) {
             filterChain.doFilter(request, response);
             return;

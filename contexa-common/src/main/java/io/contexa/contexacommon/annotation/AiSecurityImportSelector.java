@@ -8,7 +8,8 @@ import io.contexa.contexacommon.security.bridge.SecurityMode;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringBootVersion;
 import org.springframework.context.EnvironmentAware;
-import org.springframework.context.annotation.ImportSelector;
+import org.springframework.context.annotation.DeferredImportSelector;
+import org.springframework.core.Ordered;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.MapPropertySource;
@@ -18,8 +19,15 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Function;
 
-/** Loads the Contexa configuration and publishes annotation values into this context's Environment. */
-public class AiSecurityImportSelector implements ImportSelector, EnvironmentAware {
+/**
+ * Loads the Contexa configuration and publishes annotation values into this context's Environment.
+ * <p>
+ * Deferred, so the configuration classes of the application are parsed first wherever the annotation stands: Contexa's
+ * {@code @ConditionalOnMissingBean} beans then see the application's, also those of the annotated class itself. Ahead of
+ * the auto-configurations, because they read what this selector publishes and wait for the {@code PlatformConfig} it
+ * brings; a selector without an order would come after them.
+ */
+public class AiSecurityImportSelector implements DeferredImportSelector, Ordered, EnvironmentAware {
 
     public static final String PROP_ENABLED = "contexa.enabled";
     public static final String PROP_MODE = ContexaOperatingProfile.PROP_MODE;
@@ -32,6 +40,8 @@ public class AiSecurityImportSelector implements ImportSelector, EnvironmentAwar
     /** What this selector publishes once it switched Contexa on. An application's own settings can name the mode, not this. */
     public static final String ACTIVATION_SOURCE = "contexaAiSecurityAnnotation";
     private static final String AI_SECURITY_CONFIGURATION = "io.contexa.autoconfigure.ai.AiSecurityConfiguration";
+    /** Spring Boot's selectors of auto-configurations stand at {@code LOWEST_PRECEDENCE - 1} and {@code - 2}. */
+    private static final int BEFORE_AUTO_CONFIGURATIONS = Ordered.LOWEST_PRECEDENCE - 100;
     private final Function<Environment, String> databaseProblem;
     private final Function<Environment, String> redisProblem;
     private ConfigurableEnvironment environment;
@@ -133,6 +143,11 @@ public class AiSecurityImportSelector implements ImportSelector, EnvironmentAwar
         // an application without a database of its own would start its JPA on this one
         environment.getPropertySources().addFirst(new MapPropertySource("contexaDatabaseDown", Map.of(PROP_CONTEXA_OWNED_APPLICATION, false)));
         return true;
+    }
+
+    @Override
+    public int getOrder() {
+        return BEFORE_AUTO_CONFIGURATIONS;
     }
 
     @Override

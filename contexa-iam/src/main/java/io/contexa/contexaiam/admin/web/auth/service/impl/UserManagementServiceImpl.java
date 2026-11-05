@@ -32,6 +32,8 @@ import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.repository.UserRolePermissionRepository;
 import io.contexa.contexacommon.security.UserAccountDeletedEvent;
+import io.contexa.contexacommon.security.UserAccountDisabledEvent;
+import io.contexa.contexacommon.security.UserAuthoritiesChangedEvent;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
 import lombok.RequiredArgsConstructor;
@@ -168,6 +170,11 @@ public class UserManagementServiceImpl implements UserManagementService {
         Users users = userRepository.findByIdWithGroupsRolesAndPermissions(userDto.getId())
                 .orElseThrow(() -> new IllegalArgumentException(msg("msg.user.not.found.id", userDto.getId())));
 
+        boolean disabled = users.isEnabled() && !userDto.isEnabled();
+        Set<Long> previousGroupIds = users.getUserGroups().stream()
+                .map(userGroup -> userGroup.getGroup().getId())
+                .collect(Collectors.toSet());
+
         users.setName(userDto.getName());
         users.setEmail(userDto.getEmail());
         users.setPhone(userDto.getPhone());
@@ -203,6 +210,13 @@ public class UserManagementServiceImpl implements UserManagementService {
         }
 
         userRepository.save(users);
+
+        // The listeners run after the commit, so a change that rolls back reaches no session (Q-14).
+        if (disabled) {
+            eventPublisher.publishEvent(new UserAccountDisabledEvent(users.getUsername()));
+        } else if (!previousGroupIds.equals(desiredGroupIds)) {
+            eventPublisher.publishEvent(new UserAuthoritiesChangedEvent());
+        }
 
         try {
             String admin = "SYSTEM";

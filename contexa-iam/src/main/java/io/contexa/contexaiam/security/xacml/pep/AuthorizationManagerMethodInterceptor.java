@@ -41,6 +41,7 @@ import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.authentication.AuthenticationTrustResolver;
 import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
+import io.contexa.contexacommon.security.ConsoleSession;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.security.authorization.method.AuthorizationAdvisor;
 import org.springframework.security.authorization.method.AuthorizationInterceptorsOrder;
@@ -118,6 +119,10 @@ public class AuthorizationManagerMethodInterceptor
     @Override
     public Object invoke(MethodInvocation mi) throws Throwable {
         resolveCollaborators();
+        if (hasNoUserToDecide()) {
+            recordRanWithoutUser(mi);
+            return proceed(mi);
+        }
         Authentication authentication = getAuthentication();
         // Ownership design S-7: report once an application that signs users in after Contexa's request filters.
         HostOwnedIdentityNotice.reportAtProtectedMethod(currentRequest(), authentication);
@@ -128,7 +133,8 @@ public class AuthorizationManagerMethodInterceptor
         String executionFailure = null;
         String checkFailure = null;
         Protectable protectable = resolveProtectable(mi);
-        boolean llmAnalysisAllowed = isLlmAnalysisAllowed();
+        // Q-17: where a console session lifts a restriction no decision stands in its way.
+        boolean llmAnalysisAllowed = isLlmAnalysisAllowed() && !ConsoleSession.onReleasePath(currentRequest());
         boolean rapidReentryAllowed = true;
 
         RequestPathScope.enter();
@@ -302,6 +308,27 @@ public class AuthorizationManagerMethodInterceptor
             return handler.handleDeniedInvocation(mi, denied);
         }
         return defaultHandler.handleDeniedInvocation(mi, denied);
+    }
+
+    /**
+     * Q-10: a scheduled or asynchronous call on a thread that holds neither a user nor a request is no one's request, so
+     * there is nothing to decide. A request with no user stays refused, and so does an anonymous visitor's context, which
+     * names a known nobody; a user carried into the thread is decided as in a request.
+     */
+    private boolean hasNoUserToDecide() {
+        return this.securityContextHolderStrategy.get().getContext().getAuthentication() == null && currentRequest() == null;
+    }
+
+    /** A record that fails stays a logged failure: it must not stop the application's job. */
+    private void recordRanWithoutUser(MethodInvocation mi) {
+        if (protectableLlmSuppressionWriter == null || !isLlmAnalysisAllowed()) {
+            return;
+        }
+        try {
+            protectableLlmSuppressionWriter.recordRanWithoutUser(mi, securityZeroTrustMode());
+        } catch (RuntimeException e) {
+            log.error("Failed to record a protected method that ran with no user: {}", buildResourceId(mi), e);
+        }
     }
 
     private Authentication getAuthentication() {

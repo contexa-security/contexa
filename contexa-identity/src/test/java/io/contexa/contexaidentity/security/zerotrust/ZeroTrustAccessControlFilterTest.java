@@ -165,7 +165,8 @@ class ZeroTrustAccessControlFilterTest {
 
             filter.doFilter(request, response, filterChain);
 
-            verify(filterChain).doFilter(request, response);
+            // PR-63: it goes on as it always did, with a response a BLOCK that follows can cut.
+            verify(filterChain).doFilter(eq(request), any(BlockableResponseWrapper.class));
         }
     }
 

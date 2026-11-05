@@ -36,10 +36,11 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 /**
- * What a completed step-up changes in the decision store: a CHALLENGE becomes ALLOW and the challenged request is
- * learned as normal behaviour, the user is marked as verified, a BLOCK an administrator let the user release by MFA is
- * released. It is the same under both ownerships: Contexa's MFA completion (CONTEXA_OWNED) and the verification-only
- * step-up (HOST_OWNED) call it, and only CONTEXA_OWNED also stores a new authentication for the user.
+ * What a completed step-up changes in the decision store: a CHALLENGE becomes ALLOW for the session that answered it and
+ * stays in force for the user's other sessions (Q-12), the challenged request is learned as normal behaviour, the user
+ * is marked as verified, a BLOCK an administrator let the user release by MFA is released. It is the same under both
+ * ownerships: Contexa's MFA completion (CONTEXA_OWNED) and the verification-only step-up (HOST_OWNED) call it, and only
+ * CONTEXA_OWNED also stores a new authentication for the user.
  */
 @Slf4j
 public class ChallengeResolution {
@@ -81,10 +82,12 @@ public class ChallengeResolution {
     }
 
     /**
-     * Releases the CHALLENGE in force for the decision key: it becomes ALLOW, bound to the given context, and the
-     * request it stopped is learned as normal behaviour. An ESCALATE waits for a review and is not lifted by a
-     * verification of the user (Q-87, N-P3-1); nothing changes then and false is returned. Otherwise the unblock signal
-     * goes out and true is returned.
+     * Releases the CHALLENGE in force for the decision key in the given context, and no other: it becomes ALLOW bound to
+     * that context, the user's other sessions keep it until they answer it themselves (Q-12), and the request it stopped
+     * is learned as normal behaviour. A session a CHALLENGE answered elsewhere still holds is released the same way, with
+     * nothing to learn: its request was learned when the CHALLENGE was first answered. An ESCALATE waits for a review and
+     * is not lifted by a verification of the user (Q-87, N-P3-1); nothing changes then and false is returned. Otherwise
+     * the unblock signal goes out and true is returned. An answer that cannot be kept to its session releases no one.
      *
      * @param contextBindingHash the context the ALLOW is bound to: the one the client uses next
      * @param originalIp         the address the challenged sign-in came from, when known
@@ -102,8 +105,12 @@ public class ChallengeResolution {
             if (currentAction == ZeroTrustAction.CHALLENGE) {
                 // The request the challenge stopped, read before the ALLOW replaces the decision that names it (W5-2).
                 String challengedRequestId = challengedRequestId(userId);
+                actionRepository.holdChallengeForOtherSessions(userId, contextBindingHash);
                 actionRepository.saveActionWithPrevious(userId, ZeroTrustAction.ALLOW, contextBindingHash);
                 learnStepUp(userId, request, originalIp, challengedRequestId);
+            } else if (actionRepository.getCurrentAction(userId, contextBindingHash) == ZeroTrustAction.CHALLENGE) {
+                actionRepository.holdChallengeForOtherSessions(userId, contextBindingHash);
+                actionRepository.saveActionWithPrevious(userId, ZeroTrustAction.ALLOW, contextBindingHash);
             }
             if (blockingSignalBroadcaster != null) {
                 blockingSignalBroadcaster.registerUnblock(userId);

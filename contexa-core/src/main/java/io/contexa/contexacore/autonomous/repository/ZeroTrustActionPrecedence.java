@@ -24,13 +24,14 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
  * the analysed context. BLOCK, ESCALATE and CHALLENGE restrict the user in every session: no less
  * strict final result lifts an active one, whichever session or request it was analysed for, so
  * when several decisions come out for one user the restriction is the one in force (RL-13). A
- * CHALLENGE is lifted by the MFA its challenge started, an ESCALATE only by an approved override
- * (a review, Q-87), a BLOCK only by the administrator's approval; all three by a stricter decision.
+ * CHALLENGE is lifted by the MFA its challenge started, for the session that answered it alone (Q-12),
+ * an ESCALATE only by an approved override (a review, Q-87), a BLOCK only by the administrator's
+ * approval; all three by a stricter decision.
  * A CHALLENGE also lapses with its TTL; an ESCALATE whose TTL ends without resolution is promoted to
  * BLOCK by the access filter. That holds with allow-escalate-final-action on; off, an ESCALATE is
  * internal to the analysis, and one left in the store ends as the terminal action when it is read.</p>
  */
-final class ZeroTrustActionPrecedence {
+public final class ZeroTrustActionPrecedence {
 
     private ZeroTrustActionPrecedence() {
     }
@@ -55,7 +56,7 @@ final class ZeroTrustActionPrecedence {
      * Returns whether a final analysis result must not replace the active action because the
      * active action is a user-level BLOCK, CHALLENGE or ESCALATE and the result is less strict.
      */
-    static boolean keepsActiveRestriction(ZeroTrustAction active, ZeroTrustAction incoming) {
+    public static boolean keepsActiveRestriction(ZeroTrustAction active, ZeroTrustAction incoming) {
         return (active == ZeroTrustAction.BLOCK || active == ZeroTrustAction.CHALLENGE
                 || active == ZeroTrustAction.ESCALATE)
                 && incoming != null
