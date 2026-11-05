@@ -19,7 +19,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.http.server.PathContainer;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.util.pattern.PathPatternParser;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -32,6 +34,25 @@ class RequestPathsTest {
         request.setContextPath("/app");
 
         assertThat(RequestPaths.of(request)).isEqualTo("/logout");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/export/7", "/api/%65xport/7", "/api/exp%6Frt/7", "/api/export;v=1/7",
+            "/api/%65xport;a=b;c=d/7;x=y"})
+    @DisplayName("the routed path is what a route matches, however the request spells it")
+    void routedIsWhatARouteMatches(String path) {
+        assertThat(RequestPaths.routed(path)).isEqualTo("/api/export/7");
+        assertThat(PathPatternParser.defaultInstance.parse("/api/export/{id}").matches(PathContainer.parsePath(path)))
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("a path no router can read has no routed path, and neither has no path")
+    void routedOfNothing() {
+        assertThat(RequestPaths.routed("/api/%zz")).isNull();
+        assertThat(RequestPaths.routed(null)).isNull();
+        assertThat(RequestPaths.routed("/")).isEqualTo("/");
+        assertThat(RequestPaths.routed("/api/lists/")).isEqualTo("/api/lists/");
     }
 
     @Test

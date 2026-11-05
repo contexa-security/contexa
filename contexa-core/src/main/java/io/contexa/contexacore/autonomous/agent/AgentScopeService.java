@@ -17,10 +17,10 @@ package io.contexa.contexacore.autonomous.agent;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacommon.security.RequestPaths;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.context.support.ActionFamily;
-import io.contexa.contexacore.autonomous.context.support.ActionFamilyResolver;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import lombok.extern.slf4j.Slf4j;
@@ -29,7 +29,6 @@ import org.springframework.lang.Nullable;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -97,22 +96,39 @@ public class AgentScopeService {
 
     /**
      * The scope that refuses the request, or empty when the request passes: no scope is in force, or it allows the
-     * request's operation (read from the method and the path's words, {@link ActionFamilyResolver}).
+     * request's operation ({@link #operation}).
      */
     public Optional<AgentScopeRestriction> refusing(ZeroTrustSubject subject, String method, String path) {
         return inForce(subject).filter(scope -> !scope.allows(operation(method, path)));
     }
 
-    /** The operation of a request, as its method and its path's words name it. */
-    public static ActionFamily operation(String method, String path) {
-        Map<String, Object> facts = new LinkedHashMap<>();
-        if (path != null) {
-            facts.put("resourceUrlTemplate", path);
+    /**
+     * The operation of a request: the words of its path as the application routes it, weighed against its method
+     * ({@link #weighed}). A path no router can read names none.
+     */
+    public static ActionFamily operation(@Nullable String method, @Nullable String path) {
+        String routed = RequestPaths.routed(path);
+        if (path != null && routed == null) {
+            return ActionFamily.UNKNOWN;
         }
-        if (method != null) {
-            facts.put("httpMethod", method);
+        ActionFamily named = ActionFamily.of(routed);
+        return weighed(method, named != null ? named : ActionFamily.UNKNOWN);
+    }
+
+    /**
+     * What the words of a path name, against the request's method: a word may name a graver operation than the method
+     * ({@code GET /api/exports} is an export), never a lighter one. Only the method says a request reads, and a word
+     * that says writing leaves a deletion a deletion. Without a method the words stand.
+     */
+    static ActionFamily weighed(@Nullable String method, ActionFamily named) {
+        if (method == null) {
+            return named;
         }
-        return ActionFamilyResolver.resolve(facts).family();
+        ActionFamily byMethod = ActionFamily.of(method);
+        ActionFamily stated = byMethod != null ? byMethod : ActionFamily.UNKNOWN;
+        boolean lighter = named == ActionFamily.UNKNOWN || named == ActionFamily.READ
+                || (named == ActionFamily.WRITE && stated == ActionFamily.DELETE);
+        return lighter ? stated : named;
     }
 
     /** The scopes in force, for the console. */

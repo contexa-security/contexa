@@ -8,6 +8,15 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **An agent narrowed to reading no longer writes through a path that sounds like reading.** The operation of a request was
+  read from the words of its path before its method, and from the path as it was sent: `DELETE /api/lists/7` and
+  `POST /api/search/x` passed as reads, and `GET /api/%65xport/x` reached the export as one. The words of a path, read as
+  the application routes it, may now make a request graver than its method, never lighter: only `GET`, `HEAD` and `OPTIONS`
+  read, and a word that says writing leaves a `DELETE` a deletion. The ALLOW of a read no longer answers these requests at
+  an asynchronous `@Protectable` method either, unless the host declared the action or the method's name states it, and
+  they no longer count as reads for `contexa.security.zerotrust.agent.flight.pass-families`. **Check:** a read served over
+  `POST`, such as a search, is now a write: while an agent is narrowed it gets `403 AGENT_SCOPE_NARROWED` until the period
+  ends or its accountable person confirms that request.
 - **A sign-in no longer wipes the failures of its address.** A password that was right took the address's count back, so
   whoever held one account of their own could try any number of others from that address. The address now keeps its count
   until its window ends; the count of each account is reset as before. Behind a shared address a public NAT counts everyone's

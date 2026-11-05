@@ -16,12 +16,15 @@
 package io.contexa.contexacommon.security;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.server.PathContainer;
+import org.springframework.lang.Nullable;
 
 /**
  * How a filter tells a path of Contexa's own from a path of the application, which is what lets a stopped request
  * through when it goes wrong. A name that only starts like a path of Contexa's ({@code /logout-report}) is the
  * application's, and so is anything the container would resolve to another path. The comparison is made on the raw
- * request URI, so whatever is not plain is never taken for Contexa's: the request then simply meets the filter.
+ * request URI, so whatever is not plain is never taken for Contexa's: the request then simply meets the filter. What a
+ * request does is read from {@link #routed}, the path the application serves it by.
  */
 public final class RequestPaths {
 
@@ -36,6 +39,27 @@ public final class RequestPaths {
             return uri.substring(contextPath.length());
         }
         return uri;
+    }
+
+    /**
+     * The path as the application's routing reads it: every segment decoded and without its path parameters, so that
+     * {@code /api/%65xport;v=1} is {@code /api/export}. Null for no path, and for one no router can read.
+     */
+    @Nullable
+    public static String routed(@Nullable String path) {
+        if (path == null) {
+            return null;
+        }
+        try {
+            StringBuilder routed = new StringBuilder();
+            for (PathContainer.Element element : PathContainer.parsePath(path).elements()) {
+                routed.append(element instanceof PathContainer.PathSegment segment
+                        ? segment.valueToMatch() : element.value());
+            }
+            return routed.toString();
+        } catch (IllegalArgumentException undecodable) {
+            return null;
+        }
     }
 
     /**

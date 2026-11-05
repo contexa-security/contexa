@@ -49,10 +49,13 @@ public class AgentAllowReuse {
 
     static final int CAPACITY = 10_000;
     static final Duration FORGET_AFTER = Duration.ofHours(1);
+    /** The facts that hold the words of the protected URL: words of a path, weighed like the request's own. */
+    private static final Set<String> URL_TEMPLATE_KEYS = Set.of("protectableResourceUrl", "resourceUrlTemplate");
 
     /**
      * The operation of a request: the host's or the protected method's, else its path's words, else its method (a GET
-     * of {@code /api/exports} is an export).
+     * of {@code /api/exports} is an export). The words of a path never make a request lighter than its method says
+     * ({@link AgentScopeService#weighed}): an ALLOW of a read answers no write.
      */
     public static ActionFamily operation(@Nullable Map<String, ?> payload, @Nullable String resource) {
         Map<String, Object> declaredOnly = new HashMap<>();
@@ -61,14 +64,15 @@ public class AgentAllowReuse {
             declaredOnly.remove("httpMethod");
             declaredOnly.remove("method");
         }
-        ActionFamily declared = ActionFamilyResolver.resolve(declaredOnly).family();
-        if (declared != ActionFamily.UNKNOWN) {
-            return declared;
+        Object httpMethod = payload != null ? payload.get("httpMethod") : null;
+        String method = httpMethod != null ? httpMethod.toString() : null;
+        ActionFamilyResolver.Resolution declared = ActionFamilyResolver.resolve(declaredOnly);
+        if (declared.family() != ActionFamily.UNKNOWN) {
+            return URL_TEMPLATE_KEYS.contains(declared.sourceKey())
+                    ? AgentScopeService.weighed(method, declared.family()) : declared.family();
         }
-        Object method = payload != null ? payload.get("httpMethod") : null;
         Object path = payload != null ? payload.get("requestPath") : null;
-        return AgentScopeService.operation(method != null ? method.toString() : null,
-                path != null ? path.toString() : resource);
+        return AgentScopeService.operation(method, path != null ? path.toString() : resource);
     }
 
     /**

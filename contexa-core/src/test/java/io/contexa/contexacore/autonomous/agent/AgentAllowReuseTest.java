@@ -175,6 +175,27 @@ class AgentAllowReuseTest {
         assertThat(old.answers(KEY, "context-1", ActionFamily.READ, "CUS-3", true)).isTrue();
     }
 
+    /** An ALLOW of a read never answers a write whose path only sounds like reading. */
+    @Test
+    void theOperationOfACallIsNoLighterThanItsMethodWhateverItsPathSays() {
+        Map<String, Object> delete = Map.of("httpMethod", "DELETE", "resourceUrlTemplate", "/api/lists/{id}",
+                "protectableResourceUrl", "/api/lists/{id}", "protectableMethod", "io.app.Lists.clear",
+                "requestPath", "/api/lists/7");
+
+        assertThat(AgentAllowReuse.operation(delete, "/api/lists/7")).isEqualTo(ActionFamily.DELETE);
+        assertThat(AgentAllowReuse.operation(Map.of("httpMethod", "POST", "requestPath", "/api/search/x"), null))
+                .isEqualTo(ActionFamily.WRITE);
+        assertThat(AgentAllowReuse.operation(Map.of("httpMethod", "GET", "requestPath", "/api/%65xport/x"), null))
+                .isEqualTo(ActionFamily.EXPORT);
+        assertThat(AgentAllowReuse.operation(Map.of("httpMethod", "GET", "resourceUrlTemplate", "/api/lists/{id}"),
+                "/api/lists/7")).isEqualTo(ActionFamily.READ);
+        // What the host declares, and the name of the method it protects, stand as they did.
+        assertThat(AgentAllowReuse.operation(Map.of("actionFamily", "READ", "httpMethod", "POST"), "/api/x"))
+                .isEqualTo(ActionFamily.READ);
+        assertThat(AgentAllowReuse.operation(Map.of("protectableMethod", "io.app.Customers.searchCustomers",
+                "httpMethod", "POST"), "/api/x")).isEqualTo(ActionFamily.READ);
+    }
+
     @Test
     void aRequestIsSensitiveWhenTheSensitivityItsResourceDeclaresClassifiesAsSensitiveOrCritical() {
         assertThat(AgentAllowReuse.sensitive(Map.of("resourceSensitivity", "RESTRICTED"))).isTrue();

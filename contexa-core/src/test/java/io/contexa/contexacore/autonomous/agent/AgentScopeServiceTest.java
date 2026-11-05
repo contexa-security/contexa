@@ -115,6 +115,49 @@ class AgentScopeServiceTest {
         assertThat(own.refusing(AGENT, "GET", "/api/projects/HX-310/export")).isEmpty();
     }
 
+    /** The words of a path may name a graver operation than its method, never a lighter one. */
+    @Test
+    void theWordsOfAPathNeverMakeAWritingMethodARead() {
+        service.onDecision(agentEvent(), decision("CHALLENGE", 0.6));
+
+        assertThat(service.refusing(AGENT, "DELETE", "/api/lists/7")).isPresent();
+        assertThat(service.refusing(AGENT, "POST", "/api/search/x")).isPresent();
+        assertThat(service.refusing(AGENT, "PUT", "/api/views/7")).isPresent();
+        assertThat(service.refusing(AGENT, "PATCH", "/api/downloads/7")).isPresent();
+        assertThat(service.refusing(AGENT, "POST", "/api/documents;list=1")).isPresent();
+        assertThat(service.refusing(AGENT, "PROPFIND", "/api/lists/7")).as("a method that says nothing").isPresent();
+        assertThat(AgentScopeService.operation("DELETE", "/api/lists/7")).isEqualTo(ActionFamily.DELETE);
+        assertThat(AgentScopeService.operation("POST", "/api/search/x")).isEqualTo(ActionFamily.WRITE);
+        assertThat(AgentScopeService.operation("DELETE", "/api/update/7")).isEqualTo(ActionFamily.DELETE);
+
+        // A read stays a read, and a word still raises what the method says.
+        assertThat(service.refusing(AGENT, "GET", "/api/lists/7")).isEmpty();
+        assertThat(service.refusing(AGENT, "HEAD", "/api/search/x")).isEmpty();
+        assertThat(service.refusing(AGENT, "OPTIONS", "/api/projects")).isEmpty();
+        assertThat(AgentScopeService.operation("GET", "/api/exports")).isEqualTo(ActionFamily.EXPORT);
+        assertThat(AgentScopeService.operation("POST", "/api/exports")).isEqualTo(ActionFamily.EXPORT);
+        assertThat(AgentScopeService.operation("POST", "/api/run/job")).isEqualTo(ActionFamily.EXECUTE);
+        assertThat(AgentScopeService.operation("POST", "/api/projects")).isEqualTo(ActionFamily.WRITE);
+        assertThat(AgentScopeService.operation(null, "/api/lists")).as("no method named").isEqualTo(ActionFamily.READ);
+    }
+
+    /** What routing serves is what is read: an encoded word is its word, a path parameter is no word of the path. */
+    @Test
+    void aPathIsReadAsTheRoutingOfTheApplicationReadsIt() {
+        service.onDecision(agentEvent(), decision("CHALLENGE", 0.6));
+
+        assertThat(service.refusing(AGENT, "GET", "/api/%65xport/x")).isPresent();
+        assertThat(service.refusing(AGENT, "GET", "/api/EXP%4FRT/x")).isPresent();
+        assertThat(service.refusing(AGENT, "GET", "/api/exp%6Frts;v=1/x")).isPresent();
+        assertThat(AgentScopeService.operation("GET", "/api/%65xport/x")).isEqualTo(ActionFamily.EXPORT);
+        assertThat(AgentScopeService.operation("GET", "/api/documents;export=1")).isEqualTo(ActionFamily.READ);
+        // Braces in a request are not a template's: what stands between them is read.
+        assertThat(AgentScopeService.operation("GET", "/api/%7B/export/%7D/x")).isEqualTo(ActionFamily.EXPORT);
+        // A path no router can read names no operation.
+        assertThat(service.refusing(AGENT, "GET", "/api/%zz")).isPresent();
+        assertThat(AgentScopeService.operation("GET", "/api/%zz")).isEqualTo(ActionFamily.UNKNOWN);
+    }
+
     @Test
     void anAccountsDeletionForgetsWhatAgentsDidForThePerson() {
         service.onDecision(agentEvent(), decision("CHALLENGE", 0.6));
