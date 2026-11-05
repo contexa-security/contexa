@@ -20,6 +20,7 @@ import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.security.bridge.AgentTokenClaims;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
+import io.contexa.contexaidentity.security.token.service.AccountTokenGuard;
 import io.contexa.contexaidentity.security.token.validator.OAuth2AuthorizationValidator;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.beans.factory.ObjectProvider;
@@ -28,7 +29,6 @@ import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -37,18 +37,20 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.util.Assert;
 
-import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.springframework.security.oauth2.server.resource.InvalidBearerTokenException;
 
 /**
  * Converts a validated access token into the authentication of the resource server chain. A token whose subject has a
- * user account authenticates as that user, with the user's authorities, the token's scopes and its role claims.
+ * user account authenticates as that user, with what the account holds at this request and the token's scopes. Its role
+ * claims grant nothing: they say what the user could do when the token was issued, so a right taken away would outlive
+ * the change, and a claim of another issuer would add to the account. A disabled account's token is refused, as its
+ * session would end; a locked account's goes on as its session does, because anyone can lock an account with wrong
+ * passwords.
  *
  * <p>A client's own token (client credentials: the subject is the client) has no user account. It authenticates only
  * for a client the {@link AgentClientDirectory} names as an approved agent in service, or a client the settings list
@@ -64,7 +66,6 @@ public class OAuth2JwtAuthenticationConverter implements Converter<Jwt, Abstract
     private final ObjectProvider<AgentClientDirectory> agentClientDirectory;
     private final ObjectProvider<BridgeProperties> bridgeProperties;
     private final JwtGrantedAuthoritiesConverter scopeConverter = new JwtGrantedAuthoritiesConverter();
-    private final Converter<Jwt, Collection<GrantedAuthority>> rolesConverter = new RolesClaimConverter();
 
     public OAuth2JwtAuthenticationConverter(HttpSecurity httpSecurity) {
         ApplicationContext applicationContext = httpSecurity.getSharedObject(ApplicationContext.class);
@@ -94,15 +95,11 @@ public class OAuth2JwtAuthenticationConverter implements Converter<Jwt, Abstract
         } catch (UsernameNotFoundException noAccount) {
             return clientPrincipal(jwt).orElseThrow(() -> noAccount);
         }
-        Collection<? extends GrantedAuthority> userDetailsAuthorities = userDetails.getAuthorities();
-        Collection<GrantedAuthority> scopeAuthorities = scopeConverter.convert(jwt);
-        Collection<GrantedAuthority> roleAuthorities = rolesConverter.convert(jwt);
-
-        Collection<GrantedAuthority> authorities = Stream.concat(scopeAuthorities.stream(),
-                roleAuthorities != null ? roleAuthorities.stream() : Stream.empty()
-        ).collect(Collectors.toSet());
-
-        authorities.addAll(userDetailsAuthorities);
+        if (AccountTokenGuard.disabled(userDetails)) {
+            throw new InvalidBearerTokenException("The account of this token is disabled");
+        }
+        Set<GrantedAuthority> authorities = new HashSet<>(scopeConverter.convert(jwt));
+        authorities.addAll(userDetails.getAuthorities());
 
         return new JwtAuthenticationToken(jwt, authorities);
     }
@@ -148,29 +145,5 @@ public class OAuth2JwtAuthenticationConverter implements Converter<Jwt, Abstract
     private BridgeProperties.Delegation.Token tokenSettings() {
         BridgeProperties bridge = bridgeProperties != null ? bridgeProperties.getIfAvailable() : null;
         return (bridge != null ? bridge : new BridgeProperties()).getDelegation().getToken();
-    }
-
-    private static class RolesClaimConverter implements Converter<Jwt, Collection<GrantedAuthority>> {
-
-        @Override
-        public Collection<GrantedAuthority> convert(Jwt jwt) {
-
-            Collection<String> roles = jwt.getClaimAsStringList("roles");
-            if (roles != null && !roles.isEmpty()) {
-                return roles.stream()
-                        .map(role -> new SimpleGrantedAuthority(
-                                role.startsWith("ROLE_") ? role : "ROLE_" + role))
-                        .collect(Collectors.toSet());
-            }
-
-            Collection<String> authorities = jwt.getClaimAsStringList("authorities");
-            if (authorities != null && !authorities.isEmpty()) {
-                return authorities.stream()
-                        .map(SimpleGrantedAuthority::new)
-                        .collect(Collectors.toSet());
-            }
-
-            return null;
-        }
     }
 }

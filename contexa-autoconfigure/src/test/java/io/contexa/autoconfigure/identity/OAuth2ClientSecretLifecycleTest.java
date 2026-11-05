@@ -369,7 +369,7 @@ class OAuth2ClientSecretLifecycleTest {
 
         JWKSource<SecurityContext> keys = configuration.jwkSource();
         JwtGenerator jwtGenerator = new JwtGenerator(configuration.jwtEncoder(keys));
-        jwtGenerator.setJwtCustomizer(configuration.tokenCustomizer(none(), none()));
+        jwtGenerator.setJwtCustomizer(configuration.tokenCustomizer(none(), none(), none()));
         AuthenticatedUserGrantAuthenticationProvider provider = new AuthenticatedUserGrantAuthenticationProvider(
                 authorizations, new DelegatingOAuth2TokenGenerator(jwtGenerator, new OAuth2RefreshTokenGenerator()),
                 users, transactionTemplate);

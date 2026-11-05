@@ -24,6 +24,7 @@ import io.contexa.contexaiam.testsupport.PostgresTestDatabase;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.DeviceAwareOAuth2AuthorizationService;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.AuthenticatedUserGrantAuthenticationProvider;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.AuthenticatedUserGrantAuthenticationToken;
+import io.contexa.contexaidentity.security.token.service.AccountTokenGuard;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,6 +33,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
+import org.springframework.security.core.userdetails.User;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
@@ -227,6 +229,22 @@ class OAuth2AuthorizationStoragePostgresTest {
         assertStoredAsWritten(signIn("alice"));
     }
 
+    // PG-09: a refresh compares what the stored token names with the account, so the claim reads back as it was written
+    @Test
+    void theRolesAStoredTokenNamesReadBackForARefreshToCompare() throws IOException {
+        installCanonicalTables();
+        start();
+        OAuth2AccessTokenAuthenticationToken signedIn = signIn("alice");
+
+        OAuth2Authorization stored = service.findByToken(signedIn.getRefreshToken().getTokenValue(), OAuth2TokenType.REFRESH_TOKEN);
+
+        Object named = stored.getAccessToken().getClaims().get(AccountTokenGuard.ROLES_CLAIM);
+        assertThat(AccountTokenGuard.namesRightsBeyond(named,
+                User.withUsername("alice").password("{noop}x").roles("USER").build())).isFalse();
+        assertThat(AccountTokenGuard.namesRightsBeyond(named,
+                User.withUsername("alice").password("{noop}x").authorities(List.of()).build())).isTrue();
+    }
+
     private void start() {
         IdentityOAuth2AutoConfiguration configuration = new IdentityOAuth2AutoConfiguration(transactions, properties);
         RegisteredClientRepository clients = configuration.registeredClientRepository(jdbc);
@@ -240,7 +258,7 @@ class OAuth2AuthorizationStoragePostgresTest {
 
         JWKSource<SecurityContext> keys = configuration.jwkSource();
         JwtGenerator jwtGenerator = new JwtGenerator(configuration.jwtEncoder(keys));
-        jwtGenerator.setJwtCustomizer(configuration.tokenCustomizer(none(), none()));
+        jwtGenerator.setJwtCustomizer(configuration.tokenCustomizer(none(), none(), none()));
         provider = new AuthenticatedUserGrantAuthenticationProvider(service,
                 new DelegatingOAuth2TokenGenerator(jwtGenerator, new OAuth2RefreshTokenGenerator()), users(), transactions);
     }

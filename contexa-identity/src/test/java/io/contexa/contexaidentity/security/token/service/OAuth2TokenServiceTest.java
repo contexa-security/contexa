@@ -37,6 +37,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.oauth2.client.OAuth2AuthorizeRequest;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
@@ -52,6 +56,7 @@ import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 
 import java.time.Instant;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -274,6 +279,97 @@ class OAuth2TokenServiceTest {
                 .isInstanceOfSatisfying(OAuth2AuthenticationException.class, ex ->
                         assertThat(ex.getError().getErrorCode()).isEqualTo(OAuth2TokenService.MFA_CHALLENGE_REQUIRED_ERROR));
         verify(authorizedClientManager, never()).authorize(any());
+    }
+
+    @Test
+    @DisplayName("refresh should be refused for an account that is gone, while the access token is still good too")
+    void refreshRefusedForAnAccountThatIsGone() {
+        stubGoodAccessToken(List.of("USER", "SCOPE_read"));
+        UserDetailsService accounts = mock(UserDetailsService.class);
+        when(accounts.loadUserByUsername("testUser")).thenThrow(new UsernameNotFoundException("gone"));
+        service.setAccountGuard(new AccountTokenGuard(() -> accounts, () -> null));
+
+        assertThatThrownBy(() -> service.refresh("refresh-token-123"))
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, ex ->
+                        assertThat(ex.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.INVALID_GRANT));
+        verify(authorizedClientManager, never()).authorize(any());
+    }
+
+    @Test
+    @DisplayName("refresh should be refused for a disabled account, while the access token is still good too")
+    void refreshRefusedForADisabledAccount() {
+        stubGoodAccessToken(List.of("USER", "SCOPE_read"));
+        service.setAccountGuard(guardOf(User.withUsername("testUser").password("{noop}x").roles("USER").disabled(true).build()));
+
+        assertThatThrownBy(() -> service.refresh("refresh-token-123"))
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, ex ->
+                        assertThat(ex.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.INVALID_GRANT));
+        verify(authorizedClientManager, never()).authorize(any());
+    }
+
+    @Test
+    @DisplayName("refresh should be refused for a locked account, while the access token is still good too")
+    void refreshRefusedForALockedAccount() {
+        stubGoodAccessToken(List.of("USER", "SCOPE_read"));
+        service.setAccountGuard(guardOf(User.withUsername("testUser").password("{noop}x").roles("USER").accountLocked(true).build()));
+
+        assertThatThrownBy(() -> service.refresh("refresh-token-123"))
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, ex ->
+                        assertThat(ex.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.INVALID_GRANT));
+        verify(authorizedClientManager, never()).authorize(any());
+    }
+
+    @Test
+    @DisplayName("A good access token that still names a role the account lost goes through the grant, not back to the caller")
+    void aTokenBeyondTheAccountIsMarkedDueForTheGrant() {
+        stubGoodAccessToken(List.of("ADMIN", "SCOPE_read"));
+        service.setAccountGuard(guardOf(User.withUsername("testUser").password("{noop}x").roles("USER").build()));
+
+        assertThat(handedOverToTheGrant().getExpiresAt()).isBefore(Instant.now());
+    }
+
+    @Test
+    @DisplayName("A good access token that matches the account stays as Spring's refresh rule keeps it")
+    void aTokenInStepWithTheAccountIsHandedOverAsItIs() {
+        Instant expiresAt = stubGoodAccessToken(List.of("USER", "SCOPE_read"));
+        service.setAccountGuard(guardOf(User.withUsername("testUser").password("{noop}x").roles("USER").build()));
+
+        assertThat(handedOverToTheGrant().getExpiresAt()).isEqualTo(expiresAt);
+    }
+
+    private OAuth2AccessToken handedOverToTheGrant() {
+        when(clientRegistrationRepository.findByRegistrationId("aidc-internal")).thenReturn(mock(ClientRegistration.class));
+        OAuth2AuthorizedClient refreshedClient = mock(OAuth2AuthorizedClient.class);
+        OAuth2AccessToken accessToken = mock(OAuth2AccessToken.class);
+        when(refreshedClient.getAccessToken()).thenReturn(accessToken);
+        when(accessToken.getTokenValue()).thenReturn("new-access-token");
+        ArgumentCaptor<OAuth2AuthorizeRequest> requestCaptor = ArgumentCaptor.forClass(OAuth2AuthorizeRequest.class);
+        when(authorizedClientManager.authorize(requestCaptor.capture())).thenReturn(refreshedClient);
+
+        service.refresh("refresh-token-123");
+
+        OAuth2AccessToken handedOver = requestCaptor.getValue().getAuthorizedClient().getAccessToken();
+        assertThat(handedOver.getTokenValue()).isEqualTo("stored-access-token");
+        return handedOver;
+    }
+
+    private static AccountTokenGuard guardOf(UserDetails account) {
+        UserDetailsService accounts = mock(UserDetailsService.class);
+        when(accounts.loadUserByUsername(account.getUsername())).thenReturn(account);
+        return new AccountTokenGuard(() -> accounts, () -> null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Instant stubGoodAccessToken(List<String> rolesClaim) {
+        Instant now = Instant.now();
+        Instant expiresAt = now.plusSeconds(3600);
+        stubActiveAuthorization(
+                new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, "stored-access-token", now, expiresAt),
+                new OAuth2RefreshToken("refresh-token-123", now, now.plusSeconds(604800)));
+        OAuth2Authorization.Token<OAuth2AccessToken> accessTokenMeta =
+                authorizationService.findByToken("refresh-token-123", OAuth2TokenType.REFRESH_TOKEN).getAccessToken();
+        when(accessTokenMeta.getClaims()).thenReturn(Map.of("roles", rolesClaim));
+        return expiresAt;
     }
 
     @SuppressWarnings("unchecked")

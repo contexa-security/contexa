@@ -40,6 +40,14 @@ import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.beans.factory.support.DefaultListableBeanFactory;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexaidentity.security.token.service.AccountTokenGuard;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.jwk.source.JWKSource;
@@ -204,7 +212,7 @@ class IdentityOAuth2AutoConfigurationTest {
     @DisplayName("The token customizer writes the login facts of the login grant, and a refreshed token keeps them")
     void tokenCustomizerWritesTheLoginFacts() {
         OAuth2TokenCustomizer<JwtEncodingContext> customizer =
-                configuration(new AuthContextProperties()).tokenCustomizer(none(), none());
+                configuration(new AuthContextProperties()).tokenCustomizer(none(), none(), none());
 
         JwtClaimsSet.Builder issuedClaims = JwtClaimsSet.builder().subject("alice");
         customizer.customize(JwtEncodingContext.with(JwsHeader.with(SignatureAlgorithm.RS256), issuedClaims)
@@ -250,7 +258,7 @@ class IdentityOAuth2AutoConfigurationTest {
     void accessTokenNamesTheClientItWasIssuedTo() throws Exception {
         IdentityOAuth2AutoConfiguration configuration = configuration(new AuthContextProperties());
         JwtGenerator generator = new JwtGenerator(new NimbusJwtEncoder(configuration.jwkSource()));
-        generator.setJwtCustomizer(configuration.tokenCustomizer(none(), none()));
+        generator.setJwtCustomizer(configuration.tokenCustomizer(none(), none(), none()));
         RegisteredClient client = RegisteredClient.withId("report-service")
                 .clientId("report-service")
                 .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
@@ -282,7 +290,7 @@ class IdentityOAuth2AutoConfigurationTest {
 
         // An ID token describes the person who signed in; it gets no client_id claim.
         JwtClaimsSet.Builder idTokenClaims = JwtClaimsSet.builder().subject("alice");
-        configuration.tokenCustomizer(none(), none()).customize(JwtEncodingContext.with(JwsHeader.with(SignatureAlgorithm.RS256), idTokenClaims)
+        configuration.tokenCustomizer(none(), none(), none()).customize(JwtEncodingContext.with(JwsHeader.with(SignatureAlgorithm.RS256), idTokenClaims)
                 .registeredClient(client)
                 .tokenType(new OAuth2TokenType("id_token"))
                 .build());
@@ -294,7 +302,7 @@ class IdentityOAuth2AutoConfigurationTest {
     void issuedTokenClaimsReadBackFromTheStoredAuthorization() throws Exception {
         IdentityOAuth2AutoConfiguration configuration = configuration(new AuthContextProperties());
         JwtGenerator generator = new JwtGenerator(new NimbusJwtEncoder(configuration.jwkSource()));
-        generator.setJwtCustomizer(configuration.tokenCustomizer(none(), none()));
+        generator.setJwtCustomizer(configuration.tokenCustomizer(none(), none(), none()));
         RegisteredClient client = RegisteredClient.withId("client-1")
                 .clientId("client-1")
                 .authorizationGrantType(AuthenticatedUserGrantAuthenticationToken.AUTHENTICATED_USER)
@@ -367,7 +375,7 @@ class IdentityOAuth2AutoConfigurationTest {
         ObjectProvider<AgentClientDirectory> agents = mock(ObjectProvider.class);
         when(agents.getIfAvailable()).thenReturn(directory);
         OAuth2TokenCustomizer<JwtEncodingContext> customizer =
-                configuration(new AuthContextProperties()).tokenCustomizer(none(), agents);
+                configuration(new AuthContextProperties()).tokenCustomizer(none(), agents, none());
 
         assertThatThrownBy(() -> customizer.customize(accessTokenContext("sync-client")))
                 .isInstanceOf(OAuth2AuthenticationException.class)
@@ -390,7 +398,7 @@ class IdentityOAuth2AutoConfigurationTest {
         ObjectProvider<DelegationRegistry> delegations = mock(ObjectProvider.class);
         when(delegations.getIfAvailable()).thenReturn(registry);
         OAuth2TokenCustomizer<JwtEncodingContext> customizer =
-                configuration(new AuthContextProperties()).tokenCustomizer(delegations, agents);
+                configuration(new AuthContextProperties()).tokenCustomizer(delegations, agents, none());
 
         // No delegation recorded: the exchange goes on (OC-1).
         customizer.customize(exchangeContext("alice"));
@@ -414,7 +422,7 @@ class IdentityOAuth2AutoConfigurationTest {
                 Instant.now().minusSeconds(3600), null, null));
         ObjectProvider<DelegationRegistry> expired = mock(ObjectProvider.class);
         when(expired.getIfAvailable()).thenReturn(earlier);
-        configuration(new AuthContextProperties()).tokenCustomizer(expired, agents)
+        configuration(new AuthContextProperties()).tokenCustomizer(expired, agents, none())
                 .customize(exchangeContext("carol"));
     }
 
@@ -439,7 +447,142 @@ class IdentityOAuth2AutoConfigurationTest {
         IdentityOAuth2AutoConfiguration configuration = new IdentityOAuth2AutoConfiguration(
                 mock(TransactionTemplate.class), new AuthContextProperties(), null, zeroTrust);
 
-        configuration.tokenCustomizer(delegations, agents).customize(exchangeContext("alice"));
+        configuration.tokenCustomizer(delegations, agents, none()).customize(exchangeContext("alice"));
+    }
+
+    @Test
+    @DisplayName("A refreshed token holds what the account holds now, not what the sign-in stored")
+    void aRefreshedTokenHoldsTheAccountAsItIsNow() {
+        JwtClaimsSet.Builder claims = JwtClaimsSet.builder().subject("alice");
+
+        customizerFor(User.withUsername("alice").password("{noop}x").authorities("ROLE_USER", "ORDER_READ").build())
+                .customize(refreshContext(claims));
+
+        assertThat(claims.build().getClaims().get("roles")).isEqualTo(List.of("USER", "SCOPE_read"));
+    }
+
+    @Test
+    @DisplayName("A refreshed token of an account left without roles names its scopes, as a new sign-in does")
+    void aRefreshedTokenOfAnAccountWithoutRoles() {
+        JwtClaimsSet.Builder claims = JwtClaimsSet.builder().subject("alice");
+
+        customizerFor(User.withUsername("alice").password("{noop}x").authorities(List.of()).build())
+                .customize(refreshContext(claims));
+
+        assertThat(claims.build().getClaims().get("roles")).isEqualTo(List.of("SCOPE_read"));
+    }
+
+    @Test
+    @DisplayName("A token of any other grant still names what its grant established")
+    void anIssuedTokenNamesItsPrincipal() {
+        JwtClaimsSet.Builder claims = JwtClaimsSet.builder().subject("alice");
+        RegisteredClient client = RegisteredClient.withId("client-1").clientId("client-1")
+                .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS).build();
+
+        customizerFor(User.withUsername("alice").password("{noop}x").authorities(List.of()).build())
+                .customize(JwtEncodingContext.with(JwsHeader.with(SignatureAlgorithm.RS256), claims)
+                        .registeredClient(client)
+                        .principal(signedIn("ROLE_ADMIN"))
+                        .tokenType(OAuth2TokenType.ACCESS_TOKEN)
+                        .authorizationGrantType(AuthenticatedUserGrantAuthenticationToken.AUTHENTICATED_USER)
+                        .build());
+
+        assertThat(claims.build().getClaims().get("roles")).isEqualTo(List.of("ADMIN"));
+    }
+
+    @Test
+    @DisplayName("The token endpoint renews nothing for a disabled, locked or deleted account")
+    void theTokenEndpointRenewsNothingForAnAccountOutOfStanding() {
+        assertInvalidGrant(customizerFor(User.withUsername("alice").password("{noop}x").roles("USER").disabled(true).build()));
+        assertInvalidGrant(customizerFor(User.withUsername("alice").password("{noop}x").roles("USER").accountLocked(true).build()));
+        assertInvalidGrant(customizerFor(User.withUsername("bob").password("{noop}x").roles("USER").build()));
+    }
+
+    @Test
+    @DisplayName("The token endpoint renews nothing under a stored BLOCK, whose refresh entry point refused it alone before")
+    @SuppressWarnings("unchecked")
+    void theTokenEndpointRenewsNothingUnderAStoredBlock() {
+        ObjectProvider<ZeroTrustActionRepository> actions = blocked();
+        OAuth2TokenCustomizer<JwtEncodingContext> customizer = configuration(new AuthContextProperties())
+                .tokenCustomizer(none(), none(), guardProvider(configuration(new AuthContextProperties())
+                        .accountTokenGuard(store(User.withUsername("alice").password("{noop}x").roles("USER").build()), actions)));
+
+        assertThatThrownBy(() -> customizer.customize(refreshContext(JwtClaimsSet.builder().subject("alice"))))
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, refused ->
+                        assertThat(refused.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.ACCESS_DENIED));
+    }
+
+    @Test
+    @DisplayName("In the report-only mode a stored BLOCK refuses no renewal, as it refuses nothing else")
+    @SuppressWarnings("unchecked")
+    void inTheReportOnlyModeAStoredBlockRefusesNoRenewal() {
+        SecurityZeroTrustProperties shadow = new SecurityZeroTrustProperties();
+        shadow.setMode(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
+        ObjectProvider<SecurityZeroTrustProperties> zeroTrust = mock(ObjectProvider.class);
+        when(zeroTrust.getIfAvailable()).thenReturn(shadow);
+        IdentityOAuth2AutoConfiguration configuration = new IdentityOAuth2AutoConfiguration(
+                mock(TransactionTemplate.class), new AuthContextProperties(), null, zeroTrust);
+        JwtClaimsSet.Builder claims = JwtClaimsSet.builder().subject("alice");
+
+        configuration.tokenCustomizer(none(), none(), guardProvider(configuration.accountTokenGuard(
+                        store(User.withUsername("alice").password("{noop}x").roles("USER").build()), blocked())))
+                .customize(refreshContext(claims));
+
+        assertThat(claims.build().getClaims().get("roles")).isEqualTo(List.of("USER", "SCOPE_read"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ObjectProvider<ZeroTrustActionRepository> blocked() {
+        ZeroTrustActionRepository repository = mock(ZeroTrustActionRepository.class);
+        when(repository.getCurrentAction("alice")).thenReturn(ZeroTrustAction.BLOCK);
+        ObjectProvider<ZeroTrustActionRepository> actions = mock(ObjectProvider.class);
+        when(actions.getIfAvailable()).thenReturn(repository);
+        return actions;
+    }
+
+    private static void assertInvalidGrant(OAuth2TokenCustomizer<JwtEncodingContext> customizer) {
+        assertThatThrownBy(() -> customizer.customize(refreshContext(JwtClaimsSet.builder().subject("alice"))))
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, refused ->
+                        assertThat(refused.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.INVALID_GRANT));
+    }
+
+    private OAuth2TokenCustomizer<JwtEncodingContext> customizerFor(UserDetails account) {
+        IdentityOAuth2AutoConfiguration configuration = configuration(new AuthContextProperties());
+        return configuration.tokenCustomizer(none(), none(),
+                guardProvider(configuration.accountTokenGuard(store(account), none())));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ObjectProvider<AccountTokenGuard> guardProvider(AccountTokenGuard guard) {
+        ObjectProvider<AccountTokenGuard> provider = mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(guard);
+        return provider;
+    }
+
+    private static DefaultListableBeanFactory store(UserDetails account) {
+        DefaultListableBeanFactory beans = new DefaultListableBeanFactory();
+        beans.registerSingleton("store", new InMemoryUserDetailsManager(account));
+        return beans;
+    }
+
+    private static Authentication signedIn(String... authorities) {
+        return UsernamePasswordAuthenticationToken.authenticated("alice", null,
+                AuthorityUtils.createAuthorityList(authorities));
+    }
+
+    /** What Spring's refresh provider hands the customizer: the principal the sign-in stored, here an administrator. */
+    private static JwtEncodingContext refreshContext(JwtClaimsSet.Builder claims) {
+        RegisteredClient client = RegisteredClient.withId("client-1").clientId("client-1")
+                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN).build();
+        return JwtEncodingContext.with(JwsHeader.with(SignatureAlgorithm.RS256), claims)
+                .registeredClient(client)
+                .principal(signedIn("ROLE_ADMIN", "SCOPE_read"))
+                .authorization(OAuth2Authorization.withRegisteredClient(client).principalName("alice")
+                        .authorizationGrantType(AuthenticatedUserGrantAuthenticationToken.AUTHENTICATED_USER).build())
+                .authorizedScopes(Set.of("read"))
+                .tokenType(OAuth2TokenType.ACCESS_TOKEN)
+                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                .build();
     }
 
     private static JwtEncodingContext exchangeContext(String person) {

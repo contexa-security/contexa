@@ -21,6 +21,16 @@ The format is based on Keep a Changelog and the project follows semantic version
   Calls of the same session, address and browser go on as before, with the decision after the response. A user with no
   decision on record is not compared, nothing is held in SHADOW, and service clients go on as before. A
   `ZeroTrustActionRepository` of your own compares nothing until it implements `decidedContext`.
+- **A right taken away ends on the next request, for a token too.** A token's `roles` and `authorities` claims were added to
+  what the account holds, so an administrator stripped of a group stayed one until the token expired, and a refresh kept
+  it going for as long as the refresh token lasted. A token now carries what the account holds at each request and the
+  token's scopes, and a refresh hands out a token naming the account as it is. A still valid access token is given back
+  by a refresh as before, unless it names a right the account lost: that one is replaced. A refresh is refused with
+  `invalid_grant` for an account that is gone, disabled or locked, at `/oauth2/token` as well, and the BLOCK, ESCALATE and
+  CHALLENGE that stopped only the refresh entry point now stop `/oauth2/token` too. A disabled account's token ends at
+  once; a locked one goes on until it expires, as a session does. **Check:** a role that lives only in the claims of your
+  identity provider's token no longer counts for a user with an account here: give it to the account. A
+  `OAuth2TokenCustomizer` of your own replaces Contexa's, so `/oauth2/token` then checks nothing at a refresh.
 - **A sign-in flow no longer mails a code in another user's name.** The name of a code request comes from the form, and it
   was compared with the flow only after the mail had gone: a user could send anyone a code from their own sign-in. A flow
   now asks for the code of its own user, and any other name is refused before a code is made.

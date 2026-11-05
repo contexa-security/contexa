@@ -17,7 +17,6 @@ package io.contexa.contexaidentity.security.token.service;
 
 import io.contexa.contexaidentity.security.handler.login.LoginFactClaims;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexaidentity.security.token.dto.TokenPair;
@@ -26,6 +25,7 @@ import io.contexa.contexaidentity.security.token.transport.TokenTransportStrateg
 import io.contexa.contexaidentity.security.token.validator.TokenValidator;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -35,6 +35,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.OAuth2AuthorizeRequest;
@@ -43,7 +44,6 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
-import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
 import org.springframework.security.oauth2.core.OAuth2RefreshToken;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
@@ -64,6 +64,7 @@ public class OAuth2TokenService implements TokenService {
     private final ObjectMapper objectMapper;
     private final TokenTransportStrategy transportStrategy;
     private volatile ZeroTrustActionRepository zeroTrustActionRepository;
+    private volatile AccountTokenGuard accountGuard;
 
     private static final String CLIENT_REGISTRATION_ID = "aidc-internal";
 
@@ -215,6 +216,7 @@ public class OAuth2TokenService implements TokenService {
 
         String principalName = authorization.getPrincipalName();
         rejectWhenZeroTrustForbidsRefresh(principalName);
+        OAuth2AccessToken heldAccessToken = heldAccessToken(accessTokenMeta, principalName);
 
         ClientRegistration clientRegistration = clientRegistrationRepository.findByRegistrationId(CLIENT_REGISTRATION_ID);
         if (clientRegistration == null) {
@@ -233,7 +235,7 @@ public class OAuth2TokenService implements TokenService {
         // Hand the presented refresh token to the Spring refresh provider explicitly; the Spring
         // Authorization Server then validates and rotates it through its refresh_token grant.
         OAuth2AuthorizedClient currentClient = new OAuth2AuthorizedClient(
-                clientRegistration, principalName, accessTokenMeta.getToken(), refreshTokenMeta.getToken());
+                clientRegistration, principalName, heldAccessToken, refreshTokenMeta.getToken());
 
         OAuth2AuthorizeRequest.Builder builder = OAuth2AuthorizeRequest
                 .withAuthorizedClient(currentClient)
@@ -261,20 +263,32 @@ public class OAuth2TokenService implements TokenService {
         this.zeroTrustActionRepository = zeroTrustActionRepository;
     }
 
+    public void setAccountGuard(@Nullable AccountTokenGuard accountGuard) {
+        this.accountGuard = accountGuard;
+    }
+
     private void rejectWhenZeroTrustForbidsRefresh(String principalName) {
-        ZeroTrustActionRepository repository = this.zeroTrustActionRepository;
-        if (repository == null) {
-            return;
+        AccountTokenGuard.refuseWhileRestricted(this.zeroTrustActionRepository, principalName);
+    }
+
+    /**
+     * The access token to hand Spring's client, which renews only what is due and gives back a token that is still good.
+     * That answer would reach neither the token endpoint nor its checks, so the account is read here. A token that still
+     * names a right the account lost is marked due, for the grant to replace it: given back, it would go on saying so.
+     */
+    private OAuth2AccessToken heldAccessToken(OAuth2Authorization.Token<OAuth2AccessToken> held, String principalName) {
+        OAuth2AccessToken token = held.getToken();
+        AccountTokenGuard guard = this.accountGuard;
+        if (guard == null) {
+            return token;
         }
-        ZeroTrustAction action = repository.getCurrentAction(principalName);
-        if (action == ZeroTrustAction.BLOCK || action == ZeroTrustAction.ESCALATE) {
-            throw new OAuth2AuthenticationException(new OAuth2Error(OAuth2ErrorCodes.ACCESS_DENIED,
-                    "Token refresh is not allowed while the zero trust action is " + action, null));
+        UserDetails account = guard.activeAccount(principalName);
+        Map<String, Object> claims = held.getClaims();
+        if (claims == null || !AccountTokenGuard.namesRightsBeyond(claims.get(AccountTokenGuard.ROLES_CLAIM), account)) {
+            return token;
         }
-        if (action == ZeroTrustAction.CHALLENGE) {
-            throw new OAuth2AuthenticationException(new OAuth2Error(MFA_CHALLENGE_REQUIRED_ERROR,
-                    "Token refresh requires completing the zero trust MFA challenge", null));
-        }
+        return new OAuth2AccessToken(token.getTokenType(), token.getTokenValue(), Instant.EPOCH, Instant.EPOCH.plusSeconds(1),
+                token.getScopes());
     }
 
     private void addCurrentRequestAttributes(OAuth2AuthorizeRequest.Builder builder) {
