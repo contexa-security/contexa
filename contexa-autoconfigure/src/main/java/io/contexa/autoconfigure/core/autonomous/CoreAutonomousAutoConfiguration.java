@@ -911,6 +911,8 @@ public class CoreAutonomousAutoConfiguration {
         service.setAgentAllowReuse(agentAllowReuse.getIfAvailable());
         // docs/agent RL-12: one agent's requests that come in numbers are analysed once per question.
         service.setAgentDecisionFlights(agentDecisionFlights.getIfAvailable());
+        // PR-54: a synchronous request waits for its verdict as long as a request of the flights does.
+        service.setDecisionWait(securityZeroTrustProperties.getAgent().getFlight().getWait());
         return service;
     }
     /**

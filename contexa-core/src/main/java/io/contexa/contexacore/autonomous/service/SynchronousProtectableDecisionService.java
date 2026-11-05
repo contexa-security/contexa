@@ -33,7 +33,12 @@ import io.contexa.contexacore.autonomous.agent.AgentAllowReuse;
 import io.contexa.contexacore.autonomous.agent.AgentDecisionFlights;
 import io.contexa.contexacore.autonomous.context.support.ResourceImportanceResolver;
 import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedException;
+import java.time.Duration;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
@@ -49,6 +54,7 @@ public class SynchronousProtectableDecisionService {
     private AgentDecisionFlights agentDecisionFlights;
     private SecurityZeroTrustProperties.UnrecordedAgentRequest unrecordedAgentRequest =
             SecurityZeroTrustProperties.UnrecordedAgentRequest.DECIDE_IN_PLACE;
+    private Duration decisionWait;
 
     public SynchronousProtectableDecisionService(
             ZeroTrustEventPublisher zeroTrustEventPublisher,
@@ -63,6 +69,12 @@ public class SynchronousProtectableDecisionService {
 
     public void setUnanalysedRequestRecorder(UnanalysedRequestRecorder unanalysedRequestRecorder) {
         this.unanalysedRequestRecorder = unanalysedRequestRecorder;
+    }
+
+    /** PR-54: the longest a synchronous decision holds the request's thread; null analyses in the request. */
+    public void setDecisionWait(Duration decisionWait) {
+        this.decisionWait = decisionWait != null && !decisionWait.isZero() && !decisionWait.isNegative()
+                ? decisionWait : null;
     }
 
     public SyncDecisionResult analyze(MethodInvocation methodInvocation, Authentication authentication) {
@@ -101,9 +113,65 @@ public class SynchronousProtectableDecisionService {
         SecurityEvent securityEvent = ZeroTrustSecurityEventConverter.convert(event);
         // The engine takes the request in here, as a collector does for an analysis it queues (Q-15).
         securityEvent.addMetadata(DeletedAccountWriteFence.TAKEN_IN_AT, System.currentTimeMillis());
-        SecurityEventContext processingContext = securityPlaneAgent.processSecurityEvent(securityEvent);
+        SecurityEventContext processingContext;
+        try {
+            processingContext = decidedInTime(securityEvent);
+        } catch (DecisionNotInTimeException notInTime) {
+            return withoutAVerdict(event, userId, contextBindingHash);
+        }
         agentDecided(event, contextBindingHash);
         return currentResult(event, userId, contextBindingHash, processingContext);
+    }
+
+    /**
+     * PR-54: the analysis, for as long as the request may wait for it. Past the wait it goes on by itself on the
+     * analysis threads and stores its decision for the next request, so a model that does not answer does not hold the
+     * application's thread for as long as the model is given.
+     *
+     * @throws DecisionNotInTimeException when the verdict did not come in time, or there is no room for the analysis
+     */
+    private SecurityEventContext decidedInTime(SecurityEvent securityEvent) {
+        Duration wait = decisionWait;
+        if (wait == null) {
+            return securityPlaneAgent.processSecurityEvent(securityEvent);
+        }
+        try {
+            return securityPlaneAgent.processSecurityEventOffThread(securityEvent)
+                    .get(wait.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException waitedLongEnough) {
+            throw new DecisionNotInTimeException();
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new DecisionNotInTimeException();
+        } catch (ExecutionException failed) {
+            if (failed.getCause() instanceof RejectedExecutionException) {
+                throw new DecisionNotInTimeException();
+            }
+            if (failed.getCause() instanceof RuntimeException failure) {
+                throw failure;
+            }
+            if (failed.getCause() instanceof Error error) {
+                throw error;
+            }
+            throw new IllegalStateException("The analysis of a synchronous request failed", failed.getCause());
+        }
+    }
+
+    /**
+     * The answer to a synchronous request whose verdict did not come in time: it is not let through without one, an
+     * ALLOW of an earlier request says nothing of it, and a stricter decision that landed meanwhile answers it. The
+     * answer is this request's: nothing is stored, the analysis still decides. An agent is told the engine is busy, as
+     * it is when the flights have no place for it (RL-12).
+     */
+    private SyncDecisionResult withoutAVerdict(ZeroTrustSpringEvent event, String userId, String contextBindingHash) {
+        ZeroTrustAction inForce = currentAction(event, userId, contextBindingHash);
+        boolean restricted = inForce == ZeroTrustAction.BLOCK || inForce == ZeroTrustAction.ESCALATE;
+        if (!restricted && agentRequest(event)) {
+            throw ZeroTrustAccessDeniedException.analysisBusy(event.getResource(),
+                    (int) Math.max(1, decisionWait.toSeconds()));
+        }
+        return new SyncDecisionResult(event, contextBindingHash, restricted ? inForce : ZeroTrustAction.CHALLENGE,
+                actionRepository.getAnalysisData(decisionKey(event, userId)), null);
     }
 
     /** Whether the flights take this request: an agent's request, with the flights on. */
@@ -455,6 +523,15 @@ public class SynchronousProtectableDecisionService {
 
         public static AsyncProtectableGate restricted(ZeroTrustAction restriction) {
             return new AsyncProtectableGate(restriction, false, false, false);
+        }
+    }
+
+    /** The verdict of a synchronous request did not come in time. */
+    private static final class DecisionNotInTimeException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
+        private DecisionNotInTimeException() {
+            super(null, null, false, false);
         }
     }
 

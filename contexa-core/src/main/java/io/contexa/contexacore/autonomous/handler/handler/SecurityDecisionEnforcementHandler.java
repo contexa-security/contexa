@@ -62,6 +62,11 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
      * persisted. A retry of the same event reuses it instead of running the analysis again.
      */
     public static final String AUDIT_PENDING_PROCESSING_RESULT = "auditPendingProcessingResult";
+    /**
+     * Q-5: set on an event whose analysis failed and left a CHALLENGE no model decided in force, so that the agent asks
+     * the model again while that CHALLENGE lasts.
+     */
+    public static final String JUDGE_AGAIN = "judgeAgainAfterTechnicalChallenge";
     private static final String DECISION_AUDIT_PENDING = "decisionAuditPending";
     private static final String DECISION_AUDIT_PENDING_AT = "decisionAuditPendingAt";
     private static final Duration DEFAULT_AUDIT_FAILURE_COOLDOWN = Duration.ofSeconds(30);
@@ -335,7 +340,14 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         if (result.getProposedAction() != null && !result.getProposedAction().isBlank()) {
             additionalFields.put("llmProposedAction", result.getProposedAction());
         }
-        putIfPresent(additionalFields, "llmDecisionPresent", result.getLlmDecisionPresent());
+        putIfPresent(additionalFields, ZeroTrustActionRepository.LLM_DECISION_PRESENT, result.getLlmDecisionPresent());
+        // Q-5: no model reached this CHALLENGE; a model's own decision, a broken format around a readable action
+        // included, says so and is not marked.
+        boolean technicalChallenge = ztAction == ZeroTrustAction.CHALLENGE
+                && Boolean.FALSE.equals(result.getLlmDecisionPresent());
+        if (technicalChallenge) {
+            additionalFields.put(ZeroTrustActionRepository.TECHNICAL_CHALLENGE, true);
+        }
         putIfPresent(additionalFields, "technicalFallbackApplied", result.getTechnicalFallbackApplied());
         putIfPresent(additionalFields, "technicalFallbackCategory", result.getTechnicalFallbackCategory());
         putIfPresent(additionalFields, "technicalFallbackReason", result.getTechnicalFallbackReason());
@@ -396,6 +408,9 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             return Enforcement.KEPT_STRICTER;
         }
 
+        if (technicalChallenge) {
+            event.addMetadata(JUDGE_AGAIN, true);
+        }
         if (ztAction == ZeroTrustAction.BLOCK) {
             handleBlockDecision(userId, event, result);
         }
@@ -428,10 +443,20 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         putIfPresent(fields, "requestId", persisted.requestId());
         putIfPresent(fields, "contextBindingHash", persisted.contextBindingHash());
         putIfPresent(fields, "reasoning", persisted.reasoning());
+        putIfPresent(fields, ZeroTrustActionRepository.LLM_DECISION_PRESENT, persisted.llmDecisionPresent());
+        // Q-5: restored, a CHALLENGE no model decided stays the short one it was.
+        boolean technicalChallenge = action == ZeroTrustAction.CHALLENGE
+                && Boolean.FALSE.equals(persisted.llmDecisionPresent());
+        if (technicalChallenge) {
+            fields.put(ZeroTrustActionRepository.TECHNICAL_CHALLENGE, true);
+        }
         requireCurrentProcessingOwner(event);
         ZeroTrustActionRepository.FinalActionWrite written = actionRedisRepository.writeFinalAction(userId, action, fields);
         if (written == null || written == ZeroTrustActionRepository.FinalActionWrite.FAILED) {
             throw new IllegalStateException("Persisted final decision did not converge to runtime action");
+        }
+        if (technicalChallenge && written == ZeroTrustActionRepository.FinalActionWrite.APPLIED) {
+            event.addMetadata(JUDGE_AGAIN, true);
         }
         releaseDecisionAuditPending(userId,
                 persisted.contextBindingHash() != null ? persisted.contextBindingHash() : resolveContextBindingHash(event),

@@ -264,6 +264,16 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
     }
 
     @Override
+    public boolean isTechnicalChallenge(String userId) {
+        if (isBlank(userId)) {
+            return false;
+        }
+        AnalysisEntry entry = liveAnalysis(userId);
+        return entry != null && entry.technicalChallenge
+                && ZeroTrustAction.fromString(entry.action) == ZeroTrustAction.CHALLENGE;
+    }
+
+    @Override
     public long getBlockMfaFailCount(String userId) {
         if (isBlank(userId)) {
             return 0;
@@ -339,6 +349,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
             entry.action = action.name();
             entry.previousAction = previousAction;
             entry.updatedAt = Instant.now().toString();
+            entry.technicalChallenge = ZeroTrustActionPrecedence.isTechnicalChallenge(action, additionalFields);
 
             if (additionalFields != null) {
                 Object threatEvidence = additionalFields.get("threatEvidence");
@@ -379,7 +390,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
                 }
             }
 
-            analyses.put(userId, entry, ttlOf(action));
+            analyses.put(userId, entry, ttlOf(action, additionalFields));
             putLastVerified(userId, action);
         } finally {
             lock.unlock();
@@ -404,8 +415,8 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         ReentrantLock lock = lockUser(userId);
         try {
             AnalysisEntry active = liveAnalysis(userId);
-            boolean analysisKeeps = active != null
-                    && ZeroTrustActionPrecedence.keepsActiveRestriction(ZeroTrustAction.fromString(active.action), action);
+            boolean analysisKeeps = active != null && ZeroTrustActionPrecedence.keepsActiveRestriction(
+                    ZeroTrustAction.fromString(active.action), active.technicalChallenge, action, additionalFields);
             boolean flagKeeps = blockedUsers.contains(userId)
                     && ZeroTrustActionPrecedence.keepsActiveRestriction(ZeroTrustAction.BLOCK, action);
             boolean keepsActiveRestriction = analysisKeeps || flagKeeps;
@@ -466,10 +477,11 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
                     ? existing.action : ZeroTrustAction.PENDING_ANALYSIS.name();
             entry.action = newAction.name();
             entry.updatedAt = Instant.now().toString();
+            entry.technicalChallenge = false;
             if (contextBindingHash != null) {
                 entry.contextBindingHash = contextBindingHash;
             }
-            analyses.put(userId, entry, ttlOf(newAction));
+            analyses.put(userId, entry, ttlOf(newAction, null));
             putLastVerified(userId, newAction);
         } finally {
             lock.unlock();
@@ -852,7 +864,8 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
             AnalysisEntry entry = existing != null ? existing.copy() : new AnalysisEntry();
             entry.action = newAction.name();
             entry.updatedAt = Instant.now().toString();
-            analyses.put(userId, entry, ttlOf(newAction));
+            entry.technicalChallenge = false;
+            analyses.put(userId, entry, ttlOf(newAction, null));
             putLastVerified(userId, newAction);
         } finally {
             lock.unlock();
@@ -866,8 +879,8 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         return entry != null && entry.action != null ? entry : null;
     }
 
-    private static Duration ttlOf(ZeroTrustAction action) {
-        Duration ttl = action.getDefaultTtl();
+    private static Duration ttlOf(ZeroTrustAction action, Map<String, Object> fields) {
+        Duration ttl = ZeroTrustActionPrecedence.ttlOf(action, fields);
         return ttl != null ? ttl : NO_TTL;
     }
 
@@ -924,7 +937,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
             entry.previousAction = stored != null ? stored.action : null;
             entry.action = replacement.name();
             entry.updatedAt = Instant.now().toString();
-            analyses.put(userId, entry, ttlOf(replacement));
+            analyses.put(userId, entry, ttlOf(replacement, null));
             putLastVerified(userId, replacement);
         } finally {
             lock.unlock();
@@ -946,6 +959,8 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         String requestId;
         String contextBindingHash;
         String llmProposedAction;
+        /** Q-5: the action is a CHALLENGE no model decided. */
+        boolean technicalChallenge;
 
         /** Every field, as the Redis repository reads the whole analysis hash before it rewrites it. */
         AnalysisEntry copy() {
@@ -962,6 +977,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
             copy.requestId = requestId;
             copy.contextBindingHash = contextBindingHash;
             copy.llmProposedAction = llmProposedAction;
+            copy.technicalChallenge = technicalChallenge;
             return copy;
         }
     }

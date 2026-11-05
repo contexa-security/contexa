@@ -17,6 +17,9 @@ package io.contexa.contexacore.autonomous.repository;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 
+import java.time.Duration;
+import java.util.Map;
+
 /**
  * Precedence rules shared by the repository implementations.
  *
@@ -60,6 +63,41 @@ final class ZeroTrustActionPrecedence {
                 || active == ZeroTrustAction.ESCALATE)
                 && incoming != null
                 && strictness(incoming) < strictness(active);
+    }
+
+    /**
+     * The same with what is known of the two decisions (Q-5). A CHALLENGE no model decided holds until the model
+     * decides: an ALLOW of the model replaces it, an action no model reached does not. A CHALLENGE no model decided
+     * never replaces one the model decided, which it would shorten; it renews one like itself.
+     *
+     * @param activeIsTechnical whether the active action is a CHALLENGE no model decided
+     * @param incomingFields    the fields of the incoming decision
+     */
+    static boolean keepsActiveRestriction(ZeroTrustAction active, boolean activeIsTechnical, ZeroTrustAction incoming,
+                                          Map<String, Object> incomingFields) {
+        if (active != ZeroTrustAction.CHALLENGE || incoming == null) {
+            return keepsActiveRestriction(active, incoming);
+        }
+        if (activeIsTechnical) {
+            return keepsActiveRestriction(active, incoming) && !decidedByTheModel(incomingFields);
+        }
+        return keepsActiveRestriction(active, incoming) || isTechnicalChallenge(incoming, incomingFields);
+    }
+
+    /** Whether the decision is a CHALLENGE no model decided. */
+    static boolean isTechnicalChallenge(ZeroTrustAction action, Map<String, Object> fields) {
+        return action == ZeroTrustAction.CHALLENGE && fields != null
+                && Boolean.TRUE.equals(fields.get(ZeroTrustActionRepository.TECHNICAL_CHALLENGE));
+    }
+
+    /** The TTL of the decision: a CHALLENGE no model decided lasts a short time, any other action its own TTL. */
+    static Duration ttlOf(ZeroTrustAction action, Map<String, Object> fields) {
+        return isTechnicalChallenge(action, fields) ? ZeroTrustActionRepository.TECHNICAL_CHALLENGE_TTL
+                : action.getDefaultTtl();
+    }
+
+    private static boolean decidedByTheModel(Map<String, Object> fields) {
+        return fields != null && Boolean.TRUE.equals(fields.get(ZeroTrustActionRepository.LLM_DECISION_PRESENT));
     }
 
     private static int strictness(ZeroTrustAction action) {

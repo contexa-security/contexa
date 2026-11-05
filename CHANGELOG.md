@@ -8,6 +8,15 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **A model outage no longer locks users out for half an hour.** A CHALLENGE no model decided (the analysis failed: an
+  HTTP error, an empty or unreadable answer, a time-out) is marked, lasts 60 seconds instead of 30 minutes and gives way
+  to what the model decides next. While it lasts the model is asked again about the same request, every 10 seconds, at
+  most three times, so a model that is back frees the user without any step of theirs. A CHALLENGE or a BLOCK the model
+  decided stands as it did: the mark never shortens or replaces one, in Redis or in memory.
+- **A synchronous `@Protectable` no longer holds the application's thread as long as the model is given.** A request
+  waits for its verdict at most `contexa.security.zerotrust.agent.flight.wait` (40 seconds), a person's as an agent's.
+  Past it the request is refused with a CHALLENGE that is not stored, the analysis goes on and stores its decision for
+  the next request. An application on a slower model raises that setting.
 - **A user can answer a CHALLENGE in `contexa.infrastructure.mode=distributed` whatever the sign-in is made of.** An MFA
   flow stored in Redis could not be read back when the sign-in held a read-only collection (a one-time token or a
   remember-me sign-in with Contexa's user or Spring's `User`, a JWT, an OAuth2 login) or an object the reading node

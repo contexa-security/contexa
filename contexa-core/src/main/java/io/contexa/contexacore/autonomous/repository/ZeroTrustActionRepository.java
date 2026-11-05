@@ -26,6 +26,19 @@ import java.util.Map;
  */
 public interface ZeroTrustActionRepository {
 
+    /**
+     * Q-5: the field of a final decision that marks a CHALLENGE no model decided: the analysis failed, so nothing is
+     * known of the user. It lasts {@link #TECHNICAL_CHALLENGE_TTL} instead of a CHALLENGE's own TTL and gives way to
+     * what the model decides next. A CHALLENGE the model decided is never replaced by one that carries this field.
+     */
+    String TECHNICAL_CHALLENGE = "technicalChallenge";
+
+    /** Q-5: how long a CHALLENGE no model decided stays in force. */
+    Duration TECHNICAL_CHALLENGE_TTL = Duration.ofSeconds(60);
+
+    /** Whether a final decision the model reached: only such a decision lifts a CHALLENGE no model decided. */
+    String LLM_DECISION_PRESENT = "llmDecisionPresent";
+
 
     ZeroTrustAction getCurrentAction(String userId);
 
@@ -52,6 +65,14 @@ public interface ZeroTrustActionRepository {
     ZeroTrustAction getPreviousActionFromHash(String userId);
 
     ZeroTrustAction getLastVerifiedAction(String userId);
+
+    /**
+     * Q-5: whether the action in force is a CHALLENGE no model decided. A repository that keeps no such mark answers
+     * false: its CHALLENGE stands as a decided one.
+     */
+    default boolean isTechnicalChallenge(String userId) {
+        return false;
+    }
 
     long getBlockMfaFailCount(String userId);
 
