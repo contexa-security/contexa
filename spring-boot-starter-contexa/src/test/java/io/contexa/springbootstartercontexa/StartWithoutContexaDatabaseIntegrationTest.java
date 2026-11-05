@@ -13,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext;
@@ -57,7 +58,7 @@ class StartWithoutContexaDatabaseIntegrationTest {
             assertTheApplicationRunsWithoutContexa(context);
         }
         assertThat(errorLines(output)).hasSize(1);
-        assertThat(errorLines(output).get(0)).contains("Contexa's database cannot be reached");
+        assertThat(errorLines(output).get(0)).contains("Contexa's database cannot be used");
     }
 
     @Test
@@ -66,6 +67,25 @@ class StartWithoutContexaDatabaseIntegrationTest {
             assertTheApplicationRunsWithoutContexa(context);
         }
         assertThat(errorLines(output)).hasSize(1);
+    }
+
+    /**
+     * PR-16, on a real PostgreSQL: the database answers, and its account may not create the extension Contexa's start needs.
+     * Given a database without the extension, an ordinary account and its password in these variables.
+     */
+    @Test
+    @EnabledIfEnvironmentVariable(named = "CONTEXA_TEST_RESTRICTED_DB_URL", matches = ".+")
+    void anAccountThatMayNotCreateTheExtensionsLeavesTheApplicationRunningWithoutContexa(CapturedOutput output) throws Exception {
+        try (ConfigurableApplicationContext context = start(HostApplication.class,
+                "contexa.datasource.url=" + System.getenv("CONTEXA_TEST_RESTRICTED_DB_URL"),
+                "contexa.datasource.username=" + System.getenv("CONTEXA_TEST_RESTRICTED_DB_USERNAME"),
+                "contexa.datasource.password=" + System.getenv("CONTEXA_TEST_RESTRICTED_DB_PASSWORD"))) {
+            assertTheApplicationRunsWithoutContexa(context);
+        }
+        assertThat(errorLines(output)).hasSize(1);
+        assertThat(errorLines(output).get(0))
+                .contains("permission denied to create extension")
+                .contains("CREATE EXTENSION \"vector\"");
     }
 
     /** The application says it has no database of its own: with Contexa off nothing needs the one that is down. */

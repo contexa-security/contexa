@@ -138,8 +138,8 @@ public class AiSecurityImportSelector implements DeferredImportSelector, Ordered
             return false;
         }
         LoggerFactory.getLogger(AiSecurityImportSelector.class).error(
-                "Contexa's database cannot be reached ({}): the application starts without Contexa, and nothing of it is active. "
-                        + "Restart the application once the database is back.", problem);
+                "Contexa's database cannot be used ({}): the application starts without Contexa, and nothing of it is active. "
+                        + "Restart the application once that is put right.", problem);
         // an application without a database of its own would start its JPA on this one
         environment.getPropertySources().addFirst(new MapPropertySource("contexaDatabaseDown", Map.of(PROP_CONTEXA_OWNED_APPLICATION, false)));
         return true;
