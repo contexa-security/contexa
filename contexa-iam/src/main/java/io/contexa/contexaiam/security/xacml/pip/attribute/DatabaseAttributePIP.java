@@ -24,6 +24,7 @@ import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.repository.BusinessResourceActionRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
+import io.contexa.contexaiam.security.xacml.pip.context.SubjectCache;
 import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -44,7 +45,6 @@ public class DatabaseAttributePIP implements AttributeInformationPoint {
     private final BusinessResourceActionRepository resourceActionRepository;
     private final ContexaCacheService cacheService;
 
-    private static final String CACHE_DOMAIN = "users";
     private static final TypeReference<Users> USERS_TYPE = new TypeReference<>() {};
 
     @Override
@@ -83,10 +83,9 @@ public class DatabaseAttributePIP implements AttributeInformationPoint {
                 attributes.put("username", username);
                 if (username == null || username.isBlank()) return;
 
-                String cacheKey = "user_details_name:" + username;
-                Users cached = cacheService.get(cacheKey,
+                Users cached = cacheService.get(SubjectCache.byName(username),
                         () -> userRepository.findByUsernameWithGroupsRolesAndPermissions(username).orElse(null),
-                        USERS_TYPE, CACHE_DOMAIN);
+                        USERS_TYPE, SubjectCache.DOMAIN);
                 Optional<Users> userOpt = Optional.ofNullable(cached);
                 if (userOpt.isPresent()) {
                     Users user = userOpt.get();

@@ -30,7 +30,7 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
  * BLOCK by the access filter. That holds with allow-escalate-final-action on; off, an ESCALATE is
  * internal to the analysis, and one left in the store ends as the terminal action when it is read.</p>
  */
-final class ZeroTrustActionPrecedence {
+public final class ZeroTrustActionPrecedence {
 
     private ZeroTrustActionPrecedence() {
     }
@@ -55,7 +55,7 @@ final class ZeroTrustActionPrecedence {
      * Returns whether a final analysis result must not replace the active action because the
      * active action is a user-level BLOCK, CHALLENGE or ESCALATE and the result is less strict.
      */
-    static boolean keepsActiveRestriction(ZeroTrustAction active, ZeroTrustAction incoming) {
+    public static boolean keepsActiveRestriction(ZeroTrustAction active, ZeroTrustAction incoming) {
         return (active == ZeroTrustAction.BLOCK || active == ZeroTrustAction.CHALLENGE
                 || active == ZeroTrustAction.ESCALATE)
                 && incoming != null

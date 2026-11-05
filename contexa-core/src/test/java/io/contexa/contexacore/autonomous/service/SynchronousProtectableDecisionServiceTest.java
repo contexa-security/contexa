@@ -19,6 +19,7 @@ import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
+import io.contexa.contexacore.autonomous.audit.AgentDecisionRecord;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
@@ -149,6 +150,29 @@ class SynchronousProtectableDecisionServiceTest {
                 service.analyze(methodInvocation, authentication);
 
         assertThat(result.action()).isEqualTo(ZeroTrustAction.CHALLENGE);
+    }
+
+    @Test
+    @DisplayName("PR-86: a decision the store kept out is no answer when the restriction cannot be read back")
+    void analyze_keptOutDecisionIsNoAnswerWithoutTheRestriction() {
+        MockHttpServletRequest request = request("/admin/reports");
+        bindRequest(request);
+        ZeroTrustSpringEvent event = methodEvent("/admin/reports");
+        stubEvent(event);
+        SecurityEvent decided = SecurityEvent.builder().eventId("event-1").userId(USER_ID).build();
+        decided.addMetadata(AgentDecisionRecord.ENFORCEMENT_OUTCOME, AgentDecisionRecord.KEPT_STRICTER);
+        SecurityEventContext processingContext = mock(SecurityEventContext.class);
+        when(processingContext.getSecurityEvent()).thenReturn(decided);
+        when(processingContext.getMetadata()).thenReturn(Map.of("processingResult",
+                ProcessingResult.builder().action(ZeroTrustAction.ALLOW.name()).build()));
+        when(securityPlaneAgent.processSecurityEvent(any(SecurityEvent.class))).thenReturn(processingContext);
+
+        assertThat(service.analyze(methodInvocation, authentication).action()).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+
+        // A request's own restriction kept out stays its answer: it still stops the request and says how to go on.
+        when(processingContext.getMetadata()).thenReturn(Map.of("processingResult",
+                ProcessingResult.builder().action(ZeroTrustAction.CHALLENGE.name()).build()));
+        assertThat(service.analyze(methodInvocation, authentication).action()).isEqualTo(ZeroTrustAction.CHALLENGE);
     }
 
     @Test
