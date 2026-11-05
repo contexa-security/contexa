@@ -339,7 +339,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
     private ZeroTrustAction unresolvedEscalationOrPending(String userId) {
         String lastAction = readLastVerifiedAction(userId);
         if (lastAction == null || ZeroTrustAction.fromString(lastAction) != ZeroTrustAction.ESCALATE) {
-            return ZeroTrustAction.PENDING_ANALYSIS;
+            return endedMeanwhileOrPending(userId);
         }
         ZeroTrustAction replacement = escalateReplacement;
         if (replacement == null) {
@@ -347,6 +347,17 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
         replaceStoredEscalate(userId, replacement, Map.of());
         return replacement;
+    }
+
+    /**
+     * A reader that found no analysis can meet the last-verified record another reader has just written as it ended the
+     * ESCALATE: the replacement stands, and a request read as pending would get past it.
+     */
+    private ZeroTrustAction endedMeanwhileOrPending(String userId) {
+        ZeroTrustAction replacement = escalateReplacement;
+        Object action = replacement != null ? readAnalysis(userId).get("action") : null;
+        return action != null && ZeroTrustAction.fromString(action.toString()) == replacement
+                ? replacement : ZeroTrustAction.PENDING_ANALYSIS;
     }
 
     /** The user's analysis for a reader: an ESCALATE in it ends first, when a replacement is set. */

@@ -988,7 +988,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
     // With a replacement set it ends here instead, and nothing promotes it.
     private ZeroTrustAction unresolvedEscalationOrPending(String userId) {
         if (getLastVerifiedAction(userId) != ZeroTrustAction.ESCALATE) {
-            return ZeroTrustAction.PENDING_ANALYSIS;
+            return endedMeanwhileOrPending(userId);
         }
         ZeroTrustAction replacement = escalateReplacement;
         if (replacement == null) {
@@ -996,6 +996,17 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         }
         replaceStoredEscalate(userId, replacement);
         return replacement;
+    }
+
+    /**
+     * A reader that found no analysis can meet the last-verified record another reader has just written as it ended the
+     * ESCALATE: the replacement stands, and a request read as pending would get past it.
+     */
+    private ZeroTrustAction endedMeanwhileOrPending(String userId) {
+        ZeroTrustAction replacement = escalateReplacement;
+        AnalysisEntry entry = replacement != null ? liveAnalysis(userId) : null;
+        return entry != null && ZeroTrustAction.fromString(entry.action) == replacement
+                ? replacement : ZeroTrustAction.PENDING_ANALYSIS;
     }
 
     /** The user's analysis for a reader: an ESCALATE in it ends first, when a replacement is set. */
