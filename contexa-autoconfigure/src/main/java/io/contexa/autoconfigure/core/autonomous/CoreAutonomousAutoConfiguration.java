@@ -94,6 +94,7 @@ import io.contexa.contexacore.autonomous.utils.InMemoryThreatScoreUtil;
 import io.contexa.contexacore.autonomous.utils.RedisThreatScoreUtil;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
 import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
 import io.contexa.contexacore.autonomous.baseline.store.InMemoryBaselineDataStore;
@@ -217,6 +218,18 @@ public class CoreAutonomousAutoConfiguration {
     public DisposableBean contexaClientIpResolutionBinding(TieredStrategyProperties tieredStrategyProperties) {
         SessionFingerprintUtil.bindClientIpResolution(tieredStrategyProperties);
         return () -> SessionFingerprintUtil.unbindClientIpResolution(tieredStrategyProperties);
+    }
+
+    /**
+     * Q-18: binds whether every spelling of a name reads one decision, for the stores and the signals that key by user.
+     * The binding is created eagerly because no other bean depends on it.
+     */
+    @Bean("contexaUserKeyBinding")
+    @Lazy(false)
+    @ConditionalOnMissingBean(name = "contexaUserKeyBinding")
+    public DisposableBean contexaUserKeyBinding(SecurityZeroTrustProperties securityZeroTrustProperties) {
+        ZeroTrustUserKey.bind(securityZeroTrustProperties);
+        return () -> ZeroTrustUserKey.unbind(securityZeroTrustProperties);
     }
 
     /**

@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import java.time.Duration;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -158,8 +159,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
 
         try {
-            String blockKey = ZeroTrustRedisKeys.userBlocked(userId);
-            if ("true".equals(stringRedisTemplate.opsForValue().get(blockKey))) {
+            if (blockedFlagStands(userId)) {
                 return ZeroTrustAction.BLOCK;
             }
 
@@ -184,8 +184,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
 
         try {
-            String blockKey = ZeroTrustRedisKeys.userBlocked(userId);
-            if ("true".equals(stringRedisTemplate.opsForValue().get(blockKey))) {
+            if (blockedFlagStands(userId)) {
                 return ZeroTrustAction.BLOCK;
             }
 
@@ -227,6 +226,16 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             log.error("[ZeroTrustActionRedisRepository] Failed to get current action with context: userId={}", userId, e);
             return ZeroTrustAction.PENDING_ANALYSIS;
         }
+    }
+
+    /** The user's BLOCK flag, or the one an earlier version stored under the name as typed. */
+    private boolean blockedFlagStands(String userId) {
+        String blockKey = ZeroTrustRedisKeys.userBlocked(userId);
+        if ("true".equals(stringRedisTemplate.opsForValue().get(blockKey))) {
+            return true;
+        }
+        String typedKey = ZeroTrustRedisKeys.userBlockedAsTyped(userId);
+        return !typedKey.equals(blockKey) && "true".equals(stringRedisTemplate.opsForValue().get(typedKey));
     }
 
     // An ESCALATE whose analysis hash expires without resolution keeps reading as ESCALATE through the 24 h
@@ -400,7 +409,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             return false;
         }
         try {
-            String retryKey = "security:escalate:retry:" + userId;
+            String retryKey = ZeroTrustRedisKeys.escalateRetry(userId);
             return Boolean.TRUE.equals(stringRedisTemplate.hasKey(retryKey));
         } catch (Exception e) {
             log.error("[ZeroTrustActionRedisRepository] Failed to check escalate retry: userId={}", userId, e);
@@ -414,7 +423,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             return;
         }
         try {
-            String retryKey = "security:escalate:retry:" + userId;
+            String retryKey = ZeroTrustRedisKeys.escalateRetry(userId);
             if (!Boolean.TRUE.equals(stringRedisTemplate.hasKey(retryKey))) {
                 stringRedisTemplate.opsForValue().set(retryKey, "1", ttl);
             }
@@ -665,8 +674,8 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
 
         try {
-            String userBlockedKey = ZeroTrustRedisKeys.userBlocked(userId);
-            stringRedisTemplate.delete(userBlockedKey);
+            stringRedisTemplate.delete(List.of(ZeroTrustRedisKeys.userBlocked(userId),
+                    ZeroTrustRedisKeys.userBlockedAsTyped(userId)));
         } catch (Exception e) {
             log.error("[ZeroTrustActionRedisRepository] Failed to remove blocked flag: userId={}", userId, e);
         }
@@ -728,11 +737,12 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                     ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId),
                     ZeroTrustRedisKeys.autonomousLastVerifiedActionContext(userId),
                     ZeroTrustRedisKeys.userBlocked(userId),
+                    ZeroTrustRedisKeys.userBlockedAsTyped(userId),
                     ZeroTrustRedisKeys.blockMfaPending(userId),
                     ZeroTrustRedisKeys.blockMfaVerified(userId),
                     ZeroTrustRedisKeys.blockMfaFailCount(userId),
                     ZeroTrustRedisKeys.autonomousDecisionAuditPending(userId),
-                    "security:escalate:retry:" + userId
+                    ZeroTrustRedisKeys.escalateRetry(userId)
             );
             stringRedisTemplate.delete(stringKeys);
         } catch (Exception e) {
@@ -745,7 +755,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         if (userId == null || userId.isBlank()) {
             return;
         }
-        String agentKeys = ZeroTrustRedisKeys.globLiteral(userId) + LearningSubject.AGENT_KEY + "*";
+        String agentKeys = ZeroTrustRedisKeys.globLiteral(ZeroTrustUserKey.of(userId)) + LearningSubject.AGENT_KEY + "*";
         List<String> keys = new ArrayList<>();
         for (String pattern : List.of(
                 ZeroTrustRedisKeys.autonomousActionAnalysis(agentKeys),
@@ -756,7 +766,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 ZeroTrustRedisKeys.blockMfaVerified(agentKeys),
                 ZeroTrustRedisKeys.blockMfaFailCount(agentKeys),
                 ZeroTrustRedisKeys.autonomousDecisionAuditPending(agentKeys),
-                "security:escalate:retry:" + agentKeys)) {
+                ZeroTrustRedisKeys.escalateRetry(agentKeys))) {
             try (Cursor<String> cursor = stringRedisTemplate.scan(
                     ScanOptions.scanOptions().match(pattern).count(500).build())) {
                 cursor.forEachRemaining(keys::add);
@@ -829,6 +839,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
 
         try {
             String blockKey = ZeroTrustRedisKeys.userBlocked(userId);
+            String typedBlockKey = ZeroTrustRedisKeys.userBlockedAsTyped(userId);
             String analysisKey = ZeroTrustRedisKeys.autonomousActionAnalysis(userId);
             String lastActionKey = ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId);
 
@@ -842,6 +853,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 public List<Object> execute(RedisOperations operations) throws DataAccessException {
                     operations.multi();
                     operations.delete(blockKey);
+                    operations.delete(typedBlockKey);
                     operations.delete(analysisKey);
                     operations.opsForHash().putAll(analysisKey, fields);
 

@@ -41,6 +41,12 @@ public class SecurityZeroTrustProperties {
 
     private int maxBlockMfaAttempts = 2;
 
+    /**
+     * Whether every spelling of a name (capitals, full-width letters) reads one decision, so that a BLOCK of
+     * {@code plain-k9} also stops {@code PLAIN-K9}. Turn it off when names of the application differ by case alone.
+     */
+    private boolean normalizeUserKeys = true;
+
     public enum EnforcementMode {
         DISABLED,
         OBSERVE,

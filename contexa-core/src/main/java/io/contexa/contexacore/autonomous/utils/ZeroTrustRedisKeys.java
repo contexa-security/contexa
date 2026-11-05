@@ -73,42 +73,56 @@ public class ZeroTrustRedisKeys {
 
     public static String autonomousActionAnalysis(String userId) {
         validateUserId(userId);
-        return String.format("%s:autonomous:action:analysis:%s", NAMESPACE, userId);
+        return String.format("%s:autonomous:action:analysis:%s", NAMESPACE, ZeroTrustUserKey.of(userId));
     }
 
     public static String autonomousLastVerifiedAction(String userId) {
         validateUserId(userId);
-        return String.format("%s:autonomous:action:last-verified:%s", NAMESPACE, userId);
+        return String.format("%s:autonomous:action:last-verified:%s", NAMESPACE, ZeroTrustUserKey.of(userId));
     }
 
     public static String autonomousLastVerifiedActionContext(String userId) {
         validateUserId(userId);
-        return String.format("%s:autonomous:action:last-verified-context:%s", NAMESPACE, userId);
+        return String.format("%s:autonomous:action:last-verified-context:%s", NAMESPACE, ZeroTrustUserKey.of(userId));
     }
 
     public static String autonomousDecisionAuditPending(String userId) {
         validateUserId(userId);
-        return String.format("%s:autonomous:action:audit-pending:%s", NAMESPACE, userId);
+        return String.format("%s:autonomous:action:audit-pending:%s", NAMESPACE, ZeroTrustUserKey.of(userId));
     }
 
     public static String userBlocked(String userId) {
         validateUserId(userId);
+        return userBlockedAsTyped(ZeroTrustUserKey.of(userId));
+    }
+
+    /**
+     * The BLOCK flag under the name as it was given, where a version before Q-18 stored it. A BLOCK has no TTL, so such a
+     * flag is read and removed beside {@link #userBlocked} and never lapses with an upgrade.
+     */
+    public static String userBlockedAsTyped(String userId) {
+        validateUserId(userId);
         return String.format("security:blocked:users:%s", userId);
+    }
+
+    public static String escalateRetry(String userId) {
+        validateUserId(userId);
+        return "security:escalate:retry:" + ZeroTrustUserKey.of(userId);
     }
 
     public static String blockMfaPending(String userId) {
         validateUserId(userId);
-        return String.format("%s:block:mfa:pending:%s", NAMESPACE, userId);
+        return String.format("%s:block:mfa:pending:%s", NAMESPACE, ZeroTrustUserKey.of(userId));
     }
 
     public static String blockMfaVerified(String userId) {
         validateUserId(userId);
-        return String.format("%s:block:mfa:verified:%s", NAMESPACE, userId);
+        return String.format("%s:block:mfa:verified:%s", NAMESPACE, ZeroTrustUserKey.of(userId));
     }
 
     public static String blockMfaFailCount(String userId) {
         validateUserId(userId);
-        return String.format("%s:block:mfa:failCount:%s", NAMESPACE, userId);
+        return String.format("%s:block:mfa:failCount:%s", NAMESPACE, ZeroTrustUserKey.of(userId));
     }
 
     public static String authenticationMfaVerified(String userId) {
