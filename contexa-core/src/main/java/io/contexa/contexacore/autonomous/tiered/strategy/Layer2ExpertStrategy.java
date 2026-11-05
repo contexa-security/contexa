@@ -236,6 +236,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         long pipelineBlockMs = 0L;
         long responseValidateMs = 0L;
         long postProcessMs = 0L;
+        SecurityDecision expertDecision = null;
         try {
             long segmentStart = System.currentTimeMillis();
             List<Document> relatedDocuments = getCachedOrSearchRelatedContext(event);
@@ -297,12 +298,12 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 throw new IllegalStateException("Layer2 PipelineOrchestrator not available");
             }
 
-            SecurityDecision expertDecision = convertToSecurityDecision(response, event);
+            expertDecision = convertToSecurityDecision(response, event);
             expertDecision.setLlmDecisionPresent(true);
             expertDecision.setTechnicalFallbackApplied(false);
             applyResponseActionFallback(expertDecision, pipelineResponse.getAction());
             applySecurityDecisionRuntimeTelemetry(expertDecision, pipelineResponse);
-            terminalizeLayer2EscalateDecision(expertDecision);
+            terminalizeLayer2EscalateDecision(expertDecision, "Layer2 returned ESCALATE");
             applyCanonicalDecisionReasoning(expertDecision, event, relatedDocuments);
             applyMinimumActionRules(expertDecision, event);
 
@@ -340,13 +341,31 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         } catch (Exception e) {
             String eventId = event.getEventId() != null ? event.getEventId() : "unknown";
             if (ModelServerSignals.isTimeLimit(e)) {
-                // O-2: the analysis ended at layer2.timeout-ms; held for review is the defined outcome.
+                // O-2: the analysis ended at layer2.timeout-ms; the technical failure decision is the defined outcome.
                 log.warn("[Layer2] Expert analysis ended at its time limit for event {}: {}", eventId, e.toString());
             } else {
                 log.error("[Layer2] Expert analysis failed for event {}", eventId, e);
             }
-            return createLayer2TechnicalFailureDecision(event, startTime, resolveTechnicalFailureCategory(e));
+            return decisionAfterFailure(event, startTime, expertDecision, e);
         }
+    }
+
+    /**
+     * What an analysis that failed ends as. A restriction the model already decided stands when a step after it fails:
+     * the failure is the platform's, the decision the model's, and a BLOCK must not become the fallback's CHALLENGE (a
+     * restriction is never lowered). allow-escalate-final-action keeps its hold on every failure.
+     */
+    private SecurityDecision decisionAfterFailure(SecurityEvent event, long startTime, SecurityDecision decided,
+                                                  Exception failure) {
+        if (decided != null && !tieredStrategyProperties.getLayer2().isAllowEscalateFinalAction()) {
+            ZeroTrustAction action = decided.resolveAutonomousAction();
+            if (action == ZeroTrustAction.CHALLENGE || action == ZeroTrustAction.BLOCK) {
+                decided.setProcessingTimeMs(System.currentTimeMillis() - startTime);
+                decided.setProcessingLayer(2);
+                return decided;
+            }
+        }
+        return createLayer2TechnicalFailureDecision(event, startTime, resolveTechnicalFailureCategory(failure));
     }
 
     public Mono<SecurityDecision> performDeepAnalysisAsync(SecurityEvent event) {
@@ -518,7 +537,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                         "Layer2 LLM response action was invalid; CHALLENGE was applied.");
     }
 
-    private void terminalizeLayer2EscalateDecision(SecurityDecision decision) {
+    private void terminalizeLayer2EscalateDecision(SecurityDecision decision, String cause) {
         // 판정층 E-5: no analysis follows this one, so an ESCALATE left after it is terminalized in every bundle; the
         // v21 system text and response check ask the second analysis for ALLOW, CHALLENGE or BLOCK. The v20 exception
         // of Q-87 (an ESCALATE kept under a review floor) is withdrawn (판정층 8절 7): no person reviews a request.
@@ -530,12 +549,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             return;
         }
 
-        ZeroTrustAction fallback = tieredStrategyProperties.getLayer2().getEscalateFallbackAction();
-        if (fallback == null
-                || fallback == ZeroTrustAction.ESCALATE
-                || fallback == ZeroTrustAction.PENDING_ANALYSIS) {
-            fallback = ZeroTrustAction.CHALLENGE;
-        }
+        ZeroTrustAction fallback = tieredStrategyProperties.getLayer2().escalateTerminalAction();
         decision.setAutonomousAction(fallback);
         decision.setAutonomyConstraintApplied(true);
         List<String> reasons = decision.getAutonomyConstraintReasons();
@@ -547,7 +561,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         decision.setAutonomyConstraintPolicy(ESCALATE_TERMINAL_POLICY);
         decision.setAutonomyConstraintSource(ESCALATE_TERMINAL_POLICY_SOURCE);
         decision.setAutonomyConstraintVersion(ESCALATE_TERMINAL_POLICY_VERSION);
-        String summary = "Layer2 returned ESCALATE, so final autonomous action was terminalized to "
+        String summary = cause + ", so final autonomous action was terminalized to "
                 + fallback.name() + " by tiered strategy policy.";
         decision.setAutonomyConstraintSummary(summary);
         String reasoning = decision.getReasoning();
@@ -672,19 +686,36 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 "Manual review required - LLM analysis failed");
     }
 
+    /**
+     * What a failed analysis ends as. allow-escalate-final-action holds the request for a review; otherwise the failure
+     * ends by the terminal policy, as a second pass ESCALATE does: no analysis follows this one and no person reviews a
+     * request, and an ESCALATE left in force would turn into a BLOCK of a user the model never judged.
+     */
     private SecurityDecision createLayer2TechnicalFailureDecision(
             SecurityEvent event,
             long startTime,
             String fallbackCategory) {
-        return createTechnicalFallbackDecision(
+        if (tieredStrategyProperties.getLayer2().isAllowEscalateFinalAction()) {
+            return createTechnicalFallbackDecision(
+                    event,
+                    ZeroTrustAction.ESCALATE,
+                    "[AI Native] Layer 2 LLM call failed - escalating for manual review",
+                    fallbackCategory,
+                    startTime,
+                    2,
+                    true,
+                    "Manual review required - LLM analysis failed");
+        }
+        SecurityDecision decision = createTechnicalFallbackDecision(
                 event,
                 ZeroTrustAction.ESCALATE,
-                "[AI Native] Layer 2 LLM call failed - escalating for manual review",
+                "[AI Native] Layer 2 LLM call failed",
                 fallbackCategory,
                 startTime,
-                2,
-                true,
-                "Manual review required - LLM analysis failed");
+                2);
+        terminalizeLayer2EscalateDecision(decision, "Layer2 analysis failed");
+        decision.setTechnicalFallbackAction(decision.resolveAutonomousAction().name());
+        return decision;
     }
 
     private record ResponseActionFallback(String category, String reason) {

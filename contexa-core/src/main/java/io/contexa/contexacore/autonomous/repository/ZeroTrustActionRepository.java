@@ -156,6 +156,19 @@ public interface ZeroTrustActionRepository {
 
     void approveOverrideAtomically(String userId, ZeroTrustAction newAction);
 
+    /**
+     * What a stored ESCALATE ends as when it is read: with allow-escalate-final-action off an ESCALATE is internal to the
+     * analysis, so one left in the store (by an earlier version or an earlier setting) becomes this action, stored with
+     * this action's own TTL, and no reader meets it again. Null, the default, keeps it: it restricts until an approved
+     * override or, past its TTL, the access filter's promotion. A BLOCK is not stored here, as a block also keeps its
+     * flag and its record: the stored ESCALATE stays for the access filter, which writes them.
+     * A repository that does not implement this keeps what it stores; the access filter then ends the ESCALATE itself.
+     *
+     * @param action what the ESCALATE ends as, or null to keep it
+     */
+    default void setEscalateTerminalAction(ZeroTrustAction action) {
+    }
+
 
     record ZeroTrustAnalysisData(
             String action,

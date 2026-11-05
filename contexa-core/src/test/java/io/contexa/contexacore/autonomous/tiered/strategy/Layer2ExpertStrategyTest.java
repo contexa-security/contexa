@@ -26,6 +26,7 @@ import io.contexa.contexacore.autonomous.context.decision.DecisionFacts;
 import io.contexa.contexacore.autonomous.context.decision.Deviation;
 import io.contexa.contexacore.autonomous.context.decision.DeviationDimension;
 import io.contexa.contexacore.autonomous.context.decision.PolicySatisfaction;
+import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
@@ -43,6 +44,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -58,6 +62,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -186,9 +191,13 @@ class Layer2ExpertStrategyTest {
         assertThat(decision.resolveAutonomousAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
     }
 
+    /**
+     * PR-83: a failed model call leaves no ESCALATE: no analysis follows this one and no person reviews a request, so
+     * it ends by the same terminal policy as a second pass ESCALATE, and the record shows a technical fallback.
+     */
     @Test
-    @DisplayName("performDeepAnalysis should return technical ESCALATE when the LLM pipeline fails")
-    void performDeepAnalysis_pipelineFailure_returnsTechnicalEscalate() {
+    @DisplayName("performDeepAnalysis should end as the escalate fallback action when the LLM pipeline fails")
+    void performDeepAnalysis_pipelineFailure_endsAsTheEscalateFallbackAction() {
         SecurityEvent event = buildTestEvent();
         when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
                 .thenReturn(Mono.error(new RuntimeException("pipeline unavailable")));
@@ -197,17 +206,198 @@ class Layer2ExpertStrategyTest {
 
         assertThat(decision).isNotNull();
         assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.ESCALATE);
-        assertThat(decision.getAutonomousAction()).isEqualTo(ZeroTrustAction.ESCALATE);
+        assertThat(decision.getAutonomousAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThat(decision.getLlmDecisionPresent()).isFalse();
         assertThat(decision.getTechnicalFallbackApplied()).isTrue();
+        assertThat(decision.getTechnicalFallbackAction()).isEqualTo("CHALLENGE");
         assertThat(decision.getResponseActionFallbackApplied()).isNull();
         assertThat(decision.getProcessingLayer()).isEqualTo(2);
-        assertThat(decision.getReasoning()).contains("escalating for manual review");
+        assertThat(decision.getAutonomyConstraintApplied()).isTrue();
+        assertThat(decision.getAutonomyConstraintReasons()).containsExactly("LAYER2_ESCALATE_TERMINALIZED");
+        assertThat(decision.getAutonomyConstraintPolicy()).isEqualTo(Layer2ExpertStrategy.ESCALATE_TERMINAL_POLICY);
+        assertThat(decision.getAutonomyConstraintSummary()).startsWith("Layer2 analysis failed");
+        assertThat(decision.getReasoning()).contains("Layer 2 LLM call failed").doesNotContain("manual review");
+        assertThat(decision.isRequiresApproval()).isFalse();
         assertThat(decision.getFieldProvenance()).containsOnly(
                 Map.entry("riskScore", "PLATFORM_FALLBACK"),
                 Map.entry("confidence", "PLATFORM_FALLBACK"),
                 Map.entry("reasoning", "PLATFORM_FALLBACK"),
                 Map.entry("mitre", "PLATFORM_FALLBACK"),
                 Map.entry("evidenceRefs", "PLATFORM_FALLBACK"));
+    }
+
+    /** allow-escalate-final-action keeps what it has always done: a failed call ends as ESCALATE, held for review. */
+    @Test
+    void anAllowedFinalEscalateStaysWhenTheLlmPipelineFails() {
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getLayer2().setAllowEscalateFinalAction(true);
+        strategy = strategyWith(properties);
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.error(new RuntimeException("pipeline unavailable")));
+
+        SecurityDecision decision = strategy.performDeepAnalysis(buildTestEvent());
+
+        assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.ESCALATE);
+        assertThat(decision.getAutonomousAction()).isEqualTo(ZeroTrustAction.ESCALATE);
+        assertThat(decision.getTechnicalFallbackApplied()).isTrue();
+        assertThat(decision.getTechnicalFallbackAction()).isEqualTo("ESCALATE");
+        assertThat(decision.getAutonomyConstraintApplied()).isNotEqualTo(Boolean.TRUE);
+        assertThat(decision.getReasoning()).contains("escalating for manual review");
+        assertThat(decision.isRequiresApproval()).isTrue();
+    }
+
+    /** The setting's own value ends a failure as it ends a second pass ESCALATE; one that ends nothing is CHALLENGE. */
+    @ParameterizedTest
+    @CsvSource({"BLOCK,BLOCK", "ALLOW,ALLOW", "CHALLENGE,CHALLENGE", "ESCALATE,CHALLENGE",
+            "PENDING_ANALYSIS,CHALLENGE"})
+    void aFailedCallEndsAsTheConfiguredFallback(ZeroTrustAction configured, ZeroTrustAction expected) {
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getLayer2().setEscalateFallbackAction(configured);
+        strategy = strategyWith(properties);
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.error(new RuntimeException("pipeline unavailable")));
+
+        SecurityDecision decision = strategy.performDeepAnalysis(buildTestEvent());
+
+        assertThat(decision.getAutonomousAction()).isEqualTo(expected);
+        assertThat(decision.getTechnicalFallbackAction()).isEqualTo(expected.name());
+    }
+
+    @Test
+    void aFailedCallEndsAsChallengeWithoutAConfiguredFallback() {
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getLayer2().setEscalateFallbackAction(null);
+        strategy = strategyWith(properties);
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.error(new RuntimeException("pipeline unavailable")));
+
+        assertThat(strategy.performDeepAnalysis(buildTestEvent()).getAutonomousAction())
+                .isEqualTo(ZeroTrustAction.CHALLENGE);
+    }
+
+    /** The cold path reads the assessment: the proposal stays ESCALATE, what is enforced is the fallback. */
+    @Test
+    void theAssessmentOfAFailedCallCarriesTheFallbackAsItsEnforcedAction() {
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.error(new RuntimeException("pipeline unavailable")));
+
+        ThreatAssessment assessment = strategy.evaluate(buildTestEvent());
+
+        assertThat(assessment.getAction()).isEqualTo("ESCALATE");
+        assertThat(assessment.getAutonomousAction()).isEqualTo("CHALLENGE");
+        assertThat(assessment.getRecommendedActions()).containsExactly("REQUIRE_REAUTHENTICATION");
+        assertThat(assessment.getTechnicalFallbackApplied()).isTrue();
+        assertThat(assessment.getLlmDecisionPresent()).isFalse();
+    }
+
+    @Test
+    void theAsyncAnalysisEndsAFailureTheSameWay() {
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.error(new RuntimeException("pipeline unavailable")));
+
+        SecurityDecision decision = strategy.performDeepAnalysisAsync(buildTestEvent()).block();
+
+        assertThat(decision).isNotNull();
+        assertThat(decision.getAutonomousAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
+    }
+
+    /** The async wrapper's own budget ends the wait: its fallback is the same decision. */
+    @Test
+    void theAsyncBudgetEndsAFailureTheSameWay() {
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getLayer2().setTimeoutMs(50);
+        strategy = strategyWith(properties);
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenAnswer(invocation -> {
+                    Thread.sleep(500);
+                    return Mono.never();
+                });
+
+        SecurityDecision decision = strategy.performDeepAnalysisAsync(buildTestEvent()).block();
+
+        assertThat(decision).isNotNull();
+        assertThat(decision.getAutonomousAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThat(decision.getTechnicalFallbackApplied()).isTrue();
+    }
+
+    /**
+     * PR-83: a restriction is never lowered. A model's own CHALLENGE or BLOCK stands when a step after it fails: the
+     * failure is the platform's, the decision the model's, and a BLOCK must not become the fallback's CHALLENGE.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"BLOCK", "CHALLENGE"})
+    void aModelsRestrictionStandsWhenAStepAfterItFails(String modelAction) {
+        strategy = strategyFailingAfterTheModel(new TieredStrategyProperties());
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setAction(modelAction);
+        response.setReasoning("The export is outside the owner's work.");
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.just(response));
+
+        SecurityDecision decision = strategy.performDeepAnalysis(buildTestEvent());
+
+        assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.valueOf(modelAction));
+        assertThat(decision.resolveAutonomousAction()).isEqualTo(ZeroTrustAction.valueOf(modelAction));
+        assertThat(decision.getLlmDecisionPresent()).isTrue();
+        assertThat(decision.getTechnicalFallbackApplied()).isFalse();
+        assertThat(decision.getProcessingLayer()).isEqualTo(2);
+    }
+
+    /** A model's ALLOW is no restriction to keep: the failed step ends it as a failure, which is the stricter end. */
+    @Test
+    void aModelsAllowEndsAsTheFallbackWhenAStepAfterItFails() {
+        strategy = strategyFailingAfterTheModel(new TieredStrategyProperties());
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setAction("ALLOW");
+        response.setReasoning("Routine work.");
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.just(response));
+
+        SecurityDecision decision = strategy.performDeepAnalysis(buildTestEvent());
+
+        assertThat(decision.resolveAutonomousAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThat(decision.getTechnicalFallbackApplied()).isTrue();
+    }
+
+    /** With the final ESCALATE allowed a failed step ends as before. */
+    @Test
+    void anAllowedFinalEscalateStaysWhenAStepAfterTheModelFails() {
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getLayer2().setAllowEscalateFinalAction(true);
+        strategy = strategyFailingAfterTheModel(properties);
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setAction("BLOCK");
+        response.setReasoning("The export is outside the owner's work.");
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.just(response));
+
+        SecurityDecision decision = strategy.performDeepAnalysis(buildTestEvent());
+
+        assertThat(decision.resolveAutonomousAction()).isEqualTo(ZeroTrustAction.ESCALATE);
+    }
+
+    /** The real analysis with a learning step that fails, the last step after the model answered. */
+    private Layer2ExpertStrategy strategyFailingAfterTheModel(TieredStrategyProperties properties) {
+        SecurityLearningService learning = mock(SecurityLearningService.class);
+        doThrow(new IllegalStateException("learning store down")).when(learning)
+                .postProcessDecision(any(SecurityEvent.class), any(SecurityDecision.class));
+        return new Layer2ExpertStrategy(
+                approvalService,
+                null,
+                new SecurityEventEnricher(),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), properties),
+                null,
+                null,
+                null,
+                properties,
+                learning,
+                null,
+                null,
+                null,
+                new PromptContextAuthorizationService(),
+                null,
+                pipelineOrchestrator
+        );
     }
 
     @Test
@@ -239,8 +429,8 @@ class Layer2ExpertStrategyTest {
     }
 
     @Test
-    @DisplayName("performDeepAnalysis should return technical ESCALATE when the pipeline exceeds the layer budget")
-    void performDeepAnalysis_pipelineTimeout_returnsTechnicalEscalate() {
+    @DisplayName("performDeepAnalysis should end as the escalate fallback action when the pipeline exceeds the layer budget")
+    void performDeepAnalysis_pipelineTimeout_endsAsTheEscalateFallbackAction() {
         TieredStrategyProperties properties = new TieredStrategyProperties();
         properties.getLayer2().setTimeoutMs(10);
         strategy = new Layer2ExpertStrategy(
@@ -268,12 +458,28 @@ class Layer2ExpertStrategyTest {
 
         assertThat(decision).isNotNull();
         assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.ESCALATE);
-        assertThat(decision.getAutonomousAction()).isEqualTo(ZeroTrustAction.ESCALATE);
+        assertThat(decision.getAutonomousAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
         assertThat(decision.getTechnicalFallbackApplied()).isTrue();
         assertThat(decision.getResponseActionFallbackApplied()).isNull();
         assertThat(decision.getProcessingLayer()).isEqualTo(2);
         assertThat(decision.getFieldProvenance().values())
                 .containsOnly("PLATFORM_FALLBACK");
+    }
+
+    /** allow-escalate-final-action keeps what it has always done: a call past the budget ends as ESCALATE. */
+    @Test
+    void anAllowedFinalEscalateStaysWhenThePipelineExceedsTheLayerBudget() {
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getLayer2().setAllowEscalateFinalAction(true);
+        properties.getLayer2().setTimeoutMs(10);
+        strategy = strategyWith(properties);
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.never());
+
+        SecurityDecision decision = strategy.performDeepAnalysis(buildTestEvent());
+
+        assertThat(decision.getAutonomousAction()).isEqualTo(ZeroTrustAction.ESCALATE);
+        assertThat(decision.getTechnicalFallbackApplied()).isTrue();
     }
 
     @Test
@@ -311,7 +517,7 @@ class Layer2ExpertStrategyTest {
 
         assertThat(decision).isNotNull();
         assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.ESCALATE);
-        assertThat(decision.getAutonomousAction()).isEqualTo(ZeroTrustAction.ESCALATE);
+        assertThat(decision.getAutonomousAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
         assertThat(decision.getTechnicalFallbackApplied()).isTrue();
         assertThat(decision.getResponseActionFallbackApplied()).isNull();
         assertThat(decision.getProcessingLayer()).isEqualTo(2);

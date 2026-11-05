@@ -23,11 +23,13 @@ import java.time.Duration;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.RedisOperations;
@@ -117,6 +119,9 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
     /** Set by a final write the calling thread made that a stricter action in effect kept out (W5-3). */
     private final ThreadLocal<Boolean> finalWriteKeptStricter = new ThreadLocal<>();
 
+    /** What a stored ESCALATE is replaced with when it is read; null keeps it. */
+    private volatile ZeroTrustAction escalateReplacement;
+
     public ZeroTrustActionRedisRepository(RedisTemplate<String, Object> redisTemplate,
                                           StringRedisTemplate stringRedisTemplate) {
         this(redisTemplate, stringRedisTemplate, DEFAULT_FAIL_COUNT_TTL);
@@ -128,6 +133,11 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         this.redisTemplate = Objects.requireNonNull(redisTemplate, "redisTemplate");
         this.stringRedisTemplate = Objects.requireNonNull(stringRedisTemplate, "stringRedisTemplate");
         this.failCountTtl = Objects.requireNonNull(failCountTtl, "failCountTtl");
+    }
+
+    @Override
+    public void setEscalateTerminalAction(ZeroTrustAction action) {
+        this.escalateReplacement = ZeroTrustActionPrecedence.storedEscalateReplacement(action);
     }
 
     public ZeroTrustAction getCurrentAction(String userId) {
@@ -153,7 +163,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 return ZeroTrustAction.BLOCK;
             }
 
-            Map<Object, Object> analysis = readAnalysis(userId);
+            Map<Object, Object> analysis = settledAnalysis(userId);
             Object actionValue = analysis.get("action");
             if (actionValue != null) {
                 return ZeroTrustAction.fromString(actionValue.toString());
@@ -179,7 +189,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 return ZeroTrustAction.BLOCK;
             }
 
-            Map<Object, Object> analysis = readAnalysis(userId);
+            Map<Object, Object> analysis = settledAnalysis(userId);
             if (analysis.isEmpty()) {
                 return unresolvedEscalationOrPending(userId);
             }
@@ -221,11 +231,50 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
 
     // An ESCALATE whose analysis hash expires without resolution keeps reading as ESCALATE through the 24 h
     // last-verified key, so the access filter promotes it to BLOCK; every other expired action reads as PENDING_ANALYSIS.
+    // With a replacement set it ends here instead, and nothing promotes it.
     private ZeroTrustAction unresolvedEscalationOrPending(String userId) {
         String lastAction = readLastVerifiedAction(userId);
-        return lastAction != null && ZeroTrustAction.fromString(lastAction) == ZeroTrustAction.ESCALATE
-                ? ZeroTrustAction.ESCALATE
-                : ZeroTrustAction.PENDING_ANALYSIS;
+        if (lastAction == null || ZeroTrustAction.fromString(lastAction) != ZeroTrustAction.ESCALATE) {
+            return ZeroTrustAction.PENDING_ANALYSIS;
+        }
+        ZeroTrustAction replacement = escalateReplacement;
+        if (replacement == null) {
+            return ZeroTrustAction.ESCALATE;
+        }
+        replaceStoredEscalate(userId, replacement, Map.of());
+        return replacement;
+    }
+
+    /** The user's analysis for a reader: an ESCALATE in it ends first, when a replacement is set. */
+    private Map<Object, Object> settledAnalysis(String userId) {
+        Map<Object, Object> analysis = readAnalysis(userId);
+        ZeroTrustAction replacement = escalateReplacement;
+        Object action = analysis.get("action");
+        if (replacement == null || action == null
+                || ZeroTrustAction.fromString(action.toString()) != ZeroTrustAction.ESCALATE) {
+            return analysis;
+        }
+        replaceStoredEscalate(userId, replacement, analysis);
+        return readAnalysis(userId);
+    }
+
+    /**
+     * Ends the ESCALATE left in the store as the replacement, with the replacement's own TTL; the analysis stays with it
+     * (a step-up learns the request it stopped from its id). The check and the write run in one script, so any other
+     * action stored by now, or a BLOCK flag, keeps the store as it is: a decision that landed first is never overwritten.
+     */
+    private void replaceStoredEscalate(String userId, ZeroTrustAction replacement, Map<Object, Object> analysis) {
+        Map<String, Object> kept = new HashMap<>();
+        analysis.forEach((field, value) -> kept.put(field.toString(), value));
+        kept.keySet().removeAll(List.of("action", "previousAction", "updatedAt"));
+        List<ZeroTrustAction> otherActions = Arrays.stream(ZeroTrustAction.values())
+                .filter(action -> action != ZeroTrustAction.ESCALATE).toList();
+        Long written = stringRedisTemplate.execute(SAVE_FINAL_ACTION_SCRIPT, RedisSerializer.byteArray(),
+                SCRIPT_RESULT_SERIALIZER, finalActionKeys(userId),
+                actionScriptArgs(replacement, kept, true, otherActions).toArray());
+        if (written != null && written == 1L) {
+            log.warn("[ZeroTrustActionRedisRepository] Stored ESCALATE ended: userId={}, action={}", userId, replacement);
+        }
     }
 
     public ZeroTrustAnalysisData getAnalysisData(String userId) {
@@ -234,7 +283,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
 
         try {
-            Map<Object, Object> entries = readAnalysis(userId);
+            Map<Object, Object> entries = settledAnalysis(userId);
 
             if (entries.isEmpty()) {
                 return ZeroTrustAnalysisData.pending();
@@ -270,7 +319,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
 
         try {
-            Object actionValue = readAnalysis(userId).get("action");
+            Object actionValue = settledAnalysis(userId).get("action");
             if (actionValue != null) {
                 return ZeroTrustAction.fromString(actionValue.toString());
             }
@@ -435,11 +484,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         Long written;
         try {
             written = stringRedisTemplate.execute(SAVE_FINAL_ACTION_SCRIPT, RedisSerializer.byteArray(),
-                    SCRIPT_RESULT_SERIALIZER,
-                    List.of(ZeroTrustRedisKeys.autonomousActionAnalysis(userId),
-                            ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId),
-                            ZeroTrustRedisKeys.autonomousLastVerifiedActionContext(userId),
-                            ZeroTrustRedisKeys.userBlocked(userId)),
+                    SCRIPT_RESULT_SERIALIZER, finalActionKeys(userId),
                     finalActionScriptArgs(action, additionalFields).toArray());
         } catch (Exception exception) {
             log.error("[ZeroTrustActionRedisRepository] Failed to save final action: userId={}, action={}",
@@ -905,27 +950,44 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         });
     }
 
+    private static List<String> finalActionKeys(String userId) {
+        return List.of(ZeroTrustRedisKeys.autonomousActionAnalysis(userId),
+                ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId),
+                ZeroTrustRedisKeys.autonomousLastVerifiedActionContext(userId),
+                ZeroTrustRedisKeys.userBlocked(userId));
+    }
+
+    private List<byte[]> finalActionScriptArgs(ZeroTrustAction action, Map<String, Object> additionalFields) {
+        List<ZeroTrustAction> refusing = Stream.of(ZeroTrustAction.BLOCK, ZeroTrustAction.CHALLENGE,
+                        ZeroTrustAction.ESCALATE)
+                .filter(active -> ZeroTrustActionPrecedence.keepsActiveRestriction(active, action))
+                .toList();
+        return actionScriptArgs(action, additionalFields,
+                ZeroTrustActionPrecedence.keepsActiveRestriction(ZeroTrustAction.BLOCK, action), refusing);
+    }
+
     /**
      * Builds the SAVE_FINAL_ACTION_SCRIPT arguments. Hash fields and values are serialized with the
      * template serializers, as {@link #saveAction} stores them; stored action values are compared in
      * plain and serialized form, as in {@link #removeLogoutData}.
+     *
+     * @param refusedByBlockFlag whether a standing BLOCK flag refuses the write
+     * @param refusing           the stored actions that refuse the write
      */
     @SuppressWarnings("unchecked")
-    private List<byte[]> finalActionScriptArgs(ZeroTrustAction action, Map<String, Object> additionalFields) {
+    private List<byte[]> actionScriptArgs(ZeroTrustAction action, Map<String, Object> additionalFields,
+                                          boolean refusedByBlockFlag, List<ZeroTrustAction> refusing) {
         RedisSerializer<Object> hashKeySerializer = (RedisSerializer<Object>) redisTemplate.getHashKeySerializer();
         RedisSerializer<Object> hashValueSerializer = (RedisSerializer<Object>) redisTemplate.getHashValueSerializer();
         List<byte[]> args = new ArrayList<>();
         args.add(serialize(hashKeySerializer, "action"));
         args.add(serialize(hashKeySerializer, "previousAction"));
-        args.add(utf8(ZeroTrustActionPrecedence.keepsActiveRestriction(ZeroTrustAction.BLOCK, action) ? "1" : "0"));
+        args.add(utf8(refusedByBlockFlag ? "1" : "0"));
 
         List<byte[]> refusingValues = new ArrayList<>();
-        for (ZeroTrustAction active : List.of(ZeroTrustAction.BLOCK, ZeroTrustAction.CHALLENGE,
-                ZeroTrustAction.ESCALATE)) {
-            if (ZeroTrustActionPrecedence.keepsActiveRestriction(active, action)) {
-                refusingValues.add(utf8(active.name()));
-                refusingValues.add(serialize(hashValueSerializer, active.name()));
-            }
+        for (ZeroTrustAction active : refusing) {
+            refusingValues.add(utf8(active.name()));
+            refusingValues.add(serialize(hashValueSerializer, active.name()));
         }
         args.add(utf8(Integer.toString(refusingValues.size())));
         args.addAll(refusingValues);

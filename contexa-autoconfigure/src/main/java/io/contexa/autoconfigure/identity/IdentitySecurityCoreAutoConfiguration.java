@@ -32,6 +32,7 @@ import io.contexa.contexaidentity.security.statemachine.core.service.MfaStateMac
 import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
 import io.contexa.contexaidentity.security.core.session.HttpSessionCleanupListener;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexaidentity.security.core.bootstrap.*;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.*;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
@@ -374,7 +375,8 @@ public class IdentitySecurityCoreAutoConfiguration {
             ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder,
             ObjectProvider<AgentContainmentService> agentContainment,
             ObjectProvider<BridgeProperties> bridgeProperties,
-            ObjectProvider<HostOwnedStepUp> hostOwnedStepUp) {
+            ObjectProvider<HostOwnedStepUp> hostOwnedStepUp,
+            ObjectProvider<TieredStrategyProperties> tieredStrategyProperties) {
         ZeroTrustAccessControlFilter filter = new ZeroTrustAccessControlFilter(actionRedisRepository, responseWriter,
                 contexaBlockedUserRecorder, contexaChallengeMfaInitializer, contexaAuthUrlProvider, contexaBlockingDecisionRegistry,
                 securityZeroTrustProperties.getMaxBlockMfaAttempts(), contexaMfaFlowUrlRegistry);
@@ -384,6 +386,9 @@ public class IdentitySecurityCoreAutoConfiguration {
         filter.setMonitoringHeaders(securityZeroTrustProperties.isMonitoringHeaders());
         // docs/agent A5-3: an agent whose escalation turns into a block is stopped.
         agentContainment.ifAvailable(filter::setAgentContainment);
+        // With allow-escalate-final-action off an ESCALATE is never held or promoted here.
+        filter.setEscalateTerminalAction(tieredStrategyProperties.getIfAvailable(TieredStrategyProperties::new)
+                .getLayer2().escalateTerminalAction());
         // Ownership design S-1/S-2: when the application owns sign-in, a BLOCK's release by MFA goes to the step-up.
         if (hostOwned(bridgeProperties)) {
             filter.setHostOwnedStepUp(hostOwnedStepUp.getIfAvailable());

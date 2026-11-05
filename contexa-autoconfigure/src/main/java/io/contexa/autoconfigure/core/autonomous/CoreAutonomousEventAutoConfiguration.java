@@ -392,7 +392,8 @@ public class CoreAutonomousEventAutoConfiguration {
             ObjectProvider<DeletedAccountWriteFence> deletedAccountWriteFence,
             ObjectProvider<AgentContainmentService> agentContainment,
             ObjectProvider<AgentScopeService> agentScopes,
-            ObjectProvider<RiskSignalEmitter> riskSignalEmitters) {
+            ObjectProvider<RiskSignalEmitter> riskSignalEmitters,
+            TieredStrategyProperties tieredStrategyProperties) {
         SecurityDecisionEnforcementHandler handler = new SecurityDecisionEnforcementHandler(
                 actionRepository,
                 contexaSecurityLearningService,
@@ -412,6 +413,8 @@ public class CoreAutonomousEventAutoConfiguration {
         handler.setAgentScopes(agentScopes.getIfAvailable());
         // docs/agent A5-8: the host's emitters of risk level changes, none by default.
         handler.setRiskSignalEmitters(riskSignalEmitters.orderedStream().toList());
+        // What a result that names no final action ends as, the Layer2 terminal policy.
+        handler.setEscalateTerminalAction(tieredStrategyProperties.getLayer2().escalateTerminalAction());
         return handler;
     }
 

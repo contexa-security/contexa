@@ -18,6 +18,7 @@ package io.contexa.autoconfigure.core.autonomous;
 import io.contexa.contexacore.autonomous.context.decision.LearningPromotionPolicy;
 import io.contexa.contexacore.autonomous.service.LearningPromotionService;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -72,6 +73,7 @@ class LearningPromotionWiringTest {
         for (int i = 0; i < arguments.length; i++) {
             Class<?> type = method.getParameterTypes()[i];
             arguments[i] = type == SecurityZeroTrustProperties.class ? properties
+                    : type == TieredStrategyProperties.class ? new TieredStrategyProperties()
                     : type == ObjectProvider.class ? provider(method.getGenericParameterTypes()[i])
                     : mock(type);
         }
