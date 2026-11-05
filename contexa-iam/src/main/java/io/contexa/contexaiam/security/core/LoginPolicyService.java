@@ -20,9 +20,11 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import java.time.Instant;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacommon.entity.PasswordPolicy;
 import io.contexa.contexacommon.repository.LoginAttemptIpRepository;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.security.LoginAddressBlockedException;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
@@ -191,6 +193,41 @@ public class LoginPolicyService implements LoginPolicyHandler {
                 .orElse(false);
     }
 
+    /**
+     * The address of the current request, by the rule of every other decision of Contexa: a forwarded header counts only
+     * from a trusted proxy ({@code contexa.security.tiered.security.trusted-proxies}). Anything else a client could set
+     * itself, and a new address on every attempt would keep the count at zero. Null outside a request.
+     */
+    public static String currentAddress() {
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
+            return SessionFingerprintUtil.extractClientIp(attributes.getRequest());
+        }
+        return null;
+    }
+
+    @Override
+    public void checkSignInAddress(String username) {
+        if (!isCurrentAddressBlocked()) {
+            return;
+        }
+        // Marks the failure this request is about to report as handled: a refused attempt says nothing about the
+        // account it names, and counting it would let a blocked address lock anyone's account.
+        if (username != null) {
+            firstHandle("F:" + username);
+        }
+        throw new LoginAddressBlockedException("Sign-in from this address is blocked for a while");
+    }
+
+    /** The throttle lives in Contexa's database: when it cannot be read the sign-in is not refused for it. */
+    private boolean isCurrentAddressBlocked() {
+        try {
+            return isIpBlocked(currentAddress());
+        } catch (RuntimeException e) {
+            log.warn("[login-policy] the address throttle could not be read; the sign-in goes on: {}", e.toString());
+            return false;
+        }
+    }
+
     // ---------------------------------------------------------------------
     // Internal helpers
     // ---------------------------------------------------------------------
@@ -244,6 +281,11 @@ public class LoginPolicyService implements LoginPolicyHandler {
         // Self-heal: clear an expired IP block before counting (mirrors per-user logic)
         loginAttemptIpRepository.clearExpiredBlock(ip, now);
 
+        // A blocked address is not counted again: whoever keeps trying would keep extending the block of all behind it.
+        if (isIpBlocked(ip)) {
+            return;
+        }
+
         int updated = loginAttemptIpRepository.incrementFailedAttempts(ip, now, tag);
         if (updated == 0) {
             // First-seen IP — insert via a separate REQUIRES_NEW transaction so a
@@ -265,7 +307,19 @@ public class LoginPolicyService implements LoginPolicyHandler {
                 loginAttemptIpRepository.blockIp(ip, blockUntil);
                 log.warn("[login-policy] ip blocked ip={} attempts={} until={} username={} failureType={}",
                         ip, row.getFailedAttempts(), blockUntil, tag, failureType);
+                reportUnlistedProxy(ip);
             }
         });
+    }
+
+    /** Behind a proxy that is not listed all users arrive from its address, and one block stops them all. */
+    private static void reportUnlistedProxy(String ip) {
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes
+                && attributes.getRequest().getHeader("X-Forwarded-For") != null
+                && ip.equals(attributes.getRequest().getRemoteAddr())) {
+            log.error("[login-policy] the blocked address {} sends X-Forwarded-For and is not a trusted proxy. If it is "
+                    + "your proxy, all users behind it share this block: list it in "
+                    + "contexa.security.tiered.security.trusted-proxies", ip);
+        }
     }
 }

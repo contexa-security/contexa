@@ -303,6 +303,9 @@ class SealedEvidenceCaptureHandlerTest {
         assertThat(handler.canHandle(failedContext)).isFalse();
         assertThat(handler.canHandle(withoutResult)).isFalse();
         assertThat(handler.canHandle(decisionContext(event("req-113", "/actuator/health"), "ALLOW"))).isFalse();
+        assertThat(handler.canHandle(decisionContext(event("req-115", "/health"), "ALLOW"))).isFalse();
+        assertThat(handler.canHandle(decisionContext(event("req-119", "/healthcare/records"), "ALLOW"))).isTrue();
+        assertThat(handler.canHandle(decisionContext(event("req-120", "/actuator-report"), "ALLOW"))).isTrue();
         assertThat(handler.canHandle(decisionContext(event("req-114", "/api/orders"), "BLOCK"))).isTrue();
     }
 

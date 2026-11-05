@@ -97,7 +97,7 @@ public class HostOwnedAdminConsoleAutoConfiguration {
         provider.setPasswordEncoder(ContexaOwnBeans.passwordEncoder(beanFactory));
         // The console's sign-ins count against Contexa's accounts (failed attempts, lock, address throttle); the
         // application's own never do (the policy's event listener runs only when Contexa owns sign-in).
-        ProviderManager manager = new ProviderManager(provider);
+        ProviderManager manager = new ProviderManager(new ConsoleAddressGate(loginPolicy), provider);
         manager.setAuthenticationEventPublisher(new ConsoleLoginPolicyEvents(loginPolicy));
 
         HttpSessionSecurityContextRepository contextRepository = new HttpSessionSecurityContextRepository();

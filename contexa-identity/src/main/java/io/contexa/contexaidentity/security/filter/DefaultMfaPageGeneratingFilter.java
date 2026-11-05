@@ -1973,6 +1973,10 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 errorMessage = "<div class=\"error-message\">"
                         + msg(request, "mfa.ott.error.user.not.found", "User not found. Please enter a valid username.")
                         + "</div>";
+            } else if (OneTimeTokenAddressRefusalFilter.ERROR_PARAMETER.equals(errorParam)) {
+                errorMessage = "<div class=\"error-message\">"
+                        + msg(request, "mfa.ott.error.address.mismatch", "The address does not match the one registered for this account.")
+                        + "</div>";
             }
         }
 

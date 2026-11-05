@@ -17,10 +17,12 @@ package io.contexa.contexacore.autonomous.context.registry;
 
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacore.autonomous.context.model.ResourceContextDescriptor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.util.ClassUtils;
+import org.springframework.util.ReflectionUtils;
 import org.springframework.util.StringUtils;
 
 import java.lang.reflect.Method;
@@ -29,14 +31,21 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Registers every {@code @Protectable} method of the application's beans in the resource registry once all singletons
  * exist (W2-11), under the resource id the event publisher gives the request, {@code declaring class#method}, with
  * what the annotation declares. Descriptor beans the host defines replace the scanned descriptor of their resource id.
+ * <p>
+ * A protected class is reached through a class proxy, which cannot override a final method: the call runs on the proxy
+ * instance itself, past the protection and with the bean's fields unset. Nothing Contexa can do at runtime changes that,
+ * so the scan names each such method when the application starts.
  */
+@Slf4j
 public class ProtectableResourceContextScanner implements SmartInitializingSingleton {
 
     private final ListableBeanFactory beanFactory;
@@ -49,12 +58,18 @@ public class ProtectableResourceContextScanner implements SmartInitializingSingl
 
     @Override
     public void afterSingletonsInstantiated() {
-        scan().values().forEach(registry::register);
+        Set<Class<?>> protectedClasses = new LinkedHashSet<>();
+        scan(protectedClasses).values().forEach(registry::register);
         beanFactory.getBeansOfType(ResourceContextDescriptor.class).values().forEach(registry::register);
+        protectedClasses.forEach(ProtectableResourceContextScanner::reportFinalMethods);
     }
 
     /** The descriptors of the protected methods, by resource id; the first method of an overloaded name wins. */
     Map<String, ResourceContextDescriptor> scan() {
+        return scan(new LinkedHashSet<>());
+    }
+
+    private Map<String, ResourceContextDescriptor> scan(Set<Class<?>> protectedClasses) {
         Map<String, ResourceContextDescriptor> descriptors = new LinkedHashMap<>();
         // Beans with a definition and singletons registered by hand, without creating anything lazy.
         for (String beanName : beanFactory.getBeanNamesForType(Object.class, true, false)) {
@@ -78,11 +93,24 @@ public class ProtectableResourceContextScanner implements SmartInitializingSingl
                     if (protectable != null) {
                         String resourceId = method.getDeclaringClass().getName() + "#" + method.getName();
                         descriptors.putIfAbsent(resourceId, descriptorOf(resourceId, protectable));
+                        protectedClasses.add(scanned);
                     }
                 }
             }
         }
         return descriptors;
+    }
+
+    private static void reportFinalMethods(Class<?> protectedClass) {
+        for (Method method : ReflectionUtils.getUniqueDeclaredMethods(protectedClass)) {
+            int modifiers = method.getModifiers();
+            if (Modifier.isFinal(modifiers) && !Modifier.isPrivate(modifiers) && !Modifier.isStatic(modifiers)
+                    && !method.isSynthetic() && method.getDeclaringClass() != Object.class) {
+                log.warn("{}#{} is final and cannot be intercepted by the proxy of its @Protectable class: a call runs "
+                                + "without the protection and with the bean's fields unset. Remove final from the method.",
+                        method.getDeclaringClass().getName(), method.getName());
+            }
+        }
     }
 
     /** The bean's own class behind a class proxy; the interfaces of an interface proxy, whose methods it calls. */

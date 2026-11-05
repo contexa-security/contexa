@@ -49,6 +49,8 @@ import org.springframework.web.accept.HeaderContentNegotiationStrategy;
 @Component
 public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
 
+    private static final String CONTEXA_JDBC_TEMPLATE = "contexaJdbcTemplate";
+
     private final ApplicationContext applicationContext;
 
     public MfaPageGeneratingConfigurer(ApplicationContext applicationContext) {
@@ -57,6 +59,11 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
 
     @Override
     public void init(PlatformContext platformContext, PlatformConfig config) {
+    }
+
+    /** Contexa's accounts live in Contexa's database: a lookup by type would find the application's. */
+    static JdbcTemplate accountStore(ApplicationContext applicationContext) {
+        return applicationContext.getBean(CONTEXA_JDBC_TEMPLATE, JdbcTemplate.class);
     }
 
     @Override
@@ -111,9 +118,7 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
             } catch (Exception ignored) {
             }
             try {
-                JdbcTemplate jdbcTemplate =
-                        applicationContext.getBean(JdbcTemplate.class);
-                mfaPageFilter.setJdbcTemplate(jdbcTemplate);
+                mfaPageFilter.setJdbcTemplate(accountStore(applicationContext));
             } catch (Exception ignored) {
             }
 

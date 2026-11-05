@@ -15,9 +15,7 @@
  */
 package io.contexa.contexaiam.security.core;
 
-import io.contexa.contexacommon.security.ClientIpResolver;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
@@ -31,8 +29,6 @@ import org.springframework.security.oauth2.server.authorization.authentication.O
 import org.springframework.security.oauth2.server.resource.authentication.AbstractOAuth2TokenAuthenticationToken;
 import org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthenticationToken;
 import org.springframework.util.ClassUtils;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 /**
  * Records login outcomes from Spring Security's authentication events.
@@ -99,10 +95,7 @@ public class LoginAttemptEventListener {
 
     private static String currentIp() {
         try {
-            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-            if (attrs == null) return null;
-            HttpServletRequest req = attrs.getRequest();
-            return ClientIpResolver.resolve(req);
+            return LoginPolicyService.currentAddress();
         } catch (Exception ex) {
             return null;
         }

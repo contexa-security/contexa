@@ -51,6 +51,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.Test;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -136,7 +138,8 @@ class ZeroTrustChallengeFilterTest {
     @Test
     @DisplayName("MFA API 경로는 challenge filter를 건너뛴다")
     void mfa() throws Exception {
-        when(request.getRequestURI()).thenReturn("/api/mfa/verify");
+        when(authUrlProvider.getAllMfaRelatedUrls()).thenReturn(Set.of("/api/mfa/config"));
+        when(request.getRequestURI()).thenReturn("/api/mfa/config");
 
         filter.doFilter(request, response, filterChain);
 
@@ -400,11 +403,11 @@ class ZeroTrustChallengeFilterTest {
 
     /** These prefixes let a signed-in user under a CHALLENGE through to the application's own paths of the same name. */
     @Test
-    @DisplayName("HOST_OWNED: an application's path that only looks like Contexa's sign-in meets the decision")
-    void hostOwnedApplicationPathsMeetTheDecision() {
+    @DisplayName("an application's path that only looks like Contexa's sign-in meets the decision, under both ownerships")
+    void applicationPathsMeetTheDecision() {
         for (String path : List.of("/api/mfa/transfer", "/webauthn/devices", "/mfa/challenge/1", "/login/webauthn-help")) {
             when(request.getRequestURI()).thenReturn(path);
-            assertThat(filter.shouldNotFilter(request)).as("CONTEXA_OWNED, %s", path).isTrue();
+            assertThat(filter.shouldNotFilter(request)).as("CONTEXA_OWNED, %s", path).isFalse();
         }
 
         filter.setHostOwnedStepUp((req, auth, key) -> false);
@@ -417,6 +420,62 @@ class ZeroTrustChallengeFilterTest {
             when(request.getRequestURI()).thenReturn(path);
             assertThat(filter.shouldNotFilter(request)).as("HOST_OWNED, %s", path).isTrue();
         }
+    }
+
+    /** PR-65: a path that only starts like one of Contexa's is the application's, and the decision reaches it. */
+    @ParameterizedTest
+    @ValueSource(strings = {"/logout-report", "/logoutreport", "/logout/report", "/contexa/zero-trust-export",
+            "/contexa/step-up-history", "/contexa/api/agent-confirmations-export", "/.well-known/customer-export",
+            "/contexa/admin/api/mfa-audit"})
+    void anApplicationPathThatOnlyStartsLikeContexasMeetsTheChallenge(String path) {
+        when(request.getRequestURI()).thenReturn(path);
+
+        assertThat(filter.shouldNotFilter(request)).isFalse();
+    }
+
+    /** PR-65: what the container resolves to another path never counts as Contexa's, whatever it starts with. */
+    @ParameterizedTest
+    @ValueSource(strings = {"/logout;x=1", "/logout/..;/owners/1", "/logout/%2e%2e/owners/1",
+            "/contexa/zero-trust/..;/..;/owners/1", "/contexa/step-up/../../owners/1",
+            "/contexa/api/agent-confirmations/..;/..;/..;/owners/1", "/contexa/admin/api/mfa/..;/..;/..;/..;/owners/1",
+            "/.well-known/webauthn/..;/..;/owners/1", "/mfa/select-factor/..;/..;/owners/1",
+            "/mfa/select-factor/%2e%2e/%2e%2e/owners/1", "/login/webauthn/..;/..;/owners/1"})
+    void aWayOutOfContexasPathsMeetsTheChallenge(String path) {
+        when(authUrlProvider.getAllMfaRelatedUrls()).thenReturn(Set.of("/mfa/select-factor"));
+        when(authUrlProvider.getSinglePasskeyLoginPage()).thenReturn("/login/webauthn");
+        when(request.getRequestURI()).thenReturn(path);
+
+        assertThat(filter.shouldNotFilter(request)).isFalse();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/logout", "/logout/", "/contexa/zero-trust", "/contexa/zero-trust/blocked", "/contexa/step-up",
+            "/contexa/step-up/passkey/options", "/contexa/api/agent-confirmations", "/contexa/api/agent-confirmations/c-1",
+            "/contexa/admin/api/mfa/config", "/.well-known/authzen-configuration", "/.well-known/webauthn",
+            "/mfa/select-factor", "/webauthn/register", "/webauthn/register/credential-id", "/api/mfa/config",
+            "/api/mfa/login", "/login/webauthn", "/login/webauthn.js"})
+    void contexasOwnPathsStayOutOfTheChallenge(String path) {
+        when(authUrlProvider.getAllMfaRelatedUrls()).thenReturn(
+                Set.of("/mfa/select-factor", "/webauthn/register", "/api/mfa/config"));
+        when(authUrlProvider.getPrimaryRestLoginProcessing()).thenReturn("/api/mfa/login");
+        when(authUrlProvider.getSinglePasskeyLoginPage()).thenReturn("/login/webauthn");
+        when(authUrlProvider.getSinglePasskeyLoginProcessing()).thenReturn("/login/webauthn");
+        when(request.getRequestURI()).thenReturn(path);
+
+        assertThat(filter.shouldNotFilter(request)).isTrue();
+    }
+
+    /** A flow with a URL prefix runs its sign-in under the prefix: the registry names those paths. */
+    @Test
+    @DisplayName("the sign-in of a flow with a URL prefix is Contexa's, the application's path beside it is not")
+    void theSignInOfAPrefixedFlow() {
+        when(mfaFlowUrlRegistry.getAllMfaRelatedUrls()).thenReturn(Set.of("/agent/mfa/select-factor"));
+
+        when(request.getRequestURI()).thenReturn("/agent/mfa/select-factor");
+        assertThat(filter.shouldNotFilter(request)).isTrue();
+
+        when(request.getRequestURI()).thenReturn("/agent/mfa/select-factor-audit");
+        assertThat(filter.shouldNotFilter(request)).isFalse();
     }
 
     @Test

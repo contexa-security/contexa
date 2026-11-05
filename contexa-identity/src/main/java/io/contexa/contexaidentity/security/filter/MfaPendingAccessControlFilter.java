@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaidentity.security.filter;
 
+import io.contexa.contexacommon.security.RequestPaths;
+import io.contexa.contexacommon.security.ZeroTrustScreens;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaPendingSessionMarker;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
@@ -82,8 +84,7 @@ public class MfaPendingAccessControlFilter extends OncePerRequestFilter {
             "/contexa/zero-trust/",
             "/contexa/css/",
             "/contexa/js/",
-            "/contexa/img/",
-            "/.well-known/");
+            "/contexa/img/");
 
     private final AuthUrlProvider authUrlProvider;
     private final MfaFlowUrlRegistry mfaFlowUrlRegistry;
@@ -143,6 +144,12 @@ public class MfaPendingAccessControlFilter extends OncePerRequestFilter {
     protected boolean isMfaProgressRequest(HttpServletRequest request) {
         String path = resolvePath(request);
         if (path.equals(FAVICON_PATH) || (StringUtils.hasText(errorPath) && path.equals(errorPath))) {
+            return true;
+        }
+        if (!RequestPaths.isPlain(path)) {
+            return false;
+        }
+        if (ZeroTrustScreens.isDiscoveryDocument(path)) {
             return true;
         }
         if (path.startsWith(CONTEXA_SCRIPT_PREFIX) && path.endsWith(SCRIPT_SUFFIX)) {

@@ -45,6 +45,7 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
         String password = (String) authentication.getCredentials();
 
         if (loginPolicyHandler != null) {
+            loginPolicyHandler.checkSignInAddress(loginId);
             loginPolicyHandler.checkAndUnlockIfExpired(loginId);
         }
 

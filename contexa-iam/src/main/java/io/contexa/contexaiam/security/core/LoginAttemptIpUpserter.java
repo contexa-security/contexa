@@ -52,14 +52,15 @@ public class LoginAttemptIpUpserter {
     /**
      * Inserts a first-seen per-IP row, swallowing duplicate-key collisions. Always returns
      * normally; the caller is expected to follow up with an atomic increment, which will
-     * succeed regardless of whether this insert won the race or lost it.
+     * succeed regardless of whether this insert won the race or lost it. That increment counts
+     * the attempt, so the row starts at zero.
      */
     @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void insertIfAbsent(String ip, LocalDateTime now, String username) {
         try {
             loginAttemptIpRepository.save(LoginAttemptIp.builder()
                     .ipAddress(ip)
-                    .failedAttempts(1)
+                    .failedAttempts(0)
                     .windowStartAt(now)
                     .lastFailureAt(now)
                     .lastUsername(username == null ? "" : username)

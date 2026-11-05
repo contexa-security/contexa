@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.handler.handler;
 import java.util.List;
 import io.contexa.contexacommon.domain.TruthValues;
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacommon.security.RequestPaths;
 import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
@@ -62,7 +63,7 @@ public class SealedEvidenceCaptureHandler implements SecurityEventHandler {
 
     private static final String HANDLER_NAME = "SealedEvidenceCaptureHandler";
     private static final String PROCESSING_RESULT_KEY = "processingResult";
-    private static final List<String> EXCLUDED_PATH_PREFIXES = List.of("/actuator", "/health", "/.well-known/");
+    private static final List<String> EXCLUDED_PATH_FOLDERS = List.of("/actuator", "/health", "/.well-known");
     private static final String SERVER_SENT_EVENTS_SEGMENT = "/sse/";
 
     private final SealedEvidencePackageAssembler assembler;
@@ -213,7 +214,8 @@ public class SealedEvidenceCaptureHandler implements SecurityEventHandler {
         if (path == null) {
             return false;
         }
-        return EXCLUDED_PATH_PREFIXES.stream().anyMatch(path::startsWith) || path.contains(SERVER_SENT_EVENTS_SEGMENT);
+        return EXCLUDED_PATH_FOLDERS.stream().anyMatch(folder -> RequestPaths.isWithin(path, folder))
+                || path.contains(SERVER_SENT_EVENTS_SEGMENT);
     }
 
     /** A decision on a {@code @Protectable} method, marked by the event publisher as the observation writer reads it. */

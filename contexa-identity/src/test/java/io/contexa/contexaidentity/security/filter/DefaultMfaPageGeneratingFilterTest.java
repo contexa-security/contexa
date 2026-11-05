@@ -17,6 +17,8 @@ package io.contexa.contexaidentity.security.filter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import io.contexa.contexacommon.enums.AuthType;
@@ -43,6 +45,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.support.ResourceBundleMessageSource;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -70,6 +73,39 @@ class DefaultMfaPageGeneratingFilterTest {
     @AfterEach
     void tearDown() {
         SecurityContextHolder.clearContext();
+    }
+
+    @Nested
+    @DisplayName("The page that asks for the code")
+    class OttRequestPage {
+
+        private MockHttpServletRequest pageRequest(String error) {
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/mfa/ott/request-code-ui");
+            request.setAttribute(CsrfToken.class.getName(), new DefaultCsrfToken("X-CSRF-TOKEN", "_csrf", CSRF_TOKEN));
+            if (error != null) {
+                request.setParameter("error", error);
+            }
+            return request;
+        }
+
+        @Test
+        @DisplayName("the address registered for the account is filled in")
+        void theRegisteredAddressIsFilledIn() throws Exception {
+            DefaultMfaPageGeneratingFilter filter = filter(AuthType.MFA_OTT);
+            JdbcTemplate accounts = mock(JdbcTemplate.class);
+            when(accounts.queryForObject(anyString(), eq(String.class), eq("user"))).thenReturn("user@customer.test");
+            filter.setJdbcTemplate(accounts);
+
+            assertThat(render(filter, pageRequest(null))).contains("value=\"user@customer.test\"");
+        }
+
+        @Test
+        @DisplayName("PR-19: a code refused for another address comes back with the reason")
+        void aRefusedAddressComesBackWithTheReason() throws Exception {
+            String page = render(filter(AuthType.MFA_OTT), pageRequest(OneTimeTokenAddressRefusalFilter.ERROR_PARAMETER));
+
+            assertThat(page).contains("error-message").contains("does not match");
+        }
     }
 
     @Nested

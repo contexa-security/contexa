@@ -30,9 +30,11 @@ import io.contexa.contexaiam.resource.service.AutoConditionTemplateService;
 import io.contexa.contexaiam.resource.service.ConditionCompatibilityService;
 import io.contexa.contexaiam.resource.service.ResourceRegistryService;
 import io.contexa.contexaiam.resource.service.ResourceRegistryServiceImpl;
+import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigurationPackages;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.MessageSource;
@@ -76,13 +78,19 @@ public class IamResourceAutoConfiguration {
                 conditionTemplateRepository, managedResourceRepository, contexaAiNativeProcessor);
     }
 
+    /** The packages the application auto-configures from: its own, as Spring Boot knows them. */
+    static List<String> applicationPackages(BeanFactory beanFactory) {
+        return AutoConfigurationPackages.has(beanFactory) ? AutoConfigurationPackages.get(beanFactory) : List.of();
+    }
+
     @Bean(name = "contexaMvcResourceScanner")
     @ConditionalOnMissingBean
     public MvcResourceScanner mvcResourceScanner(
             ApplicationContext applicationContext,
             IamAdminProperties iamAdminProperties,
             ObjectProvider<SystemRuntimeSettingsService> runtimeSettingsServiceProvider) {
-        return new MvcResourceScanner(applicationContext, iamAdminProperties, runtimeSettingsServiceProvider.getIfAvailable());
+        return new MvcResourceScanner(applicationContext, iamAdminProperties, runtimeSettingsServiceProvider.getIfAvailable(),
+                applicationPackages(applicationContext));
     }
 
     @Bean(name = "contexaMethodResourceScanner")
@@ -92,6 +100,6 @@ public class IamResourceAutoConfiguration {
             @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
             ObjectProvider<SystemRuntimeSettingsService> runtimeSettingsServiceProvider) {
         return new MethodResourceScanner(applicationContext, objectMapper,
-                runtimeSettingsServiceProvider.getIfAvailable());
+                runtimeSettingsServiceProvider.getIfAvailable(), applicationPackages(applicationContext));
     }
 }

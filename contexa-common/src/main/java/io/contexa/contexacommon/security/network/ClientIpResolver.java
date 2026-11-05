@@ -20,11 +20,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.List;
+import java.util.regex.Pattern;
 
 public final class ClientIpResolver {
 
     private static final Logger log = LoggerFactory.getLogger(ClientIpResolver.class);
+    private static final String FORWARDED_FOR = "X-Forwarded-For";
+    private static final Pattern IPV4_ADDRESS = Pattern.compile("\\d{1,3}(\\.\\d{1,3}){3}");
+    private static final Pattern IPV6_ADDRESS = Pattern.compile("[0-9a-fA-F.]*:[0-9a-fA-F:.]*");
     private static final List<String> LEGACY_FORWARDED_HEADERS = List.of(
             "X-Forwarded-For",
             "X-Real-IP",
@@ -58,8 +64,8 @@ public final class ClientIpResolver {
             return remoteAddr;
         }
 
-        String forwardedFor = firstHeaderValue(request.getHeader("X-Forwarded-For"));
-        if (hasUsableText(forwardedFor)) {
+        String forwardedFor = clientBehindProxies(request, trustedProxies);
+        if (forwardedFor != null) {
             return forwardedFor;
         }
 
@@ -104,6 +110,58 @@ public final class ClientIpResolver {
         }
 
         return false;
+    }
+
+    /**
+     * The client a chain of proxies names. Each proxy adds the address it saw to the end of the list, so what a client
+     * wrote itself stays on the left: the list is read from its end, past the trusted proxies, up to the first address
+     * that is not one. What stands before that address proves nothing.
+     */
+    private static String clientBehindProxies(HttpServletRequest request, List<String> trustedProxies) {
+        List<String> hops = forwardedHops(request);
+        String client = null;
+        for (int index = hops.size() - 1; index >= 0; index--) {
+            String address = addressOf(hops.get(index));
+            if (address == null) {
+                break;
+            }
+            client = address;
+            if (!isTrustedProxy(address, trustedProxies)) {
+                break;
+            }
+        }
+        return client;
+    }
+
+    /** Every line of the header in order: a proxy may add a line of its own instead of joining the client's. */
+    private static List<String> forwardedHops(HttpServletRequest request) {
+        List<String> lines = new ArrayList<>();
+        Enumeration<String> values = request.getHeaders(FORWARDED_FOR);
+        if (values != null) {
+            while (values.hasMoreElements()) {
+                lines.add(values.nextElement());
+            }
+        } else if (request.getHeader(FORWARDED_FOR) != null) {
+            lines.add(request.getHeader(FORWARDED_FOR));
+        }
+        List<String> hops = new ArrayList<>();
+        for (String line : lines) {
+            for (String hop : line.split(",")) {
+                hops.add(hop.trim());
+            }
+        }
+        return hops;
+    }
+
+    /** The address of a hop without its port, or null when it is no address: a name would send the check to the DNS. */
+    private static String addressOf(String hop) {
+        String address = hop;
+        if (address.startsWith("[") && address.indexOf(']') > 0) {
+            address = address.substring(1, address.indexOf(']'));
+        } else if (address.indexOf(':') > 0 && address.indexOf(':') == address.lastIndexOf(':')) {
+            address = address.substring(0, address.indexOf(':'));
+        }
+        return IPV4_ADDRESS.matcher(address).matches() || IPV6_ADDRESS.matcher(address).matches() ? address : null;
     }
 
     private static String firstHeaderValue(String value) {

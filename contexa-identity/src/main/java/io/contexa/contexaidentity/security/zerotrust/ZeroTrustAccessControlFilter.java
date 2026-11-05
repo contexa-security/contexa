@@ -17,6 +17,7 @@ package io.contexa.contexaidentity.security.zerotrust;
 
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexacommon.security.RequestPaths;
 import io.contexa.contexacommon.security.ZeroTrustScreens;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
@@ -55,6 +56,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -72,6 +74,17 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     private static final Duration ESCALATE_RETRY_TTL = Duration.ofMinutes(5);
     private static final Duration BLOCK_MFA_VERIFIED_TTL = Duration.ofHours(1);
     private static final int RETRY_AFTER_SECONDS = 30;
+    private static final String LOGOUT_PATH = "/logout";
+    private static final String ADMIN_MFA_API = "/contexa/admin/api/mfa";
+
+    /** The folders of Contexa's own decision screens and of the release of a decision. */
+    private static final List<String> DECISION_FOLDERS = List.of(
+            "/contexa/zero-trust",
+            HostOwnedStepUp.STEP_UP_PATH,
+            "/contexa/api/aiam/sse/zero-trust",
+            "/contexa/api/aiam/zero-trust",
+            "/contexa/admin/api/aiam/sse/zero-trust",
+            "/contexa/admin/api/aiam/zero-trust");
 
     private final ZeroTrustActionRepository actionRedisRepository;
     private final AuthResponseWriter responseWriter;
@@ -153,21 +166,11 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String requestUri = request.getRequestURI();
-        String contextPath = request.getContextPath();
-        if (StringUtils.hasText(contextPath)) {
-            requestUri = requestUri.substring(contextPath.length());
-        }
-
-        return requestUri.startsWith("/logout")
-                || ZeroTrustScreens.isScreenResource(requestUri)
-                || requestUri.startsWith("/contexa/zero-trust")
-                || requestUri.startsWith(HostOwnedStepUp.STEP_UP_PATH)
-                || requestUri.startsWith("/contexa/api/aiam/sse/zero-trust")
-                || requestUri.startsWith("/contexa/api/aiam/zero-trust")
-                || requestUri.startsWith("/contexa/admin/api/aiam/sse/zero-trust")
-                || requestUri.startsWith("/contexa/admin/api/aiam/zero-trust")
-                || requestUri.startsWith("/.well-known/");
+        String path = RequestPaths.of(request);
+        return RequestPaths.isExactly(path, LOGOUT_PATH)
+                || ZeroTrustScreens.isScreenResource(path)
+                || ZeroTrustScreens.isDiscoveryDocument(path)
+                || DECISION_FOLDERS.stream().anyMatch(folder -> RequestPaths.isWithin(path, folder));
     }
 
     @Override
@@ -203,7 +206,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
             return;
         }
 
-        String requestUri = resolveRequestUri(request);
+        String requestUri = RequestPaths.of(request);
 
         switch (currentAction) {
             case BLOCK -> {
@@ -273,8 +276,12 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         return actionRedisRepository.isBlockMfaPending(userId);
     }
 
+    /**
+     * The sign-in a user under a BLOCK needs to release it, by the paths the running flows name: the folders those paths
+     * usually sit in are shared with the application, and any path of the application stays stopped.
+     */
     private boolean isMfaRelatedPath(String requestUri) {
-        if (requestUri.startsWith("/contexa/admin/api/mfa/")) {
+        if (RequestPaths.isWithin(requestUri, ADMIN_MFA_API)) {
             return true;
         }
         // Under HOST_OWNED Contexa's sign-in does not run and the release goes through the step-up: the paths below are
@@ -282,19 +289,15 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         if (hostOwnedStepUp != null) {
             return false;
         }
-        if (requestUri.startsWith("/mfa/")
-                || requestUri.startsWith("/api/mfa/")
-                || requestUri.startsWith("/webauthn/")
-                || requestUri.startsWith("/login/mfa-")) {
-            return true;
-        }
         if (mfaFlowUrlRegistry != null) {
-            if (matchesAnyMfaUrl(requestUri, mfaFlowUrlRegistry.getAllMfaRelatedUrls())) {
+            if (matchesAnyMfaUrl(requestUri, mfaFlowUrlRegistry.getAllMfaRelatedUrls())
+                    || mfaFlowUrlRegistry.getAllMfaInProgressUrls().contains(requestUri)) {
                 return true;
             }
         }
         if (authUrlProvider != null) {
-            if (matchesAnyMfaUrl(requestUri, authUrlProvider.getAllMfaRelatedUrls())) {
+            if (matchesAnyMfaUrl(requestUri, authUrlProvider.getAllMfaRelatedUrls())
+                    || authUrlProvider.getMfaInProgressUrls().contains(requestUri)) {
                 return true;
             }
         }
@@ -306,7 +309,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
             if (!StringUtils.hasText(mfaUrl) || "/".equals(mfaUrl)) {
                 continue;
             }
-            if (requestUri.equals(mfaUrl) || requestUri.startsWith(mfaUrl + "/")) {
+            if (RequestPaths.isWithin(requestUri, mfaUrl)) {
                 return true;
             }
         }
@@ -625,15 +628,6 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
             }
         }
         return "/contexa/zero-trust/blocked";
-    }
-
-    private String resolveRequestUri(HttpServletRequest request) {
-        String requestUri = request.getRequestURI();
-        String contextPath = request.getContextPath();
-        if (StringUtils.hasText(contextPath)) {
-            requestUri = requestUri.substring(contextPath.length());
-        }
-        return requestUri;
     }
 
     private String extractUserId(Authentication auth) {

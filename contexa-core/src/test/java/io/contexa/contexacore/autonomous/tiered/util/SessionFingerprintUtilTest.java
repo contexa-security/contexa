@@ -171,7 +171,7 @@ class SessionFingerprintUtilTest {
 
     @Test
     @DisplayName("extractClientIp prefers X-Forwarded-For header from a trusted proxy")
-    void extractClientIp_xForwardedFor_returnsFirstIp() {
+    void extractClientIp_xForwardedFor_returnsTheAddressTheProxySaw() {
         // given
         SessionFingerprintUtil.bindClientIpResolution(trustedLoopbackProxy);
         MockHttpServletRequest request = new MockHttpServletRequest();
@@ -181,8 +181,30 @@ class SessionFingerprintUtilTest {
         // when
         String clientIp = SessionFingerprintUtil.extractClientIp(request);
 
-        // then
-        assertThat(clientIp).isEqualTo("203.0.113.1");
+        // then: what stands before the address the trusted proxy saw was written by that address
+        assertThat(clientIp).isEqualTo("70.41.3.18");
+    }
+
+    @Test
+    @DisplayName("extractClientIp goes back past every proxy that is listed")
+    void extractClientIp_xForwardedFor_goesBackPastListedProxies() {
+        // given
+        TieredStrategyProperties chain = new TieredStrategyProperties();
+        chain.getSecurity().setTrustedProxies(List.of("127.0.0.1", "70.41.3.18"));
+        SessionFingerprintUtil.bindClientIpResolution(chain);
+        try {
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.addHeader("X-Forwarded-For", "203.0.113.1, 70.41.3.18");
+            request.setRemoteAddr("127.0.0.1");
+
+            // when
+            String clientIp = SessionFingerprintUtil.extractClientIp(request);
+
+            // then
+            assertThat(clientIp).isEqualTo("203.0.113.1");
+        } finally {
+            SessionFingerprintUtil.unbindClientIpResolution(chain);
+        }
     }
 
     @Test

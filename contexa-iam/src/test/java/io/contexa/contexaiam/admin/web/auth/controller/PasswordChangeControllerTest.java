@@ -67,6 +67,25 @@ class PasswordChangeControllerTest {
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 
+    /** PR-69: the address throttle of the password change is no better than the address it is given. */
+    @Test
+    @DisplayName("a forged forwarded header does not change the address of a password change")
+    void aForgedHeaderDoesNotChangeTheAddress() throws Exception {
+        mockMvc.perform(post("/contexa/password-change")
+                        .param("username", "admin")
+                        .param("currentPassword", "current")
+                        .param("newPassword", "New-Pass-1")
+                        .param("confirmPassword", "New-Pass-1")
+                        .header("X-Forwarded-For", "198.51.100.77")
+                        .with(request -> {
+                            request.setRemoteAddr("203.0.113.7");
+                            return request;
+                        }))
+                .andExpect(status().is3xxRedirection());
+
+        verify(passwordChangeService).changePassword("admin", "current", "New-Pass-1", "New-Pass-1", "203.0.113.7");
+    }
+
     @Nested
     @DisplayName("showPasswordChangeForm")
     class ShowForm {
