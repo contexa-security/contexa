@@ -74,6 +74,10 @@ import java.util.Locale;
  * for that copy, a one-time code when the copy has a real e-mail address and mail is configured, and a re-authentication
  * the application itself makes (its own MFA or identity provider), seen in the bridge's authentication stamp.
  * <p>
+ * A passkey answers a CHALLENGE, so registering one is no matter for the first factor (Q-13): the session has to confirm
+ * the user first, with a one-time code or the application's own MFA sign-in moments before. A code passed for a
+ * verification counts, so a user who just answered a CHALLENGE is offered the passkey at once.
+ * <p>
  * The one-time code is Spring Security's ({@code JdbcOneTimeTokenService} over Contexa's {@code ctxa_one_time_tokens}),
  * kept under a short key of the copy ({@code step-up:<id>}): the bridge's user names are longer than the table's
  * user name column. Contexa's mail sender delivers it to the copy's own address.
@@ -93,11 +97,14 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
      * @param purpose            what a verification resolves, or null when nothing waits for one
      * @param passkey            a passkey is registered for the user
      * @param oneTimeCode        a one-time code can be sent to the user's address
-     * @param passkeyRegistrable a passkey can be registered now (no restriction in force, none registered yet)
+     * @param passkeyEnrollable  a passkey can be registered once the user is confirmed (no restriction in force, none
+     *                           registered yet)
+     * @param passkeyRegistrable a passkey can be registered now: it is enrollable and this session confirmed the user
      * @param reauthenticationUrl where the application re-authenticates the user, when it said so
      */
     public record Situation(String decisionKey, @Nullable Purpose purpose, @Nullable Users user, boolean passkey,
-                            boolean oneTimeCode, boolean passkeyRegistrable, @Nullable String reauthenticationUrl) {
+                            boolean oneTimeCode, boolean passkeyEnrollable, boolean passkeyRegistrable,
+                            @Nullable String reauthenticationUrl) {
     }
 
     private static final String ASSERTION = "assertion:";
@@ -105,9 +112,13 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
     private static final String CODE_KEY = "step-up:";
     private static final String CODE_SENT = "code-sent:";
     private static final String CODE_SPENT = "code-spent:";
+    private static final String USER_CONFIRMED = "user-confirmed:";
 
     /** How long a user waits before the next code is mailed (the earlier one is good for minutes still). */
     static final Duration CODE_RESEND_INTERVAL = Duration.ofSeconds(30);
+
+    /** How long ago the application's own MFA sign-in may lie to confirm the user for a passkey (Q-13). */
+    static final Duration RECENT_HOST_SIGN_IN = Duration.ofMinutes(5);
 
     /** Longer than a code lives, so a spent code is never accepted again, by a race or later. */
     private static final Duration CODE_SPENT_HOLD = Duration.ofMinutes(15);
@@ -186,8 +197,24 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
         boolean passkey = user != null && hasPasskey(user);
         boolean restricted = action == ZeroTrustAction.CHALLENGE || action == ZeroTrustAction.BLOCK
                 || action == ZeroTrustAction.ESCALATE;
-        return new Situation(decisionKey, purpose, user, passkey, user != null && canSendCode(user),
-                user != null && relyingParty != null && !passkey && !restricted, reauthenticationUrl);
+        boolean enrollable = user != null && relyingParty != null && !passkey && !restricted;
+        return new Situation(decisionKey, purpose, user, passkey, user != null && canSendCode(user), enrollable,
+                enrollable && userConfirmed(request, decisionKey), reauthenticationUrl);
+    }
+
+    /** Whether the session passed a one-time code in the last minutes, or the application signed in with MFA just now. */
+    private boolean userConfirmed(HttpServletRequest request, String decisionKey) {
+        if (request.getAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP) instanceof AuthenticationStamp stamp
+                && Boolean.TRUE.equals(stamp.mfaCompleted()) && stamp.authenticationTime() != null
+                && stamp.authenticationTime().isAfter(Instant.now().minus(RECENT_HOST_SIGN_IN))) {
+            return true;
+        }
+        return options.holds(userConfirmedKey(request, decisionKey));
+    }
+
+    /** Bound to the session's context, as an ALLOW is: the proof of one session opens nothing in another. */
+    private static String userConfirmedKey(HttpServletRequest request, String decisionKey) {
+        return USER_CONFIRMED + decisionKey + ":" + SessionFingerprintUtil.generateContextBindingHash(request);
     }
 
     // ----- one-time code -----
@@ -198,7 +225,7 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
      */
     public CodeSending sendCode(HttpServletRequest request, Authentication authentication) {
         Situation situation = situation(request, authentication);
-        if (situation == null || situation.purpose() == null || !situation.oneTimeCode()) {
+        if (!codeAnswers(situation)) {
             return CodeSending.UNAVAILABLE;
         }
         String interval = CODE_SENT + situation.user().getId();
@@ -220,11 +247,16 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
         }
     }
 
-    /** Checks a one-time code of the user and, when it is the user's, resolves the step-up. */
+    /** A one-time code answers a verification that waits, or confirms the user for a first passkey (Q-13). */
+    private static boolean codeAnswers(@Nullable Situation situation) {
+        return situation != null && situation.oneTimeCode()
+                && (situation.purpose() != null || situation.passkeyEnrollable());
+    }
+
+    /** Checks a one-time code of the user and, when it is the user's, resolves the step-up and confirms the user. */
     public boolean verifyCode(HttpServletRequest request, Authentication authentication, String code) {
         Situation situation = situation(request, authentication);
-        if (situation == null || situation.purpose() == null || !situation.oneTimeCode() || code == null
-                || code.isBlank()) {
+        if (!codeAnswers(situation) || code == null || code.isBlank()) {
             return false;
         }
         OneTimeToken token = stepUpCodes.consume(OneTimeTokenAuthenticationToken.unauthenticated(code.trim()));
@@ -236,7 +268,10 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
         if (!options.claim(CODE_SPENT + token.getTokenValue(), CODE_SPENT_HOLD)) {
             return false;
         }
-        complete(request, situation, null);
+        if (situation.purpose() != null) {
+            complete(request, situation, null);
+        }
+        options.put(userConfirmedKey(request, situation.decisionKey()), Boolean.TRUE);
         return true;
     }
 
@@ -282,7 +317,7 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
         return true;
     }
 
-    /** The options of a first passkey registration; only while no restriction is in force. */
+    /** The options of a first passkey registration; only while no restriction is in force and the user is confirmed. */
     @Nullable
     public PublicKeyCredentialCreationOptions registrationOptions(HttpServletRequest request,
                                                                   Authentication authentication) {
@@ -313,6 +348,7 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
             relyingParty.registerCredential(new ImmutableRelyingPartyRegistrationRequest(
                     creationOptionsCodec.decode(state),
                     new RelyingPartyPublicKey(credential, label == null || label.isBlank() ? "passkey" : label)));
+            options.take(userConfirmedKey(request, situation.decisionKey()), Boolean.class);
             return true;
         } catch (RuntimeException e) {
             log.warn("[StepUp] A passkey registration was refused: decisionKey={}, reason={}", situation.decisionKey(),

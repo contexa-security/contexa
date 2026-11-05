@@ -157,6 +157,11 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
         this.challengeProcedureAvailable = challengeProcedureAvailable;
     }
 
+    /** Whether the host has an MFA flow in which a user can step up. */
+    public boolean challengeProcedureAvailable() {
+        return challengeProcedureAvailable;
+    }
+
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = RequestPaths.of(request);

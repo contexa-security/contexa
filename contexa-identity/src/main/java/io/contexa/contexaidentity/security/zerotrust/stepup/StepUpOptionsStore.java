@@ -42,6 +42,9 @@ public interface StepUpOptionsStore {
     /** Gives a claim up before its time is over. */
     void release(String key);
 
+    /** Whether an entry stands under the key, which stays there. */
+    boolean holds(String key);
+
     /** The entry under the key, removed; null when there is none, it expired, or it is of another type. */
     @Nullable
     <T extends Serializable> T take(String key, Class<T> type);
