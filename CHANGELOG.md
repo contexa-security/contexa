@@ -117,6 +117,10 @@ The format is based on Keep a Changelog and the project follows semantic version
   `429 MFA_BUSY_RETRY` and changes nothing, so wrong codes sent at once are read one at a time and the limit on the codes
   read stands. A verification that has not moved for `contexa.auth.mfa.state-machine-timeout-ms` (10 seconds, a setting
   without effect until now) ends the flow as before.
+- **The line of analyses has a limit.** Events coming in faster than they were analysed queued without end. A twentieth of
+  the heap, at most the monitoring queue's size, now bounds what is accepted and not finished. An event past it is not
+  analysed: it stays a fact of its session, it is counted, and an ERROR says so at most once a minute. Nothing upstream
+  waits for room, and a full line counts as the analysis being behind.
 - **A synchronous call no longer waits 40 seconds for a store that is down.** The analysis of a synchronous call runs off
   the request's thread, on the application's own Redis client. While a store is down the request now waits three more
   seconds at most: a verdict in that time still answers, a restriction in force stands, and otherwise the call is the
