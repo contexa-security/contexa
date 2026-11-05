@@ -878,6 +878,15 @@ public class ZeroTrustEventPublisher {
             return;
         }
         try {
+            // Q-16: a step-up passed in this context is this session's MFA, whoever owns the sign-in: under HOST_OWNED
+            // the application's authentication stays as it was, so nothing else tells the next decision of it.
+            Instant stepUpPassedAt = securityContextDataStore.getChallengeVerifiedAt(userId,
+                    textValue(payload.get("contextBindingHash")));
+            if (stepUpPassedAt != null) {
+                payload.put("mfaVerified", true);
+                putIfAbsent(payload, "challengeVerifiedAt", stepUpPassedAt.toString());
+                putIfAbsent(payload, "lastMfaUsedAt", stepUpPassedAt.toString());
+            }
             // The user-level MFA mark is not this session's MFA: another session (or device) may have set it. It
             // is carried as its own fact when this session has no MFA of its own.
             if (!Boolean.TRUE.equals(payload.get("mfaVerified"))) {

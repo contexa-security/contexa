@@ -776,6 +776,45 @@ class ZeroTrustEventPublisherTest {
                 .containsEntry("failedLoginWindowMinutes", 5);
     }
 
+    /** Q-16 (PR-66): a request of the context the step-up was passed in, as the application left the sign-in. */
+    private ZeroTrustSpringEvent eventAfterAStepUp(Instant passedInThisContext) throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
+        request.setRemoteAddr("203.0.113.15");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        String context = SessionFingerprintUtil.generateContextBindingHash(request);
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        when(invocation.getMethod()).thenReturn(SampleService.class.getDeclaredMethod("protectableApprove"));
+        SecurityContextDataStore dataStore = mock(SecurityContextDataStore.class);
+        when(dataStore.getLastMfaVerifiedAt("alice")).thenReturn(Instant.parse("2026-11-05T10:15:30Z"));
+        when(dataStore.getChallengeVerifiedAt("alice", context)).thenReturn(passedInThisContext);
+        return new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties(),
+                dataStore, new SecurityPlaneProperties()).buildMethodAuthorizationEvent(invocation,
+                new UsernamePasswordAuthenticationToken("alice", "n/a"), true, null);
+    }
+
+    @Test
+    @DisplayName("a step-up passed in this context reaches the next decision as this session's MFA")
+    void aStepUpPassedInThisContextIsThisSessionsMfa() throws Exception {
+        ZeroTrustSpringEvent event = eventAfterAStepUp(Instant.parse("2026-11-05T10:15:30Z"));
+
+        assertThat(event.getPayload())
+                .containsEntry("mfaVerified", true)
+                .containsEntry("challengeVerifiedAt", "2026-11-05T10:15:30Z")
+                .containsEntry("lastMfaUsedAt", "2026-11-05T10:15:30Z")
+                .doesNotContainKey("recentMfaElsewhereAt");
+    }
+
+    @Test
+    @DisplayName("a step-up passed in another context stays another session's fact")
+    void aStepUpPassedElsewhereStaysAnotherSessionsFact() throws Exception {
+        ZeroTrustSpringEvent event = eventAfterAStepUp(null);
+
+        assertThat(event.getPayload().get("mfaVerified")).isNotEqualTo(true);
+        assertThat(event.getPayload())
+                .containsEntry("recentMfaElsewhereAt", "2026-11-05T10:15:30Z")
+                .doesNotContainKey("challengeVerifiedAt");
+    }
+
     @Test
     @DisplayName("explicit bridge deny and its policy evidence should survive a granted method result")
     void shouldPreserveExplicitBridgeDenyWhenMethodInvocationIsGranted() throws Exception {

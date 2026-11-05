@@ -105,6 +105,7 @@ public class ChallengeResolution {
                 actionRepository.saveActionWithPrevious(userId, ZeroTrustAction.ALLOW, contextBindingHash);
                 learnStepUp(userId, request, originalIp, challengedRequestId);
             }
+            keepAsAFactOfTheContext(userId, contextBindingHash, request);
             if (blockingSignalBroadcaster != null) {
                 blockingSignalBroadcaster.registerUnblock(userId);
             }
@@ -112,6 +113,23 @@ public class ChallengeResolution {
         } catch (Exception e) {
             log.error("[MFA] Failed to set action to ALLOW for user: {}", userId, e);
             return false;
+        }
+    }
+
+    /**
+     * Q-16: the decisions after the step-up are told of it. It is kept for the context the client goes on in, so that
+     * the session that passed it reads as verified and another session of the user does not.
+     */
+    private void keepAsAFactOfTheContext(String userId, String contextBindingHash, HttpServletRequest request) {
+        try {
+            SecurityContextDataStore dataStore = securityContextDataStore.get();
+            if (dataStore != null) {
+                Instant observedAt = RequestInfoExtractor.extractObservedAt(request);
+                dataStore.markChallengeVerified(userId, contextBindingHash,
+                        observedAt != null ? observedAt : Instant.now());
+            }
+        } catch (Exception e) {
+            log.error("[MFA] Failed to keep the passed step-up as a fact of its context: userId={}", userId, e);
         }
     }
 

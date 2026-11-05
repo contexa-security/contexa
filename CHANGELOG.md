@@ -13,6 +13,11 @@ The format is based on Keep a Changelog and the project follows semantic version
   to what the model decides next. While it lasts the model is asked again about the same request, every 10 seconds, at
   most three times, so a model that is back frees the user without any step of theirs. A CHALLENGE or a BLOCK the model
   decided stands as it did: the mark never shortens or replaces one, in Redis or in memory.
+- **The decisions after a passed step-up are told of it.** Under HOST_OWNED the application's sign-in stays as it was,
+  so every later decision read `MfaVerified: false`, however recent the code. A passed step-up is now kept for an hour as
+  a fact of the context it was passed in (the session, its address and its client): the requests of that context carry
+  `mfaVerified`, `challengeVerifiedAt` and `lastMfaUsedAt`, under both ownerships. Another session of the user still reads
+  it as `RecentMfaElsewhere`. The facts changed, not the wording of a prompt; what the model decides with them stands.
 - **A synchronous `@Protectable` no longer holds the application's thread as long as the model is given.** A request
   waits for its verdict at most `contexa.security.zerotrust.agent.flight.wait` (40 seconds), a person's as an agent's.
   Past it the request is refused with a CHALLENGE that is not stored, the analysis goes on and stores its decision for

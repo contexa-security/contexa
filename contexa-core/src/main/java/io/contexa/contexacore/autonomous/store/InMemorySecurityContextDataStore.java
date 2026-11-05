@@ -68,6 +68,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private static final Duration DEFAULT_EVENT_PROCESSED_TTL = Duration.ofHours(24);
     private static final Duration DEFAULT_SOAR_TTL = Duration.ofDays(7);
     private static final Duration DEFAULT_USER_SESSIONS_TTL = Duration.ofDays(7);
+    private static final char CHALLENGE_VERIFIED_KEY_SEPARATOR = '\0';
     private static final Duration MFA_VERIFIED_TTL = Duration.ofHours(1);
     private static final Duration LOGIN_FAILURE_MINIMUM_RETENTION = Duration.ofMinutes(5);
     /** A request a filter stopped waits for the step-up while the challenge that stopped it is in force (N-LRN-3). */
@@ -139,6 +140,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         this.promotionLearning = learningSpace(this::releaseHeldRecords);
         this.stoppedRequests = ExpiringKeySpace.<StoppedRequests>builder(clock).build();
         this.mfaVerifiedAt = ExpiringKeySpace.<Long>builder(clock).ttl(MFA_VERIFIED_TTL).build();
+        this.challengeVerifiedAt = ExpiringKeySpace.<Long>builder(clock).ttl(MFA_VERIFIED_TTL).build();
         this.accountDeletions = ExpiringKeySpace.<Instant>builder(clock).build();
         this.userSessions = ExpiringKeySpace.<Set<String>>builder(clock).ttl(userSessionsTtl)
                 .bound(MAX_SESSION_ENTRIES).build();
@@ -156,7 +158,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
                 sessionPreviousPaths, sessionFirstClients, sessionPreviousIds, sessionRisks, lastRequestTimes,
                 previousPaths, workProfileObservations, roleScopeObservations, permissionChangeObservations,
                 authorizationScopeStates, verificationLearning, promotionLearning, stoppedRequests, mfaVerifiedAt,
-                accountDeletions, userSessions, processingEventOwners, processedEvents, soarExecutions,
+                challengeVerifiedAt, accountDeletions, userSessions, processingEventOwners, processedEvents, soarExecutions,
                 verificationOutcomes);
     }
 
@@ -190,6 +192,8 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
             new ConcurrentHashMap<>();
     /** When each user last completed MFA, on the request clock, while the mark lasts. */
     private final ExpiringKeySpace<Long> mfaVerifiedAt;
+    /** Q-16: when the user passed a step-up in a context, by user and context. */
+    private final ExpiringKeySpace<Long> challengeVerifiedAt;
     private volatile Duration loginFailureRetention = LOGIN_FAILURE_MINIMUM_RETENTION;
     /** BR-C14: how many work profile and role scope observations each scope keeps. */
     private volatile int observationCapacity = DEFAULT_OBSERVATION_CAPACITY;
@@ -568,6 +572,28 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     }
 
     @Override
+    public void markChallengeVerified(String userId, String contextBindingHash, Instant verifiedAt) {
+        if (userId == null || contextBindingHash == null || contextBindingHash.isBlank()) {
+            return;
+        }
+        challengeVerifiedAt.put(challengeVerifiedKey(userId, contextBindingHash),
+                verifiedAt != null ? verifiedAt.toEpochMilli() : clock.millis());
+    }
+
+    @Override
+    public Instant getChallengeVerifiedAt(String userId, String contextBindingHash) {
+        if (userId == null || contextBindingHash == null || contextBindingHash.isBlank()) {
+            return null;
+        }
+        Long verifiedAt = challengeVerifiedAt.get(challengeVerifiedKey(userId, contextBindingHash));
+        return verifiedAt == null ? null : Instant.ofEpochMilli(verifiedAt);
+    }
+
+    private static String challengeVerifiedKey(String userId, String contextBindingHash) {
+        return userId + CHALLENGE_VERIFIED_KEY_SEPARATOR + contextBindingHash;
+    }
+
+    @Override
     public void holdVerificationLearning(String userId, String requestId, String record) {
         if (userId == null || requestId == null || record == null) {
             return;
@@ -768,6 +794,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         lastRequestTimes.remove(userId);
         previousPaths.remove(userId);
         mfaVerifiedAt.remove(userId);
+        challengeVerifiedAt.removeIf(key -> key.startsWith(userId + CHALLENGE_VERIFIED_KEY_SEPARATOR));
         loginFailureCounters.remove("user:" + userId.trim());
         userSessions.remove(userId);
     }
