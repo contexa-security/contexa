@@ -249,7 +249,7 @@ public class IdentityOAuth2AutoConfiguration {
             return loadJwkFromKeyStore(oauth2);
         }
 
-        log.error("[OAuth2] JWK KeyStore not configured (contexa.auth.oauth2.jwk-key-store-path) - using an ephemeral RSA signing key "
+        log.warn("[OAuth2] JWK KeyStore not configured (contexa.auth.oauth2.jwk-key-store-path) - using an ephemeral RSA signing key "
                 + "for the internal token engine. Tokens will be invalidated on restart; configure a persistent key for "
                 + "multi-instance deployments or restart-stable token verification.");
 

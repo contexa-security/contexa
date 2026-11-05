@@ -40,7 +40,7 @@ public class InitiateChallengeAction extends AbstractMfaStateAction {
 
                 String ottDeliveryMethod = (String) factorContext.getAttribute(FactorContextAttributes.FactorInfo.OTT_DELIVERY_METHOD);
                 if (ottDeliveryMethod == null) {
-                    log.warn("[InitiateChallengeAction] ottDeliveryMethod not set, defaulting to EMAIL for session: {}", sessionId);
+                    log.debug("[InitiateChallengeAction] ottDeliveryMethod not set, defaulting to EMAIL for session: {}", sessionId);
                     ottDeliveryMethod = "EMAIL";
                     factorContext.setAttribute(FactorContextAttributes.FactorInfo.OTT_DELIVERY_METHOD, ottDeliveryMethod);
                 }
@@ -51,7 +51,7 @@ public class InitiateChallengeAction extends AbstractMfaStateAction {
 
                 String passkeyType = (String) factorContext.getAttribute(FactorContextAttributes.FactorInfo.PASSKEY_TYPE);
                 if (passkeyType == null) {
-                    log.warn("[InitiateChallengeAction] passkeyType not set, defaulting to PLATFORM for session: {}", sessionId);
+                    log.debug("[InitiateChallengeAction] passkeyType not set, defaulting to PLATFORM for session: {}", sessionId);
                     passkeyType = "PLATFORM";
                     factorContext.setAttribute(FactorContextAttributes.FactorInfo.PASSKEY_TYPE, passkeyType);
                 }

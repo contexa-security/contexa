@@ -82,7 +82,7 @@ public final class AsepConfigurer implements SecurityConfigurer {
     public void init(PlatformContext platformContext, PlatformConfig platformConfig) {
 
         if (this.methodRegistry == null || !this.methodRegistry.hasAnyMappings()) {
-            log.warn("ASEP Init: SecurityExceptionHandlerMethodRegistry is null or has no mappings. " +
+            log.debug("ASEP Init: SecurityExceptionHandlerMethodRegistry is null or has no mappings. " +
                     "@SecurityExceptionHandler methods may not be discovered or effective. Ensure @SecurityControllerAdvice beans with @SecurityExceptionHandler methods are correctly configured.");
         }
         if (this.messageConverters.isEmpty()) {

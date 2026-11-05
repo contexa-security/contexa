@@ -223,7 +223,7 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
         securityContextHolderStrategy.clearContext();
         stateMachineIntegrator.cleanupSession(request, response);
 
-        log.error("Form MFA authentication failed from IP: {} using repository: {}. Error: {}",
+        log.warn("Form MFA authentication failed from IP: {} using repository: {}. Error: {}",
                 getClientIpAddress(request),
                 sessionRepository.getRepositoryType(),
                 failed.getMessage());

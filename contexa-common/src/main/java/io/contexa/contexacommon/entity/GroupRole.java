@@ -73,6 +73,7 @@ public class GroupRole implements Serializable {
 
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode
 class GroupRoleId implements Serializable {
     private Long group;
     private Long role;

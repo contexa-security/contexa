@@ -121,7 +121,7 @@ public class ContexaCacheAutoConfiguration {
         public LocalContexaCacheService contexaCacheService(
                 ContexaCacheProperties properties,
                 @Qualifier("contexaObjectMapper") ObjectProvider<ObjectMapper> objectMapper) {
-            log.warn("No ContexaCacheService bean found from distributed or standalone config. Falling back to local cache.");
+            log.info("No ContexaCacheService bean found from distributed or standalone config. Falling back to local cache.");
             return new LocalContexaCacheService(properties, objectMapper.getIfAvailable(ContexaCacheAutoConfiguration::ownObjectMapper));
         }
     }

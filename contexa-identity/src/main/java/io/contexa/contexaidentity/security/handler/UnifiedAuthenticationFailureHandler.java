@@ -170,7 +170,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                                                      String usernameForLog, String sessionIdForLog)
             throws IOException, ServletException {
 
-        log.error("Primary Authentication or Global MFA Failure using {} repository for user '{}' (MFA Session ID: '{}'). Reason: {}",
+        log.warn("Primary Authentication or Global MFA Failure using {} repository for user '{}' (MFA Session ID: '{}'). Reason: {}",
                 sessionRepository.getRepositoryType(), usernameForLog, sessionIdForLog, exception.getMessage());
 
         if (loginPolicyService != null && isKnownUsername(usernameForLog)) {
@@ -399,7 +399,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
 
         String factorTypeStr = (factorType != null) ? factorType.name() : "PRIMARY_AUTH";
 
-        log.error("SECURITY_AUDIT - Authentication Failure: " +
+        log.warn("SECURITY_AUDIT - Authentication Failure: " +
                         "User=[{}], Session=[{}], Factor=[{}], " +
                         "Reason=[{}], Duration=[{}ms], " +
                         "ClientIP=[{}], UserAgent=[{}], XFF=[{}]",

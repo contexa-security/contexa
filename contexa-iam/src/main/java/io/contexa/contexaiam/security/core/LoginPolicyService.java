@@ -226,7 +226,7 @@ public class LoginPolicyService implements LoginPolicyHandler {
     private void applyUserLock(String username, int lockoutMinutes, int attempts, String failureType) {
         LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(Math.max(1, lockoutMinutes));
         userRepository.lockAccount(username, expiresAt);
-        log.error("[login-policy] account locked username={} attempts={} until={} failureType={}",
+        log.warn("[login-policy] account locked username={} attempts={} until={} failureType={}",
                 username, attempts, expiresAt, failureType);
     }
 
