@@ -140,13 +140,17 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
 
         boolean accepted = stateMachineIntegrator.sendEvent(MfaEvent.SUBMIT_FACTOR_CREDENTIAL, ctx, request);
         if (!accepted) {
-            log.error("State Machine rejected SUBMIT_FACTOR_CREDENTIAL event for session: {} in state: {}",
-                    ctx.getMfaSessionId(), ctx.getCurrentState());
+            // A second click meeting the first one is told to retry; the integrator has said so. No fault of the flow.
+            boolean busyRetry = stateMachineIntegrator.isBusyRetry(request);
+            if (!busyRetry) {
+                log.error("State Machine rejected SUBMIT_FACTOR_CREDENTIAL event for session: {} in state: {}",
+                        ctx.getMfaSessionId(), ctx.getCurrentState());
+            }
 
             ensureMinimumDelay(startTime);
 
             if (!response.isCommitted()) {
-                if (stateMachineIntegrator.isBusyRetry(request)) {
+                if (busyRetry) {
                     writeBusyRetryResponse(request, response);
                     return;
                 }
