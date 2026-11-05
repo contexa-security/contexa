@@ -24,6 +24,7 @@ import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
+import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexacore.verification.replay.SealedDecisionReplayService;
 import io.contexa.contexaiam.admin.promptquality.inspection.SealedDecisionReplays.Baselines;
@@ -60,8 +61,9 @@ class SealedDecisionReplaysTest {
     private final SealedDecisionReplayService service = mock(SealedDecisionReplayService.class);
     private final BaselineDataStore baselines = mock(BaselineDataStore.class);
     private final CentralAuditFacade audit = mock(CentralAuditFacade.class);
+    private final SealedEvidencePackageIntegrity integrity = new SealedEvidencePackageIntegrity();
     private final SealedDecisionReplays replays = new SealedDecisionReplays(packages, () -> service, baselines, audit,
-            JSON);
+            JSON, integrity);
     private final Authentication operator = new UsernamePasswordAuthenticationToken("admin-1", null, List.of());
     private final SealedEvidencePackage sealed = sealed();
 
@@ -132,13 +134,81 @@ class SealedDecisionReplaysTest {
         assertThat(api.replayRequest("req-1", new ReplayRequest(BUNDLE, List.of("a", "b", "c", "d"), null, null),
                 operator).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         SealedDecisionReplayApiController withoutPipeline = new SealedDecisionReplayApiController(
-                new SealedDecisionReplays(packages, () -> null, baselines, audit, JSON));
+                new SealedDecisionReplays(packages, () -> null, baselines, audit, JSON, integrity));
         assertThat(withoutPipeline.replayRequest("req-1", new ReplayRequest(BUNDLE, null, null, null), operator)
                 .getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
         assertThat(SealedDecisionReplayApiController.class.getAnnotation(PreAuthorize.class).value())
                 .isEqualTo("hasAuthority('ROLE_ADMIN')");
         assertThat(SealedDecisionReplayApiController.class.getAnnotation(RequestMapping.class).value())
                 .containsExactly("/contexa/admin/api/sealed-decisions");
+    }
+
+    /** PR-77: a package changed after its seal is still replayed; the answer and the audit say what it was drawn from. */
+    @Test
+    void aPackageChangedAfterItsSealIsReplayedAndTheAnswerAndTheAuditSaySo() throws Exception {
+        seal();
+        sealed.setDecisionJson("{\"action\":\"BLOCK\"}");
+        when(packages.findByPackageId("pkg-1")).thenReturn(Optional.of(sealed));
+        when(service.replay(any(), any(), any(), any(), any(), any())).thenReturn(result("BLOCK", null));
+
+        Replayed replayed = replays.replayPackage("admin-1", "pkg-1", new ReplayRequest(BUNDLE, null, null, null))
+                .orElseThrow();
+
+        assertThat(replayed.integrity()).isEqualTo(SealedEvidencePackageIntegrity.Status.MISMATCH);
+        assertThat(replayed.result().action()).as("the replay is not refused").isEqualTo("BLOCK");
+        assertThat(JSON.readTree(JSON.writeValueAsString(replayed)).path("integrity").asText()).isEqualTo("MISMATCH");
+        ArgumentCaptor<AuditRecord> audited = ArgumentCaptor.forClass(AuditRecord.class);
+        verify(audit).recordAsync(audited.capture());
+        assertThat(audited.getValue().getDetails()).containsEntry("integrity", "MISMATCH");
+    }
+
+    @Test
+    void anIntactPackageReadsVerified() {
+        seal();
+        when(packages.findByPackageId("pkg-1")).thenReturn(Optional.of(sealed));
+        when(service.replay(any(), any(), any(), any(), any(), any())).thenReturn(result("ALLOW", null));
+
+        Replayed replayed = replays.replayPackage("admin-1", "pkg-1", new ReplayRequest(BUNDLE, null, null, null))
+                .orElseThrow();
+
+        assertThat(replayed.integrity()).isEqualTo(SealedEvidencePackageIntegrity.Status.VERIFIED);
+        ArgumentCaptor<AuditRecord> audited = ArgumentCaptor.forClass(AuditRecord.class);
+        verify(audit).recordAsync(audited.capture());
+        assertThat(audited.getValue().getDetails()).containsEntry("integrity", "VERIFIED");
+    }
+
+    @Test
+    void aPackageThatCannotBeVerifiedSaysSo() {
+        sealed.setPackageHash(null);
+        when(packages.findByPackageId("pkg-1")).thenReturn(Optional.of(sealed));
+        when(service.replay(any(), any(), any(), any(), any(), any())).thenReturn(result("ALLOW", null));
+
+        Replayed replayed = replays.replayPackage("admin-1", "pkg-1", new ReplayRequest(BUNDLE, null, null, null))
+                .orElseThrow();
+
+        assertThat(replayed.integrity()).isEqualTo(SealedEvidencePackageIntegrity.Status.UNVERIFIABLE);
+    }
+
+    /** A replay that gave no answer is audited with the package's state as well. */
+    @Test
+    void aFailedReplayStillTellsThePackagesState() {
+        seal();
+        sealed.setCanonicalContextJson("{}");
+        when(packages.findByPackageId("pkg-1")).thenReturn(Optional.of(sealed));
+        when(service.replay(any(), any(), any(), any(), any(), any())).thenReturn(result(null, "TimeoutException"));
+
+        Replayed replayed = replays.replayPackage("admin-1", "pkg-1", new ReplayRequest(BUNDLE, null, null, null))
+                .orElseThrow();
+
+        assertThat(replayed.integrity()).isEqualTo(SealedEvidencePackageIntegrity.Status.MISMATCH);
+        ArgumentCaptor<AuditRecord> audited = ArgumentCaptor.forClass(AuditRecord.class);
+        verify(audit).recordAsync(audited.capture());
+        assertThat(audited.getValue().getOutcome()).isEqualTo("FAILED");
+        assertThat(audited.getValue().getDetails()).containsEntry("integrity", "MISMATCH");
+    }
+
+    private void seal() {
+        sealed.setPackageHash(integrity.computeHash(sealed));
     }
 
     @Test

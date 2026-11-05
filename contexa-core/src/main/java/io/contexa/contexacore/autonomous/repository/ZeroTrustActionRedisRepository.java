@@ -491,29 +491,18 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                     userId, action, exception);
             return false;
         }
-        if (written != null && written == 0L) {
-            finalWriteKeptStricter.set(Boolean.TRUE);
-            return true;
-        }
-
-        try {
-            Map<Object, Object> analysis = readAnalysis(userId);
-            if (!action.name().equals(String.valueOf(analysis.get("action")))
-                    || !observationId.toString().equals(String.valueOf(analysis.get("observationId")))
-                    || !processingGeneration.toString().equals(String.valueOf(analysis.get("processingGeneration")))) {
-                return false;
-            }
-            if (!action.name().equals(readLastVerifiedAction(userId))) {
-                return false;
-            }
-            Object contextBindingHash = additionalFields.get("contextBindingHash");
-            return contextBindingHash == null
-                    || contextBindingHash.toString().equals(readLastVerifiedActionContext(userId));
-        } catch (Exception exception) {
-            log.error("[ZeroTrustActionRedisRepository] Failed to verify final action write: userId={}, action={}",
-                    userId, action, exception);
+        if (written == null) {
+            log.error("[ZeroTrustActionRedisRepository] Final action script gave no answer: userId={}, action={}",
+                    userId, action);
             return false;
         }
+        if (written == 0L) {
+            finalWriteKeptStricter.set(Boolean.TRUE);
+        }
+        // The script checked and wrote in one step, so its answer is the outcome of this write, as the in-memory
+        // repository's write under the user's lock is. The keys are not read back: a later decision of the same user
+        // may have replaced this one by then, and that is no failed write (PR-72).
+        return true;
     }
 
     @Override

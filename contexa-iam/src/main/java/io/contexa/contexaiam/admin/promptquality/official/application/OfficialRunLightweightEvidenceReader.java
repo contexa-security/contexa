@@ -60,6 +60,7 @@ public final class OfficialRunLightweightEvidenceReader {
     private final ObjectMapper objectMapper;
     private final RuntimeEvidencePromptConsistencyGate promptConsistencyGate;
     private final PromptQualityRuntimeEvidenceService evidenceService;
+    private final SealedEvidencePackageQueryService packages;
     private final PromptQualityMessageResolver messageResolver;
 
     public OfficialRunLightweightEvidenceReader(
@@ -67,11 +68,13 @@ public final class OfficialRunLightweightEvidenceReader {
             ObjectMapper objectMapper,
             RuntimeEvidencePromptConsistencyGate promptConsistencyGate,
             PromptQualityRuntimeEvidenceService evidenceService,
+            SealedEvidencePackageQueryService packages,
             PromptQualityMessageResolver messageResolver) {
         this.jdbcOperations = Objects.requireNonNull(jdbcOperations, "jdbcOperations");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
         this.promptConsistencyGate = Objects.requireNonNull(promptConsistencyGate, "promptConsistencyGate");
         this.evidenceService = Objects.requireNonNull(evidenceService, "evidenceService");
+        this.packages = Objects.requireNonNull(packages, "packages");
         this.messageResolver = Objects.requireNonNull(messageResolver, "messageResolver");
     }
 
@@ -128,7 +131,7 @@ public final class OfficialRunLightweightEvidenceReader {
         Map<String, Object> decision = parseJson(pkg.getDecisionJson());
         Map<String, Object> baselineSnapshot = parseJson(pkg.getBaselineSnapshotJson());
         Map<String, Object> ragResults = parseJson(pkg.getRagResultsJson());
-        boolean integrityValid = storedSealLooksValid(pkg);
+        boolean integrityValid = storedSealLooksValid(pkg) && packages.verifyIntegrity(pkg);
         RuntimeEvidencePromptConsistencyResult promptConsistency = promptConsistencyGate.evaluate(pkg);
         return new RuntimeEvidencePackageDetail(
                 toSummary(pkg, requestFacts, promptMetadata, decision, integrityValid),
