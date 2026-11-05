@@ -108,7 +108,11 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
                 action = subject != null ? subject.currentAction(actionRepository, contextBindingHash)
                         : actionRepository.getCurrentAction(userId, contextBindingHash);
                 threatScore = threatScoreUtil.getThreatScore(userId);
-                decisionCache.put(decisionKey, new CachedZeroTrustDecision(action, threatScore, contextBindingHash));
+                // Only an ALLOW is remembered: a pending analysis or a restriction may end at any moment, and a request
+                // held to it after that would be refused for a decision that no longer stands.
+                if (action == ZeroTrustAction.ALLOW) {
+                    decisionCache.put(decisionKey, new CachedZeroTrustDecision(action, threatScore, contextBindingHash));
+                }
             }
 
             double trustScore = 1.0 - threatScore;
