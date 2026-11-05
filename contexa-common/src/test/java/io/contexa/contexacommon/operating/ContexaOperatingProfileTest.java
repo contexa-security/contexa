@@ -20,6 +20,8 @@ import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.asm.ClassWriter;
+import org.springframework.asm.Opcodes;
 import org.springframework.mock.env.MockEnvironment;
 
 import static io.contexa.contexacommon.operating.ContexaOperatingProfile.PROP_APPLICATION_DATA;
@@ -181,6 +183,39 @@ class ContexaOperatingProfileTest {
         assertThatThrownBy(() -> ContexaOperatingProfile.refuseDistributedWithoutRedis(environment, withoutRedis))
                 .isInstanceOfSatisfying(ContexaOperatingProfileException.class,
                         e -> assertThat(e.action()).contains("spring-boot-starter-data-redis"));
+    }
+
+    /** PR-71: the library the message names brings a JCache provider, so the message says what an application with JCache sets. */
+    @Test
+    void theAdviceToAddRedissonSaysWhatItDoesToAnApplicationsJCache() {
+        MockEnvironment environment = new MockEnvironment().withProperty("contexa.infrastructure.mode", "distributed");
+
+        assertThatThrownBy(() -> ContexaOperatingProfile.refuseDistributedWithoutRedis(environment, new ClassLoader(null) {
+        })).isInstanceOfSatisfying(ContexaOperatingProfileException.class,
+                e -> assertThat(e.action()).contains("org.redisson:redisson").contains("JCache").contains("spring.cache.type=caffeine"));
+    }
+
+    /** A message that does not tell anyone to add Redisson has nothing to say about it. */
+    @Test
+    void anAdviceWithoutRedissonDoesNotMentionTheCache() {
+        MockEnvironment environment = new MockEnvironment().withProperty("contexa.infrastructure.mode", "distributed");
+        ClassLoader withRedisson = new ClassLoader(null) {
+            @Override
+            protected Class<?> findClass(String name) throws ClassNotFoundException {
+                if (!name.equals("org.redisson.api.RedissonClient")) {
+                    throw new ClassNotFoundException(name);
+                }
+                ClassWriter writer = new ClassWriter(0);
+                writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC | Opcodes.ACC_INTERFACE | Opcodes.ACC_ABSTRACT,
+                        name.replace('.', '/'), null, "java/lang/Object", null);
+                byte[] redissonClient = writer.toByteArray();
+                return defineClass(name, redissonClient, 0, redissonClient.length);
+            }
+        };
+
+        assertThatThrownBy(() -> ContexaOperatingProfile.refuseDistributedWithoutRedis(environment, withRedisson))
+                .isInstanceOfSatisfying(ContexaOperatingProfileException.class,
+                        e -> assertThat(e.action()).doesNotContain("spring.cache.type"));
     }
 
     @Test

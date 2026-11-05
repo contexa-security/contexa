@@ -48,12 +48,16 @@ public record ContexaOperatingProfile(SecurityMode mode, SecurityOwnershipMode o
     private static final String PROP_WEB_APPLICATION_TYPE = "spring.main.web-application-type";
     private static final String PROP_INFRASTRUCTURE_MODE = "contexa.infrastructure.mode";
     private static final String HTTP_SECURITY = "org.springframework.security.config.annotation.web.builders.HttpSecurity";
+    private static final String REDISSON_LIBRARY = "org.redisson:redisson";
+    /** PR-71: the library brings a JCache provider, and Spring Boot gives it the cache of an application that goes through JCache. */
+    private static final String REDISSON_JCACHE_NOTE = " " + REDISSON_LIBRARY + " brings a JCache provider: an application"
+            + " whose cache goes through JCache then does not start, so it sets its cache, for example spring.cache.type=caffeine.";
     private static final Map<String, String> DISTRIBUTED_LIBRARIES = distributedLibraries();
 
     private static Map<String, String> distributedLibraries() {
         Map<String, String> libraries = new LinkedHashMap<>();
         libraries.put("org.springframework.data.redis.core.RedisTemplate", "spring-boot-starter-data-redis");
-        libraries.put("org.redisson.api.RedissonClient", "org.redisson:redisson");
+        libraries.put("org.redisson.api.RedissonClient", REDISSON_LIBRARY);
         libraries.put("org.springframework.statemachine.data.redis.RedisStateMachineRepository", "spring-statemachine-data-redis");
         return libraries;
     }
@@ -111,7 +115,8 @@ public record ContexaOperatingProfile(SecurityMode mode, SecurityOwnershipMode o
         if (!missing.isEmpty()) {
             throw new ContexaOperatingProfileException(
                     PROP_INFRASTRUCTURE_MODE + " is distributed, and the Redis client is not on the class path: " + missing + ".",
-                    "Add " + String.join(", ", missing) + " to this application, or set " + PROP_INFRASTRUCTURE_MODE + "=standalone.");
+                    "Add " + String.join(", ", missing) + " to this application, or set " + PROP_INFRASTRUCTURE_MODE + "=standalone."
+                            + (missing.contains(REDISSON_LIBRARY) ? REDISSON_JCACHE_NOTE : ""));
         }
     }
 

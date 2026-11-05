@@ -8,4 +8,5 @@ io.contexa.autoconfigure.core.infra.StandaloneAutoConfigurationFilter
 org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer=\
 io.contexa.autoconfigure.ai.BridgeOAuth2ResourceServerFallbackConfigurer
 org.springframework.boot.diagnostics.FailureAnalyzer=\
-io.contexa.autoconfigure.ai.ContexaOperatingProfileFailureAnalyzer
+io.contexa.autoconfigure.ai.ContexaOperatingProfileFailureAnalyzer,\
+io.contexa.autoconfigure.core.infra.RedissonJCacheFailureAnalyzer
