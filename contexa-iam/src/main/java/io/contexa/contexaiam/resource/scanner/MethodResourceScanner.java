@@ -82,9 +82,9 @@ public class MethodResourceScanner implements ResourceScanner {
             }
 
             try {
+                boolean protectedAsAWhole = AnnotationUtils.findAnnotation(targetClass, Protectable.class) != null;
                 for (Method method : targetClass.getDeclaredMethods()) {
-                    if (!Modifier.isPublic(method.getModifiers())
-                            || AnnotationUtils.findAnnotation(method, Protectable.class) == null) {
+                    if (!isProtected(method, protectedAsAWhole)) {
                         continue;
                     }
                     String parameterTypesJson = "[]";
@@ -115,6 +115,16 @@ public class MethodResourceScanner implements ResourceScanner {
             }
         }
         return resources;
+    }
+
+    /** A public method annotated itself, or a public instance method of a class protected as a whole. */
+    private boolean isProtected(Method method, boolean protectedAsAWhole) {
+        int modifiers = method.getModifiers();
+        if (!Modifier.isPublic(modifiers) || method.isSynthetic()) {
+            return false;
+        }
+        return AnnotationUtils.findAnnotation(method, Protectable.class) != null
+                || protectedAsAWhole && !Modifier.isStatic(modifiers);
     }
 
     /** The class behind a bean only its instance can tell: an interface proxy of a singleton, or a type not known yet. */

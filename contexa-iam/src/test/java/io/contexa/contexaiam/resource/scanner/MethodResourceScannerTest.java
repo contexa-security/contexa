@@ -121,6 +121,36 @@ class MethodResourceScannerTest {
         verify(context, never()).getBean("hostsLazyBean");
     }
 
+    /** The runtime protects every public method of a class annotated as a whole, so the console lists them too. */
+    @Test
+    void listsThePublicMethodsOfAClassProtectedAsAWhole() {
+        ApplicationContext context = mock(ApplicationContext.class);
+        SystemRuntimeSettingsService settings = mock(SystemRuntimeSettingsService.class);
+        when(context.getBeanDefinitionNames()).thenReturn(new String[]{"whole"});
+        doReturn(ProtectedAsAWhole.class).when(context).getType("whole", false);
+        when(settings.getResourceScannerBasePackages()).thenReturn(List.of("io.contexa.contexaiam.resource.scanner."));
+
+        MethodResourceScanner scanner = new MethodResourceScanner(context, new ObjectMapper(), settings);
+
+        assertThat(scanner.scan()).singleElement()
+                .satisfies(resource -> assertThat(resource.getResourceIdentifier()).contains("readEverything()"));
+    }
+
+    @Protectable
+    static class ProtectedAsAWhole {
+        public String readEverything() {
+            return "everything";
+        }
+
+        public static String helper() {
+            return "helper";
+        }
+
+        String notPublic() {
+            return "not public";
+        }
+    }
+
     static class ProbeService {
         @Protectable
         public String protectedOperation(String value) {
