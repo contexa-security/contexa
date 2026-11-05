@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.properties;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.context.decision.LearningPromotionPolicy;
 import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
 import io.contexa.contexacore.autonomous.execution.ObjectiveResourceCompatibilityCatalog;
@@ -46,6 +47,13 @@ public class SecurityZeroTrustProperties {
      * {@code plain-k9} also stops {@code PLAIN-K9}. Turn it off when names of the application differ by case alone.
      */
     private boolean normalizeUserKeys = true;
+
+    /**
+     * How long an ALLOW answers the asynchronous requests of the same session, address and browser without a new
+     * analysis (Q-28). A change of any of the three is analysed at once, and a synchronous {@code @Protectable} call
+     * every time. Production belongs between 10 and 20 minutes; a test lowers it to watch decisions follow each other.
+     */
+    private Duration allowValidity = ZeroTrustAction.ALLOW.getDefaultTtl();
 
     public enum EnforcementMode {
         DISABLED,

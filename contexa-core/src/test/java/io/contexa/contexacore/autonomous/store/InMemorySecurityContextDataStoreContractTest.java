@@ -29,6 +29,13 @@ class InMemorySecurityContextDataStoreContractTest extends AbstractSecurityConte
     }
 
     @Override
+    protected SecurityContextDataStore createStoreWithAllowValidity(Duration validity) {
+        InMemorySecurityContextDataStore store = (InMemorySecurityContextDataStore) createStore();
+        store.setAllowValidity(validity);
+        return store;
+    }
+
+    @Override
     protected SecurityContextDataStore createStoreWithLoginFailureRetention(Duration retention) {
         InMemorySecurityContextDataStore store = new InMemorySecurityContextDataStore();
         store.setLoginFailureRetention(retention);

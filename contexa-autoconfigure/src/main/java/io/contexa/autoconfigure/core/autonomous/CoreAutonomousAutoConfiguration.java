@@ -992,8 +992,11 @@ public class CoreAutonomousAutoConfiguration {
         @ConditionalOnMissingBean(ZeroTrustActionRepository.class)
         public ZeroTrustActionRedisRepository zeroTrustActionRedisRepository(
                 @Qualifier("contexaGeneralRedisTemplate") RedisTemplate<String, Object> redisTemplate,
-                StringRedisTemplate stringRedisTemplate) {
-            return new ZeroTrustActionRedisRepository(redisTemplate, stringRedisTemplate);
+                StringRedisTemplate stringRedisTemplate,
+                ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustProperties) {
+            ZeroTrustActionRedisRepository repository = new ZeroTrustActionRedisRepository(redisTemplate, stringRedisTemplate);
+            securityZeroTrustProperties.ifAvailable(properties -> repository.setAllowValidity(properties.getAllowValidity()));
+            return repository;
         }
 
         @Bean(name = "contexaRedisProtectableRapidReentryRepository")
@@ -1015,8 +1018,10 @@ public class CoreAutonomousAutoConfiguration {
         @ConditionalOnMissingBean(SecurityContextDataStore.class)
         public RedisSecurityContextDataStore redisSecurityContextDataStore(
                 @Qualifier("contexaGeneralRedisTemplate") RedisTemplate<String, Object> redisTemplate,
-                ObjectProvider<SecurityPlaneProperties> securityPlaneProperties) {
+                ObjectProvider<SecurityPlaneProperties> securityPlaneProperties,
+                ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustProperties) {
             RedisSecurityContextDataStore store = new RedisSecurityContextDataStore(redisTemplate);
+            securityZeroTrustProperties.ifAvailable(zeroTrust -> store.setAllowValidity(zeroTrust.getAllowValidity()));
             SecurityPlaneProperties properties = securityPlaneProperties.getIfAvailable();
             if (properties != null) {
                 store.setLoginFailureRetention(Duration.ofMinutes(
@@ -1042,8 +1047,13 @@ public class CoreAutonomousAutoConfiguration {
               ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustProperties) {
           // QF-42: the bound on users the store keeps; without a setting the one derived from the maximum heap.
           SecurityZeroTrustProperties properties = securityZeroTrustProperties.getIfAvailable();
-          return new InMemoryZeroTrustActionRepository(properties != null && properties.getStandalone() != null
-                  ? properties.getStandalone().getMaxDecisionUsers() : 0);
+          InMemoryZeroTrustActionRepository repository = new InMemoryZeroTrustActionRepository(
+                  properties != null && properties.getStandalone() != null
+                          ? properties.getStandalone().getMaxDecisionUsers() : 0);
+          if (properties != null) {
+              repository.setAllowValidity(properties.getAllowValidity());
+          }
+          return repository;
       }
 
       /** BR-C11 (DD-52): the in-memory store keeps each baseline for the same configured retention. */
@@ -1094,6 +1104,9 @@ public class CoreAutonomousAutoConfiguration {
         }
         // QF-42: the byte budget of the held learning records; without a setting the one derived from the maximum heap.
         SecurityZeroTrustProperties zeroTrustProperties = securityZeroTrustProperties.getIfAvailable();
+        if (zeroTrustProperties != null) {
+            store.setAllowValidity(zeroTrustProperties.getAllowValidity());
+        }
         if (zeroTrustProperties != null && zeroTrustProperties.getStandalone() != null) {
             store.setHeldLearningBudgetBytes(zeroTrustProperties.getStandalone().getMaxHeldLearningBytes());
         }

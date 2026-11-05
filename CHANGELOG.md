@@ -148,6 +148,13 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Changed
 
+- **An ALLOW now lasts 15 minutes instead of 15 seconds.** The 15 seconds were a value for fast tests. Set
+  `contexa.security.zerotrust.allow-validity` to change it; production belongs between 10 and 20 minutes, and a time
+  outside that range is kept and said once at the start. A time that is not positive reads as the default, because a
+  repository would keep the ALLOW for ever. While an ALLOW lasts, the asynchronous requests of the same session,
+  address and browser are not analysed and not learned; a change of any of the three, and every synchronous
+  `@Protectable` call, is analysed as before. Tests that wait for a next decision set the time lower.
+
 - **Every database object Contexa creates starts with `ctxa_`**: tables, views, sequences, indexes and named
   constraints (`users` is now `ctxa_users`, `contexa_schema_provenance` is `ctxa_schema_provenance`). A table of your
   application with a plain name (`users`, `role`, `audit_log`, ...) is never read, changed or renamed, even in the same

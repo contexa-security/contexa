@@ -20,7 +20,8 @@ import java.time.Duration;
 
 public enum ZeroTrustAction {
 
-    ALLOW(200, 15, null),
+    /** Lasts the production time; {@code contexa.security.zerotrust.allow-validity} sets it per installation. */
+    ALLOW(200, 900, null),
 
     BLOCK(403, -1, "ROLE_BLOCKED"),
 
@@ -57,6 +58,11 @@ public enum ZeroTrustAction {
 
     public int getHttpStatus() {
         return httpStatus;
+    }
+
+    /** The time an ALLOW lasts under a setting: a time that is not positive would never expire, so it reads as the default. */
+    public static Duration allowValidity(Duration configured) {
+        return configured == null || configured.isZero() || configured.isNegative() ? ALLOW.getDefaultTtl() : configured;
     }
 
     public Duration getDefaultTtl() {

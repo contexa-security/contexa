@@ -45,6 +45,8 @@ import java.util.stream.Collectors;
 public class RedisSecurityContextDataStore implements SecurityContextDataStore {
 
     private final RedisTemplate<String, Object> redisTemplate;
+    private volatile DefaultRedisScript<Long> verifyStoppedRequestsScript =
+            verifyStoppedRequestsScript(ZeroTrustAction.ALLOW.getDefaultTtl());
 
     private static final int MAX_SESSION_ACTIONS = 100;
     private static final int MAX_PREVIOUS_SESSION_IDS = 20;
@@ -61,7 +63,6 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     /** A request a filter stopped waits for the step-up while the challenge that stopped it is in force (N-LRN-3). */
     private static final Duration STOPPED_REQUEST_TTL = ZeroTrustAction.CHALLENGE.getDefaultTtl();
     /** A verified stopped request is sent again under the ALLOW the step-up writes (N-LRN-3). */
-    private static final Duration VERIFIED_STOPPED_REQUEST_TTL = ZeroTrustAction.ALLOW.getDefaultTtl();
     private static final int MAX_STOPPED_REQUESTS = 20;
     /** The member that marks a user's stopped requests verified; a request member is serialized text (N-LRN-3). */
     private static final String STOPPED_REQUESTS_VERIFIED = "@verified";
@@ -123,14 +124,17 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
      * Marks the user's stopped requests verified while the ALLOW the step-up writes is in force, leaving out ARGV[1]
      * when given (N-LRN-3); requests already verified stay as they are.
      */
-    private static final DefaultRedisScript<Long> VERIFY_STOPPED_REQUESTS_SCRIPT = new DefaultRedisScript<>(
-            "if redis.call('sismember', KEYS[1], '" + STOPPED_REQUESTS_VERIFIED + "') == 1 then return 0 end "
-                    + "if #ARGV > 0 then redis.call('srem', KEYS[1], ARGV[1]) end "
-                    + "if redis.call('scard', KEYS[1]) == 0 then return 0 end "
-                    + "redis.call('sadd', KEYS[1], '" + STOPPED_REQUESTS_VERIFIED + "') "
-                    + "redis.call('pexpire', KEYS[1], " + VERIFIED_STOPPED_REQUEST_TTL.toMillis() + ") "
-                    + "return 1",
-            Long.class);
+    private static DefaultRedisScript<Long> verifyStoppedRequestsScript(Duration verifiedTtl) {
+        return new DefaultRedisScript<>(
+                "if redis.call('sismember', KEYS[1], '" + STOPPED_REQUESTS_VERIFIED + "') == 1 then return 0 end "
+                        + "if #ARGV > 0 then redis.call('srem', KEYS[1], ARGV[1]) end "
+                        + "if redis.call('scard', KEYS[1]) == 0 then return 0 end "
+                        + "redis.call('sadd', KEYS[1], '" + STOPPED_REQUESTS_VERIFIED + "') "
+                        + "redis.call('pexpire', KEYS[1], " + verifiedTtl.toMillis() + ") "
+                        + "return 1",
+                Long.class);
+    }
+
     /** Takes the user's verified stopped requests when the request is one of them, once per verification (N-LRN-3). */
     private static final DefaultRedisScript<Long> TAKE_VERIFIED_STOPPED_REQUEST_SCRIPT = new DefaultRedisScript<>(
             "if redis.call('sismember', KEYS[1], '" + STOPPED_REQUESTS_VERIFIED + "') == 1 "
@@ -945,7 +949,7 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
         }
         try {
             Object[] leftOut = learnedRequestSignature != null ? new Object[]{learnedRequestSignature} : new Object[0];
-            redisTemplate.execute(VERIFY_STOPPED_REQUESTS_SCRIPT, List.of(ZeroTrustRedisKeys.stoppedRequests(userId)),
+            redisTemplate.execute(verifyStoppedRequestsScript, List.of(ZeroTrustRedisKeys.stoppedRequests(userId)),
                     leftOut);
         } catch (Exception e) {
             log.error("[SecurityContextDataStore] Failed to verify the stopped requests: userId={}", userId, e);
@@ -1222,6 +1226,11 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
      * Sets how long login failures stay countable: the longest window any reader queries, at least five minutes. Older
      * failures are trimmed when a new one arrives, and the key outlives the window by a margin.
      */
+    /** Q-28: a verified stopped request is sent again under the ALLOW the step-up writes, so it lasts as long. */
+    public void setAllowValidity(Duration allowValidity) {
+        this.verifyStoppedRequestsScript = verifyStoppedRequestsScript(ZeroTrustAction.allowValidity(allowValidity));
+    }
+
     public void setLoginFailureRetention(Duration retention) {
         if (retention != null && retention.compareTo(LOGIN_FAILURE_MINIMUM_RETENTION) > 0) {
             loginFailureRetention = retention;

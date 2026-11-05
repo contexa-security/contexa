@@ -74,7 +74,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     /** A request a filter stopped waits for the step-up while the challenge that stopped it is in force (N-LRN-3). */
     private static final Duration STOPPED_REQUEST_TTL = ZeroTrustAction.CHALLENGE.getDefaultTtl();
     /** A verified stopped request is sent again under the ALLOW the step-up writes (N-LRN-3). */
-    private static final Duration VERIFIED_STOPPED_REQUEST_TTL = ZeroTrustAction.ALLOW.getDefaultTtl();
+    private volatile Duration verifiedStoppedRequestTtl = ZeroTrustAction.ALLOW.getDefaultTtl();
     /**
      * QF-42, Z-16: how long RedisSecurityContextDataStore keeps each kind of key after its last write, the same
      * values (the shared contract test holds both stores to them): a session's actions and decisions, a session's
@@ -656,7 +656,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
             if (signatures.isEmpty()) {
                 slot.delete();
             } else {
-                slot.set(new StoppedRequests(signatures, true), VERIFIED_STOPPED_REQUEST_TTL);
+                slot.set(new StoppedRequests(signatures, true), verifiedStoppedRequestTtl);
             }
             return null;
         });
@@ -914,6 +914,11 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
      * Sets how long login failures stay countable: the longest window any reader queries, at least five minutes. Older
      * failures are trimmed whenever a new one arrives.
      */
+    /** Q-28: a verified stopped request is sent again under the ALLOW the step-up writes, so it lasts as long. */
+    public void setAllowValidity(Duration allowValidity) {
+        this.verifiedStoppedRequestTtl = ZeroTrustAction.allowValidity(allowValidity);
+    }
+
     public void setLoginFailureRetention(Duration retention) {
         if (retention != null && retention.compareTo(LOGIN_FAILURE_MINIMUM_RETENTION) > 0) {
             loginFailureRetention = retention;
