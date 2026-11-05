@@ -180,6 +180,7 @@ class DefaultPromptQualityOfficialRunDetailServiceTest {
                 objectMapper,
                 mock(RuntimeEvidencePromptConsistencyGate.class),
                 evidenceService,
+                mock(SealedEvidencePackageQueryService.class),
                 messageResolver);
         OfficialRunMetricContractView metricContractView = new OfficialRunMetricContractView(
                 metricCatalog,

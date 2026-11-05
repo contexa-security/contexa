@@ -803,6 +803,7 @@ public class PqaOfficialInspectionAutoConfiguration {
             OfficialSealedEvidenceVerificationRuntime officialRuntime,
             VerificationLedgerService contexaVerificationLedgerService,
             PromptQualityRuntimeEvidenceService evidenceService,
+            SealedEvidencePackageQueryService sealedEvidencePackageQueryService,
             PromptQualityOfficialMetricCatalog metricCatalog,
             PromptQualityMessageResolver messageResolver,
             PromptQualityAssuranceCaseService assuranceCaseService,
@@ -816,6 +817,7 @@ public class PqaOfficialInspectionAutoConfiguration {
                 objectMapper,
                 promptConsistencyGate,
                 evidenceService,
+                sealedEvidencePackageQueryService,
                 messageResolver);
         OfficialRunMetricContractView metricContractView = new OfficialRunMetricContractView(
                 metricCatalog,

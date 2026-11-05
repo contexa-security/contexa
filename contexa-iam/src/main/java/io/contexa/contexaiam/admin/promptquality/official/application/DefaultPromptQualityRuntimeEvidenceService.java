@@ -114,7 +114,7 @@ public class DefaultPromptQualityRuntimeEvidenceService
         List<String> missingSignals = missingSignalDetails.stream()
                 .map(RuntimeEvidenceMissingKnowledgeSignal::title)
                 .toList();
-        boolean integrityValid = pkg.isSealed() && hasText(pkg.getPackageHash());
+        boolean integrityValid = sealIntact(pkg);
         return new RuntimeEvidencePackageDetail(
                 toSummary(pkg, integrityValid),
                 false,
@@ -245,8 +245,12 @@ public class DefaultPromptQualityRuntimeEvidenceService
     }
 
     private RuntimeEvidencePackageSummary toSummary(SealedEvidencePackage pkg) {
-        return toSummary(pkg, lookupService.verifyIntegrity(pkg));
+        return toSummary(pkg, sealIntact(pkg));
 
+    }
+
+    private boolean sealIntact(SealedEvidencePackage pkg) {
+        return pkg.isSealed() && lookupService.verifyIntegrity(pkg);
     }
 
     private RuntimeEvidencePackageSummary toSummary(SealedEvidencePackage pkg, boolean integrityValid) {
