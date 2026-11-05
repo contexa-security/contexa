@@ -150,6 +150,21 @@ public class SystemRuntimeSettingsService {
         return List.copyOf(normalized);
     }
 
+    /**
+     * The packages a scan covers: the ones set in the console and the application's own, so that the methods and
+     * controllers of an application are found without anyone naming its package. The setting only adds to them.
+     */
+    public static List<String> withApplicationPackages(List<String> configured, List<String> applicationPackages) {
+        Set<String> packages = new LinkedHashSet<>(configured);
+        for (String applicationPackage : applicationPackages) {
+            // the default package is no prefix: it would turn the scan into a scan of every bean
+            if (StringUtils.hasText(applicationPackage)) {
+                packages.add(normalizePackagePrefix(applicationPackage));
+            }
+        }
+        return List.copyOf(packages);
+    }
+
     public static String normalizePackagePrefixesForStorage(String rawValue) {
         return String.join("\n", normalizePackagePrefixes(rawValue));
     }
