@@ -70,6 +70,23 @@ public class BlacklistController {
                 });
     }
 
+    /** Q-1: the way out for a user who has no factor to answer a CHALLENGE with. */
+    @PostMapping("/challenge-release")
+    public String releaseChallenge(@RequestParam("userId") String userId, @RequestParam("reason") String reason,
+                                   RedirectAttributes ra) {
+        try {
+            boolean released = blockedUserService.releaseChallenge(userId, extractCurrentUserId(), reason);
+            if (released) {
+                ra.addFlashAttribute("message", msg("msg.blacklist.challenge.released", userId));
+            } else {
+                ra.addFlashAttribute("errorMessage", msg("msg.blacklist.challenge.none", userId));
+            }
+        } catch (IllegalArgumentException e) {
+            ra.addFlashAttribute("errorMessage", msg("msg.blacklist.challenge.input"));
+        }
+        return "redirect:/contexa/admin/blacklist";
+    }
+
     @PostMapping("/{id}/resolve")
     public String resolveBlock(@PathVariable Long id,
                                @RequestParam("resolvedAction") String resolvedAction,
