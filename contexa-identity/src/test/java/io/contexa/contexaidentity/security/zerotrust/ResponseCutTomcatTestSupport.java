@@ -275,10 +275,105 @@ abstract class ResponseCutTomcatTestSupport {
         assertThat(reading.broken()).isFalse();
     }
 
+    // ---- a response started while an ALLOW was in force (K8, PR-63) ----
+
+    private String allowedUser() {
+        String user = newUser();
+        decisions.saveAction(user, ZeroTrustAction.ALLOW, Map.of());
+        assertThat(decisions.getCurrentAction(user, null)).isEqualTo(ZeroTrustAction.ALLOW);
+        return user;
+    }
+
+    @Test
+    @DisplayName("a synchronous stream started under an ALLOW is cut right after the BLOCK")
+    void aSynchronousStreamStartedUnderAnAllowIsCut() throws Exception {
+        assertCutRightAfterTheBlock("/cut/sync", allowedUser());
+    }
+
+    @Test
+    @DisplayName("an asynchronous stream started under an ALLOW is cut right after the BLOCK (the shape K8 measured)")
+    void anAsynchronousStreamStartedUnderAnAllowIsCut() throws Exception {
+        assertCutRightAfterTheBlock("/cut/async", allowedUser());
+    }
+
+    @Test
+    @DisplayName("a character stream started under an ALLOW is cut right after the BLOCK")
+    void aCharacterStreamStartedUnderAnAllowIsCut() throws Exception {
+        assertCutRightAfterTheBlock("/cut/writer", allowedUser());
+    }
+
+    @Test
+    @DisplayName("a response started under an ALLOW and cut before its commit sends 403 and the marker only")
+    void aResponseStartedUnderAnAllowCutBeforeItsCommit() throws Exception {
+        assertCutBeforeTheCommit(true, allowedUser());
+    }
+
+    @Test
+    @DisplayName("a BLOCK written to the store without a signal cuts a stream started under an ALLOW within 1 s")
+    void aBlockWithoutItsSignalCutsAStreamStartedUnderAnAllow() throws Exception {
+        String user = allowedUser();
+        String id = UUID.randomUUID().toString();
+        CountDownLatch started = new CountDownLatch(1);
+        CompletableFuture<Reading> reading = CompletableFuture.supplyAsync(
+                () -> read(user, "/cut/async?rows=400&everyMs=20&id=" + id, started));
+        assertThat(started.await(10, TimeUnit.SECONDS)).isTrue();
+
+        decisions.saveAction(user, ZeroTrustAction.BLOCK, Map.of());
+        decisions.setBlockedFlag(user);
+        long blockedAt = System.nanoTime();
+
+        assertCut(reading.get(20, TimeUnit.SECONDS), endpoints.progress(id),
+                blockedAt + TimeUnit.SECONDS.toNanos(1));
+    }
+
+    @Test
+    @DisplayName("a stream started under an ALLOW that no BLOCK follows goes out whole")
+    void aStreamUnderAnAllowThatNoBlockFollowsGoesOutWhole() throws Exception {
+        Reading reading = read(allowedUser(), "/cut/async?rows=30&everyMs=40&id=" + UUID.randomUUID(), null);
+
+        assertThat(reading.status()).isEqualTo(200);
+        assertThat(reading.lines()).doesNotContain(MARKER);
+        assertThat(reading.dataLines()).isEqualTo(30);
+        assertThat(reading.broken()).isFalse();
+    }
+
+    @Test
+    @DisplayName("a signal left from an earlier block does not cut a response started under a later ALLOW")
+    void aSignalLeftFromAnEarlierBlockDoesNotCutAResponseUnderALaterAllow() throws Exception {
+        String user = newUser();
+        decideBlock(user);
+        decisions.removeAllUserData(user);
+        decisions.saveAction(user, ZeroTrustAction.ALLOW, Map.of());
+
+        Reading reading = read(user, "/cut/sync?rows=12&everyMs=100&id=" + UUID.randomUUID(), null);
+
+        assertThat(reading.status()).isEqualTo(200);
+        assertThat(reading.lines()).doesNotContain(MARKER);
+        assertThat(reading.dataLines()).isEqualTo(12);
+        assertThat(reading.broken()).isFalse();
+    }
+
+    @Test
+    @DisplayName("a BLOCK decided in the request of a user under an ALLOW reaches the client whole")
+    void aSynchronousBlockUnderAnAllowReachesTheClientWhole() throws Exception {
+        String user = allowedUser();
+        String id = UUID.randomUUID().toString();
+        endpoints.onEntry(id, () -> decideBlock(user));
+
+        Reading denied = read(user, "/cut/deny?id=" + id, null);
+
+        assertThat(denied.status()).isEqualTo(403);
+        assertThat(denied.broken()).isFalse();
+        assertThat(String.join("\n", denied.lines())).contains("\"action\":\"BLOCK\"").doesNotContain(MARKER);
+    }
+
     // ---- assertions ----
 
     private void assertCutRightAfterTheBlock(String path) throws Exception {
-        String user = newUser();
+        assertCutRightAfterTheBlock(path, newUser());
+    }
+
+    private void assertCutRightAfterTheBlock(String path, String user) throws Exception {
         String id = UUID.randomUUID().toString();
         CountDownLatch started = new CountDownLatch(1);
         CompletableFuture<Reading> reading = CompletableFuture.supplyAsync(
@@ -294,7 +389,10 @@ abstract class ResponseCutTomcatTestSupport {
 
     /** Thrown away before the commit: the rows written before the BLOCK never reach the client. */
     private void assertCutBeforeTheCommit(boolean async) throws Exception {
-        String user = newUser();
+        assertCutBeforeTheCommit(async, newUser());
+    }
+
+    private void assertCutBeforeTheCommit(boolean async, String user) throws Exception {
         String id = UUID.randomUUID().toString();
         CompletableFuture<Reading> reading = CompletableFuture.supplyAsync(
                 () -> read(user, "/cut/held?async=" + async + "&id=" + id, null));

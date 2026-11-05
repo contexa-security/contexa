@@ -71,6 +71,10 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A BLOCK cuts a response that started under an ALLOW too.** Only a response started while the analysis was pending
+  could be cut, so a stream begun in the 15 seconds an ALLOW lasts ran to its end past the BLOCK. Every response of a
+  signed-in user under ENFORCE can now be cut, and carries `X-Contexa-Monitored` and `X-Contexa-Blocked-Redirect` unless
+  `contexa.security.zerotrust.monitoring-headers=false`. What cuts a response stays a BLOCK received after it started.
 - **The screens of a decision only lead to paths of the application**: `returnUrl` of
   `/contexa/zero-trust/analysis-pending` went to the browser unchecked, and `mfaUrl` of
   `/contexa/zero-trust/challenge-required` let a backslash, a tab or an encoded slash through. Anything but a path of the

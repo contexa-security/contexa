@@ -20,6 +20,7 @@ import io.contexa.contexacore.autonomous.blocking.BlockableResponseWrapper;
 import io.contexa.contexacore.autonomous.blocking.InMemoryBlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
+import jakarta.servlet.ServletResponse;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -93,6 +94,84 @@ class ZeroTrustAccessControlFilterResponseCutTest {
 
         assertThat(wrapped.get()).isNotNull();
         assertThat(wrapped.get().responseStartNanos() - decisionReadAt.get()).isNegative();
+    }
+
+    private void allowInForce() {
+        when(decisions.getCurrentAction(eq(USER), any())).thenAnswer(invocation -> {
+            decisionReadAt.set(System.nanoTime());
+            return ZeroTrustAction.ALLOW;
+        });
+    }
+
+    @Test
+    @DisplayName("PR-63: a response started under an ALLOW can be cut, and its start is read before the decision too")
+    void aResponseStartedUnderAnAllowCanBeCut() throws Exception {
+        allowInForce();
+        AtomicReference<BlockableResponseWrapper> wrapped = new AtomicReference<>();
+
+        filter.doFilter(request, response, (req, res) -> wrapped.set((BlockableResponseWrapper) res));
+
+        assertThat(wrapped.get()).isNotNull();
+        assertThat(wrapped.get().responseStartNanos() - decisionReadAt.get()).isNegative();
+    }
+
+    @Test
+    @DisplayName("a CHALLENGE lets its exempt paths through this filter, and a BLOCK that follows cuts them as well")
+    void aResponseThatPassedUnderAChallengeCanBeCut() throws Exception {
+        when(decisions.getCurrentAction(eq(USER), any())).thenReturn(ZeroTrustAction.CHALLENGE);
+        AtomicReference<ServletResponse> passed = new AtomicReference<>();
+
+        filter.doFilter(request, response, (req, res) -> passed.set(res));
+
+        assertThat(passed.get()).isInstanceOf(BlockableResponseWrapper.class);
+    }
+
+    @Test
+    @DisplayName("what the setting keeps out of the application's responses stays out under an ALLOW")
+    void theMonitoringHeadersFollowTheirSettingUnderAnAllow() throws Exception {
+        allowInForce();
+        filter.setMonitoringHeaders(false);
+
+        filter.doFilter(request, response, (req, res) -> res.getOutputStream().write(row(1)));
+
+        assertThat(response.getHeader("X-Contexa-Monitored")).isNull();
+        assertThat(response.getContentAsString(StandardCharsets.UTF_8)).isEqualTo("{\"row\":1}\n");
+    }
+
+    @Test
+    @DisplayName("outside ENFORCE nothing is stopped, so an application's response is not even wrapped")
+    void outsideEnforceTheResponseIsTheApplications() throws Exception {
+        allowInForce();
+        filter.setEnforcing(() -> false);
+        AtomicReference<ServletResponse> passed = new AtomicReference<>();
+
+        filter.doFilter(request, response, (req, res) -> passed.set(res));
+
+        assertThat(passed.get()).isSameAs(response);
+    }
+
+    @Test
+    @DisplayName("an anonymous visitor's response is not wrapped: a block has no one to name")
+    void aVisitorsResponseIsTheApplications() throws Exception {
+        SecurityContextHolder.clearContext();
+        AtomicReference<ServletResponse> passed = new AtomicReference<>();
+
+        filter.doFilter(request, response, (req, res) -> passed.set(res));
+
+        assertThat(passed.get()).isSameAs(response);
+    }
+
+    @Test
+    @DisplayName("without a broadcaster there is nothing to cut with, and the response goes through as it is")
+    void withoutABroadcasterTheResponseIsTheApplications() throws Exception {
+        allowInForce();
+        ZeroTrustAccessControlFilter withoutSignals = new ZeroTrustAccessControlFilter(decisions,
+                mock(AuthResponseWriter.class), null, null, null, null, 2);
+        AtomicReference<ServletResponse> passed = new AtomicReference<>();
+
+        withoutSignals.doFilter(request, response, (req, res) -> passed.set(res));
+
+        assertThat(passed.get()).isSameAs(response);
     }
 
     @Test
