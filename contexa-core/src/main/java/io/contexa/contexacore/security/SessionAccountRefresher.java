@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.security;
 
+import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import jakarta.servlet.http.HttpServletRequest;
@@ -27,11 +28,13 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
+import java.util.Objects;
+
 /**
  * Keeps an open session in step with its account (Q-14). A session holds what its user could do at sign-in, so a right
  * taken away stayed and a disabled user stayed signed in. A version in the shared store moves on when an administrator
  * changes accounts; a session behind it reads its account again on its next request, once: the new authorities replace
- * the old ones, and an account that is gone or disabled ends the session.
+ * the old ones, and an account that is gone, disabled or under a new password ends the session.
  * <p>
  * Only an account of Contexa is read: a principal of the application's own stays as it is. When the account cannot be
  * read the session goes on as it was and tries again on its next request: a store that fails does not sign anyone out.
@@ -78,7 +81,7 @@ public class SessionAccountRefresher {
         Authentication authentication = context.getAuthentication();
         HttpSession session = request.getSession(false);
         if (session == null || authentication == null
-                || !(authentication.getPrincipal() instanceof UnifiedCustomUserDetails)) {
+                || !(authentication.getPrincipal() instanceof UnifiedCustomUserDetails signedIn)) {
             return Outcome.CURRENT;
         }
         try {
@@ -87,7 +90,8 @@ public class SessionAccountRefresher {
                 return Outcome.CURRENT;
             }
             UserDetails account = readAccount(authentication.getName());
-            if (!(account instanceof UnifiedCustomUserDetails details) || !details.getAccount().isEnabled()) {
+            if (!(account instanceof UnifiedCustomUserDetails details) || !details.getAccount().isEnabled()
+                    || passwordChanged(signedIn.getAccount(), details.getAccount())) {
                 return Outcome.ACCOUNT_ENDED;
             }
             UsernamePasswordAuthenticationToken refreshed = UsernamePasswordAuthenticationToken.authenticated(
@@ -102,6 +106,15 @@ public class SessionAccountRefresher {
                     + "userId={}", authentication.getName(), e);
             return Outcome.CURRENT;
         }
+    }
+
+    /**
+     * Whether the account has a password the session did not sign in with. The date tells, as the hash stays out of what
+     * a session store serializes. A principal without an id only names the account, as a passkey's does, and says nothing
+     * of its password.
+     */
+    private static boolean passwordChanged(UserDto signedIn, UserDto current) {
+        return signedIn.getId() != null && !Objects.equals(signedIn.getPasswordChangedAt(), current.getPasswordChangedAt());
     }
 
     private UserDetails readAccount(String username) {

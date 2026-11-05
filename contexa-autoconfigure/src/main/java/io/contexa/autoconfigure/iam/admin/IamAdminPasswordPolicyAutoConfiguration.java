@@ -24,6 +24,7 @@ import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.SystemSettingsRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.infra.redis.PolicyReloadBroadcaster;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.controller.PasswordChangeController;
@@ -40,6 +41,7 @@ import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManage
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -68,8 +70,15 @@ public class IamAdminPasswordPolicyAutoConfiguration {
             UserRepository userRepository,
             BeanFactory beanFactory,
             PasswordPolicyService contexaPasswordPolicyService,
-            ObjectProvider<LoginPolicyHandler> loginPolicy) {
-        return new PasswordChangeService(userRepository, ContexaOwnBeans.passwordEncoder(beanFactory), contexaPasswordPolicyService, loginPolicy);
+            ObjectProvider<LoginPolicyHandler> loginPolicy,
+            ObjectProvider<ZeroTrustActionRepository> decisions,
+            ObjectProvider<SecurityZeroTrustProperties> zeroTrust,
+            ApplicationEventPublisher eventPublisher) {
+        return new PasswordChangeService(userRepository, ContexaOwnBeans.passwordEncoder(beanFactory),
+                contexaPasswordPolicyService, loginPolicy, decisions, () -> {
+                    SecurityZeroTrustProperties properties = zeroTrust.getIfAvailable();
+                    return properties == null || properties.isEnforcementEnabled();
+                }, eventPublisher);
     }
 
     @Bean(name = "contexaPasswordChangeController")

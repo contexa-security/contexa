@@ -34,6 +34,7 @@ import io.contexa.contexacommon.repository.UserRolePermissionRepository;
 import io.contexa.contexacommon.security.UserAccountDeletedEvent;
 import io.contexa.contexacommon.security.UserAccountDisabledEvent;
 import io.contexa.contexacommon.security.UserAuthoritiesChangedEvent;
+import io.contexa.contexacommon.security.UserPasswordChangedEvent;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
 import lombok.RequiredArgsConstructor;
@@ -171,6 +172,7 @@ public class UserManagementServiceImpl implements UserManagementService {
                 .orElseThrow(() -> new IllegalArgumentException(msg("msg.user.not.found.id", userDto.getId())));
 
         boolean disabled = users.isEnabled() && !userDto.isEnabled();
+        boolean passwordChanged = StringUtils.hasText(userDto.getPassword());
         Set<Long> previousGroupIds = users.getUserGroups().stream()
                 .map(userGroup -> userGroup.getGroup().getId())
                 .collect(Collectors.toSet());
@@ -185,12 +187,13 @@ public class UserManagementServiceImpl implements UserManagementService {
         users.setPreferredMfaFactor(userDto.getPreferredMfaFactor());
         users.setLocale(userDto.getLocale());
         users.setTimezone(userDto.getTimezone());
-        if (StringUtils.hasText(userDto.getPassword())) {
+        if (passwordChanged) {
             List<String> violations = passwordPolicyService.validatePassword(userDto.getPassword());
             if (!violations.isEmpty()) {
                 throw new IllegalArgumentException(msg("msg.user.password.policy.violation", String.join(", ", violations)));
             }
             users.setPassword(passwordEncoder.encode(userDto.getPassword()));
+            users.setPasswordChangedAt(LocalDateTime.now());
         }
 
         Set<Long> desiredGroupIds = userDto.getSelectedGroupIds() != null
@@ -212,6 +215,9 @@ public class UserManagementServiceImpl implements UserManagementService {
         userRepository.save(users);
 
         // The listeners run after the commit, so a change that rolls back reaches no session (Q-14).
+        if (passwordChanged) {
+            eventPublisher.publishEvent(new UserPasswordChangedEvent(users.getUsername()));
+        }
         if (disabled) {
             eventPublisher.publishEvent(new UserAccountDisabledEvent(users.getUsername()));
         } else if (!previousGroupIds.equals(desiredGroupIds)) {
@@ -234,7 +240,7 @@ public class UserManagementServiceImpl implements UserManagementService {
                     .details(Map.of(
                             "userId", users.getId() != null ? users.getId() : 0L,
                             "username", users.getUsername() != null ? users.getUsername() : "",
-                            "passwordChanged", StringUtils.hasText(userDto.getPassword())))
+                            "passwordChanged", passwordChanged))
                     .build());
         } catch (Exception e) {
             log.error("Failed to audit user modification: {}", users.getUsername(), e);

@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.service;
 
 import io.contexa.contexacommon.security.UserAccountDisabledEvent;
 import io.contexa.contexacommon.security.UserAuthoritiesChangedEvent;
+import io.contexa.contexacommon.security.UserPasswordChangedEvent;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -31,6 +32,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class UserAccountChangeListener {
 
     private static final String DISABLED = "ACCOUNT_DISABLED";
+    private static final String PASSWORD_CHANGED = "PASSWORD_CHANGED";
 
     private final ObjectProvider<SecurityContextDataStore> store;
     private final ObjectProvider<IForceLogoutService> forceLogout;
@@ -46,22 +48,31 @@ public class UserAccountChangeListener {
         advanceVersion();
     }
 
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    public void onAccountDisabled(UserAccountDisabledEvent event) {
+        endWhatIsOpen(event.username(), DISABLED);
+    }
+
+    /** The change stands whatever happens here: the worst a store that is down can do is leave what is open running. */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    public void onPasswordChanged(UserPasswordChangedEvent event) {
+        endWhatIsOpen(event.username(), PASSWORD_CHANGED);
+    }
+
     /**
      * Ends what the account has open at once: its sessions, and the tokens the forced logout reaches. The version moves
      * on as well, so a session the forced logout does not know ends on its next request.
      */
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
-    public void onAccountDisabled(UserAccountDisabledEvent event) {
+    private void endWhatIsOpen(String username, String reason) {
         advanceVersion();
         IForceLogoutService logout = forceLogout.getIfAvailable();
-        if (logout == null || event.username() == null || event.username().isBlank()) {
+        if (logout == null || username == null || username.isBlank()) {
             return;
         }
         try {
-            logout.forceLogoutByUserId(event.username(), DISABLED);
+            logout.forceLogoutByUserId(username, reason);
         } catch (RuntimeException e) {
-            log.error("[UserAccountChange] Failed to end the sessions of a disabled account: userId={}",
-                    event.username(), e);
+            log.error("[UserAccountChange] Failed to end what an account has open: userId={}, reason={}", username, reason, e);
         }
     }
 

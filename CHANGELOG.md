@@ -31,6 +31,22 @@ The format is based on Keep a Changelog and the project follows semantic version
   once; a locked one goes on until it expires, as a session does. **Check:** a role that lives only in the claims of your
   identity provider's token no longer counts for a user with an account here: give it to the account. A
   `OAuth2TokenCustomizer` of your own replaces Contexa's, so `/oauth2/token` then checks nothing at a refresh.
+- **A new password ends what the old one opened.** A password changed on the password page, or by an administrator in the
+  console, left the sessions and the tokens of the account running, so a thief stayed in after the owner changed it. Once
+  the change has committed the sessions of the account end, the one that changed it too, and so do its tokens, those an
+  agent's client got for the user by token exchange included: a disabled and a deleted account now end those as well. Both
+  stores behave alike. A console session under `HOST_OWNED` ends on its next request and leaves the application's HTTP
+  session alone. A store that is down does not fail the change: the password stands, what could not be ended keeps running
+  and the log says so at ERROR. A password an administrator sets now dates the account (`password_changed_at`), which starts
+  its age under the password policy anew.
+- **A stolen password no longer changes the password.** `POST /contexa/password-change` asked for the current password and
+  nothing else, of anybody: whoever held a stolen password passed the second step by and locked the owner out. It now
+  serves two people. An account whose password expired, which cannot sign in, changes its password with the current one,
+  and the owner signed in changes their own: a session of another user, a session that waits for its MFA and an agent
+  acting for the user are neither. Under `ENFORCE` a stored CHALLENGE, BLOCK or ESCALATE stops a session, and a BLOCK or an
+  ESCALATE stops an expired account; a disabled account changes nothing. Whatever refuses answers exactly as a wrong
+  password does, and the right password refused is not counted as a failed sign-in, which would let whoever holds it lock
+  the owner out.
 - **A sign-in flow no longer mails a code in another user's name.** The name of a code request comes from the form, and it
   was compared with the flow only after the mail had gone: a user could send anyone a code from their own sign-in. A flow
   now asks for the code of its own user, and any other name is refused before a code is made.
