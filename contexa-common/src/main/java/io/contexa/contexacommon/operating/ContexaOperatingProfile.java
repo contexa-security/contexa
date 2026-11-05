@@ -47,6 +47,7 @@ public record ContexaOperatingProfile(SecurityMode mode, SecurityOwnershipMode o
     public static final String PROP_APPLICATION_DATA = "contexa.datasource.isolation.contexa-owned-application";
     private static final String PROP_WEB_APPLICATION_TYPE = "spring.main.web-application-type";
     private static final String PROP_INFRASTRUCTURE_MODE = "contexa.infrastructure.mode";
+    private static final String HTTP_SECURITY = "org.springframework.security.config.annotation.web.builders.HttpSecurity";
     private static final Map<String, String> DISTRIBUTED_LIBRARIES = distributedLibraries();
 
     private static Map<String, String> distributedLibraries() {
@@ -72,6 +73,18 @@ public record ContexaOperatingProfile(SecurityMode mode, SecurityOwnershipMode o
         SecurityMode mode = declaredMode != null ? declaredMode : modeOf(ownership);
         boolean applicationData = applicationData(ownership, environment);
         return new ContexaOperatingProfile(mode, ownership, applicationData, applicationData && !sameDatabaseOrNone(environment));
+    }
+
+    /**
+     * @EnableAISecurity is the application's decision to apply security, and Spring Security is what applies it. The starter
+     * does not bring it, so that adding the dependency alone changes nothing in an application.
+     */
+    public static void refuseWithoutSpringSecurity(ClassLoader classLoader) {
+        if (!ClassUtils.isPresent(HTTP_SECURITY, classLoader)) {
+            throw new ContexaOperatingProfileException(
+                    "@EnableAISecurity applies security through Spring Security, and it is not on the class path.",
+                    "Add org.springframework.boot:spring-boot-starter-security to this application.");
+        }
     }
 
     /** Contexa's enforcement is a chain of servlet filters: on a reactive server nothing would be enforced, and nothing would say so. */

@@ -15,6 +15,7 @@
  */
 package io.contexa.autoconfigure.ai;
 
+import io.contexa.contexacommon.operating.ContexaOperatingProfileException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.beans.factory.annotation.AnnotatedBeanDefinition;
@@ -22,8 +23,12 @@ import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.core.type.MethodMetadata;
 import io.contexa.autoconfigure.iam.admin.HostOwnedAdminConsoleAutoConfiguration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.SecurityFilterChain;
 
+import java.util.stream.Stream;
 import java.util.Arrays;
 import java.util.List;
 
@@ -49,13 +54,27 @@ public class HostOwnedSecurityChainDiagnostics implements SmartInitializingSingl
 
     @Override
     public void afterSingletonsInstantiated() {
+        if (onlySpringBootDefaultChains() && !applicationCanSignIn()) {
+            throw new ContexaOperatingProfileException(
+                    "HOST_OWNED keeps the application's sign-in, and this application has none: no SecurityFilterChain and no "
+                            + "users of its own, so every request would ask for a sign-in that nobody can complete.",
+                    "Declare the application's SecurityFilterChain or users, or use @EnableAISecurity(mode = SecurityMode.FULL) "
+                            + "to let Contexa provide the sign-in.");
+        }
         if (onlySpringBootDefaultChains()) {
-            log.error("[Contexa] HOST_OWNED mode: no SecurityFilterChain is declared by the application, so Spring Boot's "
+            log.warn("[Contexa] HOST_OWNED mode: no SecurityFilterChain is declared by the application, so Spring Boot's "
                     + "default security is active and every request requires authentication. Contexa does not build "
                     + "a chain in HOST_OWNED mode. Declare the application's own SecurityFilterChain (for example "
                     + "anyRequest().permitAll() to keep existing legacy access rules), or set "
                     + "contexa.bridge.ownership=CONTEXA_OWNED to let Contexa own authentication.");
         }
+    }
+
+    /** Users Spring Boot's default chain can sign in: anything of the application's own, Contexa's store is for its console. */
+    boolean applicationCanSignIn() {
+        return Stream.of(UserDetailsService.class, AuthenticationProvider.class, AuthenticationManager.class)
+                .flatMap(type -> Arrays.stream(beanFactory.getBeanNamesForType(type, true, false)))
+                .anyMatch(name -> !name.startsWith("contexa"));
     }
 
     boolean onlySpringBootDefaultChains() {

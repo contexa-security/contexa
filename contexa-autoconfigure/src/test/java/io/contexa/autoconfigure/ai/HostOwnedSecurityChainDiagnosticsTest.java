@@ -15,6 +15,8 @@
  */
 package io.contexa.autoconfigure.ai;
 
+import org.springframework.security.core.userdetails.UserDetailsService;
+import io.contexa.contexacommon.operating.ContexaOperatingProfileException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -28,6 +30,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 @ExtendWith(OutputCaptureExtension.class)
 class HostOwnedSecurityChainDiagnosticsTest {
@@ -36,9 +39,24 @@ class HostOwnedSecurityChainDiagnosticsTest {
             .withConfiguration(AutoConfigurations.of(SecurityAutoConfiguration.class))
             .withBean(HostOwnedSecurityChainDiagnostics.class);
 
+    /** Every request would ask for a sign-in that nobody can complete, and there is no user for a decision to be about. */
+    @Test
+    void anApplicationWithoutAnySignInIsToldInsteadOfLockedOut() {
+        runner.run(context -> assertThat(context).getFailure()
+                .isInstanceOf(ContexaOperatingProfileException.class)
+                .hasMessageContaining("no SecurityFilterChain and no users of its own"));
+    }
+
+    /** Contexa's store serves its console; the application's visitors cannot sign in with it. */
+    @Test
+    void contexasOwnStoreIsNotASignInOfTheApplication() {
+        runner.withBean("contexaUnifiedUserDetailsService", UserDetailsService.class, () -> mock(UserDetailsService.class))
+                .run(context -> assertThat(context).getFailure().isInstanceOf(ContexaOperatingProfileException.class));
+    }
+
     @Test
     void reportsWhenOnlySpringBootDefaultChainIsPresent(CapturedOutput output) {
-        runner.run(context -> {
+        runner.withBean("applicationUsers", UserDetailsService.class, () -> mock(UserDetailsService.class)).run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context.getBean(HostOwnedSecurityChainDiagnostics.class).onlySpringBootDefaultChains()).isTrue();
             assertThat(output).contains("HOST_OWNED mode: no SecurityFilterChain is declared by the application");

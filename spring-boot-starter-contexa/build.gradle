@@ -11,12 +11,19 @@ dependencies {
     api platform("org.springframework.ai:spring-ai-bom:1.1.8")
     api platform("org.springframework.statemachine:spring-statemachine-bom:4.0.0")
 
-    // Spring Security runtime required by the OSS identity and IAM modules.
-    // Auto-configuration activation, not dependency removal, protects HOST_OWNED applications.
-    api 'org.springframework.boot:spring-boot-starter-security'
-    api 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
-    api 'org.springframework.boot:spring-boot-starter-oauth2-client'
-    api 'org.springframework.security:spring-security-oauth2-authorization-server:1.5.1'
+    // Spring Boot secures an application when Spring Security's configuration support is on its class path, so that stays
+    // out: adding this starter changes nothing in an application, and the application declares
+    // spring-boot-starter-security when it decides to apply security with @EnableAISecurity.
+    compileOnly 'org.springframework.boot:spring-boot-starter-security'
+    api('org.springframework.boot:spring-boot-starter-oauth2-resource-server') {
+        exclude group: 'org.springframework.security', module: 'spring-security-config'
+    }
+    api('org.springframework.boot:spring-boot-starter-oauth2-client') {
+        exclude group: 'org.springframework.security', module: 'spring-security-config'
+    }
+    api('org.springframework.security:spring-security-oauth2-authorization-server:1.5.1') {
+        exclude group: 'org.springframework.security', module: 'spring-security-config'
+    }
     api 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
     // Spring AI provider starters are application-level choices and are not forced by the library starter
 
@@ -29,6 +36,7 @@ dependencies {
     compileOnly 'org.springframework.boot:spring-boot-starter-data-redis'
     testImplementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
+    testImplementation 'org.springframework.boot:spring-boot-starter-security'
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webflux'
     testImplementation 'org.awaitility:awaitility:4.2.0'
@@ -58,6 +66,7 @@ configurations {
 }
 
 dependencies {
+    standaloneImage 'org.springframework.boot:spring-boot-starter-security'
     standaloneImage 'org.springframework.ai:spring-ai-starter-model-ollama'
     standaloneImage 'io.opentelemetry:opentelemetry-api:1.32.0'
     standaloneImage 'io.opentelemetry:opentelemetry-sdk:1.32.0'
@@ -138,4 +147,24 @@ tasks.named('processResources') {
     exclude 'templates/test/token-test.html'
     exclude 'static/js/token-test.js'
     exclude 'static/css/token-test.css'
+}
+
+// Spring Boot secures an application when this is on its class path: adding the starter alone must change nothing.
+tasks.register('verifyStarterLeavesSecurityToTheApplication') {
+    group = 'verification'
+    description = 'Fails when the starter brings what makes Spring Boot secure an application.'
+    doLast {
+        def forbidden = configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts.findAll { artifact ->
+            def id = artifact.moduleVersion.id
+            (id.group == 'org.springframework.security' && id.name == 'spring-security-config')
+                    || (id.group == 'org.springframework.boot' && id.name == 'spring-boot-starter-security')
+        }
+        if (!forbidden.isEmpty()) {
+            throw new GradleException("The starter brings Spring Security to the application: ${forbidden*.name.sort().join(', ')}")
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyStarterLeavesSecurityToTheApplication')
 }

@@ -84,6 +84,7 @@ public class AiSecurityImportSelector implements ImportSelector, EnvironmentAwar
         if (environment == null) {
             return new String[]{AI_SECURITY_CONFIGURATION};
         }
+        ContexaOperatingProfile.refuseWithoutSpringSecurity(getClass().getClassLoader());
         ContexaOperatingProfile.refuseReactive(environment);
         ContexaOperatingProfile.refuseDistributedWithoutRedis(environment, getClass().getClassLoader());
         ContexaOperatingProfile profile = ContexaOperatingProfile.of(ContexaOperatingProfile.modeSet(environment, mode), environment);

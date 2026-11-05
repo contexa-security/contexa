@@ -188,4 +188,12 @@ class ContexaOperatingProfileTest {
         ContexaOperatingProfile.refuseDistributedWithoutRedis(new MockEnvironment(), new ClassLoader(null) {
         });
     }
+
+    /** The starter does not bring Spring Security, so that adding it alone changes nothing: the decision to apply security is the application's. */
+    @Test
+    void theAnnotationWithoutSpringSecuritySaysWhatToAdd() {
+        assertThatThrownBy(() -> ContexaOperatingProfile.refuseWithoutSpringSecurity(new ClassLoader(null) {
+        })).isInstanceOfSatisfying(ContexaOperatingProfileException.class,
+                e -> assertThat(e.action()).contains("spring-boot-starter-security"));
+    }
 }

@@ -23,6 +23,7 @@ import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.EnumerablePropertySource;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.PropertySource;
+import org.springframework.util.ClassUtils;
 
 import java.util.List;
 import java.util.Locale;
@@ -40,6 +41,7 @@ import java.util.Locale;
 public class StandaloneAutoConfigurationFilter implements AutoConfigurationImportFilter, EnvironmentAware {
 
     private static final String MODE_PROPERTY = "contexa.infrastructure.mode";
+    private static final String HTTP_SECURITY = "org.springframework.security.config.annotation.web.builders.HttpSecurity";
 
     private static final String REDIS_PATTERN = "redis";
     private static final String KAFKA_PATTERN = "kafka";
@@ -102,6 +104,10 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
                     result[i] = hasContexaOwnedDataSource();
                 } else if (isContexaAutoConfiguration(autoConfigurationClass)) {
                     result[i] = false;
+                } else if (isBootSecurityAutoConfiguration(autoConfigurationClass) && !springSecurityPresent()) {
+                    // The starter carries the OAuth2 libraries Contexa needs once it is on, not Spring Security's configuration
+                    // support. An application that did not declare Spring Security has nothing for these to configure.
+                    result[i] = false;
                 } else if ("org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration".equals(autoConfigurationClass)
                            || "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration".equals(autoConfigurationClass)) {
                     // Contexa's own dependencies put JDBC and JPA on the class path of an application that has no database; Spring Boot's
@@ -134,6 +140,16 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
             return true;
         }
         return kafkaRelated && !hasAnyApplicationProperty(APPLICATION_KAFKA_PROPERTIES);
+    }
+
+    /** The application declared Spring Security: only that puts its configuration support on the class path. */
+    boolean springSecurityPresent() {
+        return ClassUtils.isPresent(HTTP_SECURITY, getClass().getClassLoader());
+    }
+
+    private static boolean isBootSecurityAutoConfiguration(String autoConfigurationClass) {
+        return autoConfigurationClass.startsWith("org.springframework.boot.autoconfigure.security.")
+                || autoConfigurationClass.startsWith("org.springframework.boot.actuate.autoconfigure.security.");
     }
 
     boolean embeddedDatabasePresent() {

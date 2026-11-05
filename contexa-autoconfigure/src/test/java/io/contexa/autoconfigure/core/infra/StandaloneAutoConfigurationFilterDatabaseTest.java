@@ -64,4 +64,31 @@ class StandaloneAutoConfigurationFilterDatabaseTest {
     void anApplicationWithAJndiNameKeepsThem() {
         assertThat(decide(new MockEnvironment().withProperty("spring.datasource.jndi-name", "java:comp/env/jdbc/app"))).containsExactly(true, true);
     }
+
+    private static final String BOOT_SECURITY = "org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration";
+    private static final String BOOT_AUTHORIZATION_SERVER =
+            "org.springframework.boot.autoconfigure.security.oauth2.server.servlet.OAuth2AuthorizationServerJwtAutoConfiguration";
+
+    private boolean[] decideSecurity(boolean applicationDeclaredSpringSecurity) {
+        StandaloneAutoConfigurationFilter filter = new StandaloneAutoConfigurationFilter() {
+            @Override
+            boolean springSecurityPresent() {
+                return applicationDeclaredSpringSecurity;
+            }
+        };
+        filter.setEnvironment(new MockEnvironment());
+        return filter.match(new String[] {BOOT_SECURITY, BOOT_AUTHORIZATION_SERVER}, null);
+    }
+
+    /** The starter carries OAuth2 libraries for Contexa: with only those, Boot's configurations fail in an application without Security. */
+    @Test
+    void anApplicationThatDidNotDeclareSpringSecurityGetsNoneOfBootsSecurityConfiguration() {
+        assertThat(decideSecurity(false)).containsExactly(false, false);
+    }
+
+    /** It is the application's: removed here, its protection would be gone. */
+    @Test
+    void anApplicationThatDeclaredSpringSecurityKeepsBootsSecurityConfiguration() {
+        assertThat(decideSecurity(true)).containsExactly(true, true);
+    }
 }
