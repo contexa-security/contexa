@@ -15,10 +15,15 @@
  */
 package io.contexa.contexacore.autonomous.context.registry;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.annotation.ResourceImportance;
 import io.contexa.contexacore.autonomous.context.model.ResourceContextDescriptor;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 
 import java.lang.reflect.Proxy;
@@ -142,6 +147,118 @@ class ProtectableResourceContextScannerTest {
         assertThat(export.businessLabel()).isEqualTo("Project export");
         // The other protected method of the bean is still the scanned one.
         assertThat(registry.findByResourceId(Operations.class.getName() + "#readDocument")).isPresent();
+    }
+
+    /** PR-13: a call of a final method runs on the proxy itself: the application answered 500 and the start said nothing. */
+    @Test
+    void theStartNamesAProtectedMethodThatIsFinal() {
+        List<String> warnings = warningsOf(new WithFinalMethods());
+
+        assertThat(warnings).anySatisfy(warning -> assertThat(warning)
+                .contains(WithFinalMethods.class.getName() + "#finalRead").contains("final"));
+    }
+
+    @Test
+    void theStartNamesAFinalMethodOfAProtectedClassThatIsNotAnnotatedItself() {
+        List<String> warnings = warningsOf(new WithFinalMethods());
+
+        assertThat(warnings).anySatisfy(warning -> assertThat(warning).contains("#finalHelper"));
+    }
+
+    @Test
+    void theStartNamesAFinalMethodOfAClassProtectedAsAWhole() {
+        List<String> warnings = warningsOf(new ProtectedAsAWhole());
+
+        assertThat(warnings).anySatisfy(warning -> assertThat(warning).contains("#finalEverything"));
+    }
+
+    @Test
+    void theStartNamesAFinalMethodTheClassInherits() {
+        List<String> warnings = warningsOf(new InheritsAFinalMethod());
+
+        assertThat(warnings).anySatisfy(warning -> assertThat(warning)
+                .contains(FinalBase.class.getName() + "#inheritedFinal"));
+    }
+
+    @Test
+    void whatAProxyHasNoNeedToInterceptIsNotNamed() {
+        List<String> warnings = warningsOf(new WithFinalMethods());
+
+        assertThat(warnings).noneSatisfy(warning -> assertThat(warning).contains("#finalPrivate"));
+        assertThat(warnings).noneSatisfy(warning -> assertThat(warning).contains("#finalStatic"));
+        assertThat(warnings).noneSatisfy(warning -> assertThat(warning).contains("#ordinaryRead"));
+        assertThat(warnings).noneSatisfy(warning -> assertThat(warning).contains("#getClass"));
+    }
+
+    @Test
+    void aClassWithoutProtectionIsNotNamed() {
+        assertThat(warningsOf(new NotProtected())).isEmpty();
+    }
+
+    private static List<String> warningsOf(Object bean) {
+        Logger logger = (Logger) LoggerFactory.getLogger(ProtectableResourceContextScanner.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            scanned(bean);
+            return appender.list.stream()
+                    .filter(event -> event.getLevel() == Level.WARN)
+                    .map(ILoggingEvent::getFormattedMessage)
+                    .toList();
+        } finally {
+            logger.detachAppender(appender);
+        }
+    }
+
+    public static class WithFinalMethods {
+
+        @Protectable
+        public final void finalRead() {
+        }
+
+        @Protectable
+        public void ordinaryRead() {
+            finalPrivate();
+        }
+
+        public final void finalHelper() {
+        }
+
+        private final void finalPrivate() {
+        }
+
+        public static final void finalStatic() {
+        }
+    }
+
+    @Protectable
+    public static class ProtectedAsAWhole {
+
+        public void everything() {
+        }
+
+        public final void finalEverything() {
+        }
+    }
+
+    public static class FinalBase {
+
+        public final void inheritedFinal() {
+        }
+    }
+
+    public static class InheritsAFinalMethod extends FinalBase {
+
+        @Protectable
+        public void read() {
+        }
+    }
+
+    public static class NotProtected {
+
+        public final void finalButNotProtected() {
+        }
     }
 
     private static InMemoryResourceContextRegistry scanned(Object bean) {
