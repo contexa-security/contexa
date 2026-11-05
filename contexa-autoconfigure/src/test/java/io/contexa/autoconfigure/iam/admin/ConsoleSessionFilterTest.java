@@ -15,7 +15,10 @@
  */
 package io.contexa.autoconfigure.iam.admin;
 
+import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexacommon.security.ConsoleSession;
+import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
+import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
 import io.contexa.contexacore.security.SessionAccountRefresher;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -24,7 +27,13 @@ import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetailsService;
+
+import java.time.LocalDateTime;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -64,6 +73,34 @@ class ConsoleSessionFilterTest {
         new ConsoleSessionFilter(KEY, refresher).doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
 
         assertThat(request.getSession(false)).isNotNull();
+        assertThat(request.getSession(false).getAttribute(KEY)).isNull();
+        assertThat(request.getSession(false).getAttribute("APPLICATION_STATE")).isEqualTo("kept");
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    }
+
+    private static UnifiedCustomUserDetails administrator(LocalDateTime passwordChangedAt) {
+        return new UnifiedCustomUserDetails(UserDto.builder().id(1L).username("rcboss").enabled(true)
+                .passwordChangedAt(passwordChangedAt).build(), Set.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+    }
+
+    /** Under HOST_OWNED nothing logs a console session out: the version and the account are all that reach it. */
+    @Test
+    @DisplayName("a new password signs the console out on its next request, and the HTTP session stays the application's")
+    void aNewPasswordSignsTheConsoleOut() throws Exception {
+        LocalDateTime signedInWith = LocalDateTime.of(2026, 11, 1, 9, 0);
+        UnifiedCustomUserDetails signedIn = administrator(signedInWith);
+        SecurityContextHolder.getContext().setAuthentication(
+                UsernamePasswordAuthenticationToken.authenticated(signedIn, null, signedIn.getAuthorities()));
+        request.getSession().setAttribute(KEY, SecurityContextHolder.getContext());
+        request.getSession().setAttribute("APPLICATION_STATE", "kept");
+        InMemorySecurityContextDataStore store = new InMemorySecurityContextDataStore();
+        UserDetailsService accounts = mock(UserDetailsService.class);
+        when(accounts.loadUserByUsername("rcboss")).thenReturn(administrator(signedInWith.plusDays(1)));
+        store.advanceAuthoritiesVersion();
+
+        new ConsoleSessionFilter(KEY, new SessionAccountRefresher(store, accounts))
+                .doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+
         assertThat(request.getSession(false).getAttribute(KEY)).isNull();
         assertThat(request.getSession(false).getAttribute("APPLICATION_STATE")).isEqualTo("kept");
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();

@@ -41,6 +41,7 @@ import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManage
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -71,12 +72,13 @@ public class IamAdminPasswordPolicyAutoConfiguration {
             PasswordPolicyService contexaPasswordPolicyService,
             ObjectProvider<LoginPolicyHandler> loginPolicy,
             ObjectProvider<ZeroTrustActionRepository> decisions,
-            ObjectProvider<SecurityZeroTrustProperties> zeroTrust) {
+            ObjectProvider<SecurityZeroTrustProperties> zeroTrust,
+            ApplicationEventPublisher eventPublisher) {
         return new PasswordChangeService(userRepository, ContexaOwnBeans.passwordEncoder(beanFactory),
                 contexaPasswordPolicyService, loginPolicy, decisions, () -> {
                     SecurityZeroTrustProperties properties = zeroTrust.getIfAvailable();
                     return properties == null || properties.isEnforcementEnabled();
-                });
+                }, eventPublisher);
     }
 
     @Bean(name = "contexaPasswordChangeController")

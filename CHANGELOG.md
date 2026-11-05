@@ -8,6 +8,14 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A new password ends what the old one opened.** A password changed on the password page, or by an administrator in the
+  console, left the sessions and the tokens of the account running, so a thief stayed in after the owner changed it. Once
+  the change has committed the sessions of the account end, the one that changed it too, and so do its tokens, those an
+  agent's client got for the user by token exchange included: a disabled and a deleted account now end those as well. Both
+  stores behave alike. A console session under `HOST_OWNED` ends on its next request and leaves the application's HTTP
+  session alone. A store that is down does not fail the change: the password stands, what could not be ended keeps running
+  and the log says so at ERROR. A password an administrator sets now dates the account (`password_changed_at`), which starts
+  its age under the password policy anew.
 - **A stolen password no longer changes the password.** `POST /contexa/password-change` asked for the current password and
   nothing else, of anybody: whoever held a stolen password passed the second step by and locked the owner out. It now
   serves two people. An account whose password expired, which cannot sign in, changes its password with the current one,

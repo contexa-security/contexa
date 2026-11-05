@@ -43,6 +43,7 @@ import org.springframework.security.core.context.SecurityContextImpl;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -180,6 +181,71 @@ class AISessionSecurityContextRepositoryAccountChangeTest {
 
         assertThat(repository.loadDeferredContext(nextRequest(request)).get().getAuthentication()).isNull();
         assertThat(session.isInvalid()).isTrue();
+    }
+
+    private static UnifiedCustomUserDetails signedInWithPassword(Long id, String name, LocalDateTime changedAt) {
+        return new UnifiedCustomUserDetails(UserDto.builder().id(id).username(name).password("{noop}x").enabled(true)
+                .passwordChangedAt(changedAt).build(), Set.of(new SimpleGrantedAuthority("ROLE_USER")));
+    }
+
+    private MockHttpServletRequest sessionOf(UnifiedCustomUserDetails details) {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/orders");
+        SecurityContext context = new SecurityContextImpl(
+                UsernamePasswordAuthenticationToken.authenticated(details, null, details.getAuthorities()));
+        request.getSession().setAttribute("SPRING_SECURITY_CONTEXT", context);
+        repository.saveContext(context, request, new MockHttpServletResponse());
+        return request;
+    }
+
+    @Test
+    @DisplayName("a password changed after the sign-in ends a session the forced logout never knew")
+    void aNewPasswordEndsTheSession() {
+        LocalDateTime signedInWith = LocalDateTime.of(2026, 11, 1, 9, 0);
+        MockHttpServletRequest request = sessionOf(signedInWithPassword(1L, user, signedInWith));
+        MockHttpSession session = (MockHttpSession) request.getSession(false);
+        when(accounts.loadUserByUsername(user)).thenReturn(signedInWithPassword(1L, user, signedInWith.plusDays(1)));
+
+        store.advanceAuthoritiesVersion();
+
+        assertThat(repository.loadDeferredContext(nextRequest(request)).get().getAuthentication()).isNull();
+        assertThat(session.isInvalid()).isTrue();
+    }
+
+    @Test
+    @DisplayName("the first password of an account without a date ends the session as well")
+    void theFirstNewPasswordEndsTheSession() {
+        MockHttpServletRequest request = sessionOf(signedInWithPassword(1L, user, null));
+        when(accounts.loadUserByUsername(user)).thenReturn(signedInWithPassword(1L, user, LocalDateTime.of(2026, 11, 2, 9, 0)));
+
+        store.advanceAuthoritiesVersion();
+
+        assertThat(repository.loadDeferredContext(nextRequest(request)).get().getAuthentication()).isNull();
+    }
+
+    @Test
+    @DisplayName("a change of another account leaves a session with its password alone")
+    void thePasswordItSignedInWithGoesOn() {
+        LocalDateTime signedInWith = LocalDateTime.of(2026, 11, 1, 9, 0);
+        MockHttpServletRequest request = sessionOf(signedInWithPassword(1L, user, signedInWith));
+        when(accounts.loadUserByUsername(user)).thenReturn(signedInWithPassword(1L, user, signedInWith));
+
+        store.advanceAuthoritiesVersion();
+
+        assertThat(repository.loadDeferredContext(nextRequest(request)).get().getAuthentication().getName()).isEqualTo(user);
+    }
+
+    /** What a passkey leaves in the session: the name of the account and nothing else of it. */
+    @Test
+    @DisplayName("a principal that only names the account says nothing of its password, and the session goes on with the account")
+    void aPrincipalThatOnlyNamesTheAccount() {
+        MockHttpServletRequest request = sessionOf(signedInWithPassword(null, user, null));
+        when(accounts.loadUserByUsername(user)).thenReturn(signedInWithPassword(1L, user, LocalDateTime.of(2026, 11, 1, 9, 0)));
+
+        store.advanceAuthoritiesVersion();
+
+        Authentication refreshed = repository.loadDeferredContext(nextRequest(request)).get().getAuthentication();
+        assertThat(refreshed.getName()).isEqualTo(user);
+        assertThat(((UnifiedCustomUserDetails) refreshed.getPrincipal()).getAccount().getId()).isEqualTo(1L);
     }
 
     @Test

@@ -5,6 +5,7 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacommon.security.MfaPendingSession;
+import io.contexa.contexacommon.security.UserPasswordChangedEvent;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
@@ -18,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.cache.annotation.CacheConfig;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.lang.Nullable;
 import org.springframework.security.authentication.AuthenticationTrustResolver;
 import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
@@ -57,6 +59,7 @@ public class PasswordChangeService {
     private final ObjectProvider<LoginPolicyHandler> loginPolicy;
     private final ObjectProvider<ZeroTrustActionRepository> decisions;
     private final BooleanSupplier decisionsEnforced;
+    private final ApplicationEventPublisher eventPublisher;
 
     /** Compared with when there is no password to compare with, so that an unknown name takes as long as a wrong password. */
     private volatile String decoyHash;
@@ -200,6 +203,8 @@ public class PasswordChangeService {
         user.setPasswordChangedAt(LocalDateTime.now());
         user.setCredentialsExpired(false);
         userRepository.save(user);
+        // The listeners run after the commit: a change that rolls back ends nothing.
+        eventPublisher.publishEvent(new UserPasswordChangedEvent(user.getUsername()));
     }
 
     @Getter

@@ -21,6 +21,7 @@ import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacommon.security.MfaPendingSession;
+import io.contexa.contexacommon.security.UserPasswordChangedEvent;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
@@ -41,6 +42,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -96,6 +98,9 @@ class PasswordChangeServiceTest {
     @Mock
     private ObjectProvider<ZeroTrustActionRepository> decisions;
 
+    @Mock
+    private ApplicationEventPublisher events;
+
     private final InMemoryZeroTrustActionRepository actions = new InMemoryZeroTrustActionRepository();
     private final MockHttpServletRequest request = new MockHttpServletRequest("POST", "/contexa/password-change");
 
@@ -115,7 +120,7 @@ class PasswordChangeServiceTest {
         when(loginPolicy.getIfAvailable()).thenReturn(policy);
         when(decisions.getIfAvailable()).thenReturn(actions);
         service = new PasswordChangeService(userRepository, passwordEncoder, passwordPolicyService, loginPolicy,
-                decisions, () -> enforced);
+                decisions, () -> enforced, events);
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
     }
 
@@ -487,6 +492,43 @@ class PasswordChangeServiceTest {
             decided(ZeroTrustSubject.CONSOLE_KEY + "admin", ZeroTrustAction.CHALLENGE);
 
             assertRightPasswordRefused();
+        }
+    }
+
+    @Nested
+    @DisplayName("what a new password ends")
+    class WhatItEnds {
+
+        @Test
+        @DisplayName("a saved password tells what is open, for the sessions and tokens of its owner")
+        void aSavedPasswordTells() {
+            expired();
+
+            change();
+
+            InOrder order = inOrder(userRepository, events);
+            order.verify(userRepository).save(user);
+            order.verify(events).publishEvent(new UserPasswordChangedEvent("admin"));
+        }
+
+        @Test
+        @DisplayName("a refused password tells nobody: the owner's sessions stay")
+        void aRefusedPasswordTellsNobody() {
+            assertRightPasswordRefused();
+
+            verify(events, never()).publishEvent(any(Object.class));
+        }
+
+        @Test
+        @DisplayName("a password the policy refuses tells nobody")
+        void aPasswordThePolicyRefuses() {
+            expired();
+            when(passwordPolicyService.validatePassword("New-Pass-1")).thenReturn(List.of("Too short"));
+
+            assertThatThrownBy(PasswordChangeServiceTest.this::change)
+                    .isInstanceOf(PasswordChangeService.PasswordChangeException.class);
+
+            verify(events, never()).publishEvent(any(Object.class));
         }
     }
 

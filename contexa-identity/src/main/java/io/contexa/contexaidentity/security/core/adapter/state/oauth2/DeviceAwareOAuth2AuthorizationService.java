@@ -38,6 +38,9 @@ public class DeviceAwareOAuth2AuthorizationService implements OAuth2Authorizatio
 
     private static final String FIND_IDS_BY_PRINCIPAL =
             "SELECT id FROM ctxa_oauth2_authorization WHERE principal_name = ? AND refresh_token_value IS NOT NULL";
+    private static final String FIND_UNEXPIRED_IDS_BY_PRINCIPAL =
+            "SELECT id FROM ctxa_oauth2_authorization WHERE principal_name = ?"
+                    + " AND (access_token_expires_at > ? OR refresh_token_expires_at > ?)";
     private static final String FIND_UNEXPIRED_IDS_BY_PRINCIPAL_AND_CLIENT =
             "SELECT id FROM ctxa_oauth2_authorization WHERE principal_name = ? AND registered_client_id = ?"
                     + " AND (access_token_expires_at > ? OR refresh_token_expires_at > ?)";
@@ -150,8 +153,11 @@ public class DeviceAwareOAuth2AuthorizationService implements OAuth2Authorizatio
         Assert.hasText(principalName, "principalName cannot be empty");
         Assert.hasText(registeredClientId, "registeredClientId cannot be empty");
         Timestamp now = Timestamp.from(Instant.now());
-        List<String> ids = jdbcTemplate.queryForList(FIND_UNEXPIRED_IDS_BY_PRINCIPAL_AND_CLIENT, String.class,
-                principalName, registeredClientId, now, now);
+        return usableOf(jdbcTemplate.queryForList(FIND_UNEXPIRED_IDS_BY_PRINCIPAL_AND_CLIENT, String.class,
+                principalName, registeredClientId, now, now));
+    }
+
+    private List<OAuth2Authorization> usableOf(List<String> ids) {
         return ids.stream()
                 .map(this::safeFindById)
                 .filter(Objects::nonNull)
@@ -221,11 +227,16 @@ public class DeviceAwareOAuth2AuthorizationService implements OAuth2Authorizatio
         saveOnOneConnection(builder.build());
     }
 
+    /**
+     * Ends whatever was issued for the principal and still works: its sign-ins, and the tokens without a refresh token an
+     * agent's client got for it by token exchange, which {@link #findActiveByPrincipalName} does not answer.
+     */
     public void invalidateAllByPrincipalName(String principalName) {
         Assert.hasText(principalName, "principalName cannot be empty");
 
-        List<OAuth2Authorization> activeAuthorizations = findActiveByPrincipalName(principalName);
-        activeAuthorizations.forEach(this::invalidateAuthorization);
+        Timestamp now = Timestamp.from(Instant.now());
+        usableOf(jdbcTemplate.queryForList(FIND_UNEXPIRED_IDS_BY_PRINCIPAL, String.class, principalName, now, now))
+                .forEach(this::invalidateAuthorization);
     }
 
     private void enforceConcurrentLoginPolicy(OAuth2Authorization authorization) {

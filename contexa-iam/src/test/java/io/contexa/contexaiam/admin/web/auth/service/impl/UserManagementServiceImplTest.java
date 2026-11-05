@@ -30,6 +30,7 @@ import io.contexa.contexacommon.repository.UserRolePermissionRepository;
 import io.contexa.contexacommon.security.UserAccountDeletedEvent;
 import io.contexa.contexacommon.security.UserAccountDisabledEvent;
 import io.contexa.contexacommon.security.UserAuthoritiesChangedEvent;
+import io.contexa.contexacommon.security.UserPasswordChangedEvent;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexaiam.domain.dto.UserListDto;
@@ -51,6 +52,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -300,6 +302,78 @@ class UserManagementServiceImplTest {
             service.modifyUser(dto);
 
             verify(eventPublisher, never()).publishEvent(any(Object.class));
+        }
+
+        @Test
+        @DisplayName("a password an administrator sets ends what the old one opened, and dates the account")
+        void aNewPasswordEndsTheSessions() {
+            Users user = buildUser(1L, "alice", "Alice");
+            user.setEnabled(true);
+            UserDto dto = buildUserDto(1L, "alice", "Alice");
+            dto.setEnabled(true);
+            dto.setPassword("New-Pass-1");
+            when(userRepository.findByIdWithGroupsRolesAndPermissions(1L)).thenReturn(Optional.of(user));
+            when(passwordPolicyService.validatePassword("New-Pass-1")).thenReturn(List.of());
+            when(passwordEncoder.encode("New-Pass-1")).thenReturn("{hash}new");
+
+            service.modifyUser(dto);
+
+            assertThat(user.getPassword()).isEqualTo("{hash}new");
+            assertThat(user.getPasswordChangedAt()).isNotNull();
+            InOrder order = inOrder(userRepository, eventPublisher);
+            order.verify(userRepository).save(user);
+            order.verify(eventPublisher).publishEvent(new UserPasswordChangedEvent("alice"));
+        }
+
+        @Test
+        @DisplayName("a form saved without a password ends nothing, and the date of the account stays")
+        void noNewPasswordEndsNothing() {
+            LocalDateTime changedAt = LocalDateTime.of(2026, 11, 1, 9, 0);
+            Users user = buildUser(1L, "alice", "Alice");
+            user.setEnabled(true);
+            user.setPasswordChangedAt(changedAt);
+            UserDto dto = buildUserDto(1L, "alice", "Alice");
+            dto.setEnabled(true);
+            dto.setPassword(" ");
+            when(userRepository.findByIdWithGroupsRolesAndPermissions(1L)).thenReturn(Optional.of(user));
+
+            service.modifyUser(dto);
+
+            assertThat(user.getPasswordChangedAt()).isEqualTo(changedAt);
+            verify(eventPublisher, never()).publishEvent(any(Object.class));
+        }
+
+        @Test
+        @DisplayName("a password refused by the policy ends nothing")
+        void aRefusedPasswordEndsNothing() {
+            Users user = buildUser(1L, "alice", "Alice");
+            UserDto dto = buildUserDto(1L, "alice", "Alice");
+            dto.setPassword("weak");
+            when(userRepository.findByIdWithGroupsRolesAndPermissions(1L)).thenReturn(Optional.of(user));
+            when(passwordPolicyService.validatePassword("weak")).thenReturn(List.of("Too short"));
+
+            assertThatThrownBy(() -> service.modifyUser(dto)).isInstanceOf(IllegalArgumentException.class);
+
+            verify(eventPublisher, never()).publishEvent(any(Object.class));
+        }
+
+        @Test
+        @DisplayName("a new password and a new group both reach what is open")
+        void aNewPasswordAndANewGroup() {
+            Users user = buildUser(1L, "alice", "Alice");
+            user.setEnabled(true);
+            UserDto dto = buildUserDto(1L, "alice", "Alice");
+            dto.setEnabled(true);
+            dto.setPassword("New-Pass-1");
+            dto.setSelectedGroupIds(List.of(7L));
+            when(userRepository.findByIdWithGroupsRolesAndPermissions(1L)).thenReturn(Optional.of(user));
+            when(passwordPolicyService.validatePassword("New-Pass-1")).thenReturn(List.of());
+            when(groupRepository.findById(7L)).thenReturn(Optional.of(Group.builder().id(7L).build()));
+
+            service.modifyUser(dto);
+
+            verify(eventPublisher).publishEvent(new UserPasswordChangedEvent("alice"));
+            verify(eventPublisher).publishEvent(new UserAuthoritiesChangedEvent());
         }
 
         @Test
