@@ -69,12 +69,12 @@ import java.util.Set;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.CommandLineRunner;
+import org.springframework.beans.factory.SmartInitializingSingleton;
 
 
 @RequiredArgsConstructor
 @Slf4j
-public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgent {
+public class SecurityPlaneAgent implements SmartInitializingSingleton, ISecurityPlaneAgent {
 
     private final SecurityMonitoringService securityMonitor;
     private final SecurityContextDataStore dataStore;
@@ -435,8 +435,12 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         return false;
     }
 
+    /**
+     * PR-32: here and not in a runner, which comes after the web server and the Kafka listeners have opened. An event of
+     * that moment was refused three times within milliseconds and dropped.
+     */
     @Override
-    public void run(String... args) {
+    public void afterSingletonsInstantiated() {
         if (securityPlaneProperties.getAgent().isAutoStart()) {
             start();
         }
