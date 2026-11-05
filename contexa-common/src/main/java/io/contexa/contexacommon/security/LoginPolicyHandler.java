@@ -56,8 +56,19 @@ public interface LoginPolicyHandler {
     /**
      * Returns true when the IP is currently blocked by IP-dimension throttling.
      * Default implementation returns false to preserve legacy behavior.
+     * A sign-in reads it through {@link #checkSignInAddress(String)}.
      */
     default boolean isIpBlocked(String ip) {
         return false;
+    }
+
+    /**
+     * Refuses the sign-in in progress when its address is blocked by the address throttle. A provider calls it before it
+     * reads the credentials, so that the right password is refused like a wrong one and the attempt tells nothing; the
+     * attempt is not counted, against the address or the account.
+     *
+     * @throws LoginAddressBlockedException when the address is blocked
+     */
+    default void checkSignInAddress(String username) {
     }
 }

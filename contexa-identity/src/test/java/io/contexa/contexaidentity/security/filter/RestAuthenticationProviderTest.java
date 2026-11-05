@@ -13,15 +13,36 @@ import org.springframework.security.authentication.AccountExpiredException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import io.contexa.contexacommon.security.LoginAddressBlockedException;
+import io.contexa.contexacommon.security.LoginPolicyHandler;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class RestAuthenticationProviderTest {
+
+    /** PR-69: the right password from a blocked address signed in; the block is read before the credentials are. */
+    @Test
+    void aBlockedAddressIsRefusedWithoutReadingTheCredentials() {
+        UserDetailsService userDetailsService = mock(UserDetailsService.class);
+        PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
+        LoginPolicyHandler loginPolicyHandler = mock(LoginPolicyHandler.class);
+        doThrow(new LoginAddressBlockedException("blocked")).when(loginPolicyHandler).checkSignInAddress("admin");
+
+        RestAuthenticationProvider provider = new RestAuthenticationProvider(
+                userDetailsService, passwordEncoder, loginPolicyHandler);
+
+        assertThatThrownBy(() -> provider.authenticate(
+                RestAuthenticationToken.unauthenticated("admin", "right-password")))
+                .isInstanceOf(LoginAddressBlockedException.class);
+        verifyNoInteractions(userDetailsService, passwordEncoder);
+    }
 
     @Test
     void rejectsExpiredAccount() {

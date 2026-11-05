@@ -16,6 +16,7 @@
 package io.contexa.contexaiam.security.core;
 
 import io.contexa.contexacommon.domain.UserDto;
+import io.contexa.contexacommon.security.LoginAddressBlockedException;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import org.junit.jupiter.api.Test;
@@ -28,10 +29,26 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class CustomAuthenticationProviderTest {
+
+    /** PR-69: the right password from a blocked address signed in; the block is read before the credentials are. */
+    @Test
+    void aBlockedAddressIsRefusedWithoutReadingTheCredentials() {
+        UserDetailsService userDetailsService = mock(UserDetailsService.class);
+        PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
+        LoginPolicyHandler loginPolicyHandler = mock(LoginPolicyHandler.class);
+        doThrow(new LoginAddressBlockedException("blocked")).when(loginPolicyHandler).checkSignInAddress("admin");
+        CustomAuthenticationProvider provider = new CustomAuthenticationProvider(userDetailsService, passwordEncoder, loginPolicyHandler);
+
+        assertThatThrownBy(() -> provider.authenticate(new UsernamePasswordAuthenticationToken("admin", "right-password")))
+                .isInstanceOf(LoginAddressBlockedException.class);
+        verifyNoInteractions(userDetailsService, passwordEncoder);
+    }
 
     @Test
     void shouldRejectPasswordAuthenticationForExternalAuthOnlyAccount() {

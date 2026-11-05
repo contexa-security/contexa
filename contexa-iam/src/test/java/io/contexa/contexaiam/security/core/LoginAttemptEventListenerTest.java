@@ -34,6 +34,13 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import java.time.Instant;
 import java.util.List;
 
+import org.junit.jupiter.api.AfterEach;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -45,6 +52,28 @@ class LoginAttemptEventListenerTest {
 
     private final LoginPolicyHandler handler = mock(LoginPolicyHandler.class);
     private final LoginAttemptEventListener listener = new LoginAttemptEventListener(handler);
+
+    @AfterEach
+    void clearRequest() {
+        RequestContextHolder.resetRequestAttributes();
+    }
+
+    /** PR-69: a new forged address on every attempt kept the count of the real one at zero. */
+    @Test
+    @DisplayName("A failed sign-in counts against the address that made it, not one the client wrote in a header")
+    void aForgedForwardedHeaderDoesNotChangeTheAddress() {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/login");
+        request.setRemoteAddr("203.0.113.7");
+        for (String header : List.of("X-Forwarded-For", "X-Real-IP", "CF-Connecting-IP", "True-Client-IP", "Forwarded")) {
+            request.addHeader(header, "198.51.100.77");
+        }
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        listener.onFailure(new AuthenticationFailureBadCredentialsEvent(
+                new UsernamePasswordAuthenticationToken("nobody", "secret"), new BadCredentialsException("bad")));
+
+        verify(handler).onLoginFailure("nobody", "203.0.113.7", "BadCredentialsException", "EVENT");
+    }
 
     @Test
     @DisplayName("A rejected bearer token is not recorded as a failed login")

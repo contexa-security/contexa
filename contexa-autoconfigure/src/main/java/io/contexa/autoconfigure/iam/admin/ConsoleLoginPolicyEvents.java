@@ -15,17 +15,13 @@
  */
 package io.contexa.autoconfigure.iam.admin;
 
-import io.contexa.contexacommon.security.ClientIpResolver;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexaiam.security.core.LoginPolicyService;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.authentication.AuthenticationEventPublisher;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 /**
  * Feeds Contexa's login policy (the count of failed sign-ins, the lock, the address throttle) from the sign-ins of
@@ -64,9 +60,9 @@ final class ConsoleLoginPolicyEvents implements AuthenticationEventPublisher {
         try {
             String username = authentication.getName();
             if (failure == null) {
-                handler.onLoginSuccess(username, currentIp(), SOURCE);
+                handler.onLoginSuccess(username, LoginPolicyService.currentAddress(), SOURCE);
             } else {
-                handler.onLoginFailure(username, currentIp(), failure.getClass().getSimpleName(), SOURCE);
+                handler.onLoginFailure(username, LoginPolicyService.currentAddress(), failure.getClass().getSimpleName(), SOURCE);
             }
         } catch (RuntimeException e) {
             log.error("[Console] The login policy could not record a sign-in: {}", e.getMessage());
@@ -74,13 +70,5 @@ final class ConsoleLoginPolicyEvents implements AuthenticationEventPublisher {
             // Cleared at the end of each request by a filter that is registered only when Contexa owns sign-in.
             LoginPolicyService.clearRequestState();
         }
-    }
-
-    private static String currentIp() {
-        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
-            HttpServletRequest request = attributes.getRequest();
-            return ClientIpResolver.resolve(request);
-        }
-        return null;
     }
 }

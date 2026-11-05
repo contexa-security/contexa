@@ -15,7 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.auth.controller;
 
-import io.contexa.contexacommon.security.ClientIpResolver;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacommon.security.ContexaConsolePaths;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordChangeService;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
@@ -59,7 +59,7 @@ public class PasswordChangeController {
             RedirectAttributes ra) {
         try {
             passwordChangeService.changePassword(username, currentPassword, newPassword, confirmPassword,
-                    ClientIpResolver.resolve(request));
+                    SessionFingerprintUtil.extractClientIp(request));
         } catch (PasswordChangeService.PasswordChangeException e) {
             ra.addFlashAttribute("errorMessage", msg(e.getMessageKey(), e.getMessageArgs()));
             ra.addAttribute("username", username);

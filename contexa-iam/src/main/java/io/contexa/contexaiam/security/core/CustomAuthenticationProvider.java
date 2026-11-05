@@ -39,6 +39,8 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
         String loginId = authentication.getName();
         String password = (String) authentication.getCredentials();
 
+        loginPolicyService.checkSignInAddress(loginId);
+
         UserDetails userDetails = userDetailsService.loadUserByUsername(loginId);
 
         LocalAccountStatusChecker.checkBeforeCredentials(userDetails);

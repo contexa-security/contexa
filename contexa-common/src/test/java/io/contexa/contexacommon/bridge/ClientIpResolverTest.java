@@ -61,4 +61,79 @@ class ClientIpResolverTest {
 
         assertThat(clientIp).isEqualTo("203.0.113.20");
     }
+
+    /** PR-69: a proxy appends the address it saw, so what the client wrote stays on the left of it. */
+    @Test
+    void trustedProxyPolicyShouldNotTakeTheAddressAClientWroteBeforeTheProxy() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/orders");
+        request.setRemoteAddr("10.0.0.10");
+        request.addHeader("X-Forwarded-For", "198.51.100.77, 203.0.113.10");
+
+        String clientIp = ClientIpResolver.resolve(
+                request, ClientIpResolutionPolicy.trustedProxy(List.of("10.0.0.0/24")));
+
+        assertThat(clientIp).isEqualTo("203.0.113.10");
+    }
+
+    @Test
+    void trustedProxyPolicyShouldWalkBackThroughEveryTrustedProxy() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/orders");
+        request.setRemoteAddr("10.0.0.10");
+        request.addHeader("X-Forwarded-For", "198.51.100.77, 203.0.113.10, 10.0.0.11, 10.0.0.12");
+
+        String clientIp = ClientIpResolver.resolve(
+                request, ClientIpResolutionPolicy.trustedProxy(List.of("10.0.0.0/24")));
+
+        assertThat(clientIp).isEqualTo("203.0.113.10");
+    }
+
+    @Test
+    void trustedProxyPolicyShouldReadTheHeaderLinesAsOneList() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/orders");
+        request.setRemoteAddr("10.0.0.10");
+        request.addHeader("X-Forwarded-For", "198.51.100.77");
+        request.addHeader("X-Forwarded-For", "203.0.113.10");
+
+        String clientIp = ClientIpResolver.resolve(
+                request, ClientIpResolutionPolicy.trustedProxy(List.of("10.0.0.0/24")));
+
+        assertThat(clientIp).isEqualTo("203.0.113.10");
+    }
+
+    @Test
+    void trustedProxyPolicyShouldStopAtWhatIsNotAnAddress() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/orders");
+        request.setRemoteAddr("10.0.0.10");
+        request.addHeader("X-Forwarded-For", "attacker.example.com, 10.0.0.11");
+
+        String clientIp = ClientIpResolver.resolve(
+                request, ClientIpResolutionPolicy.trustedProxy(List.of("10.0.0.0/24")));
+
+        assertThat(clientIp).isEqualTo("10.0.0.11");
+    }
+
+    @Test
+    void trustedProxyPolicyShouldKeepOnlyTheAddressOfAHopWithAPort() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/orders");
+        request.setRemoteAddr("10.0.0.10");
+        request.addHeader("X-Forwarded-For", "203.0.113.10:50211");
+
+        String clientIp = ClientIpResolver.resolve(
+                request, ClientIpResolutionPolicy.trustedProxy(List.of("10.0.0.0/24")));
+
+        assertThat(clientIp).isEqualTo("203.0.113.10");
+    }
+
+    @Test
+    void trustedProxyPolicyShouldFallBackWhenTheHeaderNamesNoAddress() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/orders");
+        request.setRemoteAddr("10.0.0.10");
+        request.addHeader("X-Forwarded-For", "unknown");
+        request.addHeader("X-Real-IP", "203.0.113.20");
+
+        String clientIp = ClientIpResolver.resolve(
+                request, ClientIpResolutionPolicy.trustedProxy(List.of("10.0.0.0/24")));
+
+        assertThat(clientIp).isEqualTo("203.0.113.20");
+    }
 }
