@@ -33,12 +33,14 @@ import io.contexa.contexacore.autonomous.audit.AgentDecisionRecord;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionPrecedence;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
+import io.contexa.contexacore.autonomous.store.ExpiringKeySpace;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacommon.security.bridge.AgentRequestConfirmation;
 import io.contexa.contexacore.autonomous.agent.AgentAllowReuse;
 import io.contexa.contexacore.autonomous.agent.AgentDecisionFlights;
 import io.contexa.contexacore.autonomous.context.support.ResourceImportanceResolver;
 import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedException;
+import java.time.Clock;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -68,6 +70,12 @@ public class SynchronousProtectableDecisionService {
     private static final int STORE_RETRY_AFTER_SECONDS = 5;
     private static final int WAITING_ROOM_RETRY_AFTER_SECONDS = 5;
     /**
+     * How long a changed context whose verdict did not come in time is not waited for again. A model that has stopped
+     * answering would otherwise hold each of its calls for the whole wait, which stops the application for that user.
+     */
+    private static final Duration UNANSWERED_CONTEXT_PAUSE = Duration.ofSeconds(60);
+    private static final int UNANSWERED_CONTEXTS_KEPT = 10_000;
+    /**
      * Q-7: how long a verdict may still come while a store is down. The analysis runs on the application's own client,
      * which waits far longer than a request should, so the request stops waiting for it; a verdict that comes in this
      * time still answers, as a restriction the store did not take does.
@@ -90,6 +98,7 @@ public class SynchronousProtectableDecisionService {
     private ContexaStores contexaStores = new ContexaStores();
     /** The verdicts this server is reaching for changed contexts, one for each subject and context. */
     private final Map<String, VerdictUnderWay> changedContextVerdicts = new ConcurrentHashMap<>();
+    private ExpiringKeySpace<Boolean> unansweredContexts = unansweredContexts(Clock.systemUTC());
 
     public SynchronousProtectableDecisionService(
             ZeroTrustEventPublisher zeroTrustEventPublisher,
@@ -110,6 +119,15 @@ public class SynchronousProtectableDecisionService {
     public void setDecisionWait(Duration decisionWait) {
         this.decisionWait = decisionWait != null && !decisionWait.isZero() && !decisionWait.isNegative()
                 ? decisionWait : null;
+    }
+
+    /** Measures the pause of a changed context with {@code clock}. */
+    void setClock(Clock clock) {
+        this.unansweredContexts = unansweredContexts(clock);
+    }
+
+    private static ExpiringKeySpace<Boolean> unansweredContexts(Clock clock) {
+        return ExpiringKeySpace.<Boolean>builder(clock).ttl(UNANSWERED_CONTEXT_PAUSE).bound(UNANSWERED_CONTEXTS_KEPT).build();
     }
 
     /** Q-7: how long a verdict may still come while a store is down. */
@@ -521,13 +539,16 @@ public class SynchronousProtectableDecisionService {
      */
     private AsyncProtectableGate answerToAChangedContext(ZeroTrustSpringEvent event, String gateContext) {
         String question = decisionKey(event, event.getUserId()) + '\u0000' + gateContext;
+        if (unansweredContexts.containsKey(question)) {
+            return withoutItsVerdict(event, gateContext);
+        }
         VerdictUnderWay mine = new VerdictUnderWay();
         VerdictUnderWay underWay = changedContextVerdicts.putIfAbsent(question, mine);
         if (underWay != null) {
             return answerAfter(underWay, event, gateContext);
         }
         try {
-            return answerOfItsVerdict(event, gateContext);
+            return answerOfItsVerdict(event, gateContext, question);
         } finally {
             changedContextVerdicts.remove(question, mine);
             mine.end.complete(null);
@@ -559,7 +580,7 @@ public class SynchronousProtectableDecisionService {
      * that waits for its audit record is not asked for again. Its event is the analysis, so nothing is published after
      * the method: a request let through is only recorded.
      */
-    private AsyncProtectableGate answerOfItsVerdict(ZeroTrustSpringEvent event, String gateContext) {
+    private AsyncProtectableGate answerOfItsVerdict(ZeroTrustSpringEvent event, String gateContext, String question) {
         if (!zeroTrustEventListener.shouldPublishAuthorizationEvent(event)) {
             return answerInForce(event, gateContext);
         }
@@ -568,6 +589,7 @@ public class SynchronousProtectableDecisionService {
             verdict = verdictOf(event, event.getUserId(), gateContext).action();
         } catch (DecisionNotInTimeException notInTime) {
             log.debug("[ZeroTrust] No verdict in time for a changed context: userId={}", event.getUserId());
+            unansweredContexts.put(question, Boolean.TRUE);
         } catch (RuntimeException failure) {
             // Neither a model nor a store that fails is the application's failure: what is in force answers.
             if (!StoreFailures.isStoreFailure(failure)) {
@@ -580,6 +602,11 @@ public class SynchronousProtectableDecisionService {
         if (verdict != null && verdict.isAccessRestricted()) {
             return AsyncProtectableGate.restricted(verdict);
         }
+        return withoutItsVerdict(event, gateContext);
+    }
+
+    /** The answer of a request whose analysis ran or was not asked for: nothing is published after the method. */
+    private AsyncProtectableGate withoutItsVerdict(ZeroTrustSpringEvent event, String gateContext) {
         AsyncProtectableGate answer = answerInForce(event, gateContext);
         return answer == AsyncProtectableGate.PROCEED ? AsyncProtectableGate.PASS_AND_RECORD : answer;
     }

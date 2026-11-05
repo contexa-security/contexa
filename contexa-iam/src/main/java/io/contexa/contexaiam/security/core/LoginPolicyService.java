@@ -102,11 +102,8 @@ public class LoginPolicyService implements LoginPolicyHandler {
             if (rows == 0) {
                 log.debug("[login-policy] success reset skipped — unknown user {} (sourceTag={})", username, sourceTag);
             }
-            if (ip != null && !ip.isBlank()) {
-                loginAttemptIpRepository.findByIpAddress(ip).ifPresent(row ->
-                        loginAttemptIpRepository.resetWindow(ip, LocalDateTime.now(),
-                                LocalDateTime.now(), username));
-            }
+            // The address keeps its count: it stands for the failures of every account tried from there, and an account
+            // of one's own would wipe the guesses at the others. Its window ends them.
         } catch (Exception e) {
             log.error("[login-policy] onLoginSuccess failed for {}", username, e);
         }

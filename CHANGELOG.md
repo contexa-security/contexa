@@ -8,6 +8,12 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A sign-in no longer wipes the failures of its address.** A password that was right took the address's count back, so
+  whoever held one account of their own could try any number of others from that address. The address now keeps its count
+  until its window ends; the count of each account is reset as before. Behind a shared address a public NAT counts everyone's
+  mistakes together: raise the address limit or shorten its window in the password policy if yours needs it.
+- **A stopped model no longer holds every call of a changed context.** Its verdict not coming in time now spares that context
+  the wait for a minute: a general resource goes on at once, a sensitive one is refused at once.
 - **A stolen session no longer gets its first answers before the decision.** A session cookie used from another address
   went on while the model was deciding, so the first two or three calls answered, on a resource declared sensitive too. A
   person's call to a `@Protectable` method whose session, address or browser differs from the user's last decision, the one

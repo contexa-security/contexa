@@ -595,13 +595,13 @@ class LoginPolicyServiceAddressThrottleTest {
     }
 
     @Test
-    @DisplayName("Q-24: a sign-in that succeeds takes the address's count back, as it did")
-    void aSuccessTakesTheCountBack() {
+    @DisplayName("a sign-in that succeeds leaves the address's count: an account of one's own would wipe the guesses at others")
+    void aSuccessLeavesTheCount() {
         when(addresses.findByIpAddress(ADDRESS)).thenReturn(Optional.of(row(12, null)));
 
         service.onLoginSuccess("admin", ADDRESS, "EVENT");
 
-        verify(addresses).resetWindow(eq(ADDRESS), any(), any(), eq("admin"));
+        verify(addresses, never()).resetWindow(any(), any(), any(), any());
     }
 
     /** The follow-up increment counts the attempt: a first row of one would count the first failure twice. */

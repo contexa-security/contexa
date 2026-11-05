@@ -448,6 +448,82 @@ class ChangedContextRequestTest {
     }
 
     @Test
+    @DisplayName("a context whose verdict did not come is not waited for again: a general resource goes on at once")
+    void aContextPastItsWaitGoesOnAtOnce() {
+        service.setClock(clock);
+        decidedEarlier(ZeroTrustAction.ALLOW, HOME);
+        theModelDoesNotAnswerInTime();
+        gate(ELSEWHERE, importance(false));
+
+        long began = System.nanoTime();
+        AsyncProtectableGate again = gate(ELSEWHERE, importance(false));
+        long waitedMs = (System.nanoTime() - began) / 1_000_000;
+
+        assertThat(again).isEqualTo(AsyncProtectableGate.PASS_AND_RECORD);
+        assertThat(waitedMs).isLessThan(WAIT.toMillis() / 2);
+        assertThat(asked).hasValue(1);
+        noSecondEvent();
+    }
+
+    @Test
+    @DisplayName("nor is a sensitive resource: it is refused at once, for itself alone")
+    void aSensitiveResourcePastItsWaitIsRefusedAtOnce() {
+        service.setClock(clock);
+        decidedEarlier(ZeroTrustAction.ALLOW, HOME);
+        theModelDoesNotAnswerInTime();
+        gate(ELSEWHERE, importance(true));
+
+        long began = System.nanoTime();
+        AsyncProtectableGate again = gate(ELSEWHERE, importance(true));
+        long waitedMs = (System.nanoTime() - began) / 1_000_000;
+
+        assertThat(again.restriction()).isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThat(waitedMs).isLessThan(WAIT.toMillis() / 2);
+        assertThat(asked).hasValue(1);
+        nothingWasStoredFor(ELSEWHERE);
+    }
+
+    @Test
+    @DisplayName("the pause is the context's: another one is asked for and waits")
+    void anotherContextStillWaits() {
+        service.setClock(clock);
+        decidedEarlier(ZeroTrustAction.ALLOW, HOME);
+        theModelDoesNotAnswerInTime();
+        gate(ELSEWHERE, importance(false));
+
+        gate("context-third", importance(false));
+
+        assertThat(asked).hasValue(2);
+    }
+
+    @Test
+    @DisplayName("after a minute the context is asked for again: a model that came back decides it")
+    void afterAMinuteTheContextIsAskedForAgain() {
+        service.setClock(clock);
+        decidedEarlier(ZeroTrustAction.ALLOW, HOME);
+        theModelDoesNotAnswerInTime();
+        gate(ELSEWHERE, importance(false));
+
+        clock.advance(Duration.ofSeconds(61));
+        gate(ELSEWHERE, importance(false));
+
+        assertThat(asked).hasValue(2);
+    }
+
+    @Test
+    @DisplayName("a failed analysis is no pause: only a verdict that did not come in time is")
+    void aFailedAnalysisIsNoPause() {
+        service.setClock(clock);
+        decidedEarlier(ZeroTrustAction.ALLOW, HOME);
+        theAnalysisFailsWith(new IllegalStateException("broken"));
+        gate(ELSEWHERE, importance(false));
+
+        gate(ELSEWHERE, importance(false));
+
+        assertThat(asked).hasValue(2);
+    }
+
+    @Test
     @DisplayName("a stricter decision that landed in the wait answers a request that had no verdict of its own")
     void aStricterDecisionThatLandedAnswers() {
         decidedEarlier(ZeroTrustAction.ALLOW, HOME);
