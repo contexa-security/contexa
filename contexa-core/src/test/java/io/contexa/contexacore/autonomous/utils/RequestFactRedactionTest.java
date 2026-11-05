@@ -42,6 +42,17 @@ class RequestFactRedactionTest {
     }
 
     @Test
+    void aSessionIdThatStartsLikeAReferenceIsStillASessionId() {
+        // An application names its own sessions: only the exact shape of a reference is one.
+        String applicationSession = "sid-7f3a9c2e-live-session-of-the-application";
+
+        assertThat(RequestFactRedaction.sessionReference(applicationSession))
+                .doesNotContain("live-session").hasSize(28);
+        assertThat(RequestFactRedaction.sessionReference("sid-ABCDEF0123456789ABCDEF01")).hasSize(28)
+                .isNotEqualTo("sid-ABCDEF0123456789ABCDEF01");
+    }
+
+    @Test
     void noSessionHasNoReference() {
         assertThat(RequestFactRedaction.sessionReference(null)).isNull();
         assertThat(RequestFactRedaction.sessionReference("  ")).isNull();

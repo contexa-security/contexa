@@ -24,6 +24,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * What of a request may leave the running application (Q-11): the records, the vector store and the model's input keep
@@ -38,6 +39,10 @@ public final class RequestFactRedaction {
 
     private static final int SESSION_REFERENCE_BYTES = 12;
 
+    /** A reference as this class writes it: a session id that only starts alike is still a session id. */
+    private static final Pattern SESSION_REFERENCE =
+            Pattern.compile(SESSION_REFERENCE_PREFIX + "[0-9a-f]{" + SESSION_REFERENCE_BYTES * 2 + "}");
+
     private RequestFactRedaction() {
     }
 
@@ -48,7 +53,7 @@ public final class RequestFactRedaction {
             return null;
         }
         String id = sessionId.trim();
-        if (id.startsWith(SESSION_REFERENCE_PREFIX)) {
+        if (SESSION_REFERENCE.matcher(id).matches()) {
             return id;
         }
         try {
