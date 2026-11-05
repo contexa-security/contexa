@@ -23,6 +23,8 @@ import io.contexa.contexaidentity.security.service.ott.ContexaOneTimeTokens;
 import io.contexa.contexaidentity.security.service.ott.EmailOneTimeTokenService;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
 import io.contexa.contexaidentity.security.service.ott.MagicLinkHandler;
+import io.contexa.contexaidentity.security.zerotrust.stepup.InMemoryStepUpOptionsStore;
+import io.contexa.contexaidentity.security.zerotrust.stepup.StepUpOptionsStore;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -72,13 +74,15 @@ public class IdentityServiceAutoConfiguration {
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
             // ctxa_one_time_tokens is JDBC-owned; the shared Contexa transaction manager keeps the boundary explicit.
             @Qualifier("contexaTransactionTemplate") TransactionTemplate transactionTemplate,
-            AuthContextProperties authContextProperties) {
+            AuthContextProperties authContextProperties,
+            ObjectProvider<StepUpOptionsStore> stepUpOptionsStore) {
         return new ContexaOneTimeTokens(new EmailOneTimeTokenService(
                 contexaEmailService,
                 jdbcTemplate,
                 transactionTemplate,
                 authContextProperties,
-                authContextProperties.getOtt().isFailOnEmailError()));
+                authContextProperties.getOtt().isFailOnEmailError(),
+                stepUpOptionsStore.getIfAvailable(InMemoryStepUpOptionsStore::new)));
     }
 
     @Bean(name = "contexaMagicLinkHandler")

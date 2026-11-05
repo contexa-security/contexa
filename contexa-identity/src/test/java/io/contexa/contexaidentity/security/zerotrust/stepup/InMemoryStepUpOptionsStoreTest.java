@@ -17,12 +17,14 @@ package io.contexa.contexaidentity.security.zerotrust.stepup;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -108,6 +110,22 @@ class InMemoryStepUpOptionsStoreTest {
 
         store.claim("other", Duration.ofMinutes(1));
 
+        assertThat(store.take("options", String.class)).isEqualTo("kept");
+    }
+
+    /** Claims are made for every address asked for, by anyone, and nothing else may ever empty them. */
+    @Test
+    @DisplayName("the sweep frees what has expired, claims too, and keeps what stands")
+    void theSweepFreesWhatExpired() {
+        store.claim("expired", Duration.ofSeconds(10));
+        store.claim("held", Duration.ofMinutes(10));
+        store.put("options", "kept");
+        now.set(now.get().plusSeconds(11));
+
+        store.removeExpiredEntries();
+
+        assertThat((Map<?, ?>) ReflectionTestUtils.getField(store, "entries")).hasSize(2);
+        assertThat(store.claim("held", Duration.ofMinutes(10))).as("held still").isFalse();
         assertThat(store.take("options", String.class)).isEqualTo("kept");
     }
 }

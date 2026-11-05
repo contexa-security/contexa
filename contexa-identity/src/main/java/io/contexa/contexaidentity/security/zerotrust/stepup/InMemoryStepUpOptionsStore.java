@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.zerotrust.stepup;
 
+import io.contexa.contexacore.autonomous.store.ExpiringStateStore;
 import org.springframework.lang.Nullable;
 
 import java.io.Serializable;
@@ -25,7 +26,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /** The step-up options of one application instance (standalone), with the same expiry as the Redis store. */
-public class InMemoryStepUpOptionsStore implements StepUpOptionsStore {
+public class InMemoryStepUpOptionsStore implements StepUpOptionsStore, ExpiringStateStore {
 
     private record Entry(Serializable value, Instant expiresAt) {
     }
@@ -43,11 +44,17 @@ public class InMemoryStepUpOptionsStore implements StepUpOptionsStore {
         this.clock = clock;
     }
 
+    /** Claims are made for any address asked for, and no put may ever come: the sweep frees them as Redis expires them. */
     @Override
-    public void put(String key, Serializable value) {
+    public void removeExpiredEntries() {
         Instant now = clock.instant();
         entries.values().removeIf(entry -> !entry.expiresAt().isAfter(now));
-        entries.put(key, new Entry(value, now.plus(TIME_TO_LIVE)));
+    }
+
+    @Override
+    public void put(String key, Serializable value) {
+        removeExpiredEntries();
+        entries.put(key, new Entry(value, clock.instant().plus(TIME_TO_LIVE)));
     }
 
     @Override
