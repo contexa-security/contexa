@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.zerotrust;
 
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageEvaluator;
 import io.contexa.contexacommon.security.bridge.resolver.SecurityContextAuthenticationStampResolver;
@@ -155,6 +156,21 @@ class HostOwnedSignInFactsTest {
         assertThat(events.get(0).getPayload().get("effectiveRoles")).isEqualTo(call.getPayload().get("effectiveRoles"));
         assertThat(events.get(0).getPayload().get("effectivePermissions"))
                 .isEqualTo(call.getPayload().get("effectivePermissions"));
+    }
+
+    @Test
+    @DisplayName("a sign-in that goes on to a call in the same request (remember-me) stays an event of its own")
+    void aSignInAndTheCallOfItsRequestAreTwoEvents() {
+        signIn();
+
+        SecurityEvent signInEvent = ZeroTrustSecurityEventConverter.convert(events.get(0));
+        SecurityEvent call = ZeroTrustSecurityEventConverter.convert(
+                publisher.buildRequestAuthorizationEvent(signedIn, true, null));
+
+        // The engine takes a second event of one id for a repeat of the first and drops it.
+        assertThat(signInEvent.getEventId()).isNotEqualTo(call.getEventId());
+        assertThat(signInEvent.getMetadata().get("requestId")).isEqualTo(signInEvent.getEventId());
+        assertThat(signInEvent.getMetadata().get("correlationId")).isEqualTo(signInEvent.getEventId());
     }
 
     @Test

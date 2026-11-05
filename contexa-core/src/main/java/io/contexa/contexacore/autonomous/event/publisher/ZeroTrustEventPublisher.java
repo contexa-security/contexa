@@ -154,6 +154,9 @@ public class ZeroTrustEventPublisher {
         Map<String, Object> payload = new HashMap<>();
         if (requestInfo != null) {
             populateRequestFacts(requestInfo, payload);
+            // A sign-in can go on to a call in the same request (remember-me), and the engine drops a second event of
+            // one id as a repeat: the ids of the request are the call's, and the sign-in gets its own.
+            REQUEST_IDS.forEach(payload::remove);
         }
         payload.putAll(signIn);
         // The session id may have changed with the sign-in: its decision belongs to the session the client presents next.
@@ -182,6 +185,8 @@ public class ZeroTrustEventPublisher {
             bridge.resolveSignIn(request, authentication);
         }
     }
+
+    private static final List<String> REQUEST_IDS = List.of("eventId", "requestId", "correlationId");
 
     /** The method has not run: the event describes the authorization check before execution. */
     public static final String METHOD_NOT_RUN = "NOT_RUN";
