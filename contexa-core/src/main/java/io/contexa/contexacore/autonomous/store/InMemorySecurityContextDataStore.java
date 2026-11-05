@@ -59,6 +59,8 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private static final int MAX_PROCESSED_EVENTS = 50_000;
     private static final int MAX_SOAR_EXECUTIONS = 10_000;
     private static final int MAX_SESSION_ENTRIES = 10_000;
+    /** What a record of a sequence takes beside its characters: the string, its array and its place in the list. */
+    private static final int SEQUENCE_RECORD_BYTES = 64;
     /** QF-42: the default budget of the held learning records is a tenth of the maximum heap, within these bounds. */
     private static final int DEFAULT_HELD_LEARNING_HEAP_SHARE_DIVISOR = 10;
     private static final long MIN_DEFAULT_HELD_LEARNING_BYTES = 16L * 1024 * 1024;
@@ -97,6 +99,11 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private final Duration soarTtl;
     private final Duration userSessionsTtl;
     private final Clock clock;
+    /** What the histories of the sessions take, a session going whole. */
+    private final ExpiringKeyBudget sessionHistoryBudget = new ExpiringKeyBudget("session histories", this::evictSession);
+    /** What the work profile observations take, a user going whole. */
+    private final ExpiringKeyBudget workProfileBudget =
+            new ExpiringKeyBudget("work profile observations", this::evictWorkProfile);
 
     public InMemorySecurityContextDataStore() {
         this(DEFAULT_EVENT_PROCESSED_TTL, DEFAULT_SOAR_TTL, DEFAULT_USER_SESSIONS_TTL, Clock.systemUTC());
@@ -116,11 +123,11 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         this.soarTtl = Objects.requireNonNull(soarTtl, "soarTtl");
         this.userSessionsTtl = Objects.requireNonNull(userSessionsTtl, "userSessionsTtl");
         this.clock = Objects.requireNonNull(clock, "clock");
-        this.sessionActions = sessionScopedSpace(SESSION_RECORDS_TTL);
-        this.sessionDecisions = sessionScopedSpace(SESSION_RECORDS_TTL);
-        this.sessionNarrativeActionFamilies = sessionScopedSpace(SESSION_ACTIVITY_TTL);
-        this.sessionProtectableAccesses = sessionScopedSpace(SESSION_ACTIVITY_TTL);
-        this.sessionRequestIntervals = sessionScopedSpace(SESSION_ACTIVITY_TTL);
+        this.sessionActions = sessionHistorySpace(SESSION_RECORDS_TTL);
+        this.sessionDecisions = sessionHistorySpace(SESSION_RECORDS_TTL);
+        this.sessionNarrativeActionFamilies = sessionHistorySpace(SESSION_ACTIVITY_TTL);
+        this.sessionProtectableAccesses = sessionHistorySpace(SESSION_ACTIVITY_TTL);
+        this.sessionRequestIntervals = sessionHistorySpace(SESSION_ACTIVITY_TTL);
         this.sessionStartedAt = sessionScopedSpace(SESSION_ACTIVITY_TTL);
         this.sessionLastRequestTimes = sessionScopedSpace(SESSION_ACTIVITY_TTL);
         this.sessionPreviousPaths = sessionScopedSpace(SESSION_ACTIVITY_TTL);
@@ -129,8 +136,8 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         this.sessionRisks = sessionScopedSpace(SESSION_RISK_TTL);
         this.lastRequestTimes = userActivitySpace();
         this.previousPaths = userActivitySpace();
-        this.workProfileObservations = learningSpace(value -> {
-        });
+        this.workProfileObservations = ExpiringKeySpace.<RecordSequence>builder(clock).ttl(LEARNING_TTL)
+                .bound(MAX_SESSION_ENTRIES).weighed(workProfileBudget, RecordSequence::bytes).build();
         this.roleScopeObservations = learningSpace(value -> {
         });
         this.permissionChangeObservations = learningSpace(value -> {
@@ -163,17 +170,17 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
                 verificationOutcomes);
     }
 
-    private final ExpiringKeySpace<List<String>> sessionActions;
-    private final ExpiringKeySpace<List<String>> sessionNarrativeActionFamilies;
-    private final ExpiringKeySpace<List<String>> sessionDecisions;
-    private final ExpiringKeySpace<List<String>> sessionProtectableAccesses;
+    private final ExpiringKeySpace<RecordSequence> sessionActions;
+    private final ExpiringKeySpace<RecordSequence> sessionNarrativeActionFamilies;
+    private final ExpiringKeySpace<RecordSequence> sessionDecisions;
+    private final ExpiringKeySpace<RecordSequence> sessionProtectableAccesses;
     /** Each interval with the time of its request when known (N-SES-1). */
-    private final ExpiringKeySpace<List<String>> sessionRequestIntervals;
-    private final ExpiringKeySpace<List<String>> workProfileObservations;
+    private final ExpiringKeySpace<RecordSequence> sessionRequestIntervals;
+    private final ExpiringKeySpace<RecordSequence> workProfileObservations;
     /** docs/agent A3-8: the scopes whose learning an operator quarantined. */
     private final Set<String> quarantinedLearning = ConcurrentHashMap.newKeySet();
-    private final ExpiringKeySpace<List<String>> roleScopeObservations;
-    private final ExpiringKeySpace<List<String>> permissionChangeObservations;
+    private final ExpiringKeySpace<RecordSequence> roleScopeObservations;
+    private final ExpiringKeySpace<RecordSequence> permissionChangeObservations;
     private final ExpiringKeySpace<Double> sessionRisks;
     private final ExpiringKeySpace<Long> sessionStartedAt;
     private final ExpiringKeySpace<Long> sessionLastRequestTimes;
@@ -229,6 +236,57 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     /** The spaces keyed by session id; a session evicted for their bound leaves all of them together. */
     private final List<ExpiringKeySpace<?>> sessionScopedSpaces;
     private final List<ExpiringKeySpace<?>> spaces;
+
+    /** The records of one key, the oldest first, and what they are counted at. */
+    private static final class RecordSequence {
+
+        private final List<String> records = new ArrayList<>();
+        private long bytes;
+
+        private static long bytesOf(String record) {
+            return 2L * record.length() + SEQUENCE_RECORD_BYTES;
+        }
+
+        private synchronized void add(String record) {
+            records.add(record);
+            bytes += bytesOf(record);
+        }
+
+        private synchronized void addAll(RecordSequence other) {
+            for (String record : other.copy()) {
+                add(record);
+            }
+        }
+
+        /** Keeps the newest {@code maxSize}. */
+        private synchronized void keepNewest(int maxSize) {
+            int excess = records.size() - maxSize;
+            if (excess > 0) {
+                List<String> oldest = records.subList(0, excess);
+                for (String record : oldest) {
+                    bytes -= bytesOf(record);
+                }
+                oldest.clear();
+            }
+        }
+
+        private synchronized List<String> copy() {
+            return new ArrayList<>(records);
+        }
+
+        private synchronized List<String> recent(int count) {
+            int size = records.size();
+            return new ArrayList<>(records.subList(Math.min(size, Math.max(0, size - count)), size));
+        }
+
+        private synchronized boolean isEmpty() {
+            return records.isEmpty();
+        }
+
+        private synchronized long bytes() {
+            return bytes;
+        }
+    }
 
     /** A user's stopped requests, verified once the user passed the step-up (N-LRN-3). */
     private record StoppedRequests(Set<String> signatures, boolean verified) {
@@ -322,24 +380,18 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         return sessionId == null ? null : sessionFirstClients.getAndRefresh(sessionId);
     }
 
-    private static <T> void moveSequence(ExpiringKeySpace<List<T>> space, String fromKey, String toKey) {
-        List<T> moved = space.remove(fromKey);
+    private static void moveSequence(ExpiringKeySpace<RecordSequence> space, String fromKey, String toKey) {
+        RecordSequence moved = space.remove(fromKey);
         if (moved == null || moved.isEmpty()) {
             return;
         }
         space.compute(toKey, (key, current) -> {
-            List<T> merged = Collections.synchronizedList(new ArrayList<>());
-            synchronized (moved) {
-                merged.addAll(moved);
-            }
+            RecordSequence merged = new RecordSequence();
+            merged.addAll(moved);
             if (current != null) {
-                synchronized (current) {
-                    merged.addAll(current);
-                }
+                merged.addAll(current);
             }
-            while (merged.size() > MAX_SESSION_ACTIONS) {
-                merged.remove(0);
-            }
+            merged.keepNewest(MAX_SESSION_ACTIONS);
             return merged;
         });
     }
@@ -956,6 +1008,34 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         releaseHeldLearningOverBudget();
     }
 
+    /** The bytes the session histories may take together; not positive, a share of the maximum heap. */
+    void setSessionHistoryBudgetBytes(long budgetBytes) {
+        sessionHistoryBudget.setLimitBytes(budgetBytes);
+    }
+
+    long sessionHistoryBudgetBytes() {
+        return sessionHistoryBudget.limitBytes();
+    }
+
+    /** The bytes the session histories take now, as counted against their limit. */
+    long sessionHistoryBytes() {
+        return sessionHistoryBudget.bytes();
+    }
+
+    /** The bytes the work profile observations may take together; not positive, a share of the maximum heap. */
+    void setWorkProfileBudgetBytes(long budgetBytes) {
+        workProfileBudget.setLimitBytes(budgetBytes);
+    }
+
+    long workProfileBudgetBytes() {
+        return workProfileBudget.limitBytes();
+    }
+
+    /** The bytes the work profile observations take now, as counted against their limit. */
+    long workProfileBytes() {
+        return workProfileBudget.bytes();
+    }
+
     /** The bytes the held learning records may take together (QF-42). */
     public long heldLearningBudgetBytes() {
         return heldLearningBudgetBytes;
@@ -1112,16 +1192,14 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
 
     /** RPUSH then EXPIRE, keeping the newest {@code maxSize}; a sequence that expired starts anew (Z-16 D-1). */
     private static void appendToStringSequence(
-            ExpiringKeySpace<List<String>> target,
+            ExpiringKeySpace<RecordSequence> target,
             String sequenceKey,
             String value,
             int maxSize) {
         target.compute(sequenceKey, (key, sequence) -> {
-            List<String> values = sequence != null ? sequence : Collections.synchronizedList(new ArrayList<>());
+            RecordSequence values = sequence != null ? sequence : new RecordSequence();
             values.add(value);
-            while (values.size() > maxSize) {
-                values.remove(0);
-            }
+            values.keepNewest(maxSize);
             return values;
         });
     }
@@ -1161,24 +1239,12 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         return value != null && !value.trim().isEmpty();
     }
 
-    private static List<String> copyOf(List<String> sequence) {
-        if (sequence == null) {
-            return Collections.emptyList();
-        }
-        synchronized (sequence) {
-            return new ArrayList<>(sequence);
-        }
+    private static List<String> copyOf(RecordSequence sequence) {
+        return sequence == null ? Collections.emptyList() : sequence.copy();
     }
 
-    private List<String> recentStringSequence(List<String> sequence, int count) {
-        if (sequence == null || sequence.isEmpty()) {
-            return Collections.emptyList();
-        }
-        synchronized (sequence) {
-            int size = sequence.size();
-            int fromIndex = Math.max(0, size - count);
-            return new ArrayList<>(sequence.subList(fromIndex, size));
-        }
+    private List<String> recentStringSequence(RecordSequence sequence, int count) {
+        return sequence == null ? Collections.emptyList() : sequence.recent(count);
     }
 
     /**
@@ -1188,6 +1254,12 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private <V> ExpiringKeySpace<V> sessionScopedSpace(Duration ttl) {
         return ExpiringKeySpace.<V>builder(clock).ttl(ttl).bound(MAX_SESSION_ENTRIES)
                 .evictWith(this::evictSession).build();
+    }
+
+    /** A session's history: a space of {@link #sessionScopedSpace} whose records count against their limit. */
+    private ExpiringKeySpace<RecordSequence> sessionHistorySpace(Duration ttl) {
+        return ExpiringKeySpace.<RecordSequence>builder(clock).ttl(ttl).bound(MAX_SESSION_ENTRIES)
+                .evictWith(this::evictSession).weighed(sessionHistoryBudget, RecordSequence::bytes).build();
     }
 
     /** A user's last request and path, each within the bound, go together. */
@@ -1204,6 +1276,10 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
 
     private void evictSession(String sessionId) {
         sessionScopedSpaces.forEach(space -> space.evict(sessionId));
+    }
+
+    private void evictWorkProfile(String key) {
+        workProfileObservations.evict(key);
     }
 
     private void evictUserActivity(String userId) {
