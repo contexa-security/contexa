@@ -41,9 +41,12 @@ import org.springframework.transaction.support.AbstractPlatformTransactionManage
 import org.springframework.transaction.support.DefaultTransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -195,7 +198,13 @@ class UserAccountChangeListenerTest {
             context.registerBean(TransactionalEventListenerFactory.class);
             context.registerBean(UserAccountChangeListener.class, () -> listener(true));
             context.refresh();
-            TransactionTemplate transactions = new TransactionTemplate(new Transactions());
+            Transactions manager = new Transactions();
+            TransactionTemplate transactions = new TransactionTemplate(manager);
+            AtomicBoolean committedWhenEnded = new AtomicBoolean();
+            doAnswer(call -> {
+                committedWhenEnded.set(manager.committed);
+                return null;
+            }).when(forceLogout).forceLogoutByUserId(anyString(), anyString());
 
             transactions.executeWithoutResult(status -> {
                 context.publishEvent(new UserPasswordChangedEvent("alice"));
@@ -203,16 +212,16 @@ class UserAccountChangeListenerTest {
             });
             verify(forceLogout, never()).forceLogoutByUserId(anyString(), anyString());
 
-            transactions.executeWithoutResult(status -> {
-                context.publishEvent(new UserPasswordChangedEvent("alice"));
-                verify(forceLogout, never()).forceLogoutByUserId(anyString(), anyString());
-            });
+            transactions.executeWithoutResult(status -> context.publishEvent(new UserPasswordChangedEvent("alice")));
             verify(forceLogout).forceLogoutByUserId("alice", "PASSWORD_CHANGED");
+            assertThat(committedWhenEnded).as("a session that reads its account before the commit keeps the old one").isTrue();
         }
     }
 
     /** Transactions without a resource: the synchronizations run as they do on a database. */
     private static final class Transactions extends AbstractPlatformTransactionManager {
+
+        private boolean committed;
 
         @Override
         protected Object doGetTransaction() {
@@ -225,6 +234,7 @@ class UserAccountChangeListenerTest {
 
         @Override
         protected void doCommit(DefaultTransactionStatus status) {
+            committed = true;
         }
 
         @Override
