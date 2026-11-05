@@ -396,6 +396,12 @@ public class SynchronousProtectableDecisionService {
         return asyncGate(methodInvocation, authentication).restriction();
     }
 
+    /** Whether the protected call is for a sensitive resource, read as the gate of a call without a decision reads it. */
+    public boolean sensitive(MethodInvocation methodInvocation, Authentication authentication) {
+        return AgentAllowReuse.sensitive(zeroTrustEventPublisher.buildMethodAuthorizationEvent(
+                methodInvocation, authentication, true, null).getPayload());
+    }
+
     /**
      * What an asynchronous {@code @Protectable} does before it runs: the restriction in force ({@link
      * #storedRestriction}), or, A1-5, a decision in place for an agent request with no decision on record. An agent

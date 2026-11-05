@@ -44,6 +44,10 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **A sensitive resource does not go on without its method policies.** While the database does not answer, a call whose
+  policies could not be read went on, and a DENY among them was missed. A call to a resource declared sensitive is now
+  refused for that request with a CHALLENGE, whatever the model answered: a decision does not speak for a policy. A general
+  resource goes on as before, and in SHADOW nothing is refused.
 - **A double click on the right code no longer ends the sign-in.** A second request that reached a flow being verified
   ended the flow: both clicks failed and the user started again with a new code. The second request is now answered
   `429 MFA_BUSY_RETRY` and changes nothing, so wrong codes sent at once are read one at a time and the limit on the codes
