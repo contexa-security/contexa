@@ -27,11 +27,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
@@ -76,6 +78,56 @@ class AINativeProcessorTest {
                 .tryLock(lockKeyCaptor.capture(), any(), eq(Duration.ofMinutes(30)));
         assertThat(lockKeyCaptor.getAllValues()).hasSize(2);
         assertThat(lockKeyCaptor.getAllValues().get(0)).isEqualTo(lockKeyCaptor.getAllValues().get(1));
+    }
+
+    /** PR-91: an audit that fails or streams to its end leaves no entry open: each one stayed for the life of the JVM. */
+    @Test
+    void anOperationThatFailsClosesItsAudit() {
+        AINativeProcessor<TestContext> processor = new AINativeProcessor<>(
+                auditLogger,
+                distributedLockService,
+                distributedStrategyExecutor);
+        AIRequest<TestContext> request = request();
+        IllegalStateException failure = new IllegalStateException("model unavailable");
+        when(distributedLockService.tryLock(any(), any(), any(Duration.class))).thenReturn(true);
+        when(auditLogger.startAudit(request)).thenReturn("audit-1");
+        when(distributedStrategyExecutor.executeDistributedStrategyAsync(request, TestResponse.class))
+                .thenReturn(Mono.error(failure));
+
+        assertThatThrownBy(() -> processor.process(request, TestResponse.class).block()).isSameAs(failure);
+
+        verify(auditLogger).failAudit("audit-1", request, failure);
+    }
+
+    @Test
+    void aStreamClosesItsAuditWhenItEnds() {
+        AINativeProcessor<TestContext> processor = new AINativeProcessor<>(
+                auditLogger,
+                distributedLockService,
+                distributedStrategyExecutor);
+        AIRequest<TestContext> request = request();
+        IllegalStateException failure = new IllegalStateException("model unavailable");
+        when(distributedLockService.tryLock(any(), any(), any(Duration.class))).thenReturn(true);
+        when(auditLogger.startAudit(request)).thenReturn("audit-1", "audit-2");
+        when(distributedStrategyExecutor.executeDistributedStrategyStream(request, AIResponse.class, "audit-1"))
+                .thenReturn(Flux.just("one", "two"));
+        when(distributedStrategyExecutor.executeDistributedStrategyStream(request, AIResponse.class, "audit-2"))
+                .thenReturn(Flux.error(failure));
+
+        assertThat(processor.processStream(request).collectList().block()).containsExactly("one", "two");
+        assertThatThrownBy(() -> processor.processStream(request).collectList().block()).isInstanceOf(RuntimeException.class);
+
+        verify(auditLogger).closeAudit("audit-1");
+        verify(auditLogger).failAudit("audit-2", request, failure);
+    }
+
+    private static AIRequest<TestContext> request() {
+        AIRequest<TestContext> request = new AIRequest<>(
+                new TestContext("user-1", "session-1", "tenant-a"),
+                new TemplateType("standard"),
+                new DiagnosisType("general"));
+        request.setNaturalLanguageQuery("summarize risk");
+        return request;
     }
 
     private static final class TestContext extends DomainContext {

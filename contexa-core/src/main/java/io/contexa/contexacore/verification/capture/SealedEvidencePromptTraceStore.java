@@ -31,19 +31,45 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class SealedEvidencePromptTraceStore {
 
+    /** PR-91: the snapshots held may take a twentieth of the maximum heap, within these bounds. */
+    private static final int HEAP_SHARE_DIVISOR = 20;
+    private static final long MIN_BUDGET_BYTES = 16L * 1024 * 1024;
+    private static final long MAX_BUDGET_BYTES = 256L * 1024 * 1024;
+    /** What a snapshot holds besides its prompts and documents: the event with its context. */
+    private static final long EVENT_BYTES = 64L * 1024;
+
     private final ConcurrentMap<String, SealedEvidencePromptSnapshot> pendingByTraceKey = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, SealedEvidencePromptSnapshot> completedByTraceKey = new ConcurrentHashMap<>();
 
     private final VerificationCaptureStoreOptions options;
     private final Clock clock;
+    private final long budgetBytes;
 
     public SealedEvidencePromptTraceStore() {
         this(VerificationCaptureStoreOptions.defaults(), Clock.systemUTC());
     }
 
     public SealedEvidencePromptTraceStore(VerificationCaptureStoreOptions options, Clock clock) {
+        this(options, clock, defaultBudgetBytes(Runtime.getRuntime().maxMemory()));
+    }
+
+    SealedEvidencePromptTraceStore(VerificationCaptureStoreOptions options, Clock clock, long budgetBytes) {
         this.options = Objects.requireNonNull(options, "options must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
+        this.budgetBytes = budgetBytes;
+    }
+
+    /**
+     * PR-91: the limit of the snapshots held for a maximum heap of {@code maxHeapBytes}: a twentieth of it, between
+     * 16 MiB and 256 MiB. A snapshot is consumed moments after its decision, so the limit is for those nothing consumes.
+     */
+    static long defaultBudgetBytes(long maxHeapBytes) {
+        return Math.max(MIN_BUDGET_BYTES, Math.min(MAX_BUDGET_BYTES, maxHeapBytes / HEAP_SHARE_DIVISOR));
+    }
+
+    /** The bytes the snapshots held are counted at (PR-91). */
+    long heldBytes() {
+        return bytesOf(pendingByTraceKey) + bytesOf(completedByTraceKey);
     }
 
     /**
@@ -165,6 +191,47 @@ public class SealedEvidencePromptTraceStore {
         Instant cutoff = clock.instant().minus(options.snapshotTtl());
         pruneMap(pendingByTraceKey, cutoff, options.maxPending());
         pruneMap(completedByTraceKey, cutoff, options.maxCompleted());
+        pruneToBudget();
+    }
+
+    /** The snapshots held past the limit go, the oldest first; those of a running analysis go after the completed. */
+    private void pruneToBudget() {
+        long held = heldBytes();
+        while (held > budgetBytes) {
+            ConcurrentMap<String, SealedEvidencePromptSnapshot> snapshots =
+                    completedByTraceKey.isEmpty() ? pendingByTraceKey : completedByTraceKey;
+            var oldest = snapshots.entrySet().stream()
+                    .min(Comparator.comparing(entry -> entry.getValue().capturedAt()));
+            if (oldest.isEmpty()) {
+                return;
+            }
+            if (snapshots.remove(oldest.get().getKey(), oldest.get().getValue())) {
+                held -= bytesOf(oldest.get().getValue());
+            }
+        }
+    }
+
+    private static long bytesOf(ConcurrentMap<String, SealedEvidencePromptSnapshot> snapshots) {
+        return snapshots.values().stream().mapToLong(SealedEvidencePromptTraceStore::bytesOf).sum();
+    }
+
+    /** Its event, and its prompts and documents at two bytes a character; a prompt held twice is counted once. */
+    private static long bytesOf(SealedEvidencePromptSnapshot snapshot) {
+        long characters = length(snapshot.rawSystemPrompt()) + length(snapshot.rawUserPrompt());
+        if (snapshot.systemPrompt() != snapshot.rawSystemPrompt()) {
+            characters += length(snapshot.systemPrompt());
+        }
+        if (snapshot.userPrompt() != snapshot.rawUserPrompt()) {
+            characters += length(snapshot.userPrompt());
+        }
+        for (Document document : snapshot.relatedDocuments()) {
+            characters += length(document.getText());
+        }
+        return EVENT_BYTES + 2L * characters;
+    }
+
+    private static long length(String text) {
+        return text != null ? text.length() : 0;
     }
 
     private void pruneMap(

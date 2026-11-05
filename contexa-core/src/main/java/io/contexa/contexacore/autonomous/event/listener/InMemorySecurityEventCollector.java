@@ -20,7 +20,7 @@ import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.SecurityEventListener;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.Comparator;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,7 +39,11 @@ public class InMemorySecurityEventCollector implements SecurityEventCollector {
     private static final int EVICTION_BATCH = 1_000;
 
     private final List<SecurityEventListener> listeners = new CopyOnWriteArrayList<>();
-    private final Map<String, SecurityEvent> eventCache = new ConcurrentHashMap<>();
+    /**
+     * The recent events by id, with when they happened: only their number is read. PR-91: the events themselves are not
+     * kept, since an analysed event holds its whole context.
+     */
+    private final Map<String, Instant> eventCache = new ConcurrentHashMap<>();
     private final AtomicLong eventCount = new AtomicLong(0);
     private final AtomicLong errorCount = new AtomicLong(0);
 
@@ -83,7 +87,7 @@ public class InMemorySecurityEventCollector implements SecurityEventCollector {
             if (eventCache.size() >= MAX_CACHE_SIZE) {
                 evictOldEntries();
             }
-            eventCache.put(event.getEventId(), event);
+            eventCache.put(event.getEventId(), event.getTimestamp() != null ? event.getTimestamp() : Instant.EPOCH);
         }
 
         RuntimeException listenerFailure = null;
@@ -109,8 +113,7 @@ public class InMemorySecurityEventCollector implements SecurityEventCollector {
 
     private void evictOldEntries() {
         eventCache.entrySet().stream()
-                .sorted(Map.Entry.comparingByValue(
-                        Comparator.comparing(SecurityEvent::getTimestamp, Comparator.nullsFirst(Comparator.naturalOrder()))))
+                .sorted(Map.Entry.comparingByValue())
                 .limit(EVICTION_BATCH)
                 .map(Map.Entry::getKey)
                 .toList()

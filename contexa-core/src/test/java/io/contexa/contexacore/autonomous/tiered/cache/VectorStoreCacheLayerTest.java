@@ -61,6 +61,47 @@ class VectorStoreCacheLayerTest {
         cacheLayer.init();
     }
 
+    /** PR-91: a search keeps whole documents, so ten thousand of them are more than a common heap. */
+    @Test
+    @DisplayName("the searches kept stay within a share of the heap whatever their number")
+    void theSearchesKeptStayWithinTheBudgetWhateverTheirNumber() {
+        long budget = VectorStoreCacheLayer.defaultCacheBudgetBytes(Runtime.getRuntime().maxMemory());
+        String text = "x".repeat(64 * 1024);
+        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(new Document(text)));
+        int searches = (int) Math.min(5_000, 2 * budget / (2 * text.length()));
+
+        for (int search = 0; search < searches; search++) {
+            cacheLayer.similaritySearch(SearchRequest.builder().query("query-" + search).topK(3).build());
+        }
+
+        assertThat(cacheLayer.cachedBytes()).isPositive().isLessThanOrEqualTo(budget);
+        assertThat(cacheLayer.scopedSearches()).isLessThanOrEqualTo(cacheLayer.cachedSearches());
+    }
+
+    @Test
+    @DisplayName("the number of searches set for the cache still holds")
+    void theConfiguredNumberOfSearchesStillHolds() {
+        properties.getVectorCache().setMaxSize(50);
+        cacheLayer.init();
+        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(new Document("cached")));
+
+        for (int search = 0; search < 500; search++) {
+            cacheLayer.similaritySearch(SearchRequest.builder().query("query-" + search).topK(3).build());
+        }
+
+        assertThat(cacheLayer.cachedSearches()).isPositive().isLessThanOrEqualTo(50);
+        assertThat(cacheLayer.scopedSearches()).isLessThanOrEqualTo(cacheLayer.cachedSearches());
+    }
+
+    @Test
+    @DisplayName("the budget is a thirty-second of the heap within its bounds")
+    void theBudgetIsAThirtySecondOfTheHeapWithinItsBounds() {
+        long mebibyte = 1024L * 1024;
+        assertThat(VectorStoreCacheLayer.defaultCacheBudgetBytes(128 * mebibyte)).isEqualTo(8 * mebibyte);
+        assertThat(VectorStoreCacheLayer.defaultCacheBudgetBytes(512 * mebibyte)).isEqualTo(16 * mebibyte);
+        assertThat(VectorStoreCacheLayer.defaultCacheBudgetBytes(Long.MAX_VALUE)).isEqualTo(128 * mebibyte);
+    }
+
     @Test
     @DisplayName("a write clears the searches it can change: the writer's, its organisation's and unscoped ones (W2-15)")
     void aWriteClearsOnlyTheSearchesItCanChange() {

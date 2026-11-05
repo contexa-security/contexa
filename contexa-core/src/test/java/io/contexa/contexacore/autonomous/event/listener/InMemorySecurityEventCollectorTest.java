@@ -27,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -77,6 +78,27 @@ class InMemorySecurityEventCollectorTest {
         // then
         stats = collector.getStatistics();
         assertThat(stats.get("listener_count")).isEqualTo(1);
+    }
+
+    /** PR-91: an analysed event holds its whole context, and nothing ever read the events kept here. */
+    @Test
+    @DisplayName("dispatchEvent should not hold the event once its listeners have it")
+    void shouldNotHoldTheEventOnceItsListenersHaveIt() throws InterruptedException {
+        WeakReference<SecurityEvent> dispatched = dispatched("evt-held");
+
+        for (int attempt = 0; attempt < 100 && dispatched.get() != null; attempt++) {
+            System.gc();
+            Thread.sleep(10);
+        }
+
+        assertThat(dispatched.get()).isNull();
+        assertThat(collector.getStatistics().get("cache_size")).isEqualTo(1);
+    }
+
+    private WeakReference<SecurityEvent> dispatched(String eventId) {
+        SecurityEvent event = SecurityEvent.builder().eventId(eventId).build();
+        collector.dispatchEvent(event);
+        return new WeakReference<>(event);
     }
 
     @Test
