@@ -65,7 +65,7 @@ class HostOwnedStepUpServiceTest {
     void setUp() {
         service = new HostOwnedStepUpService(actions, resolution, users, "shadow.contexa.local",
                 new InMemoryStepUpOptionsStore(), oneTimeTokens, email, null, null, null, null,
-                "/login?prompt=login");
+                "/login?prompt=login", 5);
         when(email.isMailSenderConfigured()).thenReturn(true);
         when(resolution.releaseChallenge(anyString(), any(), any(), any())).thenReturn(true);
     }

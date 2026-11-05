@@ -43,6 +43,17 @@ public interface StepUpOptionsStore {
     /** Gives a claim up before its time is over. */
     void release(String key);
 
+    /**
+     * Counts one more under the key and answers the count, across nodes when the store is shared: callers at once each
+     * get a count of their own, so none of them passes a limit between a read and a write. The count ends the time
+     * given after it started, however often it is counted; a store that cannot count answers {@link Long#MAX_VALUE},
+     * so that what the count guards does not happen.
+     */
+    long increment(String key, Duration holdFor);
+
+    /** Ends a count before its time is over. */
+    void clearCount(String key);
+
     /** Whether an entry stands under the key, which stays there. */
     boolean holds(String key);
 

@@ -21,12 +21,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.core.script.RedisScript;
 
 import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -69,6 +71,22 @@ class RedisStepUpOptionsStoreOutageTest {
     @DisplayName("an option Redis does not take does not fail the screen that hands it out")
     void anOptionRedisDoesNotTake() {
         assertThatCode(() -> store.put("assertion", "options")).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("a count Redis cannot keep reads as past every limit, so no code is looked at")
+    @SuppressWarnings("unchecked")
+    void aCountThatCannotBeKeptIsPastTheLimit() {
+        when(redis.execute(any(RedisScript.class), anyList(), any(Object[].class)))
+                .thenThrow(new QueryTimeoutException("Redis command timed out"));
+
+        assertThat(store.increment("code-attempts", Duration.ofMinutes(5))).isEqualTo(Long.MAX_VALUE);
+    }
+
+    @Test
+    @DisplayName("a count Redis cannot clear lapses with its time")
+    void aClearRedisDoesNotTake() {
+        assertThatCode(() -> store.clearCount("code-attempts")).doesNotThrowAnyException();
     }
 
     @Test

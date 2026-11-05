@@ -32,6 +32,7 @@ public class InMemoryStepUpOptionsStore implements StepUpOptionsStore, ExpiringS
     }
 
     private static final String CLAIM_PREFIX = "claim:";
+    private static final String COUNT_PREFIX = "count:";
 
     private final Map<String, Entry> entries = new ConcurrentHashMap<>();
     private final Clock clock;
@@ -44,7 +45,10 @@ public class InMemoryStepUpOptionsStore implements StepUpOptionsStore, ExpiringS
         this.clock = clock;
     }
 
-    /** Claims are made for any address asked for, and no put may ever come: the sweep frees them as Redis expires them. */
+    /**
+     * Claims are made for any address asked for and counts for any context that answers, and no put may ever come: the
+     * sweep frees them as Redis expires them.
+     */
     @Override
     public void removeExpiredEntries() {
         Instant now = clock.instant();
@@ -74,6 +78,25 @@ public class InMemoryStepUpOptionsStore implements StepUpOptionsStore, ExpiringS
     @Override
     public void release(String key) {
         entries.remove(CLAIM_PREFIX + key);
+    }
+
+    @Override
+    public long increment(String key, Duration holdFor) {
+        Instant now = clock.instant();
+        long[] count = {1};
+        entries.compute(COUNT_PREFIX + key, (k, held) -> {
+            if (held != null && held.expiresAt().isAfter(now)) {
+                count[0] = (Long) held.value() + 1;
+                return new Entry(count[0], held.expiresAt());
+            }
+            return new Entry(count[0], now.plus(holdFor));
+        });
+        return count[0];
+    }
+
+    @Override
+    public void clearCount(String key) {
+        entries.remove(COUNT_PREFIX + key);
     }
 
     @Override

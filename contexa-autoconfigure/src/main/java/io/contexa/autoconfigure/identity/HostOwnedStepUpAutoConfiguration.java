@@ -117,7 +117,8 @@ public class HostOwnedStepUpAutoConfiguration {
                 bridgeProperties.getSync().getSyntheticEmailDomain(), contexaStepUpOptionsStore,
                 stepUpCodes, emailService.getIfAvailable(), relyingParty, entities,
                 credentials, passkeyCreationOptionsCodec.getIfAvailable(DefaultPasskeyCreationOptionsCodec::new),
-                bridgeProperties.getStepUp().getReauthenticationUrl());
+                bridgeProperties.getStepUp().getReauthenticationUrl(),
+                authContextProperties.getMfa().getMaxRetryAttempts());
     }
 
     @Bean(name = "contexaHostOwnedStepUpController")

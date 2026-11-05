@@ -17,10 +17,17 @@ package io.contexa.contexaidentity.security.zerotrust.stepup;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
+
+import java.time.Duration;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 /** Runs only against a Redis named for it: it never falls back to the Redis of the machine. */
 @EnabledIfEnvironmentVariable(named = "CONTEXA_TEST_REDIS_PORT", matches = "[0-9]+")
@@ -46,5 +53,20 @@ class RedisStepUpOptionsStoreClaimContractTest extends AbstractStepUpOptionsStor
     @Override
     protected StepUpOptionsStore store() {
         return new RedisStepUpOptionsStore(redis);
+    }
+
+    @Test
+    @DisplayName("a count never stands in Redis without its time, not even one that lost it")
+    void aCountAlwaysHasItsTime() {
+        String key = "contract:" + UUID.randomUUID();
+        String stored = "contexa:step-up:options:count:" + key;
+        StepUpOptionsStore store = store();
+
+        store.increment(key, Duration.ofMinutes(1));
+        assertThat(redis.getExpire(stored)).isPositive();
+
+        redis.persist(stored);
+        store.increment(key, Duration.ofMinutes(1));
+        assertThat(redis.getExpire(stored)).isPositive();
     }
 }

@@ -70,7 +70,7 @@ class HostOwnedPasskeyEnrollmentTest {
     @BeforeEach
     void setUp() {
         service = new HostOwnedStepUpService(actions, resolution, users, "shadow.contexa.local",
-                new InMemoryStepUpOptionsStore(), oneTimeTokens, email, relyingParty, entities, credentials, codec, null);
+                new InMemoryStepUpOptionsStore(), oneTimeTokens, email, relyingParty, entities, credentials, codec, null, 5);
         request.setRemoteAddr("198.51.100.1");
         when(email.isMailSenderConfigured()).thenReturn(true);
         Users user = mock(Users.class);

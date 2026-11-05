@@ -18,6 +18,8 @@ package io.contexa.contexaidentity.security.zerotrust.stepup;
 import io.contexa.contexacommon.store.StoreFailures;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.lang.Nullable;
 
 import java.io.ByteArrayInputStream;
@@ -29,6 +31,7 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.List;
 
 /**
  * The step-up options shared by every instance of a distributed deployment, so the answer may reach another instance
@@ -40,6 +43,16 @@ public class RedisStepUpOptionsStore implements StepUpOptionsStore {
 
     private static final String PREFIX = "contexa:step-up:options:";
     private static final String CLAIM = "claim:";
+    private static final String COUNT = "count:";
+
+    /** One step, so that no count stands without its time whatever happens between the two commands. */
+    private static final RedisScript<Long> INCREMENT = new DefaultRedisScript<>("""
+            local count = redis.call('INCR', KEYS[1])
+            if redis.call('PTTL', KEYS[1]) < 0 then
+                redis.call('PEXPIRE', KEYS[1], ARGV[1])
+            end
+            return count
+            """, Long.class);
 
     private static final ObjectInputFilter ALLOWED = ObjectInputFilter.Config.createFilter(
             "java.lang.*;java.util.*;java.time.*;"
@@ -81,6 +94,26 @@ public class RedisStepUpOptionsStore implements StepUpOptionsStore {
             redis.delete(PREFIX + CLAIM + key);
         } catch (RuntimeException unavailable) {
             report("release a step-up claim", unavailable);
+        }
+    }
+
+    @Override
+    public long increment(String key, Duration holdFor) {
+        try {
+            Long count = redis.execute(INCREMENT, List.of(PREFIX + COUNT + key), String.valueOf(holdFor.toMillis()));
+            return count != null ? count : Long.MAX_VALUE;
+        } catch (RuntimeException unavailable) {
+            report("keep a step-up count", unavailable);
+            return Long.MAX_VALUE;
+        }
+    }
+
+    @Override
+    public void clearCount(String key) {
+        try {
+            redis.delete(PREFIX + COUNT + key);
+        } catch (RuntimeException unavailable) {
+            report("clear a step-up count", unavailable);
         }
     }
 
