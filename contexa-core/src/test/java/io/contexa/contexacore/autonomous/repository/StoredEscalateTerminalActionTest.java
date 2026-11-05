@@ -503,6 +503,22 @@ class StoredEscalateTerminalActionTest {
         assertConcurrentReaders(redis());
     }
 
+    /** A reader that found no analysis must not answer PENDING because another reader has just ended the ESCALATE. */
+    @Test
+    void inMemoryNoConcurrentReaderMissesTheRestriction() throws Exception {
+        for (int round = 0; round < 400; round++) {
+            assertConcurrentReaders(inMemory());
+        }
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
+    void redisNoConcurrentReaderMissesTheRestriction() throws Exception {
+        for (int round = 0; round < 60; round++) {
+            assertConcurrentReaders(redis());
+        }
+    }
+
     private static void assertConcurrentReaders(Store store) throws Exception {
         ZeroTrustActionRepository repository = store.repository();
         String user = user();

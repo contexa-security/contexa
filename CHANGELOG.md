@@ -40,6 +40,9 @@ The format is based on Keep a Changelog and the project follows semantic version
 - A start that Redisson's JCache provider stopped says why and names `spring.cache.type=caffeine`.
 - The start names Redis Cluster at ERROR, which this release does not support, and, in standalone, that a restart ends a
   BLOCK and a CHALLENGE in force.
+- **No request reads as undecided while an ended ESCALATE is being replaced.** Concurrent readers of an ESCALATE past its
+  time could answer PENDING_ANALYSIS: one found no analysis, another wrote the replacement, and the first then met the
+  new last-verified record. The replacement now answers them too, in both repositories.
 - **`@EnableAISecurity` can stand on any configuration class.** Declared on the class that also declares the application's
   `PlatformConfig`, or on one parsed before it, the application stopped at start with two `PlatformConfig` beans. The
   application's configuration classes are now parsed first, so every conditional bean of Contexa's configuration gives way
