@@ -24,6 +24,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
@@ -33,6 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -100,6 +102,18 @@ class SecurityPlaneAgentStartTest {
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("not running");
         }
+    }
+
+    /** With lazy initialization only Spring Boot's lookup of the runners makes the agent: it has to stay a runner. */
+    @Test
+    @DisplayName("the agent is still found as a runner, which makes it in an application with lazy initialization")
+    void theAgentStaysARunner() throws Exception {
+        SecurityPlaneAgent agent = agent(true);
+        agent.initialize();
+
+        ((CommandLineRunner) agent).run();
+
+        assertThatCode(() -> batchProcessor().processBatch(firstEvent())).doesNotThrowAnyException();
     }
 
     /** Spring Boot's web server opens as a lifecycle bean, once every singleton exists. */
