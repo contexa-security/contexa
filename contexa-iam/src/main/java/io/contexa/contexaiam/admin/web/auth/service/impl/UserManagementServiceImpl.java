@@ -285,6 +285,10 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     private UserListDto toUserListDto(Users user) {
         UserListDto dto = modelMapper.map(user, UserListDto.class);
+        // PR-27: a copy of an application's user is named by a hash; the application's name for the user is what reads.
+        if (user.isBridgeManaged() && StringUtils.hasText(user.getExternalSubjectId())) {
+            dto.setUsername(user.getExternalSubjectId());
+        }
         dto.setGroupCount(user.getUserGroups() != null ? user.getUserGroups().size() : 0);
         long roleCount = user.getRoleNames().stream().distinct().count();
         dto.setRoleCount((int) roleCount);

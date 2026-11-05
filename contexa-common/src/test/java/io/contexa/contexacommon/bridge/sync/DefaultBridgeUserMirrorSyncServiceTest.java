@@ -21,6 +21,7 @@ import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.BridgeUserProfileRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
+import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationEffect;
@@ -358,6 +359,66 @@ class DefaultBridgeUserMirrorSyncServiceTest {
         assertThat(savedUser.getBridgeSubjectKey()).isEqualTo("brg_" + sha256("SESSION|GLOBAL|USR002"));
         verify(userRepository).findByExternalSubjectIdAndAuthenticationSourceAndOrganizationIdIsNull("USR002", "SESSION");
         verify(userRepository, never()).findByExternalSubjectIdAndAuthenticationSourceAndOrganizationId(anyString(), anyString(), eq("tenant-only"));
+    }
+
+    /** PR-27: where Contexa owns the sign-in, its own user got a second row named by a hash, and N users made 2N rows. */
+    @Test
+    void anAccountOfContexaGetsNoCopyWhereContexaOwnsTheSignIn() {
+        UserRepository userRepository = mock(UserRepository.class);
+        DefaultBridgeUserMirrorSyncService service = serviceOf(userRepository, SecurityOwnershipMode.CONTEXA_OWNED);
+        when(userRepository.findOwnAccountId("USR001")).thenReturn(Optional.of(7L));
+        savesWhatItIsGiven(userRepository);
+
+        BridgeUserMirrorSyncResult result = service.sync(authenticationStamp(), authorizationStamp(), requestContext());
+
+        verify(userRepository, never()).save(any(Users.class));
+        assertThat(result.internalUserId()).as("what reads the subject of the request reads the account").isEqualTo(7L);
+        assertThat(result.internalUsername()).isEqualTo("USR001");
+        assertThat(result.bridgeManaged()).isFalse();
+    }
+
+    @Test
+    void aSignedInUserContexaHasNoAccountForKeepsItsCopyWhereContexaOwnsTheSignIn() {
+        UserRepository userRepository = mock(UserRepository.class);
+        DefaultBridgeUserMirrorSyncService service = serviceOf(userRepository, SecurityOwnershipMode.CONTEXA_OWNED);
+        savesWhatItIsGiven(userRepository);
+
+        assertThat(service.sync(authenticationStamp(), authorizationStamp(), requestContext())).isNotNull();
+
+        verify(userRepository).save(any(Users.class));
+    }
+
+    /** The application's user of a Contexa account's name is another person: only the copy is ever matched to it. */
+    @Test
+    void anApplicationUserKeepsItsCopyWhereTheApplicationOwnsTheSignIn() {
+        UserRepository userRepository = mock(UserRepository.class);
+        DefaultBridgeUserMirrorSyncService service = serviceOf(userRepository, SecurityOwnershipMode.HOST_OWNED);
+        when(userRepository.findOwnAccountId("USR001")).thenReturn(Optional.of(7L));
+        savesWhatItIsGiven(userRepository);
+
+        assertThat(service.sync(authenticationStamp(), authorizationStamp(), requestContext()).bridgeManaged()).isTrue();
+
+        verify(userRepository).save(any(Users.class));
+    }
+
+    private static DefaultBridgeUserMirrorSyncService serviceOf(UserRepository userRepository, SecurityOwnershipMode ownership) {
+        BridgeUserProfileRepository profiles = mock(BridgeUserProfileRepository.class);
+        BridgeProperties properties = new BridgeProperties();
+        properties.setOwnership(ownership);
+        when(profiles.findById(anyLong())).thenReturn(Optional.empty());
+        when(profiles.save(any(BridgeUserProfile.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        return new DefaultBridgeUserMirrorSyncService(userRepository, profiles, properties, new ObjectMapper(), null);
+    }
+
+    private static void savesWhatItIsGiven(UserRepository userRepository) {
+        when(userRepository.findByBridgeSubjectKey(anyString())).thenReturn(Optional.empty());
+        when(userRepository.findByExternalSubjectIdAndAuthenticationSourceAndOrganizationId(anyString(), anyString(), anyString()))
+                .thenReturn(Optional.empty());
+        when(userRepository.save(any(Users.class))).thenAnswer(invocation -> {
+            Users user = invocation.getArgument(0);
+            user.setId(100L);
+            return user;
+        });
     }
 
     private String extractSyncHash(

@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.entity.BridgeUserProfile;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.BridgeUserProfileRepository;
+import io.contexa.contexacommon.operating.OwnershipBehaviour;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
@@ -107,6 +108,11 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
             return null;
         }
 
+        Optional<Long> ownAccount = ownAccount(externalSubjectId);
+        if (ownAccount.isPresent()) {
+            return new BridgeUserMirrorSyncResult(ownAccount.get(), externalSubjectId, externalSubjectId, null, false, false, false, false);
+        }
+
         String authenticationSource = fit(firstText(
                 authenticationStamp.authenticationSource(),
                 attribute(authenticationStamp.attributes(), "authenticationSource", "authSource", "sourceSystem"),
@@ -154,6 +160,17 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
                 created,
                 updated || profileUpdated
         );
+    }
+
+    /**
+     * PR-27: where Contexa owns the sign-in the user signed in with one of Contexa's accounts, which is the record of the
+     * user. A copy made a second row of the same person. Where the application owns the sign-in a name says nothing: the
+     * application's user is matched to its copy only, never to a Contexa account of the same name.
+     */
+    private Optional<Long> ownAccount(String subject) {
+        return bridgeProperties.ownershipBehaviour() == OwnershipBehaviour.CONTEXA_OWNED
+                ? userRepository.findOwnAccountId(subject)
+                : Optional.empty();
     }
 
     private Optional<Users> resolveUser(

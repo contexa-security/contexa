@@ -40,6 +40,10 @@ public interface UserRepository extends JpaRepository<Users, Long> {
 
     Optional<Users> findByBridgeSubjectKey(String bridgeSubjectKey);
 
+    /** The id of the account of this name, when it is one of Contexa's own and not a bridge copy of a user signed in elsewhere. */
+    @Query("SELECT u.id FROM Users u WHERE u.username = :username AND u.bridgeManaged = false")
+    Optional<Long> findOwnAccountId(@Param("username") String username);
+
     /** Bridge mirror users of one authenticated principal, across authentication sources and organizations. */
     List<Users> findByExternalSubjectIdAndBridgeManagedTrue(String externalSubjectId);
 
