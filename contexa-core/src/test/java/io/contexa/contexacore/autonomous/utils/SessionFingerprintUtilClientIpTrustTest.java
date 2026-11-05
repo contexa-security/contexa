@@ -149,4 +149,38 @@ class SessionFingerprintUtilClientIpTrustTest {
 
         assertThat(SessionFingerprintUtil.extractClientIp(request(PROXY_IP, CLIENT_IP))).isEqualTo(CLIENT_IP);
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"10.0.0.5", "172.16.0.1", "192.168.1.1", "127.0.0.1", "169.254.1.1", "::1", "fc00::1", "fe80::1",
+            "fe80::1%eth0", "::ffff:10.0.0.5", "::ffff:127.0.0.1"})
+    @DisplayName("A private, link-local or loopback peer that sends the header may be a proxy nobody named")
+    void aPrivatePeerMayBeAnUnnamedProxy(String peer) {
+        assertThat(SessionFingerprintUtil.forwardedWithoutTrustedProxy(request(peer, CLIENT_IP))).isTrue();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"203.0.113.7", "8.8.8.8", "2001:db8::1", "::ffff:203.0.113.7", "::10.0.0.1", "not-an-address"})
+    @DisplayName("A public peer that sends the header is a client: the header alone proves nothing")
+    void aPublicPeerIsAClient(String peer) {
+        assertThat(SessionFingerprintUtil.forwardedWithoutTrustedProxy(request(peer, CLIENT_IP))).isFalse();
+    }
+
+    @Test
+    @DisplayName("Without the header, or with proxies named, the address is in no doubt")
+    void nothingLeavesTheAddressInDoubt() {
+        assertThat(SessionFingerprintUtil.forwardedWithoutTrustedProxy(null)).isFalse();
+        assertThat(SessionFingerprintUtil.forwardedWithoutTrustedProxy(request(PROXY_IP, null))).isFalse();
+
+        bindTrustedProxies("192.0.2.1");
+
+        assertThat(SessionFingerprintUtil.forwardedWithoutTrustedProxy(request(PROXY_IP, CLIENT_IP))).isFalse();
+    }
+
+    @Test
+    @DisplayName("With the proxy validation turned off the header is believed, and no peer is in doubt")
+    void validationOffLeavesNoDoubt() {
+        bindTrustedProxies().getSecurity().setTrustedProxyValidationEnabled(false);
+
+        assertThat(SessionFingerprintUtil.forwardedWithoutTrustedProxy(request(PROXY_IP, CLIENT_IP))).isFalse();
+    }
 }

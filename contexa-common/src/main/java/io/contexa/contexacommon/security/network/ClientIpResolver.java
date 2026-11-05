@@ -20,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
@@ -84,6 +85,84 @@ public final class ClientIpResolver {
             }
         }
         return request.getRemoteAddr();
+    }
+
+    /**
+     * Whether the address is one nobody on the internet connects from: loopback, a private range (10/8, 172.16/12,
+     * 192.168/16, fc00::/7) or link-local (169.254/16, fe80::/10). An IPv4 address mapped into IPv6 counts as the address
+     * it is. Whatever is no plain address counts as public, and no name is ever looked up.
+     */
+    public static boolean isPrivateOrLoopback(String address) {
+        byte[] bytes = addressBytes(address);
+        if (bytes == null) {
+            return false;
+        }
+        return bytes.length == 4 ? isPrivateIpv4(bytes) : isPrivateIpv6(bytes);
+    }
+
+    private static boolean isPrivateIpv4(byte[] bytes) {
+        int first = bytes[0] & 0xFF;
+        int second = bytes[1] & 0xFF;
+        return first == 127 || first == 10 || (first == 172 && second >= 16 && second <= 31)
+                || (first == 192 && second == 168) || (first == 169 && second == 254);
+    }
+
+    private static boolean isPrivateIpv6(byte[] bytes) {
+        int first = bytes[0] & 0xFF;
+        int second = bytes[1] & 0xFF;
+        return (first & 0xFE) == 0xFC || (first == 0xFE && (second & 0xC0) == 0x80) || isIpv6Loopback(bytes);
+    }
+
+    private static boolean isIpv6Loopback(byte[] bytes) {
+        for (int index = 0; index < bytes.length - 1; index++) {
+            if (bytes[index] != 0) {
+                return false;
+            }
+        }
+        return bytes[bytes.length - 1] == 1;
+    }
+
+    /** The bytes of a plain address, or null. An IPv6 address reaches the parser only in a shape it never resolves. */
+    private static byte[] addressBytes(String address) {
+        if (address == null) {
+            return null;
+        }
+        String literal = address.trim();
+        if (IPV4_ADDRESS.matcher(literal).matches()) {
+            return ipv4Bytes(literal);
+        }
+        if (literal.startsWith("[") && literal.endsWith("]")) {
+            literal = literal.substring(1, literal.length() - 1);
+            if (!literal.contains(":")) {
+                return null;
+            }
+        }
+        int zone = literal.indexOf('%');
+        if (zone >= 0 && literal.contains(":")) {
+            literal = literal.substring(0, zone);
+        }
+        if (literal.startsWith(".") || !IPV6_ADDRESS.matcher(literal).matches()) {
+            return null;
+        }
+        try {
+            return InetAddress.getByName(literal).getAddress();
+        } catch (UnknownHostException e) {
+            return null;
+        }
+    }
+
+    /** The four decimal numbers of an address; a leading zero reads as octal elsewhere, so it is no plain address. */
+    private static byte[] ipv4Bytes(String literal) {
+        String[] parts = literal.split("\\.");
+        byte[] bytes = new byte[parts.length];
+        for (int index = 0; index < parts.length; index++) {
+            int value = Integer.parseInt(parts[index]);
+            if (value > 255 || (parts[index].length() > 1 && parts[index].charAt(0) == '0')) {
+                return null;
+            }
+            bytes[index] = (byte) value;
+        }
+        return bytes;
     }
 
     public static boolean isTrustedProxy(String ip, List<String> trustedProxies) {

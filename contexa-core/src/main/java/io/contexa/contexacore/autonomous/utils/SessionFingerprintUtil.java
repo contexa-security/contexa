@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.utils;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.bridge.AgentSessionKey;
+import io.contexa.contexacommon.security.network.ClientIpResolver;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -235,6 +236,11 @@ public class SessionFingerprintUtil {
      * proxy is trusted, so the peer may well be that proxy and every user behind it has this one address. With proxies
      * named, a peer outside them is a client and its header proves nothing; with the validation off the header is
      * believed anyway. Neither leaves the address in doubt.
+     * <p>
+     * The header alone proves nothing, as anyone can send it. Only a peer on a private network, a link-local address or the
+     * machine itself can be such a proxy here: nobody on the internet connects from those addresses, and the socket's
+     * address cannot be forged. A public peer that sends the header is taken for what it is, a client. A peer this answers
+     * true for may still be a client on that network, so the answer may ease a limit of the address and never lift one.
      */
     public static boolean forwardedWithoutTrustedProxy(@Nullable HttpServletRequest request) {
         if (request == null || request.getHeader("X-Forwarded-For") == null) {
@@ -242,7 +248,8 @@ public class SessionFingerprintUtil {
         }
         TieredStrategyProperties.Security security = clientIpSecurity();
         return security.isTrustedProxyValidationEnabled()
-                && (security.getTrustedProxies() == null || security.getTrustedProxies().isEmpty());
+                && (security.getTrustedProxies() == null || security.getTrustedProxies().isEmpty())
+                && ClientIpResolver.isPrivateOrLoopback(request.getRemoteAddr());
     }
 
     /**

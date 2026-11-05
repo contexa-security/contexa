@@ -186,10 +186,15 @@ The format is based on Keep a Changelog and the project follows semantic version
   from the console. Under `CONTEXA_OWNED` the same rule reads the shared account, and its own record takes another
   administrator.
 - A BLOCK decided over a CHALLENGE that other sessions still held could be lifted through the CHALLENGE release. It stays.
-- **Behind a proxy nobody named, one person's typing no longer stops everyone.** When requests carry `X-Forwarded-For` and
-  `contexa.security.tiered.security.trusted-proxies` is empty, the address limit of sign-ins is not applied and an ERROR
-  names the setting. The lock of each account works as before. **Set the setting if you run behind a proxy**: until you do,
-  no address limit applies, and a client that adds the header itself escapes it too.
+- **Behind a proxy nobody named, one person's typing no longer stops everyone, and a forged header escapes nothing.** A
+  sign-in is counted against the address it connected from, whatever `X-Forwarded-For` says, and the header never switches
+  the address limit off or lifts a block of it. When a request carries the header,
+  `contexa.security.tiered.security.trusted-proxies` is empty and the connection comes from a private range, a link-local
+  address or the machine itself, that address may be a proxy with everyone behind it, so its limit is ten times the
+  policy's and an ERROR names the setting. A connection from a public address, and any connection without the header, keeps
+  the plain limit on the same count, so sending the header now and then gains nothing. The lock of each account works as
+  before. **Set the setting if you run behind a proxy**: until you do, all users behind it share one count and one block,
+  and anyone on that network who adds the header gets the ten times too.
 - **A model outage no longer locks users out for half an hour.** A CHALLENGE no model decided (the analysis failed: an
   HTTP error, an empty or unreadable answer, a time-out) is marked, lasts 60 seconds instead of 30 minutes and gives way
   to what the model decides next. While it lasts the model is asked again about the same request, every 10 seconds, at
