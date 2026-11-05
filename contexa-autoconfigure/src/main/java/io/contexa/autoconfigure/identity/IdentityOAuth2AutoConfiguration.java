@@ -58,6 +58,7 @@ import io.contexa.contexaidentity.security.handler.logout.SessionLogoutStrategy;
 import io.contexa.contexaidentity.security.handler.logout.ZeroTrustLogoutStrategy;
 import io.contexa.contexaidentity.security.statemachine.core.service.MfaStateMachineService;
 import io.contexa.contexaidentity.security.handler.oauth2.OAuth2TokenSuccessHandler;
+import io.contexa.contexaidentity.security.token.service.AccountTokenGuard;
 import io.contexa.contexaidentity.security.token.service.OAuth2TokenService;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportStrategy;
@@ -86,6 +87,7 @@ import java.util.stream.Collectors;
 import java.util.UUID;
 import javax.sql.DataSource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
@@ -100,6 +102,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.jackson2.SecurityJackson2Modules;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
@@ -145,6 +148,7 @@ import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexacore.security.ContexaUserStore;
 import io.contexa.contexacommon.jdbc.LibraryTableNames;
 
 @Slf4j
@@ -474,16 +478,28 @@ public class IdentityOAuth2AutoConfiguration {
      * customizer below. An application that declares its own generator adds those claims itself.
      */
 
+    /** What a person's token answers to at its renewal: the account as it is now, and the decision in force. */
+    @Bean(name = "contexaAccountTokenGuard")
+    @ConditionalOnMissingBean(AccountTokenGuard.class)
+    public AccountTokenGuard accountTokenGuard(BeanFactory beanFactory,
+                                               ObjectProvider<ZeroTrustActionRepository> zeroTrustActions) {
+        return new AccountTokenGuard(() -> ContexaUserStore.of(beanFactory),
+                () -> zeroTrustEnforcing() ? zeroTrustActions.getIfAvailable() : null);
+    }
+
     @Bean(name = "contexaTokenCustomizer")
     @ConditionalOnMissingBean(OAuth2TokenCustomizer.class)
     public OAuth2TokenCustomizer<JwtEncodingContext> tokenCustomizer(
             ObjectProvider<DelegationRegistry> delegationRegistry,
-            ObjectProvider<AgentClientDirectory> agentClientDirectory) {
+            ObjectProvider<AgentClientDirectory> agentClientDirectory,
+            ObjectProvider<AccountTokenGuard> accountGuard) {
 
         return context -> {
 
             // docs/agent A5-3: a suspended agent gets no token, for itself or for a person.
             refuseSuspendedAgent(context, agentClientDirectory.getIfAvailable());
+
+            UserDetails renewedAccount = renewedAccount(context, accountGuard.getIfAvailable());
 
             // docs/agent F-2: a delegation the person (or Contexa's stop) revoked ends the agent's exchange for them.
             if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())
@@ -538,19 +554,37 @@ public class IdentityOAuth2AutoConfiguration {
             }
             LoginFactClaims.writeClaims(loginFacts, (name, value) -> context.getClaims().claim(name, value));
 
-            if (context.getPrincipal() != null) {
-                var authorities = context.getPrincipal().getAuthorities();
-                if (authorities != null && !authorities.isEmpty()) {
-                    List<String> roles = authorities.stream()
-                            .map(grantedAuthority -> {
-                                String auth = grantedAuthority.getAuthority();
-                                return auth.startsWith("ROLE_") ? auth.substring(5) : auth;
-                            })
-                            .collect(Collectors.toList());
-                    context.getClaims().claim("roles", roles);
-                }
+            List<String> roles = renewedAccount != null
+                    ? AccountTokenGuard.rolesClaim(renewedAccount, context.getAuthorizedScopes())
+                    : principalRoles(context.getPrincipal());
+            if (!roles.isEmpty()) {
+                context.getClaims().claim(AccountTokenGuard.ROLES_CLAIM, roles);
             }
         };
+    }
+
+    /**
+     * The account a token being refreshed answers to, as it is now, or a refusal. Spring refreshes with the principal stored
+     * at the sign-in, whatever became of the account since; null for a token of any other grant.
+     */
+    private static UserDetails renewedAccount(JwtEncodingContext context, AccountTokenGuard guard) {
+        if (guard == null || context.getAuthorization() == null
+                || !AuthorizationGrantType.REFRESH_TOKEN.equals(context.getAuthorizationGrantType())) {
+            return null;
+        }
+        return guard.admitRenewal(context.getAuthorization().getPrincipalName());
+    }
+
+    private static List<String> principalRoles(Authentication principal) {
+        if (principal == null || principal.getAuthorities() == null) {
+            return List.of();
+        }
+        return principal.getAuthorities().stream()
+                .map(grantedAuthority -> {
+                    String auth = grantedAuthority.getAuthority();
+                    return auth.startsWith("ROLE_") ? auth.substring(5) : auth;
+                })
+                .collect(Collectors.toList());
     }
 
     /** The claim naming the delegation a token exchanged for an agent runs under (the bridge reads it by default). */
@@ -660,7 +694,8 @@ public class IdentityOAuth2AutoConfiguration {
             OAuth2AuthorizationService contexaAuthorizationService,
             TokenValidator contexaOauth2TokenValidator,
             @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
-            ObjectProvider<ZeroTrustActionRepository> zeroTrustActionRepositoryProvider) {
+            ObjectProvider<ZeroTrustActionRepository> zeroTrustActionRepositoryProvider,
+            ObjectProvider<AccountTokenGuard> accountGuard) {
 
         TokenTransportStrategy transport = TokenTransportStrategyFactory.create(authContextProperties);
 
@@ -673,6 +708,7 @@ public class IdentityOAuth2AutoConfiguration {
                 objectMapper,
                 transport);
         tokenService.setZeroTrustActionRepository(zeroTrustActionRepositoryProvider.getIfAvailable());
+        tokenService.setAccountGuard(accountGuard.getIfAvailable());
         return tokenService;
     }
 

@@ -33,6 +33,7 @@ import io.contexa.contexaidentity.security.core.adapter.state.oauth2.OAuth2State
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.client.InProcessOAuth2TokenEndpoint;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.AuthenticatedUserGrantAuthenticationToken;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
+import io.contexa.contexaidentity.security.token.service.AccountTokenGuard;
 import io.contexa.contexaidentity.security.token.wrapper.OAuth2TokenRequestWrapper;
 import io.contexa.contexaidentity.security.utils.JsonAuthResponseWriter;
 import jakarta.servlet.FilterChain;
@@ -286,8 +287,9 @@ class OAuth2IssuerAgreementTest {
         @Bean
         OAuth2TokenCustomizer<JwtEncodingContext> tokenCustomizer(IdentityOAuth2AutoConfiguration contexaOAuth2,
                                                                   ObjectProvider<DelegationRegistry> delegations,
-                                                                  ObjectProvider<AgentClientDirectory> agents) {
-            return contexaOAuth2.tokenCustomizer(delegations, agents);
+                                                                  ObjectProvider<AgentClientDirectory> agents,
+                                                                  ObjectProvider<AccountTokenGuard> accountGuard) {
+            return contexaOAuth2.tokenCustomizer(delegations, agents, accountGuard);
         }
 
         @Bean("contexaOauth2TokenSuccessHandler")

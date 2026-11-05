@@ -46,6 +46,7 @@ import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.config.StateConfig;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcessingOptions;
+import io.contexa.contexaidentity.security.token.service.AccountTokenGuard;
 import io.contexa.contexaidentity.security.token.wrapper.OAuth2TokenRequestWrapper;
 import io.contexa.contexaidentity.security.utils.JsonAuthResponseWriter;
 import jakarta.servlet.FilterChain;
@@ -380,8 +381,9 @@ class OAuth2TokenChainIntegrationTest {
         @Bean
         OAuth2TokenCustomizer<JwtEncodingContext> tokenCustomizer(IdentityOAuth2AutoConfiguration contexaOAuth2,
                                                                   ObjectProvider<DelegationRegistry> delegations,
-                                                                  ObjectProvider<AgentClientDirectory> agents) {
-            return contexaOAuth2.tokenCustomizer(delegations, agents);
+                                                                  ObjectProvider<AgentClientDirectory> agents,
+                                                                  ObjectProvider<AccountTokenGuard> accountGuard) {
+            return contexaOAuth2.tokenCustomizer(delegations, agents, accountGuard);
         }
 
         @Bean
@@ -442,7 +444,7 @@ class OAuth2TokenChainIntegrationTest {
 
         @Bean(name = "contexaObjectMapper")
         ObjectMapper objectMapper() {
-            return new ObjectMapper();
+            return new ObjectMapper().findAndRegisterModules();
         }
 
         @Bean

@@ -37,13 +37,17 @@ import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.oauth2.jwt.Jwt;
+import io.contexa.contexacommon.domain.UserDto;
+import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -78,61 +82,99 @@ class OAuth2JwtAuthenticationConverterTest {
     }
 
     @Test
-    void convert_shouldExtractAuthoritiesFromRolesClaim() {
-        Jwt jwt = buildJwt("user1", "roles", List.of("ADMIN", "USER"));
-        stubUserDetails("user1", List.of());
+    void aRoleTakenFromTheAccountStaysOutOfATokenThatStillNamesIt() {
+        Jwt jwt = userJwt("user1", "read", "roles", List.of("ADMIN", "USER", "SCOPE_read"));
+        stubUserDetails("user1", List.of(new SimpleGrantedAuthority("ROLE_USER")));
 
-        AbstractAuthenticationToken token = converter.convert(jwt);
-
-        assertThat(token).isNotNull();
-        Collection<String> authorityStrings = extractAuthorityStrings(token);
-        assertThat(authorityStrings).contains("ROLE_ADMIN", "ROLE_USER");
+        assertThat(extractAuthorityStrings(converter.convert(jwt))).containsExactlyInAnyOrder("ROLE_USER", "SCOPE_read");
     }
 
     @Test
-    void convert_shouldAddRolePrefixWhenMissing() {
-        Jwt jwt = buildJwt("user1", "roles", List.of("MANAGER"));
-        stubUserDetails("user1", List.of());
-
-        AbstractAuthenticationToken token = converter.convert(jwt);
-
-        Collection<String> authorityStrings = extractAuthorityStrings(token);
-        assertThat(authorityStrings).contains("ROLE_MANAGER");
-    }
-
-    @Test
-    void convert_shouldNotDuplicateRolePrefix() {
+    void aRoleClaimWrittenWithItsPrefixAddsNothingEither() {
         Jwt jwt = buildJwt("user1", "roles", List.of("ROLE_ADMIN"));
         stubUserDetails("user1", List.of());
 
-        AbstractAuthenticationToken token = converter.convert(jwt);
-
-        Collection<String> authorityStrings = extractAuthorityStrings(token);
-        assertThat(authorityStrings).contains("ROLE_ADMIN");
-        // Should not contain ROLE_ROLE_ADMIN
-        assertThat(authorityStrings).doesNotContain("ROLE_ROLE_ADMIN");
+        assertThat(extractAuthorityStrings(converter.convert(jwt))).isEmpty();
     }
 
     @Test
-    void convert_shouldExtractFromAuthoritiesClaim_whenNoRoles() {
+    void anAuthoritiesClaimAddsNothingTheAccountDoesNotHold() {
         Jwt jwt = buildJwt("user1", "authorities", List.of("READ_PRIVILEGE", "WRITE_PRIVILEGE"));
+        stubUserDetails("user1", List.of(new SimpleGrantedAuthority("READ_PRIVILEGE")));
+
+        assertThat(extractAuthorityStrings(converter.convert(jwt))).containsExactly("READ_PRIVILEGE");
+    }
+
+    @Test
+    void aScopeNamedInARoleClaimIsNoScope() {
+        Jwt jwt = buildJwt("user1", "authorities", List.of("SCOPE_admin"));
         stubUserDetails("user1", List.of());
 
-        AbstractAuthenticationToken token = converter.convert(jwt);
-
-        Collection<String> authorityStrings = extractAuthorityStrings(token);
-        assertThat(authorityStrings).contains("READ_PRIVILEGE", "WRITE_PRIVILEGE");
+        assertThat(extractAuthorityStrings(converter.convert(jwt))).isEmpty();
     }
 
     @Test
-    void convert_shouldMergeUserDetailsAuthorities() {
-        Jwt jwt = buildJwt("user1", "roles", List.of("ADMIN"));
-        stubUserDetails("user1", List.of(new SimpleGrantedAuthority("SCOPE_read")));
+    void theAccountsAuthoritiesAndTheTokensScopesMakeTheAuthentication() {
+        Jwt jwt = userJwt("user1", "read reports.write", "roles", List.of("USER"));
+        stubUserDetails("user1", List.of(new SimpleGrantedAuthority("ROLE_USER"), new SimpleGrantedAuthority("ORDER_READ")));
 
-        AbstractAuthenticationToken token = converter.convert(jwt);
+        assertThat(extractAuthorityStrings(converter.convert(jwt)))
+                .containsExactlyInAnyOrder("ROLE_USER", "ORDER_READ", "SCOPE_read", "SCOPE_reports.write");
+    }
 
-        Collection<String> authorityStrings = extractAuthorityStrings(token);
-        assertThat(authorityStrings).contains("ROLE_ADMIN", "SCOPE_read");
+    @Test
+    void theAccountIsReadForEveryRequest() {
+        Jwt jwt = userJwt("user1", "read", "roles", List.of("ADMIN"));
+        stubUserDetails("user1", List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+        assertThat(extractAuthorityStrings(converter.convert(jwt))).contains("ROLE_ADMIN");
+
+        stubUserDetails("user1", List.of());
+
+        assertThat(extractAuthorityStrings(converter.convert(jwt))).containsExactly("SCOPE_read");
+    }
+
+    @Test
+    void aDisabledAccountsTokenIsRefusedAsItsSessionWouldEnd() {
+        when(userDetailsService.loadUserByUsername("user1")).thenReturn(account(false, false, false));
+
+        assertThatThrownBy(() -> converter.convert(userJwt("user1", "read", "roles", List.of("USER"))))
+                .isInstanceOf(InvalidBearerTokenException.class);
+    }
+
+    @Test
+    void anApplicationsDisabledUserIsRefusedToo() {
+        when(userDetailsService.loadUserByUsername("user1"))
+                .thenReturn(User.withUsername("user1").password("{noop}x").disabled(true).build());
+
+        assertThatThrownBy(() -> converter.convert(userJwt("user1", "read", "roles", List.of("USER"))))
+                .isInstanceOf(InvalidBearerTokenException.class);
+    }
+
+    /** UserDetails.isEnabled() is false for such an account, so that it cannot sign in with a password here. */
+    @Test
+    void anAccountThatSignsInElsewhereOnlyIsNoDisabledAccount() {
+        when(userDetailsService.loadUserByUsername("user1")).thenReturn(account(true, true, false));
+
+        assertThat(extractAuthorityStrings(converter.convert(userJwt("user1", "read", "roles", List.of("USER")))))
+                .containsExactlyInAnyOrder("ROLE_USER", "SCOPE_read");
+    }
+
+    /** Failed passwords lock an account: anyone can do that to a user, so it ends no token that is out, as no session. */
+    @Test
+    void aLockedAccountsTokenGoesOnAsItsSessionDoes() {
+        when(userDetailsService.loadUserByUsername("user1")).thenReturn(account(true, false, true));
+
+        assertThat(extractAuthorityStrings(converter.convert(userJwt("user1", "read", "roles", List.of("USER")))))
+                .containsExactlyInAnyOrder("ROLE_USER", "SCOPE_read");
+    }
+
+    /** An identity provider's token: its roles were never read without an account, and still are not. */
+    @Test
+    void aForeignTokenWithRoleClaimsAndNoAccountIsRefused() {
+        when(userDetailsService.loadUserByUsername("someone")).thenThrow(new UsernameNotFoundException("none"));
+
+        assertThatThrownBy(() -> converter.convert(userJwt("someone", "read", "roles", List.of("ADMIN"))))
+                .isInstanceOf(UsernameNotFoundException.class);
     }
 
     @Test
@@ -252,6 +294,23 @@ class OAuth2JwtAuthenticationConverterTest {
 
     // -- helper methods --
 
+    private static UnifiedCustomUserDetails account(boolean enabled, boolean externalAuthOnly, boolean locked) {
+        return new UnifiedCustomUserDetails(UserDto.builder().id(1L).username("user1").password("{noop}x").enabled(enabled)
+                .externalAuthOnly(externalAuthOnly).accountLocked(locked).build(),
+                Set.of(new SimpleGrantedAuthority("ROLE_USER")));
+    }
+
+    private Jwt userJwt(String subject, String scope, String claimName, List<String> claimValues) {
+        return Jwt.withTokenValue("token")
+                .header("alg", "RS256")
+                .subject(subject)
+                .claim("scope", scope)
+                .claim(claimName, claimValues)
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(300))
+                .build();
+    }
+
     private Jwt buildJwt(String subject, String claimName, List<String> claimValues) {
         return Jwt.withTokenValue("token")
                 .header("alg", "RS256")
@@ -296,6 +355,7 @@ class OAuth2JwtAuthenticationConverterTest {
     @SuppressWarnings("unchecked")
     private void stubUserDetails(String username, List<? extends GrantedAuthority> authorities) {
         when(userDetailsService.loadUserByUsername(username)).thenReturn(userDetails);
+        when(userDetails.isEnabled()).thenReturn(true);
         when(userDetails.getAuthorities()).thenReturn((Collection) authorities);
     }
 

@@ -18,6 +18,7 @@ package io.contexa.autoconfigure.identity;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.AuthenticatedUserGrantAuthenticationToken;
+import io.contexa.contexaidentity.security.token.service.AccountTokenGuard;
 import io.contexa.contexaidentity.security.token.service.OAuth2TokenService;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.token.validator.TokenValidator;
@@ -33,6 +34,8 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
@@ -59,6 +62,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -148,6 +153,37 @@ class InternalTokenRefreshTest {
     }
 
     @Test
+    @DisplayName("An access token that is still valid but names a role the account lost is replaced through the grant")
+    void validAccessTokenBeyondTheAccountIsReplaced() {
+        storeAuthorization("refresh-alice", Instant.now(), List.of("ADMIN", "SCOPE_read"));
+        tokenService.setAccountGuard(guardOf("USER"));
+
+        TokenService.RefreshResult result = tokenService.refresh("refresh-alice");
+
+        assertThat(tokenEndpoint.lastGrantType).isEqualTo("refresh_token");
+        assertThat(tokenEndpoint.lastRefreshToken).isEqualTo("refresh-alice");
+        assertThat(result.accessToken()).startsWith("access-refreshed-");
+        assertThat(result.refreshToken()).startsWith("refresh-rotated-");
+    }
+
+    @Test
+    @DisplayName("An access token that is still valid and in step with the account is kept as before")
+    void validAccessTokenInStepWithTheAccountIsKept() {
+        storeAuthorization("refresh-alice", Instant.now(), List.of("USER", "SCOPE_read"));
+        tokenService.setAccountGuard(guardOf("USER"));
+
+        TokenService.RefreshResult result = tokenService.refresh("refresh-alice");
+
+        assertThat(tokenEndpoint.calls.get()).isZero();
+        assertThat(result.accessToken()).isEqualTo("stored-access-refresh-alice");
+    }
+
+    private static AccountTokenGuard guardOf(String... roles) {
+        UserDetails account = User.withUsername("alice").password("{noop}x").roles(roles).build();
+        return new AccountTokenGuard(() -> username -> account, () -> null);
+    }
+
+    @Test
     @DisplayName("The error of the token endpoint reaches the caller with its OAuth2 error code")
     void tokenEndpointErrorIsPropagated() {
         storeAuthorization("revoked", Instant.now().minus(2, ChronoUnit.HOURS));
@@ -158,13 +194,19 @@ class InternalTokenRefreshTest {
     }
 
     private void storeAuthorization(String refreshTokenValue, Instant issuedAt) {
+        storeAuthorization(refreshTokenValue, issuedAt, List.of("USER", "SCOPE_read"));
+    }
+
+    private void storeAuthorization(String refreshTokenValue, Instant issuedAt, List<String> rolesClaim) {
+        OAuth2AccessToken accessToken = new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER,
+                "stored-access-" + refreshTokenValue, issuedAt, issuedAt.plus(1, ChronoUnit.HOURS));
         OAuth2Authorization authorization = OAuth2Authorization.withRegisteredClient(registeredClient)
                 .id("authorization-" + refreshTokenValue)
                 .principalName("alice")
                 .authorizationGrantType(AuthenticatedUserGrantAuthenticationToken.AUTHENTICATED_USER)
                 .authorizedScopes(Set.of("read"))
-                .accessToken(new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER,
-                        "stored-access-" + refreshTokenValue, issuedAt, issuedAt.plus(1, ChronoUnit.HOURS)))
+                .token(accessToken, metadata -> metadata.put(OAuth2Authorization.Token.CLAIMS_METADATA_NAME,
+                        Map.of("roles", rolesClaim)))
                 .refreshToken(new OAuth2RefreshToken(refreshTokenValue, issuedAt, issuedAt.plus(7, ChronoUnit.DAYS)))
                 .build();
         when(authorizationService.findByToken(refreshTokenValue, OAuth2TokenType.REFRESH_TOKEN)).thenReturn(authorization);
