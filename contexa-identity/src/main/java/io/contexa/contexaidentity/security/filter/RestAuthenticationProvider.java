@@ -16,8 +16,8 @@
 package io.contexa.contexaidentity.security.filter;
 
 import io.contexa.contexacommon.security.LocalAccountStatusChecker;
+import io.contexa.contexacommon.security.LocalCredentialsVerifier;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
-import lombok.RequiredArgsConstructor;
 import org.springframework.lang.Nullable;
 import org.springframework.security.authentication.*;
 import org.springframework.security.core.Authentication;
@@ -26,13 +26,17 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-@RequiredArgsConstructor
 public class RestAuthenticationProvider implements AuthenticationProvider {
 
-    private final UserDetailsService userDetailsService;
-    private final PasswordEncoder passwordEncoder;
+    private final LocalCredentialsVerifier credentials;
     @Nullable
     private final LoginPolicyHandler loginPolicyHandler;
+
+    public RestAuthenticationProvider(UserDetailsService userDetailsService, PasswordEncoder passwordEncoder,
+                                      @Nullable LoginPolicyHandler loginPolicyHandler) {
+        this.credentials = new LocalCredentialsVerifier(userDetailsService, passwordEncoder);
+        this.loginPolicyHandler = loginPolicyHandler;
+    }
 
     @Override
     public Authentication authenticate(Authentication authentication) throws AuthenticationException {
@@ -44,13 +48,7 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
             loginPolicyHandler.checkAndUnlockIfExpired(loginId);
         }
 
-        UserDetails userDetails = userDetailsService.loadUserByUsername(loginId);
-
-        LocalAccountStatusChecker.checkBeforeCredentials(userDetails);
-
-        if (!passwordEncoder.matches(password, userDetails.getPassword())) {
-            throw new BadCredentialsException("Invalid password");
-        }
+        UserDetails userDetails = credentials.verify(loginId, password);
 
         boolean policyCredentialsExpired = loginPolicyHandler != null
                 && loginPolicyHandler.isCredentialsExpired(loginId);

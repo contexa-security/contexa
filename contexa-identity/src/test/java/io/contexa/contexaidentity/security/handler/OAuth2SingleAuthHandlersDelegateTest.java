@@ -25,8 +25,10 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 import java.util.List;
 import java.util.Map;
@@ -135,6 +137,21 @@ class OAuth2SingleAuthHandlersDelegateTest {
 
         verify(responseWriter, times(2)).writeErrorResponse(any(), eq(401), anyString(),
                 anyString(), any(), any());
+    }
+
+    @Test
+    void anUnknownUserAWrongPasswordAndALockedAccountGetTheSameAnswer() throws Exception {
+        OAuth2SingleAuthFailureHandler handler = new OAuth2SingleAuthFailureHandler(responseWriter, null);
+
+        handler.onAuthenticationFailure(jsonRequest(), new MockHttpServletResponse(),
+                new UsernameNotFoundException("User not found: ghost"));
+        handler.onAuthenticationFailure(jsonRequest(), new MockHttpServletResponse(),
+                new BadCredentialsException("Invalid password"));
+        handler.onAuthenticationFailure(jsonRequest(), new MockHttpServletResponse(),
+                new LockedException("Account is locked"));
+
+        verify(responseWriter, times(3)).writeErrorResponse(any(), eq(401), eq("AUTHENTICATION_FAILED"),
+                eq("Invalid username or password."), any(), any());
     }
 
     private OAuth2SingleAuthSuccessHandler successHandler() {
