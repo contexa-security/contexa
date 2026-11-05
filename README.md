@@ -41,7 +41,7 @@ The scenario is illustrative: the decision always depends on the context that is
 
 | Decision | Meaning | HTTP status | Valid for |
 |---|---|---|---|
-| `ALLOW` | Continue as usual | 200 | 15 s, then back to pending analysis |
+| `ALLOW` | Continue as usual | 200 | 15 min (`contexa.security.zerotrust.allow-validity`), then back to pending analysis |
 | `CHALLENGE` | Step-up authentication (MFA) is required | 401 | 30 min, or until MFA is passed |
 | `ESCALATE` | Held for review while the analysis settles | 423 | 5 min |
 | `BLOCK` | Refused until an administrator releases it | 403 | Until released |
