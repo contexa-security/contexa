@@ -63,6 +63,16 @@ class HostOwnedSecurityChainDiagnosticsTest {
         });
     }
 
+    /** The setting it used to name is refused at start for this very application (ContexaOperatingProfile). */
+    @Test
+    void advisesWhatThisApplicationCanDo(CapturedOutput output) {
+        runner.withBean("applicationUsers", UserDetailsService.class, () -> mock(UserDetailsService.class)).run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(output).contains("@EnableAISecurity(mode = SecurityMode.FULL)");
+            assertThat(output).doesNotContain("contexa.bridge.ownership");
+        });
+    }
+
     @Test
     void staysSilentWhenTheHostDeclaresItsOwnChain(CapturedOutput output) {
         runner.withUserConfiguration(HostChainConfiguration.class).run(context -> {

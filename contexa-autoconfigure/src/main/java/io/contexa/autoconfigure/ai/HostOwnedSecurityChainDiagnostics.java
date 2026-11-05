@@ -36,8 +36,8 @@ import java.util.List;
  * Reports a host-owned application whose only Spring Security filter chains are the ones Spring Boot
  * creates when no SecurityFilterChain is declared. In HOST_OWNED mode Contexa builds no chain, so such
  * an application runs under Spring Boot's default security, which requires authentication for every
- * request. The host has to declare its own SecurityFilterChain, or set contexa.bridge.ownership to
- * CONTEXA_OWNED so that Contexa owns authentication.
+ * request. The host has to declare its own SecurityFilterChain, or use
+ * {@code @EnableAISecurity(mode = SecurityMode.FULL)} so that Contexa provides the sign-in.
  */
 @Slf4j
 public class HostOwnedSecurityChainDiagnostics implements SmartInitializingSingleton {
@@ -65,8 +65,8 @@ public class HostOwnedSecurityChainDiagnostics implements SmartInitializingSingl
             log.warn("[Contexa] HOST_OWNED mode: no SecurityFilterChain is declared by the application, so Spring Boot's "
                     + "default security is active and every request requires authentication. Contexa does not build "
                     + "a chain in HOST_OWNED mode. Declare the application's own SecurityFilterChain (for example "
-                    + "anyRequest().permitAll() to keep existing legacy access rules), or set "
-                    + "contexa.bridge.ownership=CONTEXA_OWNED to let Contexa own authentication.");
+                    + "anyRequest().permitAll() to keep existing legacy access rules), or use "
+                    + "@EnableAISecurity(mode = SecurityMode.FULL) to let Contexa provide the sign-in.");
         }
     }
 
