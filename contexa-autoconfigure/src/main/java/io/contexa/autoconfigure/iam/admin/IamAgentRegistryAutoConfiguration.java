@@ -503,7 +503,10 @@ public class IamAgentRegistryAutoConfiguration {
     @Bean(name = "contexaAgentConfirmationApiController")
     @ConditionalOnMissingBean
     public AgentConfirmationApiController agentConfirmationApiController(
-            AgentConfirmationService contexaAgentConfirmationService) {
-        return new AgentConfirmationApiController(contexaAgentConfirmationService);
+            AgentConfirmationService contexaAgentConfirmationService, ObjectProvider<AgentCallGuard> agentCallGuard) {
+        AgentConfirmationApiController controller = new AgentConfirmationApiController(contexaAgentConfirmationService);
+        // docs/agent A5-7: an agent's asks count against its call limits, as its other calls do at the gate.
+        controller.setCallGuard(agentCallGuard.getIfAvailable());
+        return controller;
     }
 }

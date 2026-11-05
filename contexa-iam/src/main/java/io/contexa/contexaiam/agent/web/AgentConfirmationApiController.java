@@ -17,12 +17,14 @@ package io.contexa.contexaiam.agent.web;
 
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
+import io.contexa.contexacore.autonomous.agent.AgentCallGuard;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmation;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmationService;
 import io.contexa.contexacore.autonomous.agent.AgentRequestBinding;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.lang.Nullable;
@@ -36,7 +38,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Where an agent follows the confirmation of its request (docs/agent A5-2): it polls the confirmation the gate
@@ -72,9 +76,18 @@ public class AgentConfirmationApiController {
     }
 
     private final AgentConfirmationService confirmations;
+    private AgentCallGuard callGuard;
 
     public AgentConfirmationApiController(AgentConfirmationService confirmations) {
         this.confirmations = confirmations;
+    }
+
+    /**
+     * docs/agent A5-7: the call limits of agents. This path stays out of the gate so that an agent can follow its
+     * confirmation, and every ask of another request tells a person, so an ask counts here as a call counts there.
+     */
+    public void setCallGuard(@Nullable AgentCallGuard callGuard) {
+        this.callGuard = callGuard;
     }
 
     @GetMapping("/{id}")
@@ -91,11 +104,15 @@ public class AgentConfirmationApiController {
     }
 
     @PostMapping
-    public ResponseEntity<ConfirmationStatus> ask(@RequestBody(required = false) ConfirmationAsk ask,
-                                                  Authentication authentication, HttpServletRequest request) {
+    public ResponseEntity<?> ask(@RequestBody(required = false) ConfirmationAsk ask, Authentication authentication,
+                                 HttpServletRequest request) {
         ZeroTrustSubject subject = agent(authentication, request);
         if (subject == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        ResponseEntity<?> slowedDown = pastItsLimit(subject, request);
+        if (slowedDown != null) {
+            return slowedDown;
         }
         if (ask == null || !StringUtils.hasText(ask.method()) || !StringUtils.hasText(ask.target())
                 || !ask.target().startsWith("/")) {
@@ -111,8 +128,31 @@ public class AgentConfirmationApiController {
                         ask.method().trim().toUpperCase(Locale.ROOT), target, AgentConfirmation.REQUESTED,
                         StringUtils.hasText(ask.reason()) ? truncate(ask.reason().trim(), 1000) : null,
                         null, null))
-                .map(confirmation -> ResponseEntity.status(HttpStatus.ACCEPTED).body(ConfirmationStatus.of(confirmation)))
+                .<ResponseEntity<?>>map(confirmation -> ResponseEntity.status(HttpStatus.ACCEPTED)
+                        .body(ConfirmationStatus.of(confirmation)))
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.CONFLICT).build());
+    }
+
+    /** The answer to an ask past the agent's call limit, the one the gate gives a call; null within the limits. */
+    @Nullable
+    private ResponseEntity<?> pastItsLimit(ZeroTrustSubject subject, HttpServletRequest request) {
+        if (callGuard == null) {
+            return null;
+        }
+        AgentCallGuard.Admission admission = callGuard.admit(subject, null);
+        if (admission.admitted()) {
+            return null;
+        }
+        callGuard.outcome(subject, true);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", AgentCallGuard.CALL_LIMIT);
+        body.put("message", "The agent passed its call limit; slow down");
+        body.put("path", request.getRequestURI());
+        body.put("scope", admission.scope());
+        body.put("limit", admission.limit());
+        body.put("retryAfterSeconds", admission.retryAfterSeconds());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(admission.retryAfterSeconds())).body(body);
     }
 
     private static String truncate(String value, int length) {

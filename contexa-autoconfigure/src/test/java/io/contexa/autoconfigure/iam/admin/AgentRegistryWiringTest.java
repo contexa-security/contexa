@@ -51,6 +51,7 @@ import io.contexa.contexaiam.agent.web.AgentConfirmationApiController;
 import io.contexa.contexaiam.agent.web.AgentConfirmationController;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmationAuthorizer;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmationExpiry;
+import io.contexa.contexacore.autonomous.agent.AgentCallGuard;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmationService;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmationStore;
 import io.contexa.contexacore.autonomous.agent.AgentNotices;
@@ -72,6 +73,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -167,8 +169,12 @@ class AgentRegistryWiringTest {
                 mock(ObjectProvider.class), mock(ObjectProvider.class), new InMemoryAgentNoticeStore(),
                 mock(ObjectProvider.class)))
                 .isInstanceOf(AgentConfirmationController.class);
-        assertThat(configuration.agentConfirmationApiController(service))
-                .isInstanceOf(AgentConfirmationApiController.class);
+        ObjectProvider<AgentCallGuard> callGuards = mock(ObjectProvider.class);
+        AgentCallGuard callGuard = new AgentCallGuard(null, null, null, null, null, null);
+        when(callGuards.getIfAvailable()).thenReturn(callGuard);
+        // An agent's asks count against its call limits, which is why the API holds the guard of the gate.
+        assertThat(ReflectionTestUtils.getField(configuration.agentConfirmationApiController(service, callGuards),
+                "callGuard")).isSameAs(callGuard);
     }
 
     @Test

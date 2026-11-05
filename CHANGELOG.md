@@ -8,6 +8,13 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **An agent's asks for a confirmation now count against its call limits.** `POST /contexa/api/agent-confirmations` stayed
+  out of the gate so that an agent can follow its confirmation, so one token could mail its accountable person once for
+  every target it made up, without end. An ask now counts as any call of the agent does: past
+  `contexa.security.zerotrust.agent.call-limit.*` it gets the gate's `429 AGENT_CALL_LIMIT` with `Retry-After`, nothing is
+  kept and nobody is told. Polling a confirmation is not counted. The limit is that of calls, 120 a minute for a delegation
+  by default, and an agent within it can still ask that often. A reason the agent wrote now reaches the mail after
+  Contexa's own words and marked as the agent's, as the confirmation page shows it: it read as part of Contexa's sentence.
 - **An agent no longer writes a delegation in the person's name.** The delegation API told an agent by the `act` claim, a
   client's own token and an agent's account. A token exchange without an `actor_token` is issued in the person's name with
   no `act`, so the agent it went to passed as the person at `/contexa/api/agent-delegations` and could give itself a

@@ -73,7 +73,7 @@ public class AgentConfirmationGate {
     /** The answer to a request outside the agent's narrowed scope (A5-4). */
     public static final String SCOPE_NARROWED = "AGENT_SCOPE_NARROWED";
     /** The answer to a request past the agent's call limit (A5-7). */
-    public static final String CALL_LIMIT = "AGENT_CALL_LIMIT";
+    public static final String CALL_LIMIT = AgentCallGuard.CALL_LIMIT;
     /** The request's binding, kept for a CHALLENGE decided in the request (A5-2). */
     private static final String BOUND_REQUEST = AgentConfirmationGate.class.getName() + ".boundRequest";
     /** Set when a CHALLENGE decided in the request asked for the request's confirmation. */
