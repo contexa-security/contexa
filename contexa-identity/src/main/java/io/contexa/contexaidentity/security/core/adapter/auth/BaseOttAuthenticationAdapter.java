@@ -19,22 +19,31 @@ import io.contexa.contexacore.security.ContexaUserStore;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.core.dsl.option.OttOptions;
+import io.contexa.contexaidentity.security.filter.OneTimeTokenAddressRefusalFilter;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
 import io.contexa.contexaidentity.security.handler.login.LoginFactsAuthenticationProvider;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.ott.ContexaOneTimeTokens;
+import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.authentication.ott.OneTimeTokenAuthenticationProvider;
 import org.springframework.security.authentication.ott.OneTimeTokenService;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.web.authentication.ott.GenerateOneTimeTokenFilter;
 import org.springframework.security.web.authentication.ott.OneTimeTokenGenerationSuccessHandler;
 import org.springframework.security.authentication.ott.GenerateOneTimeTokenRequest;
 import io.contexa.contexaidentity.security.service.ott.EmailGenerateOneTimeTokenRequest;
 
 @Slf4j
 public abstract class BaseOttAuthenticationAdapter extends AbstractAuthenticationAdapter<OttOptions> {
+
+    /** The page that asks for the code of this kind of sign-in. */
+    protected String codeRequestPage(AuthUrlProvider urls) {
+        return urls.getSingleOttRequestEmail();
+    }
 
     @Override
     protected void configureHttpSecurity(HttpSecurity http, OttOptions options,
@@ -57,6 +66,9 @@ public abstract class BaseOttAuthenticationAdapter extends AbstractAuthenticatio
         ApplicationContext appContext = platformContext.applicationContext();
         UserDetailsService userDetailsService = ContexaUserStore.of(appContext);
         OneTimeTokenService oneTimeTokenService = appContext.getBean(ContexaOneTimeTokens.BEAN_NAME, ContexaOneTimeTokens.class).service();
+
+        http.addFilterBefore(new OneTimeTokenAddressRefusalFilter(appContext.getBean(AuthResponseWriter.class),
+                codeRequestPage(appContext.getBean(AuthUrlProvider.class))), GenerateOneTimeTokenFilter.class);
 
         http.oneTimeTokenLogin(ott -> {
             ott.defaultSubmitPageUrl(opts.getDefaultSubmitPageUrl())

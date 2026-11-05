@@ -17,6 +17,7 @@ package io.contexa.contexaidentity.security.core.adapter.auth;
 
 import java.util.Locale;
 import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 
 public class MfaOttAuthenticationAdapter extends BaseOttAuthenticationAdapter {
 
@@ -28,5 +29,10 @@ public class MfaOttAuthenticationAdapter extends BaseOttAuthenticationAdapter {
     @Override
     public int getOrder() {
         return 301;
+    }
+
+    @Override
+    protected String codeRequestPage(AuthUrlProvider urls) {
+        return urls.getOttRequestCodeUi();
     }
 }

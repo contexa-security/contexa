@@ -179,6 +179,7 @@ class EmailOneTimeTokenServiceTest {
 
         assertThatThrownBy(() -> service.generate(new EmailGenerateOneTimeTokenRequest("testuser", "attacker@example.com")))
                 .isInstanceOf(BadCredentialsException.class)
+                .isInstanceOf(OneTimeTokenAddressRefusedException.class)
                 .hasMessageContaining("Invalid one-time token delivery request");
 
         Integer count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM ctxa_one_time_tokens", Integer.class);

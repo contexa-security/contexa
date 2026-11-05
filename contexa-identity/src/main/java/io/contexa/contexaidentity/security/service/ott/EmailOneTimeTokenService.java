@@ -20,7 +20,6 @@ import io.contexa.contexacommon.jdbc.LibraryTableNames;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.ott.*;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.Assert;
@@ -129,7 +128,7 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
             if (registeredEmail == null || registeredEmail.isBlank()
                     || !registeredEmail.trim().equalsIgnoreCase(normalizedRequestedEmail)) {
                 log.warn("Rejected OTT email override for username: {}", username);
-                throw new BadCredentialsException("Invalid one-time token delivery request");
+                throw new OneTimeTokenAddressRefusedException("Invalid one-time token delivery request");
             }
             return registeredEmail.trim();
         }
