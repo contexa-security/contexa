@@ -17,6 +17,7 @@ package io.contexa.contexaidentity.security.zerotrust;
 
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import io.contexa.contexacommon.security.HostOwnedIdentityNotice;
+import io.contexa.contexacommon.security.RequestPaths;
 import io.contexa.contexacommon.security.ZeroTrustScreens;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
@@ -71,6 +72,12 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
     private static final Duration DEFAULT_LOCK_WAIT_TIME = Duration.ZERO;
     private static final Duration DEFAULT_LOCK_LEASE_TIME = Duration.ofSeconds(30);
     private static final int DEFAULT_BUSY_RETRY_AFTER_SECONDS = 3;
+    private static final String LOGOUT_PATH = "/logout";
+    private static final String ADMIN_MFA_API = "/contexa/admin/api/mfa";
+    private static final String DECISION_SCREENS = "/contexa/zero-trust";
+    private static final String AGENT_CONFIRMATION_API = "/contexa/api/agent-confirmations";
+    /** The script Spring Security serves for the sign-in page of a passkey. */
+    private static final String PASSKEY_SCRIPT = "/login/webauthn.js";
 
     private final ChallengeMfaInitializer challengeMfaInitializer;
     private final AuthResponseWriter responseWriter;
@@ -151,57 +158,50 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String requestUri = request.getRequestURI();
-        String contextPath = request.getContextPath();
-        if (StringUtils.hasText(contextPath)) {
-            requestUri = requestUri.substring(contextPath.length());
-        }
+        String path = RequestPaths.of(request);
 
-        if (requestUri.startsWith("/logout")) {
+        if (RequestPaths.isExactly(path, LOGOUT_PATH)) {
             return true;
         }
 
-        if (hostOwnedStepUp == null && isContexaSignInPath(requestUri)) {
+        if (hostOwnedStepUp == null && isContexaSignInPath(path)) {
             return true;
         }
 
-        if (requestUri.startsWith("/contexa/admin/api/mfa/")) {
+        if (RequestPaths.isWithin(path, ADMIN_MFA_API)) {
             return true;
         }
 
-        if (requestUri.startsWith("/contexa/zero-trust") || requestUri.startsWith(HostOwnedStepUp.STEP_UP_PATH)) {
+        if (RequestPaths.isWithin(path, DECISION_SCREENS) || RequestPaths.isWithin(path, HostOwnedStepUp.STEP_UP_PATH)) {
             return true;
         }
 
         // The scripts and styles of the screens of a decision (a request for them would be answered with the screen).
-        if (ZeroTrustScreens.isScreenResource(requestUri)) {
+        if (ZeroTrustScreens.isScreenResource(path)) {
             return true;
         }
 
         // docs/agent A5-2: the agent polls its confirmation while its request waits for it.
-        if (requestUri.startsWith("/contexa/api/agent-confirmations")) {
+        if (RequestPaths.isWithin(path, AGENT_CONFIRMATION_API)) {
             return true;
         }
 
-        if (requestUri.startsWith("/.well-known/")) {
-            return true;
-        }
-
-        return false;
+        return ZeroTrustScreens.isDiscoveryDocument(path);
     }
 
     /**
      * The paths of Contexa's own sign-in, which runs only where Contexa owns it. Under HOST_OWNED nothing of Contexa
      * answers there (its step-up lives under {@link HostOwnedStepUp#STEP_UP_PATH}): they are the application's paths, and
-     * a stored decision applies to them as to any other.
+     * a stored decision applies to them as to any other. They are the paths the running flows name: the folders those
+     * paths usually sit in are shared with the application.
      */
-    private boolean isContexaSignInPath(String requestUri) {
-        return (authUrlProvider != null && matchesAnyMfaUrl(requestUri, authUrlProvider.getAllMfaRelatedUrls()))
-                || (mfaFlowUrlRegistry != null && matchesAnyMfaUrl(requestUri, mfaFlowUrlRegistry.getAllMfaRelatedUrls()))
-                || requestUri.startsWith("/mfa/challenge/")
-                || requestUri.startsWith("/api/mfa/")
-                || requestUri.startsWith("/webauthn/")
-                || requestUri.startsWith("/login/webauthn");
+    private boolean isContexaSignInPath(String path) {
+        return (authUrlProvider != null && (matchesAnyMfaUrl(path, authUrlProvider.getAllMfaRelatedUrls())
+                        || RequestPaths.isExactly(path, authUrlProvider.getPrimaryRestLoginProcessing())
+                        || RequestPaths.isExactly(path, authUrlProvider.getSinglePasskeyLoginPage())
+                        || RequestPaths.isExactly(path, authUrlProvider.getSinglePasskeyLoginProcessing())))
+                || (mfaFlowUrlRegistry != null && matchesAnyMfaUrl(path, mfaFlowUrlRegistry.getAllMfaRelatedUrls()))
+                || RequestPaths.isExactly(path, PASSKEY_SCRIPT);
     }
 
     private boolean matchesAnyMfaUrl(String requestUri, Set<String> mfaUrls) {
@@ -209,7 +209,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
             if (!StringUtils.hasText(mfaUrl) || "/".equals(mfaUrl)) {
                 continue;
             }
-            if (requestUri.equals(mfaUrl) || requestUri.startsWith(mfaUrl + "/")) {
+            if (RequestPaths.isWithin(requestUri, mfaUrl)) {
                 return true;
             }
         }

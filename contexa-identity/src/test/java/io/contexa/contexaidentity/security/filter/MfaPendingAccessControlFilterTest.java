@@ -272,7 +272,14 @@ class MfaPendingAccessControlFilterTest {
                 "/js/app.js",
                 "/contexa/admin/users",
                 "/contexa/zero-trust",
-                "/mfa/select-factor/extra"
+                "/mfa/select-factor/extra",
+                "/.well-known/customer-export",
+                "/contexa/zero-trust/..;/..;/owners/1",
+                "/contexa/zero-trust/../../owners/1",
+                "/contexa/js/%2e%2e/%2e%2e/owners/1",
+                "/contexa/css/..;/..;/owners/1",
+                "/.well-known/webauthn/..;/..;/owners/1",
+                "/js/contexa-mfa/../../owners/report.js"
         })
         @DisplayName("Requests outside the MFA flow are blocked, including the success page")
         void requestsOutsideMfaFlowAreBlocked(String path) throws Exception {

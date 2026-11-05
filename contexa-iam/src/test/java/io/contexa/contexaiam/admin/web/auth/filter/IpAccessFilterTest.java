@@ -171,4 +171,21 @@ class IpAccessFilterTest {
         request.setRemoteAddr(remoteAddr);
         return request;
     }
+
+    /** PR-65: "/favicon" as a prefix let a denied address through to the application's /favicon-report. */
+    @Test
+    void aPathThatOnlyStartsLikeAStaticFileMeetsTheRules() throws Exception {
+        IpAccessRuleService service = mock(IpAccessRuleService.class);
+        IpAccessFilter filter = new IpAccessFilter(service, new TieredStrategyProperties.Security());
+
+        for (String path : List.of("/favicon-report", "/faviconreport", "/contexa/js/..;/..;/owners/1",
+                "/contexa/css/%2e%2e/%2e%2e/owners/1")) {
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", path);
+            assertThat(filter.shouldNotFilter(request)).as(path).isFalse();
+        }
+        for (String path : List.of("/favicon.ico", "/contexa/js/toast.js", "/contexa/css/main.css", "/contexa/img/logo.png")) {
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", path);
+            assertThat(filter.shouldNotFilter(request)).as(path).isTrue();
+        }
+    }
 }
