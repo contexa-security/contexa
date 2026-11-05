@@ -8,6 +8,9 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **An old BLOCK no longer turns into a second step at the sign-in.** A decision past
+  `contexa.security.zerotrust.analysis.max-age-ms` was read as a CHALLENGE, a BLOCK and an ESCALATE too, so an hour after
+  a BLOCK the password step asked for a code instead of refusing. A restriction now answers the sign-in however old it is.
 - **A stored ALLOW no longer waives the second step of a new sign-in.** The decision was reached for another request and
   the sign-in read it by user alone, so a stolen password met no second step from any address or browser while the
   victim's ALLOW lasted. Under `CONTEXA_OWNED` a person's sign-in through an MFA flow now always meets the second step,

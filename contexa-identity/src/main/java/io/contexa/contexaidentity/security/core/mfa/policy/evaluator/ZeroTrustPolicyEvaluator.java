@@ -203,7 +203,8 @@ public class ZeroTrustPolicyEvaluator extends AbstractMfaPolicyEvaluator {
                 return challengeAnalysis(data, "Zero Trust analysis unavailable - action missing");
             }
 
-            if (isStaleAnalysis(data.updatedAt())) {
+            // Age lowers no restriction: a BLOCK has no expiry and ends by a release, whenever it was reached.
+            if (isStaleAnalysis(data.updatedAt()) && !ZeroTrustAction.fromString(data.action()).isBlocking()) {
                 return challengeAnalysis(data, "Zero Trust analysis stale or timestamp invalid");
             }
 

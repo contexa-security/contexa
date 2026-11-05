@@ -61,6 +61,10 @@ final class SignInPolicyFixture {
     final DefaultMfaPolicyEvaluator fallback;
 
     SignInPolicyFixture(ZeroTrustActionRepository store) {
+        this(store, new SecurityZeroTrustProperties());
+    }
+
+    SignInPolicyFixture(ZeroTrustActionRepository store, SecurityZeroTrustProperties zeroTrust) {
         UserRepository users = mock(UserRepository.class);
         when(users.findByUsernameWithGroupsRolesAndPermissions(anyString())).thenAnswer(call ->
                 Optional.of(Users.builder().username(call.getArgument(0)).mfaEnabled(true).build()));
@@ -72,7 +76,7 @@ final class SignInPolicyFixture {
         fallback = new DefaultMfaPolicyEvaluator(users, application, store);
         CompositeMfaPolicyEvaluator composite = new CompositeMfaPolicyEvaluator(List.of(
                 fallback,
-                new ZeroTrustPolicyEvaluator(users, application, store, new SecurityZeroTrustProperties()),
+                new ZeroTrustPolicyEvaluator(users, application, store, zeroTrust),
                 new AgentAccountMfaPolicyEvaluator(store, agents())));
         provider = new AIAdaptiveMfaPolicyProvider(users, application, new AuthContextProperties(), composite, platform,
                 mock(AICoreOperations.class));

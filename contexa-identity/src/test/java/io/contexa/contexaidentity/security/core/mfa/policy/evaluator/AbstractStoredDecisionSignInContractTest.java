@@ -18,6 +18,7 @@ package io.contexa.contexaidentity.security.core.mfa.policy.evaluator;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
@@ -172,6 +173,21 @@ abstract class AbstractStoredDecisionSignInContractTest {
         store().saveAction(user, action, Map.of());
 
         MfaDecision decision = policy.provider.evaluateInitialMfaRequirement(
+                SignInPolicyFixture.signIn(user, THIEF_ADDRESS, THIEF_BROWSER));
+
+        assertThat(decision.getType()).isEqualTo(expected);
+        assertThat(decision.isRequired()).isEqualTo(required);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("restrictions")
+    @DisplayName("age lowers no restriction: an old one answers the password step as a fresh one does")
+    void anOldRestrictionStands(ZeroTrustAction action, MfaDecision.DecisionType expected, boolean required) {
+        store().saveAction(user, action, Map.of());
+        SecurityZeroTrustProperties everythingIsOld = new SecurityZeroTrustProperties();
+        everythingIsOld.getAnalysis().setMaxAgeMs(-1L);
+
+        MfaDecision decision = new SignInPolicyFixture(store(), everythingIsOld).provider.evaluateInitialMfaRequirement(
                 SignInPolicyFixture.signIn(user, THIEF_ADDRESS, THIEF_BROWSER));
 
         assertThat(decision.getType()).isEqualTo(expected);
