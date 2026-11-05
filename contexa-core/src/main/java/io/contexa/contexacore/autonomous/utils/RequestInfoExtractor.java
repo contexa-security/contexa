@@ -103,6 +103,7 @@ public final class RequestInfoExtractor {
                 .sessionCreatedAt(extractSessionCreatedAt(request))
                 .servletPath(request.getServletPath())
                 .queryString(RequestFactRedaction.queryNames(request.getQueryString()))
+                .queryReference(RequestFactRedaction.queryReference(request.getQueryString()))
                 .remoteHost(request.getRemoteHost())
                 .protocol(request.getProtocol())
                 .untrustedAnomalySignalClaim(untrustedAnomalySignalClaim)
@@ -650,6 +651,8 @@ public final class RequestInfoExtractor {
         private final Instant sessionCreatedAt;
         private final String servletPath;
         private final String queryString;
+        /** Tells this query from another, values included, without holding one ({@link RequestFactRedaction}). */
+        private final String queryReference;
         private final String remoteHost;
         private final String protocol;
         private final String untrustedAnomalySignalClaim;

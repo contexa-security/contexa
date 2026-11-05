@@ -41,6 +41,7 @@ import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.autonomous.utils.RequestIdentity;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor.RequestInfo;
@@ -412,6 +413,9 @@ public class ZeroTrustEventPublisher {
             }
             if (requestInfo.getQueryString() != null) {
                 payload.put("queryString", requestInfo.getQueryString());
+            }
+            if (requestInfo.getQueryReference() != null) {
+                payload.put(RequestFactRedaction.QUERY_REFERENCE, requestInfo.getQueryReference());
             }
             populateBridgePayload(requestInfo, payload);
             populateRequestContextHints(requestInfo, payload);

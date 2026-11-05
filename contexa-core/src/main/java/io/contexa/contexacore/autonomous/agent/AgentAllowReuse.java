@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.agent;
 import io.contexa.contexacore.autonomous.context.support.ActionFamily;
 import io.contexa.contexacore.autonomous.context.support.ActionFamilyResolver;
 import io.contexa.contexacore.autonomous.context.support.ResourceImportanceResolver;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import org.springframework.lang.Nullable;
 
 import java.time.Clock;
@@ -104,6 +105,17 @@ public class AgentAllowReuse {
         this.sensitiveMaxDistinctResources = Math.max(1, Math.min(sensitiveMaxDistinctResources,
                 this.maxDistinctResources));
         this.clock = clock != null ? clock : Clock.systemUTC();
+    }
+
+    /**
+     * The resource of a request as the limits count it: its path, and for a sensitive resource its query as well, since
+     * a record is often named by a value of the query ({@code /api/customers?id=7}) and the ALLOW of one answers no
+     * other. A general resource stays its path: the pages of a list are one resource.
+     */
+    @Nullable
+    public static String resource(@Nullable Map<String, ?> payload, @Nullable String resource) {
+        Object query = payload != null ? payload.get(RequestFactRedaction.QUERY_REFERENCE) : null;
+        return resource != null && query != null && sensitive(payload) ? resource + "?" + query : resource;
     }
 
     /**

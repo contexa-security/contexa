@@ -8,6 +8,13 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **The ALLOW of one sensitive record no longer answers the next one named in the query.** An agent's ALLOW answers one
+  sensitive resource, and a resource was its path: after `GET /api/customers?id=1` an asynchronous `@Protectable` method
+  answered `?id=2`, `?id=3` and on, up to the request limit, without a decision. For a sensitive resource the query now
+  tells one resource from another, so each other query is decided again. The event carries a reference of the query
+  (`queryReference`) that holds none of its values and reads differently in another process. **Check:** the pages of a
+  sensitive list are now decided one by one, a model call each. A general resource stays its path: its queries count as
+  one resource, up to the request limit.
 - **An agent's asks for a confirmation now count against its call limits.** `POST /contexa/api/agent-confirmations` stayed
   out of the gate so that an agent can follow its confirmation, so one token could mail its accountable person once for
   every target it made up, without end. An ask now counts as any call of the agent does: past

@@ -20,6 +20,7 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.agent.AgentAllowReuse;
 import io.contexa.contexacore.autonomous.context.support.ActionFamily;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
@@ -93,6 +94,21 @@ class QueuedAgentEventRecheckTest {
         assertThat(recheck.answeredWithoutAnalysis(event)).isTrue();
 
         verify(recorder).recordQueued(event, ZeroTrustAction.ALLOW);
+    }
+
+    /** The ALLOW of a sensitive record named in the query answers that record's event and leaves another's to analysis. */
+    @Test
+    void anAllowOfASensitiveRecordAnswersOnlyTheEventOfThatRecord() {
+        when(repository.getCurrentAction(SUBJECT, CONTEXT)).thenReturn(ZeroTrustAction.ALLOW);
+        SecurityEvent record = event("DELEGATED_AGENT", "/api/customers", "SENSITIVE");
+        record.addMetadata(RequestFactRedaction.QUERY_REFERENCE, "qry-1");
+        SecurityEvent another = event("DELEGATED_AGENT", "/api/customers", "SENSITIVE");
+        another.addMetadata(RequestFactRedaction.QUERY_REFERENCE, "qry-2");
+        reuse.decided(SUBJECT, CONTEXT, ActionFamily.READ,
+                AgentAllowReuse.resource(record.getMetadata(), "/api/customers"), true);
+
+        assertThat(recheck.answeredWithoutAnalysis(record)).isTrue();
+        assertThat(recheck.answeredWithoutAnalysis(another)).isFalse();
     }
 
     // QD-03
