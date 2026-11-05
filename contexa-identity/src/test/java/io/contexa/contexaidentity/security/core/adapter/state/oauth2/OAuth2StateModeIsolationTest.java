@@ -105,7 +105,7 @@ class OAuth2StateModeIsolationTest {
         JwtEncoder encoder = mock(JwtEncoder.class);
         OAuth2AuthorizationService authorizationService = mock(OAuth2AuthorizationService.class);
         RegisteredClientRepository clientRepository = mock(RegisteredClientRepository.class);
-        AuthorizationServerSettings settings = mock(AuthorizationServerSettings.class);
+        AuthorizationServerSettings settings = AuthorizationServerSettings.builder().build();
         OAuth2TokenGenerator<?> tokenGenerator = mock(OAuth2TokenGenerator.class);
         UserRepository userRepository = mock(UserRepository.class);
         when(applicationContext.getBean(AuthContextProperties.class)).thenReturn(properties);
@@ -136,7 +136,7 @@ class OAuth2StateModeIsolationTest {
         when(applicationContext.getBean(JwtEncoder.class)).thenReturn(mock(JwtEncoder.class));
         when(applicationContext.getBean(OAuth2AuthorizationService.class)).thenReturn(mock(OAuth2AuthorizationService.class));
         when(applicationContext.getBean(RegisteredClientRepository.class)).thenReturn(mock(RegisteredClientRepository.class));
-        when(applicationContext.getBean(AuthorizationServerSettings.class)).thenReturn(mock(AuthorizationServerSettings.class));
+        when(applicationContext.getBean(AuthorizationServerSettings.class)).thenReturn(AuthorizationServerSettings.builder().build());
         when(applicationContext.getBean(UserRepository.class)).thenReturn(mock(UserRepository.class));
         when(applicationContext.getBeanProvider(OAuth2TokenGenerator.class)).thenReturn(noApplicationGenerator);
 

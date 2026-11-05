@@ -168,8 +168,7 @@ public final class OAuth2StateAdapter implements StateAdapter {
                     appContext.getBean(OAuth2AuthorizationService.class));
             http.setSharedObject(RegisteredClientRepository.class,
                     appContext.getBean(RegisteredClientRepository.class));
-            http.setSharedObject(AuthorizationServerSettings.class,
-                    appContext.getBean(AuthorizationServerSettings.class));
+            http.setSharedObject(AuthorizationServerSettings.class, chainSettings(appContext));
             // An application's own generator is used as it is; without one the authorization server builds Spring's,
             // which adds Spring's default claims (act, cnf) before Contexa's token customizer (CF-06).
             OAuth2TokenGenerator<?> applicationGenerator = appContext.getBeanProvider(OAuth2TokenGenerator.class).getIfUnique();
@@ -180,6 +179,13 @@ public final class OAuth2StateAdapter implements StateAdapter {
         } catch (NoSuchBeanDefinitionException e) {
             throw new IllegalStateException("Authorization Server beans are required for AUTHORIZATION_SERVER mode", e);
         }
+    }
+
+    /** What this chain issues under: the bean itself stays as it is, an authorization server of the application may use it. */
+    private AuthorizationServerSettings chainSettings(ApplicationContext appContext) {
+        AuthorizationServerSettings settings = appContext.getBean(AuthorizationServerSettings.class);
+        AuthContextProperties properties = appContext.getBean(AuthContextProperties.class);
+        return properties != null ? AuthorizationServerIssuer.applyTo(settings, properties.getOauth2()) : settings;
     }
 
     private void configureOptionalTokenService(HttpSecurity http, ApplicationContext appContext) {
