@@ -25,6 +25,18 @@ The format is based on Keep a Changelog and the project follows semantic version
   starts, and keep a backup as for any upgrade.
 - `spring.ai.vectorstore.pgvector.table-name` and `contexa.rag.etl.vector-table-name` default to `ctxa_vector_store`; a
   configuration that names `vector_store` explicitly points at a table Contexa no longer creates.
+- **The address limit of the login policy now stops a password sign-in**, including the right password, until its block
+  runs out. Its address follows the rule of every other decision: a forwarded header counts only from a proxy listed in
+  `contexa.security.tiered.security.trusted-proxies` (or from `server.forward-headers-strategy`). **Behind a proxy that
+  is not listed, all users arrive from its address and share one limit, so list it before you upgrade**; the log names
+  the setting when such an address is blocked. Behind a listed proxy `X-Forwarded-For` is read from its end, past the
+  listed proxies: list every proxy of the chain, a CDN included. `ClientIpResolver` in
+  `io.contexa.contexacommon.security`, which believed any header, is gone; use `SessionFingerprintUtil.extractClientIp`.
+- **A decision steps aside only for Contexa's own paths.** `/logout-report`, `/logout/report` and any path that only
+  starts like one of Contexa's are the application's and meet the decision, and so do `/mfa/*`, `/api/mfa/*`, `/webauthn/*`
+  and `/.well-known/*` beyond the paths the running flows and Contexa's discovery documents name. A path with a dot
+  segment, an encoded character, a path parameter or a backslash never counts as Contexa's.
+- The console's resource scan covers the application's own packages beside the configured ones.
 
 ### Added
 

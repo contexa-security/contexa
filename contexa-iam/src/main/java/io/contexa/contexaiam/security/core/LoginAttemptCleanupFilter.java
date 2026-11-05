@@ -36,32 +36,10 @@ import java.io.IOException;
  *
  * <p>The filter surrounds the security chain, and its cleanup fires when the chain has returned.
  * A filter behind the chain would never run for a failed sign-in, which ends inside the chain.
- * Static asset paths are skipped to avoid touching the ThreadLocal on requests that never reach
- * the authentication machinery.</p>
+ * It runs for every path: removing the marker costs nothing, and a path left out because it only
+ * looks like a static file would leave the marker of a real failure behind.</p>
  */
 public class LoginAttemptCleanupFilter extends OncePerRequestFilter {
-
-    private static final String[] STATIC_PREFIXES = {
-            "/contexa/css/",
-            "/contexa/js/",
-            "/images/",
-            "/contexa/img/",
-            "/fonts/",
-            "/webjars/",
-            "/static/",
-            "/assets/"
-    };
-
-    @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getRequestURI();
-        if (path == null) return false;
-        if (path.equals("/favicon.ico") || path.endsWith("/favicon.ico")) return true;
-        for (String prefix : STATIC_PREFIXES) {
-            if (path.startsWith(prefix) || path.contains(prefix)) return true;
-        }
-        return false;
-    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
