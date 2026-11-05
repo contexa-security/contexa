@@ -69,8 +69,9 @@ import static org.mockito.Mockito.when;
 /**
  * PR-83, as measured on the real server (M20): Layer1 hands the request over and only Layer2 fails. The request goes
  * through the real Layer2, the real cold path, the real enforcement and both real repositories: the user ends under the
- * fallback action, never under an ESCALATE, and no time passing turns it into a BLOCK. With
- * allow-escalate-final-action on the request is held as before.
+ * fallback action, never under an ESCALATE, and no time passing turns it into a BLOCK. No model decided that action, so
+ * it ends with its short time (Q-5) and the next request is analysed. With allow-escalate-final-action on the request
+ * is held as before.
  */
 class Layer2FailureEnforcementFlowTest {
 
@@ -177,10 +178,11 @@ class Layer2FailureEnforcementFlowTest {
         assertThat(repository.getActionFromHash(user)).isEqualTo(ZeroTrustAction.CHALLENGE);
         assertThat(repository.getLastVerifiedAction(user)).isEqualTo(ZeroTrustAction.CHALLENGE);
 
-        // The five minutes after which an ESCALATE was promoted pass: the CHALLENGE stands, nothing is blocked.
+        // The five minutes after which an ESCALATE was promoted pass: nothing is blocked. The CHALLENGE no model decided
+        // is over by then (Q-5), so the user is neither locked out nor stopped by what the failure left.
         passTime(repository, user, ZeroTrustAction.ESCALATE.getDefaultTtl().plusSeconds(1));
 
-        assertThat(repository.getCurrentAction(user, "context-1")).isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThat(repository.getCurrentAction(user, "context-1")).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
         verify(blockedUserRecorder, never()).recordBlock(any(), anyString(), any(), any(), any(), any(), any());
         repository.removeAllUserData(user);
     }
