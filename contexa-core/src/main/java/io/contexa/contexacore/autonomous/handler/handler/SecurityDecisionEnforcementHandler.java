@@ -83,6 +83,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     private VerificationLearningService verificationLearningService;
     private LearningPromotionService learningPromotionService;
     private DeletedAccountWriteFence deletedAccountWriteFence;
+    private ZeroTrustAction escalateTerminalAction;
 
     public SecurityDecisionEnforcementHandler(
             ZeroTrustActionRepository actionRedisRepository,
@@ -183,6 +184,11 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         this.deletedAccountWriteFence = deletedAccountWriteFence;
     }
 
+    /** What a final ESCALATE ends as (Layer2 terminal policy), null while allow-escalate-final-action keeps it. */
+    public void setEscalateTerminalAction(ZeroTrustAction escalateTerminalAction) {
+        this.escalateTerminalAction = escalateTerminalAction;
+    }
+
     private boolean isEnforcementDisabled() {
         return securityZeroTrustProperties != null && !securityZeroTrustProperties.isEnforcementEnabled();
     }
@@ -202,6 +208,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             commitContextObservations(event, null, false);
             return true;
         }
+        endEscalate(result);
         String userId = event.getUserId();
         if (userId == null || userId.isBlank()) {
             recordAiSecurityDecisionObservation(event, result, ZeroTrustAction.fromString(result.getAction()));
@@ -267,6 +274,26 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         }
 
         return true;
+    }
+
+    /**
+     * Every final decision passes here, so a result that names no final action (an ESCALATE, no action, one this handler
+     * does not know) ends by the Layer2 terminal policy, whichever strategy left it; the audit and the handlers after
+     * this one read the same action. allow-escalate-final-action keeps it.
+     */
+    private void endEscalate(ProcessingResult result) {
+        String action = result.getAction();
+        if (escalateTerminalAction == null || (action != null && !action.isBlank()
+                && ZeroTrustAction.fromString(action) != ZeroTrustAction.ESCALATE)) {
+            return;
+        }
+        log.error("[SecurityDecisionEnforcementHandler] A result named no final action, ending as {}: action={}",
+                escalateTerminalAction, action);
+        result.setAction(escalateTerminalAction.name());
+        result.setTechnicalFallbackApplied(true);
+        result.setTechnicalFallbackCategory("NO_FINAL_ACTION");
+        result.setTechnicalFallbackReason("The result named no final action");
+        result.setTechnicalFallbackAction(escalateTerminalAction.name());
     }
 
     /** What the enforcement of a decision did, so that only an applied decision is learned (W5-3). */
@@ -390,7 +417,10 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             userId = metadataText(event, "userId");
         }
         userId = decisionKey(event, userId);
-        ZeroTrustAction action = ZeroTrustAction.fromString(persisted.finalAction());
+        ZeroTrustAction recorded = ZeroTrustAction.fromString(persisted.finalAction());
+        // An earlier version recorded this ESCALATE as final; it ends as a final ESCALATE does now.
+        ZeroTrustAction action = recorded == ZeroTrustAction.ESCALATE && escalateTerminalAction != null
+                ? escalateTerminalAction : recorded;
         Map<String, Object> fields = new HashMap<>();
         fields.put("observationId", persisted.observationId());
         fields.put("processingGeneration", persisted.processingGeneration());

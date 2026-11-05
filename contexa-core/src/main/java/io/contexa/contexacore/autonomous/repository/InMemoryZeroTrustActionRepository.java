@@ -98,6 +98,9 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
     private final Clock clock;
     private final int maxUsers;
 
+    /** What a stored ESCALATE is replaced with when it is read; null keeps it. */
+    private volatile ZeroTrustAction escalateReplacement;
+
     public InMemoryZeroTrustActionRepository() {
         this(DEFAULT_FAIL_COUNT_TTL, Clock.systemUTC());
     }
@@ -151,6 +154,11 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
     }
 
     @Override
+    public void setEscalateTerminalAction(ZeroTrustAction action) {
+        this.escalateReplacement = ZeroTrustActionPrecedence.storedEscalateReplacement(action);
+    }
+
+    @Override
     public ZeroTrustAction getCurrentAction(String userId) {
         if (isBlank(userId)) {
             return ZeroTrustAction.PENDING_ANALYSIS;
@@ -170,7 +178,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
             return ZeroTrustAction.BLOCK;
         }
 
-        AnalysisEntry entry = liveAnalysis(userId);
+        AnalysisEntry entry = settledAnalysis(userId);
         if (entry != null) {
             return ZeroTrustAction.fromString(entry.action);
         }
@@ -189,7 +197,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
             return ZeroTrustAction.BLOCK;
         }
 
-        AnalysisEntry entry = liveAnalysis(userId);
+        AnalysisEntry entry = settledAnalysis(userId);
         if (entry == null) {
             // QF-47: without an analysis in its TTL only an unresolved ESCALATE stays, as in the Redis repository.
             return unresolvedEscalationOrPending(userId);
@@ -208,7 +216,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
             return ZeroTrustAnalysisData.pending();
         }
 
-        AnalysisEntry entry = liveAnalysis(userId);
+        AnalysisEntry entry = settledAnalysis(userId);
         if (entry == null) {
             return ZeroTrustAnalysisData.pending();
         }
@@ -233,7 +241,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         if (isBlank(userId)) {
             return null;
         }
-        AnalysisEntry entry = liveAnalysis(userId);
+        AnalysisEntry entry = settledAnalysis(userId);
         return entry != null ? ZeroTrustAction.fromString(entry.action) : null;
     }
 
@@ -539,9 +547,9 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
             return true;
         }
         AnalysisEntry analysis = liveAnalysis(userId);
-        ZeroTrustAction current = analysis != null
-                ? ZeroTrustAction.fromString(analysis.action) : unresolvedEscalationOrPending(userId);
-        return current.isAccessRestricted();
+        return analysis != null
+                ? ZeroTrustAction.fromString(analysis.action).isAccessRestricted()
+                : getLastVerifiedAction(userId) == ZeroTrustAction.ESCALATE;
     }
 
     @Override
@@ -873,10 +881,56 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
 
     // An ESCALATE whose TTL ends without resolution keeps reading as ESCALATE through its 24 h last-verified
     // record, so the access filter promotes it to BLOCK; every other expired action reads as PENDING_ANALYSIS.
+    // With a replacement set it ends here instead, and nothing promotes it.
     private ZeroTrustAction unresolvedEscalationOrPending(String userId) {
-        return getLastVerifiedAction(userId) == ZeroTrustAction.ESCALATE
-                ? ZeroTrustAction.ESCALATE
-                : ZeroTrustAction.PENDING_ANALYSIS;
+        if (getLastVerifiedAction(userId) != ZeroTrustAction.ESCALATE) {
+            return ZeroTrustAction.PENDING_ANALYSIS;
+        }
+        ZeroTrustAction replacement = escalateReplacement;
+        if (replacement == null) {
+            return ZeroTrustAction.ESCALATE;
+        }
+        replaceStoredEscalate(userId, replacement);
+        return replacement;
+    }
+
+    /** The user's analysis for a reader: an ESCALATE in it ends first, when a replacement is set. */
+    private AnalysisEntry settledAnalysis(String userId) {
+        AnalysisEntry entry = liveAnalysis(userId);
+        ZeroTrustAction replacement = escalateReplacement;
+        if (replacement == null || entry == null || ZeroTrustAction.fromString(entry.action) != ZeroTrustAction.ESCALATE) {
+            return entry;
+        }
+        replaceStoredEscalate(userId, replacement);
+        return liveAnalysis(userId);
+    }
+
+    /**
+     * Ends the ESCALATE left in the store as the replacement, with the replacement's own TTL; the analysis stays with it
+     * (a step-up learns the request it stopped from its id). Under the user's lock, as the Redis repository's script,
+     * any other action stored by now, or a BLOCK flag, keeps the store as it is.
+     */
+    private void replaceStoredEscalate(String userId, ZeroTrustAction replacement) {
+        ReentrantLock lock = lockUser(userId);
+        try {
+            AnalysisEntry stored = liveAnalysis(userId);
+            boolean escalate = stored != null
+                    ? ZeroTrustAction.fromString(stored.action) == ZeroTrustAction.ESCALATE
+                    : getLastVerifiedAction(userId) == ZeroTrustAction.ESCALATE;
+            if (!escalate || blockedUsers.contains(userId)) {
+                return;
+            }
+            AnalysisEntry entry = stored != null ? stored.copy() : new AnalysisEntry();
+            entry.previousAction = stored != null ? stored.action : null;
+            entry.action = replacement.name();
+            entry.updatedAt = Instant.now().toString();
+            analyses.put(userId, entry, ttlOf(replacement));
+            putLastVerified(userId, replacement);
+        } finally {
+            lock.unlock();
+        }
+        recordWrite(userId);
+        log.warn("[InMemoryZTARepository] Stored ESCALATE ended: userId={}, action={}", userId, replacement);
     }
 
     private static class AnalysisEntry {

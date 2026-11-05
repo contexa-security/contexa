@@ -27,11 +27,20 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
  * CHALLENGE is lifted by the MFA its challenge started, an ESCALATE only by an approved override
  * (a review, Q-87), a BLOCK only by the administrator's approval; all three by a stricter decision.
  * A CHALLENGE also lapses with its TTL; an ESCALATE whose TTL ends without resolution is promoted to
- * BLOCK by the access filter.</p>
+ * BLOCK by the access filter. That holds with allow-escalate-final-action on; off, an ESCALATE is
+ * internal to the analysis, and one left in the store ends as the terminal action when it is read.</p>
  */
 final class ZeroTrustActionPrecedence {
 
     private ZeroTrustActionPrecedence() {
+    }
+
+    /**
+     * What a stored ESCALATE is replaced with, given the terminal action; null keeps it. A BLOCK is not
+     * stored by a read: it also needs its flag and its record, which the access filter writes.
+     */
+    static ZeroTrustAction storedEscalateReplacement(ZeroTrustAction terminalAction) {
+        return terminalAction != ZeroTrustAction.BLOCK ? terminalAction : null;
     }
 
     /**

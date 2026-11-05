@@ -85,6 +85,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     private BooleanSupplier enforcing = () -> true;
     private HostOwnedStepUp hostOwnedStepUp;
     private boolean monitoringHeaders = true;
+    private ZeroTrustAction escalateTerminalAction;
 
     public ZeroTrustAccessControlFilter(
             ZeroTrustActionRepository actionRedisRepository,
@@ -140,6 +141,14 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
 
     public void setHostOwnedStepUp(HostOwnedStepUp hostOwnedStepUp) {
         this.hostOwnedStepUp = hostOwnedStepUp;
+    }
+
+    /**
+     * What an ESCALATE ends as, null while allow-escalate-final-action keeps it. A built-in repository ends a stored
+     * ESCALATE when it is read; this filter ends one a repository of the application's own still answers with.
+     */
+    public void setEscalateTerminalAction(ZeroTrustAction escalateTerminalAction) {
+        this.escalateTerminalAction = escalateTerminalAction;
     }
 
     @Override
@@ -415,6 +424,15 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                                 HttpServletResponse response,
                                 String userId,
                                 ZeroTrustSubject subject) throws IOException {
+
+        // A repository of the application's own may still answer ESCALATE. It ends here, never as a promotion; the
+        // challenge filter has run by now, so this request is told to retry and the retry meets the action stored.
+        // A terminal BLOCK goes on below: the promotion writes its flag and its record.
+        if (escalateTerminalAction != null && escalateTerminalAction != ZeroTrustAction.BLOCK) {
+            actionRedisRepository.saveAction(userId, escalateTerminalAction, Map.of());
+            respondWithReviewInProgress(request, response);
+            return;
+        }
 
         ZeroTrustAction hashAction = actionRedisRepository.getActionFromHash(userId);
 

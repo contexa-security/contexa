@@ -322,6 +322,20 @@ public class TieredStrategyProperties {
          */
         private int anthropicThinkingAllowanceTokens = 0;
 
+        /**
+         * What an ESCALATE ends as, as no analysis follows Layer2 and no person reviews a request: null while
+         * allow-escalate-final-action keeps it, otherwise escalate-fallback-action; a fallback that would end nothing
+         * (none, ESCALATE, PENDING_ANALYSIS) is CHALLENGE.
+         */
+        public ZeroTrustAction escalateTerminalAction() {
+            if (allowEscalateFinalAction) {
+                return null;
+            }
+            ZeroTrustAction fallback = escalateFallbackAction;
+            return fallback == null || fallback == ZeroTrustAction.ESCALATE
+                    || fallback == ZeroTrustAction.PENDING_ANALYSIS ? ZeroTrustAction.CHALLENGE : fallback;
+        }
+
         @Data
         public static class Cache {
 

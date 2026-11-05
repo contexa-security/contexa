@@ -112,6 +112,7 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -216,6 +217,20 @@ public class CoreAutonomousAutoConfiguration {
     public DisposableBean contexaClientIpResolutionBinding(TieredStrategyProperties tieredStrategyProperties) {
         SessionFingerprintUtil.bindClientIpResolution(tieredStrategyProperties);
         return () -> SessionFingerprintUtil.unbindClientIpResolution(tieredStrategyProperties);
+    }
+
+    /**
+     * Tells the decision store what a stored ESCALATE ends as, whichever store the application runs on: one it declares
+     * itself as well as the built-in ones. The binding is created eagerly because no other bean depends on it.
+     */
+    @Bean("contexaEscalateTerminalActionBinding")
+    @Lazy(false)
+    @ConditionalOnMissingBean(name = "contexaEscalateTerminalActionBinding")
+    public SmartInitializingSingleton contexaEscalateTerminalActionBinding(
+            ObjectProvider<ZeroTrustActionRepository> actionRepository,
+            TieredStrategyProperties tieredStrategyProperties) {
+        return () -> actionRepository.ifAvailable(repository -> repository.setEscalateTerminalAction(
+                tieredStrategyProperties.getLayer2().escalateTerminalAction()));
     }
 
     @Bean(name = "contexaBaselineLearningService")

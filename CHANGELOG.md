@@ -25,6 +25,12 @@ The format is based on Keep a Changelog and the project follows semantic version
   starts, and keep a backup as for any upgrade.
 - `spring.ai.vectorstore.pgvector.table-name` and `contexa.rag.etl.vector-table-name` default to `ctxa_vector_store`; a
   configuration that names `vector_store` explicitly points at a table Contexa no longer creates.
+- **A failed Layer 2 call no longer ends in a BLOCK.** With `contexa.security.tiered.layer2.allow-escalate-final-action`
+  off (the default) a model error or a time-out at Layer 2 ends as `layer2.escalate-fallback-action` (CHALLENGE by
+  default, answered with 401) instead of 423 and, five minutes later, a BLOCK of a user no model judged. A CHALLENGE or
+  BLOCK the model already decided stands when a step after it fails. An ESCALATE an earlier version left in the store
+  ends as the same action when it is read, so nothing is promoted any more; a BLOCK promoted before the upgrade stays
+  until it is released. With the setting on, the 423, the analysis-pending screen and the promotion stay as they were.
 
 ### Added
 
