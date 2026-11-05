@@ -8,6 +8,19 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A stolen session no longer gets its first answers before the decision.** A session cookie used from another address
+  went on while the model was deciding, so the first two or three calls answered, on a resource declared sensitive too. A
+  person's call to a `@Protectable` method whose session, address or browser differs from the user's last decision, the one
+  in force or one of the last 24 hours, now answers after its verdict: an ALLOW runs the method, a CHALLENGE, an ESCALATE or
+  a BLOCK stops it first. **Such a call waits for the model**, up to `contexa.security.zerotrust.agent.flight.wait` (40
+  seconds): after a change of network, on a user's second device each time the user changes device, and on the first call of
+  a new sign-in while the last decision still names the session before it. A user's calls at once ask the model once and
+  wait for its verdict, up to `contexa.security.zerotrust.agent.flight.queue-capacity` (20) on each server; past that a call
+  gets a 429 with `Retry-After`. Past the wait, or with a model or a store that fails, a general resource goes on and a
+  sensitive one is refused for that call alone: with a CHALLENGE, or with a 429 and `Retry-After` while a store is down.
+  Calls of the same session, address and browser go on as before, with the decision after the response. A user with no
+  decision on record is not compared, nothing is held in SHADOW, and service clients go on as before. A
+  `ZeroTrustActionRepository` of your own compares nothing until it implements `decidedContext`.
 - **A sign-in flow no longer mails a code in another user's name.** The name of a code request comes from the form, and it
   was compared with the flow only after the mail had gone: a user could send anyone a code from their own sign-in. A flow
   now asks for the code of its own user, and any other name is refused before a code is made.

@@ -49,11 +49,11 @@ public class ZeroTrustAccessDeniedException extends AuthorizationDeniedException
 
     private ZeroTrustAccessDeniedException(String resourceId, int retryAfterSeconds) {
         super(formatMessage(ZeroTrustAction.PENDING_ANALYSIS.name(),
-                "The security analysis is busy for this agent; retry after " + retryAfterSeconds + " seconds"));
+                "The security analysis is busy; retry after " + retryAfterSeconds + " seconds"));
         this.action = ZeroTrustAction.PENDING_ANALYSIS;
         this.resourceId = resourceId;
         this.riskScore = null;
-        this.reason = "The security analysis is busy for this agent; retry after " + retryAfterSeconds + " seconds";
+        this.reason = "The security analysis is busy; retry after " + retryAfterSeconds + " seconds";
         this.analysisTimeout = false;
         this.busyRetryAfterSeconds = Math.max(1, retryAfterSeconds);
     }
@@ -72,8 +72,9 @@ public class ZeroTrustAccessDeniedException extends AuthorizationDeniedException
 
     /**
      * RL-12: an agent's request the engine had no place or time to analyse (the agent already has its limit of analyses
-     * running, the queue is full, or the wait ran out). The request is refused with HTTP 429 and a {@code Retry-After}.
-     * It is never let through for lack of an answer.
+     * running, the queue is full, or the wait ran out), or a person's request to a sensitive resource from a changed
+     * context while a store is down. The request is refused with HTTP 429 and a {@code Retry-After}. It is never let
+     * through for lack of an answer.
      */
     public static ZeroTrustAccessDeniedException analysisBusy(String resourceId, int retryAfterSeconds) {
         return new ZeroTrustAccessDeniedException(resourceId, retryAfterSeconds);

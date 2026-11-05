@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -283,5 +284,25 @@ class ZeroTrustActionRedisRepositoryOutageTest {
         when(analysis.entries(anyString())).thenReturn(Map.of());
 
         assertThat(repository.getCurrentAction(USER, CONTEXT)).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+    }
+
+    @Test
+    @DisplayName("the context on record is no read that answers for an outage: nothing on record would pass the request")
+    void theContextOnRecordStaysAFailureInAnOutage() {
+        stored(ZeroTrustAction.ALLOW, CONTEXT);
+        assertThat(repository.decidedContext(USER)).isEqualTo(CONTEXT);
+
+        redisStopsAnswering();
+
+        assertThatThrownBy(() -> repository.decidedContext(USER)).isInstanceOf(QueryTimeoutException.class);
+    }
+
+    @Test
+    @DisplayName("past the decision's TTL an unread last verified context stays a failure as well")
+    void theLastVerifiedContextStaysAFailureInAnOutage() {
+        when(values.get(ZeroTrustRedisKeys.autonomousLastVerifiedActionContext(USER)))
+                .thenThrow(new QueryTimeoutException("Redis command timed out"));
+
+        assertThatThrownBy(() -> repository.decidedContext(USER)).isInstanceOf(QueryTimeoutException.class);
     }
 }

@@ -74,7 +74,9 @@ public @interface Protectable {
      * response.
      * <p>
      * {@code false} (default): the event is published and the decision runs
-     * asynchronously, favoring response latency.
+     * asynchronously, favoring response latency. A person's call whose session,
+     * address or browser changed since the user's last decision still waits for
+     * its decision.
      * <p>
      * Owner: architect and performance team, jointly. Recommended only for
      * resources whose response can be delivered within the 3-second SLA.
