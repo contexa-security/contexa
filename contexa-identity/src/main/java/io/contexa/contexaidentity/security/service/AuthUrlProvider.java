@@ -82,6 +82,11 @@ public class AuthUrlProvider {
         }
     }
 
+    /** Whether the sign-in is the multi-step one: a single form sign-in leaves this unset. */
+    public boolean hasPrimaryAuthentication() {
+        return primaryAuthOptions != null;
+    }
+
     public String getPrimaryFormLoginProcessing() {
         if (primaryAuthOptions != null && StringUtils.hasText(primaryAuthOptions.getLoginProcessingUrl())) {
             if (primaryAuthOptions.isFormLogin()) {

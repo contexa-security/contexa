@@ -17,7 +17,10 @@ package io.contexa.contexaiam.admin.web.auth.controller;
 
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
+
+import java.util.function.Supplier;
 
 @Controller
 public class LoginController {
@@ -29,17 +32,31 @@ public class LoginController {
     public static final String HOST_OWNED_LOGIN_PROCESSING_URL = "/contexa/admin/login";
 
     private final String loginProcessingUrl;
+    private final Supplier<String> signInPage;
 
     public LoginController() {
         this(DEFAULT_LOGIN_PROCESSING_URL);
     }
 
     public LoginController(String loginProcessingUrl) {
+        this(loginProcessingUrl, () -> null);
+    }
+
+    /**
+     * @param signInPage the page of the sign-in Contexa provides, read at each request because the sign-in is built after this
+     *                   bean; null when the console's own form is the way in
+     */
+    public LoginController(String loginProcessingUrl, Supplier<String> signInPage) {
         this.loginProcessingUrl = loginProcessingUrl;
+        this.signInPage = signInPage;
     }
 
     @GetMapping("/contexa/admin/login")
     public String registerPage(Model model) {
+        String page = signInPage.get();
+        if (StringUtils.hasText(page)) {
+            return "redirect:" + page;
+        }
         model.addAttribute("adminLoginProcessingUrl", loginProcessingUrl);
         return "contexa/admin/login";
     }

@@ -15,6 +15,8 @@
  */
 package io.contexa.autoconfigure.iam.admin;
 
+import org.springframework.beans.factory.ObjectProvider;
+import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexacommon.operating.ContexaOperatingProfile;
 import io.contexa.contexacommon.operating.OwnershipBehaviour;
 import org.springframework.beans.factory.BeanFactory;
@@ -57,15 +59,21 @@ public class IamAdminAuthAutoConfiguration {
 
     /**
      * Under HOST_OWNED the console signs its administrators in on its own chain (ownership design S-3), so the form
-     * posts there; under CONTEXA_OWNED it posts to Contexa's sign-in chain as before.
+     * posts there. Under CONTEXA_OWNED the multi-step sign-in has its own page, whose answers only that page can follow, so
+     * the console's address leads there; a single form sign-in takes the console's form as before.
      */
     @Bean(name = "contexaLoginController")
     @ConditionalOnMissingBean
-    public LoginController loginController(Environment environment) {
+    public LoginController loginController(Environment environment, ObjectProvider<MfaFlowUrlRegistry> mfaFlowUrls) {
         boolean ownChain = !ContexaOperatingProfile.ownershipUndeclared(environment)
                 && OwnershipBehaviour.of(ContexaOperatingProfile.resolve(environment).ownership()).consoleSignsInOnItsOwnChain();
-        return new LoginController(ownChain ? LoginController.HOST_OWNED_LOGIN_PROCESSING_URL
-                : LoginController.DEFAULT_LOGIN_PROCESSING_URL);
+        if (ownChain) {
+            return new LoginController(LoginController.HOST_OWNED_LOGIN_PROCESSING_URL);
+        }
+        return new LoginController(LoginController.DEFAULT_LOGIN_PROCESSING_URL, () -> {
+            MfaFlowUrlRegistry flows = mfaFlowUrls.getIfAvailable();
+            return flows != null ? flows.primaryLoginPage().orElse(null) : null;
+        });
     }
 
     @Bean(name = "contexaUserManagementController")

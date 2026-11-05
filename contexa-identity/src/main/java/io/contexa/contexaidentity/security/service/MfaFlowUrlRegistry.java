@@ -26,6 +26,7 @@ import org.springframework.lang.Nullable;
 
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -85,6 +86,15 @@ public class MfaFlowUrlRegistry {
      * Returns null if no provider is registered for this flow.
      */
     @Nullable
+    /** The page of the multi-step sign-in, by flow name when there are several; empty with a single form sign-in. */
+    public Optional<String> primaryLoginPage() {
+        return flowProviders.entrySet().stream()
+                .filter(flow -> flow.getValue().hasPrimaryAuthentication())
+                .sorted(Map.Entry.comparingByKey())
+                .map(flow -> flow.getValue().getPrimaryLoginPage())
+                .findFirst();
+    }
+
     public AuthUrlProvider getProvider(String flowTypeName) {
         if (flowTypeName == null) {
             return null;

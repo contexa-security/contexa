@@ -22,6 +22,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 @DisplayName("LoginController")
@@ -36,5 +38,28 @@ class LoginControllerTest {
         mockMvc.perform(get("/contexa/admin/login"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("contexa/admin/login"));
+    }
+
+    /** Its second step only the sign-in's own page can take, and a form of the console posted to an address nothing served. */
+    @Test
+    @DisplayName("leads to the sign-in Contexa provides")
+    void leadsToTheSignInContexaProvides() throws Exception {
+        LoginController controller = new LoginController(LoginController.DEFAULT_LOGIN_PROCESSING_URL, () -> "/mfa/login");
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
+
+        mockMvc.perform(get("/contexa/admin/login"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/mfa/login"));
+    }
+
+    @Test
+    @DisplayName("keeps its own form when no other sign-in provides the way in")
+    void keepsItsOwnFormWhenNoOtherSignInProvidesTheWayIn() throws Exception {
+        LoginController controller = new LoginController(LoginController.HOST_OWNED_LOGIN_PROCESSING_URL, () -> null);
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
+
+        mockMvc.perform(get("/contexa/admin/login"))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("adminLoginProcessingUrl", LoginController.HOST_OWNED_LOGIN_PROCESSING_URL));
     }
 }
