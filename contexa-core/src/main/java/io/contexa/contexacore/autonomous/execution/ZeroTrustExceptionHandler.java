@@ -38,6 +38,9 @@ import java.time.Instant;
  * own exceptions only, and an application's advice for {@code AccessDeniedException} (a subtype) would otherwise turn
  * every decision into the application's own 403 (finding F-7, ownership harness 2026-11-03). A browser is sent to the
  * screen of the decision, as the request filters send it; an API client gets the status and the JSON body.
+ * <p>
+ * An order cannot go ahead of an application's advice of the same order or of a handler inside a controller, so these
+ * answers are given through {@link ZeroTrustEnforcementExceptionResolver} wherever Spring MVC dispatches.
  */
 @ControllerAdvice
 @Order(Ordered.HIGHEST_PRECEDENCE)
