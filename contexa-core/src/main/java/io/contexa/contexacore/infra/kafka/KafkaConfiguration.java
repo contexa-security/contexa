@@ -48,6 +48,12 @@ public class KafkaConfiguration {
 
     private final KafkaProperties kafkaProperties;
 
+    /**
+     * How often the consumer looks for topics its pattern matches. Kafka's default is five minutes, so a topic that
+     * appeared after the consumer joined stayed unread that long (PR-73).
+     */
+    private static final int TOPIC_DISCOVERY_INTERVAL_MS = 30_000;
+
     @Bean(name = "contexaConsumerConfigs", defaultCandidate = false)
     public Map<String, Object> consumerConfigs() {
         Map<String, Object> props = new HashMap<>();
@@ -64,6 +70,7 @@ public class KafkaConfiguration {
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, autoOffsetReset);
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, enableAutoCommit);
         props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, maxPollRecords);
+        props.put(ConsumerConfig.METADATA_MAX_AGE_CONFIG, TOPIC_DISCOVERY_INTERVAL_MS);
 
         props.put(JsonDeserializer.TRUSTED_PACKAGES, "io.contexa.contexacore.*");
         props.put(JsonDeserializer.VALUE_DEFAULT_TYPE, "io.contexa.contexacore.plane.domain.SecurityEvent");
@@ -82,8 +89,9 @@ public class KafkaConfiguration {
         props.put(ProducerConfig.BATCH_SIZE_CONFIG, 16384);
         props.put(ProducerConfig.LINGER_MS_CONFIG, 10);
         props.put(ProducerConfig.BUFFER_MEMORY_CONFIG, 33554432);
-        // A broker that is down must not hold the caller: a send is given a few seconds to find the cluster and to be delivered, then it fails
-        // (the publisher counts the failure and sends the event to the dead-letter path); the default, a minute, would hold a request thread.
+        // A send is given a few seconds to find the cluster and to be delivered, then it fails (the publisher counts the failure and sends the
+        // event to the dead-letter path). The wait is on the publisher's own thread, never a request's; the default, a minute, would hold every
+        // event behind it.
         props.put(ProducerConfig.MAX_BLOCK_MS_CONFIG, 3000);
         props.put(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, 5000);
         props.put(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, 10000);

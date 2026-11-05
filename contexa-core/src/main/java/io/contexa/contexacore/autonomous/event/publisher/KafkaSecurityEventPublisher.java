@@ -15,29 +15,51 @@
  */
 package io.contexa.contexacore.autonomous.event.publisher;
 
-import java.util.Locale;
 import io.contexa.contexacore.autonomous.event.SecurityEventPublisher;
+import io.contexa.contexacore.autonomous.event.SecurityEventTopics;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 
 import io.contexa.contexacore.properties.SecurityKafkaProperties;
+import io.contexa.contexacore.util.ErrorLogThrottle;
 import lombok.Builder;
 import lombok.Data;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.support.SendResult;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Hands security events to Kafka from a thread of its own (PR-79). A producer waits up to its limit for a topic it
+ * cannot find or a broker it cannot reach, and a publication is made on the thread of the request it is for, so that
+ * wait and a send's failure stay here: the request goes on at once. Events leave one by one in the order they came.
+ * Past the queue's capacity, or past a send's own limit in it, an event is dropped, counted and reported.
+ */
 @Slf4j
-@RequiredArgsConstructor
-public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
+public class KafkaSecurityEventPublisher implements SecurityEventPublisher, DisposableBean {
+
+    /** Far more than a broker that answers ever leaves waiting: a send that finds its topic takes microseconds. */
+    static final int QUEUE_CAPACITY = 1024;
+    /** A send's own limit (the producer's delivery timeout): later, the event would be analysed as a moment long gone. */
+    static final Duration MAX_QUEUE_WAIT = Duration.ofSeconds(10);
+    static final String SENDER_THREAD = "contexa-kafka-event-sender";
+    private static final Duration SHUTDOWN_WAIT = Duration.ofSeconds(5);
+    private static final Duration FAILURE_LOG_INTERVAL = Duration.ofMinutes(1);
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final SecurityKafkaProperties securityKafkaProperties;
+    private final Clock clock;
+    private final ExecutorService sender = newSender();
+    private final ErrorLogThrottle failureLogThrottle = new ErrorLogThrottle(FAILURE_LOG_INTERVAL);
     private final AtomicLong publishRequestedCount = new AtomicLong(0);
     private final AtomicLong publishConfirmedCount = new AtomicLong(0);
     private final AtomicLong publishFailedCount = new AtomicLong(0);
@@ -45,28 +67,79 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
     private final AtomicLong dlqDispatchConfirmedCount = new AtomicLong(0);
     private final AtomicLong dlqDispatchFailedCount = new AtomicLong(0);
 
+    public KafkaSecurityEventPublisher(KafkaTemplate<String, Object> kafkaTemplate,
+                                       SecurityKafkaProperties securityKafkaProperties) {
+        this(kafkaTemplate, securityKafkaProperties, Clock.systemUTC());
+    }
+
+    KafkaSecurityEventPublisher(KafkaTemplate<String, Object> kafkaTemplate,
+                                SecurityKafkaProperties securityKafkaProperties, Clock clock) {
+        this.kafkaTemplate = kafkaTemplate;
+        this.securityKafkaProperties = securityKafkaProperties;
+        this.clock = clock;
+    }
+
+    private static ExecutorService newSender() {
+        return new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(QUEUE_CAPACITY), task -> {
+            Thread thread = new Thread(task, SENDER_THREAD);
+            thread.setDaemon(true);
+            return thread;
+        });
+    }
+
     @Override
     public void publishGenericSecurityEvent(ZeroTrustSpringEvent event) {
-        long startTime = System.currentTimeMillis();
         publishRequestedCount.incrementAndGet();
+        long queuedAt = clock.millis();
+        try {
+            sender.execute(() -> send(event, queuedAt));
+        } catch (RejectedExecutionException noRoom) {
+            publishFailedCount.incrementAndGet();
+            reportFailure(event, "the publisher's queue is full or shut down", queuedAt, noRoom);
+        }
+    }
 
-            String topic = String.format("security.events.%s.%s",
-                    event.getCategory().name().toLowerCase(Locale.ROOT),
-                    event.getEventType().toLowerCase(Locale.ROOT));
-
-            String key = generateEventKey(event);
-            CompletableFuture<SendResult<String, Object>> future = kafkaTemplate.send(topic, key, event);
-            future.whenComplete((result, ex) -> {
-                if(ex != null) {
-                    publishFailedCount.incrementAndGet();
-                    long duration = System.currentTimeMillis() - startTime;
-                    log.error("[KafkaPublisher] Failed to publish ZeroTrust event - category={}, type={}, error: {}, duration={}ms",
-                            event.getCategory(), event.getEventType(), ex.getMessage(), duration, ex);
-                    sendToDeadLetterQueueAsync(event, ex);
+    private void send(ZeroTrustSpringEvent event, long queuedAt) {
+        if (clock.millis() - queuedAt > MAX_QUEUE_WAIT.toMillis()) {
+            publishFailedCount.incrementAndGet();
+            reportFailure(event, "it waited too long for the broker", queuedAt, null);
+            return;
+        }
+        try {
+            String topic = SecurityEventTopics.of(event.getCategory(), event.getEventType());
+            kafkaTemplate.send(topic, generateEventKey(event), event).whenComplete((result, failure) -> {
+                if (failure != null) {
+                    failed(event, queuedAt, failure);
                     return;
                 }
                 publishConfirmedCount.incrementAndGet();
             });
+        } catch (RuntimeException refused) {
+            // KafkaTemplate throws what the producer refused before the event left: a topic it could not find in time.
+            failed(event, queuedAt, refused);
+        }
+    }
+
+    /** The producer tells a delivery's failure on its own thread, which a send that waits would stop, so the dead letter leaves from here. */
+    private void failed(ZeroTrustSpringEvent event, long queuedAt, Throwable failure) {
+        publishFailedCount.incrementAndGet();
+        reportFailure(event, failure.getMessage(), queuedAt, failure);
+        try {
+            sender.execute(() -> sendToDeadLetterQueueAsync(event, failure));
+        } catch (RejectedExecutionException noRoom) {
+            dlqDispatchRequestedCount.incrementAndGet();
+            dlqDispatchFailedCount.incrementAndGet();
+        }
+    }
+
+    private void reportFailure(ZeroTrustSpringEvent event, String reason, long queuedAt, Throwable failure) {
+        long suppressed = failureLogThrottle.tryAcquire();
+        if (suppressed == ErrorLogThrottle.SUPPRESSED) {
+            return;
+        }
+        log.error("[KafkaPublisher] Failed to publish ZeroTrust event - category={}, type={}, error: {}, duration={}ms, "
+                        + "similarFailuresSinceLastReport={}",
+                event.getCategory(), event.getEventType(), reason, clock.millis() - queuedAt, suppressed, failure);
     }
 
     private String generateEventKey(ZeroTrustSpringEvent event) {
@@ -92,7 +165,7 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
                     .whenComplete((result, dlqError) -> {
                         if (dlqError == null) {
                             dlqDispatchConfirmedCount.incrementAndGet();
-                            log.error("Event sent to Dead Letter Queue: {}", event);
+                            log.debug("Event sent to Dead Letter Queue: {}", event);
                             return;
                         }
                         dlqDispatchFailedCount.incrementAndGet();
@@ -101,6 +174,22 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
         } catch (Exception e) {
             dlqDispatchFailedCount.incrementAndGet();
             log.error("Failed to send event to Dead Letter Queue", e);
+        }
+    }
+
+    /** Lets what is waiting leave, within a limit: a broker that is gone does not hold the application's shutdown. */
+    @Override
+    public void destroy() {
+        sender.shutdown();
+        try {
+            if (!sender.awaitTermination(SHUTDOWN_WAIT.toMillis(), TimeUnit.MILLISECONDS)) {
+                int dropped = sender.shutdownNow().size();
+                publishFailedCount.addAndGet(dropped);
+                log.error("[KafkaPublisher] {} security events were not published before the shutdown", dropped);
+            }
+        } catch (InterruptedException interrupted) {
+            sender.shutdownNow();
+            Thread.currentThread().interrupt();
         }
     }
 

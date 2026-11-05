@@ -20,6 +20,7 @@ import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.SecurityEventListener;
+import io.contexa.contexacore.autonomous.event.SecurityEventTopics;
 import io.contexa.contexacore.autonomous.event.support.ZeroTrustSecurityEventConverter;
 import io.contexa.contexacore.properties.SecurityKafkaProperties;
 import jakarta.annotation.PostConstruct;
@@ -90,7 +91,7 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
     }
 
     @KafkaListener(
-            topicPattern = "security\\.events\\..*",
+            topicPattern = SecurityEventTopics.PATTERN,
             groupId = "${security.plane.kafka.group-id:security-plane-consumer}",
             containerFactory = "contexaKafkaListenerContainerFactory"
     )

@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.event.publisher;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.properties.SecurityKafkaProperties;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -63,11 +64,12 @@ class KafkaSecurityEventPublisherTest {
 
         publisher.publishGenericSecurityEvent(event);
 
-        assertThat(publisher.getStatistics())
+        Awaitility.await().untilAsserted(() -> assertThat(publisher.getStatistics())
                 .containsEntry("publish_requested_count", 1L)
                 .containsEntry("publish_failed_count", 1L)
                 .containsEntry("dlq_dispatch_requested_count", 1L)
                 .containsEntry("dlq_dispatch_confirmed_count", 1L)
-                .containsEntry("dlq_dispatch_failed_count", 0L);
+                .containsEntry("dlq_dispatch_failed_count", 0L));
+        publisher.destroy();
     }
 }
