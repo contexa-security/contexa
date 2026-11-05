@@ -8,6 +8,9 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A sign-in flow no longer mails a code in another user's name.** The name of a code request comes from the form, and it
+  was compared with the flow only after the mail had gone: a user could send anyone a code from their own sign-in. A flow
+  now asks for the code of its own user, and any other name is refused before a code is made.
 - **An old BLOCK no longer turns into a second step at the sign-in.** A decision past
   `contexa.security.zerotrust.analysis.max-age-ms` was read as a CHALLENGE, a BLOCK and an ESCALATE too, so an hour after
   a BLOCK the password step asked for a code instead of refusing. A restriction now answers the sign-in however old it is.
