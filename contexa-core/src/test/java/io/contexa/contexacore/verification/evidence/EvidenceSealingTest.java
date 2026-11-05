@@ -19,6 +19,8 @@ import io.contexa.contexacommon.entity.AuditLog;
 import io.contexa.contexacore.autonomous.audit.DecisionRecordSeal;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity.Status;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -28,9 +30,11 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -99,6 +103,66 @@ class EvidenceSealingTest {
         HmacEvidenceSigner restarted = HmacEvidenceSigner.of(Map.of("k2", K2), null);
         assertThat(DecisionRecordSeal.evaluate(first, restarted, kept::contains))
                 .as("signed with a key no longer held").isEqualTo(Status.UNVERIFIABLE);
+    }
+
+    /** A sealed record's signature, its key's name or its hash taken away, after sealing began, is a change. */
+    @Test
+    void aDecisionRecordRobbedOfItsSealFailsOnceOlderSealedRecordsAreKept() {
+        HmacEvidenceSigner signer = HmacEvidenceSigner.of(Map.of("k1", K1), null);
+        for (Consumer<AuditLog> robbery : List.<Consumer<AuditLog>>of(
+                record -> record.setRecordSignature(null),
+                record -> record.setRecordSignature(" "),
+                record -> record.setSignatureKeyId(null),
+                record -> record.setSignatureKeyId(""),
+                record -> {
+                    record.setRecordSignature(null);
+                    record.setSignatureKeyId(null);
+                },
+                record -> record.setRecordHash(null),
+                record -> record.setRecordHash(" "),
+                record -> {
+                    record.setRecordHash(null);
+                    record.setRecordSignature(null);
+                    record.setSignatureKeyId(null);
+                })) {
+            AuditLog changed = record("ALLOW");
+            DecisionRecordSeal.seal(changed, "previous-record-hash", signer);
+            robbery.accept(changed);
+
+            assertThat(DecisionRecordSeal.evaluate(changed, signer, hash -> true, olderKept -> true, older -> true))
+                    .isEqualTo(Status.MISMATCH);
+        }
+    }
+
+    /** A record from before sealing began carries none of it, and nothing older is sealed. */
+    @Test
+    void aDecisionRecordFromBeforeSealingStaysNotVerifiable() {
+        HmacEvidenceSigner signer = HmacEvidenceSigner.of(Map.of("k1", K1), null);
+        AuditLog legacy = record("ALLOW");
+
+        assertThat(DecisionRecordSeal.evaluate(legacy, signer, hash -> true, nothingOlder -> false, nothingOlder -> false))
+                .isEqualTo(Status.UNVERIFIABLE);
+        assertThat(DecisionRecordSeal.evaluate(legacy, null, hash -> true, olderKept -> true, olderKept -> true))
+                .as("no signer to tell").isEqualTo(Status.UNVERIFIABLE);
+        assertThat(DecisionRecordSeal.evaluate(legacy, signer, hash -> true, null, null))
+                .as("no store to ask").isEqualTo(Status.UNVERIFIABLE);
+    }
+
+    /** The record of a key never held, in the time the installation's key signs. */
+    @ParameterizedTest
+    @ValueSource(strings = {"forged-key", "K1", "ephemeral-1a2b3c4d"})
+    void aDecisionRecordNamingAKeyNeverHeldFailsWhereTheKeysAreKept(String named) {
+        HmacEvidenceSigner signer = HmacEvidenceSigner.of(Map.of("k1", K1), null);
+        AuditLog record = record("ALLOW");
+        DecisionRecordSeal.seal(record, "previous-record-hash", signer);
+        record.setSignatureKeyId(named);
+
+        assertThat(DecisionRecordSeal.evaluate(record, signer, hash -> true, older -> true, older -> true))
+                .isEqualTo(Status.MISMATCH);
+        assertThat(DecisionRecordSeal.evaluate(record, signer, hash -> true, older -> true, notYetInUse -> false))
+                .as("from before the key came into use").isEqualTo(Status.UNVERIFIABLE);
+        assertThat(DecisionRecordSeal.evaluate(record, HmacEvidenceSigner.of(Map.of(), null), hash -> true, older -> true,
+                older -> true)).as("an ephemeral signer cannot tell").isEqualTo(Status.UNVERIFIABLE);
     }
 
     /**
@@ -171,6 +235,102 @@ class EvidenceSealingTest {
         first.seal(pkg, null);
 
         assertThat(new SealedEvidencePackageIntegrity(signer("k2", K2)).evaluate(pkg)).isEqualTo(Status.UNVERIFIABLE);
+    }
+
+    /**
+     * A key this installation never held, on a package from the time its key signs, is a forgery: the keys are
+     * kept, so nothing else writes such a name. An attacker picks the name, so an ephemeral-looking one changes nothing.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"forged-key", "K1", "k1 x", "ephemeral-1a2b3c4d", "retired-2019", " "})
+    void aSignatureNamingAKeyNeverHeldFailsWhereTheKeysAreKept(String named) {
+        Instant keyInUseSince = Instant.parse("2026-10-24T04:00:00Z");
+        SealedEvidencePackageIntegrity integrity = linked(new FakeChain(keyInUseSince, keyInUseSince));
+        SealedEvidencePackage pkg = stored(integrity);
+        pkg.setPackageSignature("0".repeat(64));
+        pkg.setSignatureKeyId(named);
+
+        assertThat(integrity.evaluate(pkg)).isEqualTo(Status.MISMATCH);
+    }
+
+    /** The cause says what to look at. */
+    @Test
+    void aKeyNeverHeldIsNamedAsTheCause() {
+        Instant keyInUseSince = Instant.parse("2026-10-24T04:00:00Z");
+        SealedEvidencePackageIntegrity integrity = linked(new FakeChain(keyInUseSince, keyInUseSince));
+        SealedEvidencePackage pkg = stored(integrity);
+        pkg.setSignatureKeyId("forged-key");
+
+        assertThat(integrity.examine(pkg).cause()).isEqualTo(SealedEvidencePackageIntegrity.Cause.KEY_NOT_KNOWN);
+    }
+
+    /** Before the key came into use an ephemeral or retired key signed, and such a package stays unread. */
+    @Test
+    void aPackageFromBeforeTheKeyStaysNotVerifiable() {
+        Instant keyInUseSince = NOW.plus(Duration.ofDays(1));
+        SealedEvidencePackageIntegrity integrity = linked(new FakeChain(keyInUseSince, keyInUseSince));
+        SealedEvidencePackage pkg = stored(integrity);
+        pkg.setSignatureKeyId("ephemeral-1a2b3c4d");
+
+        assertThat(integrity.evaluate(pkg)).isEqualTo(Status.UNVERIFIABLE);
+    }
+
+    /** An ephemeral key is lost with every restart, and each node has its own: an unknown key proves nothing there. */
+    @Test
+    void anEphemeralSignerStillCannotTellAnUnknownKey() {
+        HmacEvidenceSigner ephemeral = HmacEvidenceSigner.of(Map.of(), null);
+        SealedEvidencePackageIntegrity integrity = new SealedEvidencePackageIntegrity(ephemeral);
+        integrity.setChain(new FakeChain(NOW.minusSeconds(60), NOW.minusSeconds(60)), KEPT_AT_LEAST,
+                Clock.fixed(NOW, ZoneOffset.UTC));
+        SealedEvidencePackage pkg = stored(integrity);
+        pkg.setSignatureKeyId("ephemeral-1a2b3c4d");
+
+        assertThat(ephemeral.keepsItsKeys()).isFalse();
+        assertThat(HmacEvidenceSigner.of(Map.of("k1", K1), null).keepsItsKeys()).isTrue();
+        assertThat(integrity.evaluate(pkg)).isEqualTo(Status.UNVERIFIABLE);
+    }
+
+    /** A signer of another kind does not say, and an unknown key stays what it was. */
+    @Test
+    void aSignerThatDoesNotSayKeepsAnUnknownKeyUnread() {
+        EvidenceSigner other = new EvidenceSigner() {
+            @Override
+            public String activeKeyId() {
+                return "hsm-1";
+            }
+
+            @Override
+            public String sign(String value) {
+                return "signed";
+            }
+
+            @Override
+            public Boolean verify(String keyId, String value, String signature) {
+                return null;
+            }
+        };
+        SealedEvidencePackageIntegrity integrity = new SealedEvidencePackageIntegrity(other);
+        integrity.setChain(new FakeChain(NOW.minusSeconds(60), NOW.minusSeconds(60)), KEPT_AT_LEAST,
+                Clock.fixed(NOW, ZoneOffset.UTC));
+
+        assertThat(integrity.evaluate(stored(integrity))).isEqualTo(Status.UNVERIFIABLE);
+    }
+
+    /** Lowering the schema skipped the signature, so any text in its two columns read as a verified package. */
+    @ParameterizedTest
+    @ValueSource(strings = {"k1", "forged-key", "ephemeral-1a2b3c4d"})
+    void aLoweredPackageWithAnySignatureFails(String named) {
+        Instant keyInUseSince = Instant.parse("2026-10-24T04:00:00Z");
+        SealedEvidencePackageIntegrity integrity = linked(new FakeChain(keyInUseSince, keyInUseSince));
+        for (int schema : new int[]{2, 1}) {
+            SealedEvidencePackage lowered = pkg(schema);
+            lowered.setPackageHash(integrity.computeHash(lowered));
+            lowered.setPackageSignature("0".repeat(64));
+            lowered.setSignatureKeyId(named);
+
+            assertThat(integrity.evaluate(lowered)).as("schema " + schema + " with key " + named)
+                    .isEqualTo(Status.MISMATCH);
+        }
     }
 
     /** Q-21 (PR-75): measured, a decision changed and its schema lowered read as fully verified with no key at all. */
@@ -298,17 +458,28 @@ class EvidenceSealingTest {
     private static final class FakeChain implements SealedEvidenceChain {
 
         private final Instant signedSince;
+        private final Instant keyInUseSince;
         private boolean previousKept = true;
         private Instant capturedBefore;
         private RuntimeException failure;
 
         private FakeChain(Instant signedSince) {
+            this(signedSince, null);
+        }
+
+        private FakeChain(Instant signedSince, Instant keyInUseSince) {
             this.signedSince = signedSince;
+            this.keyInUseSince = keyInUseSince;
         }
 
         @Override
         public Optional<Instant> signedSince() {
             return Optional.ofNullable(signedSince);
+        }
+
+        @Override
+        public Optional<Instant> signedSince(String keyId) {
+            return Optional.ofNullable(keyInUseSince);
         }
 
         @Override

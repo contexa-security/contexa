@@ -224,7 +224,10 @@ public class SecurityMonitorController {
                 integrity.put(record.getId(), DecisionRecordSeal.evaluate(record, evidenceSigner,
                         auditLogRepository::existsByRecordHash, kept -> auditLogRepository
                                 .existsByEventCategoryAndRecordHashIsNotNullAndIdLessThan("SECURITY_DECISION",
-                                        kept.getId())).name());
+                                        kept.getId()),
+                        kept -> evidenceSigner != null && auditLogRepository
+                                .existsByEventCategoryAndSignatureKeyIdAndIdLessThan("SECURITY_DECISION",
+                                        evidenceSigner.activeKeyId(), kept.getId())).name());
             } catch (RuntimeException e) {
                 log.error("Integrity check failed for audit log {}", record.getId(), e);
                 integrity.put(record.getId(), "UNVERIFIABLE");

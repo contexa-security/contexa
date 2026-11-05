@@ -71,7 +71,7 @@ public class JdbcPromptInspectionQueries {
     public record PackageFilter(Instant from, Instant to, String verdict, String checkCode, String block, String entry) {
     }
 
-    /** Q-31: the request's facts are read from the sealed column, which the package hash covers: the jsonb copy is not. */
+    /** The request's facts are read from the sealed column, which the package hash covers: the jsonb copy is not. */
     public record PackageRow(String packageId, Instant capturedAt, String userId, String httpMethod, String requestPath,
                              String resourceId, String verdict, Integer mismatchCount, Integer unverifiableCount,
                              String inspectorVersion, Instant inspectedAt) {

@@ -93,7 +93,9 @@ public final class PromptInspectorVersions {
                     + "output, the arguments field, compared with the sealed records that keep how they were learned "
                     + "(BR-C6)"),
             new Version(28, "a package without the signature it should carry, whatever schema it names, and one whose "
-                    + "predecessor is gone inside the retention, pointed at (Q-21)"));
+                    + "predecessor is gone inside the retention, pointed at (Q-21)"),
+            new Version(29, "a package that names a signing key the installation never held, and a lowered package with "
+                    + "any text as its signature"));
 
     private PromptInspectorVersions() {
     }

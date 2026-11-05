@@ -58,6 +58,9 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     /** docs/agent A5-6: whether a sealed record of the category older than the record (by insertion) is kept. */
     boolean existsByEventCategoryAndRecordHashIsNotNullAndIdLessThan(String eventCategory, Long id);
 
+    /** Whether a record older than the given one was signed with the key: that key had come into use by then. */
+    boolean existsByEventCategoryAndSignatureKeyIdAndIdLessThan(String eventCategory, String signatureKeyId, Long id);
+
     boolean existsByRecordHash(String recordHash);
 
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.resourceIdentifier = :resourceId")

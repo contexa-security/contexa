@@ -112,6 +112,56 @@ class SealedPackageTamperingTest {
         assertThat(status(id)).isEqualTo(Status.MISMATCH);
     }
 
+    /** Lowered, and with any text in the two columns so that the package does not read as unsigned. */
+    @Test
+    void aSchemaLoweredWithAnySignatureFails() {
+        String id = sealed(3).get(1);
+
+        change(id, TO_BLOCK + ", schema_version = 2, package_signature = repeat('0', 64)");
+        rehash(id, 2);
+
+        assertThat(status(id)).isEqualTo(Status.MISMATCH);
+    }
+
+    /** A key this installation never held named on a package of its key's time, on the real store. */
+    @Test
+    void aSignatureNamingAKeyNeverHeldFails() {
+        String id = sealed(3).get(1);
+
+        change(id, TO_BLOCK + ", signature_key_id = 'ephemeral-1a2b3c4d', package_signature = repeat('0', 64)");
+        rehash(id, 3);
+
+        assertThat(status(id)).isEqualTo(Status.MISMATCH);
+    }
+
+    /** Dating it back from the key's time leaves it unread, and the hash computed again breaks the next one's link. */
+    @Test
+    void aMadeUpKeyDatedBackBreaksTheLinkOfTheNext() {
+        List<String> ids = sealed(3);
+        Instant before = Instant.now().minus(Duration.ofDays(3));
+
+        change(ids.get(1), TO_BLOCK + ", signature_key_id = 'ephemeral-1a2b3c4d', package_signature = repeat('0', 64), "
+                + "captured_at = '" + before + "'");
+        rehash(ids.get(1), 3);
+
+        assertThat(status(ids.get(1))).isEqualTo(Status.UNVERIFIABLE);
+        assertThat(status(ids.get(2))).isEqualTo(Status.MISMATCH);
+    }
+
+    /** What an ephemeral key signed before the installation got its key stays unread, and fails nothing. */
+    @Test
+    void packagesOfAnEphemeralKeyFromBeforeTheKeyStayNotVerifiable() {
+        SealedEvidencePackageIntegrity ephemeral = new SealedEvidencePackageIntegrity(HmacEvidenceSigner.of(Map.of(), null));
+        SealedEvidencePackage older = pkg("ephemeral-time", Instant.now().minus(Duration.ofDays(3)).truncatedTo(ChronoUnit.MICROS));
+        older.setSchemaVersion(SealedEvidencePackageIntegrity.LINKED_SCHEMA_VERSION);
+        ephemeral.seal(older, null);
+        new JdbcSealedEvidencePackageRepository(jdbc).save(older);
+        List<String> ids = sealed(2);
+
+        assertThat(status("ephemeral-time")).isEqualTo(Status.UNVERIFIABLE);
+        assertThat(status(ids.get(1))).isEqualTo(Status.VERIFIED);
+    }
+
     @Test
     void t6ASchemaLoweredToOneFails() {
         String id = sealed(3).get(1);

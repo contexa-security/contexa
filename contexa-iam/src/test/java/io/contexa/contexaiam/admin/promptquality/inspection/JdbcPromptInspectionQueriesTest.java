@@ -92,7 +92,7 @@ class JdbcPromptInspectionQueriesTest {
         assertThat(p1.capturedAt()).isEqualTo(T0);
     }
 
-    /** Q-31: a copy changed with the database's own rights tells nothing: the list and the counts read what is sealed. */
+    /** A copy changed with the database's own rights tells nothing: the list and the counts read what is sealed. */
     @Test
     void theListAndTheCountsReadTheSealedFactsAndNotTheirCopy() {
         String forged = "{\"httpMethod\":\"DELETE\",\"requestPath\":\"/forged\",\"resourceId\":\"forgedResource\"}";
@@ -109,7 +109,7 @@ class JdbcPromptInspectionQueriesTest {
                 .contains("exportDocuments").doesNotContain("forgedResource");
     }
 
-    /** Q-31: a copy emptied, or a sealed text that is no JSON, leaves the row in the list and takes nothing else away. */
+    /** A copy emptied, or a sealed text that is no JSON, leaves the row in the list and takes nothing else away. */
     @Test
     void aCopyEmptiedOrFactsThatDoNotReadLeaveTheRow() {
         jdbc.update("update ctxa_sealed_evidence_package set request_facts_jsonb = null where package_id = 'p1'");

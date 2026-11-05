@@ -27,6 +27,14 @@ public interface SealedEvidenceChain {
     /** When the oldest signed package kept was captured; empty while no package is signed. */
     Optional<Instant> signedSince();
 
+    /**
+     * When the oldest package kept under the given key was captured, the time that key came into use; empty when
+     * none is, and from a store that cannot tell.
+     */
+    default Optional<Instant> signedSince(String keyId) {
+        return Optional.empty();
+    }
+
     /** Whether a package with the hash this stored package names as its previous one is kept before it. */
     boolean previousKept(SealedEvidencePackage pkg);
 

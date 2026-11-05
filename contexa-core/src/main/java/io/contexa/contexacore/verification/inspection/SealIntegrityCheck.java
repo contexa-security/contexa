@@ -242,6 +242,9 @@ public final class SealIntegrityCheck implements PromptInspectionCheck {
                     .sourceRef(PACKAGE + "previousPackageHash").expected(sealed.getPreviousPackageHash())
                     .actual("missing")
                     .reason("the package sealed before this one is gone: the chain of packages is broken here").build();
+            case KEY_NOT_KNOWN -> tally.mismatchFinding().entry("signatureKeyId").sourceRef(PACKAGE + "signatureKeyId")
+                    .expected("a key this installation holds").actual(sealed.getSignatureKeyId())
+                    .reason("the package names a signing key this installation never held").build();
             default -> tally.mismatchFinding().entry("packageHash").sourceRef(PACKAGE + "packageHash")
                     .expected(sealed.getPackageHash()).actual(integrity.computeHash(sealed))
                     .reason("the sealed package changed after it was sealed").build();

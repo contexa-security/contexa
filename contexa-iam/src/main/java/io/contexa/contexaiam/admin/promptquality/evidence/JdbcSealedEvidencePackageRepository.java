@@ -63,6 +63,11 @@ public final class JdbcSealedEvidencePackageRepository implements SealedEvidence
             select captured_at from ctxa_sealed_evidence_package
              where package_signature is not null order by captured_at limit 1
             """;
+    /** The time a key came into use, read only for a package that names a key the signer does not hold. */
+    private static final String OLDEST_SIGNED_WITH_KEY_SQL = """
+            select captured_at from ctxa_sealed_evidence_package
+             where signature_key_id = ? and package_signature is not null order by captured_at limit 1
+            """;
     /** Q-21: walks back from the package by its key, so the package right before it answers at once. */
     private static final String PREVIOUS_KEPT_SQL = """
             select 1 from ctxa_sealed_evidence_package
@@ -97,6 +102,12 @@ public final class JdbcSealedEvidencePackageRepository implements SealedEvidence
     @Override
     public Optional<Instant> signedSince() {
         return jdbcOperations.queryForList(OLDEST_SIGNED_SQL, Timestamp.class).stream().findFirst()
+                .map(Timestamp::toInstant);
+    }
+
+    @Override
+    public Optional<Instant> signedSince(String keyId) {
+        return jdbcOperations.queryForList(OLDEST_SIGNED_WITH_KEY_SQL, Timestamp.class, keyId).stream().findFirst()
                 .map(Timestamp::toInstant);
     }
 

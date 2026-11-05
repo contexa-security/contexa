@@ -37,4 +37,14 @@ public interface EvidenceSigner {
      */
     @Nullable
     Boolean verify(String keyId, String value, String signature);
+
+    /**
+     * Whether this signer's keys outlive the process and the ones it signed with stay with it, so that a signature
+     * made after its active key came into use and naming a key it does not hold was not made here. An ephemeral key is
+     * lost at each restart and every node has its own, and a signer that does not say answers false: an unknown key then
+     * stays not verifiable.
+     */
+    default boolean keepsItsKeys() {
+        return false;
+    }
 }

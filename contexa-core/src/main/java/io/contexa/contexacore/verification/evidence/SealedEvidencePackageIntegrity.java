@@ -22,7 +22,7 @@ import java.util.HexFormat;
  * <p>Q-21: where this integrity signs, a package that should carry a signature and has none fails, whatever its schema
  * says: one with the hash of a linked schema, and one captured after the oldest signed package kept. With a store's
  * {@link #setChain chain} a package also fails when the package it was sealed after is gone while the retention cannot
- * have taken it.</p>
+ * have taken it. So does one that names a key the installation never held, where its signer keeps its keys.</p>
  *
  * <p>What the seal cannot tell, without something kept outside the database: the last package removed, since nothing
  * names it; every package up to the last lowered together, and every package from the first up to one point lowered and
@@ -56,6 +56,8 @@ public class SealedEvidencePackageIntegrity {
         LINK_BROKEN,
         /** No signer holds the key the signature names, or there is no signer. */
         KEY_NOT_HELD,
+        /** The signature names a key this installation never held, on a package of the time its key signs. */
+        KEY_NOT_KNOWN,
         /** The store could not say what is kept around the package. */
         STORE_NOT_READ
     }
@@ -161,8 +163,9 @@ public class SealedEvidencePackageIntegrity {
         if (linkBroken(pkg)) {
             return new Evaluation(Status.MISMATCH, Cause.LINK_BROKEN);
         }
-        return pkg.getSchemaVersion() < LINKED_SCHEMA_VERSION ? new Evaluation(Status.VERIFIED, Cause.INTACT)
-                : signatureEvaluation(pkg);
+        // A lowered package carrying any text as its signature is checked as well, or the schema would waive it.
+        return pkg.getSchemaVersion() < LINKED_SCHEMA_VERSION && !signatureDue
+                ? new Evaluation(Status.VERIFIED, Cause.INTACT) : signatureEvaluation(pkg);
     }
 
     /**
@@ -200,7 +203,8 @@ public class SealedEvidencePackageIntegrity {
 
     /**
      * docs/agent A5-6: a schema 3 package verifies only with a valid signature: a changed package whose hash was
-     * computed again fails it. A package signed with a key this signer does not hold cannot be verified.
+     * computed again fails it. A package signed with a key this signer does not hold cannot be verified, unless it was
+     * never the installation's own.
      */
     private Evaluation signatureEvaluation(SealedEvidencePackage pkg) {
         if (signer == null) {
@@ -208,9 +212,24 @@ public class SealedEvidencePackageIntegrity {
         }
         Boolean valid = signer.verify(pkg.getSignatureKeyId(), pkg.getPackageHash(), pkg.getPackageSignature());
         if (valid == null) {
-            return new Evaluation(Status.UNVERIFIABLE, Cause.KEY_NOT_HELD);
+            return keyNeverHeld(pkg) ? new Evaluation(Status.MISMATCH, Cause.KEY_NOT_KNOWN)
+                    : new Evaluation(Status.UNVERIFIABLE, Cause.KEY_NOT_HELD);
         }
         return valid ? new Evaluation(Status.VERIFIED, Cause.INTACT) : new Evaluation(Status.MISMATCH, Cause.CHANGED);
+    }
+
+    /**
+     * Whether a key the signer does not hold can only be a made-up one: the signer keeps its keys, and the package
+     * dates from the time its active key signs. Before that an ephemeral key or a key taken off the list may have signed,
+     * and anybody can write such a name, so the time decides and not the name. The time of the first package under the
+     * active key is signed itself, so a package moved before it breaks a link instead.
+     */
+    private boolean keyNeverHeld(SealedEvidencePackage pkg) {
+        SealedEvidenceChain store = chain;
+        if (store == null || !signer.keepsItsKeys() || pkg.getCapturedAt() == null) {
+            return false;
+        }
+        return store.signedSince(signer.activeKeyId()).filter(pkg.getCapturedAt()::isAfter).isPresent();
     }
 
     private boolean hasMissingPromptHash(SealedEvidencePackage pkg) {
