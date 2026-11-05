@@ -21,12 +21,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
+import org.springframework.boot.autoconfigure.data.redis.RedisConnectionDetails;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Fallback;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -132,6 +135,14 @@ public class CommonRedisAutoConfiguration {
     }
 
     
+    /** Q-25: a Redis Cluster is named at the start; only the distributed mode keeps Contexa's state in Redis. */
+    @Bean(name = "contexaRedisClusterNotice", defaultCandidate = false)
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
+    RedisClusterNotice redisClusterNotice(RedisConnectionFactory connectionFactory,
+                                          ObjectProvider<RedisConnectionDetails> connectionDetails) {
+        return new RedisClusterNotice(connectionFactory, connectionDetails.getIfAvailable());
+    }
+
     private ObjectMapper createBaseObjectMapper() {
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
