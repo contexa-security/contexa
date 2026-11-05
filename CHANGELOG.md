@@ -30,6 +30,11 @@ The format is based on Keep a Changelog and the project follows semantic version
   with the stored decision, whichever session it came from, in memory and on Redis alike. The audit record of the call
   keeps the decision of its analysis, marked as kept out where the agent decision record shows it. A CHALLENGE an agent's
   accountable person confirmed, a shadow boundary and an ALLOW of another session change nothing.
+- **A user's password hash no longer reaches the caches.** The copies of a user the access decisions keep in the memory
+  cache and in Redis (`contexa:cache:user_details:<id>`, `contexa:cache:user_details_name:<name>`) hold no `password`
+  field, and `Users` leaves it out of JSON everywhere. Copies an earlier version wrote are read without it and taken out
+  of the store at every start; while old nodes run they can write such copies again, and the last node to start takes
+  those out. `AuthorizationContext.subjectEntity().getPassword()` is empty on a cached copy; nothing in Contexa reads it.
 
 ### Added
 

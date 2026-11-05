@@ -42,7 +42,9 @@ public class Users {
     @Column(length = 255, unique = true)
     private String email;
 
+    /** Stays out of JSON: copies of a user go to the caches and to Redis, and nothing reads the hash from a copy (PR-87). */
     @Column(length = 255, nullable = false)
+    @JsonIgnore
     private String password;
 
     @Column(length = 100, nullable = false)

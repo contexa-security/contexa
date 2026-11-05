@@ -20,6 +20,10 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import java.util.function.Supplier;
 
 
+/**
+ * A value is kept as JSON, in memory and in Redis alike, so what goes in leaves the process: a type stored here keeps its
+ * secrets out of JSON ({@code @JsonIgnore}), as {@code Users} does its password hash.
+ */
 public interface ContexaCacheService {
 
     <T> T get(String key, Supplier<T> loader, TypeReference<T> typeRef, String domain);
