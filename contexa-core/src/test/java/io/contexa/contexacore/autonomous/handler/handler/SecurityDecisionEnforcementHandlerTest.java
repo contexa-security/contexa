@@ -30,6 +30,7 @@ import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
@@ -296,6 +297,29 @@ class SecurityDecisionEnforcementHandlerTest {
                 .reasoning("Malicious activity detected")
                 .build());
         return context;
+    }
+
+    @Test
+    @DisplayName("a BLOCK of a person named as the console's key is written under the person's key, never the console's")
+    void aPersonNamedAsTheConsolesKeyIsBlockedUnderItsOwnKey() {
+        String own = ZeroTrustUserKey.person("console::rcboss");
+        SecurityEvent event = SecurityEvent.builder().userId("console::rcboss").build();
+        SecurityEventContext context = SecurityEventContext.builder().securityEvent(event).build();
+        context.addMetadata("processingResult", ProcessingResult.builder()
+                .success(true)
+                .action(ZeroTrustAction.BLOCK.name())
+                .riskScore(0.97)
+                .confidence(0.9)
+                .reasoning("Impossible travel")
+                .build());
+
+        assertThat(handler.handle(context)).isTrue();
+
+        verify(actionRepository).writeFinalAction(eq(own), eq(ZeroTrustAction.BLOCK), anyMap());
+        verify(actionRepository).setBlockedFlag(own);
+        verify(blockingSignalBroadcaster).registerBlockAndAwait(own);
+        verify(blockedUserRecorder).recordBlock(any(), eq(own), any(), any(), any(), any(), any());
+        verify(actionRepository, never()).setBlockedFlag("console::rcboss");
     }
 
     @Test

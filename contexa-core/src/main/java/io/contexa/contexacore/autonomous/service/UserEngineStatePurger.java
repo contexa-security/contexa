@@ -24,6 +24,7 @@ import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.vectorstore.VectorStore;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 
@@ -101,6 +102,7 @@ public class UserEngineStatePurger {
         }
         List<String> purged = new ArrayList<>();
         Map<String, String> failed = new LinkedHashMap<>();
+        String decisionKey = ZeroTrustUserKey.person(userId);
 
         // Q-15: the mark comes first, so that a late write landing while the steps run is discarded too.
         step("deletion-fence", deletedAccountWriteFence != null,
@@ -108,14 +110,14 @@ public class UserEngineStatePurger {
         step("sessions", forceLogoutService != null,
                 () -> forceLogoutService.forceLogoutByUserId(userId, "ACCOUNT_DELETED"), purged, failed);
         step("decision-state", actionRepository != null,
-                () -> actionRepository.removeAllUserData(userId), purged, failed);
+                () -> actionRepository.removeAllUserData(decisionKey), purged, failed);
         // docs/agent A5-1: the decisions of the agents that acted for the user, kept under their own keys.
         step("agent-decision-state", actionRepository != null,
-                () -> actionRepository.removeAllAgentData(userId), purged, failed);
+                () -> actionRepository.removeAllAgentData(decisionKey), purged, failed);
         step("blocking-signal", blockingSignalBroadcaster != null,
-                () -> blockingSignalBroadcaster.registerUnblock(userId), purged, failed);
+                () -> blockingSignalBroadcaster.registerUnblock(decisionKey), purged, failed);
         step("block-mfa-state", blockMfaStateStore != null,
-                () -> blockMfaStateStore.clearUser(userId), purged, failed);
+                () -> blockMfaStateStore.clearUser(decisionKey), purged, failed);
         step("baseline", baselineDataStore != null,
                 () -> baselineDataStore.deleteUserBaseline(userId), purged, failed);
         step("security-context", securityContextDataStore != null,

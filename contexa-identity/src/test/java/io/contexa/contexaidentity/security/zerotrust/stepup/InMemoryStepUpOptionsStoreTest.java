@@ -128,4 +128,18 @@ class InMemoryStepUpOptionsStoreTest {
         assertThat(store.claim("held", Duration.ofMinutes(10))).as("held still").isFalse();
         assertThat(store.take("options", String.class)).isEqualTo("kept");
     }
+
+    /** A count is made for every context that answers wrongly, and most of them never come back. */
+    @Test
+    @DisplayName("the sweep frees a count whose time is over and keeps one that stands")
+    void theSweepFreesCounts() {
+        store.increment("expired", Duration.ofSeconds(10));
+        store.increment("held", Duration.ofMinutes(10));
+        now.set(now.get().plusSeconds(11));
+
+        store.removeExpiredEntries();
+
+        assertThat((Map<?, ?>) ReflectionTestUtils.getField(store, "entries")).hasSize(1);
+        assertThat(store.increment("held", Duration.ofMinutes(10))).isEqualTo(2);
+    }
 }

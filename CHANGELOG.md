@@ -47,6 +47,25 @@ The format is based on Keep a Changelog and the project follows semantic version
   ESCALATE stops an expired account; a disabled account changes nothing. Whatever refuses answers exactly as a wrong
   password does, and the right password refused is not counted as a failed sign-in, which would let whoever holds it lock
   the owner out.
+- **A one-time code of the HOST_OWNED step-up now takes a limited number of answers.** The right code passed after any
+  number of wrong ones. A session context now gets `contexa.auth.mfa.max-retry-attempts` answers (5, as Contexa's own MFA).
+  The last one spent, the codes mailed for that context are discarded, and it answers nothing more, right or wrong, until
+  a new code is mailed for it. The answers are counted for the session context, an address and browser included, and at
+  once across nodes with the Redis store, so requests at once pass no limit. A stolen cookie is another context: its wrong
+  answers use up its own and leave the owner's answers and any code the owner asked for. The response to an answer past
+  the limit is the response to a wrong code, and the screen tells either to check the code or ask for a new one. The wait
+  between two mails is lifted for the new code, once in the five minutes a code lives, so wrong answers do not fill the
+  mailbox.
+- **A user's name can no longer reach the decisions of a console session or an agent.** A console session keeps its
+  decisions under `console::<user>` and an agent acting for a person under `<user>::agent::<agent id>`, and a user is kept
+  under the name. A user named `console::admin` therefore shared the console administrator's key: a BLOCK of that user
+  threw the administrator out of the console, and a delegated agent's decisions could reach a user named as its key in
+  the same way. A name that reads as such a key, in any spelling, now has a key of its own (`ctxa-user::` and the name
+  spelled out), in the decisions, the block flags and signals, the block records and the learning. So does a name that
+  contains `agent::` or starts with `ctxa-user::`. Every other name keeps its key, so what is stored under it stays. What
+  was stored for a user named so before this version cannot be told from what the console or the agent stored: it stays
+  under that key and the user starts again. Deleting a user also no longer removes the learning of an agent whose id is
+  the user's name.
 - **A sign-in flow no longer mails a code in another user's name.** The name of a code request comes from the form, and it
   was compared with the flow only after the mail had gone: a user could send anyone a code from their own sign-in. A flow
   now asks for the code of its own user, and any other name is refused before a code is made.

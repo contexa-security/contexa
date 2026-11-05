@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexaidentity.security.token.dto.TokenPair;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportResult;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportStrategy;
@@ -248,6 +249,23 @@ class OAuth2TokenServiceTest {
                 .hasMessageContaining("Authorization has no access token");
     }
 
+    @Test
+    @DisplayName("refresh of a user named as the console's key is refused by the user's own decision")
+    void refreshReadsTheDecisionOfAUserNamedAsAnInternalKey() {
+        stubActiveAuthorization(
+                new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, "a", Instant.now(), Instant.now().plusSeconds(60)),
+                new OAuth2RefreshToken("refresh-token-123", Instant.now(), Instant.now().plusSeconds(60)),
+                "console::rcboss");
+        ZeroTrustActionRepository actionRepository = mock(ZeroTrustActionRepository.class);
+        when(actionRepository.getCurrentAction(ZeroTrustUserKey.person("console::rcboss")))
+                .thenReturn(ZeroTrustAction.BLOCK);
+        service.setZeroTrustActionRepository(actionRepository);
+
+        assertThatThrownBy(() -> service.refresh("refresh-token-123"))
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, ex ->
+                        assertThat(ex.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.ACCESS_DENIED));
+    }
+
     @ParameterizedTest
     @EnumSource(value = ZeroTrustAction.class, names = {"BLOCK", "ESCALATE"})
     @DisplayName("refresh should be refused while zero trust blocks or escalates the user")
@@ -374,6 +392,11 @@ class OAuth2TokenServiceTest {
 
     @SuppressWarnings("unchecked")
     private void stubActiveAuthorization(OAuth2AccessToken accessToken, OAuth2RefreshToken refreshToken) {
+        stubActiveAuthorization(accessToken, refreshToken, "testUser");
+    }
+
+    private void stubActiveAuthorization(OAuth2AccessToken accessToken, OAuth2RefreshToken refreshToken,
+                                         String principalName) {
         OAuth2Authorization authorization = mock(OAuth2Authorization.class);
         OAuth2Authorization.Token<OAuth2RefreshToken> refreshTokenMeta = activeRefreshTokenMeta(refreshToken);
         OAuth2Authorization.Token<OAuth2AccessToken> accessTokenMeta = mock(OAuth2Authorization.Token.class);
@@ -382,7 +405,7 @@ class OAuth2TokenServiceTest {
         when(authorizationService.findByToken(refreshToken.getTokenValue(), OAuth2TokenType.REFRESH_TOKEN)).thenReturn(authorization);
         when(authorization.getRefreshToken()).thenReturn(refreshTokenMeta);
         when(authorization.getAccessToken()).thenReturn(accessTokenMeta);
-        when(authorization.getPrincipalName()).thenReturn("testUser");
+        when(authorization.getPrincipalName()).thenReturn(principalName);
         when(authorization.getAuthorizedScopes()).thenReturn(Collections.singleton("read"));
     }
 

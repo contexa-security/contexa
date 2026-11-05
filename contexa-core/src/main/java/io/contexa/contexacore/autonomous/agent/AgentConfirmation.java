@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.agent;
 
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import org.springframework.lang.Nullable;
 
 import java.time.Instant;
@@ -87,7 +88,8 @@ public record AgentConfirmation(String confirmationId, @Nullable String tenantId
 
     /** The key the decisions of the subject are kept under: the agent's own for a delegated agent. */
     public String subjectKey() {
-        return "DELEGATED_AGENT".equals(subjectKind) ? LearningSubject.agentKey(userId, agentId) : userId;
+        return "DELEGATED_AGENT".equals(subjectKind) ? LearningSubject.agentKey(userId, agentId)
+                : ZeroTrustUserKey.person(userId);
     }
 
     /** The confirmation decided. */

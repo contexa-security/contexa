@@ -18,6 +18,7 @@ package io.contexa.contexaiam.aiam.web;
 import io.contexa.contexaiam.aiam.web.dto.UnblockRequest;
 
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
 import io.contexa.contexaiam.aiam.web.dto.ZeroTrustDtos.ZeroTrustActionResponse;
@@ -47,7 +48,7 @@ public class ZeroTrustUnblockController {
     @PostMapping("/initiate-block-mfa")
     public ResponseEntity<ZeroTrustActionResponse> initiateBlockMfa(Principal principal) {
 
-        String userId = principal != null ? principal.getName() : null;
+        String userId = principal != null ? ZeroTrustUserKey.person(principal.getName()) : null;
         if (userId == null) {
             return ResponseEntity.status(401)
                     .body(new ZeroTrustMessageResponse(false, "Authentication required"));
@@ -76,7 +77,7 @@ public class ZeroTrustUnblockController {
             Principal principal,
             @RequestBody(required = false) UnblockRequest request) {
 
-        String userId = principal != null ? principal.getName() : null;
+        String userId = principal != null ? ZeroTrustUserKey.person(principal.getName()) : null;
         if (userId == null) {
             return ResponseEntity.status(401)
                     .body(new ZeroTrustMessageResponse(false, "Authentication required"));

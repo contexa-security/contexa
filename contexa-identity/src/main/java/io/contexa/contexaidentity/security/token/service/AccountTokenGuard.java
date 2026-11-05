@@ -18,6 +18,7 @@ package io.contexa.contexaidentity.security.token.service;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -102,7 +103,7 @@ public final class AccountTokenGuard {
         if (repository == null) {
             return;
         }
-        ZeroTrustAction action = repository.getCurrentAction(username);
+        ZeroTrustAction action = repository.getCurrentAction(ZeroTrustUserKey.person(username));
         if (action == ZeroTrustAction.BLOCK || action == ZeroTrustAction.ESCALATE) {
             throw new OAuth2AuthenticationException(new OAuth2Error(OAuth2ErrorCodes.ACCESS_DENIED,
                     "Token refresh is not allowed while the zero trust action is " + action, null));

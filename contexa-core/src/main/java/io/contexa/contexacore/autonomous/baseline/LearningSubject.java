@@ -21,6 +21,7 @@ import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.decision.LearningPromotionPolicy;
 import io.contexa.contexacore.autonomous.context.enricher.RecordedDelegationContextProvider;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import org.springframework.lang.Nullable;
 
 import java.util.Map;
@@ -92,7 +93,7 @@ public record LearningSubject(@Nullable String tenantId, String userId, @Nullabl
 
     /** The learning key of an agent for a user, as {@link #key()} writes it for the agent's requests. */
     public static String agentKey(String userId, String agentId) {
-        return userId + AGENT_KEY + agentId;
+        return ZeroTrustUserKey.person(userId) + AGENT_KEY + agentId;
     }
 
     /** Whether an agent sends the request. */
@@ -100,9 +101,9 @@ public record LearningSubject(@Nullable String tenantId, String userId, @Nullabl
         return agentId != null;
     }
 
-    /** The key the subject's learning is stored under: the user for a person, the user and the agent for an agent. */
+    /** The key the subject's learning is stored under: the user's for a person, the user and the agent for an agent. */
     public String key() {
-        return agentId != null ? agentKey(userId, agentId) : userId;
+        return agentId != null ? agentKey(userId, agentId) : ZeroTrustUserKey.person(userId);
     }
 
     @Nullable

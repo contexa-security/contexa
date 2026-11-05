@@ -7,6 +7,7 @@ import io.contexa.contexacore.verification.runtime.*;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.domain.entity.PromptContextAuditForwardingOutboxRecord;
 import io.contexa.contexacore.domain.entity.SecurityDecisionForwardingOutboxRecord;
 import io.contexa.contexacore.repository.PromptContextAuditForwardingOutboxRepository;
@@ -181,7 +182,7 @@ private void resetUserDecisionState(String userId) {
         if (!StringUtils.hasText(userId)) {
             return;
         }
-        zeroTrustActionRepository.removeAllUserData(userId.trim());
+        zeroTrustActionRepository.removeAllUserData(ZeroTrustUserKey.person(userId.trim()));
     }
 
     private SecurityDecisionForwardingOutboxRecord freshDecisionOutbox(

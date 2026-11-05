@@ -118,6 +118,18 @@ class AdminOverrideServiceTest {
     }
 
     @Test
+    @DisplayName("Approval for a block kept under a key that is no plain name learns nothing, and lifts that key")
+    void approve_underAKeyThatIsNoName_learnsNothing() {
+        SecurityEvent event = SecurityEvent.builder().userId("console::admin").build();
+
+        adminOverrideService.approve("req-1", "console::admin", "admin1", "BLOCK", 0.9, 0.85, "ALLOW",
+                "Verified legitimate user", event);
+
+        verify(actionRedisRepository).approveOverrideAtomically("console::admin", ZeroTrustAction.ALLOW);
+        verify(securityLearningService, never()).learnAndStore(any(), any(), any());
+    }
+
+    @Test
     @DisplayName("Approval triggers baseline update when canUpdateBaseline is true")
     void approve_allowAction_triggersBaselineUpdate() {
         // given

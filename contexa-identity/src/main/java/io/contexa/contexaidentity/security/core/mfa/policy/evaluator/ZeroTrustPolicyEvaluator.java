@@ -25,6 +25,7 @@ import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.util.CollectionUtils;
@@ -198,7 +199,7 @@ public class ZeroTrustPolicyEvaluator extends AbstractMfaPolicyEvaluator {
         }
 
         try {
-            ZeroTrustAnalysisData data = actionRedisRepository.getAnalysisData(userId);
+            ZeroTrustAnalysisData data = actionRedisRepository.getAnalysisData(ZeroTrustUserKey.person(userId));
             if (data.action() == null) {
                 return challengeAnalysis(data, "Zero Trust analysis unavailable - action missing");
             }
@@ -221,7 +222,7 @@ public class ZeroTrustPolicyEvaluator extends AbstractMfaPolicyEvaluator {
         }
 
         try {
-            return actionRedisRepository.getLastVerifiedAction(userId);
+            return actionRedisRepository.getLastVerifiedAction(ZeroTrustUserKey.person(userId));
         } catch (Exception e) {
             log.error("Failed to get last verified action for user: {}", userId, e);
             return null;

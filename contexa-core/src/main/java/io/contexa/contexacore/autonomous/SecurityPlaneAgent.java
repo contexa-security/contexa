@@ -835,10 +835,10 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    /** The key the event's decision is stored under: an agent acting for a person keeps its decisions apart. */
+    /** The key the event's decision is stored under, as the enforcement stored it. */
     private static String decisionKey(SecurityEvent event) {
         ZeroTrustSubject subject = ZeroTrustSubject.of(event);
-        return subject != null && subject.delegatedAgent() ? subject.storageKey() : event.getUserId();
+        return subject != null ? subject.storageKey() : event.getUserId();
     }
 
     private SecurityEvent newProcessingAttempt(SecurityEvent event) {

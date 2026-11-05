@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.event.publisher;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.autonomous.context.registry.ProtectableResourceContextScanner;
 import io.contexa.contexacore.autonomous.context.registry.InMemoryResourceContextRegistry;
 import io.contexa.contexacommon.security.context.OfficialContextField;
@@ -835,6 +836,10 @@ class ZeroTrustEventPublisherTest {
 
     /** Q-16 (PR-66): a request of the context the step-up was passed in, as the application left the sign-in. */
     private ZeroTrustSpringEvent eventAfterAStepUp(Instant passedInThisContext) throws Exception {
+        return eventAfterAStepUp("alice", "alice", passedInThisContext);
+    }
+
+    private ZeroTrustSpringEvent eventAfterAStepUp(String user, String key, Instant passedInThisContext) throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
         request.setRemoteAddr("203.0.113.15");
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
@@ -842,11 +847,20 @@ class ZeroTrustEventPublisherTest {
         MethodInvocation invocation = mock(MethodInvocation.class);
         when(invocation.getMethod()).thenReturn(SampleService.class.getDeclaredMethod("protectableApprove"));
         SecurityContextDataStore dataStore = mock(SecurityContextDataStore.class);
-        when(dataStore.getLastMfaVerifiedAt("alice")).thenReturn(Instant.parse("2026-11-05T10:15:30Z"));
-        when(dataStore.getChallengeVerifiedAt("alice", context)).thenReturn(passedInThisContext);
+        when(dataStore.getLastMfaVerifiedAt(key)).thenReturn(Instant.parse("2026-11-05T10:15:30Z"));
+        when(dataStore.getChallengeVerifiedAt(key, context)).thenReturn(passedInThisContext);
         return new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties(),
                 dataStore, new SecurityPlaneProperties()).buildMethodAuthorizationEvent(invocation,
-                new UsernamePasswordAuthenticationToken("alice", "n/a"), true, null);
+                new UsernamePasswordAuthenticationToken(user, "n/a"), true, null);
+    }
+
+    @Test
+    @DisplayName("a person named as an internal key finds the step-up under the key it was passed under")
+    void aStepUpOfAPersonNamedAsAnInternalKeyIsFoundUnderThePersonsKey() throws Exception {
+        ZeroTrustSpringEvent event = eventAfterAStepUp("console::admin", ZeroTrustUserKey.person("console::admin"),
+                Instant.parse("2026-11-05T10:15:30Z"));
+
+        assertThat(event.getPayload()).containsEntry("mfaVerified", true);
     }
 
     @Test

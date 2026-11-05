@@ -17,14 +17,19 @@ package io.contexa.contexaidentity.security.handler;
 
 import java.time.Instant;
 import io.contexa.contexacommon.security.context.RequestSecurityContextAttributes;
+import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.properties.MfaSettings;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
+import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
+import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
+import io.contexa.contexaidentity.security.zerotrust.ZeroTrustAccessControlFilter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,6 +44,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -98,6 +104,27 @@ class UnifiedAuthenticationFailureHandlerTest {
         handler.onAuthenticationFailure(request, response, new CredentialsExpiredException("expired"));
 
         assertThat(response.getRedirectedUrl()).isEqualTo("/contexa/password-change?username=admin&expired=true");
+    }
+
+    @Test
+    void aFailedBlockMfaOfAUserNamedAsTheConsolesKeyCountsAgainstThatUser() throws Exception {
+        String own = ZeroTrustUserKey.person("console::rcboss");
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/login/mfa-ott");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        FactorContext context = mock(FactorContext.class);
+        when(context.getUsername()).thenReturn("console::rcboss");
+        when(context.getMfaSessionId()).thenReturn("mfa-session-1");
+        when(context.getCurrentProcessingFactor()).thenReturn(AuthType.MFA_OTT);
+        when(context.getCurrentState()).thenReturn(MfaState.FACTOR_VERIFICATION_PENDING, MfaState.MFA_RETRY_LIMIT_EXCEEDED);
+        when(context.getAttribute(ZeroTrustAccessControlFilter.BLOCK_MFA_FLOW_ATTRIBUTE)).thenReturn(true);
+        when(stateMachineIntegrator.loadFactorContextFromRequest(request)).thenReturn(context);
+        when(sessionRepository.existsSession("mfa-session-1")).thenReturn(true);
+        when(actionRepository.incrementBlockMfaFailCount(own)).thenReturn(1L);
+
+        handler.onAuthenticationFailure(request, response, new BadCredentialsException("bad code"));
+
+        verify(actionRepository).incrementBlockMfaFailCount(own);
+        verify(actionRepository, never()).incrementBlockMfaFailCount("console::rcboss");
     }
 
     @Test

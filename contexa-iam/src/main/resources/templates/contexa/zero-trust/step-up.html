@@ -99,7 +99,7 @@
 </div>
 
 <div id="step-up-texts" hidden
-     th:attr="data-sent=#{zerotrust.stepup.code.sent},data-wait=#{zerotrust.stepup.code.wait},data-failed=#{zerotrust.stepup.failed},data-registered=#{zerotrust.stepup.registered}"></div>
+     th:attr="data-sent=#{zerotrust.stepup.code.sent},data-wait=#{zerotrust.stepup.code.wait},data-code-failed=#{zerotrust.stepup.code.failed},data-failed=#{zerotrust.stepup.failed},data-registered=#{zerotrust.stepup.registered}"></div>
 
 <script th:inline="javascript">
 (function () {
@@ -138,12 +138,12 @@
         return fetch(base + path, {method: 'POST', headers: headers, body: body, credentials: 'same-origin'});
     }
 
-    async function finish(response) {
+    async function finish(response, failed) {
         const result = await response.json().catch(() => ({}));
         if (response.ok && result.verified) {
             window.location.href = result.redirectUrl || '/';
         } else {
-            message.textContent = texts.failed;
+            message.textContent = failed || texts.failed;
         }
     }
 
@@ -184,7 +184,7 @@
         document.getElementById('step-up-code-verify').addEventListener('click', async () => {
             const code = document.getElementById('step-up-code').value;
             await finish(await post('/code/verify', new URLSearchParams({code: code}),
-                'application/x-www-form-urlencoded'));
+                'application/x-www-form-urlencoded'), texts.codeFailed);
         });
     }
 

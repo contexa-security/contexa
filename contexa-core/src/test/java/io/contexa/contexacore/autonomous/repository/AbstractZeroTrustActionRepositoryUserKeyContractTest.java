@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.repository;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -133,6 +135,77 @@ abstract class AbstractZeroTrustActionRepositoryUserKeyContractTest {
         repository.removeAllAgentData(capitals);
 
         assertThat(repository.getActionFromHash(agentKey)).isNull();
+    }
+
+    @Test
+    @DisplayName("a BLOCK of a person named as the console's key stays off the console, in every spelling of the name")
+    void aPersonsBlockStaysOffTheConsole() {
+        String console = ZeroTrustSubject.CONSOLE_KEY + name;
+        repository.saveAction(console, ZeroTrustAction.ALLOW, Map.of());
+
+        for (String spelling : List.of(console, console.toUpperCase(Locale.ROOT), " " + console + " ",
+                "ｃｏｎｓｏｌｅ::" + name)) {
+            String person = ZeroTrustUserKey.person(spelling);
+            repository.saveAction(person, ZeroTrustAction.BLOCK, Map.of());
+            repository.setBlockedFlag(person);
+
+            assertThat(repository.getCurrentAction(console, CONTEXT)).as(spelling).isEqualTo(ZeroTrustAction.ALLOW);
+        }
+        assertThat(repository.getCurrentAction(ZeroTrustUserKey.person(console), CONTEXT))
+                .isEqualTo(ZeroTrustAction.BLOCK);
+    }
+
+    @Test
+    @DisplayName("a BLOCK of the console, and of an agent, stays off the person named as their key")
+    void aBlockOfAnInternalKeyStaysOffThePerson() {
+        String console = ZeroTrustSubject.CONSOLE_KEY + name;
+        String agent = LearningSubject.agentKey(name, "agent-1");
+        for (String key : List.of(console, agent)) {
+            repository.saveAction(key, ZeroTrustAction.BLOCK, Map.of());
+            repository.setBlockedFlag(key);
+            repository.setBlockMfaPending(key);
+            repository.setEscalateRetry(key, Duration.ofMinutes(1));
+
+            String person = ZeroTrustUserKey.person(key);
+            assertThat(repository.getCurrentAction(person, CONTEXT)).as(key).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+            assertThat(repository.isBlockMfaPending(person)).as(key).isFalse();
+            assertThat(repository.hasEscalateRetry(person)).as(key).isFalse();
+        }
+    }
+
+    @Test
+    @DisplayName("the removal of a person named as an internal key leaves that key's decisions")
+    void aPersonsRemovalLeavesTheInternalKey() {
+        String console = ZeroTrustSubject.CONSOLE_KEY + name;
+        repository.saveAction(console, ZeroTrustAction.BLOCK, Map.of());
+        repository.setBlockedFlag(console);
+        repository.saveAction(ZeroTrustUserKey.person(console), ZeroTrustAction.BLOCK, Map.of());
+        repository.setBlockedFlag(ZeroTrustUserKey.person(console));
+
+        repository.removeAllUserData(ZeroTrustUserKey.person(console));
+
+        assertThat(repository.getCurrentAction(console, CONTEXT)).isEqualTo(ZeroTrustAction.BLOCK);
+        assertThat(repository.getCurrentAction(ZeroTrustUserKey.person(console), CONTEXT))
+                .isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+    }
+
+    @Test
+    @DisplayName("removing a person's agents leaves those of a person whose name starts with an agent's key")
+    void aPersonsAgentsStayOffThoseOfAnother() {
+        String oddlyNamed = name + "::agent::x";
+        String own = LearningSubject.agentKey(name, "x");
+        String another = LearningSubject.agentKey(oddlyNamed, "bot");
+        repository.saveAction(own, ZeroTrustAction.CHALLENGE, Map.of());
+        repository.saveAction(another, ZeroTrustAction.CHALLENGE, Map.of());
+
+        repository.removeAllAgentData(ZeroTrustUserKey.person(name));
+
+        assertThat(repository.getActionFromHash(own)).isNull();
+        assertThat(repository.getActionFromHash(another)).isEqualTo(ZeroTrustAction.CHALLENGE);
+
+        repository.removeAllAgentData(ZeroTrustUserKey.person(oddlyNamed));
+
+        assertThat(repository.getActionFromHash(another)).isNull();
     }
 
     @Test

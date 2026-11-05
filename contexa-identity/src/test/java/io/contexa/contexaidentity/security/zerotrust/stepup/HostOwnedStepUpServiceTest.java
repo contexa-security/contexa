@@ -24,6 +24,7 @@ import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
 import io.contexa.contexaidentity.security.zerotrust.ChallengeResolution;
 import io.contexa.contexaidentity.security.zerotrust.HostOwnedStepUp;
@@ -68,7 +69,7 @@ class HostOwnedStepUpServiceTest {
     void setUp() {
         service = new HostOwnedStepUpService(actions, resolution, users, "shadow.contexa.local",
                 new InMemoryStepUpOptionsStore(), oneTimeTokens, email, null, null, null, null,
-                "/login?prompt=login");
+                "/login?prompt=login", 5);
         when(email.isMailSenderConfigured()).thenReturn(true);
         when(resolution.releaseChallenge(anyString(), any(), any(), any())).thenReturn(true);
     }
@@ -94,6 +95,24 @@ class HostOwnedStepUpServiceTest {
         assertThat(situation.oneTimeCode()).isTrue();
         assertThat(situation.passkeyRegistrable()).as("no registration under a restriction").isFalse();
         assertThat(situation.reauthenticationUrl()).isEqualTo("/login?prompt=login");
+    }
+
+    @Test
+    @DisplayName("a user named as the console's key reads its own decision and finds its own bridged copy")
+    void aUserNamedAsTheConsolesKeyReadsItsOwnDecision() {
+        String own = ZeroTrustUserKey.person("console::rcboss");
+        Users user = mock(Users.class);
+        when(user.getEmail()).thenReturn("odd@corp.example");
+        when(users.findByExternalSubjectIdAndBridgeManagedTrue("console::rcboss")).thenReturn(List.of(user));
+        when(actions.getCurrentAction(eq(own), any())).thenReturn(ZeroTrustAction.CHALLENGE);
+        when(actions.getCurrentAction(eq("console::rcboss"), any())).thenReturn(ZeroTrustAction.BLOCK);
+
+        HostOwnedStepUpService.Situation situation = service.situation(request,
+                new TestingAuthenticationToken("console::rcboss", null, "ROLE_USER"));
+
+        assertThat(situation.decisionKey()).isEqualTo(own);
+        assertThat(situation.purpose()).isEqualTo(HostOwnedStepUpService.Purpose.CHALLENGE);
+        assertThat(situation.user()).isSameAs(user);
     }
 
     @Test

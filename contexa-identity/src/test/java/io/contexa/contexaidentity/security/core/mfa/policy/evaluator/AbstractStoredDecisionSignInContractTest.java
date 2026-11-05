@@ -18,6 +18,8 @@ package io.contexa.contexaidentity.security.core.mfa.policy.evaluator;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
@@ -192,6 +194,27 @@ abstract class AbstractStoredDecisionSignInContractTest {
 
         assertThat(decision.getType()).isEqualTo(expected);
         assertThat(decision.isRequired()).isEqualTo(required);
+    }
+
+    @Test
+    @DisplayName("a user named as the console's key meets its own decision at the password step, not the console's")
+    void aUserNamedAsTheConsolesKeyMeetsItsOwnDecision() {
+        String name = ZeroTrustSubject.CONSOLE_KEY + user;
+        store().saveAction(name, ZeroTrustAction.BLOCK, Map.of());
+
+        assertThat(policy.provider.evaluateInitialMfaRequirement(
+                SignInPolicyFixture.signIn(name, VICTIM_ADDRESS, VICTIM_BROWSER)).getType())
+                .isNotEqualTo(MfaDecision.DecisionType.BLOCKED);
+        assertThat(policy.fallback.evaluatePolicy(SignInPolicyFixture.signIn(name, VICTIM_ADDRESS, VICTIM_BROWSER))
+                .getType()).isNotEqualTo(MfaDecision.DecisionType.BLOCKED);
+
+        store().saveAction(ZeroTrustUserKey.person(name), ZeroTrustAction.BLOCK, Map.of());
+
+        assertThat(policy.provider.evaluateInitialMfaRequirement(
+                SignInPolicyFixture.signIn(name, VICTIM_ADDRESS, VICTIM_BROWSER)).getType())
+                .isEqualTo(MfaDecision.DecisionType.BLOCKED);
+        assertThat(policy.fallback.evaluatePolicy(SignInPolicyFixture.signIn(name, VICTIM_ADDRESS, VICTIM_BROWSER))
+                .getType()).isEqualTo(MfaDecision.DecisionType.BLOCKED);
     }
 
     @Test

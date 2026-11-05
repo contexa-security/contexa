@@ -364,7 +364,8 @@ public class BlockedUserService implements IBlockedUserRecorder {
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     /**
      * Q-1: an administrator lifts a CHALLENGE, for a user who has no way to answer it, in every session of the user. It
-     * says nothing about the request that was stopped, so nothing is learned from it.
+     * says nothing about the request that was stopped, so nothing is learned from it. The administrator names a person;
+     * a console session's CHALLENGE, kept apart from the person of that name, is named by its key.
      *
      * @return false when no CHALLENGE stands
      */
@@ -372,12 +373,11 @@ public class BlockedUserService implements IBlockedUserRecorder {
         if (userId == null || userId.isBlank() || reason == null || reason.isBlank()) {
             throw new IllegalArgumentException("A user and a reason are required");
         }
-        String user = userId.trim();
-        refuseOwnRelease(user, adminId, "RELEASE_CHALLENGE");
-        // A hold outlives the CHALLENGE it came from, so a BLOCK decided since is looked for first: it has its own way out.
-        ZeroTrustAction stored = actionRedisRepository.getActionFromHash(user);
-        if (stored == ZeroTrustAction.BLOCK
-                || (stored != ZeroTrustAction.CHALLENGE && actionRedisRepository.challengeHeldSince(user) == null)) {
+        String typed = userId.trim();
+        String person = ZeroTrustUserKey.person(typed);
+        String user = underChallenge(person) ? person : !person.equals(typed) && underChallenge(typed) ? typed : null;
+        refuseOwnRelease(user != null ? user : person, adminId, "RELEASE_CHALLENGE");
+        if (user == null) {
             return false;
         }
         actionRedisRepository.approveOverrideAtomically(user, ZeroTrustAction.ALLOW);
@@ -399,6 +399,13 @@ public class BlockedUserService implements IBlockedUserRecorder {
             log.error("[BlockedUserService] Failed to audit a released challenge: userId={}", user, e);
         }
         return true;
+    }
+
+    /** A hold outlives the CHALLENGE it came from, so a BLOCK decided since is looked for first: it has its own way out. */
+    private boolean underChallenge(String key) {
+        ZeroTrustAction stored = actionRedisRepository.getActionFromHash(key);
+        return stored != ZeroTrustAction.BLOCK
+                && (stored == ZeroTrustAction.CHALLENGE || actionRedisRepository.challengeHeldSince(key) != null);
     }
 
     @Protectable(verificationRequired = false)

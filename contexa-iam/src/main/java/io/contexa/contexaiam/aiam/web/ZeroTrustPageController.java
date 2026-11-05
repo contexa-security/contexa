@@ -17,6 +17,7 @@ package io.contexa.contexaiam.aiam.web;
 
 import io.contexa.contexacommon.security.SameAppPath;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
@@ -49,7 +50,7 @@ public class ZeroTrustPageController {
         boolean mfaFailed = false;
         int mfaFailCount = 0;
         if (principal != null) {
-            String userId = principal.getName();
+            String userId = ZeroTrustUserKey.person(principal.getName());
 
             mfaFailed = blockedUserService.hasLatestStatus(userId, BlockedUserStatus.MFA_FAILED);
 

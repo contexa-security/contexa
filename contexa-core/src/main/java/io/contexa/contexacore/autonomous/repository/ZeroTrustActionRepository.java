@@ -26,6 +26,10 @@ import java.util.Map;
 /**
  * Abstraction for Zero Trust action storage and retrieval.
  * Implementations: ZeroTrustActionRedisRepository (distributed), InMemoryZeroTrustActionRepository (standalone).
+ * <p>
+ * Every {@code userId} here is a key, never a bare name: {@link ZeroTrustSubject#storageKey()} for a request's subject,
+ * {@code ZeroTrustUserKey.person} for a name. A name handed over as it is would read a console session's or an agent's
+ * decisions if it were spelled as their key.
  */
 public interface ZeroTrustActionRepository {
 

@@ -42,6 +42,7 @@ import io.contexa.contexacore.autonomous.agent.AgentContainmentService;
 import io.contexa.contexacore.autonomous.agent.AgentScopeService;
 import io.contexa.contexacore.autonomous.signal.RiskSignal;
 import io.contexa.contexacore.autonomous.signal.RiskSignalEmitter;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -608,14 +609,15 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
 
     /**
      * docs/agent A5-1, Q-17: the key the request's decision is stored under. An agent acting for a person and a console
-     * session keep their decisions apart from the person of that name; everyone else keeps the user ID.
+     * session keep their decisions apart from the person of that name; everyone else keeps the user ID's key.
      */
     private static String decisionKey(SecurityEvent event, String userId) {
         if (userId == null || userId.isBlank()) {
             return userId;
         }
         ZeroTrustSubject subject = ZeroTrustSubject.of(event);
-        return subject != null && (subject.delegatedAgent() || subject.console()) ? subject.storageKey() : userId;
+        return subject != null && (subject.delegatedAgent() || subject.console()) ? subject.storageKey()
+                : ZeroTrustUserKey.person(userId);
     }
 
     private void handleBlockDecision(String userId, SecurityEvent event, ProcessingResult result) {

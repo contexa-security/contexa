@@ -17,6 +17,7 @@ package io.contexa.contexaidentity.security.core.mfa.policy.evaluator;
 
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import org.junit.jupiter.api.Test;
@@ -79,6 +80,17 @@ class AgentAccountMfaPolicyEvaluatorTest {
         assertThat(evaluator.evaluatePolicy(context("report-bot")).getType()).isEqualTo(MfaDecision.DecisionType.ESCALATED);
         when(actions.getAnalysisData("report-bot")).thenThrow(new IllegalStateException("store down"));
         assertThat(evaluator.evaluatePolicy(context("report-bot")).getType()).isEqualTo(MfaDecision.DecisionType.BLOCKED);
+    }
+
+    @Test
+    void anAgentsAccountNamedAsAnInternalKeyReadsItsOwnDecision() {
+        AgentAccountMfaPolicyEvaluator oddlyNamed = new AgentAccountMfaPolicyEvaluator(actions,
+                provider((tenantId, account) -> Optional.of("report-bot")));
+        when(actions.getAnalysisData("console::bot")).thenReturn(analysis("BLOCK"));
+        when(actions.getAnalysisData(ZeroTrustUserKey.person("console::bot"))).thenReturn(analysis("ALLOW"));
+
+        assertThat(oddlyNamed.evaluatePolicy(context("console::bot")).getType())
+                .isEqualTo(MfaDecision.DecisionType.NO_MFA_REQUIRED);
     }
 
     @Test

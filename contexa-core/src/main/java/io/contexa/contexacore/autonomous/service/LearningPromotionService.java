@@ -29,6 +29,7 @@ import io.contexa.contexacore.autonomous.context.support.VocabularyMigration;
 import io.contexa.contexacore.autonomous.context.support.VocabularyVersion;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
@@ -151,7 +152,8 @@ public class LearningPromotionService {
             return;
         }
         try {
-            promoteUnderLock(BaselineDataStore.userKey(tenantId, userId.trim()), Set.copyOf(values));
+            promoteUnderLock(BaselineDataStore.userKey(tenantId, ZeroTrustUserKey.person(userId.trim())),
+                    Set.copyOf(values));
         } catch (Exception e) {
             log.error("Failed to promote held requests after a verification: userId={}", userId, e);
         }

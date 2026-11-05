@@ -28,10 +28,12 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.saas.DecisionFeedbackForwardingService;
 import io.contexa.contexacore.autonomous.saas.ThreatOutcomeForwardingService;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 
@@ -155,6 +157,11 @@ public class AdminOverrideService {
     }
 
     private void triggerBaselineUpdate(String userId, SecurityEvent event, AdminOverride override) {
+        // The block is kept under a key: only a key that is the name itself names the person to learn for. A console
+        // session's key, or a moved name's, would be learned as a name of that spelling, another person's.
+        if (!Objects.equals(ZeroTrustUserKey.person(userId), userId)) {
+            return;
+        }
         try {
             SecurityDecision adminApprovedDecision = SecurityDecision.builder()
                     .action(ZeroTrustAction.ALLOW)

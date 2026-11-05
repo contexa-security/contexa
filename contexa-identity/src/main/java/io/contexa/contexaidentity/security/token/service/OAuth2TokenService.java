@@ -19,6 +19,7 @@ import io.contexa.contexaidentity.security.handler.login.LoginFactClaims;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexaidentity.security.token.dto.TokenPair;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportResult;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportStrategy;

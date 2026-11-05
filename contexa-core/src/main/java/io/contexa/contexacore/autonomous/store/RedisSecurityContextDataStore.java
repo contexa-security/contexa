@@ -20,6 +20,7 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.store.StoreFailures;
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.Cursor;
@@ -1117,30 +1118,32 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
         if (userId == null || userId.isBlank()) {
             return;
         }
+        // What is learned and verified is kept under the user's key, the rest under the name as it came.
+        String userKey = ZeroTrustUserKey.person(userId);
         List<String> keys = new ArrayList<>(List.of(
                 ZeroTrustRedisKeys.verificationLearning(userId),
-                ZeroTrustRedisKeys.promotionLearning(userId),
+                ZeroTrustRedisKeys.promotionLearning(userKey),
                 ZeroTrustRedisKeys.stoppedRequests(userId),
                 ZeroTrustRedisKeys.userLastRequestTime(userId),
                 ZeroTrustRedisKeys.userPreviousPath(userId),
-                ZeroTrustRedisKeys.authenticationMfaVerified(userId),
-                ZeroTrustRedisKeys.authenticationChallengeVerified(userId),
+                ZeroTrustRedisKeys.authenticationMfaVerified(userKey),
+                ZeroTrustRedisKeys.authenticationChallengeVerified(userKey),
                 ZeroTrustRedisKeys.authenticationLoginFailuresByUser(userId.trim()),
                 ZeroTrustRedisKeys.userSessions(userId),
                 // QF-57: the session ids Zero Trust tracks for the user, which used to share the list above.
                 ZeroTrustRedisKeys.userSessionDeadlines(userId),
                 ZeroTrustRedisKeys.userUntimedSessions(userId),
-                ZeroTrustRedisKeys.userWorkProfileObservations(userId),
-                ZeroTrustRedisKeys.userPermissionChangeObservations(userId),
-                ZeroTrustRedisKeys.userAuthorizationScopeState(userId)));
-        String anyTenantScope = "*::" + ZeroTrustRedisKeys.globLiteral(userId);
-        keys.addAll(scanKeys(ZeroTrustRedisKeys.userWorkProfileObservations(anyTenantScope)));
-        keys.addAll(scanKeys(ZeroTrustRedisKeys.userPermissionChangeObservations(anyTenantScope)));
-        keys.addAll(scanKeys(ZeroTrustRedisKeys.userAuthorizationScopeState(anyTenantScope)));
+                ZeroTrustRedisKeys.userWorkProfileObservations(userKey),
+                ZeroTrustRedisKeys.userPermissionChangeObservations(userKey),
+                ZeroTrustRedisKeys.userAuthorizationScopeState(userKey)));
+        String anyTenantScope = "*::" + ZeroTrustRedisKeys.globLiteral(userKey);
+        keys.addAll(usersKeysOfTenants(ZeroTrustRedisKeys.userWorkProfileObservations(anyTenantScope), userKey));
+        keys.addAll(usersKeysOfTenants(ZeroTrustRedisKeys.userPermissionChangeObservations(anyTenantScope), userKey));
+        keys.addAll(usersKeysOfTenants(ZeroTrustRedisKeys.userAuthorizationScopeState(anyTenantScope), userKey));
         // QF-29: the user's held requests are kept within each tenant.
-        keys.addAll(scanKeys(ZeroTrustRedisKeys.promotionLearning(anyTenantScope)));
+        keys.addAll(usersKeysOfTenants(ZeroTrustRedisKeys.promotionLearning(anyTenantScope), userKey));
         // docs/agent A3-1: what the agents acting for the user learned, under their learning keys in every tenant.
-        String agentKeys = ZeroTrustRedisKeys.globLiteral(userId) + LearningSubject.AGENT_KEY + "*";
+        String agentKeys = ZeroTrustRedisKeys.globLiteral(userKey) + LearningSubject.AGENT_KEY + "*";
         keys.addAll(scanKeys(ZeroTrustRedisKeys.userWorkProfileObservations(agentKeys)));
         keys.addAll(scanKeys(ZeroTrustRedisKeys.userWorkProfileObservations("*::" + agentKeys)));
         keys.addAll(scanKeys(ZeroTrustRedisKeys.promotionLearning(agentKeys)));
@@ -1151,6 +1154,12 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
         keys.addAll(scanKeys(ZeroTrustRedisKeys.userAuthorizationScopeState(agentKeys)));
         keys.addAll(scanKeys(ZeroTrustRedisKeys.userAuthorizationScopeState("*::" + agentKeys)));
         redisTemplate.delete(keys);
+    }
+
+    /** The user's keys in every tenant: an agent that bears the user's name ends the same way and is left alone. */
+    private List<String> usersKeysOfTenants(String pattern, String userKey) {
+        String agentOfThatName = LearningSubject.AGENT_KEY + userKey;
+        return scanKeys(pattern).stream().filter(key -> !key.endsWith(agentOfThatName)).toList();
     }
 
     private List<String> scanKeys(String pattern) {

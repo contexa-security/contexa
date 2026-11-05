@@ -94,7 +94,7 @@ class OneTimeTokenSchedulerLifecycleTest {
         AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
         context.registerBean("stepUp", HostOwnedStepUpService.class, () -> new HostOwnedStepUpService(
                 null, null, null, "contexa.invalid", null, new JdbcOneTimeTokenService(mock(JdbcOperations.class)),
-                null, null, null, null, null, null));
+                null, null, null, null, null, null, 5));
         context.refresh();
         try {
             assertThat(awaitSchedulerThreads(before + 1)).as("the code service runs one scheduler").isTrue();
@@ -109,7 +109,7 @@ class OneTimeTokenSchedulerLifecycleTest {
     void aStepUpServiceWithoutCodesClosesCleanly() {
         AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
         context.registerBean("stepUp", HostOwnedStepUpService.class, () -> new HostOwnedStepUpService(
-                null, null, null, "contexa.invalid", null, null, null, null, null, null, null, null));
+                null, null, null, "contexa.invalid", null, null, null, null, null, null, null, null, 5));
         context.refresh();
         context.close();
         assertThat(context.isActive()).isFalse();

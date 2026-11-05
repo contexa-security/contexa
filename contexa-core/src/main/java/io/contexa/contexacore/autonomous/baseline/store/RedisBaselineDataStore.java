@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.baseline.store;
 import io.contexa.contexacommon.security.baseline.BaselineVector;
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -185,16 +186,22 @@ public class RedisBaselineDataStore implements BaselineDataStore {
         if (userId == null || userId.isBlank()) {
             return;
         }
-        deleteUserBaselineKey(userId);
-        // The user's baselines under every tenant (W5-10 D9).
+        String userKey = ZeroTrustUserKey.person(userId);
+        deleteUserBaselineKey(userKey);
+        // The user's baselines under every tenant (W5-10 D9); an agent that bears the user's name ends the same way.
         List<String> tenantKeys = new ArrayList<>();
+        String agentOfThatName = LearningSubject.AGENT_KEY + userKey;
         try (Cursor<String> cursor = redisTemplate.scan(ScanOptions.scanOptions()
-                .match(BASELINE_KEY_PREFIX + "*" + TENANT_SEPARATOR + ZeroTrustRedisKeys.globLiteral(userId))
+                .match(BASELINE_KEY_PREFIX + "*" + TENANT_SEPARATOR + ZeroTrustRedisKeys.globLiteral(userKey))
                 .count(500).build())) {
-            cursor.forEachRemaining(tenantKeys::add);
+            cursor.forEachRemaining(key -> {
+                if (!key.endsWith(agentOfThatName)) {
+                    tenantKeys.add(key);
+                }
+            });
         }
         // docs/agent A3-1: the baselines of the agents acting for the user, in every tenant.
-        String agentKeys = ZeroTrustRedisKeys.globLiteral(userId) + LearningSubject.AGENT_KEY + "*";
+        String agentKeys = ZeroTrustRedisKeys.globLiteral(userKey) + LearningSubject.AGENT_KEY + "*";
         for (String pattern : List.of(BASELINE_KEY_PREFIX + agentKeys,
                 BASELINE_KEY_PREFIX + "*" + TENANT_SEPARATOR + agentKeys)) {
             try (Cursor<String> cursor = redisTemplate.scan(ScanOptions.scanOptions().match(pattern).count(500).build())) {

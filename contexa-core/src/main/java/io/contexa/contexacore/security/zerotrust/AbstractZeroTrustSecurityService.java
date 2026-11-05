@@ -266,13 +266,13 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
         }
 
         try {
-            actionRepository.removeLogoutData(userId);
+            actionRepository.removeLogoutData(ZeroTrustUserKey.person(userId));
         } catch (Exception e) {
             log.error("[ZeroTrust] Failed to cleanup logout action data: userId={}", userId, e);
         }
 
         try {
-            decisionCache.invalidate(ZeroTrustUserKey.of(userId));
+            decisionCache.invalidate(ZeroTrustUserKey.of(ZeroTrustUserKey.person(userId)));
             if (sessionId != null) {
                 registeredSessions.remove(sessionId);
             }
@@ -285,7 +285,7 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
     @Override
     public void invalidateDecisionCache(String userId) {
         if (userId != null) {
-            decisionCache.invalidate(ZeroTrustUserKey.of(userId));
+            decisionCache.invalidate(ZeroTrustUserKey.of(ZeroTrustUserKey.person(userId)));
         }
     }
 

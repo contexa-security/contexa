@@ -24,6 +24,7 @@ import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
@@ -152,7 +153,8 @@ public class SealedDecisionReplays {
         Baselines drawnWith = user != null || organization != null ? Baselines.GIVEN : Baselines.CURRENT;
         if (drawnWith == Baselines.CURRENT && baselines != null) {
             // Copies, so that naming the user below leaves the kept baselines as they are.
-            user = copy(baselines.getUserBaseline(BaselineDataStore.userKey(sealed.getTenantId(), sealed.getUserId())));
+            user = copy(baselines.getUserBaseline(BaselineDataStore.userKey(sealed.getTenantId(),
+                    ZeroTrustUserKey.person(sealed.getUserId()))));
             String organizationId = organizationOf(sealed);
             organization = organizationId != null ? copy(baselines.getOrganizationBaseline(organizationId)) : null;
         }

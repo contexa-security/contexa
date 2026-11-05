@@ -24,6 +24,7 @@ import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
 import org.springframework.util.StringUtils;
@@ -190,8 +191,9 @@ public class AgentContainmentService {
         Optional<AgentRegistration> resumed = registry != null
                 ? registry.resume(tenantId, agentId.trim(), "RELEASED: " + Objects.toString(reason, ""))
                 : Optional.empty();
-        actions.removeAllUserData(agentId.trim());
-        resumed.map(AgentRegistration::clientId).filter(StringUtils::hasText).ifPresent(actions::removeAllUserData);
+        actions.removeAllUserData(ZeroTrustUserKey.person(agentId.trim()));
+        resumed.map(AgentRegistration::clientId).filter(StringUtils::hasText).map(ZeroTrustUserKey::person)
+                .ifPresent(actions::removeAllUserData);
         record(AuditEventCategory.AGENT_RELEASED, releasedBy, agentId.trim(), "AGENT_RELEASED", reason,
                 "AUTONOMOUS_AGENT", null, null, tenantId, Map.of("scope", "AGENT",
                         "known", String.valueOf(resumed.isPresent())));

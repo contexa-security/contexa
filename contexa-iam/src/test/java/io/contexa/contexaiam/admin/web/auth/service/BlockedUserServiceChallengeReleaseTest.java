@@ -21,6 +21,7 @@ import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -62,6 +63,31 @@ class BlockedUserServiceChallengeReleaseTest {
         verify(audit).recordAsync(record.capture());
         assertThat(record.getValue().getPrincipalName()).isEqualTo("admin");
         assertThat(record.getValue().getReason()).isEqualTo("called the user");
+    }
+
+    @Test
+    @DisplayName("a name in the form of the console's key releases that person's CHALLENGE and leaves the console's")
+    void theFormNamesThePersonFirst() {
+        String person = ZeroTrustUserKey.person("console::rcboss");
+        actions.saveAction(person, ZeroTrustAction.CHALLENGE, Map.of());
+        actions.saveAction("console::rcboss", ZeroTrustAction.CHALLENGE, Map.of());
+
+        assertThat(service.releaseChallenge("console::rcboss", "admin", "called the user")).isTrue();
+
+        assertThat(actions.getActionFromHash(person)).isEqualTo(ZeroTrustAction.ALLOW);
+        assertThat(actions.getActionFromHash("console::rcboss")).isEqualTo(ZeroTrustAction.CHALLENGE);
+        verify(signals).registerUnblock(person);
+    }
+
+    @Test
+    @DisplayName("a console session's CHALLENGE is named by its key when no person of that name is challenged")
+    void aConsoleChallengeIsNamedByItsKey() {
+        actions.saveAction("console::rcboss", ZeroTrustAction.CHALLENGE, Map.of());
+
+        assertThat(service.releaseChallenge("console::rcboss", "admin", "called the administrator")).isTrue();
+
+        assertThat(actions.getActionFromHash("console::rcboss")).isEqualTo(ZeroTrustAction.ALLOW);
+        verify(signals).registerUnblock("console::rcboss");
     }
 
     @Test
