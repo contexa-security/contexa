@@ -27,6 +27,10 @@
                  style="background: rgba(251, 191, 36, 0.12); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3);"
                  th:text="#{admin.agent.stops.unavailable}">The autonomous security plane is off: stops can be seen but not acted on.</div>
 
+            <div th:if="${underOwnBlock}" id="readOnlyNotice" class="mb-6 p-4 rounded-lg text-sm"
+                 style="background: rgba(251, 191, 36, 0.12); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3);"
+                 th:text="#{admin.blacklist.read.only}">This session is blocked: it reads these lists and changes nothing until its block is lifted.</div>
+
             <section class="mb-10" id="suspendedAgents">
                 <h2 class="text-xl font-semibold mb-1" th:text="#{admin.agent.stops.suspended.heading}">Suspended agents</h2>
                 <p class="text-dark-muted text-sm mb-3" th:text="#{admin.agent.stops.suspended.hint}">Every token of a suspended agent is refused and no new one is issued.</p>
@@ -54,7 +58,7 @@
                             <td class="py-4 px-6 text-xs" th:text="${a.statusReason != null} ? ${a.statusReason} : '-'"></td>
                             <td class="py-4 px-6" th:text="${a.lastSeenAt != null} ? ${#temporals.format(a.lastSeenAt, 'yyyy-MM-dd HH:mm')} : '-'"></td>
                             <td class="py-4 px-6">
-                                <form th:if="${available}" th:action="@{/contexa/admin/blacklist/agents/release-agent}" method="post"
+                                <form th:if="${available and underOwnBlock != true}" th:action="@{/contexa/admin/blacklist/agents/release-agent}" method="post"
                                       class="flex gap-2 items-center release-form"
                                       th:data-confirm-msg="#{admin.agent.stops.release.confirm}" onsubmit="return confirm(this.getAttribute('data-confirm-msg'));">
                                     <input type="hidden" name="tenant" th:value="${a.tenantId}"/>
@@ -103,7 +107,7 @@
                                 <span th:if="${d.decisionRecordId == null}" class="text-xs" style="color: #64748b;">-</span>
                             </td>
                             <td class="py-4 px-6">
-                                <form th:if="${available}" th:action="@{/contexa/admin/blacklist/agents/release-delegation}" method="post"
+                                <form th:if="${available and underOwnBlock != true}" th:action="@{/contexa/admin/blacklist/agents/release-delegation}" method="post"
                                       class="flex gap-2 items-center release-form"
                                       th:data-confirm-msg="#{admin.agent.stops.release.delegation.confirm}" onsubmit="return confirm(this.getAttribute('data-confirm-msg'));">
                                     <input type="hidden" name="userId" th:value="${d.userId}"/>
@@ -158,7 +162,7 @@
                 <h2 class="text-xl font-semibold mb-1" style="color: #f87171;" th:text="#{admin.agent.stops.kill.switch.heading}">Kill switch</h2>
                 <p class="text-dark-muted text-sm mb-4" th:text="#{admin.agent.stops.kill.switch.hint}">Suspends every active registered agent, or those of one type; their tokens are revoked. People are not affected.</p>
                 <div class="flex flex-wrap gap-6">
-                    <form th:if="${available}" th:action="@{/contexa/admin/blacklist/agents/kill-switch}" method="post"
+                    <form th:if="${available and underOwnBlock != true}" th:action="@{/contexa/admin/blacklist/agents/kill-switch}" method="post"
                           class="flex flex-wrap gap-2 items-center" id="killSwitchForm"
                           th:data-confirm-msg="#{admin.agent.stops.kill.switch.confirm}" onsubmit="return confirm(this.getAttribute('data-confirm-msg'));">
                         <input type="text" name="agentType" maxlength="100" class="px-2 py-1 rounded text-sm stop-input"
@@ -168,7 +172,7 @@
                         <button type="submit" class="px-3 py-1.5 rounded-md text-sm font-semibold stop-kill"
                                 th:text="#{admin.agent.stops.kill.switch.apply}">Stop agents</button>
                     </form>
-                    <form th:if="${available}" th:action="@{/contexa/admin/blacklist/agents/kill-switch/release}" method="post"
+                    <form th:if="${available and underOwnBlock != true}" th:action="@{/contexa/admin/blacklist/agents/kill-switch/release}" method="post"
                           class="flex flex-wrap gap-2 items-center" id="killSwitchReleaseForm"
                           th:data-confirm-msg="#{admin.agent.stops.kill.switch.release.confirm}" onsubmit="return confirm(this.getAttribute('data-confirm-msg'));">
                         <input type="text" name="agentType" maxlength="100" class="px-2 py-1 rounded text-sm stop-input"

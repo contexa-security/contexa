@@ -16,11 +16,15 @@
 package io.contexa.contexaiam.admin.web.auth.controller;
 
 import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
+import io.contexa.contexaiam.admin.web.auth.service.UnderOwnBlockException;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -30,6 +34,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.security.access.prepost.PreAuthorize;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Slf4j
@@ -58,6 +63,7 @@ public class BlacklistController {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         model.addAttribute("ownBlockAwaitsVerification",
                 auth != null && blockedUserService.ownBlockAwaitsVerification(auth.getName()));
+        model.addAttribute("underOwnBlock", auth != null && blockedUserService.underOwnBlock(auth.getName()));
         return "contexa/admin/blacklist";
     }
 
@@ -66,6 +72,7 @@ public class BlacklistController {
         return blockedUserService.getBlockDetail(id)
                 .map(blocked -> {
                     model.addAttribute("blocked", blocked);
+                    model.addAttribute("mayLift", blockedUserService.mayLift(blocked.getUserId(), extractCurrentUserId()));
                     return "contexa/admin/blacklist-detail";
                 })
                 .orElseGet(() -> {
@@ -86,7 +93,7 @@ public class BlacklistController {
                 ra.addFlashAttribute("errorMessage", msg("msg.blacklist.challenge.none", userId));
             }
         } catch (AccessDeniedException e) {
-            ra.addFlashAttribute("errorMessage", e.getMessage());
+            return refused(e, ra, "redirect:/contexa/admin/blacklist");
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("errorMessage", msg("msg.blacklist.challenge.input"));
         }
@@ -103,8 +110,7 @@ public class BlacklistController {
             blockedUserService.resolveBlockById(id, adminId, resolvedAction, reason);
             ra.addFlashAttribute("message", msg("msg.blacklist.resolved"));
         } catch (AccessDeniedException e) {
-            ra.addFlashAttribute("errorMessage", e.getMessage());
-            return "redirect:/contexa/admin/blacklist/" + id;
+            return refused(e, ra, "redirect:/contexa/admin/blacklist/" + id);
         } catch (Exception e) {
             log.error("[BlacklistController] Failed to resolve block: id={}", id, e);
             ra.addFlashAttribute("errorMessage", msg("msg.blacklist.resolve.error", e.getMessage()));
@@ -119,12 +125,28 @@ public class BlacklistController {
             blockedUserService.deleteBlockRecord(id, extractCurrentUserId());
             ra.addFlashAttribute("message", msg("msg.blacklist.deleted"));
         } catch (AccessDeniedException e) {
-            ra.addFlashAttribute("errorMessage", e.getMessage());
+            return refused(e, ra, "redirect:/contexa/admin/blacklist");
         } catch (Exception e) {
             log.error("[BlacklistController] Failed to delete block record: id={}", id, e);
             ra.addFlashAttribute("errorMessage", msg("msg.blacklist.delete.error", e.getMessage()));
         }
         return "redirect:/contexa/admin/blacklist";
+    }
+
+    /** An own release refused is read on the page it came from; a session under its own BLOCK is offered no change at all. */
+    private static String refused(AccessDeniedException refusal, RedirectAttributes ra, String page) {
+        if (refusal instanceof UnderOwnBlockException) {
+            throw refusal;
+        }
+        ra.addFlashAttribute("errorMessage", refusal.getMessage());
+        return page;
+    }
+
+    /** Answered here, ahead of any advice of the application: the refusal is a 403 whatever else the application does. */
+    @ExceptionHandler(UnderOwnBlockException.class)
+    public ResponseEntity<String> underOwnBlock(UnderOwnBlockException refusal) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).contentType(new MediaType(MediaType.TEXT_PLAIN, StandardCharsets.UTF_8))
+                .body(refusal.getMessage());
     }
 
     private String extractCurrentUserId() {

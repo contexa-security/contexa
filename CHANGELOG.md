@@ -8,6 +8,12 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A blocked console session only reads.** The block list stays open to a console session under a BLOCK, and from there it
+  could lift the BLOCK of anyone else, delete a record, release a CHALLENGE, and stop and resume the agents. It now reads
+  the lists, its pages offer it nothing to change, and each of those is a 403 that stays in the audit, also after it passed
+  a verification. Its own BLOCK is lifted as before: by another administrator, or by the session itself after it verifies at
+  `/contexa/admin/blacklist/step-up`. Other administrators work as they did, and under SHADOW, OBSERVE or DISABLED a stored
+  BLOCK stops nothing here either.
 - **A sign-in no longer wipes the failures of its address.** A password that was right took the address's count back, so
   whoever held one account of their own could try any number of others from that address. The address now keeps its count
   until its window ends; the count of each account is reset as before. Behind a shared address a public NAT counts everyone's

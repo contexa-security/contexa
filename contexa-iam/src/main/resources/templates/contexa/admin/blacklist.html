@@ -24,7 +24,11 @@
                    th:text="#{admin.blacklist.self.verify}">Verify it is you</a>
             </div>
 
-            <form th:action="@{/contexa/admin/blacklist/challenge-release}" method="post"
+            <div th:if="${underOwnBlock}" id="readOnlyNotice" class="mb-6 p-4 rounded-lg text-sm"
+                 style="background: rgba(251, 191, 36, 0.12); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3);"
+                 th:text="#{admin.blacklist.read.only}">This session is blocked: it reads these lists and changes nothing until its block is lifted.</div>
+
+            <form th:unless="${underOwnBlock}" th:action="@{/contexa/admin/blacklist/challenge-release}" method="post"
                   class="flex flex-wrap items-center gap-2 mb-6 p-4 rounded-lg" style="background: rgba(30, 41, 59, 0.5); margin-top:0;">
                 <span class="text-sm text-dark-muted" style="flex-basis:100%;" th:text="#{admin.blacklist.challenge.desc}">
                     A user with no way to verify stays under a CHALLENGE. Release it here.</span>
@@ -132,7 +136,7 @@
                             <a th:href="@{/contexa/admin/blacklist/{id}(id=${b.id})}"
                                class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 inline-block mr-2"
                                style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);" th:text="#{common.detail}">Detail</a>
-                            <form th:if="${b.status.name() == 'RESOLVED' or b.status.name() == 'TIMEOUT_RESPONDED'}"
+                            <form th:if="${(b.status.name() == 'RESOLVED' or b.status.name() == 'TIMEOUT_RESPONDED') and underOwnBlock != true}"
                                   th:action="@{/contexa/admin/blacklist/{id}/delete(id=${b.id})}" method="post"
                                   class="inline-block"
                                   th:data-confirm-msg="#{common.confirm.delete.record}" onsubmit="return confirm(this.getAttribute('data-confirm-msg'));">

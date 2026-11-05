@@ -51,6 +51,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.function.BooleanSupplier;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -65,6 +66,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
     private final MessageSource messageSource;
     private VerificationLearningService verificationLearningService;
     private BlockMfaStateStore blockMfaStateStore;
+    private BooleanSupplier enforcing = () -> true;
 
     /** Learns, after an administrator's ALLOW, the blocked request from its own facts (W5-2). */
     public void setVerificationLearningService(VerificationLearningService verificationLearningService) {
@@ -76,6 +78,11 @@ public class BlockedUserService implements IBlockedUserRecorder {
         this.blockMfaStateStore = blockMfaStateStore;
     }
 
+    /** Whether decisions are enforced: under SHADOW, OBSERVE or DISABLED a stored BLOCK stops nothing, here as anywhere. */
+    public void setEnforcing(BooleanSupplier enforcing) {
+        this.enforcing = enforcing != null ? enforcing : () -> true;
+    }
+
     /** Whether a console session stands under a BLOCK of its own that it has not answered in this session. */
     public boolean ownBlockAwaitsVerification(String adminId) {
         String ownKey = ownKey(adminId);
@@ -83,34 +90,69 @@ public class BlockedUserService implements IBlockedUserRecorder {
                 && actionRedisRepository.getCurrentAction(ownKey) == ZeroTrustAction.BLOCK && !verifiedHere(ownKey);
     }
 
-    /**
-     * A session under a BLOCK reaches the block list, so a stolen console session could lift the very BLOCK that
-     * stopped it. Its own record and decision take another administrator, or a verification passed in this session.
-     * Both sides are compared as the decisions are enforced, so no spelling of the name, in the record, in the typed
-     * name or in the sign-in, makes the key someone else's. Under HOST_OWNED the application's user of the name is
-     * someone else.
-     */
-    private void refuseOwnRelease(String subjectKey, String adminId, String action) {
+    /** Whether the acting administrator stands under a BLOCK of their own, in the console or in the application. */
+    public boolean underOwnBlock(String adminId) {
         String ownKey = ownKey(adminId);
-        if (ownKey == null || !Objects.equals(ZeroTrustUserKey.of(ownKey), ZeroTrustUserKey.of(subjectKey))
-                || verifiedHere(ownKey)) {
-            return;
+        return ownKey != null && enforcing.getAsBoolean()
+                && actionRedisRepository.getCurrentAction(ownKey) == ZeroTrustAction.BLOCK;
+    }
+
+    /** Whether the acting administrator may lift what stands against the subject: what {@link #refuseRelease} lets pass. */
+    public boolean mayLift(String subjectKey, String adminId) {
+        String ownKey = ownKey(adminId);
+        return isOwn(ownKey, subjectKey) ? verifiedHere(ownKey) : !underOwnBlock(adminId);
+    }
+
+    /**
+     * A session under a BLOCK reaches the block list, the one place of the console left open to it, so a stolen session
+     * could stop the agents or lift the BLOCK of an accomplice from there. It reads the list and changes nothing, whatever
+     * it verified: a verification answers its own BLOCK, and once that is lifted the session stands under none.
+     *
+     * @param action   what was asked for, as the audit names it
+     * @param resource what it was asked for
+     */
+    public void refuseUnderOwnBlock(String adminId, String action, String resource) {
+        if (underOwnBlock(adminId)) {
+            auditRefusal(adminId, resource, action, "A change from a session under its own BLOCK");
+            throw new UnderOwnBlockException(msg("msg.blacklist.read.only"));
         }
+    }
+
+    /**
+     * A session's own record and decision take another administrator, or a verification passed in this session, and
+     * someone else's stay out of reach of a session under a BLOCK ({@link #refuseUnderOwnBlock}). Both sides are compared
+     * as the decisions are enforced, so no spelling of the name, in the record, in the typed name or in the sign-in, makes
+     * the key someone else's. Under HOST_OWNED the application's user of the name is someone else.
+     */
+    private void refuseRelease(String subjectKey, String adminId, String action) {
+        String ownKey = ownKey(adminId);
+        if (!isOwn(ownKey, subjectKey)) {
+            refuseUnderOwnBlock(adminId, action, subjectKey);
+        } else if (!verifiedHere(ownKey)) {
+            auditRefusal(adminId, subjectKey, action, "An administrator's own release without a verification in this session");
+            throw new AccessDeniedException(msg("msg.blacklist.self.release"));
+        }
+    }
+
+    private static boolean isOwn(String ownKey, String subjectKey) {
+        return ownKey != null && Objects.equals(ZeroTrustUserKey.of(ownKey), ZeroTrustUserKey.of(subjectKey));
+    }
+
+    private void auditRefusal(String adminId, String resource, String action, String reason) {
         try {
             centralAuditFacade.recordAsync(AuditRecord.builder()
                     .eventCategory(AuditEventCategory.ADMIN_OVERRIDE)
                     .principalName(adminId)
                     .eventSource("IAM")
-                    .resourceIdentifier(subjectKey)
+                    .resourceIdentifier(resource)
                     .action(action)
                     .decision(ZeroTrustAction.BLOCK.name())
                     .outcome("REFUSED")
-                    .reason("An administrator's own release without a verification in this session")
+                    .reason(reason)
                     .build());
         } catch (RuntimeException e) {
-            log.error("[BlockedUserService] Failed to audit a refused own release: adminId={}", adminId, e);
+            log.error("[BlockedUserService] Failed to audit a refused change: adminId={}", adminId, e);
         }
-        throw new AccessDeniedException(msg("msg.blacklist.self.release"));
     }
 
     /** The key the acting administrator's decisions are stored under, in the console or in the application. */
@@ -207,7 +249,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
         }
 
         BlockedUser blocked = blockedOpt.get();
-        refuseOwnRelease(blocked.getUserId(), adminId, "RESOLVE_BLOCK");
+        refuseRelease(blocked.getUserId(), adminId, "RESOLVE_BLOCK");
         applyResolution(blocked, adminId, resolvedAction, reason);
     }
 
@@ -216,10 +258,10 @@ public class BlockedUserService implements IBlockedUserRecorder {
         BlockedUser blocked = blockedUserJpaRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException(msg("msg.blocked.user.not.found.id", id)));
 
+        refuseRelease(blocked.getUserId(), adminId, "RESOLVE_BLOCK");
         if (blocked.getStatus() == BlockedUserStatus.RESOLVED) {
             throw new IllegalStateException(msg("msg.blocked.user.already.resolved", id));
         }
-        refuseOwnRelease(blocked.getUserId(), adminId, "RESOLVE_BLOCK");
 
         applyResolution(blocked, adminId, resolvedAction, reason);
 
@@ -376,7 +418,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
         String typed = userId.trim();
         String person = ZeroTrustUserKey.person(typed);
         String user = underChallenge(person) ? person : !person.equals(typed) && underChallenge(typed) ? typed : null;
-        refuseOwnRelease(user != null ? user : person, adminId, "RELEASE_CHALLENGE");
+        refuseRelease(user != null ? user : person, adminId, "RELEASE_CHALLENGE");
         if (user == null) {
             return false;
         }
@@ -482,7 +524,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
                 .orElseThrow(() -> new IllegalArgumentException(msg("msg.blocked.user.not.found.id", id)));
 
         // Without its record a block no longer reads as in force, and whoever it stopped leaves no trace of it.
-        refuseOwnRelease(blocked.getUserId(), adminId, "DELETE_BLOCK_RECORD");
+        refuseRelease(blocked.getUserId(), adminId, "DELETE_BLOCK_RECORD");
         if (blocked.getStatus() == BlockedUserStatus.BLOCKED) {
             throw new IllegalStateException(msg("msg.blocked.user.delete.active", id));
         }

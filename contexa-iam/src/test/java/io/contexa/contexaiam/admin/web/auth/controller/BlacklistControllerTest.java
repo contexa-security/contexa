@@ -16,6 +16,7 @@
 package io.contexa.contexaiam.admin.web.auth.controller;
 
 import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
+import io.contexa.contexaiam.admin.web.auth.service.UnderOwnBlockException;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
 import org.junit.jupiter.api.AfterEach;
@@ -47,6 +48,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -295,6 +297,21 @@ class BlacklistControllerTest {
 
             assertThat(view).isEqualTo("redirect:/contexa/admin/blacklist/1");
             assertThat(ra.getFlashAttributes().get("errorMessage")).isEqualTo("Another administrator lifts it");
+        }
+
+        @Test
+        @DisplayName("a session under its own BLOCK is not sent back to a page: the refusal goes on to its 403")
+        void aSessionUnderItsOwnBlock() {
+            RedirectAttributes ra = new RedirectAttributesModelMap();
+            UnderOwnBlockException refused = new UnderOwnBlockException("It only reads");
+            doThrow(refused).when(blockedUserService).resolveBlockById(anyLong(), anyString(), anyString(), anyString());
+            doThrow(refused).when(blockedUserService).deleteBlockRecord(anyLong(), anyString());
+            doThrow(refused).when(blockedUserService).releaseChallenge(anyString(), anyString(), anyString());
+
+            assertThatThrownBy(() -> controller.resolveBlock(1L, "ALLOW", "checked", ra)).isSameAs(refused);
+            assertThatThrownBy(() -> controller.deleteBlockRecord(1L, ra)).isSameAs(refused);
+            assertThatThrownBy(() -> controller.releaseChallenge("alice", "checked", ra)).isSameAs(refused);
+            assertThat(ra.getFlashAttributes()).isEmpty();
         }
 
         @Test
