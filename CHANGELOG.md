@@ -271,7 +271,11 @@ The format is based on Keep a Changelog and the project follows semantic version
   `BlockedUserService.deleteBlockRecord` takes the acting administrator now. **A sole administrator needs mail configured
   and a real address on the account, or a second administrator**: without a factor nothing lifts the console's own BLOCK
   from the console. Under `CONTEXA_OWNED` the same rule reads the shared account, and its own record takes another
-  administrator.
+  administrator or a verification passed in that session.
+- **The only administrator under a BLOCK has a way out** under `CONTEXA_OWNED`, where the console and the application share
+  one account. After passing MFA on the screen of the BLOCK, an administrator reaches the people of the block list in that
+  session, and no other page of the console or the application, the agents' tab included. A verification is kept for the
+  session that passed it and ends with the BLOCK it answered.
 - A BLOCK decided over a CHALLENGE that other sessions still held could be lifted through the CHALLENGE release. It stays.
 - **Behind a proxy nobody named, one person's typing no longer stops everyone, and a forged header escapes nothing.** A
   sign-in is counted against the address it connected from, whatever `X-Forwarded-For` says, and the header never switches

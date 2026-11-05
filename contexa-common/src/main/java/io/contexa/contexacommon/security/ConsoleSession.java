@@ -17,9 +17,12 @@ package io.contexa.contexacommon.security;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.lang.Nullable;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -31,13 +34,24 @@ import java.util.List;
  * The block list stays open to a console session whatever is decided about it: it is where a BLOCK is lifted, and
  * without it an administrator could lock the console for good. A session does not lift its own BLOCK there, though: that
  * takes another administrator or a verification passed in that session.
+ * <p>
+ * Where the console and the application share one account (CONTEXA_OWNED) no request is marked here. An administrator
+ * under a BLOCK who passed MFA in the session reaches the people of the block list and nothing else: the access
+ * filter says so on the request, for what stands behind it.
  */
 public final class ConsoleSession {
 
+    /** The authority of the console's administrators. */
+    public static final String ADMIN_AUTHORITY = "ROLE_ADMIN";
+
     private static final String ATTRIBUTE = ConsoleSession.class.getName();
+    private static final String BLOCK_LIST_OPENED = ATTRIBUTE + ".blockListOpened";
 
     /** The console's pages and API that lift a restriction. */
     private static final List<String> RELEASE_FOLDERS = List.of("/contexa/admin/blacklist", "/contexa/admin/api/blacklist");
+
+    /** The agents' tab under the block list: its kill switch and releases are more than the way out of a BLOCK. */
+    private static final String AGENT_STOPS = "/contexa/admin/blacklist/agents";
 
     private ConsoleSession() {
     }
@@ -57,8 +71,35 @@ public final class ConsoleSession {
                 && of(attributes.getRequest());
     }
 
-    /** Whether the request is the console's and goes where a restriction is lifted. */
+    /**
+     * Whether the account is an administrator. A decision narrows what a session's authentication carries, a BLOCK to its
+     * own authority alone, so what the account has is read, not what the decision left the session.
+     */
+    public static boolean administrator(@Nullable Authentication authentication) {
+        if (authentication == null) {
+            return false;
+        }
+        Collection<? extends GrantedAuthority> own = authentication.getPrincipal() instanceof UnifiedCustomUserDetails account
+                ? account.getOriginalAuthorities() : authentication.getAuthorities();
+        return own.stream().map(GrantedAuthority::getAuthority).anyMatch(ADMIN_AUTHORITY::equals);
+    }
+
+    /** Whether the path is the people of the block list, its pages and its API. */
+    public static boolean isBlockList(@Nullable String path) {
+        return RELEASE_FOLDERS.stream().anyMatch(folder -> RequestPaths.isWithin(path, folder))
+                && !RequestPaths.isWithin(path, AGENT_STOPS);
+    }
+
+    /** Tells what stands behind the access filter that this request of a verified administrator goes on. */
+    public static void openBlockList(HttpServletRequest request) {
+        request.setAttribute(BLOCK_LIST_OPENED, Boolean.TRUE);
+    }
+
+    /** Whether the request is the console's and goes where a restriction is lifted, or was let through to it. */
     public static boolean onReleasePath(@Nullable HttpServletRequest request) {
+        if (request != null && Boolean.TRUE.equals(request.getAttribute(BLOCK_LIST_OPENED))) {
+            return true;
+        }
         if (!of(request)) {
             return false;
         }

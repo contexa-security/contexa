@@ -35,8 +35,8 @@ public interface BlockMfaStateStore {
     }
 
     /**
-     * Whether the given context passed the verification in force. A store that keeps no context answers false, and the
-     * BLOCK stays with another administrator.
+     * Whether the given context passed the verification in force. A store that keeps no context answers false: the
+     * people of the block list stay shut, and the BLOCK stays with another administrator.
      */
     default boolean isVerified(String userId, @Nullable String contextBindingHash) {
         return false;

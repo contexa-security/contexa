@@ -708,7 +708,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
     private void handleBlockMfaSuccess(String userId, HttpServletRequest request,
                                          HttpServletResponse response) throws IOException {
-        challengeResolution().releaseBlockByMfa(userId);
+        // Bound to the session the client uses next, as an answered CHALLENGE is: MFA success may have rotated its id.
+        challengeResolution().releaseBlockByMfa(userId, SessionFingerprintUtil.generateNextRequestContextBindingHash(request));
 
         String redirectUrl = request.getContextPath() + "/contexa/zero-trust/blocked";
 

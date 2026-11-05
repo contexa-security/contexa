@@ -16,9 +16,11 @@
 package io.contexa.contexaidentity.security.zerotrust;
 
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.RequestPaths;
+import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import io.contexa.contexacommon.security.ZeroTrustScreens;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
@@ -30,6 +32,7 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
+import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
@@ -47,6 +50,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -98,6 +102,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     private UnanalysedRequestRecorder unanalysedRequestRecorder;
     private BooleanSupplier enforcing = () -> true;
     private HostOwnedStepUp hostOwnedStepUp;
+    private BlockMfaStateStore blockMfaStateStore;
     private boolean monitoringHeaders = true;
     private ZeroTrustAction escalateTerminalAction;
 
@@ -155,6 +160,11 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
 
     public void setHostOwnedStepUp(HostOwnedStepUp hostOwnedStepUp) {
         this.hostOwnedStepUp = hostOwnedStepUp;
+    }
+
+    /** Where the verification of an administrator under a BLOCK is read; null keeps the block list shut. */
+    public void setBlockMfaStateStore(BlockMfaStateStore blockMfaStateStore) {
+        this.blockMfaStateStore = blockMfaStateStore;
     }
 
     /**
@@ -236,6 +246,12 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                                     String userId,
                                     String requestUri) throws IOException, ServletException {
 
+        if (blockListOpenedByMfa(request, auth, userId, requestUri)) {
+            ConsoleSession.openBlockList(request);
+            continueAsTheAdministrator(request, response, filterChain, auth);
+            return;
+        }
+
         if (isBlockMfaPending(userId)) {
             long failCount = actionRedisRepository.getBlockMfaFailCount(userId);
             if (failCount >= maxBlockMfaAttempts) {
@@ -265,6 +281,45 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
 
         recordStopped(auth, ZeroTrustAction.BLOCK);
         handleBlocked(request, response, userId);
+    }
+
+    /**
+     * Where the console and the application share one account, the only administrator under a BLOCK has nobody to lift
+     * it. An administrator who passed MFA in this very session reaches the people of the block list, and no other page of
+     * the console or the application. Where the application owns sign-in the console has a chain of its own.
+     */
+    private boolean blockListOpenedByMfa(HttpServletRequest request, Authentication auth, String userId, String requestUri) {
+        return hostOwnedStepUp == null && blockMfaStateStore != null && ConsoleSession.isBlockList(requestUri)
+                && ConsoleSession.administrator(auth)
+                && blockMfaStateStore.isVerified(userId, SessionFingerprintUtil.verificationContext(request));
+    }
+
+    /**
+     * The block list asks for the administrator's authority, and the BLOCK left the session's authentication its own alone.
+     * The request runs on a context of its own with the account's authorities: the context the session holds stays as it
+     * is, so they end with this request and the next one is read under the BLOCK again.
+     */
+    private void continueAsTheAdministrator(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain,
+                                            Authentication auth) throws IOException, ServletException {
+        SecurityContext session = SecurityContextHolder.getContext();
+        SecurityContext ofThisRequest = SecurityContextHolder.createEmptyContext();
+        ofThisRequest.setAuthentication(withItsOwnAuthorities(auth));
+        SecurityContextHolder.setContext(ofThisRequest);
+        try {
+            filterChain.doFilter(request, response);
+        } finally {
+            SecurityContextHolder.setContext(session);
+        }
+    }
+
+    private static Authentication withItsOwnAuthorities(Authentication auth) {
+        if (!(auth.getPrincipal() instanceof UnifiedCustomUserDetails account)) {
+            return auth;
+        }
+        UsernamePasswordAuthenticationToken own = UsernamePasswordAuthenticationToken.authenticated(account,
+                auth.getCredentials(), account.getOriginalAuthorities());
+        own.setDetails(auth.getDetails());
+        return own;
     }
 
     /** A request stopped under the decision in force is kept in its session (N-SES-1). */

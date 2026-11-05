@@ -41,7 +41,9 @@ import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
+import io.contexa.contexaidentity.security.zerotrust.ZeroTrustAccessControlFilter;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
@@ -144,6 +146,39 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
         ArgumentCaptor<SecurityContext> contextCaptor = ArgumentCaptor.forClass(SecurityContext.class);
         verify(aiRepository).saveContext(contextCaptor.capture(), eq(request), eq(response));
         assertThat(contextCaptor.getValue().getAuthentication().getName()).isEqualTo("admin");
+    }
+
+    @Test
+    @DisplayName("The verification of a BLOCK is kept for the session the client goes on in, after its rotation")
+    void aBlockMfaIsKeptForTheSessionThatGoesOn() throws Exception {
+        AuthContextProperties properties = new AuthContextProperties();
+        properties.setStateType(StateType.SESSION);
+        BlockMfaStateStore verifications = mock(BlockMfaStateStore.class);
+        AISessionSecurityContextRepository aiRepository = mock(AISessionSecurityContextRepository.class);
+        @SuppressWarnings("unchecked")
+        ObjectProvider<AISessionSecurityContextRepository> provider = mock(ObjectProvider.class);
+        ApplicationContext applicationContext = mock(ApplicationContext.class);
+        when(applicationContext.getBeanProvider(AISessionSecurityContextRepository.class)).thenReturn(provider);
+        when(provider.getIfAvailable()).thenReturn(aiRepository);
+        TestHandler handler = new TestHandler(null, mock(AuthResponseWriter.class), mock(MfaSessionRepository.class),
+                mock(MfaStateMachineIntegrator.class), properties, mock(ZeroTrustEventPublisher.class),
+                mock(ZeroTrustActionRepository.class), mock(SecurityLearningService.class), applicationContext,
+                mock(AuthUrlProvider.class), mock(MfaFlowUrlRegistry.class), mock(IBlockedUserRecorder.class), verifications,
+                mock(CentralAuditFacade.class), mock(BlockingSignalBroadcaster.class), false);
+        FactorContext blockFlow = mock(FactorContext.class);
+        when(blockFlow.isCompleted()).thenReturn(true);
+        when(blockFlow.getAttribute(ZeroTrustAccessControlFilter.BLOCK_MFA_FLOW_ATTRIBUTE)).thenReturn(true);
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/contexa/admin/login/mfa-ott");
+        request.setRequestedSessionId("before-the-rotation");
+        request.setSession(new MockHttpSession(null, "after-the-rotation"));
+        request.addHeader("User-Agent", "browser");
+
+        handler.complete(request, new MockHttpServletResponse(),
+                new TestingAuthenticationToken("admin", "pw", "ROLE_ADMIN"), blockFlow);
+
+        verify(verifications).setVerified("admin", SessionFingerprintUtil.generateContextBindingHash("after-the-rotation",
+                request.getRemoteAddr(), "browser"));
+        verify(verifications).clearPending("admin");
     }
 
     @Test
