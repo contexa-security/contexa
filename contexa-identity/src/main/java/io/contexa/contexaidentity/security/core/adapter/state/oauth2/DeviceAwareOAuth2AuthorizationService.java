@@ -164,14 +164,27 @@ public class DeviceAwareOAuth2AuthorizationService implements OAuth2Authorizatio
         return token != null && !token.isInvalidated() && !token.isExpired();
     }
 
+    /**
+     * A stored row that cannot be read is removed and passed over. The failure must not leave the read's transaction: it
+     * joins the transaction of a login that saves a new authorization, and would mark that one for rollback, so that the
+     * login failed and took the removal with it, at every sign-in of the user. The removal comes after the read, which
+     * outside such a transaction is read-only.
+     */
     private OAuth2Authorization safeFindById(String id) {
-        try {
-            return onOneConnection(() -> delegate.findById(id));
-        } catch (Exception e) {
-            log.error("[OAuth2] Failed to deserialize authorization {}: {}", id, e.getMessage());
+        Exception[] unreadable = new Exception[1];
+        OAuth2Authorization authorization = onOneConnection(() -> {
+            try {
+                return delegate.findById(id);
+            } catch (Exception e) {
+                unreadable[0] = e;
+                return null;
+            }
+        });
+        if (unreadable[0] != null) {
+            log.error("[OAuth2] Failed to deserialize authorization {}: {}", id, unreadable[0].getMessage());
             cleanupCorruptedAuthorization(id);
-            return null;
         }
+        return authorization;
     }
 
     private void cleanupCorruptedAuthorization(String id) {

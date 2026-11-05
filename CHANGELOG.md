@@ -36,6 +36,15 @@ The format is based on Keep a Changelog and the project follows semantic version
   in its sign-in, session, cookie, locale or message bundle, asks for a mail code or a passkey on its own screens, and
   keeps a separate console chain with its own sign-in policy.
 
+### Fixed
+
+- **OAuth2 tokens: the second sign-in of a user no longer fails.** Spring Authorization Server reads the type of its
+  columns from the database under the standard table name; under the `ctxa_` name it found none and wrote bytes into the
+  text columns, which PostgreSQL keeps in hex form. It now reads the columns of `ctxa_oauth2_authorization`, and a
+  table with `bytea` token columns keeps working. The script of the authorization server's tables now creates the same
+  `text` columns as the schema. A stored row that cannot be read is removed at the user's next sign-in, which no longer
+  fails on it: a person holding such a row signs in again.
+
 ## [0.1.1] - 2026-11-02
 
 ### Fixed

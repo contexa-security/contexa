@@ -216,7 +216,8 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
             return requestedScopes;
         }
         if (allowedScopes.contains(DEFAULT_SCOPE)) {
-            return Set.of(DEFAULT_SCOPE);
+            // Stored with the token's claims: Spring's allowlist reads a LinkedHashSet back, not what Set.of makes.
+            return new LinkedHashSet<>(List.of(DEFAULT_SCOPE));
         }
         return Collections.emptySet();
     }

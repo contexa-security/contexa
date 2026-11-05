@@ -28,6 +28,9 @@ import org.springframework.security.oauth2.core.OAuth2RefreshToken;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -35,7 +38,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
@@ -104,6 +109,23 @@ class DeviceAwareOAuth2AuthorizationServiceTest {
         ArgumentCaptor<OAuth2Authorization> saved = ArgumentCaptor.forClass(OAuth2Authorization.class);
         verify(delegate).save(saved.capture());
         assertThat(saved.getValue()).isSameAs(rotatedB);
+    }
+
+    @Test
+    @DisplayName("A stored login that cannot be read is removed and leaves the transaction of the new login alone")
+    void unreadableLoginLeavesTheTransactionOfTheNewLoginAlone() {
+        PlatformTransactionManager transactions = mock(PlatformTransactionManager.class);
+        when(transactions.getTransaction(any())).thenAnswer(invocation -> new SimpleTransactionStatus(false));
+        service = new DeviceAwareOAuth2AuthorizationService(delegate, jdbcTemplate, properties, new TransactionTemplate(transactions));
+        when(jdbcTemplate.queryForList(anyString(), eq(String.class), anyString())).thenReturn(List.of("unreadable"));
+        when(delegate.findById("unreadable")).thenThrow(new IllegalArgumentException("Unexpected character ('\\' (code 92))"));
+
+        OAuth2Authorization login = authorization("new-login", "refresh-new", Instant.now());
+        service.save(login);
+
+        verify(transactions, never()).rollback(any());
+        verify(jdbcTemplate).update(contains("DELETE FROM ctxa_oauth2_authorization"), eq("unreadable"));
+        verify(delegate).save(login);
     }
 
     private static OAuth2Authorization authorization(String id, String refreshTokenValue, Instant issuedAt) {
