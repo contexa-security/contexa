@@ -21,6 +21,7 @@ import io.contexa.contexacommon.store.StoreFailures;
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
+import io.contexa.contexacore.util.ErrorLogThrottle;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.Cursor;
@@ -39,12 +40,15 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 @Slf4j
 @RequiredArgsConstructor
-public class RedisSecurityContextDataStore implements SecurityContextDataStore {
+public class RedisSecurityContextDataStore implements SecurityContextDataStore, AutoCloseable {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private volatile DefaultRedisScript<Long> verifyStoppedRequestsScript =
@@ -146,6 +150,15 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
             Long.class);
     private static final String PROCESS_NODE_ID = resolveProcessNodeId();
     private static final long PROCESS_PID = ProcessHandle.current().pid();
+    /**
+     * How often a process that holds event claims says it lives, and how many of those beats what it said lasts: a late
+     * beat costs it nothing, and a process that stops is seen gone within that time.
+     */
+    private static final Duration DEFAULT_ALIVE_BEAT = Duration.ofSeconds(5);
+    private static final int ALIVE_BEATS_IT_LASTS = 3;
+    private static final String ALIVE_THREAD = "contexa-process-alive";
+    private static final Duration ALIVE_FAILURE_LOG_INTERVAL = Duration.ofMinutes(1);
+    private static final int OWNER_TOKEN_PARTS = 4;
     private static final Duration SOAR_TTL = Duration.ofDays(7);
     private static final Duration USER_SESSIONS_TTL = Duration.ofDays(7);
     private static final Duration LOGIN_FAILURE_MINIMUM_RETENTION = Duration.ofMinutes(5);
@@ -153,6 +166,12 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     private static final String CHALLENGE_VERIFIED_VALUE_SEPARATOR = ":";
     private static final Duration MFA_VERIFIED_TTL = Duration.ofHours(1);
     private final AtomicLong authenticationEventSequence = new AtomicLong();
+    /** This process among those of the store: a host name and a PID say nothing once containers restart as PID 1. */
+    private final String processInstance = UUID.randomUUID().toString();
+    private final ErrorLogThrottle aliveFailureLog = new ErrorLogThrottle(ALIVE_FAILURE_LOG_INTERVAL);
+    private volatile Duration aliveBeat = DEFAULT_ALIVE_BEAT;
+    private volatile ScheduledExecutorService aliveTimer;
+    private boolean closed;
     private volatile Duration loginFailureRetention = LOGIN_FAILURE_MINIMUM_RETENTION;
     /** BR-C14: how many work profile and role scope observations each scope keeps. */
     private volatile int observationCapacity = DEFAULT_OBSERVATION_CAPACITY;
@@ -756,6 +775,7 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
             if (redisTemplate.opsForValue().get(processedKey) != null) {
                 return new EventProcessingLease(EventProcessingClaim.PROCESSED, null);
             }
+            keepSayingAlive();
             String ownerToken = newOwnerToken();
             String processingKey = ZeroTrustRedisKeys.eventProcessing(eventId);
             Boolean acquired = redisTemplate.opsForValue().setIfAbsent(
@@ -764,7 +784,7 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
                 return new EventProcessingLease(EventProcessingClaim.ACQUIRED, ownerToken);
             }
             Object existingOwner = redisTemplate.opsForValue().get(processingKey);
-            if (existingOwner != null && isLocalOrphanOwner(existingOwner.toString())) {
+            if (existingOwner != null && ownerIsGone(existingOwner.toString())) {
                 Long replaced = redisTemplate.execute(
                         TAKE_OVER_ORPHAN_PROCESSING_SCRIPT,
                         List.of(processingKey),
@@ -859,27 +879,81 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
         }
     }
 
-    private String newOwnerToken() {
-        return PROCESS_NODE_ID + ":" + PROCESS_PID + ":" + UUID.randomUUID();
+    /** How often this process says it lives; set before its first claim. */
+    void setAliveBeat(Duration aliveBeat) {
+        this.aliveBeat = aliveBeat;
     }
 
-    private boolean isLocalOrphanOwner(String ownerToken) {
-        if (ownerToken == null || ownerToken.isBlank()) {
-            return false;
+    /** Stops saying this process lives: what it holds is the next process's at once. */
+    @Override
+    public void close() {
+        ScheduledExecutorService timer;
+        synchronized (this) {
+            closed = true;
+            timer = aliveTimer;
+            aliveTimer = null;
         }
-        String[] parts = ownerToken.split(":", 3);
-        if (parts.length != 3 || !PROCESS_NODE_ID.equals(parts[0])) {
-            return false;
+        if (timer == null) {
+            return;
         }
+        timer.shutdownNow();
         try {
-            long ownerPid = Long.parseLong(parts[1]);
-            if (ownerPid == PROCESS_PID) {
-                return false;
-            }
-            return ProcessHandle.of(ownerPid).map(processHandle -> !processHandle.isAlive()).orElse(true);
-        } catch (NumberFormatException exception) {
-            return false;
+            redisTemplate.delete(ZeroTrustRedisKeys.processAlive(processInstance));
+        } catch (RuntimeException failure) {
+            log.warn("[SecurityContextDataStore] The sign of life of a stopping process stays until it runs out: {}",
+                    failure.getMessage());
         }
+    }
+
+    private void keepSayingAlive() {
+        if (aliveTimer != null) {
+            return;
+        }
+        synchronized (this) {
+            if (aliveTimer != null || closed) {
+                return;
+            }
+            sayAlive();
+            ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(task -> {
+                Thread thread = new Thread(task, ALIVE_THREAD);
+                thread.setDaemon(true);
+                return thread;
+            });
+            long beatMs = aliveBeat.toMillis();
+            timer.scheduleWithFixedDelay(this::beat, beatMs, beatMs, TimeUnit.MILLISECONDS);
+            aliveTimer = timer;
+        }
+    }
+
+    private void sayAlive() {
+        redisTemplate.opsForValue().set(ZeroTrustRedisKeys.processAlive(processInstance), Boolean.TRUE.toString(),
+                aliveBeat.multipliedBy(ALIVE_BEATS_IT_LASTS));
+    }
+
+    private void beat() {
+        try {
+            sayAlive();
+        } catch (RuntimeException failure) {
+            long notLogged = aliveFailureLog.tryAcquire();
+            if (notLogged != ErrorLogThrottle.SUPPRESSED) {
+                log.error("[SecurityContextDataStore] This process could not say it lives: another may take over its "
+                        + "analyses, and its results are then discarded. Failures since the last report: {}", notLogged, failure);
+            }
+        }
+    }
+
+    private String newOwnerToken() {
+        return PROCESS_NODE_ID + ":" + PROCESS_PID + ":" + processInstance + ":" + UUID.randomUUID();
+    }
+
+    /**
+     * Whether the process of a claim stopped saying it lives. A claim without an instance was made by an older version,
+     * of which nothing can be said: it ends with its time.
+     */
+    private boolean ownerIsGone(String ownerToken) {
+        String[] parts = ownerToken.split(":", OWNER_TOKEN_PARTS);
+        return parts.length == OWNER_TOKEN_PARTS && !processInstance.equals(parts[2])
+                && Boolean.FALSE.equals(redisTemplate.hasKey(ZeroTrustRedisKeys.processAlive(parts[2])));
     }
 
     private static String resolveProcessNodeId() {

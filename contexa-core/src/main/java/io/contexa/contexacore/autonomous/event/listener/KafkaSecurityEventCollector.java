@@ -51,6 +51,10 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
     /** Q-26: on an event whose publication failed, so that it was analysed by the node that had it. */
     public static final String ANALYSED_ON_THE_PUBLISHING_NODE = "analysedOnThePublishingNode";
 
+    private static final String RECORD_TOPIC = "kafka.topic";
+    private static final String RECORD_PARTITION = "kafka.partition";
+    private static final String RECORD_OFFSET = "kafka.offset";
+
     private final ObjectMapper objectMapper;
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final SecurityKafkaProperties securityKafkaProperties;
@@ -68,6 +72,7 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
     private final AtomicLong dlqDispatchConfirmedCount;
     private final AtomicLong dlqDispatchFailedCount;
     private volatile boolean running;
+    private volatile DecidedRecordAcknowledger decidedRecords;
 
     public KafkaSecurityEventCollector(ObjectMapper objectMapper,
                                        KafkaTemplate<String, Object> kafkaTemplate,
@@ -85,6 +90,11 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
         this.dlqDispatchConfirmedCount = new AtomicLong(0);
         this.dlqDispatchFailedCount = new AtomicLong(0);
         this.running = true;
+    }
+
+    /** Keeps each record unacknowledged until the analysis is done with it; without it, a record is acknowledged at once. */
+    public void setDecidedRecordAcknowledger(DecidedRecordAcknowledger decidedRecords) {
+        this.decidedRecords = decidedRecords;
     }
 
     @PostConstruct
@@ -118,17 +128,26 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
             ZeroTrustSpringEvent zeroTrustEvent = objectMapper.readValue(message, ZeroTrustSpringEvent.class);
             SecurityEvent event = ZeroTrustSecurityEventConverter.convert(zeroTrustEvent);
 
-            event.addMetadata("kafka.topic", topic);
-            event.addMetadata("kafka.partition", String.valueOf(partition));
-            event.addMetadata("kafka.offset", String.valueOf(offset));
+            event.addMetadata(RECORD_TOPIC, topic);
+            event.addMetadata(RECORD_PARTITION, String.valueOf(partition));
+            event.addMetadata(RECORD_OFFSET, String.valueOf(offset));
             event.addMetadata("zerotrust.category", zeroTrustEvent.getCategory().name());
             event.addMetadata("zerotrust.eventType", zeroTrustEvent.getEventType());
             event.addMetadata("ingestAt", System.currentTimeMillis());
 
-            processEvent(event);
+            DecidedRecordAcknowledger decided = acknowledgment != null ? decidedRecords : null;
+            if (decided != null) {
+                // Before the hand-over: the analysis may be done with the event before it returns.
+                decided.taken(topic, partition, offset, acknowledgment);
+            }
+            boolean settledLater = processEvent(event);
             eventCount.incrementAndGet();
 
-            if (acknowledgment != null) {
+            if (decided != null) {
+                if (!settledLater) {
+                    decided.settled(topic, partition, offset);
+                }
+            } else if (acknowledgment != null) {
                 event.addMetadata("ackAt", System.currentTimeMillis());
                 acknowledgment.acknowledge();
                 ackCount.incrementAndGet();
@@ -141,6 +160,22 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
             redeliveryScheduledCount.incrementAndGet();
             sendToDeadLetterQueueAsync(message, topic, partition, offset, e);
             throw new IllegalStateException("Kafka security event processing failed - redelivery scheduled", e);
+        }
+    }
+
+    /** The record of the event may be committed; an event that came from no record of this consumer changes nothing. */
+    @Override
+    public void settled(SecurityEvent event) {
+        DecidedRecordAcknowledger decided = decidedRecords;
+        Map<String, Object> metadata = event != null ? event.getMetadata() : null;
+        if (decided == null || metadata == null || metadata.containsKey(ANALYSED_ON_THE_PUBLISHING_NODE)) {
+            return;
+        }
+        Object topic = metadata.get(RECORD_TOPIC);
+        Object partition = metadata.get(RECORD_PARTITION);
+        Object offset = metadata.get(RECORD_OFFSET);
+        if (topic != null && partition != null && offset != null) {
+            decided.settled(topic.toString(), Integer.parseInt(partition.toString()), Long.parseLong(offset.toString()));
         }
     }
 
@@ -173,9 +208,10 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
         }
     }
 
-    private void processEvent(SecurityEvent event) {
+    /** Hands the event to the listeners; true when one of them goes on with it and will say when it is done. */
+    private boolean processEvent(SecurityEvent event) {
         if (!running || event == null) {
-            return;
+            return false;
         }
 
         if (event.getEventId() == null) {
@@ -192,15 +228,13 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
                     .forEach(eventCache::remove);
         }
 
-        if (listeners.isEmpty()) {
-            return;
-        }
-
+        boolean settledLater = false;
         RuntimeException listenerFailure = null;
         for (SecurityEventListener listener : listeners) {
             try {
                 if (listener.isActive()) {
                     listener.onSecurityEvent(event);
+                    settledLater |= listener.settlesItsEvents();
                 }
             } catch (Exception e) {
                 log.error("[KafkaCollector] Listener {} failed to process event {}: {}",
@@ -215,13 +249,17 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
         if (listenerFailure != null) {
             throw listenerFailure;
         }
+        return settledLater;
     }
 
     @Override
     public Map<String, Object> getStatistics() {
+        DecidedRecordAcknowledger decided = decidedRecords;
         Map<String, Object> stats = new HashMap<>();
         stats.put("total_events", eventCount.get());
-        stats.put("ack_count", ackCount.get());
+        stats.put("ack_count", ackCount.get() + (decided != null ? decided.acknowledgments() : 0L));
+        stats.put("undecided_records", decided != null ? decided.undecidedRecords() : 0L);
+        stats.put("commit_passed_undecided_count", decided != null ? decided.passedUndecided() : 0L);
         stats.put("error_count", errorCount.get());
         stats.put("redelivery_scheduled_count", redeliveryScheduledCount.get());
         stats.put("dlq_dispatch_requested_count", dlqDispatchRequestedCount.get());

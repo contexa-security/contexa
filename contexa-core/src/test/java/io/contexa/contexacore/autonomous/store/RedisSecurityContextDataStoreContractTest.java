@@ -104,6 +104,13 @@ class RedisSecurityContextDataStoreContractTest extends AbstractSecurityContextD
         return store;
     }
 
+    /** The process stops: its store stops saying it lives, and the next process reads the same Redis. */
+    @Override
+    protected SecurityContextDataStore storeOfTheNextProcess() {
+        ((RedisSecurityContextDataStore) store).close();
+        return createStore();
+    }
+
     @Override
     protected SecurityContextDataStore createStoreWithEventProcessedTtl(Duration ttl) {
         return new RedisSecurityContextDataStore(redisTemplate);

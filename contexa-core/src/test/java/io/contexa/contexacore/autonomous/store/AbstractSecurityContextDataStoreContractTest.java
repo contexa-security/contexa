@@ -52,6 +52,9 @@ abstract class AbstractSecurityContextDataStoreContractTest {
     /** Z-16 D-8: whether {@link #store} still holds a risk score for the session (no read of it is offered). */
     protected abstract boolean holdsSessionRisk(String sessionId);
 
+    /** The process of {@link #store} is gone and another took its place: what the store of the new process sees. */
+    protected abstract SecurityContextDataStore storeOfTheNextProcess();
+
     @Test
     void q14_theVersionOfAccountsMovesOnWithEachChange() {
         SecurityContextDataStore store = createStore();
@@ -109,6 +112,15 @@ abstract class AbstractSecurityContextDataStoreContractTest {
                 .untilAsserted(() -> assertThat(ttlStore.claimEventProcessing("event-ttl"))
                         .as("processed event must become claimable again after TTL")
                         .isEqualTo(SecurityContextDataStore.EventProcessingClaim.ACQUIRED));
+    }
+
+    @Test
+    @DisplayName("a claim does not outlive the process that made it")
+    void claimEventProcessing_aClaimOfADeadProcessLeavesTheEventToTheNextOne() {
+        store.claimEventProcessing("event-of-the-dead");
+
+        assertThat(storeOfTheNextProcess().claimEventProcessing("event-of-the-dead"))
+                .isEqualTo(SecurityContextDataStore.EventProcessingClaim.ACQUIRED);
     }
 
     @Test

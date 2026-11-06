@@ -25,6 +25,7 @@ import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.blocking.InMemoryBlockingSignalBroadcaster;
 import io.contexa.contexacore.RiskAssessment;
 import io.contexa.contexacore.autonomous.event.*;
+import io.contexa.contexacore.autonomous.event.listener.DecidedRecordAcknowledger;
 import io.contexa.contexacore.autonomous.event.listener.InMemorySecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
@@ -120,8 +121,12 @@ public class CoreAutonomousEventAutoConfiguration {
         public KafkaSecurityEventCollector kafkaSecurityEventCollector(
                 @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
                 @Qualifier("contexaKafkaTemplate") KafkaTemplate<String, Object> contexaKafkaTemplate,
-                SecurityKafkaProperties securityKafkaProperties) {
-            return new KafkaSecurityEventCollector(objectMapper, contexaKafkaTemplate, securityKafkaProperties);
+                SecurityKafkaProperties securityKafkaProperties,
+                @Qualifier("contexaDecidedRecordAcknowledger") ObjectProvider<DecidedRecordAcknowledger> decidedRecords) {
+            KafkaSecurityEventCollector collector =
+                    new KafkaSecurityEventCollector(objectMapper, contexaKafkaTemplate, securityKafkaProperties);
+            decidedRecords.ifAvailable(collector::setDecidedRecordAcknowledger);
+            return collector;
         }
 
         @Bean(name = "contexaKafkaSecurityEventPublisher")

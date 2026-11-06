@@ -49,6 +49,12 @@ class InMemorySecurityContextDataStoreContractTest extends AbstractSecurityConte
         return store;
     }
 
+    /** Nothing of a store in memory outlives its process. */
+    @Override
+    protected SecurityContextDataStore storeOfTheNextProcess() {
+        return createStore();
+    }
+
     @Override
     protected SecurityContextDataStore createStoreWithEventProcessedTtl(Duration ttl) {
         return new InMemorySecurityContextDataStore(
