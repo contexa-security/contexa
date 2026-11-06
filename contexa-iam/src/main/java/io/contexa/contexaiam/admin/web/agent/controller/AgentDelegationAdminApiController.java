@@ -64,6 +64,11 @@ public class AgentDelegationAdminApiController {
                                   @RequestParam(value = "agentId", required = false) String agentId,
                                   @RequestParam(value = "limit", defaultValue = "200") int limit,
                                   HttpServletRequest request) {
+        try {
+            AgentDelegationApiController.refuseAnAgent(request);
+        } catch (AgentDelegationService.AgentCallerException e) {
+            return AgentDelegationApiController.error(HttpStatus.FORBIDDEN, e.getMessage());
+        }
         int bounded = Math.max(1, Math.min(limit, AgentDelegationApiController.LIST_LIMIT));
         List<DelegationView> views = delegations.list(blank(tenantId), blank(delegatorId), blank(agentId), bounded)
                 .stream().map(delegation -> DelegationView.of(delegation, clock.instant())).toList();

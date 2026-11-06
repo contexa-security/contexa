@@ -239,6 +239,20 @@ class AgentDelegationApiControllerTest {
                 .getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
+    /** What the person's API keeps from an agent, one person's delegations, the admin API keeps too, everyone's. */
+    @Test
+    void anAgentHoldingAnAdministratorsTokenReadsNoDelegation() {
+        alicesDelegation();
+
+        for (Authentication agent : adminTokensAnAgentHolds()) {
+            assertThat(admin.list(null, null, null, 50, stamped(agent)).getStatusCode())
+                    .isEqualTo(HttpStatus.FORBIDDEN);
+        }
+
+        Authentication portal = jwt("admin-1", Map.of("client_id", "portal"));
+        assertThat(admin.list(null, null, null, 50, stamped(portal)).getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
     @Test
     void thePersonsApiNeedsASignInAndTheAdminApiAnAdministrator() {
         assertThat(AgentDelegationApiController.class.getAnnotation(PreAuthorize.class).value())
