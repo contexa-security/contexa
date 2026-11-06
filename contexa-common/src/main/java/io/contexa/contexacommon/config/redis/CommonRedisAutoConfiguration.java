@@ -173,6 +173,13 @@ public class CommonRedisAutoConfiguration {
         return new RedisClusterNotice(connectionFactory, connectionDetails.getIfAvailable());
     }
 
+    /** Only the distributed mode keeps Contexa's state in Redis and Kafka: an application without a name is told what that means. */
+    @Bean(name = "contexaApplicationNamespaceNotice", defaultCandidate = false)
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
+    ApplicationNamespaceNotice applicationNamespaceNotice() {
+        return new ApplicationNamespaceNotice();
+    }
+
     private <K, V> RedisTemplate<K, V> newTemplate(RedisConnectionFactory connectionFactory) {
         ContexaRedisRequestPath requestPath = requestPath();
         RedisTemplate<K, V> template = requestPath != null ? new WatchedRedisTemplate<>(requestPath.gate()) : new RedisTemplate<>();

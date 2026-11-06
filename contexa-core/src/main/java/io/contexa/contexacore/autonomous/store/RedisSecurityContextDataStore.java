@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.store;
 
 import java.time.Instant;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.store.ApplicationNamespace;
 import io.contexa.contexacommon.store.StoreFailures;
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
@@ -74,7 +75,11 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore, 
     private static final String STOPPED_REQUESTS_VERIFIED = "@verified";
     private static final Duration WORK_PROFILE_TTL = Duration.ofDays(30);
     /** docs/agent A3-8: the scopes whose learning an operator quarantined. */
-    private static final String LEARNING_QUARANTINE_KEY = "security:autonomous:learning:quarantine";
+    private static final String LEARNING_QUARANTINE_NAME = "security:autonomous:learning:quarantine";
+
+    private static String learningQuarantineKey() {
+        return ApplicationNamespace.key(LEARNING_QUARANTINE_NAME);
+    }
     private static final Duration ROLE_SCOPE_TTL = Duration.ofDays(30);
     private static final Duration PERMISSION_CHANGE_TTL = Duration.ofDays(30);
     private static final Duration AUTHORIZATION_SCOPE_STATE_TTL = Duration.ofDays(30);
@@ -1177,9 +1182,9 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore, 
             return;
         }
         if (quarantined) {
-            redisTemplate.opsForSet().add(LEARNING_QUARANTINE_KEY, scope);
+            redisTemplate.opsForSet().add(learningQuarantineKey(), scope);
         } else {
-            redisTemplate.opsForSet().remove(LEARNING_QUARANTINE_KEY, scope);
+            redisTemplate.opsForSet().remove(learningQuarantineKey(), scope);
         }
     }
 
@@ -1188,12 +1193,12 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore, 
         if (scope == null || scope.isBlank()) {
             return false;
         }
-        return Boolean.TRUE.equals(redisTemplate.opsForSet().isMember(LEARNING_QUARANTINE_KEY, scope));
+        return Boolean.TRUE.equals(redisTemplate.opsForSet().isMember(learningQuarantineKey(), scope));
     }
 
     @Override
     public Set<String> learningQuarantineScopes() {
-        Set<Object> scopes = redisTemplate.opsForSet().members(LEARNING_QUARANTINE_KEY);
+        Set<Object> scopes = redisTemplate.opsForSet().members(learningQuarantineKey());
         if (scopes == null) {
             return Set.of();
         }

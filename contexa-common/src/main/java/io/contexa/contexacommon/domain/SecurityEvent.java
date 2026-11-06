@@ -21,6 +21,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.store.ApplicationNamespace;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -175,13 +176,13 @@ public class SecurityEvent {
         if (!hasUserId()) {
             throw new IllegalStateException("UserId is required for Zero Trust context");
         }
-        return "security:user:context:" + userId;
+        return ApplicationNamespace.key("security:user:context:" + userId);
     }
 
     public String getSessionMappingKey() {
         if (sessionId == null || sessionId.trim().isEmpty()) {
             return null;
         }
-        return "security:session:user:" + sessionId;
+        return ApplicationNamespace.key("security:session:user:" + sessionId);
     }
 }

@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.baseline.store;
 
 import io.contexa.contexacommon.security.baseline.BaselineVector;
+import io.contexa.contexacommon.store.ApplicationNamespace;
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
@@ -26,10 +27,12 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisOperations;
@@ -44,9 +47,8 @@ public class RedisBaselineDataStore implements BaselineDataStore {
     /** How long a stored baseline is kept after its last save (BR-C11, DD-52). */
     private final Duration baselineTtl;
 
-    private static final String BASELINE_KEY_PREFIX = "security:autonomous:baseline:";
-    private static final String USER_BASELINE_INDEX_KEY = BASELINE_KEY_PREFIX + "user:index";
-    private static final String ORG_BASELINE_INDEX_KEY = BASELINE_KEY_PREFIX + "org:index";
+    /** The name of a baseline key as an application without a name keeps it; {@link #baselinePrefix()} is where this one keeps it. */
+    private static final String BASELINE_NAME_PREFIX = "security:autonomous:baseline:";
     /** The retention of contexa.security.zerotrust.baseline.retention when it is not set (DD-52). */
     public static final Duration DEFAULT_BASELINE_TTL = Duration.ofDays(30);
 
@@ -64,8 +66,7 @@ public class RedisBaselineDataStore implements BaselineDataStore {
     @Override
     public BaselineVector getUserBaseline(String userId) {
         try {
-            String key = BASELINE_KEY_PREFIX + userId;
-            return loadBaselineFromHash(key, userId);
+            return loadBaseline(userId, userId, userIndexKey(), userId);
         } catch (Exception e) {
             log.error("[BaselineDataStore] User baseline retrieval failed: userId={}", userId, e);
             return null;
@@ -81,9 +82,9 @@ public class RedisBaselineDataStore implements BaselineDataStore {
     @Override
     public boolean saveUserBaselineChecked(String userId, BaselineVector baseline) {
         try {
-            String key = BASELINE_KEY_PREFIX + userId;
-            replaceHash(key, buildBaselineHash(userId, baseline));
-            redisTemplate.opsForSet().add(USER_BASELINE_INDEX_KEY, userId);
+            String key = baselinePrefix() + userId;
+            replaceHash(key, buildBaselineHash(userId, baseline), baselineTtl);
+            redisTemplate.opsForSet().add(userIndexKey(), userId);
             return true;
         } catch (Exception e) {
             log.error("[BaselineDataStore] Baseline save failed: userId={}", userId, e);
@@ -94,9 +95,7 @@ public class RedisBaselineDataStore implements BaselineDataStore {
     @Override
     public BaselineVector getOrganizationBaseline(String organizationId) {
         try {
-            String key = BASELINE_KEY_PREFIX + "org:" + organizationId;
-            String canonicalId = "org:" + organizationId;
-            return loadBaselineFromHash(key, canonicalId);
+            return loadBaseline("org:" + organizationId, "org:" + organizationId, orgIndexKey(), organizationId);
         } catch (Exception e) {
             log.error("[BaselineDataStore] Organization baseline retrieval failed: organizationId={}", organizationId, e);
             return null;
@@ -106,9 +105,9 @@ public class RedisBaselineDataStore implements BaselineDataStore {
     @Override
     public void saveOrganizationBaseline(String organizationId, BaselineVector baseline) {
         try {
-            String key = BASELINE_KEY_PREFIX + "org:" + organizationId;
-            replaceHash(key, buildBaselineHash("org:" + organizationId, baseline));
-            redisTemplate.opsForSet().add(ORG_BASELINE_INDEX_KEY, organizationId);
+            String key = baselinePrefix() + "org:" + organizationId;
+            replaceHash(key, buildBaselineHash("org:" + organizationId, baseline), baselineTtl);
+            redisTemplate.opsForSet().add(orgIndexKey(), organizationId);
         } catch (Exception e) {
             log.error("[BaselineDataStore] Organization baseline save failed: organizationId={}", organizationId, e);
         }
@@ -117,7 +116,7 @@ public class RedisBaselineDataStore implements BaselineDataStore {
     @Override
     public BaselineRead readUserBaseline(String userId) {
         try {
-            return BaselineRead.of(loadBaselineFromHash(BASELINE_KEY_PREFIX + userId, userId));
+            return BaselineRead.of(loadBaseline(userId, userId, userIndexKey(), userId));
         } catch (Exception e) {
             log.error("[BaselineDataStore] User baseline read failed: userId={}", userId, e);
             return BaselineRead.failed();
@@ -127,8 +126,8 @@ public class RedisBaselineDataStore implements BaselineDataStore {
     @Override
     public BaselineRead readOrganizationBaseline(String organizationId) {
         try {
-            return BaselineRead.of(loadBaselineFromHash(BASELINE_KEY_PREFIX + "org:" + organizationId,
-                    "org:" + organizationId));
+            return BaselineRead.of(loadBaseline("org:" + organizationId, "org:" + organizationId, orgIndexKey(),
+                    organizationId));
         } catch (Exception e) {
             log.error("[BaselineDataStore] Organization baseline read failed: organizationId={}", organizationId, e);
             return BaselineRead.failed();
@@ -139,7 +138,7 @@ public class RedisBaselineDataStore implements BaselineDataStore {
      * Replaces the stored hash whole in one transaction, so that no field of an earlier baseline is left beside the
      * new one (W5-8): the key is removed and written again with its time to live.
      */
-    private void replaceHash(String key, Map<String, Object> data) {
+    private void replaceHash(String key, Map<String, Object> data, Duration timeToLive) {
         redisTemplate.execute(new SessionCallback<List<Object>>() {
             @Override
             @SuppressWarnings("unchecked")
@@ -148,17 +147,73 @@ public class RedisBaselineDataStore implements BaselineDataStore {
                 transaction.multi();
                 transaction.delete(key);
                 transaction.opsForHash().putAll(key, data);
-                transaction.expire(key, baselineTtl);
+                transaction.expire(key, timeToLive);
                 return transaction.exec();
             }
         });
+    }
+
+    /** Where this application keeps its baselines: behind its name when it has one. */
+    private static String baselinePrefix() {
+        return ApplicationNamespace.key(BASELINE_NAME_PREFIX);
+    }
+
+    private static String userIndexKey() {
+        return baselinePrefix() + "user:index";
+    }
+
+    private static String orgIndexKey() {
+        return baselinePrefix() + "org:index";
+    }
+
+    /**
+     * The prefixes a baseline of this application may be found under: its own and, when it has a name, the one baselines
+     * were kept under before it had (see {@link #carryOverFromEarlierKey}).
+     */
+    private static List<String> baselinePrefixes() {
+        return ApplicationNamespace.isNamed()
+                ? List.of(baselinePrefix(), ApplicationNamespace.withoutName(BASELINE_NAME_PREFIX)) : List.of(baselinePrefix());
+    }
+
+    /**
+     * The baseline under {@code id}. An application that has a name and finds none under its own key reads the key
+     * baselines had before applications were named, once, and keeps a copy under its own key: learning is not thrown
+     * away by giving the application a name, and from then on only its own key is read and written. The earlier key is
+     * left as it is.
+     */
+    private BaselineVector loadBaseline(String id, String canonicalId, String indexKey, String indexMember) {
+        BaselineVector stored = loadBaselineFromHash(baselinePrefix() + id, canonicalId);
+        if (stored != null || !ApplicationNamespace.isNamed()) {
+            return stored;
+        }
+        return carryOverFromEarlierKey(id, canonicalId, indexKey, indexMember);
+    }
+
+    private BaselineVector carryOverFromEarlierKey(String id, String canonicalId, String indexKey, String indexMember) {
+        String earlierKey = ApplicationNamespace.withoutName(BASELINE_NAME_PREFIX + id);
+        BaselineVector earlier = loadBaselineFromHash(earlierKey, canonicalId);
+        if (earlier == null) {
+            return null;
+        }
+        Long remaining = redisTemplate.getExpire(earlierKey, TimeUnit.MILLISECONDS);
+        Duration keptFor = remaining != null && remaining > 0 ? Duration.ofMillis(remaining) : baselineTtl;
+        try {
+            replaceHash(baselinePrefix() + id, buildBaselineHash(canonicalId, earlier), keptFor);
+            redisTemplate.opsForSet().add(indexKey, indexMember);
+            log.debug("[BaselineDataStore] Baseline kept before this application had a name was copied under its own key: "
+                    + "id={}", id);
+        } catch (Exception e) {
+            log.error("[BaselineDataStore] Baseline kept before this application had a name could not be copied: id={}",
+                    id, e);
+        }
+        return earlier;
     }
 
     @Override
     public Iterable<BaselineVector> listOrganizationBaselines() {
         LinkedHashMap<String, BaselineVector> baselines = new LinkedHashMap<>();
         try {
-            Set<Object> organizationIds = redisTemplate.opsForSet().members(ORG_BASELINE_INDEX_KEY);
+            Set<Object> organizationIds = redisTemplate.opsForSet().members(orgIndexKey());
             if (organizationIds == null || organizationIds.isEmpty()) {
                 return List.of();
             }
@@ -171,7 +226,7 @@ public class RedisBaselineDataStore implements BaselineDataStore {
                 if (baseline != null) {
                     baselines.put(id, baseline);
                 } else {
-                    redisTemplate.opsForSet().remove(ORG_BASELINE_INDEX_KEY, id);
+                    redisTemplate.opsForSet().remove(orgIndexKey(), id);
                 }
             }
             return baselines.values();
@@ -189,27 +244,28 @@ public class RedisBaselineDataStore implements BaselineDataStore {
         String userKey = ZeroTrustUserKey.person(userId);
         deleteUserBaselineKey(userKey);
         // The user's baselines under every tenant (W5-10 D9); an agent that bears the user's name ends the same way.
-        List<String> tenantKeys = new ArrayList<>();
+        Set<String> tenantKeys = new LinkedHashSet<>();
         String agentOfThatName = LearningSubject.AGENT_KEY + userKey;
-        try (Cursor<String> cursor = redisTemplate.scan(ScanOptions.scanOptions()
-                .match(BASELINE_KEY_PREFIX + "*" + TENANT_SEPARATOR + ZeroTrustRedisKeys.globLiteral(userKey))
-                .count(500).build())) {
-            cursor.forEachRemaining(key -> {
-                if (!key.endsWith(agentOfThatName)) {
-                    tenantKeys.add(key);
-                }
-            });
-        }
         // docs/agent A3-1: the baselines of the agents acting for the user, in every tenant.
         String agentKeys = ZeroTrustRedisKeys.globLiteral(userKey) + LearningSubject.AGENT_KEY + "*";
-        for (String pattern : List.of(BASELINE_KEY_PREFIX + agentKeys,
-                BASELINE_KEY_PREFIX + "*" + TENANT_SEPARATOR + agentKeys)) {
-            try (Cursor<String> cursor = redisTemplate.scan(ScanOptions.scanOptions().match(pattern).count(500).build())) {
-                cursor.forEachRemaining(tenantKeys::add);
+        for (String prefix : baselinePrefixes()) {
+            try (Cursor<String> cursor = redisTemplate.scan(ScanOptions.scanOptions()
+                    .match(prefix + "*" + TENANT_SEPARATOR + ZeroTrustRedisKeys.globLiteral(userKey))
+                    .count(500).build())) {
+                cursor.forEachRemaining(key -> {
+                    if (!key.endsWith(agentOfThatName)) {
+                        tenantKeys.add(key.substring(prefix.length()));
+                    }
+                });
+            }
+            for (String pattern : List.of(prefix + agentKeys, prefix + "*" + TENANT_SEPARATOR + agentKeys)) {
+                try (Cursor<String> cursor = redisTemplate.scan(ScanOptions.scanOptions().match(pattern).count(500).build())) {
+                    cursor.forEachRemaining(key -> tenantKeys.add(key.substring(prefix.length())));
+                }
             }
         }
         for (String key : tenantKeys) {
-            deleteUserBaselineKey(key.substring(BASELINE_KEY_PREFIX.length()));
+            deleteUserBaselineKey(key);
         }
     }
 
@@ -218,14 +274,16 @@ public class RedisBaselineDataStore implements BaselineDataStore {
         if (agentId == null || agentId.isBlank()) {
             return 0;
         }
-        List<String> keys = new ArrayList<>();
-        try (Cursor<String> cursor = redisTemplate.scan(ScanOptions.scanOptions()
-                .match(BASELINE_KEY_PREFIX + "*" + LearningSubject.AGENT_KEY + ZeroTrustRedisKeys.globLiteral(agentId))
-                .count(500).build())) {
-            cursor.forEachRemaining(keys::add);
+        Set<String> keys = new LinkedHashSet<>();
+        for (String prefix : baselinePrefixes()) {
+            try (Cursor<String> cursor = redisTemplate.scan(ScanOptions.scanOptions()
+                    .match(prefix + "*" + LearningSubject.AGENT_KEY + ZeroTrustRedisKeys.globLiteral(agentId))
+                    .count(500).build())) {
+                cursor.forEachRemaining(key -> keys.add(key.substring(prefix.length())));
+            }
         }
         for (String key : keys) {
-            deleteUserBaselineKey(key.substring(BASELINE_KEY_PREFIX.length()));
+            deleteUserBaselineKey(key);
         }
         return keys.size();
     }
@@ -235,8 +293,11 @@ public class RedisBaselineDataStore implements BaselineDataStore {
         if (key == null || key.isBlank()) {
             return;
         }
-        redisTemplate.delete(BASELINE_KEY_PREFIX + key);
-        redisTemplate.opsForSet().remove(USER_BASELINE_INDEX_KEY, key);
+        // The copy of a baseline kept before the application had a name goes with it: left behind, it would be copied back.
+        for (String prefix : baselinePrefixes()) {
+            redisTemplate.delete(prefix + key);
+        }
+        redisTemplate.opsForSet().remove(userIndexKey(), key);
     }
 
     /**
@@ -247,7 +308,7 @@ public class RedisBaselineDataStore implements BaselineDataStore {
     @Override
     public long countUserBaselines() {
         try {
-            Set<Object> userIds = redisTemplate.opsForSet().members(USER_BASELINE_INDEX_KEY);
+            Set<Object> userIds = redisTemplate.opsForSet().members(userIndexKey());
             if (userIds == null || userIds.isEmpty()) {
                 return 0L;
             }
@@ -257,7 +318,8 @@ public class RedisBaselineDataStore implements BaselineDataStore {
                 @SuppressWarnings("unchecked")
                 public <K, V> Object execute(RedisOperations<K, V> operations) {
                     RedisOperations<String, Object> pipeline = (RedisOperations<String, Object>) operations;
-                    ids.forEach(id -> pipeline.hasKey(BASELINE_KEY_PREFIX + id));
+                    String prefix = baselinePrefix();
+                    ids.forEach(id -> pipeline.hasKey(prefix + id));
                     return null;
                 }
             });
@@ -271,7 +333,7 @@ public class RedisBaselineDataStore implements BaselineDataStore {
                 }
             }
             if (!expired.isEmpty()) {
-                redisTemplate.opsForSet().remove(USER_BASELINE_INDEX_KEY, expired.toArray());
+                redisTemplate.opsForSet().remove(userIndexKey(), expired.toArray());
             }
             return live;
         } catch (Exception e) {

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.repository;
 
+import io.contexa.contexacommon.store.ApplicationNamespace;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.testsupport.RedisTestTemplates;
 import io.contexa.contexacore.testsupport.TestStores;
@@ -64,7 +65,7 @@ class RedisZeroTrustActionRepositoryUserKeyContractTest extends AbstractZeroTrus
     @DisplayName("a BLOCK an earlier version stored under the name as typed stays in force, and its release lifts it")
     void aBlockOfAnEarlierVersionStays() {
         String typed = "Upgrade-" + UUID.randomUUID();
-        String earlierKey = "security:blocked:users:" + typed;
+        String earlierKey = ApplicationNamespace.key("security:blocked:users:" + typed);
         stringRedisTemplate.opsForValue().set(earlierKey, "true");
         try {
             assertThat(repository.getCurrentAction(typed, "context-1")).isEqualTo(ZeroTrustAction.BLOCK);
@@ -82,7 +83,7 @@ class RedisZeroTrustActionRepositoryUserKeyContractTest extends AbstractZeroTrus
     @DisplayName("an administrator's override lifts such a BLOCK too")
     void anOverrideLiftsABlockOfAnEarlierVersion() {
         String typed = "Upgrade-" + UUID.randomUUID();
-        String earlierKey = "security:blocked:users:" + typed;
+        String earlierKey = ApplicationNamespace.key("security:blocked:users:" + typed);
         stringRedisTemplate.opsForValue().set(earlierKey, "true");
         try {
             repository.approveOverrideAtomically(typed, ZeroTrustAction.ALLOW);

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.statemachine.core.service;
 
+import io.contexa.contexacommon.store.ApplicationNamespace;
 import io.contexa.contexaidentity.security.statemachine.config.StateMachineProperties;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
@@ -79,14 +80,14 @@ public class MfaStateMachineServiceImpl extends AbstractMfaStateMachineService {
 
     @Override
     protected boolean tryAcquireLock(String sessionId, long waitTime, TimeUnit unit) throws InterruptedException {
-        RLock lock = redissonClient.getLock(LOCK_KEY_PREFIX + sessionId);
+        RLock lock = redissonClient.getLock(ApplicationNamespace.key(LOCK_KEY_PREFIX + sessionId));
         long leaseTime = Math.max(1, unit.convert(lockLeaseTimeSeconds(), TimeUnit.SECONDS));
         return lock.tryLock(waitTime, leaseTime, unit);
     }
 
     @Override
     protected void releaseLock(String sessionId) {
-        RLock lock = redissonClient.getLock(LOCK_KEY_PREFIX + sessionId);
+        RLock lock = redissonClient.getLock(ApplicationNamespace.key(LOCK_KEY_PREFIX + sessionId));
         if (lock.isHeldByCurrentThread()) {
             lock.unlock();
         }
@@ -94,7 +95,7 @@ public class MfaStateMachineServiceImpl extends AbstractMfaStateMachineService {
 
     @Override
     protected void onReleaseStateMachine(String sessionId) {
-        String redisKey = REDIS_STATEMACHINE_KEY_PREFIX + sessionId;
+        String redisKey = ApplicationNamespace.key(REDIS_STATEMACHINE_KEY_PREFIX + sessionId);
         long deletedCount = redissonClient.getKeys().delete(redisKey);
         if (deletedCount == 0) {
             log.debug("[MFA SM Service] [{}] StateMachine not found in Redis, skipping release.", sessionId);
@@ -103,7 +104,7 @@ public class MfaStateMachineServiceImpl extends AbstractMfaStateMachineService {
 
     @Override
     protected void beforeSaveFactorContext(String sessionId) {
-        String redisKey = REDIS_STATEMACHINE_KEY_PREFIX + sessionId;
+        String redisKey = ApplicationNamespace.key(REDIS_STATEMACHINE_KEY_PREFIX + sessionId);
         long keyExists = redissonClient.getKeys().countExists(redisKey);
         if (keyExists == 0) {
             log.debug("[MFA SM Service] [{}] StateMachine not found in Redis, proceeding with initialization", sessionId);

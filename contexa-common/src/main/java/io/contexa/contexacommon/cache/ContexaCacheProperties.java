@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacommon.cache;
 
+import io.contexa.contexacommon.store.ApplicationNamespace;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -69,6 +70,11 @@ public class ContexaCacheProperties {
 
         
         private String keyPrefix = "contexa:cache:";
+
+        /** The prefix this application keeps its entries under: behind its name when it has one. */
+        public String qualifiedKeyPrefix() {
+            return ApplicationNamespace.key(keyPrefix);
+        }
     }
 
     
@@ -79,6 +85,11 @@ public class ContexaCacheProperties {
 
         
         private String channel = "contexa:cache:invalidation";
+
+        /** The channel this application publishes invalidations to and listens on: behind its name when it has one. */
+        public String qualifiedChannel() {
+            return ApplicationNamespace.key(channel);
+        }
     }
 
     

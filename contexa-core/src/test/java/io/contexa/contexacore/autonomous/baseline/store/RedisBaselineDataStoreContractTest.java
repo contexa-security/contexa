@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.baseline.store;
 
+import io.contexa.contexacommon.store.ApplicationNamespace;
 import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacommon.security.baseline.BaselineVector;
 import io.contexa.contexacore.testsupport.RedisTestTemplates;
@@ -80,10 +81,10 @@ class RedisBaselineDataStoreContractTest extends AbstractBaselineDataStoreContra
         store.saveUserBaseline("u-live", BaselineVector.builder().userId("u-live").updateCount(5L).build());
         store.saveUserBaseline("u-gone", BaselineVector.builder().userId("u-gone").updateCount(5L).build());
         // The hash's time to live ran out; the index set has no time to live of its own.
-        redisTemplate.delete("security:autonomous:baseline:u-gone");
+        redisTemplate.delete(ApplicationNamespace.key("security:autonomous:baseline:u-gone"));
 
         assertThat(store.countUserBaselines()).isEqualTo(1L);
-        assertThat(redisTemplate.opsForSet().members("security:autonomous:baseline:user:index"))
+        assertThat(redisTemplate.opsForSet().members(ApplicationNamespace.key("security:autonomous:baseline:user:index")))
                 .containsExactly("u-live");
     }
 }

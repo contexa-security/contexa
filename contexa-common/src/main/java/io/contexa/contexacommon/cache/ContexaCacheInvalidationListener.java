@@ -28,7 +28,7 @@ public class ContexaCacheInvalidationListener {
 
     
     public void handleMessage(String message, String channel) {
-        if (!properties.getPubsub().getChannel().equals(channel)) {
+        if (!properties.getPubsub().qualifiedChannel().equals(channel)) {
                         return;
         }
 
