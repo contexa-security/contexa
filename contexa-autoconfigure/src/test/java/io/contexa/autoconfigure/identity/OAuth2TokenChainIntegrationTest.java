@@ -92,6 +92,7 @@ import org.springframework.security.oauth2.server.authorization.OAuth2Authorizat
 import org.springframework.security.oauth2.server.authorization.client.InMemoryRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
+import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
@@ -109,6 +110,7 @@ import org.springframework.web.context.support.AnnotationConfigWebApplicationCon
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
@@ -363,13 +365,17 @@ class OAuth2TokenChainIntegrationTest {
         return json.readTree(result.getResponse().getContentAsString());
     }
 
-    /** A person's token as the login flows issue it: the internal authenticated-user grant. */
+    /**
+     * A person's token as the login flows issue it: the internal authenticated-user grant, with the scopes the internal
+     * client is configured with (an agent's exchange gets no scope the person's token does not hold).
+     */
     private String userToken() throws Exception {
         MvcResult result = mvc.perform(post("/oauth2/token")
                         .header("Authorization", basic(INTERNAL_CLIENT, INTERNAL_SECRET))
                         .requestAttr(OAuth2TokenRequestWrapper.INTERNAL_REQUEST_ATTRIBUTE, true)
                         .param("grant_type", AuthenticatedUserGrantAuthenticationToken.AUTHENTICATED_USER.getValue())
-                        .param("username", "alice"))
+                        .param("username", "alice")
+                        .param("scope", "read reports.read"))
                 .andReturn();
         assertThat(result.getResponse().getStatus()).as(result.getResponse().getContentAsString()).isEqualTo(200);
         return json.readTree(result.getResponse().getContentAsString()).get("access_token").asText();
@@ -466,6 +472,7 @@ class OAuth2TokenChainIntegrationTest {
                     .authorizationGrantType(AuthenticatedUserGrantAuthenticationToken.AUTHENTICATED_USER)
                     .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
                     .scope("read")
+                    .scope("reports.read")
                     .build();
             RegisteredClient agent = RegisteredClient.withId("agent")
                     .clientId(AGENT_CLIENT)
@@ -474,6 +481,9 @@ class OAuth2TokenChainIntegrationTest {
                     .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
                     .authorizationGrantType(AuthorizationGrantType.TOKEN_EXCHANGE)
                     .scope("reports.read")
+                    .scope("reports.write")
+                    // longer than a person's token (5 minutes): an exchange never outlives the token it exchanges
+                    .tokenSettings(TokenSettings.builder().accessTokenTimeToLive(Duration.ofHours(1)).build())
                     .build();
             return new InMemoryRegisteredClientRepository(internal, agent);
         }

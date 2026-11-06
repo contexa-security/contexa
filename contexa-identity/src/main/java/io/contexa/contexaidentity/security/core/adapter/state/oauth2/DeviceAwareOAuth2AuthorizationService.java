@@ -157,6 +157,16 @@ public class DeviceAwareOAuth2AuthorizationService implements OAuth2Authorizatio
                 principalName, registeredClientId, now, now));
     }
 
+    /**
+     * The principal's authorizations whose access or refresh token still works, through any client: its sign-ins and the
+     * tokens without a refresh token that clients got for it by token exchange.
+     */
+    public List<OAuth2Authorization> findUsableByPrincipalName(String principalName) {
+        Assert.hasText(principalName, "principalName cannot be empty");
+        Timestamp now = Timestamp.from(Instant.now());
+        return usableOf(jdbcTemplate.queryForList(FIND_UNEXPIRED_IDS_BY_PRINCIPAL, String.class, principalName, now, now));
+    }
+
     private List<OAuth2Authorization> usableOf(List<String> ids) {
         return ids.stream()
                 .map(this::safeFindById)
@@ -232,11 +242,7 @@ public class DeviceAwareOAuth2AuthorizationService implements OAuth2Authorizatio
      * agent's client got for it by token exchange, which {@link #findActiveByPrincipalName} does not answer.
      */
     public void invalidateAllByPrincipalName(String principalName) {
-        Assert.hasText(principalName, "principalName cannot be empty");
-
-        Timestamp now = Timestamp.from(Instant.now());
-        usableOf(jdbcTemplate.queryForList(FIND_UNEXPIRED_IDS_BY_PRINCIPAL, String.class, principalName, now, now))
-                .forEach(this::invalidateAuthorization);
+        findUsableByPrincipalName(principalName).forEach(this::invalidateAuthorization);
     }
 
     private void enforceConcurrentLoginPolicy(OAuth2Authorization authorization) {

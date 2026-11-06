@@ -238,6 +238,51 @@ class EmailOneTimeTokenServiceTest {
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM ctxa_one_time_tokens", Integer.class)).isZero();
     }
 
+    /**
+     * A code signs in to no account that is locked or disabled, so none is made or mailed for one; the answer is the one a
+     * name of no account gets, which tells nothing of the account's state.
+     */
+    @Test
+    @DisplayName("generate should mail nothing to a locked or disabled account, of Contexa's table or of the store, and answer all the same")
+    void generateMailsNothingToALockedOrDisabledAccount() {
+        when(emailService.isMailSenderConfigured()).thenReturn(true);
+        jdbcTemplate.update("INSERT INTO ctxa_users(username, email) VALUES(?, ?)", "disabled-user", "disabled@contexa.io");
+
+        EmailOneTimeTokenService service = new EmailOneTimeTokenService(
+                emailService, jdbcTemplate, transactionTemplate, authContextProperties, true
+        );
+        service.setUserStore(() -> new InMemoryUserDetailsManager(
+                User.withUsername("testuser").password("{noop}x").accountLocked(true).build(),
+                User.withUsername("disabled-user").password("{noop}x").disabled(true).build(),
+                User.withUsername("locked@contexa.io").password("{noop}x").accountLocked(true).build()));
+
+        for (String name : new String[]{"testuser", "disabled-user", "locked@contexa.io"}) {
+            OneTimeToken token = service.generate(new GenerateOneTimeTokenRequest(name));
+
+            assertThat(token.getUsername()).isEqualTo(name);
+            assertThat(token.getTokenValue()).isEmpty();
+        }
+        verify(emailService, never()).sendHtmlMessage(anyString(), anyString(), anyString());
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM ctxa_one_time_tokens", Integer.class)).isZero();
+    }
+
+    @Test
+    @DisplayName("generate should mail an open account of Contexa's table the store the sign-in reads knows")
+    void generateMailsAnOpenAccount() {
+        when(emailService.isMailSenderConfigured()).thenReturn(true);
+
+        EmailOneTimeTokenService service = new EmailOneTimeTokenService(
+                emailService, jdbcTemplate, transactionTemplate, authContextProperties, true
+        );
+        service.setUserStore(() -> new InMemoryUserDetailsManager(
+                User.withUsername("testuser").password("{noop}x").build()));
+
+        OneTimeToken token = service.generate(new GenerateOneTimeTokenRequest("testuser"));
+
+        assertThat(token.getTokenValue()).isNotEmpty();
+        verify(emailService).sendHtmlMessage(eq("user@contexa.io"), anyString(), contains(token.getTokenValue()));
+    }
+
     @Test
     @DisplayName("generate should mail nothing to a name a store that fails cannot vouch for, and answer all the same")
     void generateMailsNothingWhenTheStoreFails() {

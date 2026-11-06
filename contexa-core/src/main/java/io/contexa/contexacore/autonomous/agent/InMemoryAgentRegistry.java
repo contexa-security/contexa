@@ -66,6 +66,14 @@ public class InMemoryAgentRegistry implements AgentRegistry {
     }
 
     @Override
+    public List<AgentRegistration> findAllByClientId(String clientId) {
+        if (AgentRegistrations.blank(clientId)) {
+            return List.of();
+        }
+        return AgentRegistrations.eachTenantsForClient(agents.values(), clientId.trim());
+    }
+
+    @Override
     public Optional<AgentRegistration> remove(String tenantId, String agentId) {
         if (AgentRegistrations.blank(agentId)) {
             return Optional.empty();

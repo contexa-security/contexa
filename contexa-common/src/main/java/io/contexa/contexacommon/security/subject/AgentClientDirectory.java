@@ -56,10 +56,20 @@ public interface AgentClientDirectory {
      * docs/agent A5-3: whether the client is an agent a security decision or an operator suspended. Its tokens, its own
      * and those issued to it for people, are refused until it is resumed. None by default.
      *
-     * @param tenantId the tenant the token names, or {@code null} for a single-tenant deployment
+     * @param tenantId the tenant the token names, or {@code null} when it names none, as a token Contexa issues: such a
+     *                 token is bound to no tenant, so a suspension of the client in any tenant stops it
      * @param clientId the client the token was issued to
      */
     default boolean suspendedAgentClient(@Nullable String tenantId, String clientId) {
         return false;
+    }
+
+    /**
+     * The tenant that registered the agent the client is, as the authorization server issuing the client's tokens knows
+     * it: its tokens name no tenant, so the agent and its delegations are read in the tenant this answers. Empty for an
+     * agent of the single-tenant deployment, and when the directory cannot say. None by default.
+     */
+    default Optional<String> tenantOfClient(String clientId) {
+        return Optional.empty();
     }
 }

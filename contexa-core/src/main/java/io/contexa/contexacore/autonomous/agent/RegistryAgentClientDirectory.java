@@ -20,7 +20,9 @@ import io.contexa.contexacommon.security.bridge.runtime.RequestPathDatabaseGuard
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 /**
  * The approved agents of the agent registry (A1-2, AG-12b): a client is an agent when the registry holds it as
@@ -58,23 +60,56 @@ public class RegistryAgentClientDirectory implements AgentClientDirectory {
         }
     }
 
+    /**
+     * Suspended when a registration the token answers to is: for a token that names a tenant, that tenant's and the
+     * single-tenant deployment's (the stricter of the two, as a request in the tenant reads it); for a token that names
+     * none, as every token Contexa issues, the client's in every tenant, since such a token is bound to none.
+     */
     @Override
     public boolean suspendedAgentClient(String tenantId, String clientId) {
         if (registry == null || AgentRegistrations.blank(clientId)) {
             return false;
         }
         try {
-            return find(tenantId, clientId)
-                    .filter(registration -> registration.status() == AgentStatus.SUSPENDED)
-                    .isPresent();
+            List<AgentRegistration> registrations = AgentRegistrations.blank(tenantId)
+                    ? everyTenant(clientId)
+                    : Stream.concat(find(tenantId, clientId).stream(), find(null, clientId).stream()).toList();
+            return registrations.stream().anyMatch(registration -> registration.status() == AgentStatus.SUSPENDED);
         } catch (RuntimeException e) {
             log.error("Agent registry lookup failed; the client's suspension is not known. clientId={}", clientId, e);
             return false;
         }
     }
 
+    /**
+     * The tenant that registered the client's agent: none when the single-tenant deployment registered it, and none
+     * when two tenants did, since the client then is no one tenant's. A sighting registers nothing.
+     */
+    @Override
+    public Optional<String> tenantOfClient(String clientId) {
+        if (registry == null || AgentRegistrations.blank(clientId)) {
+            return Optional.empty();
+        }
+        try {
+            List<AgentRegistration> registered = everyTenant(clientId).stream()
+                    .filter(registration -> registration.source() == AgentRegistrationSource.LIFECYCLE)
+                    .toList();
+            if (registered.size() != 1) {
+                return Optional.empty();
+            }
+            return Optional.ofNullable(registered.get(0).tenantId());
+        } catch (RuntimeException e) {
+            log.error("Agent registry lookup failed; the client's tenant is not known. clientId={}", clientId, e);
+            return Optional.empty();
+        }
+    }
+
     /** A registry that does not answer in time reads as one that failed: the client is not taken as an agent. */
     private Optional<AgentRegistration> find(String tenantId, String clientId) {
         return requestPathDatabaseGuard.call(() -> registry.findByClientId(tenantId, clientId), Optional.empty());
+    }
+
+    private List<AgentRegistration> everyTenant(String clientId) {
+        return requestPathDatabaseGuard.call(() -> registry.findAllByClientId(clientId), List.of());
     }
 }

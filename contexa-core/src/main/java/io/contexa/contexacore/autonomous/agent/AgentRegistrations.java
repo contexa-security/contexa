@@ -16,7 +16,13 @@
 package io.contexa.contexacore.autonomous.agent;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 
 /**
  * The rules of an agent registration's changes (A1-6), shared by every {@link AgentRegistry} so a database registry
@@ -151,6 +157,30 @@ public final class AgentRegistrations {
                 registered.sponsorId(), stricter.status(), registered.allowlisted(), registered.source(),
                 firstNonBlank(observed.lastSubjectKind(), registered.lastSubjectKind()), observed.firstSeenAt(),
                 observed.lastSeenAt(), registered.registeredAt(), stricter.deregisteredAt(), stricter.statusReason());
+    }
+
+    /**
+     * The client's agent in each tenant among the registrations, chosen as {@link AgentRegistry#findByClientId} chooses
+     * in one tenant: the agent whose tokens are issued to the client (the first by identifier), else the agent whose
+     * identifier is the client's. Tenants in the order of their keys, the single-tenant deployment's first.
+     */
+    public static List<AgentRegistration> eachTenantsForClient(Collection<AgentRegistration> registrations,
+                                                                 String clientId) {
+        Map<String, List<AgentRegistration>> byTenant = new TreeMap<>();
+        for (AgentRegistration registration : registrations) {
+            if (clientId.equals(registration.clientId()) || clientId.equals(registration.agentId())) {
+                byTenant.computeIfAbsent(tenantKey(registration.tenantId()), key -> new ArrayList<>()).add(registration);
+            }
+        }
+        List<AgentRegistration> found = new ArrayList<>();
+        for (List<AgentRegistration> inTenant : byTenant.values()) {
+            inTenant.stream()
+                    .filter(registration -> clientId.equals(registration.clientId()))
+                    .min(Comparator.comparing(AgentRegistration::agentId))
+                    .or(() -> inTenant.stream().filter(registration -> clientId.equals(registration.agentId())).findFirst())
+                    .ifPresent(found::add);
+        }
+        return List.copyOf(found);
     }
 
     static void requireAgent(String agentId) {

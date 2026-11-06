@@ -100,6 +100,11 @@ public class JdbcAgentRegistry implements AgentRegistry {
             .expireAfterWrite(LOOKUP_CACHE_TTL)
             .maximumSize(10_000)
             .build();
+    /** The client's agent in every tenant, cleared with the client lookups. */
+    private final Cache<String, List<AgentRegistration>> everyTenantClientLookups = Caffeine.newBuilder()
+            .expireAfterWrite(LOOKUP_CACHE_TTL)
+            .maximumSize(10_000)
+            .build();
 
     public JdbcAgentRegistry(JdbcOperations jdbc) {
         this(jdbc, Clock.systemUTC());
@@ -134,6 +139,17 @@ public class JdbcAgentRegistry implements AgentRegistry {
                     ROW_MAPPER, AgentRegistrations.tenantKey(tenantId), client, client, client);
             return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
         });
+    }
+
+    @Override
+    public List<AgentRegistration> findAllByClientId(String clientId) {
+        if (clientId == null || clientId.isBlank()) {
+            return List.of();
+        }
+        String client = clientId.trim();
+        return everyTenantClientLookups.get(client, key -> AgentRegistrations.eachTenantsForClient(
+                jdbc.query("select " + COLUMNS + " from ctxa_agent_registration where client_id = ? or agent_id = ?",
+                        ROW_MAPPER, client, client), client));
     }
 
     @Override
@@ -214,6 +230,7 @@ public class JdbcAgentRegistry implements AgentRegistry {
                     AgentRegistrations.tenantKey(tenantId), agentId.trim());
             lookups.invalidate(cacheKey(tenantId, agentId.trim()));
             clientLookups.invalidateAll();
+            everyTenantClientLookups.invalidateAll();
         });
         return current;
     }
@@ -238,6 +255,7 @@ public class JdbcAgentRegistry implements AgentRegistry {
                 Timestamp.from(clock.instant()));
         lookups.invalidate(cacheKey(registration.tenantId(), registration.agentId()));
         clientLookups.invalidateAll();
+        everyTenantClientLookups.invalidateAll();
         return read(registration.tenantId(), registration.agentId()).orElseThrow();
     }
 
