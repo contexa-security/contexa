@@ -516,6 +516,9 @@ The format is based on Keep a Changelog and the project follows semantic version
   `UnexpectedRollbackException` in place of the answer. The calls that answer a failure now end in a transaction of
   their own, the migration and the cleanup roll back as a whole, and the items of a batch (and the resources of a reset)
   are written one transaction each, so an item the database refuses is answered as that item and the others are written.
+- **A permission that roles were given to groups or accounts with is refused with where it is used.** Deleting it failed
+  in the database with a foreign key nobody can read; it is now refused, before anything is changed, with how many group
+  and account assignments carry it and the order to revoke it from them first.
 - **A policy form that is refused now shows the refusal.** Creating a policy without a name, editing or deleting a
   policy that is not there, and approving a policy approved already or rejecting one rejected already each answered an
   error page (`UnexpectedRollbackException`) instead of the message, for the reason the user, role, group and role
