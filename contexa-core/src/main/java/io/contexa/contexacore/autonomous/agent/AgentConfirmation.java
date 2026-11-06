@@ -69,6 +69,10 @@ public record AgentConfirmation(String confirmationId, @Nullable String tenantId
     public static final String DELEGATION_ENDED = "DELEGATION_ENDED";
     /** The agent asked for it itself, for a request a policy lets through only once confirmed. */
     public static final String REQUESTED = "REQUESTED";
+    /** The longest target a confirmation keeps, its stored column's size; an agent's ask past it is refused. */
+    public static final int MAX_TARGET_LENGTH = 2048;
+    static final int MAX_METHOD_LENGTH = 16;
+    static final int MAX_CORRELATION_ID_LENGTH = 160;
 
     /** What a person could not see in a path, or what would break its line or turn it around: shown escaped. */
     private static final Pattern NOT_SHOWN = Pattern.compile("[\\p{C}\\p{Z}]");
@@ -92,6 +96,16 @@ public record AgentConfirmation(String confirmationId, @Nullable String tenantId
         public boolean refused() {
             return this == REJECTED || this == EXPIRED || this == REPORTED;
         }
+    }
+
+    /**
+     * A value past what its stored column holds is cut here, so every store keeps, and every reader shows, the same
+     * confirmation. The request stays bound by its own hash.
+     */
+    public AgentConfirmation {
+        method = cut(method, MAX_METHOD_LENGTH);
+        target = cut(target, MAX_TARGET_LENGTH);
+        correlationId = cut(correlationId, MAX_CORRELATION_ID_LENGTH);
     }
 
     /** The key the decisions of the subject are kept under: the agent's own for a delegated agent. */
@@ -131,6 +145,11 @@ public record AgentConfirmation(String confirmationId, @Nullable String tenantId
         return new AgentConfirmation(confirmationId, tenantId, subjectKind, userId, agentId, delegationId,
                 recipientId, requestHash, method, target, trigger, reason, correlationId, decision, createdAt, until,
                 at, by, note, authorization, usedAt);
+    }
+
+    @Nullable
+    private static String cut(@Nullable String value, int length) {
+        return value != null && value.length() > length ? value.substring(0, length) : value;
     }
 
     /** The confirmation with another status, the rest kept. */

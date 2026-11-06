@@ -132,7 +132,7 @@ public class AgentConfirmationService {
         AgentConfirmation confirmation = store.save(new AgentConfirmation(UUID.randomUUID().toString(),
                 subject.tenantId(), subject.kind().name(), subject.userId(), subject.agentId(),
                 subject.delegationId(), recipient, request.requestHash(), request.method(),
-                truncate(request.target(), 2048), request.trigger(), request.reason(), request.correlationId(),
+                request.target(), request.trigger(), request.reason(), request.correlationId(),
                 AgentConfirmation.Status.PENDING, now, now.plus(timeout), null, null, null, null, null));
         notify(confirmation, AgentNotice.CONFIRMATION_REQUESTED,
                 "The agent " + confirmation.agentId() + " asks you to confirm a request",

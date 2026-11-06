@@ -81,6 +81,28 @@ class JdbcAgentConfirmationStoreTest {
         assertKeepsConfirmations(new InMemoryAgentConfirmationStore());
     }
 
+    /** A value past what a column holds is kept the same by both stores, so a person reads the same in either. */
+    @Test
+    void bothStoresKeepAValuePastItsColumnTheSameWay() {
+        AgentConfirmation oversized = new AgentConfirmation("c-big", null, "DELEGATED_AGENT", "alice", "report-agent",
+                null, "alice", "hash-1", "M".repeat(20), "/" + "a".repeat(3000), AgentConfirmation.REQUESTED, null,
+                "r".repeat(200), AgentConfirmation.Status.PENDING, NOW, NOW.plusSeconds(900), null, null, null, null,
+                null);
+        AgentConfirmationStore database = new JdbcAgentConfirmationStore(jdbc);
+        AgentConfirmationStore memory = new InMemoryAgentConfirmationStore();
+
+        AgentConfirmation savedThere = database.save(oversized);
+        AgentConfirmation savedHere = memory.save(oversized);
+
+        assertThat(savedThere).isEqualTo(savedHere);
+        assertThat(database.find("c-big")).isEqualTo(memory.find("c-big"));
+        assertThat(memory.find("c-big")).hasValueSatisfying(kept -> {
+            assertThat(kept.method()).hasSize(16);
+            assertThat(kept.target()).hasSize(2048);
+            assertThat(kept.correlationId()).hasSize(160);
+        });
+    }
+
     private static void assertKeepsConfirmations(AgentConfirmationStore store) {
         AgentConfirmation first = store.save(pending("c-1", "alice", "hash-1", NOW));
         store.save(pending("c-2", "alice", "hash-1", NOW.plusSeconds(1)));

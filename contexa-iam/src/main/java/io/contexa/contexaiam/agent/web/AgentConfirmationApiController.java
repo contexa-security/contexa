@@ -25,6 +25,7 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.lang.Nullable;
@@ -38,9 +39,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Where an agent follows the confirmation of its request (docs/agent A5-2): it polls the confirmation the gate
@@ -69,11 +73,16 @@ public class AgentConfirmationApiController {
     }
 
     /**
-     * The request the agent asks a confirmation for: its method, its path with the query, and its body's SHA-256 in
-     * hexadecimal (none for no body), as it will send it.
+     * The request the agent asks a confirmation for: its method (a standard HTTP method), its path with the query (at
+     * most {@value AgentConfirmation#MAX_TARGET_LENGTH} characters, what a confirmation keeps), and its body's SHA-256
+     * in hexadecimal (none for no body), as it will send it.
      */
     public record ConfirmationAsk(String method, String target, @Nullable String bodySha256, @Nullable String reason) {
     }
+
+    /** The methods an ask may name: what a request to the application can carry. */
+    private static final Set<String> METHODS = Arrays.stream(HttpMethod.values()).map(HttpMethod::name)
+            .collect(Collectors.toUnmodifiableSet());
 
     private final AgentConfirmationService confirmations;
     private AgentCallGuard callGuard;
@@ -127,14 +136,19 @@ public class AgentConfirmationApiController {
                 || !ask.target().startsWith("/")) {
             return ResponseEntity.badRequest().build();
         }
+        // An ask the person could not be shown in full, or that names no method a request carries, binds nothing.
+        String method = ask.method().trim().toUpperCase(Locale.ROOT);
         String target = ask.target().trim();
+        if (!METHODS.contains(method) || target.length() > AgentConfirmation.MAX_TARGET_LENGTH) {
+            return ResponseEntity.badRequest().build();
+        }
         int query = target.indexOf('?');
         String path = query < 0 ? target : target.substring(0, query);
-        String hash = AgentRequestBinding.hash(subject.tenantId(), subject.userId(), subject.agentId(), ask.method(),
+        String hash = AgentRequestBinding.hash(subject.tenantId(), subject.userId(), subject.agentId(), method,
                 path, query < 0 ? null : target.substring(query + 1),
                 StringUtils.hasText(ask.bodySha256()) ? ask.bodySha256().trim().toLowerCase(Locale.ROOT) : null, null);
-        return confirmations.request(new AgentConfirmationService.ConfirmationRequest(subject, hash,
-                        ask.method().trim().toUpperCase(Locale.ROOT), target, AgentConfirmation.REQUESTED,
+        return confirmations.request(new AgentConfirmationService.ConfirmationRequest(subject, hash, method, target,
+                        AgentConfirmation.REQUESTED,
                         StringUtils.hasText(ask.reason()) ? truncate(ask.reason().trim(), 1000) : null,
                         null, AgentConfirmationService.linkBase(linkBaseUrl, request.getContextPath())))
                 .<ResponseEntity<?>>map(confirmation -> ResponseEntity.status(HttpStatus.ACCEPTED)

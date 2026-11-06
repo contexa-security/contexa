@@ -306,6 +306,39 @@ class AgentConfirmationPagesTest {
                 .isEqualTo("/ctx/contexa/agent-confirmations/" + id));
     }
 
+    /**
+     * A method is one a request can carry and a target fits where it is kept: an ask past either is refused, so what
+     * the person approves is what was asked, in full, whichever store keeps it.
+     */
+    @Test
+    void anAskNamesAStandardMethodAndATargetThatFitsWhereItIsKept() {
+        AgentConfirmationApiController api = new AgentConfirmationApiController(service);
+        TestingAuthenticationToken token = new TestingAuthenticationToken("alice", null);
+        MockHttpServletRequest fromAgent = agentRequest("alice", "report-agent");
+
+        for (String refused : List.of("PROPFIND", "CONNECT", "FETCH-EVERYTHING-NOW", "GET /x", "POST\r\nX: y")) {
+            assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk(refused, "/api/exports", null, null),
+                    token, fromAgent).getStatusCode()).as(refused).isEqualTo(HttpStatus.BAD_REQUEST);
+        }
+        assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", "/" + "a".repeat(2048), null,
+                null), token, fromAgent).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(store.forRecipient("alice", 10)).isEmpty();
+
+        List<String> accepted = List.of("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "TRACE");
+        for (String method : accepted) {
+            assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk(" " + method.toLowerCase(Locale.ROOT),
+                    "/api/exports", null, null), token, fromAgent).getStatusCode()).as(method)
+                    .isEqualTo(HttpStatus.ACCEPTED);
+        }
+        assertThat(store.forRecipient("alice", 10)).extracting(AgentConfirmation::method)
+                .containsExactlyInAnyOrderElementsOf(accepted);
+        String longest = "/" + "a".repeat(2047);
+        AgentConfirmationApiController.ConfirmationStatus fits = (AgentConfirmationApiController.ConfirmationStatus)
+                api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", longest, null, null), token,
+                        fromAgent).getBody();
+        assertThat(store.find(fits.confirmationId())).map(AgentConfirmation::target).contains(longest);
+    }
+
     /** A person approves what will run: the path the application serves stands beside what the agent sent. */
     @Test
     void aPersonSeesThePathTheApplicationServesBesideWhatTheAgentSent() {
