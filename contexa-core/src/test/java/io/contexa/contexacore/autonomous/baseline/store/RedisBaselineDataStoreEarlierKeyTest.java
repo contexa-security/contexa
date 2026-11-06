@@ -43,6 +43,7 @@ class RedisBaselineDataStoreEarlierKeyTest {
 
     private static final String APPLICATION = "shop";
     private static final String EARLIER_PREFIX = "security:autonomous:baseline:";
+    private static final String INDEX_PREFIX = "security:autonomous:baseline-index:";
 
     private static LettuceConnectionFactory connectionFactory;
     private static RedisTemplate<String, Object> redis;
@@ -72,8 +73,10 @@ class RedisBaselineDataStoreEarlierKeyTest {
         redis.delete(EARLIER_PREFIX + "org:" + organization);
         redis.delete(ApplicationNamespace.PREFIX + APPLICATION + ":" + EARLIER_PREFIX + user);
         redis.delete(ApplicationNamespace.PREFIX + APPLICATION + ":" + EARLIER_PREFIX + "org:" + organization);
-        redis.opsForSet().remove(EARLIER_PREFIX + "user:index", user);
-        redis.opsForSet().remove(ApplicationNamespace.PREFIX + APPLICATION + ":" + EARLIER_PREFIX + "user:index", user);
+        redis.opsForZSet().remove(INDEX_PREFIX + "user", user);
+        redis.opsForZSet().remove(ApplicationNamespace.PREFIX + APPLICATION + ":" + INDEX_PREFIX + "user", user);
+        redis.opsForZSet().remove(INDEX_PREFIX + "org", organization);
+        redis.opsForZSet().remove(ApplicationNamespace.PREFIX + APPLICATION + ":" + INDEX_PREFIX + "org", organization);
     }
 
     @Test
@@ -87,8 +90,8 @@ class RedisBaselineDataStoreEarlierKeyTest {
             assertThat(first.getUpdateCount()).isEqualTo(5L);
             assertThat(redis.hasKey(ApplicationNamespace.key(EARLIER_PREFIX + user))).as("its own key now holds it").isTrue();
             assertThat(redis.hasKey(EARLIER_PREFIX + user)).as("the earlier key stays").isTrue();
-            assertThat(redis.opsForSet().isMember(ApplicationNamespace.key(EARLIER_PREFIX + "user:index"), user))
-                    .as("and its own index lists the user").isTrue();
+            assertThat(redis.opsForZSet().score(ApplicationNamespace.key(INDEX_PREFIX + "user"), user))
+                    .as("and its own index lists the user").isNotNull();
 
             // From then on only its own key is read: a change to the earlier key is not seen.
             savedBeforeTheApplicationHadAName(user, 99L);
@@ -106,8 +109,8 @@ class RedisBaselineDataStoreEarlierKeyTest {
         try (ApplicationNamespace.Scope ignored = ApplicationNamespace.using(APPLICATION)) {
             assertThat(store.getOrganizationBaseline(organization).getUpdateCount()).isEqualTo(12L);
             assertThat(redis.hasKey(ApplicationNamespace.key(EARLIER_PREFIX + "org:" + organization))).isTrue();
-            assertThat(redis.opsForSet().isMember(ApplicationNamespace.key(EARLIER_PREFIX + "org:index"), organization))
-                    .isTrue();
+            assertThat(redis.opsForZSet().score(ApplicationNamespace.key(INDEX_PREFIX + "org"), organization))
+                    .isNotNull();
         }
     }
 

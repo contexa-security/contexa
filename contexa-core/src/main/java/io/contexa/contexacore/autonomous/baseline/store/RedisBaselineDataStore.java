@@ -32,13 +32,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.connection.DataType;
 import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.SessionCallback;
+import org.springframework.data.redis.core.ZSetOperations;
+import org.springframework.data.redis.serializer.RedisSerializer;
 
 @Slf4j
 public class RedisBaselineDataStore implements BaselineDataStore {
@@ -46,9 +51,18 @@ public class RedisBaselineDataStore implements BaselineDataStore {
     private final RedisTemplate<String, Object> redisTemplate;
     /** How long a stored baseline is kept after its last save (BR-C11, DD-52). */
     private final Duration baselineTtl;
+    /** The indexes of the earlier version (a set) that this process has dealt with, by key. */
+    private final Set<String> earlierIndexesDealtWith = ConcurrentHashMap.newKeySet();
 
     /** The name of a baseline key as an application without a name keeps it; {@link #baselinePrefix()} is where this one keeps it. */
     private static final String BASELINE_NAME_PREFIX = "security:autonomous:baseline:";
+    /**
+     * The name of the indexes of the baselines still stored, ordered by when each expires. They are not under
+     * {@link #BASELINE_NAME_PREFIX}: no name a user is given can spell the key of an index.
+     */
+    private static final String BASELINE_INDEX_NAME_PREFIX = "security:autonomous:baseline-index:";
+    /** How many members of an index of the earlier version are moved in one step. */
+    private static final int MOVE_BATCH = 500;
     /** The retention of contexa.security.zerotrust.baseline.retention when it is not set (DD-52). */
     public static final Duration DEFAULT_BASELINE_TTL = Duration.ofDays(30);
 
@@ -82,9 +96,9 @@ public class RedisBaselineDataStore implements BaselineDataStore {
     @Override
     public boolean saveUserBaselineChecked(String userId, BaselineVector baseline) {
         try {
+            moveEarlierIndexes();
             String key = baselinePrefix() + userId;
-            replaceHash(key, buildBaselineHash(userId, baseline), baselineTtl);
-            redisTemplate.opsForSet().add(userIndexKey(), userId);
+            replaceHash(key, buildBaselineHash(userId, baseline), baselineTtl, userIndexKey(), userId);
             return true;
         } catch (Exception e) {
             log.error("[BaselineDataStore] Baseline save failed: userId={}", userId, e);
@@ -105,9 +119,10 @@ public class RedisBaselineDataStore implements BaselineDataStore {
     @Override
     public void saveOrganizationBaseline(String organizationId, BaselineVector baseline) {
         try {
+            moveEarlierIndexes();
             String key = baselinePrefix() + "org:" + organizationId;
-            replaceHash(key, buildBaselineHash("org:" + organizationId, baseline), baselineTtl);
-            redisTemplate.opsForSet().add(orgIndexKey(), organizationId);
+            replaceHash(key, buildBaselineHash("org:" + organizationId, baseline), baselineTtl, orgIndexKey(),
+                    organizationId);
         } catch (Exception e) {
             log.error("[BaselineDataStore] Organization baseline save failed: organizationId={}", organizationId, e);
         }
@@ -136,9 +151,13 @@ public class RedisBaselineDataStore implements BaselineDataStore {
 
     /**
      * Replaces the stored hash whole in one transaction, so that no field of an earlier baseline is left beside the
-     * new one (W5-8): the key is removed and written again with its time to live.
+     * new one (W5-8): the key is removed and written again with its time to live. The same transaction enters the baseline
+     * in the index, scored by when it expires, and drops from it what has expired: the index never holds an entry for
+     * long after the baseline it points to is gone.
      */
-    private void replaceHash(String key, Map<String, Object> data, Duration timeToLive) {
+    private void replaceHash(String key, Map<String, Object> data, Duration timeToLive, String indexKey,
+                             String indexMember) {
+        long now = System.currentTimeMillis();
         redisTemplate.execute(new SessionCallback<List<Object>>() {
             @Override
             @SuppressWarnings("unchecked")
@@ -148,6 +167,8 @@ public class RedisBaselineDataStore implements BaselineDataStore {
                 transaction.delete(key);
                 transaction.opsForHash().putAll(key, data);
                 transaction.expire(key, timeToLive);
+                transaction.opsForZSet().removeRangeByScore(indexKey, Double.NEGATIVE_INFINITY, now);
+                transaction.opsForZSet().add(indexKey, indexMember, now + timeToLive.toMillis());
                 return transaction.exec();
             }
         });
@@ -158,11 +179,23 @@ public class RedisBaselineDataStore implements BaselineDataStore {
         return ApplicationNamespace.key(BASELINE_NAME_PREFIX);
     }
 
+    /** The users whose baseline is stored, scored by when it expires. */
     private static String userIndexKey() {
+        return ApplicationNamespace.key(BASELINE_INDEX_NAME_PREFIX + "user");
+    }
+
+    /** The organizations whose baseline is stored, scored by when it expires. */
+    private static String orgIndexKey() {
+        return ApplicationNamespace.key(BASELINE_INDEX_NAME_PREFIX + "org");
+    }
+
+    /** The index of users that earlier versions kept: a set that was added to and never trimmed. */
+    private static String earlierUserIndexKey() {
         return baselinePrefix() + "user:index";
     }
 
-    private static String orgIndexKey() {
+    /** The index of organizations that earlier versions kept. */
+    private static String earlierOrgIndexKey() {
         return baselinePrefix() + "org:index";
     }
 
@@ -198,8 +231,7 @@ public class RedisBaselineDataStore implements BaselineDataStore {
         Long remaining = redisTemplate.getExpire(earlierKey, TimeUnit.MILLISECONDS);
         Duration keptFor = remaining != null && remaining > 0 ? Duration.ofMillis(remaining) : baselineTtl;
         try {
-            replaceHash(baselinePrefix() + id, buildBaselineHash(canonicalId, earlier), keptFor);
-            redisTemplate.opsForSet().add(indexKey, indexMember);
+            replaceHash(baselinePrefix() + id, buildBaselineHash(canonicalId, earlier), keptFor, indexKey, indexMember);
             log.debug("[BaselineDataStore] Baseline kept before this application had a name was copied under its own key: "
                     + "id={}", id);
         } catch (Exception e) {
@@ -213,7 +245,11 @@ public class RedisBaselineDataStore implements BaselineDataStore {
     public Iterable<BaselineVector> listOrganizationBaselines() {
         LinkedHashMap<String, BaselineVector> baselines = new LinkedHashMap<>();
         try {
-            Set<Object> organizationIds = redisTemplate.opsForSet().members(orgIndexKey());
+            moveEarlierIndexes();
+            long now = System.currentTimeMillis();
+            redisTemplate.opsForZSet().removeRangeByScore(orgIndexKey(), Double.NEGATIVE_INFINITY, now);
+            Set<Object> organizationIds = redisTemplate.opsForZSet()
+                    .rangeByScore(orgIndexKey(), now, Double.POSITIVE_INFINITY);
             if (organizationIds == null || organizationIds.isEmpty()) {
                 return List.of();
             }
@@ -226,7 +262,7 @@ public class RedisBaselineDataStore implements BaselineDataStore {
                 if (baseline != null) {
                     baselines.put(id, baseline);
                 } else {
-                    redisTemplate.opsForSet().remove(orgIndexKey(), id);
+                    redisTemplate.opsForZSet().remove(orgIndexKey(), id);
                 }
             }
             return baselines.values();
@@ -297,49 +333,97 @@ public class RedisBaselineDataStore implements BaselineDataStore {
         for (String prefix : baselinePrefixes()) {
             redisTemplate.delete(prefix + key);
         }
-        redisTemplate.opsForSet().remove(userIndexKey(), key);
+        redisTemplate.opsForZSet().remove(userIndexKey(), key);
     }
 
     /**
-     * The users whose baseline is still stored. The index set has no time to live of its own, so a user whose baseline
-     * expired is left out of the count and removed from the index here, as an organization is when they are listed
-     * (QF-23).
+     * The users whose baseline is still stored: the entries of the index that have not expired. The index is scored by
+     * the time each baseline expires, and what has expired is dropped from it here, as it is at every save (QF-23).
      */
     @Override
     public long countUserBaselines() {
         try {
-            Set<Object> userIds = redisTemplate.opsForSet().members(userIndexKey());
-            if (userIds == null || userIds.isEmpty()) {
-                return 0L;
-            }
-            List<String> ids = userIds.stream().filter(Objects::nonNull).map(String::valueOf).toList();
-            List<Object> stored = redisTemplate.executePipelined(new SessionCallback<Object>() {
-                @Override
-                @SuppressWarnings("unchecked")
-                public <K, V> Object execute(RedisOperations<K, V> operations) {
-                    RedisOperations<String, Object> pipeline = (RedisOperations<String, Object>) operations;
-                    String prefix = baselinePrefix();
-                    ids.forEach(id -> pipeline.hasKey(prefix + id));
-                    return null;
-                }
-            });
-            long live = 0L;
-            List<Object> expired = new ArrayList<>();
-            for (int index = 0; index < ids.size(); index++) {
-                if (index < stored.size() && Boolean.TRUE.equals(stored.get(index))) {
-                    live++;
-                } else {
-                    expired.add(ids.get(index));
-                }
-            }
-            if (!expired.isEmpty()) {
-                redisTemplate.opsForSet().remove(userIndexKey(), expired.toArray());
-            }
-            return live;
+            moveEarlierIndexes();
+            long now = System.currentTimeMillis();
+            ZSetOperations<String, Object> index = redisTemplate.opsForZSet();
+            index.removeRangeByScore(userIndexKey(), Double.NEGATIVE_INFINITY, now);
+            Long live = index.count(userIndexKey(), now, Double.POSITIVE_INFINITY);
+            return live != null ? live : 0L;
         } catch (Exception e) {
             log.error("[BaselineDataStore] User baseline count failed", e);
             return 0L;
         }
+    }
+
+    /**
+     * Moves the indexes the earlier versions kept (a set per kind, added to and never trimmed, so that it held every user
+     * ever seen) into the indexes scored by expiry, once per process. Only a member whose baseline is still stored is
+     * moved, scored by when that baseline expires at the latest, and every member read is then removed from the set, which
+     * goes with its last member. Any number of servers can do it at once: a member that is already in the new index is
+     * left as it is, and a server that finds no set does nothing. An index that cannot be moved now is tried again by
+     * the next call, and never stops a save.
+     */
+    private void moveEarlierIndexes() {
+        moveEarlierIndex(earlierUserIndexKey(), userIndexKey(), baselinePrefix());
+        moveEarlierIndex(earlierOrgIndexKey(), orgIndexKey(), baselinePrefix() + "org:");
+    }
+
+    private void moveEarlierIndex(String earlierKey, String indexKey, String baselineKeyPrefix) {
+        if (!earlierIndexesDealtWith.add(earlierKey)) {
+            return;
+        }
+        try {
+            // Nothing to move when there is no set, or when the key is the baseline of a user who is named like the index.
+            if (redisTemplate.type(earlierKey) != DataType.SET) {
+                return;
+            }
+            Set<Object> members = redisTemplate.opsForSet().members(earlierKey);
+            if (members == null || members.isEmpty()) {
+                return;
+            }
+            List<Object> batch = new ArrayList<>(MOVE_BATCH);
+            for (Object member : members) {
+                if (member != null) {
+                    batch.add(member);
+                }
+                if (batch.size() == MOVE_BATCH) {
+                    moveBatch(earlierKey, indexKey, baselineKeyPrefix, batch);
+                    batch = new ArrayList<>(MOVE_BATCH);
+                }
+            }
+            if (!batch.isEmpty()) {
+                moveBatch(earlierKey, indexKey, baselineKeyPrefix, batch);
+            }
+        } catch (RuntimeException failure) {
+            earlierIndexesDealtWith.remove(earlierKey);
+            log.warn("[BaselineDataStore] The index {} of the earlier version could not be moved yet: {}", earlierKey,
+                    failure.getMessage());
+        }
+    }
+
+    private void moveBatch(String earlierKey, String indexKey, String baselineKeyPrefix, List<Object> members) {
+        @SuppressWarnings("unchecked")
+        RedisSerializer<String> keys = (RedisSerializer<String>) redisTemplate.getKeySerializer();
+        List<Object> remaining = redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
+            for (Object member : members) {
+                connection.keyCommands().pTtl(keys.serialize(baselineKeyPrefix + member));
+            }
+            return null;
+        });
+        long now = System.currentTimeMillis();
+        Set<ZSetOperations.TypedTuple<Object>> live = new LinkedHashSet<>();
+        for (int index = 0; index < members.size(); index++) {
+            Object left = index < remaining.size() ? remaining.get(index) : null;
+            if (!(left instanceof Long millis) || millis == -2L) {
+                continue;
+            }
+            long expiresAt = now + (millis >= 0 ? millis : baselineTtl.toMillis());
+            live.add(ZSetOperations.TypedTuple.of(members.get(index), (double) expiresAt));
+        }
+        if (!live.isEmpty()) {
+            redisTemplate.opsForZSet().addIfAbsent(indexKey, live);
+        }
+        redisTemplate.opsForSet().remove(earlierKey, members.toArray());
     }
 
     private Map<String, Object> buildBaselineHash(String userId, BaselineVector baseline) {

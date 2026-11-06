@@ -797,6 +797,14 @@ The format is based on Keep a Changelog and the project follows semantic version
   request held, without the version check.
 - A request running beside a write no longer finds no flow in Redis and ends it.
 - Flows in progress in Redis when this version starts cannot be read and start again: the stored form changed.
+- **The list of people with a stored baseline no longer grows with every person ever seen.** The index of users (and of
+  organizations) in Redis was a set that every save added to and that was trimmed only when the users were counted
+  (off by default) or a person's data was deleted, so with a retention of days it kept every person long after the
+  baseline had expired. It is now ordered by when each baseline expires, and every save drops the entries that have
+  expired. The set an earlier version left is moved into it the first time a server of this version saves, counts or
+  lists (a baseline still stored keeps the time it has left) and is then removed; nothing is to be set up and the
+  baselines are not changed. An earlier-version server that still runs beside a new one goes on adding to the old set;
+  those people are indexed again at their next save.
 
 ### Added
 
