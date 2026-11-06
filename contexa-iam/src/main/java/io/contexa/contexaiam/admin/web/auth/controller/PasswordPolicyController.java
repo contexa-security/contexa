@@ -18,7 +18,9 @@ package io.contexa.contexaiam.admin.web.auth.controller;
 import io.contexa.contexaiam.admin.web.auth.dto.PasswordPolicyDtos.PasswordPolicyForm;
 import io.contexa.contexaiam.admin.web.auth.dto.PasswordPolicyDtos.PasswordPolicyRulesResponse;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
+import io.contexa.contexaiam.admin.web.common.ConsoleFault;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.ResponseEntity;
@@ -32,6 +34,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.security.access.prepost.PreAuthorize;
 
+@Slf4j
 @Controller
 @RequestMapping("/contexa/admin/password-policy")
 @RequiredArgsConstructor
@@ -58,7 +61,8 @@ public class PasswordPolicyController {
             passwordPolicyService.updatePolicy(policy.toPasswordPolicy());
             ra.addFlashAttribute("message", msg("msg.password.policy.updated"));
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", msg("msg.password.policy.update.error", e.getMessage()));
+            ra.addFlashAttribute("errorMessage", msg("msg.password.policy.update.error",
+                    ConsoleFault.textOf(e, log, "update the password policy")));
         }
         return "redirect:/contexa/admin/password-policy";
     }

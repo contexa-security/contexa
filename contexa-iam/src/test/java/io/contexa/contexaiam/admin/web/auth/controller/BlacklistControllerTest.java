@@ -272,7 +272,7 @@ class BlacklistControllerTest {
             String view = controller.deleteBlockRecord(1L, ra);
 
             assertThat(view).isEqualTo("redirect:/contexa/admin/blacklist");
-            assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("Cannot delete active block");
+            assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("The action could not be completed. See the server log.").doesNotContain("Cannot delete active block");
         }
 
         @Test

@@ -18,6 +18,7 @@ package io.contexa.contexaiam.admin.web.auth.controller;
 import io.contexa.contexaiam.admin.web.auth.service.GroupService;
 import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorException;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
+import io.contexa.contexaiam.admin.web.common.ConsoleFault;
 import io.contexa.contexaiam.domain.dto.GroupDto;
 import io.contexa.contexaiam.domain.dto.RoleMetadataDto;
 import io.contexa.contexacommon.entity.Group;
@@ -110,7 +111,7 @@ public class GroupController {
             ra.addFlashAttribute("errorMessage", e.getMessage());
             log.warn("Failed to create group: {}", e.getMessage());
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", msg("msg.group.create.error", e.getMessage()));
+            ra.addFlashAttribute("errorMessage", msg("msg.group.create.error", ConsoleFault.textOf(e)));
             log.error("Error creating group", e);
         }
         return "redirect:/contexa/admin/groups";
@@ -143,7 +144,7 @@ public class GroupController {
             ra.addFlashAttribute("errorMessage", e.getMessage());
             log.warn("Failed to load group details: {}", e.getMessage());
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", msg("msg.group.load.failed", e.getMessage()));
+            ra.addFlashAttribute("errorMessage", msg("msg.group.load.failed", ConsoleFault.textOf(e)));
             log.error("Error loading group details for ID: {}", id, e);
         }
         return "redirect:/contexa/admin/groups";
@@ -166,7 +167,7 @@ public class GroupController {
             ra.addFlashAttribute("errorMessage", e.getMessage());
             log.warn("Failed to update group: {}", e.getMessage());
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", msg("msg.group.update.error", e.getMessage()));
+            ra.addFlashAttribute("errorMessage", msg("msg.group.update.error", ConsoleFault.textOf(e)));
             log.error("Error updating group", e);
         }
         return "redirect:/contexa/admin/groups";
@@ -181,7 +182,7 @@ public class GroupController {
                     } catch (LastAdministratorException e) {
             throw e;
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", msg("msg.group.delete.error", e.getMessage()));
+            ra.addFlashAttribute("errorMessage", msg("msg.group.delete.error", ConsoleFault.textOf(e)));
             log.error("Error deleting group ID: {}", id, e);
         }
         return "redirect:/contexa/admin/groups";

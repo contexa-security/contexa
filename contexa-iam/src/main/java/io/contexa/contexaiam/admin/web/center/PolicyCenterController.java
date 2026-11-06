@@ -35,6 +35,7 @@ import io.contexa.contexaiam.admin.web.center.service.PolicyCenterAnalysisServic
 import io.contexa.contexaiam.admin.web.center.service.PolicyCenterCommandService;
 import io.contexa.contexaiam.admin.web.center.service.PolicyCenterPageService;
 import io.contexa.contexaiam.admin.web.center.service.PolicyCenterQueryService;
+import io.contexa.contexaiam.admin.web.common.ConsoleFault;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
@@ -118,7 +119,7 @@ public class PolicyCenterController {
             ra.addFlashAttribute("message", msg("msg.policy.resources.refreshed"));
         } catch (Exception e) {
             log.error("Failed to refresh resources", e);
-            ra.addFlashAttribute("errorMessage", msg("msg.policy.refresh.error", e.getMessage()));
+            ra.addFlashAttribute("errorMessage", msg("msg.policy.refresh.error", ConsoleFault.textOf(e)));
         }
         return "redirect:/contexa/admin/policy-center?tab=resources";
     }
@@ -259,7 +260,7 @@ public class PolicyCenterController {
         } catch (Exception e) {
             log.error("Failed to validate policy", e);
             return ResponseEntity.badRequest().body(new PolicyValidationResponse(
-                    List.of(), List.of(), false, e.getMessage()));
+                    List.of(), List.of(), false, ConsoleFault.textOf(e)));
         }
     }
 
@@ -272,7 +273,7 @@ public class PolicyCenterController {
         } catch (Exception e) {
             log.error("Failed to validate quick policy", e);
             return ResponseEntity.badRequest().body(new PolicyValidationResponse(
-                    List.of(), List.of(), false, e.getMessage()));
+                    List.of(), List.of(), false, ConsoleFault.textOf(e)));
         }
     }
 
@@ -286,7 +287,7 @@ public class PolicyCenterController {
         } catch (Exception e) {
             log.error("Failed to validate AI policy {}", policyId, e);
             return ResponseEntity.ok(new PolicyAiValidationResponse(
-                    List.of(), false, e.getMessage()));
+                    List.of(), false, ConsoleFault.textOf(e)));
         }
     }
 }

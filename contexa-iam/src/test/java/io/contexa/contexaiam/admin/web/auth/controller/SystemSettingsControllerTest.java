@@ -244,7 +244,7 @@ class SystemSettingsControllerTest {
             String view = controller.updateSettings(form, ra);
 
             assertThat(view).isEqualTo("redirect:/contexa/admin/system-settings");
-            assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("DB error");
+            assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("The action could not be completed. See the server log.").doesNotContain("DB error");
             verify(runtimeApplier, never()).apply();
         }
     }

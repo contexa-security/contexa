@@ -227,7 +227,7 @@ class UserManagementControllerTest {
             String view = controller.updateUser(1L, userDto, null, ra);
 
             assertThat(view).isEqualTo("redirect:/contexa/admin/users/1");
-            assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("DB error");
+            assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("The action could not be completed. See the server log.").doesNotContain("DB error");
         }
     }
 
@@ -273,7 +273,7 @@ class UserManagementControllerTest {
             String view = controller.removeUser(1L, ra);
 
             assertThat(view).isEqualTo("redirect:/contexa/admin/users");
-            assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("Not found");
+            assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("The action could not be completed. See the server log.").doesNotContain("Not found");
         }
     }
 

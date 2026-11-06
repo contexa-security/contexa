@@ -31,6 +31,7 @@ import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos.UpdateRolePer
 import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos.UpdateUserGroupsRequest;
 import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorException;
 import io.contexa.contexaiam.admin.web.center.service.AccessCenterService;
+import io.contexa.contexaiam.admin.web.common.ConsoleFault;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
@@ -105,7 +106,7 @@ public class AccessCenterController {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(new AccessActionResponse(false, e.getMessage()));
         } catch (Exception e) {
             log.error("Failed to update user groups", e);
-            return ResponseEntity.badRequest().body(new AccessActionResponse(false, e.getMessage()));
+            return ResponseEntity.badRequest().body(new AccessActionResponse(false, ConsoleFault.textOf(e)));
         }
     }
 
@@ -120,7 +121,7 @@ public class AccessCenterController {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(new AccessActionResponse(false, e.getMessage()));
         } catch (Exception e) {
             log.error("Failed to update user direct roles", e);
-            return ResponseEntity.badRequest().body(new AccessActionResponse(false, e.getMessage()));
+            return ResponseEntity.badRequest().body(new AccessActionResponse(false, ConsoleFault.textOf(e)));
         }
     }
 
@@ -152,7 +153,7 @@ public class AccessCenterController {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(new AccessActionResponse(false, e.getMessage()));
         } catch (Exception e) {
             log.error("Failed to update group roles", e);
-            return ResponseEntity.badRequest().body(new AccessActionResponse(false, e.getMessage()));
+            return ResponseEntity.badRequest().body(new AccessActionResponse(false, ConsoleFault.textOf(e)));
         }
     }
 
@@ -182,7 +183,7 @@ public class AccessCenterController {
             return ResponseEntity.ok(accessCenterService.updateRolePermissions(roleId, request));
         } catch (Exception e) {
             log.error("Failed to update role permissions", e);
-            return ResponseEntity.badRequest().body(new AccessActionResponse(false, e.getMessage()));
+            return ResponseEntity.badRequest().body(new AccessActionResponse(false, ConsoleFault.textOf(e)));
         }
     }
 

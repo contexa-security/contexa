@@ -22,6 +22,7 @@ import io.contexa.contexaiam.admin.web.auth.service.SystemRuntimeSettingsService
 import io.contexa.contexaiam.admin.web.auth.service.SystemRuntimeSettingsService.PolicyDecisionSettings;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsRuntimeApplier;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
+import io.contexa.contexaiam.admin.web.common.ConsoleFault;
 import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties.NoPolicyDecision;
@@ -92,7 +93,8 @@ public class SystemSettingsController {
             ra.addFlashAttribute("message", msg("admin.system.settings.saved"));
         } catch (Exception e) {
             ra.addFlashAttribute("errorMessage",
-                    msg("admin.system.settings.save.failed") + ": " + e.getMessage());
+                    msg("admin.system.settings.save.failed") + ": "
+                            + ConsoleFault.textOf(e, log, "save the system settings"));
         }
         return "redirect:/contexa/admin/system-settings";
     }

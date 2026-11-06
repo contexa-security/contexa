@@ -22,6 +22,7 @@ import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.auth.service.UserManagementService;
 import io.contexa.contexaiam.admin.web.auth.service.VerificationCoverageService;
 import io.contexa.contexacommon.domain.UserDto;
+import io.contexa.contexaiam.admin.web.common.ConsoleFault;
 import io.contexa.contexaiam.domain.dto.UserListDto;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.Role;
@@ -134,7 +135,7 @@ public class UserManagementController {
 			ra.addFlashAttribute("errorMessage", e.getMessage());
 			log.warn("Failed to load user details: {}", e.getMessage());
 		} catch (Exception e) {
-			ra.addFlashAttribute("errorMessage", msg("msg.user.load.failed", e.getMessage()));
+			ra.addFlashAttribute("errorMessage", msg("msg.user.load.failed", ConsoleFault.textOf(e)));
 			log.error("Error loading user details for ID: {}", id, e);
 		}
 		return "redirect:/contexa/admin/users";
@@ -155,7 +156,7 @@ public class UserManagementController {
 			throw e;
 		} catch (Exception e) {
 			log.error("Error modifying user: ", e);
-			ra.addFlashAttribute("errorMessage", msg("msg.user.update.error", e.getMessage()));
+			ra.addFlashAttribute("errorMessage", msg("msg.user.update.error", ConsoleFault.textOf(e)));
 			return "redirect:/contexa/admin/users/" + id;
 		}
 		return "redirect:/contexa/admin/users";
@@ -182,7 +183,7 @@ public class UserManagementController {
 			ra.addFlashAttribute("message", msg("msg.user.created", userDto.getUsername()));
 		} catch (Exception e) {
 			log.error("Error creating user: ", e);
-			model.addAttribute("errorMessage", e.getMessage());
+			model.addAttribute("errorMessage", ConsoleFault.textOf(e));
 			model.addAttribute("user", userDto);
 			model.addAttribute("roleList", roleService.getRolesWithoutExpression());
 			model.addAttribute("groupList", groupService.getAllGroups());
@@ -219,7 +220,7 @@ public class UserManagementController {
 			throw e;
 		} catch (Exception e) {
 			log.error("Error deleting user: ", e);
-			ra.addFlashAttribute("errorMessage", msg("msg.user.delete.error", e.getMessage()));
+			ra.addFlashAttribute("errorMessage", msg("msg.user.delete.error", ConsoleFault.textOf(e)));
 		}
 		return "redirect:/contexa/admin/users";
 	}

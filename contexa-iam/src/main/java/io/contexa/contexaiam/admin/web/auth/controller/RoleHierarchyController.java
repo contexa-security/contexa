@@ -20,6 +20,7 @@ import io.contexa.contexaiam.admin.web.auth.service.GroupService;
 import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorException;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.auth.service.impl.RoleHierarchyService;
+import io.contexa.contexaiam.admin.web.common.ConsoleFault;
 import io.contexa.contexaiam.domain.dto.RoleDetailDto;
 import io.contexa.contexaiam.domain.dto.GroupWithRolesDto;
 import io.contexa.contexaiam.domain.dto.RoleHierarchyDto;
@@ -183,7 +184,7 @@ public class RoleHierarchyController {
         } catch (LastAdministratorException e) {
             throw e;
         } catch (Exception e) {
-            ra.addFlashAttribute("error", e.getMessage());
+            ra.addFlashAttribute("error", ConsoleFault.textOf(e));
             log.error("Error deleting role hierarchy ID: {}", id, e);
         }
         return "redirect:/contexa/admin/role-hierarchies";

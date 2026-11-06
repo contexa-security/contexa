@@ -16,6 +16,7 @@
 package io.contexa.contexaiam.admin.web.auth.controller;
 
 import io.contexa.contexaiam.admin.web.auth.service.SessionManagementService;
+import io.contexa.contexaiam.admin.web.common.ConsoleFault;
 import io.contexa.contexaiam.admin.web.common.CsvColumn;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
 import io.contexa.contexaiam.domain.entity.ActiveSession;
@@ -87,7 +88,7 @@ public class SessionManagementController {
             ra.addFlashAttribute("message", msg("admin.session.invalidated"));
         } catch (Exception e) {
             log.error("[SessionManagement] Failed to invalidate session: {}", sessionId, e);
-            ra.addFlashAttribute("errorMessage", msg("msg.session.invalidate.error", e.getMessage()));
+            ra.addFlashAttribute("errorMessage", msg("msg.session.invalidate.error", ConsoleFault.textOf(e)));
         }
         return "redirect:/contexa/admin/session-management";
     }
@@ -99,7 +100,7 @@ public class SessionManagementController {
             ra.addFlashAttribute("message", msg("admin.session.all.invalidated"));
         } catch (Exception e) {
             log.error("[SessionManagement] Failed to invalidate all sessions for user: {}", userId, e);
-            ra.addFlashAttribute("errorMessage", msg("msg.session.invalidate.all.error", e.getMessage()));
+            ra.addFlashAttribute("errorMessage", msg("msg.session.invalidate.all.error", ConsoleFault.textOf(e)));
         }
         return "redirect:/contexa/admin/session-management";
     }

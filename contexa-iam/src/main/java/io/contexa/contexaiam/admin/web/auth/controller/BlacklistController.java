@@ -17,6 +17,7 @@ package io.contexa.contexaiam.admin.web.auth.controller;
 
 import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
 import io.contexa.contexaiam.admin.web.auth.service.UnderOwnBlockException;
+import io.contexa.contexaiam.admin.web.common.ConsoleFault;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -117,7 +118,7 @@ public class BlacklistController {
             return "redirect:/contexa/admin/blacklist/" + id;
         } catch (Exception e) {
             log.error("[BlacklistController] Failed to resolve block: id={}", id, e);
-            ra.addFlashAttribute("errorMessage", msg("msg.blacklist.resolve.error", e.getMessage()));
+            ra.addFlashAttribute("errorMessage", msg("msg.blacklist.resolve.error", ConsoleFault.textOf(e)));
             return "redirect:/contexa/admin/blacklist/" + id;
         }
         return "redirect:/contexa/admin/blacklist";
@@ -135,7 +136,7 @@ public class BlacklistController {
             ra.addFlashAttribute("errorMessage", e.getMessage());
         } catch (Exception e) {
             log.error("[BlacklistController] Failed to delete block record: id={}", id, e);
-            ra.addFlashAttribute("errorMessage", msg("msg.blacklist.delete.error", e.getMessage()));
+            ra.addFlashAttribute("errorMessage", msg("msg.blacklist.delete.error", ConsoleFault.textOf(e)));
         }
         return "redirect:/contexa/admin/blacklist";
     }
