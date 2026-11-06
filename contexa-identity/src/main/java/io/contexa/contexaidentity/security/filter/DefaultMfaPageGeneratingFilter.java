@@ -1624,18 +1624,31 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
                             const mfa = new ContexaMFA.Client({ autoRedirect: true, tokenPersistence: '%s' });
 
+                            // What the server or the network answers is written as text, line by line.
+                            function showMessage(kind, ...lines) {
+                                const box = document.createElement('div');
+                                box.className = 'message ' + kind;
+                                lines.forEach((line, index) => {
+                                    if (index > 0) {
+                                        box.appendChild(document.createElement('br'));
+                                    }
+                                    box.appendChild(document.createTextNode(line));
+                                });
+                                messageArea.replaceChildren(box);
+                            }
+
                             loginButton.addEventListener('click', async () => {
                                 const username = document.getElementById('username').value;
                                 const password = document.getElementById('password').value;
 
                                 if (!username || !password) {
-                                    messageArea.innerHTML = '<div class="message error">' + msgErrorInput + '</div>';
+                                    showMessage('error', msgErrorInput);
                                     return;
                                 }
 
                                 loginButton.disabled = true;
                                 spinner.classList.add('active');
-                                messageArea.innerHTML = '';
+                                messageArea.replaceChildren();
 
                                 try {
                                     const result = await mfa.apiClient.loginForm(username, password);
@@ -1645,31 +1658,29 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                     console.log('[DEBUG] result.redirectUrl:', result.redirectUrl);
 
                                     if (result.status === 'MFA_COMPLETED') {
-                                        messageArea.innerHTML = '<div class="message success">' + msgSuccessRedirect + '</div>';
+                                        showMessage('success', msgSuccessRedirect);
                                         const redirectUrl = result.redirectUrl || '/';
                                         setTimeout(() => {
                                             window.location.href = redirectUrl;
                                         }, 500);
                                     } else if (result.status === 'MFA_REQUIRED_SELECT_FACTOR' ||
                                                result.status === 'MFA_REQUIRED') {
-                                        messageArea.innerHTML = '<div class="message success">' + msgSuccessMfa + '</div>';
+                                        showMessage('success', msgSuccessMfa);
                                         const nextStepUrl = result.nextStepUrl || '/mfa/select-factor';
                                         setTimeout(() => {
                                             window.location.href = nextStepUrl;
                                         }, 500);
                                     } else {
-                                        const message = result.message || msgSuccess;
-                                        messageArea.innerHTML = '<div class="message success">' + message + '</div>';
+                                        showMessage('success', result.message || msgSuccess);
                                     }
                                 } catch (error) {
                                     if (error.response && error.response.blocked === true) {
                                         const supportContact = error.response.supportContact || 'Administrator';
-                                        messageArea.innerHTML = '<div class="message error">' +
-                                            error.message + '<br>Contact: ' + supportContact + '</div>';
+                                        showMessage('error', error.message, 'Contact: ' + supportContact);
                                         formFooter.style.display = 'none';
                                         loginButton.disabled = true;
                                     } else {
-                                        messageArea.innerHTML = '<div class="message error">' + error.message + '</div>';
+                                        showMessage('error', error.message);
                                         loginButton.disabled = false;
                                         spinner.classList.remove('active');
                                     }
@@ -1839,18 +1850,31 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
                             const mfa = new ContexaMFA.Client({ autoRedirect: true, tokenPersistence: '%s' });
 
+                            // What the server or the network answers is written as text, line by line.
+                            function showMessage(kind, ...lines) {
+                                const box = document.createElement('div');
+                                box.className = 'message ' + kind;
+                                lines.forEach((line, index) => {
+                                    if (index > 0) {
+                                        box.appendChild(document.createElement('br'));
+                                    }
+                                    box.appendChild(document.createTextNode(line));
+                                });
+                                messageArea.replaceChildren(box);
+                            }
+
                             loginButton.addEventListener('click', async () => {
                                 const username = document.getElementById('username').value;
                                 const password = document.getElementById('password').value;
 
                                 if (!username || !password) {
-                                    messageArea.innerHTML = '<div class="message error">' + msgErrorInput + '</div>';
+                                    showMessage('error', msgErrorInput);
                                     return;
                                 }
 
                                 loginButton.disabled = true;
                                 spinner.classList.add('active');
-                                messageArea.innerHTML = '';
+                                messageArea.replaceChildren();
 
                                 try {
                                     const result = await mfa.apiClient.login(username, password);
@@ -1860,31 +1884,29 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                     console.log('[DEBUG] result.redirectUrl:', result.redirectUrl);
 
                                     if (result.status === 'MFA_COMPLETED') {
-                                        messageArea.innerHTML = '<div class="message success">' + msgSuccessRedirect + '</div>';
+                                        showMessage('success', msgSuccessRedirect);
                                         const redirectUrl = result.redirectUrl || '/';
                                         setTimeout(() => {
                                             window.location.href = redirectUrl;
                                         }, 500);
                                     } else if (result.status === 'MFA_REQUIRED_SELECT_FACTOR' ||
                                                result.status === 'MFA_REQUIRED') {
-                                        messageArea.innerHTML = '<div class="message success">' + msgSuccessMfa + '</div>';
+                                        showMessage('success', msgSuccessMfa);
                                         const nextStepUrl = result.nextStepUrl || '/mfa/select-factor';
                                         setTimeout(() => {
                                             window.location.href = nextStepUrl;
                                         }, 500);
                                     } else {
-                                        const message = result.message || msgSuccess;
-                                        messageArea.innerHTML = '<div class="message success">' + message + '</div>';
+                                        showMessage('success', result.message || msgSuccess);
                                     }
                                 } catch (error) {
                                     if (error.response && error.response.blocked === true) {
                                         const supportContact = error.response.supportContact || 'Administrator';
-                                        messageArea.innerHTML = '<div class="message error">' +
-                                            error.message + '<br>Contact: ' + supportContact + '</div>';
+                                        showMessage('error', error.message, 'Contact: ' + supportContact);
                                         formFooter.style.display = 'none';
                                         loginButton.disabled = true;
                                     } else {
-                                        messageArea.innerHTML = '<div class="message error">' + error.message + '</div>';
+                                        showMessage('error', error.message);
                                         loginButton.disabled = false;
                                         spinner.classList.remove('active');
                                     }

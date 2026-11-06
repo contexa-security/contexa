@@ -182,6 +182,14 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
                             const msgErrorGeneric = container.dataset.msgErrorGeneric;
                             const msgSuccess = container.dataset.msgSuccess;
 
+                            // What the server or the network answers is written as text.
+                            function showMessage(kind, text) {
+                                const box = document.createElement('div');
+                                box.className = 'message ' + kind;
+                                box.textContent = text;
+                                messageArea.replaceChildren(box);
+                            }
+
                             function getCsrfToken() {
                                 const meta = document.querySelector('meta[name="_csrf"]');
                                 return meta ? meta.getAttribute('content') : null;
@@ -197,13 +205,13 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
                                 const password = document.getElementById('password').value;
 
                                 if (!username || !password) {
-                                    messageArea.innerHTML = '<div class="message error">' + msgErrorInput + '</div>';
+                                    showMessage('error', msgErrorInput);
                                     return;
                                 }
 
                                 loginButton.disabled = true;
                                 spinner.classList.add('active');
-                                messageArea.innerHTML = '';
+                                messageArea.replaceChildren();
 
                                 try {
                                     const csrfToken = getCsrfToken();
@@ -235,7 +243,7 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
 
                                     console.log('[DEBUG] Login success:', result);
 
-                                    messageArea.innerHTML = '<div class="message success">' + msgSuccess + '</div>';
+                                    showMessage('success', msgSuccess);
                                     const redirectUrl = result.redirectUrl || '/';
                                     setTimeout(() => {
                                         window.location.href = redirectUrl;
@@ -244,7 +252,7 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
                                 } catch (error) {
                                     console.error('Login error:', error);
 
-                                    messageArea.innerHTML = '<div class="message error">' + error.message + '</div>';
+                                    showMessage('error', error.message);
                                     loginButton.disabled = false;
                                     spinner.classList.remove('active');
                                 }

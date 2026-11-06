@@ -341,6 +341,45 @@ class AdminMenuControllerTest {
         }
 
         @Test
+        @DisplayName("create refuses an address that is no path inside the application, without saving")
+        void createMenuRefusesAnAddressOutsideTheApplication() throws Exception {
+            mockMvc.perform(post("/contexa/admin/menu-management/api/create")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "name":"Custom",
+                                      "url":"javascript:alert(document.cookie)"
+                                    }
+                                    """))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.error").value("Menu URL must be a path inside this application, starting with a single /"));
+
+            verify(adminMenuService, never()).saveMenu(any());
+        }
+
+        @Test
+        @DisplayName("update refuses an address that leads to another site, without saving")
+        void updateMenuRefusesAnAddressOfAnotherSite() throws Exception {
+            AdminMenu menu = menu(1L, "Old", "/old", 9L, 1, true);
+            when(adminMenuService.getMenuById(1L)).thenReturn(Optional.of(menu));
+
+            mockMvc.perform(put("/contexa/admin/menu-management/api/1")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "url":"//evil.example/login"
+                                    }
+                                    """))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.error").value("Menu URL must be a path inside this application, starting with a single /"));
+
+            verify(adminMenuService, never()).saveMenu(any());
+            assertThat(menu.getUrl()).isEqualTo("/old");
+        }
+
+        @Test
         @DisplayName("update keeps partial string request contract")
         void updateMenu() throws Exception {
             AdminMenu menu = menu(1L, "Old", "/old", 9L, 1, true);

@@ -11,8 +11,16 @@
     var usernameInput = document.getElementById('username');
     var passwordInput = document.getElementById('password');
 
+    // A message may come from the server or the network, so it is always written as text.
+    function showMessage(kind, text) {
+        var toast = document.createElement('div');
+        toast.className = 'toast ' + kind;
+        toast.textContent = text;
+        messageArea.replaceChildren(toast);
+    }
+
     if (typeof ContexaMFA === 'undefined') {
-        messageArea.innerHTML = '<div class="toast error">Contexa MFA SDK is required.</div>';
+        showMessage('error', 'Contexa MFA SDK is required.');
         loginButton.disabled = true;
         return;
     }
@@ -27,13 +35,13 @@
         var password = passwordInput.value;
 
         if (!username || !password) {
-            messageArea.innerHTML = '<div class="toast error">Username and password are required.</div>';
+            showMessage('error', 'Username and password are required.');
             return;
         }
 
         loginButton.disabled = true;
         loginButton.textContent = 'Signing in...';
-        messageArea.innerHTML = '';
+        messageArea.replaceChildren();
 
         try {
             var result = await mfa.apiClient.loginForm(username, password);
@@ -58,11 +66,11 @@
                 return;
             }
 
-            messageArea.innerHTML = '<div class="toast success">' + (result.message || 'Login succeeded.') + '</div>';
+            showMessage('success', result.message || 'Login succeeded.');
             loginButton.disabled = false;
             loginButton.textContent = 'Sign In';
         } catch (error) {
-            messageArea.innerHTML = '<div class="toast error">' + (error.message || 'Login failed.') + '</div>';
+            showMessage('error', error.message || 'Login failed.');
             loginButton.disabled = false;
             loginButton.textContent = 'Sign In';
         }

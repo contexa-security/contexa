@@ -21,6 +21,7 @@ import io.contexa.contexacommon.entity.AdminMenu;
 import io.contexa.contexacommon.entity.AdminMenuRole;
 import io.contexa.contexacommon.repository.AdminMenuRepository;
 import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuIcon;
+import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuUrl;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -354,6 +355,7 @@ public class AdminMenuService {
     ) {
         public MenuNode {
             icon = AdminMenuIcon.displayable(icon);
+            url = AdminMenuUrl.linkable(url);
         }
 
         public boolean isGroup() {

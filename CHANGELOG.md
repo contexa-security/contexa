@@ -24,6 +24,15 @@ The format is based on Keep a Changelog and the project follows semantic version
   the hierarchy diagram draws in strict mode with text labels, and a menu icon that opens with a tag has to be a plain SVG
   drawing of shapes: anything else is refused on save and shown as no icon. **Check:** a custom menu icon with other SVG
   elements, such as `g` or `text`, is no longer drawn; use a CSS class or a drawing of paths and basic shapes.
+- **The sign-in pages write what the server answers as text.** The default form and REST sign-in pages and the shipped
+  `contexa-login-page.js` put a sign-in message, an error or a support contact into the page as markup; they now write it
+  as text, keeping the line break before the contact.
+- **A menu address is a path inside the application.** The side menu links every administrator to the address of each
+  menu, which took any value, `javascript:` and other sites included. Saving now refuses anything but a path that opens
+  with a single `/`, and a stored address of another form is drawn with no link. **Check:** a custom menu that pointed to
+  another site keeps its address on the menu screen but loses its link in the side menu until it is changed to a path.
+- A role hierarchy whose diagram cannot be drawn lists its relations in the confirm dialog instead of stopping on a script
+  error, and a policy version snapshot that fails to load says so.
 - A one-time code asked for a name with no account leaves nothing in the log, and the mail shows a name as text, never as markup.
 - **A sign-in by code no longer mails any address a stranger types.** Before a sign-in the name of a code request is what
   the form says, and a name of no account was mailed as an address: with `.ott()` anybody could have your mail server send a

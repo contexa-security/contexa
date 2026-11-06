@@ -34,7 +34,10 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** The side menu drawn from the real fragment: a drawing as a drawing, and a stored value of no known form not at all. */
+/**
+ * The side menu drawn from the real fragment: a drawing as a drawing, a stored icon of no known form not at all, and
+ * an address only when it is a path inside the application.
+ */
 class AdminMenuFragmentTemplateTest {
 
     private static final String SEEDED_DRAWING = "<svg fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\" width=\"24\" "
@@ -62,6 +65,24 @@ class AdminMenuFragmentTemplateTest {
         assertThat(render(group("<b>Sales & Ops</b>"))).doesNotContain("Sales", "<b>", "&lt;b");
     }
 
+    @Test
+    @DisplayName("a path inside the application is the link, at the top and inside a group")
+    void aPathInsideTheApplicationIsTheLink() {
+        assertThat(render(address("/contexa/admin/users"))).contains("href=\"/contexa/admin/users\"");
+        assertThat(render(groupOf(address("/contexa/admin/users")))).contains("href=\"/contexa/admin/users\"");
+    }
+
+    @Test
+    @DisplayName("a stored address that may leave the application is not written, at the top or inside a group")
+    void aStoredAddressOutsideTheApplicationIsNotWritten() {
+        for (String stored : List.of("javascript:alert(1)", "//evil.example/", "/\\evil.example/")) {
+            assertThat(render(address(stored))).as(stored)
+                    .contains("href=\"\"").doesNotContain("javascript", "evil.example");
+            assertThat(render(groupOf(address(stored)))).as(stored)
+                    .contains("href=\"\"").doesNotContain("javascript", "evil.example");
+        }
+    }
+
     private static MenuNode link(String icon) {
         return new MenuNode(1L, "menu.dashboard", "/contexa/admin/dashboard", icon, "dashboard", "CORE", true, Set.of(),
                 List.of());
@@ -69,6 +90,14 @@ class AdminMenuFragmentTemplateTest {
 
     private static MenuNode group(String icon) {
         return new MenuNode(2L, "menu.nav.iam", null, icon, "iam", "CORE", true, Set.of(), List.of(link("")));
+    }
+
+    private static MenuNode address(String url) {
+        return new MenuNode(3L, "menu.iam.users", url, "", "users", "CORE", true, Set.of(), List.of());
+    }
+
+    private static MenuNode groupOf(MenuNode child) {
+        return new MenuNode(4L, "menu.nav.iam", null, "", "iam", "CORE", true, Set.of(), List.of(child));
     }
 
     private String render(MenuNode node) {

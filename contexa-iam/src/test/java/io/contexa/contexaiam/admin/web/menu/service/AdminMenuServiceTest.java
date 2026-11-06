@@ -197,6 +197,19 @@ class AdminMenuServiceTest {
     }
 
     @Test
+    @DisplayName("a stored address that may leave the application is no link in the menu tree")
+    void aStoredAddressOutsideTheApplicationIsNoLink() {
+        AdminMenuService service = new AdminMenuService(menuRepository, menuQueryCache, false, false);
+        AdminMenu script = AdminMenu.builder().id(1L).name("Script").url("javascript:alert(1)").enabled(true).build();
+        AdminMenu elsewhere = AdminMenu.builder().id(2L).name("Elsewhere").url("//evil.example/").enabled(true).build();
+        AdminMenu inside = AdminMenu.builder().id(3L).name("Inside").url("/contexa/admin/users").enabled(true).build();
+        when(menuQueryCache.findAllWithRoles()).thenReturn(List.of(script, elsewhere, inside));
+
+        assertThat(service.getMenuTreeForUser(List.of())).extracting(AdminMenuService.MenuNode::url)
+                .containsExactly(null, null, "/contexa/admin/users");
+    }
+
+    @Test
     @DisplayName("deleteMenu should delete children and parent")
     void deleteMenu() {
         AdminMenuService service = new AdminMenuService(menuRepository, menuQueryCache, false, false);
