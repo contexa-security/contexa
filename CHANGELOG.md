@@ -447,6 +447,12 @@ The format is based on Keep a Changelog and the project follows semantic version
   opened a transaction of their own, the service they called joined it, and the service's exception marked it for
   rollback before the controller caught it. These methods no longer open a transaction, the services keep theirs, so
   the refusal is rolled back there and the page the person returns to says why. Nothing else of them changes.
+- **A policy form that is refused now shows the refusal.** Creating a policy without a name, editing or deleting a
+  policy that is not there, and approving a policy approved already or rejecting one rejected already each answered an
+  error page (`UnexpectedRollbackException`) instead of the message, for the reason the user, role, group and role
+  hierarchy forms did: the controller methods opened a transaction of their own that the service joined. The five write
+  methods of the policy controller no longer open a transaction; the service keeps its own, so a refusal is rolled back
+  there and the policy center's list says why. Nothing else of them changes.
 - **The permission list and the page of a permission no longer fail when a permission guards a resource.** Opening
   `/contexa/admin/permissions` answered 500 (`LazyInitializationException: Could not initialize proxy
   [ManagedResource#...] - no session`) as soon as a permission made from a resource, in the policy center's "Create
