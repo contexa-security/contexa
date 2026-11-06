@@ -20,7 +20,7 @@ import io.contexa.contexaiam.admin.web.auth.service.GroupService;
 import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorException;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.auth.service.impl.RoleHierarchyService;
-import io.contexa.contexaiam.admin.web.common.ConsoleFault;
+import io.contexa.contexaiam.common.ConsoleFault;
 import io.contexa.contexaiam.domain.dto.RoleDetailDto;
 import io.contexa.contexaiam.domain.dto.GroupWithRolesDto;
 import io.contexa.contexaiam.domain.dto.RoleHierarchyDto;

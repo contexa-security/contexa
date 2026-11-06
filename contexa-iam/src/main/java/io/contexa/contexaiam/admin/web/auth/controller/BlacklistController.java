@@ -17,7 +17,7 @@ package io.contexa.contexaiam.admin.web.auth.controller;
 
 import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
 import io.contexa.contexaiam.admin.web.auth.service.UnderOwnBlockException;
-import io.contexa.contexaiam.admin.web.common.ConsoleFault;
+import io.contexa.contexaiam.common.ConsoleFault;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

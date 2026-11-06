@@ -19,7 +19,7 @@ import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPolic
 import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorException;
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
-import io.contexa.contexaiam.admin.web.common.ConsoleFault;
+import io.contexa.contexaiam.common.ConsoleFault;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
 import io.contexa.contexaiam.domain.dto.RoleDto;
 import io.contexa.contexacommon.entity.Role;

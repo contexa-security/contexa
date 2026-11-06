@@ -573,7 +573,7 @@ class PolicyCenterControllerTest {
             String view = controller.createPolicyFromCenter(request, ra);
 
             assertThat(view).isEqualTo("redirect:/contexa/admin/policy-center?tab=list");
-            assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("Duplicate policy name");
+            assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("The action could not be completed. See the server log.").doesNotContain("Duplicate policy name");
         }
     }
 

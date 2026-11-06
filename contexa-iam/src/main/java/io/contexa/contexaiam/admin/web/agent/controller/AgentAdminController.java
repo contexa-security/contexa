@@ -23,7 +23,7 @@ import io.contexa.contexaiam.admin.web.agent.dto.AgentView;
 import io.contexa.contexaiam.admin.web.agent.service.AgentDelegationService;
 import io.contexa.contexaiam.admin.web.agent.service.AgentProvisioning;
 import io.contexa.contexaiam.admin.web.agent.service.AgentLearningAdminService;
-import io.contexa.contexaiam.admin.web.common.ConsoleFault;
+import io.contexa.contexaiam.common.ConsoleFault;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;

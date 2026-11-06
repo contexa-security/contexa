@@ -22,7 +22,7 @@ import io.contexa.contexaiam.admin.web.auth.service.SystemRuntimeSettingsService
 import io.contexa.contexaiam.admin.web.auth.service.SystemRuntimeSettingsService.PolicyDecisionSettings;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsRuntimeApplier;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
-import io.contexa.contexaiam.admin.web.common.ConsoleFault;
+import io.contexa.contexaiam.common.ConsoleFault;
 import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties.NoPolicyDecision;

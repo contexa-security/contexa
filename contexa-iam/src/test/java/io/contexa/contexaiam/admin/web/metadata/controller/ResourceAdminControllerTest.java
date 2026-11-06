@@ -205,7 +205,7 @@ class ResourceAdminControllerTest {
                     .andExpect(jsonPath("$[1].permissionName").value("New Permission"))
                     .andExpect(jsonPath("$[1].skipped").value(false))
                     .andExpect(jsonPath("$[2].resourceId").value(3))
-                    .andExpect(jsonPath("$[2].error").value("create failed"))
+                    .andExpect(jsonPath("$[2].error").value("The action could not be completed. See the server log."))
                     .andExpect(jsonPath("$[2].skipped").value(true))
                     .andExpect(jsonPath("$[3].error").value("resourceId is required"))
                     .andExpect(jsonPath("$[3].skipped").value(true));

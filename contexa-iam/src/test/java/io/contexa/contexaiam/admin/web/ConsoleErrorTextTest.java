@@ -20,6 +20,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.contexa.contexacommon.domain.UserDto;
+import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacore.autonomous.agent.AgentRegistry;
 import io.contexa.contexaiam.admin.web.agent.controller.AgentAdminController;
 import io.contexa.contexaiam.admin.web.agent.service.AgentDelegationService;
@@ -77,6 +78,8 @@ import io.contexa.contexaiam.domain.dto.PolicyDto;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.resource.service.ResourceRegistryService;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictException;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyMatrixService;
+import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
 import io.contexa.contexaiam.security.xacml.pap.controller.PolicyController;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
@@ -591,6 +594,36 @@ class ConsoleErrorTextTest {
             assertGeneral(errorMessage(faulted));
         }
         assertTheLogKeepsTheFault();
+    }
+
+    @Test
+    @DisplayName("a value that is no constant of an enum is told as an action that could not be completed, with the 400 it had")
+    void aValueThatIsNoConstantOfAnEnum() {
+        PolicyCenterAnalysisService analysis = new PolicyCenterAnalysisService(mock(PolicyService.class),
+                mock(PolicyValidationService.class), mock(PermissionRepository.class), mock(PolicyMatrixService.class));
+        PolicyCenterController center = new PolicyCenterController(messages, mock(PolicyCenterPageService.class),
+                mock(PolicyCenterQueryService.class), mock(PolicyCenterCommandService.class), analysis);
+        PolicyCenterPolicyRequest policy = new PolicyCenterPolicyRequest();
+        policy.setEffect("BOGUS");
+
+        ResponseEntity<PolicyValidationResponse> validation = center.validatePolicy(policy);
+
+        assertThat(validation.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(validation.getBody().blockedReason()).isEqualTo(GENERAL);
+        assertThat(logged.list).anySatisfy(event -> assertThat(event.getThrowableProxy().getMessage())
+                .startsWith("No enum constant "));
+
+        ResourceRegistryService registry = mock(ResourceRegistryService.class);
+        ResourceAdminController resources = new ResourceAdminController(
+                new ResourceAdminService(registry, mock(ManagedResourceRepository.class), messages));
+        ResourceManagementForm form = new ResourceManagementForm();
+        form.setStatus("BOGUS");
+        RedirectAttributesModelMap flash = flash();
+
+        resources.updateManagementStatus(1L, form, flash);
+
+        assertGeneral(errorMessage(flash));
+        assertThat(errorMessage(flash)).doesNotContain("No enum constant");
     }
 
     // ----- helpers -----

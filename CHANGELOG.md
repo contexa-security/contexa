@@ -110,6 +110,15 @@ The format is based on Keep a Changelog and the project follows semantic version
   instead; where a page puts the text after a sentence of its own ("Failed to delete: ..."), the sentence stays and the
   general sentence follows it.
 
+- **The policy center, the resource workbench and a value no enum has follow the same rule.** The answers of the
+  creation of a policy from the center, of a quick policy, of a batch of policies, of the migration and the cleanup of
+  policy expressions, of the rollback of a policy and of the batch definition of resources put the exception's own text
+  in the answer; they now tell an action that could not be completed unless the services refused on purpose, and the
+  exception is in the log. A filter or form value that is no constant of an enum (a status or an effect `BOGUS`) was
+  answered with the JDK's "No enum constant" and the enum's class, on the console's pages and in the 400 of its API; it
+  is now an invalid request parameter, with the 400 and the fields it had, or on the pages and answers named above an
+  action that could not be completed, and the operators read the text in the log.
+
 - **A session an older node tracked after the references were introduced is turned into its reference when the
   console reads the sessions.** The tracked sessions that a database kept under the value their cookie carries were
   moved to their references once, when the application started. In a rolling upgrade a node not yet upgraded goes on

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.center.service;
 
+import io.contexa.contexaiam.common.ConsoleFault;
 import java.util.Locale;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
@@ -124,7 +125,7 @@ public class PolicyCenterCommandService {
             return new PolicyActionResponse(false, msg("msg.policy.name.duplicate"), null);
         } catch (Exception e) {
             log.error("Failed to create policy", e);
-            return new PolicyActionResponse(false, msg("msg.policy.create.error", e.getMessage()), null);
+            return new PolicyActionResponse(false, msg("msg.policy.create.error", ConsoleFault.textOf(e)), null);
         }
     }
 
@@ -174,7 +175,7 @@ public class PolicyCenterCommandService {
             return new PolicyQuickCreateResponse(false, null, msg("msg.policy.name.duplicate"), null);
         } catch (Exception e) {
             log.error("Failed to create quick policy", e);
-            return new PolicyQuickCreateResponse(false, null, msg("msg.policy.create.error", e.getMessage()), null);
+            return new PolicyQuickCreateResponse(false, null, msg("msg.policy.create.error", ConsoleFault.textOf(e)), null);
         }
     }
 
@@ -351,7 +352,7 @@ public class PolicyCenterCommandService {
                     results.add(new PolicyBatchItemResponse(
                             resourceIdentifierOrUnknown(item),
                             "ERROR",
-                            msg("msg.policy.create.error", e.getMessage()),
+                            msg("msg.policy.create.error", ConsoleFault.textOf(e)),
                             null,
                             null));
                 }
@@ -369,7 +370,7 @@ public class PolicyCenterCommandService {
         } catch (Exception e) {
             log.error("Batch policy creation failed", e);
             return new PolicyBatchCreateResponse(false, null, null, null,
-                    msg("msg.policy.create.error", e.getMessage()));
+                    msg("msg.policy.create.error", ConsoleFault.textOf(e)));
         }
     }
 
@@ -393,7 +394,7 @@ public class PolicyCenterCommandService {
             return new PolicyMigrationResponse(true, migrated, null);
         } catch (Exception e) {
             log.error("Failed to migrate policy expressions", e);
-            return new PolicyMigrationResponse(false, null, e.getMessage());
+            return new PolicyMigrationResponse(false, null, ConsoleFault.textOf(e));
         }
     }
 
@@ -424,7 +425,7 @@ public class PolicyCenterCommandService {
             return new PolicyCleanupResponse(true, deletedIds.size(), null);
         } catch (Exception e) {
             log.error("Failed to cleanup old permissions", e);
-            return new PolicyCleanupResponse(false, null, e.getMessage());
+            return new PolicyCleanupResponse(false, null, ConsoleFault.textOf(e));
         }
     }
 
@@ -439,7 +440,7 @@ public class PolicyCenterCommandService {
             return new PolicyActionResponse(true, msg("msg.policy.rollback.success"), null);
         } catch (Exception e) {
             log.error("Failed to rollback policy {} to version {}", policyId, versionNumber, e);
-            return new PolicyActionResponse(false, e.getMessage(), null);
+            return new PolicyActionResponse(false, ConsoleFault.textOf(e), null);
         }
     }
 

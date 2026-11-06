@@ -35,7 +35,7 @@ import io.contexa.contexaiam.admin.web.center.service.PolicyCenterAnalysisServic
 import io.contexa.contexaiam.admin.web.center.service.PolicyCenterCommandService;
 import io.contexa.contexaiam.admin.web.center.service.PolicyCenterPageService;
 import io.contexa.contexaiam.admin.web.center.service.PolicyCenterQueryService;
-import io.contexa.contexaiam.admin.web.common.ConsoleFault;
+import io.contexa.contexaiam.common.ConsoleFault;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
