@@ -521,6 +521,16 @@ The format is based on Keep a Changelog and the project follows semantic version
   with the group, as its memberships and roles do. **Check:** a role that groups hold can no longer be deleted until it
   is taken from them, and the refusal of the console's last administrator on deleting the administrators' role is now
   this one.
+- **The policy center answers a policy it refuses or fails to write instead of ending in a failed commit.** Making a
+  policy from the center, a quick policy, a rollback to a version, a batch, the migration and the cleanup of policy
+  expressions and the reset of resources each opened a transaction that the services they call joined; a callee that
+  refused or failed marked it for rollback before the center caught what it threw, and the commit at the end raised
+  `UnexpectedRollbackException` in place of the answer. The calls that answer a failure now end in a transaction of
+  their own, the migration and the cleanup roll back as a whole, and the items of a batch (and the resources of a reset)
+  are written one transaction each, so an item the database refuses is answered as that item and the others are written.
+- **A permission that roles were given to groups or accounts with is refused with where it is used.** Deleting it failed
+  in the database with a foreign key nobody can read; it is now refused, before anything is changed, with how many group
+  and account assignments carry it and the order to revoke it from them first.
 - **A policy form that is refused now shows the refusal.** Creating a policy without a name, editing or deleting a
   policy that is not there, and approving a policy approved already or rejecting one rejected already each answered an
   error page (`UnexpectedRollbackException`) instead of the message, for the reason the user, role, group and role

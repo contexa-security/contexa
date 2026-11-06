@@ -128,6 +128,16 @@ public class PermissionServiceImpl extends AccountAuthoritiesService implements 
         Permission permission = permissionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Permission not found: " + id));
 
+        // Counted before anything is changed, so a refusal leaves nothing behind. The database refuses the deletion of a
+        // permission that roles were given to groups or accounts with, with a constraint nobody can read; it stays the
+        // backstop when such a grant comes in between the count and the deletion. A permission is no part of who
+        // administers the console, so the deletion does not take the lock that serializes those changes.
+        long groups = permissionRepository.countGroupAssignments(id);
+        long accounts = permissionRepository.countAccountAssignments(id);
+        if (groups > 0 || accounts > 0) {
+            throw new IllegalStateException(msg("msg.permission.delete.used", permission.getName(), groups, accounts));
+        }
+
         ManagedResource resource = permission.getManagedResource();
         if (resource != null) {
             resource.setPermission(null);

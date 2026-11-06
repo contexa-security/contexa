@@ -88,6 +88,14 @@ public interface PermissionRepository extends JpaRepository<Permission, Long> {
     @Query("SELECT COUNT(rp) FROM RolePermission rp WHERE rp.permission.id = :permissionId")
     long countRoleAssignments(@Param("permissionId") Long permissionId);
 
+    /** How many roles given to groups carry the permission with them. */
+    @Query("SELECT COUNT(grp) FROM GroupRolePermission grp WHERE grp.permission.id = :permissionId")
+    long countGroupAssignments(@Param("permissionId") Long permissionId);
+
+    /** How many roles given to accounts carry the permission with them. */
+    @Query("SELECT COUNT(urp) FROM UserRolePermission urp WHERE urp.permission.id = :permissionId")
+    long countAccountAssignments(@Param("permissionId") Long permissionId);
+
     @Modifying
     @Query("DELETE FROM Permission p WHERE p.id IN :ids")
     void deleteAllByIds(@Param("ids") Collection<Long> ids);

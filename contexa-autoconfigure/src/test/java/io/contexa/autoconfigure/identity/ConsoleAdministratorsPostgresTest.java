@@ -32,6 +32,7 @@ import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
 import io.contexa.contexaiam.admin.web.auth.service.impl.GroupServiceImpl;
+import io.contexa.contexaiam.admin.web.auth.service.impl.PermissionServiceImpl;
 import io.contexa.contexaiam.admin.web.auth.service.impl.RoleHierarchyService;
 import io.contexa.contexaiam.admin.web.auth.service.impl.RoleServiceImpl;
 import io.contexa.contexaiam.admin.web.auth.service.impl.UserManagementServiceImpl;
@@ -41,6 +42,7 @@ import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos.UpdateUserGro
 import io.contexa.contexaiam.admin.web.center.service.AccessCenterService;
 import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
 import io.contexa.contexaiam.domain.entity.RoleHierarchyEntity;
+import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicySynchronizationService;
@@ -109,6 +111,7 @@ class ConsoleAdministratorsPostgresTest {
     private static AccessCenterService accessCenter;
     private static RoleServiceImpl roleService;
     private static GroupServiceImpl groupService;
+    private static PermissionServiceImpl permissionService;
     private static RoleHierarchyService hierarchyService;
 
     /** Where the two edits of a race meet before either has finished: set by the test that races. */
@@ -173,6 +176,8 @@ class ConsoleAdministratorsPostgresTest {
                 guard);
         accessCenter = new AccessCenterService(users, repositories.getRepository(UserRoleRepository.class), groups,
                 roles, permissions, roleService, userRolePermissions, groupRolePermissions, guard);
+        permissionService = new PermissionServiceImpl(permissions, mock(ManagedResourceRepository.class),
+                mock(PolicyRepository.class), messages);
         warmUp();
     }
 
@@ -202,7 +207,7 @@ class ConsoleAdministratorsPostgresTest {
     void anEmptyConsole() {
         MEETING.set(null);
         jdbc.execute("truncate ctxa_user_roles, ctxa_user_groups, ctxa_group_roles, ctxa_users, ctxa_role, "
-                + "ctxa_app_group, ctxa_role_hierarchy_config restart identity cascade");
+                + "ctxa_app_group, ctxa_role_hierarchy_config, ctxa_permission restart identity cascade");
         hierarchy.setHierarchy("");
         adminRole = role("ROLE_ADMIN");
         userRole = role("ROLE_USER");
@@ -560,8 +565,7 @@ class ConsoleAdministratorsPostgresTest {
     @Test
     @DisplayName("a group whose roles were given with their permissions in the access center is deleted with them")
     void aGroupWithRolePermissionsIsDeleted() {
-        long read = jdbc.queryForObject("insert into ctxa_permission (permission_name) values ('READ') returning permission_id",
-                Long.class);
+        long read = permission("READ");
         long sales = role("ROLE_SALES");
         long team = group("team");
         AccessCenterDtos.AccessRoleAssignmentRequest assignment = new AccessCenterDtos.AccessRoleAssignmentRequest();
@@ -580,7 +584,69 @@ class ConsoleAdministratorsPostgresTest {
                 team)).isZero();
     }
 
+    // ----- the deletion of a permission that roles, groups or accounts were given with their roles -----
+
+    @Test
+    @DisplayName("a permission given to a group with its role is refused with where it is used, not with the constraint of the database")
+    void aPermissionGivenToAGroupIsRefused() {
+        long read = permission("READ");
+        long sales = role("ROLE_SALES");
+        long team = group("team");
+        transactions.executeWithoutResult(s -> accessCenter.updateGroupRoles(team, assignment(sales, "READ")));
+
+        assertThatThrownBy(() -> transactions.executeWithoutResult(s -> permissionService.deletePermission(read)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Cannot delete permission 'READ'. It is given to 1 group role assignment(s) and "
+                        + "0 account role assignment(s). Revoke it from them first.");
+
+        assertThat(jdbc.queryForObject("select count(*) from ctxa_permission where permission_id = ?", Integer.class, read))
+                .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("a permission given to an account with its role is refused with where it is used, and goes once it is revoked")
+    void aPermissionGivenToAnAccountIsRefusedAndGoesOnceRevoked() {
+        long read = permission("READ");
+        long sales = role("ROLE_SALES");
+        transactions.executeWithoutResult(s -> accessCenter.updateUserDirectRoles(bob, assignment(sales, "READ")));
+
+        assertThatThrownBy(() -> transactions.executeWithoutResult(s -> permissionService.deletePermission(read)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("given to 0 group role assignment(s) and 1 account role assignment(s)");
+
+        transactions.executeWithoutResult(s -> accessCenter.updateUserDirectRoles(bob, roleIds()));
+        transactions.executeWithoutResult(s -> permissionService.deletePermission(read));
+
+        assertThat(jdbc.queryForObject("select count(*) from ctxa_permission where permission_id = ?", Integer.class, read))
+                .isZero();
+    }
+
+    @Test
+    @DisplayName("a permission nobody was given is deleted")
+    void aPermissionNobodyWasGivenIsDeleted() {
+        long unused = permission("EXECUTE");
+
+        transactions.executeWithoutResult(s -> permissionService.deletePermission(unused));
+
+        assertThat(jdbc.queryForObject("select count(*) from ctxa_permission where permission_id = ?", Integer.class,
+                unused)).isZero();
+    }
+
     // ----- helpers -----
+
+    private static AccessRoleAssignmentsRequest assignment(long roleId, String crud) {
+        AccessCenterDtos.AccessRoleAssignmentRequest assignment = new AccessCenterDtos.AccessRoleAssignmentRequest();
+        assignment.setRoleId(roleId);
+        assignment.setCrudPermissions(List.of(crud));
+        AccessRoleAssignmentsRequest request = new AccessRoleAssignmentsRequest();
+        request.setRoleAssignments(List.of(assignment));
+        return request;
+    }
+
+    private static long permission(String name) {
+        return jdbc.queryForObject("insert into ctxa_permission (permission_name) values (?) returning permission_id",
+                Long.class, name);
+    }
 
     private static List<Long> groupsOf(long userId) {
         return jdbc.queryForList("select group_id from ctxa_user_groups where user_id = ? order by 1", Long.class, userId);

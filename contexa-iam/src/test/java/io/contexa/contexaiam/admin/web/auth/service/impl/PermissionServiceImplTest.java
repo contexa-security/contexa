@@ -313,6 +313,40 @@ class PermissionServiceImplTest {
         }
 
         @Test
+        @DisplayName("a permission roles were given to groups or accounts with is refused with where it is used, before anything is changed")
+        void shouldRefuseAPermissionTheAssignmentsCarry() {
+            ManagedResource resource = new ManagedResource();
+            Permission perm = buildPermission(1L, "READ");
+            resource.setPermission(perm);
+            perm.setManagedResource(resource);
+            when(permissionRepository.countRoleAssignments(1L)).thenReturn(0L);
+            when(permissionRepository.findById(1L)).thenReturn(Optional.of(perm));
+            when(permissionRepository.countGroupAssignments(1L)).thenReturn(2L);
+            when(permissionRepository.countAccountAssignments(1L)).thenReturn(1L);
+
+            assertThatThrownBy(() -> service.deletePermission(1L))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("Cannot delete permission 'READ'. It is given to 2 group role assignment(s) and "
+                            + "1 account role assignment(s). Revoke it from them first.");
+
+            verify(managedResourceRepository, never()).save(any());
+            verify(permissionRepository, never()).delete(any());
+            assertThat(resource.getPermission()).isSameAs(perm);
+        }
+
+        @Test
+        @DisplayName("a permission only accounts were given is refused as well")
+        void shouldRefuseAPermissionOnlyAccountsWereGiven() {
+            Permission perm = buildPermission(1L, "READ");
+            when(permissionRepository.findById(1L)).thenReturn(Optional.of(perm));
+            when(permissionRepository.countAccountAssignments(1L)).thenReturn(4L);
+
+            assertThatThrownBy(() -> service.deletePermission(1L)).isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("0 group role assignment(s) and 4 account role assignment(s)");
+            verify(permissionRepository, never()).delete(any());
+        }
+
+        @Test
         @DisplayName("should throw when permission not found")
         void shouldThrowWhenNotFound() {
             when(permissionRepository.countRoleAssignments(999L)).thenReturn(0L);
