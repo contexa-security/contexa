@@ -736,7 +736,7 @@ public class IdentityOAuth2AutoConfiguration {
         List<LogoutStrategy> strategies = new ArrayList<>();
         strategies.add(new MfaFlowLogoutStrategy(mfaSessionRepository, mfaStateMachineService));
         strategies.add(new SessionLogoutStrategy(new HttpSessionCsrfTokenRepository(), authContextProperties));
-        strategies.add(new OAuth2LogoutStrategy(tokenService));
+        strategies.add(new OAuth2LogoutStrategy(tokenService, authorizationService));
         if (zeroTrustService != null) {
             strategies.add(new ZeroTrustLogoutStrategy(zeroTrustService, sessionIdResolver));
         }
