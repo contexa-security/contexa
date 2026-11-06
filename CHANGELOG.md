@@ -347,6 +347,24 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **A policy made for a role whose name does not start with `ROLE_` now lets that role's people through.** A role named
+  `sales` gives its holders the authority `ROLE_SALES` (`ROLE_` and the name in capitals), but the policies made for a
+  role, in the policy center's quick panel, by a business rule and by the automatic policy of a role, asked for the
+  name of the role itself, so nobody passed while the policy matrix showed the role as allowed. Those conditions now
+  ask for the authority the role gives, written by one rule (`RoleAuthority.authorityOf`), and the policy matrix, the
+  referential check of an AI policy, the roles shown when a business rule is opened for editing and the warning before
+  a role is deleted read that same name. A role whose name starts with `ROLE_` is asked for as before, and stored
+  conditions are not changed. **Check:** a policy made earlier for a role without the prefix still asks for the bare
+  name and lets nobody through: make it again, or write its condition with `ROLE_` and the name in capitals.
+- **A role whose permissions guard no resource no longer ends its automatic policy in an error.** The policy that
+  follows a role's permissions applies to the resources those permissions guard, and a policy needs at least one. A
+  role holding only permissions with no resource raised "at least one target is required" in the background and made no
+  policy. Such a role now has no automatic policy to make, and the log says so at INFO. A role with a resource gets its
+  policy as before, and a role that had its policy and loses its last resource keeps that policy updated.
+- **The policies listed before a role or a permission is deleted are the ones that name it.** The list searched the
+  conditions for the name as a part of any text, so the role `O` listed the policies of `ROLE_OTHER`, and a `_` or `%`
+  in a name matched other names. It now lists the active policies with a condition literal exactly equal to the name,
+  each policy once: a role is searched by the authority it gives and by its own name, the form older conditions have.
 - **The log says again which partitions the security event consumer holds.** Since the consumer's decided-record listener replaced the container's own, the lines `partitions assigned`, `partitions revoked` and `partitions lost` were no longer written, and a runbook or a check that waits for the first of them found nothing. The listener writes the three lines itself, with the consumer group in front, as Spring Kafka does.
 - **A role's policy is made after the role is saved.** The policy that follows a role's permissions was made on another
   thread as soon as the change was announced, before it was committed: a new role was not found ("Role not found for

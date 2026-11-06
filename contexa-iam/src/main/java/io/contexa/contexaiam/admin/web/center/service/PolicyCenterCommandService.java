@@ -236,7 +236,7 @@ public class PolicyCenterCommandService {
             }
 
             String roleCondition = roles.stream()
-                    .map(r -> SpelLiteral.hasAuthority(r.getRoleName()))
+                    .map(r -> SpelLiteral.hasRoleAuthority(r.getRoleName()))
                     .collect(Collectors.joining(" or "));
             String allRoleNames = roles.stream()
                     .map(Role::getRoleName)

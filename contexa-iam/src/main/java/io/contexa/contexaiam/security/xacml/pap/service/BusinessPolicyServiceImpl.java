@@ -299,7 +299,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         List<Role> roles = roleIds.isEmpty() ? Collections.emptyList() : roleRepository.findAllById(roleIds);
         String roleCondition = roles.stream()
                 .map(Role::getRoleName)
-                .map(SpelLiteral::hasAuthority)
+                .map(SpelLiteral::hasRoleAuthority)
                 .collect(Collectors.joining(" or "));
         if (StringUtils.hasText(roleCondition)) {
             allConditions.add("(" + roleCondition + ")");
@@ -431,8 +431,11 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
                     Set<String> roleNames = extractRoleNamesFromSpel(expression);
 
                     for (String roleName : roleNames) {
+                        // A condition names the authority a role gives; one written before that kept the role's own name
                         roleRepository.findByRoleName(roleName)
                             .ifPresent(role -> roleIds.add(role.getId()));
+                        roleRepository.findAllGrantingAuthority(roleName)
+                            .forEach(role -> roleIds.add(role.getId()));
                     }
                 }
             }

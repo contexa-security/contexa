@@ -19,6 +19,7 @@ import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.repository.PermissionRepository;
+import io.contexa.contexacommon.security.authority.RoleAuthority;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.center.dto.BatchCreateRequest;
@@ -273,25 +274,51 @@ class PolicyCenterCommandServiceTest {
         void aCrudPermissionThatCarriesSpelStaysOneName() {
             String injected = "READ') or T(java.lang.Runtime).getRuntime().exec('calc') != null or hasAuthority('X";
 
-            String expression = batchCreatedExpression("USER", injected);
+            String expression = batchCreatedExpression("ROLE_USER", injected);
 
-            AuthorityProbe.Outcome holder = AuthorityProbe.evaluate(expression, "USER", "READ", "X");
+            AuthorityProbe.Outcome holder = AuthorityProbe.evaluate(expression, "ROLE_USER", "READ", "X");
             assertThat(holder.granted()).isFalse();
-            assertThat(holder.asked()).containsExactly("USER", injected);
+            assertThat(holder.asked()).containsExactly("ROLE_USER", injected);
         }
 
         @Test
-        @DisplayName("a role named to end its literal is asked for as it is, never always true")
+        @DisplayName("a role named to end its literal is asked for as the authority it gives, never always true")
         void aRoleNamedToEndItsLiteralIsAskedForAsItIs() {
             String expression = batchCreatedExpression(AuthorityProbe.ALWAYS_TRUE_NAME, "READ");
+            String given = RoleAuthority.authorityOf(AuthorityProbe.ALWAYS_TRUE_NAME);
 
             AuthorityProbe.Outcome nobody = AuthorityProbe.evaluate(expression, "R&D", "Ops", "READ");
             assertThat(nobody.granted()).isFalse();
-            assertThat(nobody.asked()).containsExactly(AuthorityProbe.ALWAYS_TRUE_NAME);
-            assertThat(AuthorityProbe.evaluate(expression, AuthorityProbe.ALWAYS_TRUE_NAME, "READ").granted()).isTrue();
+            assertThat(nobody.asked()).containsExactly(given);
+            assertThat(AuthorityProbe.evaluate(expression, given, "READ").granted()).isTrue();
+        }
+
+        @Test
+        @DisplayName("a role that does not start with ROLE_ is asked for as the authority it gives its users")
+        void aRoleWithoutThePrefixIsAskedForAsTheAuthorityItGives() {
+            for (String roleName : List.of("O'Neil", "USER", "sales team")) {
+                String given = new RoleAuthority(Role.builder().id(10L).roleName(roleName).build()).getAuthority();
+                String expression = batchCreatedExpression(roleName, "READ");
+
+                AuthorityProbe.Outcome holder = AuthorityProbe.evaluate(expression, given, "READ");
+                assertThat(holder.granted()).as("a user who holds " + given).isTrue();
+                assertThat(holder.asked()).containsExactly(given, "READ");
+                assertThat(AuthorityProbe.evaluate(expression, "ROLE_OTHER", "READ").granted())
+                        .as("a user without the role").isFalse();
+            }
+        }
+
+        @Test
+        @DisplayName("a role that starts with ROLE_ is asked for by its name, as before")
+        void aRoleWithThePrefixIsAskedForByItsName() {
+            String expression = batchCreatedExpression("ROLE_O'Neil", "READ");
+
+            assertThat(AuthorityProbe.evaluate(expression, "ROLE_O'Neil", "READ").granted()).isTrue();
+            assertThat(AuthorityProbe.evaluate(expression, "ROLE_O'NEIL", "READ").granted()).isFalse();
         }
 
         private String batchCreatedExpression(String roleName, String crud) {
+            clearInvocations(policyRepository);
             BatchCreateRequest.BatchItem item = new BatchCreateRequest.BatchItem();
             item.setResourceIdentifier("/api/test");
             item.setCrudPermissions(Set.of(crud));

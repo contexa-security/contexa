@@ -61,6 +61,30 @@ class SpelLiteralTest {
     }
 
     @Test
+    @DisplayName("a role is asked for by the authority it gives, which is its name only when that starts with ROLE_")
+    void aRoleIsAskedForByTheAuthorityItGives() {
+        assertThat(SpelLiteral.hasRoleAuthority("ROLE_ADMIN")).isEqualTo("hasAuthority('ROLE_ADMIN')");
+        assertThat(SpelLiteral.hasRoleAuthority("ROLE_O'Neil")).isEqualTo("hasAuthority('ROLE_O''Neil')");
+        assertThat(SpelLiteral.hasRoleAuthority("O'Neil")).isEqualTo("hasAuthority('ROLE_O''NEIL')");
+        assertThat(SpelLiteral.hasRoleAuthority("sales")).isEqualTo("hasAuthority('ROLE_SALES')");
+    }
+
+    @Test
+    @DisplayName("a literal holds a name when it is the whole name, with a doubled quote read as one quote")
+    void aLiteralHoldsAWholeName() {
+        String expression = SpelLiteral.hasAuthority("ROLE_O'NEIL") + " and (" + SpelLiteral.hasAuthority("READ") + ")";
+
+        assertThat(SpelLiteral.holds(expression, "ROLE_O'NEIL")).isTrue();
+        assertThat(SpelLiteral.holds(expression, "READ")).isTrue();
+        assertThat(SpelLiteral.holds(expression, "ROLE_O")).isFalse();
+        assertThat(SpelLiteral.holds(expression, "O'NEIL")).isFalse();
+        assertThat(SpelLiteral.holds(expression, "REA")).isFalse();
+        assertThat(SpelLiteral.holds(expression, "ROLE_O''NEIL")).isFalse();
+        assertThat(SpelLiteral.holds(null, "READ")).isFalse();
+        assertThat(SpelLiteral.holds(expression, null)).isFalse();
+    }
+
+    @Test
     @DisplayName("a literal is read back as the name it holds")
     void aLiteralIsReadBack() {
         String expression = SpelLiteral.hasAuthority("O'Neil") + " or " + SpelLiteral.hasAuthority("B")

@@ -26,6 +26,7 @@ import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.entity.RolePermission;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
+import io.contexa.contexacommon.security.authority.RoleAuthority;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.infra.redis.PolicyReloadBroadcaster;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
@@ -361,8 +362,9 @@ class BusinessPolicyServiceImplTest {
     class NamesInTheCondition {
 
         @Test
-        @DisplayName("a role, CRUD, permission and AI action named to end their literal are each asked for as they are")
+        @DisplayName("a role, CRUD, permission and AI action named to end their literal are each asked for as they are, the role by its authority")
         void namesThatWouldEndTheirLiteralAreAskedForAsTheyAre() {
+            String given = RoleAuthority.authorityOf(AuthorityProbe.ALWAYS_TRUE_NAME);
             BusinessPolicyDto dto = createBasicDto();
             dto.setCrudPermissions(Set.of(AuthorityProbe.ALWAYS_TRUE_NAME));
             dto.setAiActionEnabled(true);
@@ -380,9 +382,9 @@ class BusinessPolicyServiceImplTest {
 
             AuthorityProbe.Outcome nobody = AuthorityProbe.evaluate(expression, "R&D", "Ops");
             assertThat(nobody.granted()).isFalse();
-            assertThat(nobody.asked()).containsExactly(AuthorityProbe.ALWAYS_TRUE_NAME);
-            AuthorityProbe.Outcome holder = AuthorityProbe.evaluate(expression, AuthorityProbe.ALWAYS_TRUE_NAME);
-            assertThat(holder.asked()).containsExactly(AuthorityProbe.ALWAYS_TRUE_NAME, AuthorityProbe.ALWAYS_TRUE_NAME,
+            assertThat(nobody.asked()).containsExactly(given);
+            AuthorityProbe.Outcome holder = AuthorityProbe.evaluate(expression, given, AuthorityProbe.ALWAYS_TRUE_NAME);
+            assertThat(holder.asked()).containsExactly(given, AuthorityProbe.ALWAYS_TRUE_NAME,
                     AuthorityProbe.ALWAYS_TRUE_NAME, "ai:" + AuthorityProbe.ALWAYS_TRUE_NAME);
         }
 
@@ -405,6 +407,45 @@ class BusinessPolicyServiceImplTest {
             AuthorityProbe.Outcome holder = AuthorityProbe.evaluate(expression, "ROLE_USER", "URL_READ");
             assertThat(holder.granted()).isFalse();
             assertThat(holder.asked()).containsExactly("ROLE_USER", "URL_READ", "ai:ALLOW", "ai:X') OR TRUE OR #AI.HASACTION('Y");
+        }
+
+        @Test
+        @DisplayName("a role that does not start with ROLE_ is asked for as the authority it gives its users")
+        void aRoleWithoutThePrefixIsAskedForAsTheAuthorityItGives() {
+            for (String roleName : List.of("O'Neil", "sales", "R&D")) {
+                BusinessPolicyDto dto = createBasicDto();
+                Role role = createRole(roleName);
+                Permission perm = createPermission();
+                when(roleRepository.findAllById(dto.getRoleIds())).thenReturn(List.of(role));
+                when(permissionRepository.findAllById(dto.getPermissionIds())).thenReturn(List.of(perm));
+                when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+                setupRoleServiceMock(dto.getRoleIds());
+                String given = RoleAuthority.authorityOf(roleName);
+
+                String expression = onlyCondition(service.createPolicyFromBusinessRule(dto));
+
+                AuthorityProbe.Outcome holder = AuthorityProbe.evaluate(expression, given, "URL_READ");
+                assertThat(holder.granted()).as("a user who holds " + given).isTrue();
+                assertThat(holder.asked()).containsExactly(given, "URL_READ");
+                assertThat(AuthorityProbe.evaluate(expression, "ROLE_OTHER", "URL_READ").granted()).isFalse();
+            }
+        }
+
+        @Test
+        @DisplayName("a policy that asks for the authority of a role is opened for editing with that role")
+        void aStoredAuthorityOfARoleIsFoundAgain() {
+            Role role = createRole("O'Neil");
+            when(roleRepository.findAllGrantingAuthority("ROLE_O'NEIL")).thenReturn(List.of(role));
+            PolicyCondition condition = PolicyCondition.builder().expression("(" + SpelLiteral.hasRoleAuthority("O'Neil") + ")").build();
+            PolicyRule rule = PolicyRule.builder().conditions(new HashSet<>(Set.of(condition))).build();
+            Policy policy = Policy.builder().id(9L).name("p").effect(Policy.Effect.ALLOW)
+                    .rules(new HashSet<>(Set.of(rule))).targets(new HashSet<>()).build();
+            when(policyRepository.findByIdWithDetails(9L)).thenReturn(Optional.of(policy));
+
+            BusinessPolicyDto dto = service.getBusinessRuleForPolicy(9L);
+
+            assertThat(dto.getRoleIds()).containsExactly(1L);
+            assertThat(dto.getCustomConditionSpel()).isNull();
         }
 
         @Test

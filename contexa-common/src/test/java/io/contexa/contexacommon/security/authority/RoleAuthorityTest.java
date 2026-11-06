@@ -19,6 +19,8 @@ import io.contexa.contexacommon.entity.Role;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.Locale;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -118,6 +120,39 @@ class RoleAuthorityTest {
 
         // when & then
         assertThat(authority.getAuthority()).isEqualTo("ROLE_USER");
+    }
+
+    @Test
+    @DisplayName("authorityOf is the authority a role gives, and a role gives exactly that")
+    void authorityOf_isTheAuthorityTheRoleGives() {
+        assertThat(RoleAuthority.authorityOf("ROLE_ADMIN")).isEqualTo("ROLE_ADMIN");
+        assertThat(RoleAuthority.authorityOf("ROLE_O'Neil")).as("a name with the prefix is kept as it is").isEqualTo("ROLE_O'Neil");
+        assertThat(RoleAuthority.authorityOf("O'Neil")).isEqualTo("ROLE_O'NEIL");
+        assertThat(RoleAuthority.authorityOf("sales team")).isEqualTo("ROLE_SALES TEAM");
+        assertThat(RoleAuthority.authorityOf("role_x")).as("the prefix is case-sensitive").isEqualTo("ROLE_ROLE_X");
+        for (String name : new String[]{"ROLE_ADMIN", "O'Neil", "sales", "R&D", "title"}) {
+            Role role = Role.builder().id(1L).roleName(name).build();
+            assertThat(new RoleAuthority(role).getAuthority()).isEqualTo(RoleAuthority.authorityOf(name));
+        }
+    }
+
+    @Test
+    @DisplayName("authorityOf upper-cases without the default locale, so a Turkish host gives the same authority")
+    void authorityOf_doesNotFollowTheDefaultLocale() {
+        Locale previous = Locale.getDefault();
+        try {
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+            assertThat(RoleAuthority.authorityOf("title")).isEqualTo("ROLE_TITLE");
+        } finally {
+            Locale.setDefault(previous);
+        }
+    }
+
+    @Test
+    @DisplayName("authorityOf refuses an empty name")
+    void authorityOf_refusesAnEmptyName() {
+        assertThatThrownBy(() -> RoleAuthority.authorityOf("")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> RoleAuthority.authorityOf(null)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

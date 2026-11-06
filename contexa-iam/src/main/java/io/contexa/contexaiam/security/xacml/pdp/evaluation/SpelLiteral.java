@@ -15,6 +15,11 @@
  */
 package io.contexa.contexaiam.security.xacml.pdp.evaluation;
 
+import io.contexa.contexacommon.security.authority.RoleAuthority;
+
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 /**
  * A name written into a policy expression as a SpEL string literal, and read back from one.
  * <p>
@@ -30,6 +35,8 @@ public final class SpelLiteral {
     /** A single-quoted literal. Group 1 holds its body as written, quotes still doubled: pass it to {@link #unquote}. */
     public static final String PATTERN = "'((?:[^']|'')*+)'";
 
+    private static final Pattern LITERAL = Pattern.compile(PATTERN);
+
     private SpelLiteral() {
     }
 
@@ -38,7 +45,7 @@ public final class SpelLiteral {
         return "'" + body(value) + "'";
     }
 
-    /** The name as a literal holds it, without the quotes around it: what a search of stored expressions looks for. */
+    /** The name as a literal holds it, without the quotes around it. */
     public static String body(String value) {
         return String.valueOf(value).replace("'", "''");
     }
@@ -51,5 +58,28 @@ public final class SpelLiteral {
     /** {@code hasAuthority} of exactly the given authority. */
     public static String hasAuthority(String authority) {
         return "hasAuthority(" + quote(authority) + ")";
+    }
+
+    /**
+     * {@code hasAuthority} of the authority the role gives its holders, which is not always the name of the role (see
+     * {@link RoleAuthority#authorityOf}). A condition that asks for a role is written with this, so that the people who
+     * hold the role are the people it lets through.
+     */
+    public static String hasRoleAuthority(String roleName) {
+        return hasAuthority(RoleAuthority.authorityOf(roleName));
+    }
+
+    /** Whether a literal of the expression holds exactly the given name, not a longer text that contains it. */
+    public static boolean holds(String expression, String name) {
+        if (expression == null || name == null) {
+            return false;
+        }
+        Matcher matcher = LITERAL.matcher(expression);
+        while (matcher.find()) {
+            if (unquote(matcher.group(1)).equals(name)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

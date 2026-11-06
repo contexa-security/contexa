@@ -76,14 +76,25 @@ class RoleServiceImplTest {
     private PolicyRepository policyRepository;
 
     @Test
-    @DisplayName("the policies of a role with a quote are looked for as its literal in a condition writes the name")
-    void thePoliciesOfARoleWithAQuoteAreLookedForAsWritten() {
+    @DisplayName("the policies of a role without the ROLE_ prefix are looked for by the authority it gives and by its own name")
+    void thePoliciesOfARoleAreLookedForByItsAuthorityAndItsName() {
         when(roleRepository.findById(1L)).thenReturn(Optional.of(buildRole(1L, "O'Neil")));
-        when(policyRepository.findActivePoliciesReferencingExpression(any())).thenReturn(List.of());
+        when(policyRepository.findActivePoliciesReferencing(any())).thenReturn(List.of());
 
         service.getAffectedPolicies(1L);
 
-        verify(policyRepository).findActivePoliciesReferencingExpression("O''Neil");
+        verify(policyRepository).findActivePoliciesReferencing(Set.of("ROLE_O'NEIL", "O'Neil"));
+    }
+
+    @Test
+    @DisplayName("the policies of a role that starts with ROLE_ are looked for by its name")
+    void thePoliciesOfARoleWithThePrefixAreLookedForByItsName() {
+        when(roleRepository.findById(1L)).thenReturn(Optional.of(buildRole(1L, "ROLE_SALES")));
+        when(policyRepository.findActivePoliciesReferencing(any())).thenReturn(List.of());
+
+        service.getAffectedPolicies(1L);
+
+        verify(policyRepository).findActivePoliciesReferencing(Set.of("ROLE_SALES"));
     }
 
     // Real (spy-wrapped) ResourceBundleMessageSource so msg() returns the

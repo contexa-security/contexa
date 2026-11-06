@@ -15,12 +15,15 @@
  */
 package io.contexa.contexaiam.security.xacml.pap.service;
 
+import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.entity.RolePermission;
 import io.contexa.contexacommon.repository.RoleRepository;
+import io.contexa.contexacommon.security.authority.RoleAuthority;
 import io.contexa.contexaiam.common.event.dto.RolePermissionsChangedEvent;
 import io.contexa.contexaiam.domain.dto.PolicyDto;
+import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.AuthorityProbe;
 import org.junit.jupiter.api.DisplayName;
@@ -33,13 +36,17 @@ import org.springframework.transaction.support.AbstractPlatformTransactionManage
 import org.springframework.transaction.support.DefaultTransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -55,7 +62,7 @@ class PolicySynchronizationServiceTest {
     @DisplayName("the policy of a role is made after the role's transaction commits, from what it committed")
     void thePolicyIsMadeAfterTheRolesTransactionCommits() {
         when(policyRepository.findByName(anyString())).thenReturn(Optional.empty());
-        when(roleRepository.findByIdWithPermissionsAndResources(7L)).thenReturn(Optional.of(role("ROLE_SALES", "READ")));
+        when(roleRepository.findByIdWithPermissionsAndResources(7L)).thenReturn(Optional.of(role("ROLE_SALES", "READ", true)));
 
         try (AnnotationConfigApplicationContext context = context()) {
             new TransactionTemplate(new InMemoryTransactions()).executeWithoutResult(status -> {
@@ -83,11 +90,12 @@ class PolicySynchronizationServiceTest {
     }
 
     @Test
-    @DisplayName("a role and a permission named to end their literal are each asked for as they are")
+    @DisplayName("a role and a permission named to end their literal are each asked for as they are, the role by its authority")
     void namesThatWouldEndTheirLiteralAreAskedForAsTheyAre() {
         String name = AuthorityProbe.ALWAYS_TRUE_NAME;
+        String given = RoleAuthority.authorityOf(name);
         when(policyRepository.findByName(anyString())).thenReturn(Optional.empty());
-        when(roleRepository.findByIdWithPermissionsAndResources(7L)).thenReturn(Optional.of(role(name, name)));
+        when(roleRepository.findByIdWithPermissionsAndResources(7L)).thenReturn(Optional.of(role(name, name, true)));
 
         new PolicySynchronizationService(policyRepository, roleRepository, policyService)
                 .handleRolePermissionsChange(new RolePermissionsChangedEvent(7L));
@@ -98,10 +106,81 @@ class PolicySynchronizationServiceTest {
 
         AuthorityProbe.Outcome nobody = AuthorityProbe.evaluate(expression, "R&D", "Ops");
         assertThat(nobody.granted()).isFalse();
-        assertThat(nobody.asked()).containsExactly(name);
-        AuthorityProbe.Outcome holder = AuthorityProbe.evaluate(expression, name);
+        assertThat(nobody.asked()).containsExactly(given);
+        AuthorityProbe.Outcome holder = AuthorityProbe.evaluate(expression, given, name);
         assertThat(holder.granted()).isTrue();
-        assertThat(holder.asked()).containsExactly(name, name);
+        assertThat(holder.asked()).containsExactly(given, name);
+    }
+
+    @Test
+    @DisplayName("a role that does not start with ROLE_ is asked for as the authority it gives its users")
+    void aRoleWithoutThePrefixIsAskedForAsTheAuthorityItGives() {
+        for (String roleName : List.of("O'Neil", "sales", "R&D")) {
+            clearInvocations(policyService);
+            when(policyRepository.findByName(anyString())).thenReturn(Optional.empty());
+            Role role = role(roleName, "READ", true);
+            when(roleRepository.findByIdWithPermissionsAndResources(7L)).thenReturn(Optional.of(role));
+            String given = new RoleAuthority(role).getAuthority();
+
+            new PolicySynchronizationService(policyRepository, roleRepository, policyService)
+                    .handleRolePermissionsChange(new RolePermissionsChangedEvent(7L));
+
+            ArgumentCaptor<PolicyDto> captor = ArgumentCaptor.forClass(PolicyDto.class);
+            verify(policyService).createPolicy(captor.capture());
+            String expression = captor.getValue().getRules().get(0).getConditions().get(0).getExpression();
+            AuthorityProbe.Outcome holder = AuthorityProbe.evaluate(expression, given, "READ");
+            assertThat(holder.granted()).as("a user who holds " + given).isTrue();
+            assertThat(holder.asked()).containsExactly(given, "READ");
+            assertThat(AuthorityProbe.evaluate(expression, "ROLE_OTHER", "READ").granted()).isFalse();
+        }
+    }
+
+    @Test
+    @DisplayName("a role that starts with ROLE_ is asked for by its name, as before")
+    void aRoleWithThePrefixIsAskedForByItsName() {
+        when(policyRepository.findByName(anyString())).thenReturn(Optional.empty());
+        when(roleRepository.findByIdWithPermissionsAndResources(7L)).thenReturn(Optional.of(role("ROLE_SALES", "READ", true)));
+
+        new PolicySynchronizationService(policyRepository, roleRepository, policyService)
+                .handleRolePermissionsChange(new RolePermissionsChangedEvent(7L));
+
+        ArgumentCaptor<PolicyDto> captor = ArgumentCaptor.forClass(PolicyDto.class);
+        verify(policyService).createPolicy(captor.capture());
+        assertThat(captor.getValue().getRules().get(0).getConditions().get(0).getExpression())
+                .isEqualTo("hasAuthority('ROLE_SALES') and (hasAuthority('READ'))");
+    }
+
+    @Test
+    @DisplayName("a role whose permissions guard no resource has no policy to make, and that is not an error")
+    void aRoleWithoutAResourceMakesNoPolicyAndRaisesNothing() {
+        when(policyRepository.findByName(anyString())).thenReturn(Optional.empty());
+        when(roleRepository.findByIdWithPermissionsAndResources(7L)).thenReturn(Optional.of(role("ROLE_SALES", "READ", false)));
+        // a policy needs a target: the policy service refuses to make one without it
+        doThrow(new IllegalArgumentException("a policy needs at least one target"))
+                .when(policyService).createPolicy(any(PolicyDto.class));
+
+        assertThatCode(() -> new PolicySynchronizationService(policyRepository, roleRepository, policyService)
+                .handleRolePermissionsChange(new RolePermissionsChangedEvent(7L))).doesNotThrowAnyException();
+
+        verify(policyService, never()).createPolicy(any(PolicyDto.class));
+        verify(policyService, never()).updatePolicy(any(PolicyDto.class));
+    }
+
+    @Test
+    @DisplayName("a role that already has its policy and loses the last resource keeps updating that policy")
+    void aRoleThatLosesItsLastResourceStillUpdatesItsPolicy() {
+        Policy existing = Policy.builder().id(41L).name("AUTO_POLICY_FOR_ROLE_SALES").build();
+        when(policyRepository.findByName("AUTO_POLICY_FOR_ROLE_SALES")).thenReturn(Optional.of(existing));
+        when(roleRepository.findByIdWithPermissionsAndResources(7L)).thenReturn(Optional.of(role("ROLE_SALES", "READ", false)));
+
+        new PolicySynchronizationService(policyRepository, roleRepository, policyService)
+                .handleRolePermissionsChange(new RolePermissionsChangedEvent(7L));
+
+        ArgumentCaptor<PolicyDto> captor = ArgumentCaptor.forClass(PolicyDto.class);
+        verify(policyService).updatePolicy(captor.capture());
+        assertThat(captor.getValue().getId()).isEqualTo(41L);
+        assertThat(captor.getValue().getTargets()).isEmpty();
+        verify(policyService, never()).createPolicy(any(PolicyDto.class));
     }
 
     private AnnotationConfigApplicationContext context() {
@@ -113,8 +192,11 @@ class PolicySynchronizationServiceTest {
         return context;
     }
 
-    private static Role role(String roleName, String permissionName) {
-        Permission permission = Permission.builder().id(3L).name(permissionName).build();
+    private static Role role(String roleName, String permissionName, boolean guardsAResource) {
+        ManagedResource resource = guardsAResource ? ManagedResource.builder()
+                .resourceIdentifier("/rc/one/1").resourceType(ManagedResource.ResourceType.URL)
+                .httpMethod(ManagedResource.HttpMethod.GET).friendlyName("one").build() : null;
+        Permission permission = Permission.builder().id(3L).name(permissionName).managedResource(resource).build();
         Role role = Role.builder().id(7L).roleName(roleName).roleDesc("desc").build();
         role.setRolePermissions(Set.of(RolePermission.builder().role(role).permission(permission).build()));
         return role;

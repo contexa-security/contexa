@@ -63,14 +63,14 @@ class PermissionServiceImplTest {
     private PermissionServiceImpl service;
 
     @Test
-    @DisplayName("the policies of a permission with a quote are looked for as its literal in a condition writes the name")
-    void thePoliciesOfAPermissionWithAQuoteAreLookedForAsWritten() {
+    @DisplayName("the policies of a permission are looked for by its name, as it is")
+    void thePoliciesOfAPermissionAreLookedForByItsName() {
         when(permissionRepository.findById(1L)).thenReturn(Optional.of(buildPermission(1L, "URL_O'Neil")));
-        when(policyRepository.findActivePoliciesReferencingExpression(any())).thenReturn(List.of());
+        when(policyRepository.findActivePoliciesReferencing(any())).thenReturn(List.of());
 
         service.getAffectedPolicies(1L);
 
-        verify(policyRepository).findActivePoliciesReferencingExpression("URL_O''Neil");
+        verify(policyRepository).findActivePoliciesReferencing(List.of("URL_O'Neil"));
     }
 
     // ===== Helper methods =====
