@@ -13,15 +13,22 @@ The format is based on Keep a Changelog and the project follows semantic version
   bean issued its tokens without any of Contexa's checks, and without a word at the start: a suspended agent got its
   token, the renewal of a person's token was not checked against the account, and a token exchange could outlive the
   token it exchanged. Contexa's checks now run in front of the application's generator, on the token about to be
-  issued, so a refusal ends the issuance before the generator does anything. A JWT the generator issued gets the claims
-  the checks write where it has none of its own (`client_id`, `roles`, the login facts, the delegation), and an exchanged
-  token ends no later than the token it exchanges; a token whose claims or lifetime had to change is signed again, once,
-  with the authorization server's encoder. The start logs one INFO line naming the generator. Where Contexa's checks
-  are not there to put in front (the application took the place of Contexa's token customizer with a bean named
+  issued, so a refusal ends the issuance before the generator does anything. A JWT the generator signed with a key of the
+  authorization server gets the claims the checks write where it has none of its own (`client_id`, `roles`, the login
+  facts, the delegation), and an exchanged token ends no later than the token it exchanges; such a token is signed again,
+  once, with the authorization server's encoder, only when its claims or lifetime had to change, and when that fails the
+  token is not issued. Whether a token is the server's is told by its signature, checked as the resource server checks it,
+  and not by whether its header names a key. A generator that signs with a key of its own, one the authorization server
+  does not hold, gets its tokens back as it issued them, byte for byte: Contexa's resource server cannot verify such a
+  token and does not accept it, and the claims Contexa writes and the limit on the lifetime of an exchanged token are not
+  put on it; Contexa's refusals still come before the generator, and the log carries one warning, once in the process, at
+  the first such token. The start also logs one INFO line naming the generator. Where Contexa's checks are not
+  there to put in front (the application took the place of Contexa's token customizer with a bean named
   `contexaTokenCustomizer`), the generator is used as it is and the start logs a warning that nothing checks its tokens.
   **Check:** tokens of an application's own generator are now refused for a suspended agent (`unauthorized_client`) and
-  while the agent registry cannot be read (`temporarily_unavailable`), its JWTs carry `client_id` and the other claims
-  Contexa writes, and a token that is no JWT (a reference token) is checked but gets no claims added.
+  while the agent registry cannot be read (`temporarily_unavailable`); its JWTs signed with a key of the authorization
+  server carry `client_id` and the other claims Contexa writes; a token signed with a key of the generator's own, and a
+  token that is no JWT (a reference token), are checked but get no claims added.
 - **A token customizer of your own can no longer lengthen an exchanged token beyond the token it exchanges.** Contexa
   ends an exchanged token no later than the token it exchanges, but it did so before the application's customizers ran,
   so a customizer that set a later expiry took the limit away. The limit now holds after the application's customizers:

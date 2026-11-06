@@ -23,7 +23,11 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.ECDSASigner;
 import com.nimbusds.jose.jwk.Curve;
 import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.jwk.RSAKey;
+import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
+import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jwt.JWTClaimsSet;
@@ -89,6 +93,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.authorization.InMemoryOAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.client.InMemoryRegisteredClientRepository;
@@ -126,6 +131,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -505,6 +511,59 @@ class OAuth2TokenChainIntegrationTest {
         assertThat(again.getResponse().getContentAsString()).contains("invalid_grant");
     }
 
+    /**
+     * An application whose own generator signs with a key the authorization server does not hold. Its tokens are the
+     * application's: Contexa's checks still decide whether they are issued, but Contexa cannot sign such a token again
+     * (it has not the key) and its resource server cannot verify one, so the application keeps working with them as before.
+     */
+    @Test
+    void aGeneratorThatSignsWithAKeyOfItsOwnStillIssuesTheLoginAndTheAgentsTokenAndIsStillChecked() throws Exception {
+        start(true, List.of(), ApplicationOwnKeyTokenGenerator.class, SwitchableDirectory.class);
+        DirectoryState state = context.getBean(DirectoryState.class);
+        IssuedTokens issued = context.getBean(IssuedTokens.class);
+
+        String login = userToken();
+        MvcResult served = agentTokenRequest();
+        assertThat(served.getResponse().getStatus()).as(served.getResponse().getContentAsString()).isEqualTo(200);
+        String agentToken = json.readTree(served.getResponse().getContentAsString()).get("access_token").asText();
+        assertThat(issued.values).as("the tokens are the application's, byte for byte").contains(login, agentToken);
+        assertThat(callApi(agentToken)).as("Contexa's resource server does not take a token it cannot verify").isEqualTo(401);
+
+        int issuedBefore = issued.values.size();
+        state.suspended = true;
+        MvcResult suspended = agentTokenRequest();
+        assertThat(suspended.getResponse().getStatus()).as(suspended.getResponse().getContentAsString()).isEqualTo(400);
+        assertThat(suspended.getResponse().getContentAsString()).contains("unauthorized_client");
+
+        state.suspended = false;
+        state.unreadable = true;
+        MvcResult unreadable = agentTokenRequest();
+        assertThat(unreadable.getResponse().getStatus()).isEqualTo(400);
+        assertThat(unreadable.getResponse().getContentAsString()).contains("temporarily_unavailable")
+                .doesNotContain("secret-host");
+        assertThat(issued.values).as("a refusal ends the issuance before the application's generator runs")
+                .hasSize(issuedBefore);
+        assertThat(userToken()).as("a person's sign-in never asks the agent registry").isNotBlank();
+
+        state.unreadable = false;
+        assertThat(agentTokenRequest().getResponse().getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void anExchangeThroughAGeneratorWithAKeyOfItsOwnIsIssuedAsItWasAndIsRefusedBeyondTheScope() throws Exception {
+        start(true, List.of(), ApplicationOwnKeyTokenGenerator.class);
+        IssuedTokens issued = context.getBean(IssuedTokens.class);
+        String userToken = userToken();
+
+        MvcResult exchanged = exchange(userToken, "reports.read");
+        assertThat(exchanged.getResponse().getStatus()).as(exchanged.getResponse().getContentAsString()).isEqualTo(200);
+        assertThat(issued.values).contains(json.readTree(exchanged.getResponse().getContentAsString()).get("access_token").asText());
+
+        MvcResult beyondScope = exchange(userToken, "reports.write");
+        assertThat(beyondScope.getResponse().getStatus()).isEqualTo(400);
+        assertThat(beyondScope.getResponse().getContentAsString()).contains("invalid_scope");
+    }
+
     private MvcResult exchange(String subjectToken, String scope) throws Exception {
         return mvc.perform(post("/oauth2/token")
                         .header("Authorization", basic(AGENT_CLIENT, AGENT_SECRET))
@@ -803,6 +862,37 @@ class OAuth2TokenChainIntegrationTest {
                 if (!AuthenticatedUserGrantAuthenticationToken.AUTHENTICATED_USER.equals(context.getAuthorizationGrantType())) {
                     context.getClaims().expiresAt(Instant.now().plus(Duration.ofDays(30)));
                 }
+            };
+        }
+    }
+
+    /** The tokens the application's own generator issued, in the order it issued them. */
+    static class IssuedTokens {
+        final List<String> values = new CopyOnWriteArrayList<>();
+    }
+
+    /** An application's own generator that signs with an RSA key of its own, which the authorization server does not hold. */
+    @Configuration
+    static class ApplicationOwnKeyTokenGenerator {
+
+        @Bean
+        IssuedTokens issuedTokens() {
+            return new IssuedTokens();
+        }
+
+        @Bean
+        OAuth2TokenGenerator<OAuth2Token> applicationTokenGenerator(IssuedTokens issued) throws Exception {
+            RSAKey own = new RSAKeyGenerator(2048).keyID("host-own-" + UUID.randomUUID()).generate();
+            JwtGenerator jwt = new JwtGenerator(new NimbusJwtEncoder(new ImmutableJWKSet<>(new JWKSet(own))));
+            jwt.setJwtCustomizer(context -> context.getClaims().claim("tenant", "acme"));
+            OAuth2TokenGenerator<OAuth2Token> inner = new DelegatingOAuth2TokenGenerator(jwt,
+                    new OAuth2AccessTokenGenerator(), new OAuth2RefreshTokenGenerator());
+            return context -> {
+                OAuth2Token token = inner.generate(context);
+                if (token instanceof Jwt issuedJwt) {
+                    issued.values.add(issuedJwt.getTokenValue());
+                }
+                return token;
             };
         }
     }

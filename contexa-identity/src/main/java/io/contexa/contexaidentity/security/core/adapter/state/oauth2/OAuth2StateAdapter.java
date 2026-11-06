@@ -22,9 +22,12 @@ import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import io.contexa.contexaidentity.security.utils.JsonAuthResponseWriter;
 import lombok.extern.slf4j.Slf4j;
+import com.nimbusds.jose.jwk.source.JWKSource;
+import com.nimbusds.jose.proc.SecurityContext;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationContext;
+import org.springframework.core.ResolvableType;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -205,7 +208,10 @@ public final class OAuth2StateAdapter implements StateAdapter {
         log.info("[OAuth2] The application declares its own token generator ({}): Contexa's token checks (agent suspension, "
                 + "renewal, token exchange) run before it, and the claims they write are added to the tokens it issues.",
                 generator);
-        return new CheckedTokenGenerator(applicationGenerator, checks, appContext.getBean(JwtEncoder.class));
+        ObjectProvider<JWKSource<SecurityContext>> serverKeys = appContext.getBeanProvider(
+                ResolvableType.forClassWithGenerics(JWKSource.class, SecurityContext.class));
+        return new CheckedTokenGenerator(applicationGenerator, checks, appContext.getBean(JwtEncoder.class),
+                serverKeys.getObject());
     }
 
     /** What this chain issues under: the bean itself stays as it is, an authorization server of the application may use it. */
