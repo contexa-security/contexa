@@ -141,7 +141,7 @@ class PermissionServiceImplTest {
         @DisplayName("should return permission when found")
         void shouldReturnWhenFound() {
             Permission perm = buildPermission(1L, "READ");
-            when(permissionRepository.findById(1L)).thenReturn(Optional.of(perm));
+            when(permissionRepository.findWithManagedResourceById(1L)).thenReturn(Optional.of(perm));
 
             Optional<Permission> result = service.getPermission(1L);
 
@@ -152,7 +152,7 @@ class PermissionServiceImplTest {
         @Test
         @DisplayName("should return empty when not found")
         void shouldReturnEmpty() {
-            when(permissionRepository.findById(999L)).thenReturn(Optional.empty());
+            when(permissionRepository.findWithManagedResourceById(999L)).thenReturn(Optional.empty());
 
             Optional<Permission> result = service.getPermission(999L);
 
@@ -242,7 +242,7 @@ class PermissionServiceImplTest {
         void shouldUpdateFields() {
             Permission existing = buildPermission(1L, "OLD_NAME");
             PermissionDto dto = buildPermissionDto("UPDATED_NAME");
-            when(permissionRepository.findById(1L)).thenReturn(Optional.of(existing));
+            when(permissionRepository.findWithManagedResourceById(1L)).thenReturn(Optional.of(existing));
             when(permissionRepository.save(any(Permission.class))).thenAnswer(inv -> inv.getArgument(0));
 
             Permission result = service.updatePermission(1L, dto);
@@ -256,7 +256,7 @@ class PermissionServiceImplTest {
         @DisplayName("should throw when permission not found")
         void shouldThrowWhenNotFound() {
             PermissionDto dto = buildPermissionDto("X");
-            when(permissionRepository.findById(999L)).thenReturn(Optional.empty());
+            when(permissionRepository.findWithManagedResourceById(999L)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> service.updatePermission(999L, dto))
                     .isInstanceOf(IllegalArgumentException.class)
