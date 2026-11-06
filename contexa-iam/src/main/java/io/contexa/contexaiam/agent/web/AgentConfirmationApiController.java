@@ -144,7 +144,7 @@ public class AgentConfirmationApiController {
         String target = ask.target().trim();
         // Kept as the gate keeps what it stopped: a value that opens something is masked, and what is kept fits whole.
         String kept = RequestFactRedaction.readableTarget(target);
-        if (!METHODS.contains(method) || !AgentConfirmation.readsAsWritten(target)
+        if (!METHODS.contains(method) || !AgentConfirmation.keeps(subject) || !AgentConfirmation.readsAsWritten(target)
                 || kept.length() > AgentConfirmation.MAX_TARGET_LENGTH) {
             return ResponseEntity.badRequest().build();
         }

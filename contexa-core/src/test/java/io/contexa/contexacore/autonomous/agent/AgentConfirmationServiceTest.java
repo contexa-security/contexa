@@ -166,6 +166,29 @@ class AgentConfirmationServiceTest {
                 null, null, null, null, null).routedPath();
     }
 
+    /**
+     * An identifier is never cut, since a cut one names another delegation, agent or person and a report would stop the
+     * wrong one: nobody is asked, nothing is kept, and the refusal is recorded. At their columns they are kept whole.
+     */
+    @Test
+    void aSubjectWhoseIdentifiersAConfirmationCannotKeepIsRefusedAndNobodyIsAsked() {
+        for (ZeroTrustSubject unkeepable : List.of(
+                new ZeroTrustSubject(null, "alice", SubjectKind.DELEGATED_AGENT, "report-agent", "d".repeat(65)),
+                new ZeroTrustSubject(null, "alice", SubjectKind.DELEGATED_AGENT, "a".repeat(256), null),
+                new ZeroTrustSubject(null, "u".repeat(256), SubjectKind.DELEGATED_AGENT, "report-agent", null),
+                new ZeroTrustSubject("t".repeat(256), "alice", SubjectKind.DELEGATED_AGENT, "report-agent", null))) {
+            assertThat(service.request(new AgentConfirmationService.ConfirmationRequest(unkeepable, "hash-1", "POST",
+                    "/api/exports", AgentConfirmation.DECISION_CHALLENGE, null, "req-1", null))).isEmpty();
+        }
+        assertThat(store.list(null, 10)).isEmpty();
+        assertThat(delivered).isEmpty();
+        assertThat(categories()).contains(AuditEventCategory.AGENT_CONFIRMATION_REQUESTED);
+
+        assertThat(service.request(new AgentConfirmationService.ConfirmationRequest(new ZeroTrustSubject("t".repeat(255),
+                "u".repeat(255), SubjectKind.DELEGATED_AGENT, "a".repeat(255), "d".repeat(64)), "hash-1", "POST",
+                "/api/exports", AgentConfirmation.DECISION_CHALLENGE, null, "req-1", null))).isPresent();
+    }
+
     @Test
     void anAgentOnItsOwnWaitsForItsSponsorAndWithoutOneItsRequestIsRefused() {
         ZeroTrustSubject syncAgent = new ZeroTrustSubject(null, "sync-client", SubjectKind.AUTONOMOUS_AGENT,

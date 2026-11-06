@@ -8,6 +8,7 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- A confirmation is no longer asked for an agent whose tenant, user, agent or delegation identifier is longer than a confirmation keeps (255, 255, 255 and 64 characters): the database refused such a confirmation with an error while memory kept it. An identifier is never cut, since a cut one names another delegation or agent and a report would stop the wrong one, so both stores now ask no one: the gate answers `413 AGENT_CONFIRMATION_UNBINDABLE`, the agent's own ask 400.
 - An agent's ask for a confirmation whose target carries, as written, a space, a control character, a line break or a character that turns the text around (no request line carries one) is answered 400, so an agent cannot write a sentence of its own where the person reads the request. Written escaped, the same characters are asked as before.
 - A request of an agent whose path and query are longer than a confirmation keeps (2048 characters, as a person reads them) no longer asks its accountable person to confirm a request they would read cut: it is refused with `413 AGENT_CONFIRMATION_UNBINDABLE`, as a body too large to bind is. Decided in the request itself, it gets the plain answer to a CHALLENGE and asks no one either.
 - What an agent asks a person to confirm keeps no secret of its target: a value that opens something is masked as it is when the gate stops a request, the path the application serves is shown masked too, and a target that would not fit once masked is refused.

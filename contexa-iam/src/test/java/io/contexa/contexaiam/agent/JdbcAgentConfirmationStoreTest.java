@@ -15,9 +15,13 @@
  */
 package io.contexa.contexaiam.agent;
 
+import io.contexa.contexacommon.security.subject.SubjectKind;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmation;
+import io.contexa.contexacore.autonomous.agent.AgentConfirmationAuthorizer;
+import io.contexa.contexacore.autonomous.agent.AgentConfirmationService;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmationStore;
 import io.contexa.contexacore.autonomous.agent.InMemoryAgentConfirmationStore;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,6 +33,7 @@ import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,6 +41,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 /**
  * docs/agent A5-2: the confirmations are kept in the Contexa database as the in-memory store keeps them, and a
@@ -101,6 +107,30 @@ class JdbcAgentConfirmationStoreTest {
             assertThat(kept.target()).hasSize(2048);
             assertThat(kept.correlationId()).hasSize(160);
         });
+    }
+
+    /**
+     * An identifier past its column is never cut, since a cut one names another delegation, agent or person: neither
+     * store gets the confirmation, and the request it was asked for is refused alike.
+     */
+    @Test
+    void neitherStoreTakesAConfirmationWhoseIdentifiersItCannotKeep() {
+        List<ZeroTrustSubject> unkeepable = List.of(
+                new ZeroTrustSubject(null, "alice", SubjectKind.DELEGATED_AGENT, "report-agent", "d".repeat(65)),
+                new ZeroTrustSubject(null, "alice", SubjectKind.DELEGATED_AGENT, "a".repeat(256), null),
+                new ZeroTrustSubject("t".repeat(256), "alice", SubjectKind.DELEGATED_AGENT, "report-agent", null));
+
+        for (AgentConfirmationStore store : List.of(new JdbcAgentConfirmationStore(jdbc),
+                new InMemoryAgentConfirmationStore())) {
+            AgentConfirmationService service = new AgentConfirmationService(store,
+                    mock(AgentConfirmationAuthorizer.class), null, null, null, Duration.ofMinutes(15), null);
+            for (ZeroTrustSubject subject : unkeepable) {
+                assertThat(service.request(new AgentConfirmationService.ConfirmationRequest(subject, "hash-1", "POST",
+                        "/api/exports", AgentConfirmation.DECISION_CHALLENGE, null, "req-1", null)))
+                        .as("%s, %s", store.getClass().getSimpleName(), subject).isEmpty();
+            }
+            assertThat(store.list(null, 10)).isEmpty();
+        }
     }
 
     private static void assertKeepsConfirmations(AgentConfirmationStore store) {

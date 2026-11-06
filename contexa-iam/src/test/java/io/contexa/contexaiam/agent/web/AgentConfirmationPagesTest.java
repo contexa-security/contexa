@@ -368,6 +368,24 @@ class AgentConfirmationPagesTest {
         assertThat(store.find(asked.confirmationId())).map(AgentConfirmation::target).contains(escaped);
     }
 
+    /** An identifier is never cut: an agent whose identifiers a confirmation cannot keep whole asks no one. */
+    @Test
+    void anAskOfAnAgentWhoseIdentifiersAConfirmationCannotKeepIsRefused() {
+        AgentConfirmationApiController api = new AgentConfirmationApiController(service);
+        TestingAuthenticationToken token = new TestingAuthenticationToken("alice", null);
+
+        for (MockHttpServletRequest unkeepable : List.of(agentRequest("alice", "report-agent", "d".repeat(65)),
+                agentRequest("alice", "a".repeat(256), null))) {
+            assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", "/api/exports", null, null),
+                    token, unkeepable).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        }
+        assertThat(store.forRecipient("alice", 10)).isEmpty();
+
+        assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", "/api/exports", null, null),
+                token, agentRequest("alice", "a".repeat(255), "d".repeat(64))).getStatusCode())
+                .isEqualTo(HttpStatus.ACCEPTED);
+    }
+
     /** A person approves what will run: the path the application serves stands beside what the agent sent. */
     @Test
     void aPersonSeesThePathTheApplicationServesBesideWhatTheAgentSent() {
