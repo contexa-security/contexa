@@ -22,7 +22,10 @@ import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexaiam.domain.dto.PolicyDto;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
+import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.AuthorityProbe;
+import org.mockito.ArgumentCaptor;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.PolicyTemplateRepository;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictAnalyzer;
@@ -119,6 +122,36 @@ class PolicyBuilderServiceImplTest {
 
             assertThat(result).isNotNull();
             verify(policyService).createPolicy(any());
+        }
+
+        @Test
+        @DisplayName("a subject type and a permission named to end their literal are each asked for as they are")
+        void namesThatWouldEndTheirLiteralAreAskedForAsTheyAre() {
+            String name = AuthorityProbe.ALWAYS_TRUE_NAME;
+            Permission perm = mock(Permission.class);
+            when(perm.getName()).thenReturn(name);
+            when(perm.getManagedResource()).thenReturn(null);
+            when(permissionRepository.findAllById(Set.of(5L))).thenReturn(List.of(perm));
+            when(modelMapper.map(any(Policy.class), eq(PolicyDto.class))).thenReturn(new PolicyDto());
+            when(policyService.createPolicy(any())).thenReturn(Policy.builder().name("p").effect(Policy.Effect.ALLOW).build());
+
+            service.buildPolicyFromVisualComponents(new VisualPolicyDto(
+                    "p", "desc", Policy.Effect.ALLOW,
+                    Set.of(new VisualPolicyDto.SubjectIdentifier(10L, name)),
+                    Set.of(new VisualPolicyDto.PermissionIdentifier(5L)),
+                    Set.of()));
+
+            ArgumentCaptor<Policy> captor = ArgumentCaptor.forClass(Policy.class);
+            verify(modelMapper).map(captor.capture(), eq(PolicyDto.class));
+            List<String> expressions = captor.getValue().getRules().iterator().next().getConditions().stream()
+                    .map(PolicyCondition::getExpression)
+                    .toList();
+            assertThat(expressions).hasSize(2);
+            for (String expression : expressions) {
+                AuthorityProbe.Outcome nobody = AuthorityProbe.evaluate(expression, "R&D", "Ops", "Ops_10");
+                assertThat(nobody.granted()).as(expression).isFalse();
+                assertThat(nobody.asked()).as(expression).hasSize(1).first().asString().startsWith(name);
+            }
         }
 
         @Test

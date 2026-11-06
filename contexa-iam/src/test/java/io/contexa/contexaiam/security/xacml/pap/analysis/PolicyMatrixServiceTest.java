@@ -23,6 +23,7 @@ import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyMatrixReport;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.SpelLiteral;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -81,6 +82,22 @@ class PolicyMatrixServiceTest {
     @Nested
     @DisplayName("기본 매트릭스 생성")
     class BasicMatrix {
+
+        @Test
+        @DisplayName("a role whose name has a quote is read from the literal that holds it")
+        void aRoleWithAQuoteIsReadFromItsLiteral() {
+            Policy policy = buildPolicy(1L, "allow-oneil", Policy.Effect.ALLOW,
+                    "/api/users", "hasAuthority(" + SpelLiteral.quote("O'Neil") + ")");
+            when(policyRepository.findAllWithDetails()).thenReturn(List.of(policy));
+            when(roleRepository.findAll()).thenReturn(List.of(buildRole(1L, "O'Neil"), buildRole(2L, "O")));
+
+            PolicyMatrixReport report = service.generateMatrix(null, null);
+
+            assertThat(report.roles()).containsExactly("O'Neil", "O");
+            assertThat(report.cells().get(0).get(0).access()).isEqualTo("ALLOW");
+            var other = report.cells().get(0).get(1);
+            assertThat(other == null || !"ALLOW".equals(other.access())).as("a role named O is not O'Neil").isTrue();
+        }
 
         @Test
         @DisplayName("정책과 역할이 있으면 매트릭스 셀이 생성됨")

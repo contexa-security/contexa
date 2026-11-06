@@ -38,6 +38,8 @@ import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.SecuritySpelRepository;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictAnalyzer;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.AuthorityProbe;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.SpelLiteral;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import java.util.*;
 import java.util.List;
@@ -355,30 +357,105 @@ class BusinessPolicyServiceImplTest {
     }
 
     @Nested
+    @DisplayName("Names written into the condition")
+    class NamesInTheCondition {
+
+        @Test
+        @DisplayName("a role, CRUD, permission and AI action named to end their literal are each asked for as they are")
+        void namesThatWouldEndTheirLiteralAreAskedForAsTheyAre() {
+            BusinessPolicyDto dto = createBasicDto();
+            dto.setCrudPermissions(Set.of(AuthorityProbe.ALWAYS_TRUE_NAME));
+            dto.setAiActionEnabled(true);
+            dto.setAllowedActions(List.of(AuthorityProbe.ALWAYS_TRUE_NAME));
+            Role role = createRole(AuthorityProbe.ALWAYS_TRUE_NAME);
+            Permission perm = createPermission();
+            when(perm.getName()).thenReturn(AuthorityProbe.ALWAYS_TRUE_NAME);
+
+            when(roleRepository.findAllById(dto.getRoleIds())).thenReturn(List.of(role));
+            when(permissionRepository.findAllById(dto.getPermissionIds())).thenReturn(List.of(perm));
+            when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            setupRoleServiceMock(dto.getRoleIds());
+
+            String expression = onlyCondition(service.createPolicyFromBusinessRule(dto));
+
+            AuthorityProbe.Outcome nobody = AuthorityProbe.evaluate(expression, "R&D", "Ops");
+            assertThat(nobody.granted()).isFalse();
+            assertThat(nobody.asked()).containsExactly(AuthorityProbe.ALWAYS_TRUE_NAME);
+            AuthorityProbe.Outcome holder = AuthorityProbe.evaluate(expression, AuthorityProbe.ALWAYS_TRUE_NAME);
+            assertThat(holder.asked()).containsExactly(AuthorityProbe.ALWAYS_TRUE_NAME, AuthorityProbe.ALWAYS_TRUE_NAME,
+                    AuthorityProbe.ALWAYS_TRUE_NAME, "ai:" + AuthorityProbe.ALWAYS_TRUE_NAME);
+        }
+
+        @Test
+        @DisplayName("several AI actions with a quote are each one value of the list")
+        void severalAiActionsWithAQuoteAreEachOneValue() {
+            BusinessPolicyDto dto = createBasicDto();
+            dto.setAiActionEnabled(true);
+            dto.setAllowedActions(List.of("allow", "x') or true or #ai.hasAction('y"));
+            Role role = createRole("ROLE_USER");
+            Permission perm = createPermission();
+
+            when(roleRepository.findAllById(dto.getRoleIds())).thenReturn(List.of(role));
+            when(permissionRepository.findAllById(dto.getPermissionIds())).thenReturn(List.of(perm));
+            when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            setupRoleServiceMock(dto.getRoleIds());
+
+            String expression = onlyCondition(service.createPolicyFromBusinessRule(dto));
+
+            AuthorityProbe.Outcome holder = AuthorityProbe.evaluate(expression, "ROLE_USER", "URL_READ");
+            assertThat(holder.granted()).isFalse();
+            assertThat(holder.asked()).containsExactly("ROLE_USER", "URL_READ", "ai:ALLOW", "ai:X') OR TRUE OR #AI.HASACTION('Y");
+        }
+
+        @Test
+        @DisplayName("a stored role written with a quote is found again when the policy is opened for editing")
+        void aStoredRoleWithAQuoteIsFoundAgain() {
+            Role role = createRole("O'Neil");
+            when(roleRepository.findByRoleName("O'Neil")).thenReturn(Optional.of(role));
+            PolicyCondition condition = PolicyCondition.builder().expression("(" + SpelLiteral.hasAuthority("O'Neil") + ")").build();
+            PolicyRule rule = PolicyRule.builder().conditions(new HashSet<>(Set.of(condition))).build();
+            Policy policy = Policy.builder().id(9L).name("p").effect(Policy.Effect.ALLOW)
+                    .rules(new HashSet<>(Set.of(rule))).targets(new HashSet<>()).build();
+            when(policyRepository.findByIdWithDetails(9L)).thenReturn(Optional.of(policy));
+
+            BusinessPolicyDto dto = service.getBusinessRuleForPolicy(9L);
+
+            assertThat(dto.getRoleIds()).containsExactly(1L);
+            assertThat(dto.getCustomConditionSpel()).isNull();
+        }
+    }
+
+    private static String onlyCondition(Policy policy) {
+        PolicyRule rule = policy.getRules().iterator().next();
+        return rule.getConditions().iterator().next().getExpression();
+    }
+
+    @Nested
     @DisplayName("Common policy expression validation")
     class CommonExpressionValidation {
 
         @Test
-        @DisplayName("Should reject a condition template parameter that breaks out of its quotes")
-        void shouldRejectTemplateParameterInjection() {
+        @DisplayName("A condition template parameter that would break out of its quotes stays one value, and nothing in it runs")
+        void aTemplateParameterThatWouldBreakOutStaysOneValue() {
+            String parameter = "10.0.0.1') or T(java.lang.Runtime).getRuntime().exec('calc') != null or hasIpAddress('10.0.0.2";
             BusinessPolicyDto dto = createBasicDto();
             ConditionTemplate template = ConditionTemplate.builder()
-                    .id(5L).name("ip").spelTemplate("hasIpAddress(%s)").build();
-            dto.setConditions(Map.of(5L, List.of(
-                    "10.0.0.1') or T(java.lang.Runtime).getRuntime().exec('calc') != null or hasIpAddress('10.0.0.2")));
+                    .id(5L).name("ip").spelTemplate("hasAuthority(%s)").build();
+            dto.setConditions(Map.of(5L, List.of(parameter)));
             Role role = createRole("ROLE_USER");
             Permission perm = createPermission();
 
             when(conditionTemplateRepository.findById(5L)).thenReturn(Optional.of(template));
             when(roleRepository.findAllById(dto.getRoleIds())).thenReturn(List.of(role));
             when(permissionRepository.findAllById(dto.getPermissionIds())).thenReturn(List.of(perm));
+            when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
             setupRoleServiceMock(dto.getRoleIds());
 
-            assertThatThrownBy(() -> service.createPolicyFromBusinessRule(dto))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("msg.policy.spel.dangerous");
-            verify(policyRepository, never()).save(any());
-            verify(authorizationManager, never()).reload();
+            String expression = onlyCondition(service.createPolicyFromBusinessRule(dto));
+
+            AuthorityProbe.Outcome holder = AuthorityProbe.evaluate(expression, "ROLE_USER", "URL_READ");
+            assertThat(holder.granted()).isFalse();
+            assertThat(holder.asked()).containsExactly("ROLE_USER", "URL_READ", parameter);
         }
 
         @Test

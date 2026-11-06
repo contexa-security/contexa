@@ -50,6 +50,7 @@ import io.contexa.contexaiam.security.xacml.pap.service.PolicyEnrichmentService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyVersionService;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionValidator;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.SpelLiteral;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexacore.infra.redis.PolicyReloadBroadcaster;
 import lombok.RequiredArgsConstructor;
@@ -78,6 +79,8 @@ import java.util.stream.Collectors;
 @Slf4j
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 public class PolicyCenterCommandService {
+
+    private static final Pattern AUTHORITY = Pattern.compile("hasAuthority\\(" + SpelLiteral.PATTERN + "\\)");
 
     private final ResourceRegistryService resourceRegistryService;
     /** Tells the other nodes to reload in the distributed mode (CF-02); null on a single node. */
@@ -233,7 +236,7 @@ public class PolicyCenterCommandService {
             }
 
             String roleCondition = roles.stream()
-                    .map(r -> String.format("hasAuthority('%s')", r.getRoleName()))
+                    .map(r -> SpelLiteral.hasAuthority(r.getRoleName()))
                     .collect(Collectors.joining(" or "));
             String allRoleNames = roles.stream()
                     .map(Role::getRoleName)
@@ -256,7 +259,7 @@ public class PolicyCenterCommandService {
                     }
 
                     String crudCondition = new TreeSet<>(item.getCrudPermissions()).stream()
-                            .map(c -> String.format("hasAuthority('%s')", c))
+                            .map(SpelLiteral::hasAuthority)
                             .collect(Collectors.joining(" or "));
                     String spelExpr = "(" + roleCondition + ") and (" + crudCondition + ")";
                     PolicyExpressionValidator.validate(spelExpr);
@@ -499,13 +502,15 @@ public class PolicyCenterCommandService {
     }
 
     private String migrateExpressionToCrud(String expression) {
-        Pattern pattern = Pattern.compile("hasAuthority\\('(URL_|METHOD_)([^']*)'\\)");
-        Matcher matcher = pattern.matcher(expression);
+        Matcher matcher = AUTHORITY.matcher(expression);
         StringBuilder sb = new StringBuilder();
         while (matcher.find()) {
-            String permName = matcher.group(1) + matcher.group(2);
-            String crud = resolvePermissionToCrud(permName);
-            matcher.appendReplacement(sb, "hasAuthority('" + crud + "')");
+            String authority = SpelLiteral.unquote(matcher.group(1));
+            String replacement = authority.startsWith("URL_") || authority.startsWith("METHOD_")
+                    ? SpelLiteral.hasAuthority(resolvePermissionToCrud(authority))
+                    : matcher.group();
+            // A $ or \ of a name is text, not a group reference or an escape.
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
         }
         matcher.appendTail(sb);
         return sb.toString();

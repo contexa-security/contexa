@@ -25,6 +25,7 @@ import io.contexa.contexaiam.security.xacml.pap.dto.PolicyMatrixReport;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyMatrixReport.ConflictCell;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyMatrixReport.MatrixCell;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyMatrixReport.ResourceEntry;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.SpelLiteral;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
@@ -48,11 +49,11 @@ public class PolicyMatrixService {
     private final RoleRepository roleRepository;
     private final RoleHierarchy roleHierarchy;
 
-    private static final Pattern HAS_AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\('([^']*)'\\)");
+    private static final Pattern HAS_AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\(" + SpelLiteral.PATTERN + "\\)");
     private static final Pattern HAS_ANY_AUTHORITY_PATTERN = Pattern.compile("hasAnyAuthority\\(([^)]+)\\)");
-    private static final Pattern HAS_ROLE_PATTERN = Pattern.compile("hasRole\\('([^']*)'\\)");
+    private static final Pattern HAS_ROLE_PATTERN = Pattern.compile("hasRole\\(" + SpelLiteral.PATTERN + "\\)");
     private static final Pattern HAS_ANY_ROLE_PATTERN = Pattern.compile("hasAnyRole\\(([^)]+)\\)");
-    private static final Pattern QUOTED_ARG_PATTERN = Pattern.compile("'([^']*)'");
+    private static final Pattern QUOTED_ARG_PATTERN = Pattern.compile(SpelLiteral.PATTERN);
 
     public PolicyMatrixReport generateMatrix(String resourceFilter, String roleFilter) {
         List<Policy> policies = policyRepository.findAllWithDetails().stream()
@@ -204,7 +205,7 @@ public class PolicyMatrixService {
         // hasAuthority('X')
         Matcher authMatcher = HAS_AUTHORITY_PATTERN.matcher(expression);
         while (authMatcher.find()) {
-            String value = authMatcher.group(1);
+            String value = SpelLiteral.unquote(authMatcher.group(1));
             if (value.equals(roleName) || value.equals(roleAuthority)) return true;
         }
 
@@ -217,7 +218,7 @@ public class PolicyMatrixService {
         // hasRole('X')
         Matcher roleMatcher = HAS_ROLE_PATTERN.matcher(expression);
         while (roleMatcher.find()) {
-            String value = roleMatcher.group(1);
+            String value = SpelLiteral.unquote(roleMatcher.group(1));
             String fullRole = value.startsWith("ROLE_") ? value : "ROLE_" + value;
             if (fullRole.equals(roleAuthority)) return true;
         }
@@ -234,8 +235,8 @@ public class PolicyMatrixService {
             if (trimmed.equals(roleName) || trimmed.equals(roleAuthority)) return true;
         }
 
-        // Compound expression containing role name directly
-        if (expression.contains("'" + roleName + "'") || expression.contains("'" + roleAuthority + "'")) {
+        // Compound expression containing role name directly: a whole literal holds it, not a part of a longer one
+        if (matchesAnyQuotedArg(expression, roleName)) {
             return true;
         }
 
@@ -246,7 +247,7 @@ public class PolicyMatrixService {
         String roleAuthority = roleName.startsWith("ROLE_") ? roleName : "ROLE_" + roleName;
         Matcher argMatcher = QUOTED_ARG_PATTERN.matcher(argsString);
         while (argMatcher.find()) {
-            String value = argMatcher.group(1);
+            String value = SpelLiteral.unquote(argMatcher.group(1));
             if (value.equals(roleName) || value.equals(roleAuthority)) return true;
         }
         return false;
@@ -256,7 +257,7 @@ public class PolicyMatrixService {
         String roleAuthority = roleName.startsWith("ROLE_") ? roleName : "ROLE_" + roleName;
         Matcher argMatcher = QUOTED_ARG_PATTERN.matcher(argsString);
         while (argMatcher.find()) {
-            String value = argMatcher.group(1);
+            String value = SpelLiteral.unquote(argMatcher.group(1));
             String fullRole = value.startsWith("ROLE_") ? value : "ROLE_" + value;
             if (fullRole.equals(roleAuthority)) return true;
         }

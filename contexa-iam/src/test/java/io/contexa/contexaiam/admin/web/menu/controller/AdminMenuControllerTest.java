@@ -380,6 +380,31 @@ class AdminMenuControllerTest {
         }
 
         @Test
+        @DisplayName("update changes only the fields it is sent, and keeps the parent of a menu sent no parent")
+        void updateChangesOnlyTheFieldsItIsSent() throws Exception {
+            AdminMenu menu = menu(1L, "Old", "/old", 9L, 4, true);
+            when(adminMenuService.getMenuById(1L)).thenReturn(Optional.of(menu));
+
+            mockMvc.perform(put("/contexa/admin/menu-management/api/1")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "icon":""
+                                    }
+                                    """))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true));
+
+            verify(adminMenuService).saveMenu(menu);
+            assertThat(menu.getIcon()).isEmpty();
+            assertThat(menu.getParentId()).isEqualTo(9L);
+            assertThat(menu.getName()).isEqualTo("Old");
+            assertThat(menu.getUrl()).isEqualTo("/old");
+            assertThat(menu.getMenuOrder()).isEqualTo(4);
+            assertThat(menu.isEnabled()).isTrue();
+        }
+
+        @Test
         @DisplayName("update keeps partial string request contract")
         void updateMenu() throws Exception {
             AdminMenu menu = menu(1L, "Old", "/old", 9L, 1, true);

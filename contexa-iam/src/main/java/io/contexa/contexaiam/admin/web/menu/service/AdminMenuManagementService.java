@@ -140,7 +140,8 @@ public class AdminMenuManagementService {
         if (request.has("menuType")) menu.setMenuType(request.getMenuType());
         if (request.has("menuOrder")) menu.setMenuOrder(request.menuOrderAsInt());
         if (request.has("enabled")) menu.setEnabled(Boolean.parseBoolean(request.getEnabled()));
-        menu.setParentId(request.parentIdAsLong());
+        // A request that names no parent keeps the parent; one that sends an empty or null parent makes a top menu.
+        if (request.has("parentId")) menu.setParentId(request.parentIdAsLong());
         adminMenuService.saveMenu(menu);
         return AdminMenuActionResponse.ok();
     }

@@ -34,6 +34,7 @@ import io.contexa.contexaiam.security.xacml.pap.dto.PolicyConflictDto;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyContext;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyTemplateDto;
 import io.contexa.contexaiam.security.xacml.pap.dto.VisualPolicyDto;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.SpelLiteral;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
@@ -59,7 +60,7 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
     private final ModelMapper modelMapper;
     private final ObjectMapper objectMapper;
     private final PolicyConflictAnalyzer policyConflictAnalyzer;
-    private static final Pattern AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\('([^']*)'\\)");
+    private static final Pattern AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\(" + SpelLiteral.PATTERN + "\\)");
 
     @Override
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
@@ -79,7 +80,7 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
 
         List<String> conditions = new ArrayList<>();
         String subjectExpr = dto.subjects().stream()
-                .map(s -> String.format(Locale.ROOT, "hasAuthority('%s_%d')", s.type(), s.id()))
+                .map(s -> SpelLiteral.hasAuthority(s.type() + "_" + s.id()))
                 .collect(Collectors.joining(" or "));
         if (!subjectExpr.isEmpty()) conditions.add("(" + subjectExpr + ")");
 
@@ -88,7 +89,7 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
                 .collect(Collectors.toSet());
         List<Permission> perms = permissionRepository.findAllById(permissionIds);
 
-        String permExpr = perms.stream().map(p -> String.format("hasAuthority('%s')", p.getName()))
+        String permExpr = perms.stream().map(p -> SpelLiteral.hasAuthority(p.getName()))
                 .collect(Collectors.joining(" and "));
         if(!permExpr.isEmpty()) conditions.add("(" + permExpr + ")");
 
@@ -149,7 +150,7 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
                 .forEach(expr -> {
                     Matcher matcher = AUTHORITY_PATTERN.matcher(expr);
                     while (matcher.find()) {
-                        String authority = matcher.group(1);
+                        String authority = SpelLiteral.unquote(matcher.group(1));
                         if (authority.startsWith("PERM_")) {
                             perms.add(authority);
                         }

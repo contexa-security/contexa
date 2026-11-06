@@ -31,6 +31,8 @@ import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.resource.service.ResourceRegistryService;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyValidationReport;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.AuthorityProbe;
+import org.mockito.ArgumentCaptor;
 import io.contexa.contexaiam.security.xacml.pap.service.BusinessPolicyService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyEnrichmentService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
@@ -267,26 +269,49 @@ class PolicyCenterCommandServiceTest {
         }
 
         @Test
-        @DisplayName("should reject a CRUD permission that injects SpEL and never save the policy")
-        void rejectsInjectedPermission() {
+        @DisplayName("a CRUD permission that carries SpEL stays one name: the policy asks for it as it is and runs nothing")
+        void aCrudPermissionThatCarriesSpelStaysOneName() {
+            String injected = "READ') or T(java.lang.Runtime).getRuntime().exec('calc') != null or hasAuthority('X";
+
+            String expression = batchCreatedExpression("USER", injected);
+
+            AuthorityProbe.Outcome holder = AuthorityProbe.evaluate(expression, "USER", "READ", "X");
+            assertThat(holder.granted()).isFalse();
+            assertThat(holder.asked()).containsExactly("USER", injected);
+        }
+
+        @Test
+        @DisplayName("a role named to end its literal is asked for as it is, never always true")
+        void aRoleNamedToEndItsLiteralIsAskedForAsItIs() {
+            String expression = batchCreatedExpression(AuthorityProbe.ALWAYS_TRUE_NAME, "READ");
+
+            AuthorityProbe.Outcome nobody = AuthorityProbe.evaluate(expression, "R&D", "Ops", "READ");
+            assertThat(nobody.granted()).isFalse();
+            assertThat(nobody.asked()).containsExactly(AuthorityProbe.ALWAYS_TRUE_NAME);
+            assertThat(AuthorityProbe.evaluate(expression, AuthorityProbe.ALWAYS_TRUE_NAME, "READ").granted()).isTrue();
+        }
+
+        private String batchCreatedExpression(String roleName, String crud) {
             BatchCreateRequest.BatchItem item = new BatchCreateRequest.BatchItem();
             item.setResourceIdentifier("/api/test");
-            item.setCrudPermissions(Set.of("READ') or T(java.lang.Runtime).getRuntime().exec('calc') != null or hasAuthority('X"));
-
+            item.setCrudPermissions(Set.of(crud));
             BatchCreateRequest request = new BatchCreateRequest();
             request.setItems(List.of(item));
             request.setRoleIds(Set.of(10L));
             request.setEffect(Policy.Effect.ALLOW);
-
-            when(roleService.getRole(10L)).thenReturn(Role.builder().id(10L).roleName("USER").build());
+            when(roleService.getRole(10L)).thenReturn(Role.builder().id(10L).roleName(roleName).build());
             when(policyRepository.findAllWithDetails()).thenReturn(new ArrayList<>());
+            PolicyValidationReport report = mock(PolicyValidationReport.class);
+            when(report.canCreate()).thenReturn(true);
+            when(policyValidationService.validate(any(), any())).thenReturn(report);
+            when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
             PolicyBatchCreateResponse res = service.batchCreatePolicies(request);
 
-            assertThat(res.created()).isZero();
-            assertThat(res.results()).hasSize(1);
-            assertThat(res.results().get(0).status()).isEqualTo("ERROR");
-            verify(policyRepository, never()).save(any());
+            assertThat(res.results()).extracting(PolicyBatchItemResponse::status).containsExactly("CREATED");
+            ArgumentCaptor<Policy> saved = ArgumentCaptor.forClass(Policy.class);
+            verify(policyRepository).save(saved.capture());
+            return saved.getValue().getRules().iterator().next().getConditions().iterator().next().getExpression();
         }
     }
 

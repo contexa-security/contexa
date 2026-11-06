@@ -45,6 +45,7 @@ import io.contexa.contexaiam.security.xacml.pap.dto.PolicyValidationReport;
 import io.contexa.contexaiam.security.xacml.pap.dto.SimulationReport;
 import io.contexa.contexaiam.security.xacml.pap.dto.SimulationTestCase;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionValidator;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.SpelLiteral;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.UnsafePolicyExpressionException;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexacore.infra.redis.PolicyReloadBroadcaster;
@@ -95,7 +96,7 @@ public class DefaultPolicyService implements PolicyService {
     @Setter
     private PolicyReloadBroadcaster policyReloadBroadcaster;
 
-    private static final Pattern AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\('([^']*)'\\)");
+    private static final Pattern AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\(" + SpelLiteral.PATTERN + "\\)");
 
     @Override
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
@@ -168,7 +169,7 @@ public class DefaultPolicyService implements PolicyService {
                 .forEach(spel -> {
                     Matcher matcher = AUTHORITY_PATTERN.matcher(spel);
                     while (matcher.find()) {
-                        permissionNames.add(matcher.group(1));
+                        permissionNames.add(SpelLiteral.unquote(matcher.group(1)));
                     }
                 });
 
@@ -189,7 +190,7 @@ public class DefaultPolicyService implements PolicyService {
         }
 
         String policyName = "AUTO_POLICY_FOR_PERM_" + permission.getName();
-        String expression = String.format("hasAuthority('%s')", permission.getName());
+        String expression = SpelLiteral.hasAuthority(permission.getName());
 
         PolicyDto policyDto = PolicyDto.builder()
                 .name(policyName)
@@ -284,7 +285,7 @@ public class DefaultPolicyService implements PolicyService {
                 .map(PolicyCondition::getExpression)
                 .forEach(spel -> {
                     Matcher matcher = AUTHORITY_PATTERN.matcher(spel);
-                    while (matcher.find()) permNames.add(matcher.group(1));
+                    while (matcher.find()) permNames.add(SpelLiteral.unquote(matcher.group(1)));
                 });
         if (!permNames.isEmpty()) {
             permissionRepository.findAllByNameIn(permNames).forEach(perm -> {

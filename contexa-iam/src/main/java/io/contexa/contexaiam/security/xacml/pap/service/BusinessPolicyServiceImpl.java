@@ -36,6 +36,7 @@ import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictAnalyzer;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictException;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyConflictDto;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionValidator;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.SpelLiteral;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.UnsafePolicyExpressionException;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexacommon.entity.ManagedResource;
@@ -60,6 +61,10 @@ import java.util.stream.Collectors;
 @Slf4j
 @Transactional(transactionManager = "contexaTransactionManager")
 public class BusinessPolicyServiceImpl implements BusinessPolicyService {
+
+    private static final Pattern HAS_AUTHORITY = Pattern.compile("hasAuthority\\(" + SpelLiteral.PATTERN + "\\)");
+    private static final Pattern AI_HAS_ACTION = Pattern.compile("#ai\\.hasAction\\(" + SpelLiteral.PATTERN + "\\)");
+    private static final Pattern LITERAL = Pattern.compile(SpelLiteral.PATTERN);
 
     private final PolicyRepository policyRepository;
     private final RoleService roleService;
@@ -294,7 +299,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         List<Role> roles = roleIds.isEmpty() ? Collections.emptyList() : roleRepository.findAllById(roleIds);
         String roleCondition = roles.stream()
                 .map(Role::getRoleName)
-                .map(name -> String.format("hasAuthority('%s')", name))
+                .map(SpelLiteral::hasAuthority)
                 .collect(Collectors.joining(" or "));
         if (StringUtils.hasText(roleCondition)) {
             allConditions.add("(" + roleCondition + ")");
@@ -304,7 +309,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         Set<String> crudPerms = dto.getCrudPermissions() != null ? dto.getCrudPermissions() : Collections.emptySet();
         if (!crudPerms.isEmpty()) {
             String crudCondition = crudPerms.stream()
-                    .map(name -> String.format("hasAuthority('%s')", name))
+                    .map(SpelLiteral::hasAuthority)
                     .collect(Collectors.joining(" or "));
             allConditions.add("(" + crudCondition + ")");
         }
@@ -318,7 +323,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
             if (!manualPerms.isEmpty()) {
                 String manualCondition = manualPerms.stream()
                         .map(Permission::getName)
-                        .map(name -> String.format("hasAuthority('%s')", name))
+                        .map(SpelLiteral::hasAuthority)
                         .collect(Collectors.joining(" or "));
                 allConditions.add("(" + manualCondition + ")");
             }
@@ -333,12 +338,12 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
                     case "BLOCK" -> "#ai.isBlocked()";
                     case "CHALLENGE" -> "#ai.needsChallenge()";
                     case "ESCALATE" -> "#ai.needsEscalation()";
-                    default -> "#ai.hasAction('" + action + "')";
+                    default -> "#ai.hasAction(" + SpelLiteral.quote(action) + ")";
                 };
                 allConditions.add(expr);
             } else {
                 String actionList = actions.stream()
-                        .map(a -> "'" + a.toUpperCase(Locale.ROOT) + "'")
+                        .map(a -> SpelLiteral.quote(a.toUpperCase(Locale.ROOT)))
                         .collect(Collectors.joining(","));
                 allConditions.add("#ai.hasActionIn(" + actionList + ")");
             }
@@ -350,7 +355,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
             dto.getConditions().forEach((templateId, params) -> {
                 ConditionTemplate template = conditionTemplateRepository.findById(templateId)
                         .orElseThrow(() -> new IllegalArgumentException(i18n("msg.policy.condition.not.found", templateId)));
-                Object[] quotedParams = params.stream().map(p -> "'" + p + "'").toArray();
+                Object[] quotedParams = params.stream().map(SpelLiteral::quote).toArray();
                 allConditions.add(String.format(template.getSpelTemplate(), quotedParams));
             });
         }
@@ -439,11 +444,10 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
     private Set<String> extractRoleNamesFromSpel(String spelExpression) {
         Set<String> roleNames = new HashSet<>();
 
-        Pattern pattern = Pattern.compile("hasAuthority\\('([^']+)'\\)");
-        Matcher matcher = pattern.matcher(spelExpression);
+        Matcher matcher = HAS_AUTHORITY.matcher(spelExpression);
 
         while (matcher.find()) {
-            String name = matcher.group(1);
+            String name = SpelLiteral.unquote(matcher.group(1));
             if (!isPermissionName(name)) {
                 roleNames.add(name);
             }
@@ -511,18 +515,18 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
             return;
         }
 
-        Matcher singleMatcher = Pattern.compile("#ai\\.hasAction\\('([^']+)'\\)").matcher(expression);
+        Matcher singleMatcher = AI_HAS_ACTION.matcher(expression);
         if (singleMatcher.find()) {
             dto.setAiActionEnabled(true);
-            dto.setAllowedActions(List.of(singleMatcher.group(1).toUpperCase(Locale.ROOT)));
+            dto.setAllowedActions(List.of(SpelLiteral.unquote(singleMatcher.group(1)).toUpperCase(Locale.ROOT)));
         }
     }
 
     private List<String> extractActionValues(String actionsStr) {
-        Matcher valueMatcher = Pattern.compile("'([^']+)'").matcher(actionsStr);
+        Matcher valueMatcher = LITERAL.matcher(actionsStr);
         List<String> actions = new ArrayList<>();
         while (valueMatcher.find()) {
-            actions.add(valueMatcher.group(1).toUpperCase(Locale.ROOT));
+            actions.add(SpelLiteral.unquote(valueMatcher.group(1)).toUpperCase(Locale.ROOT));
         }
         return actions;
     }
@@ -530,15 +534,15 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
     private void extractCustomSpelCondition(String expression, BusinessPolicyDto dto) {
         String cleaned = expression;
 
-        cleaned = cleaned.replaceAll("\\(hasAuthority\\('[^']++'\\)( or )?\\)+", "");
-        cleaned = cleaned.replaceAll("hasAuthority\\('[^']++'\\)( or )?", "");
+        cleaned = cleaned.replaceAll("\\(hasAuthority\\(" + SpelLiteral.PATTERN + "\\)( or )?\\)+", "");
+        cleaned = cleaned.replaceAll("hasAuthority\\(" + SpelLiteral.PATTERN + "\\)( or )?", "");
 
         cleaned = cleaned.replaceAll("#ai\\.isAllowed\\(\\)", "");
         cleaned = cleaned.replaceAll("#ai\\.isBlocked\\(\\)", "");
         cleaned = cleaned.replaceAll("#ai\\.needsChallenge\\(\\)", "");
         cleaned = cleaned.replaceAll("#ai\\.needsEscalation\\(\\)", "");
         cleaned = cleaned.replaceAll("#ai\\.isPendingAnalysis\\(\\)", "");
-        cleaned = cleaned.replaceAll("#ai\\.hasAction\\('[^']*'\\)", "");
+        cleaned = cleaned.replaceAll("#ai\\.hasAction\\(" + SpelLiteral.PATTERN + "\\)", "");
         cleaned = cleaned.replaceAll("#ai\\.hasActionIn\\([^)]*\\)", "");
         cleaned = cleaned.replaceAll("#ai\\.hasActionOrDefault\\([^)]*\\)", "");
 

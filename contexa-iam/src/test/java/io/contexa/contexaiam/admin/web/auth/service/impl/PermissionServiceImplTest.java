@@ -20,6 +20,7 @@ import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
+import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.testsupport.I18nTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -55,8 +56,22 @@ class PermissionServiceImplTest {
     @Spy
     private MessageSource messageSource = I18nTestSupport.englishMessageSource();
 
+    @Mock
+    private PolicyRepository policyRepository;
+
     @InjectMocks
     private PermissionServiceImpl service;
+
+    @Test
+    @DisplayName("the policies of a permission with a quote are looked for as its literal in a condition writes the name")
+    void thePoliciesOfAPermissionWithAQuoteAreLookedForAsWritten() {
+        when(permissionRepository.findById(1L)).thenReturn(Optional.of(buildPermission(1L, "URL_O'Neil")));
+        when(policyRepository.findActivePoliciesReferencingExpression(any())).thenReturn(List.of());
+
+        service.getAffectedPolicies(1L);
+
+        verify(policyRepository).findActivePoliciesReferencingExpression("URL_O''Neil");
+    }
 
     // ===== Helper methods =====
 
