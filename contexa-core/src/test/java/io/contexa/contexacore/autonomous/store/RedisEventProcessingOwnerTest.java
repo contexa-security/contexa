@@ -131,6 +131,16 @@ class RedisEventProcessingOwnerTest {
         assertThat(first.claimEventProcessingLease(EVENT).claim()).isEqualTo(EventProcessingClaim.IN_FLIGHT);
     }
 
+    /** A sign of life lost to a Redis that lost its keys: the process still holds what it analyses. */
+    @Test
+    void itsOwnClaimStaysItsOwnWhenItsSignOfLifeIsMissing() {
+        RedisSecurityContextDataStore first = process();
+        String[] parts = first.claimEventProcessingLease(EVENT).ownerToken().split(":");
+        redis.delete(ZeroTrustRedisKeys.processAlive(parts[2]));
+
+        assertThat(first.claimEventProcessingLease(EVENT).claim()).isEqualTo(EventProcessingClaim.IN_FLIGHT);
+    }
+
     /** Same host name, same PID: {@code docker restart} of a container. Both stores here are that. */
     @Test
     void theProcessThatCameBackAsTheSamePidOnTheSameHostTakesTheEvent() {

@@ -123,6 +123,16 @@ class ContexaDecidedRecordWiringTest {
                         DecidedRecordAcknowledger.class))).isEqualTo(Duration.ofSeconds(25)));
     }
 
+    /** The standalone mode has no broker: nothing is held, and nothing but the collector in memory is there. */
+    @Test
+    void theStandaloneModeHasNoneOfIt() {
+        new ApplicationContextRunner()
+                .withUserConfiguration(ContexaSide.class, KafkaConfiguration.class)
+                .withConfiguration(AutoConfigurations.of(CoreAutonomousEventAutoConfiguration.KafkaEventConfiguration.class))
+                .run(context -> assertThat(context).doesNotHaveBean("contexaDecidedRecordAcknowledger")
+                        .doesNotHaveBean(KafkaSecurityEventCollector.class));
+    }
+
     private static Object limit(DecidedRecordAcknowledger acknowledger) {
         return ReflectionTestUtils.getField(acknowledger, "decisionLimit");
     }
