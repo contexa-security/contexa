@@ -15,7 +15,9 @@
  */
 package io.contexa.contexaidentity.security.handler;
 
+import java.lang.reflect.Field;
 import java.time.Instant;
+import java.util.Arrays;
 import io.contexa.contexacommon.security.context.RequestSecurityContextAttributes;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.properties.MfaSettings;
@@ -30,11 +32,16 @@ import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegra
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import io.contexa.contexaidentity.security.zerotrust.ZeroTrustAccessControlFilter;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.CredentialsExpiredException;
@@ -71,9 +78,6 @@ class UnifiedAuthenticationFailureHandlerTest {
     private IBlockedUserRecorder blockedUserRecorder;
 
     @Mock
-    private LoginPolicyHandler loginPolicyHandler;
-
-    @Mock
     private SecurityContextDataStore securityContextDataStore;
 
     private UnifiedAuthenticationFailureHandler handler;
@@ -88,7 +92,6 @@ class UnifiedAuthenticationFailureHandlerTest {
                 mfaSettings,
                 blockedUserRecorder,
                 null,
-                loginPolicyHandler,
                 securityContextDataStore
         );
     }
@@ -127,6 +130,43 @@ class UnifiedAuthenticationFailureHandlerTest {
         verify(actionRepository, never()).incrementBlockMfaFailCount("console::rcboss");
     }
 
+    /**
+     * The MFA session ended, by its time or a restart, and the code is submitted after it: that is no guess at a password,
+     * and counting it would lock the user who only came back late. It is answered and audited, and counts against no
+     * account.
+     */
+    @Test
+    void anMfaSubmissionWhoseSessionIsGoneCountsAgainstNoAccount() throws Exception {
+        Logger logger = (Logger) LoggerFactory.getLogger(UnifiedAuthenticationFailureHandler.class);
+        ListAppender<ILoggingEvent> lines = new ListAppender<>();
+        lines.start();
+        logger.addAppender(lines);
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/login/mfa-ott");
+        request.setParameter("username", "alice");
+        request.setParameter("token", "123456");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        when(stateMachineIntegrator.loadFactorContextFromRequest(request)).thenReturn(null);
+        try {
+            handler.onAuthenticationFailure(request, response, new BadCredentialsException("Invalid token"));
+        } finally {
+            logger.detachAppender(lines);
+        }
+
+        assertThat(response.getRedirectedUrl()).isEqualTo("/login?error=primary_auth_failed");
+        assertThat(lines.list).noneMatch(line -> line.getLevel() == Level.ERROR);
+        theHandlerCountsNoAccountFailure();
+    }
+
+    /** The account's failures are the failure event's to count: the handler has no way to count one. */
+    @Test
+    void theHandlerCountsNoAccountFailure() {
+        assertThat(Arrays.stream(UnifiedAuthenticationFailureHandler.class.getDeclaredFields()).map(Field::getType))
+                .doesNotContain(LoginPolicyHandler.class);
+        assertThat(Arrays.stream(UnifiedAuthenticationFailureHandler.class.getConstructors())
+                .flatMap(constructor -> Arrays.stream(constructor.getParameterTypes())))
+                .doesNotContain(LoginPolicyHandler.class);
+    }
+
     @Test
     void primaryAuthenticationFailureRecordsAuthenticationContext() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/login");
@@ -138,7 +178,6 @@ class UnifiedAuthenticationFailureHandlerTest {
         handler.onAuthenticationFailure(request, response, new BadCredentialsException("bad credentials"));
 
         verify(securityContextDataStore).recordLoginFailure(eq("admin"), isNull(), anyLong());
-        verify(loginPolicyHandler).onLoginFailure("admin");
         assertThat(response.getRedirectedUrl()).isEqualTo("/login?error=primary_auth_failed");
     }
 
@@ -166,7 +205,6 @@ class UnifiedAuthenticationFailureHandlerTest {
         handler.onAuthenticationFailure(request, response, new BadCredentialsException("bad credentials"));
 
         verify(securityContextDataStore, never()).recordLoginFailure(eq("UnknownUser"), isNull(), anyLong());
-        verify(loginPolicyHandler, never()).onLoginFailure("UnknownUser");
         assertThat(response.getRedirectedUrl()).isEqualTo("/login?error=primary_auth_failed");
     }
 }
