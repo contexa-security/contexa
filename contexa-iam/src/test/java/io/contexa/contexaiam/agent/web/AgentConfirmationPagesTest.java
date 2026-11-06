@@ -279,6 +279,102 @@ class AgentConfirmationPagesTest {
                 .isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
+    /**
+     * The mail of an agent's own ask links as the mail of a request the gate stopped does: the configured address and
+     * the application's path, whatever host the agent sent.
+     */
+    @Test
+    void theMailOfAnAgentsAskLinksToTheConfiguredAddressWhateverHostTheAgentSent() {
+        List<AgentNotice> mailed = new ArrayList<>();
+        AgentConfirmationApiController api = new AgentConfirmationApiController(mailing(mailed));
+        api.setLinkBaseUrl(" https://app.test/ ");
+
+        String id = askFromAnotherHost(api);
+
+        assertThat(mailed).singleElement().satisfies(notice -> assertThat(notice.link())
+                .isEqualTo("https://app.test/ctx/contexa/agent-confirmations/" + id));
+    }
+
+    /** With no address configured the link stays a path: the agent chooses its host header, and a person gets it. */
+    @Test
+    void withoutAConfiguredAddressTheMailNeverTakesTheHostTheAgentSent() {
+        List<AgentNotice> mailed = new ArrayList<>();
+
+        String id = askFromAnotherHost(new AgentConfirmationApiController(mailing(mailed)));
+
+        assertThat(mailed).singleElement().satisfies(notice -> assertThat(notice.link())
+                .isEqualTo("/ctx/contexa/agent-confirmations/" + id));
+    }
+
+    /**
+     * A method is one a request can carry and a target fits where it is kept: an ask past either is refused, so what
+     * the person approves is what was asked, in full, whichever store keeps it.
+     */
+    @Test
+    void anAskNamesAStandardMethodAndATargetThatFitsWhereItIsKept() {
+        AgentConfirmationApiController api = new AgentConfirmationApiController(service);
+        TestingAuthenticationToken token = new TestingAuthenticationToken("alice", null);
+        MockHttpServletRequest fromAgent = agentRequest("alice", "report-agent");
+
+        for (String refused : List.of("PROPFIND", "CONNECT", "FETCH-EVERYTHING-NOW", "GET /x", "POST\r\nX: y")) {
+            assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk(refused, "/api/exports", null, null),
+                    token, fromAgent).getStatusCode()).as(refused).isEqualTo(HttpStatus.BAD_REQUEST);
+        }
+        assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", "/" + "a".repeat(2048), null,
+                null), token, fromAgent).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(store.forRecipient("alice", 10)).isEmpty();
+
+        List<String> accepted = List.of("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "TRACE");
+        for (String method : accepted) {
+            assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk(" " + method.toLowerCase(Locale.ROOT),
+                    "/api/exports", null, null), token, fromAgent).getStatusCode()).as(method)
+                    .isEqualTo(HttpStatus.ACCEPTED);
+        }
+        assertThat(store.forRecipient("alice", 10)).extracting(AgentConfirmation::method)
+                .containsExactlyInAnyOrderElementsOf(accepted);
+        String longest = "/" + "a".repeat(2047);
+        AgentConfirmationApiController.ConfirmationStatus fits = (AgentConfirmationApiController.ConfirmationStatus)
+                api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", longest, null, null), token,
+                        fromAgent).getBody();
+        assertThat(store.find(fits.confirmationId())).map(AgentConfirmation::target).contains(longest);
+    }
+
+    /** A person approves what will run: the path the application serves stands beside what the agent sent. */
+    @Test
+    void aPersonSeesThePathTheApplicationServesBesideWhatTheAgentSent() {
+        AgentConfirmation disguised = service.request(new AgentConfirmationService.ConfirmationRequest(AGENT, "hash-1",
+                "POST", "/api/%65xport/x?format=%7A", AgentConfirmation.DECISION_CHALLENGE, null, "req-1", null))
+                .orElseThrow();
+        TestingAuthenticationToken alice = new TestingAuthenticationToken("alice", null);
+        ExtendedModelMap model = new ExtendedModelMap();
+        pages.confirmation(disguised.confirmationId(), alice, new MockHttpServletRequest(), model);
+
+        assertThat(render("contexa/agent-confirmation", Locale.KOREAN, model))
+                .contains("POST /api/%65xport/x?format=%7A", "routedPath", ">/api/export/x<", "앱이 실제로 처리하는 경로");
+        assertThat(render("contexa/agent-confirmation", Locale.ENGLISH, model))
+                .contains("POST /api/%65xport/x?format=%7A", ">/api/export/x<", "The application serves it as");
+        ExtendedModelMap list = new ExtendedModelMap();
+        pages.list(alice, new MockHttpServletRequest(), list);
+        assertThat(render("contexa/agent-confirmations", Locale.ENGLISH, list))
+                .contains("POST /api/%65xport/x?format=%7A", "/api/export/x");
+    }
+
+    @Test
+    void aTargetThatMeansWhatItSaysShowsOneRequestAndMarkupInAPathStaysText() {
+        TestingAuthenticationToken alice = new TestingAuthenticationToken("alice", null);
+        ExtendedModelMap plain = new ExtendedModelMap();
+        pages.confirmation(ask().confirmationId(), alice, new MockHttpServletRequest(), plain);
+        assertThat(render("contexa/agent-confirmation", Locale.ENGLISH, plain)).doesNotContain("routedPath");
+
+        AgentConfirmation marked = service.request(new AgentConfirmationService.ConfirmationRequest(AGENT, "hash-2",
+                "POST", "/api/%3Cscript%3Ealert(1)%3C%2Fscript%3E", AgentConfirmation.DECISION_CHALLENGE, null, "req-1",
+                null)).orElseThrow();
+        ExtendedModelMap model = new ExtendedModelMap();
+        pages.confirmation(marked.confirmationId(), alice, new MockHttpServletRequest(), model);
+        assertThat(render("contexa/agent-confirmation", Locale.ENGLISH, model)).contains("&lt;script&gt;")
+                .doesNotContain("<script>alert");
+    }
+
     /** docs/agent F-2: the agent's own ask is bound in the request's tenant, as the gate binds the request. */
     @Test
     void anAgentsAskIsBoundInTheRequestsTenant() {
@@ -363,6 +459,26 @@ class AgentConfirmationPagesTest {
             assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", "/api/export/" + target,
                     null, null), token, fromAgent).getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
         }
+    }
+
+    private AgentConfirmationService mailing(List<AgentNotice> mailed) {
+        return new AgentConfirmationService(store, new SignedAgentConfirmationAuthorizer(HmacEvidenceSigner.of(
+                Map.of("k1", Base64.getEncoder().encodeToString("0123456789abcdef0123456789abcdef".getBytes())), "k1")),
+                new AgentNotices(new InMemoryAgentNoticeStore(), notice -> {
+                    mailed.add(notice);
+                    return "MAIL";
+                }), null, null, Duration.ofMinutes(15), null);
+    }
+
+    /** An ask that came to the application under a context path, from an agent that sent a host of its own. */
+    private static String askFromAnotherHost(AgentConfirmationApiController api) {
+        MockHttpServletRequest fromAgent = agentRequest("alice", "report-agent");
+        fromAgent.setContextPath("/ctx");
+        fromAgent.setServerName("attacker.test");
+        fromAgent.addHeader("Host", "attacker.test");
+        return ((AgentConfirmationApiController.ConfirmationStatus) api.ask(
+                new AgentConfirmationApiController.ConfirmationAsk("POST", "/api/exports", null, null),
+                new TestingAuthenticationToken("alice", null), fromAgent).getBody()).confirmationId();
     }
 
     private AgentConfirmation ask() {

@@ -352,7 +352,9 @@ public class SecurityZeroTrustProperties {
 
         /**
          * docs/agent A5-2: the absolute address the confirmation link in a notice starts with (for example
-         * {@code https://app.example.com}); empty takes the address of the agent's request.
+         * {@code https://app.example.com}), for a request Contexa stopped and an agent's own ask alike. Empty leaves the
+         * link the application's path only: the address of the agent's request is the agent's to choose, and the link
+         * goes to a person, so a mail needs this set to open.
          */
         private String confirmationLinkBaseUrl;
 

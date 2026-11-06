@@ -15,11 +15,16 @@
  */
 package io.contexa.contexacore.autonomous.agent;
 
+import io.contexa.contexacommon.security.RequestPaths;
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import org.springframework.lang.Nullable;
+import org.springframework.web.util.UriUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * A request of an agent waiting for, or given, the confirmation of the person accountable for it (docs/agent A5-2):
@@ -64,6 +69,13 @@ public record AgentConfirmation(String confirmationId, @Nullable String tenantId
     public static final String DELEGATION_ENDED = "DELEGATION_ENDED";
     /** The agent asked for it itself, for a request a policy lets through only once confirmed. */
     public static final String REQUESTED = "REQUESTED";
+    /** The longest target a confirmation keeps, its stored column's size; an agent's ask past it is refused. */
+    public static final int MAX_TARGET_LENGTH = 2048;
+    static final int MAX_METHOD_LENGTH = 16;
+    static final int MAX_CORRELATION_ID_LENGTH = 160;
+
+    /** What a person could not see in a path, or what would break its line or turn it around: shown escaped. */
+    private static final Pattern NOT_SHOWN = Pattern.compile("[\\p{C}\\p{Z}]");
 
     /** Where a confirmation stands. */
     public enum Status {
@@ -86,10 +98,45 @@ public record AgentConfirmation(String confirmationId, @Nullable String tenantId
         }
     }
 
+    /**
+     * A value past what its stored column holds is cut here, so every store keeps, and every reader shows, the same
+     * confirmation. The request stays bound by its own hash.
+     */
+    public AgentConfirmation {
+        method = cut(method, MAX_METHOD_LENGTH);
+        target = cut(target, MAX_TARGET_LENGTH);
+        correlationId = cut(correlationId, MAX_CORRELATION_ID_LENGTH);
+    }
+
     /** The key the decisions of the subject are kept under: the agent's own for a delegated agent. */
     public String subjectKey() {
         return "DELEGATED_AGENT".equals(subjectKind) ? LearningSubject.agentKey(userId, agentId)
                 : ZeroTrustUserKey.person(userId);
+    }
+
+    /**
+     * The path the application serves the request by, when it is not the path the target spells: a person reads
+     * {@code /api/%65xport}, the application serves {@code /api/export} ({@link RequestPaths#routed}). It is read from
+     * the target each time and is the path only, so no value of the query is kept, or shown, a second time. The agent
+     * writes this path, so what is decoded never reads as more than a path: a character that cannot be seen, breaks the
+     * line or turns the text around, a space included, stays escaped.
+     *
+     * @return the routed path, or null when it reads as the target's own path or no router can read it
+     */
+    @Nullable
+    public String routedPath() {
+        if (target == null) {
+            return null;
+        }
+        int query = target.indexOf('?');
+        String path = query < 0 ? target : target.substring(0, query);
+        String routed = RequestPaths.routed(path);
+        if (routed == null) {
+            return null;
+        }
+        String shown = NOT_SHOWN.matcher(routed).replaceAll(character -> Matcher.quoteReplacement(
+                UriUtils.encode(character.group(), StandardCharsets.UTF_8)));
+        return shown.equals(path) ? null : shown;
     }
 
     /** The confirmation decided. */
@@ -98,6 +145,11 @@ public record AgentConfirmation(String confirmationId, @Nullable String tenantId
         return new AgentConfirmation(confirmationId, tenantId, subjectKind, userId, agentId, delegationId,
                 recipientId, requestHash, method, target, trigger, reason, correlationId, decision, createdAt, until,
                 at, by, note, authorization, usedAt);
+    }
+
+    @Nullable
+    private static String cut(@Nullable String value, int length) {
+        return value != null && value.length() > length ? value.substring(0, length) : value;
     }
 
     /** The confirmation with another status, the rest kept. */

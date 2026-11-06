@@ -57,8 +57,8 @@ public class JdbcAgentConfirmationStore implements AgentConfirmationStore {
                 confirmation.confirmationId(), AgentRegistrations.tenantKey(confirmation.tenantId()),
                 confirmation.subjectKind(), confirmation.userId(), confirmation.agentId(), confirmation.subjectKey(),
                 confirmation.delegationId(), confirmation.recipientId(), confirmation.requestHash(),
-                truncate(confirmation.method(), 16), truncate(confirmation.target(), 2048), confirmation.trigger(),
-                confirmation.reason(), truncate(confirmation.correlationId(), 160), confirmation.status().name(),
+                confirmation.method(), confirmation.target(), confirmation.trigger(),
+                confirmation.reason(), confirmation.correlationId(), confirmation.status().name(),
                 timestamp(confirmation.createdAt()), timestamp(confirmation.expiresAt()),
                 timestamp(confirmation.decidedAt()), confirmation.decidedBy(), confirmation.decisionNote(),
                 confirmation.authorizationId(), timestamp(confirmation.usedAt()));
@@ -142,11 +142,6 @@ public class JdbcAgentConfirmationStore implements AgentConfirmationStore {
                 instant(row.getTimestamp("decided_at")), row.getString("decided_by"),
                 row.getString("decision_note"), row.getString("authorization_id"),
                 instant(row.getTimestamp("used_at")));
-    }
-
-    @Nullable
-    private static String truncate(@Nullable String value, int length) {
-        return value != null && value.length() > length ? value.substring(0, length) : value;
     }
 
     @Nullable

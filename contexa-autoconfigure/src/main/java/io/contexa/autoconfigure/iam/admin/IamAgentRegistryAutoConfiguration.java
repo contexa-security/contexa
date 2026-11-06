@@ -507,10 +507,14 @@ public class IamAgentRegistryAutoConfiguration {
     @Bean(name = "contexaAgentConfirmationApiController")
     @ConditionalOnMissingBean
     public AgentConfirmationApiController agentConfirmationApiController(
-            AgentConfirmationService contexaAgentConfirmationService, ObjectProvider<AgentCallGuard> agentCallGuard) {
+            AgentConfirmationService contexaAgentConfirmationService, ObjectProvider<AgentCallGuard> agentCallGuard,
+            ObjectProvider<SecurityZeroTrustProperties> properties) {
         AgentConfirmationApiController controller = new AgentConfirmationApiController(contexaAgentConfirmationService);
         // docs/agent A5-7: an agent's asks count against its call limits, as its other calls do at the gate.
         controller.setCallGuard(agentCallGuard.getIfAvailable());
+        // docs/agent A5-2: the mail of an agent's own ask links where the gate's mails link.
+        controller.setLinkBaseUrl(properties.getIfAvailable(SecurityZeroTrustProperties::new).getAgent()
+                .getConfirmationLinkBaseUrl());
         return controller;
     }
 }

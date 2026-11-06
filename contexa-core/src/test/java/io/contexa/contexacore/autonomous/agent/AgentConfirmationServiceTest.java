@@ -111,6 +111,54 @@ class AgentConfirmationServiceTest {
                 .doesNotContain("Written by the agent");
     }
 
+    /**
+     * The person is told what the application will serve, beside what the agent sent; the query is not said twice. A
+     * target that means what it says stays one request.
+     */
+    @Test
+    void theNoticeSaysThePathTheApplicationServesWhenTheAgentSpelledAnother() {
+        service.request(new AgentConfirmationService.ConfirmationRequest(ALICE_AGENT, "hash-1", "POST",
+                "/api/%65xport/x?token=%73ecret", AgentConfirmation.DECISION_CHALLENGE, null, "req-1", null));
+        service.request(new AgentConfirmationService.ConfirmationRequest(ALICE_AGENT, "hash-2", "POST",
+                "/api/export/x?token=%73ecret", AgentConfirmation.DECISION_CHALLENGE, null, "req-1", null));
+
+        assertThat(delivered.get(0).message()).contains("POST /api/%65xport/x?token=%73ecret",
+                "the application serves this as /api/export/x)").doesNotContain("token=secret");
+        assertThat(delivered.get(0).message().split("token=", -1)).hasSize(2);
+        assertThat(delivered.get(1).message()).contains("POST /api/export/x?token=%73ecret")
+                .doesNotContain("the application serves");
+
+        clock.advance(Duration.ofMinutes(16));
+        service.expireOverdue();
+        assertThat(delivered).filteredOn(notice -> notice.kind().equals(AgentNotice.CONFIRMATION_EXPIRED))
+                .anySatisfy(notice -> assertThat(notice.message()).contains("POST /api/%65xport/x?token=%73ecret",
+                        "the application serves this as /api/export/x)"));
+    }
+
+    /**
+     * The path is the agent's to write, so what is decoded to show it never reaches the person as more than a path:
+     * what cannot be seen, breaks the line or turns the text around stays escaped, and so does a space.
+     */
+    @Test
+    void theRoutedPathIsReadFromThePathOnlyAndSaysNothingBeyondIt() {
+        assertThat(routed("/api/%65xport/x")).isEqualTo("/api/export/x");
+        assertThat(routed("/api/export;v=1/x?y=1")).isEqualTo("/api/export/x");
+        assertThat(routed("/api/export/x")).isNull();
+        assertThat(routed("/api/export/x?y=%65")).isNull();
+        assertThat(routed("/api/%zz")).as("no router reads it").isNull();
+        assertThat(routed("/api/a%20b")).as("spelled the same once shown").isNull();
+        assertThat(routed("/api/%65x%0D%0A%0AApproved%20by%20Contexa"))
+                .isEqualTo("/api/ex%0D%0A%0AApproved%20by%20Contexa");
+        assertThat(routed("/api/%65x%E2%80%AEfdp")).isEqualTo("/api/ex%E2%80%AEfdp");
+        assertThat(routed("/api/%65x%C2%A0%E2%80%A8y")).isEqualTo("/api/ex%C2%A0%E2%80%A8y");
+    }
+
+    private static String routed(String target) {
+        return new AgentConfirmation("c-1", null, "DELEGATED_AGENT", "alice", "report-agent", null, "alice", "hash-1",
+                "GET", target, AgentConfirmation.REQUESTED, null, null, AgentConfirmation.Status.PENDING, NOW, NOW,
+                null, null, null, null, null).routedPath();
+    }
+
     @Test
     void anAgentOnItsOwnWaitsForItsSponsorAndWithoutOneItsRequestIsRefused() {
         ZeroTrustSubject syncAgent = new ZeroTrustSubject(null, "sync-client", SubjectKind.AUTONOMOUS_AGENT,

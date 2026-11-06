@@ -82,6 +82,18 @@ public class AgentConfirmationService {
         this.containment = containment;
     }
 
+    /**
+     * Where a confirmation link starts: the configured address, else the application's path only. The address of the
+     * agent's own request is never used, since the agent chooses its host header and the link goes to a person.
+     *
+     * @param configured  the configured address ({@code confirmation-link-base-url}), or null
+     * @param contextPath the application's context path
+     */
+    public static String linkBase(@Nullable String configured, @Nullable String contextPath) {
+        String base = StringUtils.hasText(configured) ? configured.trim().replaceAll("/+$", "") : "";
+        return base + (contextPath != null ? contextPath : "");
+    }
+
     /** How long a confirmation waits, and how long an approval may be used. */
     public Duration timeout() {
         return timeout;
@@ -120,12 +132,12 @@ public class AgentConfirmationService {
         AgentConfirmation confirmation = store.save(new AgentConfirmation(UUID.randomUUID().toString(),
                 subject.tenantId(), subject.kind().name(), subject.userId(), subject.agentId(),
                 subject.delegationId(), recipient, request.requestHash(), request.method(),
-                truncate(request.target(), 2048), request.trigger(), request.reason(), request.correlationId(),
+                request.target(), request.trigger(), request.reason(), request.correlationId(),
                 AgentConfirmation.Status.PENDING, now, now.plus(timeout), null, null, null, null, null));
         notify(confirmation, AgentNotice.CONFIRMATION_REQUESTED,
                 "The agent " + confirmation.agentId() + " asks you to confirm a request",
                 "The agent " + confirmation.agentId() + " is waiting for your confirmation before it runs "
-                        + confirmation.method() + " " + confirmation.target() + reasonText(confirmation)
+                        + asked(confirmation) + reasonText(confirmation)
                         + ". Approve, refuse or report it before " + confirmation.expiresAt()
                         + "; without an answer it is refused." + agentWords(confirmation),
                 link(request.linkBase(), PAGE_PATH + confirmation.confirmationId()));
@@ -310,8 +322,8 @@ public class AgentConfirmationService {
         if (undecided) {
             notify(expired, AgentNotice.CONFIRMATION_EXPIRED,
                     "A request of the agent " + expired.agentId() + " was refused without your answer",
-                    "The agent " + expired.agentId() + " waited for your confirmation of " + expired.method() + " "
-                            + expired.target() + " until " + expired.expiresAt() + ". It was not confirmed in time, "
+                    "The agent " + expired.agentId() + " waited for your confirmation of " + asked(expired)
+                            + " until " + expired.expiresAt() + ". It was not confirmed in time, "
                             + "so the request was refused.", null);
         }
         return expired;
@@ -418,6 +430,16 @@ public class AgentConfirmationService {
 
     private static String link(@Nullable String base, String path) {
         return StringUtils.hasText(base) ? base.replaceAll("/+$", "") + path : path;
+    }
+
+    /**
+     * The request as the person is told it: what the agent sent and, when the application serves another path than the
+     * one it spells, that path ({@link AgentConfirmation#routedPath}).
+     */
+    private static String asked(AgentConfirmation confirmation) {
+        String routed = confirmation.routedPath();
+        return confirmation.method() + " " + confirmation.target()
+                + (routed != null ? " (the application serves this as " + routed + ")" : "");
     }
 
     /** The reason of a decision or of an ended delegation: Contexa's own, said in Contexa's sentence. */
