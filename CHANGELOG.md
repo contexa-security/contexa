@@ -37,6 +37,15 @@ The format is based on Keep a Changelog and the project follows semantic version
   `sessionUser`, `userSession`, `principal`, `user`, `securityUser`, `authenticatedPrincipal`), names that attribute in
   `contexa.bridge.authorization.session.attribute`. Setting `auto-discover` to `true` reads every attribute again, and the
   start says so at INFO.
+- **A first passkey is no longer registered on the strength of an MFA the application's principal only states.** Before
+  a first passkey the step-up confirms the user, with a code mailed to the address on record or the application's own MFA
+  sign-in moments before. That sign-in was read from the principal by the name of a value (`mfa`, `mfaVerified`, ...) and
+  the time of the sign-in, so where a principal always carries `mfa=true` a password alone registered a passkey, which
+  then answered CHALLENGEs. The application's sign-in now confirms the user for a passkey only when
+  `contexa.bridge.step-up.reauthentication-url` is set, as for a CHALLENGE; elsewhere the mailed code does. **Check:** an
+  application whose users registered their first passkey right after its own MFA sign-in sets
+  `contexa.bridge.step-up.reauthentication-url`; without it a user whose copy has no real address registers no passkey,
+  and the step-up page says to contact an administrator.
 - **The application's own sign-in answers a CHALLENGE only where the application named its re-authentication.** A
   completed MFA was read from the principal by the name of a value (`mfa`, `mfaVerified`, ...) and the time of the
   sign-in, so a principal that always carries `mfa=true` released a CHALLENGE with a password sign-in alone. The

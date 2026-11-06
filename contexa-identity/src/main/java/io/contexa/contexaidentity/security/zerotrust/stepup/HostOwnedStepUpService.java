@@ -80,11 +80,13 @@ import java.util.Locale;
  * The user is the bridge's copy of the application's user (matched by the application's principal name, bridge-managed
  * users only, so an application user never reaches a Contexa account of the same name). Factors: a passkey registered
  * for that copy, a one-time code when the copy has a real e-mail address and mail is configured, and a re-authentication
- * the application itself makes (its own MFA or identity provider), seen in the bridge's authentication stamp.
+ * the application itself makes (its own MFA or identity provider), seen in the bridge's authentication stamp, where the
+ * application said where it re-authenticates.
  * <p>
- * A passkey answers a CHALLENGE, so registering one is no matter for the first factor (Q-13): the session has to confirm
- * the user first, with a one-time code or the application's own MFA sign-in moments before. A code passed for a
- * verification counts, so a user who just answered a CHALLENGE is offered the passkey at once.
+ * A passkey answers a CHALLENGE, so registering one is no matter for the first factor: the session has to confirm the
+ * user first, with a one-time code, or with the application's own MFA sign-in moments before where the application
+ * said where it re-authenticates. A code passed for a verification counts, so a user who just answered a CHALLENGE is
+ * offered the passkey at once.
  * <p>
  * A console session verifies itself on the same factors, under the console's key and for Contexa's own account of
  * that name: the bridge's copies are the application's users. It enrols no passkey here, and the application's
@@ -239,9 +241,16 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
                 enrollable && userConfirmed(request, decisionKey), console ? null : reauthenticationUrl);
     }
 
-    /** Whether the session passed a one-time code in the last minutes, or the application signed in with MFA just now. */
+    /**
+     * Whether the session passed a one-time code in the last minutes, or the application signed in with MFA just now.
+     * The application's sign-in counts only where the application said where it re-authenticates
+     * ({@code contexa.bridge.step-up.reauthentication-url}): elsewhere a completed MFA is read from values of the
+     * principal Contexa cannot vouch for, such as a flag that MFA is switched on and the time of the last sign-in,
+     * which a password alone renews.
+     */
     private boolean userConfirmed(HttpServletRequest request, String decisionKey) {
-        if (request.getAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP) instanceof AuthenticationStamp stamp
+        if (reauthenticationUrl != null
+                && request.getAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP) instanceof AuthenticationStamp stamp
                 && Boolean.TRUE.equals(stamp.mfaCompleted()) && stamp.authenticationTime() != null
                 && stamp.authenticationTime().isAfter(Instant.now().minus(RECENT_HOST_SIGN_IN))) {
             return true;
