@@ -111,6 +111,10 @@ public class BlacklistController {
             ra.addFlashAttribute("message", msg("msg.blacklist.resolved"));
         } catch (AccessDeniedException e) {
             return refused(e, ra, "redirect:/contexa/admin/blacklist/" + id);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            // The record refused it as it stands: none of that id, or lifted already.
+            ra.addFlashAttribute("errorMessage", e.getMessage());
+            return "redirect:/contexa/admin/blacklist/" + id;
         } catch (Exception e) {
             log.error("[BlacklistController] Failed to resolve block: id={}", id, e);
             ra.addFlashAttribute("errorMessage", msg("msg.blacklist.resolve.error", e.getMessage()));
@@ -126,6 +130,9 @@ public class BlacklistController {
             ra.addFlashAttribute("message", msg("msg.blacklist.deleted"));
         } catch (AccessDeniedException e) {
             return refused(e, ra, "redirect:/contexa/admin/blacklist");
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            // The record refused it as it stands: none of that id, or a block still in force.
+            ra.addFlashAttribute("errorMessage", e.getMessage());
         } catch (Exception e) {
             log.error("[BlacklistController] Failed to delete block record: id={}", id, e);
             ra.addFlashAttribute("errorMessage", msg("msg.blacklist.delete.error", e.getMessage()));

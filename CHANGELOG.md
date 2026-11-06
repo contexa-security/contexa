@@ -148,6 +148,8 @@ The format is based on Keep a Changelog and the project follows semantic version
   now reads the account. Rows an earlier version made stay in `ctxa_users`. The console's user list shows a copy of an
   application's user under the application's name for it.
 - The start names an `actions` value of `@Protectable` outside the action families; the value had no effect on the request.
+- Lifting a block record that is lifted already, or deleting one still in force, is answered with 409 by the block list's
+  API, and an id with no record with 404, instead of 500 with an ERROR stack. The console's pages say why without an ERROR.
 - **A CHALLENGE decided in the request takes the browser SDK to the step-up.** The request filters named it in `error` and a
   synchronous decision in `code`, so the SDK, which follows `error`, stayed on the page. Both answers now carry `error` and
   `code`: `error` is `MFA_CHALLENGE_REQUIRED` where a step-up can go on and `ZERO_TRUST_CHALLENGE` where none is offered, `code`

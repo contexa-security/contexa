@@ -15,6 +15,10 @@
  */
 package io.contexa.contexaiam.admin.web.auth.controller;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
 import io.contexa.contexaiam.admin.web.auth.service.UnderOwnBlockException;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
@@ -30,6 +34,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.MessageSource;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
@@ -297,6 +302,34 @@ class BlacklistControllerTest {
 
             assertThat(view).isEqualTo("redirect:/contexa/admin/blacklist/1");
             assertThat(ra.getFlashAttributes().get("errorMessage")).isEqualTo("Another administrator lifts it");
+        }
+
+        @Test
+        @DisplayName("a record already lifted, or deleted while in force, says so on the page without an ERROR")
+        void theStateOfTheRecord() {
+            Logger logger = (Logger) LoggerFactory.getLogger(BlacklistController.class);
+            ListAppender<ILoggingEvent> lines = new ListAppender<>();
+            lines.start();
+            logger.addAppender(lines);
+            try {
+                RedirectAttributes resolved = new RedirectAttributesModelMap();
+                doThrow(new IllegalStateException("Already resolved: id=1"))
+                        .when(blockedUserService).resolveBlockById(1L, "admin", "ALLOW", "again");
+                assertThat(controller.resolveBlock(1L, "ALLOW", "again", resolved))
+                        .isEqualTo("redirect:/contexa/admin/blacklist/1");
+                assertThat(resolved.getFlashAttributes().get("errorMessage")).isEqualTo("Already resolved: id=1");
+
+                RedirectAttributes active = new RedirectAttributesModelMap();
+                doThrow(new IllegalStateException("Cannot delete active block. Resolve first: id=1"))
+                        .when(blockedUserService).deleteBlockRecord(1L, "admin");
+                controller.deleteBlockRecord(1L, active);
+                assertThat(active.getFlashAttributes().get("errorMessage"))
+                        .isEqualTo("Cannot delete active block. Resolve first: id=1");
+
+                assertThat(lines.list).noneMatch(line -> line.getLevel() == Level.ERROR);
+            } finally {
+                logger.detachAppender(lines);
+            }
         }
 
         @Test

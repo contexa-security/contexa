@@ -95,6 +95,8 @@ public class BlacklistApiController {
             return ResponseEntity.ok(BlacklistActionResponse.resolved(id, request.getResolvedAction()));
         } catch (AccessDeniedException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(BlacklistActionResponse.failed(e.getMessage()));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return refusedByTheRecord(e);
         } catch (Exception e) {
             log.error("[BlacklistApi] Failed to resolve block: id={}", id, e);
             return ResponseEntity.internalServerError()
@@ -110,11 +112,22 @@ public class BlacklistApiController {
             return ResponseEntity.ok(BlacklistActionResponse.deleted(id));
         } catch (AccessDeniedException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(BlacklistActionResponse.failed(e.getMessage()));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return refusedByTheRecord(e);
         } catch (Exception e) {
             log.error("[BlacklistApi] Failed to delete block record: id={}", id, e);
             return ResponseEntity.internalServerError()
                     .body(BlacklistActionResponse.failed(e.getMessage()));
         }
+    }
+
+    /**
+     * The record refused the action as it stands: there is none of that id (404), or it is lifted already or still in
+     * force (409). That is the client's answer, not a fault of the server.
+     */
+    private static ResponseEntity<BlacklistActionResponse> refusedByTheRecord(RuntimeException refusal) {
+        HttpStatus status = refusal instanceof IllegalArgumentException ? HttpStatus.NOT_FOUND : HttpStatus.CONFLICT;
+        return ResponseEntity.status(status).body(BlacklistActionResponse.failed(refusal.getMessage()));
     }
 
     private String extractCurrentUserId() {
