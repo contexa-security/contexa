@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package io.contexa.contexaiam.admin.web.common;
+package io.contexa.contexaiam.common;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -31,6 +31,7 @@ import org.springframework.security.access.AccessDeniedException;
 
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -87,6 +88,37 @@ class ConsoleFaultTest {
         assertThat(ConsoleFault.textOf(new IllegalArgumentException())).isEqualTo(ConsoleFault.MESSAGE);
         assertThat(ConsoleFault.textOf(new IllegalStateException("  "))).isEqualTo(ConsoleFault.MESSAGE);
         assertThat(ConsoleFault.textOf(null)).isEqualTo(ConsoleFault.MESSAGE);
+    }
+
+    @Test
+    @DisplayName("the JDK's failed lookup of an enum constant names the enum's class: it is no refusal, though it is an illegal argument")
+    void anEnumLookupThatFailsIsNoRefusal() {
+        IllegalArgumentException lookup = enumLookupFailure();
+
+        assertThat(lookup.getMessage()).startsWith("No enum constant ");
+        assertThat(ConsoleFault.isRefusal(lookup)).isFalse();
+        assertThat(ConsoleFault.textOf(lookup)).isEqualTo(ConsoleFault.MESSAGE);
+        assertThat(ConsoleFault.textOf(lookup, logger, "validate a policy")).isEqualTo(ConsoleFault.MESSAGE);
+        assertThat(logged.list).hasSize(1);
+        assertThat(logged.list.get(0).getThrowableProxy().getMessage()).startsWith("No enum constant ");
+    }
+
+    @Test
+    @DisplayName("a refusal of the services that only mentions an enum lookup in its text is still a refusal")
+    void aRefusalThatMentionsAnEnumLookupIsStillARefusal() {
+        IllegalArgumentException refusal = new IllegalArgumentException("The status is not one of: A, B (No enum constant)");
+
+        assertThat(ConsoleFault.isRefusal(refusal)).isTrue();
+        assertThat(ConsoleFault.textOf(refusal)).isEqualTo(refusal.getMessage());
+    }
+
+    private static IllegalArgumentException enumLookupFailure() {
+        try {
+            TimeUnit.valueOf("BOGUS");
+        } catch (IllegalArgumentException e) {
+            return e;
+        }
+        throw new AssertionError("the JDK took BOGUS for a time unit");
     }
 
     @Test

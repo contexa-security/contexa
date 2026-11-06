@@ -110,6 +110,15 @@ The format is based on Keep a Changelog and the project follows semantic version
   instead; where a page puts the text after a sentence of its own ("Failed to delete: ..."), the sentence stays and the
   general sentence follows it.
 
+- **The policy center, the resource workbench and a value no enum has follow the same rule.** The answers of the
+  creation of a policy from the center, of a quick policy, of a batch of policies, of the migration and the cleanup of
+  policy expressions, of the rollback of a policy and of the batch definition of resources put the exception's own text
+  in the answer; they now tell an action that could not be completed unless the services refused on purpose, and the
+  exception is in the log. A filter or form value that is no constant of an enum (a status or an effect `BOGUS`) was
+  answered with the JDK's "No enum constant" and the enum's class, on the console's pages and in the 400 of its API; it
+  is now an invalid request parameter, with the 400 and the fields it had, or on the pages and answers named above an
+  action that could not be completed, and the operators read the text in the log.
+
 - **A session an older node tracked after the references were introduced is turned into its reference when the
   console reads the sessions.** The tracked sessions that a database kept under the value their cookie carries were
   moved to their references once, when the application started. In a rolling upgrade a node not yet upgraded goes on
@@ -492,6 +501,14 @@ The format is based on Keep a Changelog and the project follows semantic version
   opened a transaction of their own, the service they called joined it, and the service's exception marked it for
   rollback before the controller caught it. These methods no longer open a transaction, the services keep theirs, so
   the refusal is rolled back there and the page the person returns to says why. Nothing else of them changes.
+- **A role that accounts or groups still hold is refused with who holds it, and a group with role permissions can be
+  deleted.** Deleting a role an account holds failed in the database with a foreign key nobody can read, and deleting a
+  role a group holds took it from the group without a word. The role is now refused, before anything is changed, with
+  how many accounts and groups hold it and the order to revoke it from them first. Deleting a group failed in the
+  database when roles had been given to it in the access center with their permissions; the group's permissions now go
+  with the group, as its memberships and roles do. **Check:** a role that groups hold can no longer be deleted until it
+  is taken from them, and the refusal of the console's last administrator on deleting the administrators' role is now
+  this one.
 - **A policy form that is refused now shows the refusal.** Creating a policy without a name, editing or deleting a
   policy that is not there, and approving a policy approved already or rejecting one rejected already each answered an
   error page (`UnexpectedRollbackException`) instead of the message, for the reason the user, role, group and role

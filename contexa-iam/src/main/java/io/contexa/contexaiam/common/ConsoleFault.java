@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package io.contexa.contexaiam.admin.web.common;
+package io.contexa.contexaiam.common;
 
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictException;
 import org.slf4j.Logger;
@@ -30,7 +30,8 @@ import java.util.NoSuchElementException;
  * service with a {@link PolicyConflictException} (the policies a new one conflicts with): their text is written for the
  * administrator.
  * <p>
- * Anything else is a fault of the server. What it says of itself (a statement, a constraint, a class, a path) is the
+ * An illegal argument that the JDK throws for an enum constant that does not exist is not one of them: its text names the
+ * enum's class. Anything else is a fault of the server. What it says of itself (a statement, a constraint, a class, a path) is the
  * operators', in the log, where the exception is kept with its stack; the administrator is told that the action could
  * not be completed.
  */
@@ -39,15 +40,30 @@ public final class ConsoleFault {
     /** What an administrator is told of a fault of the server. */
     public static final String MESSAGE = "The action could not be completed. See the server log.";
 
+    /** How the JDK's {@code Enum.valueOf} begins the text of the exception for a name the enum does not have. */
+    private static final String ENUM_LOOKUP_TEXT = "No enum constant ";
+
     private ConsoleFault() {
     }
 
-    /** Whether the exception is one the console's services throw to refuse a request, with a text for the administrator. */
+    /**
+     * Whether the exception is one the console's services throw to refuse a request, with a text for the administrator.
+     * An illegal argument is one, except the one the JDK throws when an enum has no constant of a given name: its text
+     * is "No enum constant" and the enum's class and the value, written for no one.
+     */
     public static boolean isRefusal(Throwable failure) {
-        return failure instanceof IllegalArgumentException
-                || failure instanceof IllegalStateException
+        if (failure instanceof IllegalArgumentException) {
+            return !isFailedEnumLookup(failure);
+        }
+        return failure instanceof IllegalStateException
                 || failure instanceof NoSuchElementException
                 || failure instanceof PolicyConflictException;
+    }
+
+    private static boolean isFailedEnumLookup(Throwable failure) {
+        return failure.getClass() == IllegalArgumentException.class
+                && failure.getMessage() != null
+                && failure.getMessage().startsWith(ENUM_LOOKUP_TEXT);
     }
 
     /**

@@ -28,6 +28,7 @@ import io.contexa.contexaiam.admin.web.metadata.dto.ResourceAdminDtos.ResourceSe
 import io.contexa.contexaiam.admin.web.metadata.dto.ResourceAdminDtos.ResourceStatusResponse;
 import io.contexa.contexaiam.admin.web.metadata.dto.ResourceAdminDtos.ResourceWorkbenchPageModel;
 import io.contexa.contexaiam.admin.web.metadata.dto.ResourceAdminDtos.ResourceWorkbenchResourceView;
+import io.contexa.contexaiam.common.ConsoleFault;
 import io.contexa.contexaiam.domain.dto.ResourceManagementDto;
 import io.contexa.contexaiam.domain.dto.ResourceMetadataDto;
 import io.contexa.contexaiam.domain.dto.ResourceSearchCriteria;
@@ -118,7 +119,7 @@ public class ResourceAdminService {
                 ));
             } catch (Exception e) {
                 log.error("Batch define failed for resource ID: {}", resourceId, e);
-                results.add(ResourceBatchDefineResult.error(resourceId, e.getMessage()));
+                results.add(ResourceBatchDefineResult.error(resourceId, ConsoleFault.textOf(e)));
             }
         }
         return results;

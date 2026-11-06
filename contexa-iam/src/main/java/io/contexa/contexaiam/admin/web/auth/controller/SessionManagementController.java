@@ -16,9 +16,9 @@
 package io.contexa.contexaiam.admin.web.auth.controller;
 
 import io.contexa.contexaiam.admin.web.auth.service.SessionManagementService;
-import io.contexa.contexaiam.admin.web.common.ConsoleFault;
 import io.contexa.contexaiam.admin.web.common.CsvColumn;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
+import io.contexa.contexaiam.common.ConsoleFault;
 import io.contexa.contexaiam.domain.entity.ActiveSession;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;

@@ -15,7 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.auth.controller;
 
-import io.contexa.contexaiam.admin.web.common.ConsoleFault;
+import io.contexa.contexaiam.common.ConsoleFault;
 import java.util.Locale;
 import io.contexa.contexaiam.admin.web.auth.service.IpAccessRuleService;
 import io.contexa.contexaiam.admin.web.common.CsvColumn;

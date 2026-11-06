@@ -15,7 +15,7 @@
  */
 package io.contexa.contexaiam.security.xacml.pap.controller;
 
-import io.contexa.contexaiam.admin.web.common.ConsoleFault;
+import io.contexa.contexaiam.common.ConsoleFault;
 import io.contexa.contexaiam.domain.dto.ConditionDto;
 import io.contexa.contexaiam.domain.dto.PolicyDto;
 import io.contexa.contexaiam.domain.dto.RuleDto;

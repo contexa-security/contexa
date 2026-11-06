@@ -105,6 +105,9 @@ public class GroupServiceImpl extends AccountAuthoritiesService implements Group
         lastAdministratorGuard.serializeChanges();
         List<String> administrators = lastAdministratorGuard.administrators();
         authoritiesChanged();
+        // The group's memberships and roles go with it by the database's cascade; the permissions given with its roles
+        // reference it without one and go here, as the rows that reference an account go with the account.
+        groupRepository.deleteRolePermissionsOf(id);
         groupRepository.deleteById(id);
         lastAdministratorGuard.refuseLosingEveryAdministrator(administrators);
     }

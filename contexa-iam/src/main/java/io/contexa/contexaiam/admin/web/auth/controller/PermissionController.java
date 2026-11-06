@@ -17,7 +17,7 @@ package io.contexa.contexaiam.admin.web.auth.controller;
 
 import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPoliciesResponse;
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
-import io.contexa.contexaiam.admin.web.common.ConsoleFault;
+import io.contexa.contexaiam.common.ConsoleFault;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
 import io.contexa.contexaiam.domain.entity.FunctionCatalog;
 import io.contexa.contexaiam.admin.web.metadata.service.FunctionCatalogService;
