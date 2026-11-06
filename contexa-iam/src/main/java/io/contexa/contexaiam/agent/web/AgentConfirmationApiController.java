@@ -22,6 +22,7 @@ import io.contexa.contexacore.autonomous.agent.AgentConfirmation;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmationService;
 import io.contexa.contexacore.autonomous.agent.AgentRequestBinding;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpHeaders;
@@ -139,7 +140,9 @@ public class AgentConfirmationApiController {
         // An ask the person could not be shown in full, or that names no method a request carries, binds nothing.
         String method = ask.method().trim().toUpperCase(Locale.ROOT);
         String target = ask.target().trim();
-        if (!METHODS.contains(method) || target.length() > AgentConfirmation.MAX_TARGET_LENGTH) {
+        // Kept as the gate keeps what it stopped: a value that opens something is masked, and what is kept fits whole.
+        String kept = RequestFactRedaction.readableTarget(target);
+        if (!METHODS.contains(method) || kept.length() > AgentConfirmation.MAX_TARGET_LENGTH) {
             return ResponseEntity.badRequest().build();
         }
         int query = target.indexOf('?');
@@ -147,7 +150,7 @@ public class AgentConfirmationApiController {
         String hash = AgentRequestBinding.hash(subject.tenantId(), subject.userId(), subject.agentId(), method,
                 path, query < 0 ? null : target.substring(query + 1),
                 StringUtils.hasText(ask.bodySha256()) ? ask.bodySha256().trim().toLowerCase(Locale.ROOT) : null, null);
-        return confirmations.request(new AgentConfirmationService.ConfirmationRequest(subject, hash, method, target,
+        return confirmations.request(new AgentConfirmationService.ConfirmationRequest(subject, hash, method, kept,
                         AgentConfirmation.REQUESTED,
                         StringUtils.hasText(ask.reason()) ? truncate(ask.reason().trim(), 1000) : null,
                         null, AgentConfirmationService.linkBase(linkBaseUrl, request.getContextPath())))

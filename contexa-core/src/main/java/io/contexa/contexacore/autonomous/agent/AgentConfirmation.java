@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.agent;
 
 import io.contexa.contexacommon.security.RequestPaths;
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import org.springframework.lang.Nullable;
 import org.springframework.web.util.UriUtils;
@@ -136,7 +137,8 @@ public record AgentConfirmation(String confirmationId, @Nullable String tenantId
         }
         String shown = NOT_SHOWN.matcher(routed).replaceAll(character -> Matcher.quoteReplacement(
                 UriUtils.encode(character.group(), StandardCharsets.UTF_8)));
-        return shown.equals(path) ? null : shown;
+        // A secret the path hid behind an escape reads as one only once decoded.
+        return shown.equals(path) ? null : RequestFactRedaction.readableTarget(shown);
     }
 
     /** The confirmation decided. */

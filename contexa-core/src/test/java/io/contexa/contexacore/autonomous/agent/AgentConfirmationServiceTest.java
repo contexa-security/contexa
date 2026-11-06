@@ -153,6 +153,13 @@ class AgentConfirmationServiceTest {
         assertThat(routed("/api/%65x%C2%A0%E2%80%A8y")).isEqualTo("/api/ex%C2%A0%E2%80%A8y");
     }
 
+    /** A secret the path hides behind an escape reads as one once it is decoded, and the person is never shown it. */
+    @Test
+    void theRoutedPathMasksASecretTheDecodingBringsOut() {
+        assertThat(routed("/api/%65xport/%65yJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbGljZSJ9.c2lnbmF0dXJlLXZhbHVl"))
+                .isEqualTo("/api/export/[MASKED]");
+    }
+
     private static String routed(String target) {
         return new AgentConfirmation("c-1", null, "DELEGATED_AGENT", "alice", "report-agent", null, "alice", "hash-1",
                 "GET", target, AgentConfirmation.REQUESTED, null, null, AgentConfirmation.Status.PENDING, NOW, NOW,

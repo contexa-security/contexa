@@ -481,6 +481,34 @@ class AgentConfirmationPagesTest {
                 new TestingAuthenticationToken("alice", null), fromAgent).getBody()).confirmationId();
     }
 
+    /** What an agent asks for itself is kept as the gate keeps what it stopped: a value that opens something is masked. */
+    @Test
+    void anAgentsOwnAskKeepsNoSecretOfItsTarget() {
+        AgentConfirmationApiController api = new AgentConfirmationApiController(service);
+        MockHttpServletRequest fromAgent = agentRequest("alice", "report-agent");
+
+        AgentConfirmationApiController.ConfirmationStatus requested =
+                (AgentConfirmationApiController.ConfirmationStatus) api.ask(
+                        new AgentConfirmationApiController.ConfirmationAsk("GET",
+                                "/api/exports?token=s3cr3t-value&format=zip", null, null),
+                        new TestingAuthenticationToken("alice", null), fromAgent).getBody();
+
+        assertThat(store.find(requested.confirmationId())).map(AgentConfirmation::target)
+                .hasValueSatisfying(kept -> assertThat(kept).contains("format=zip").doesNotContain("s3cr3t-value"));
+    }
+
+    /** The limit holds for what is kept: a target that grows past it once masked is refused, not cut. */
+    @Test
+    void aTargetThatOutgrowsTheLimitOnceMaskedIsRefused() {
+        AgentConfirmationApiController api = new AgentConfirmationApiController(service);
+        String target = "/" + "a".repeat(AgentConfirmation.MAX_TARGET_LENGTH - 10) + "?token=a";
+
+        assertThat(target.length()).isLessThanOrEqualTo(AgentConfirmation.MAX_TARGET_LENGTH);
+        assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk("GET", target, null, null),
+                new TestingAuthenticationToken("alice", null), agentRequest("alice", "report-agent")).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
     private AgentConfirmation ask() {
         return service.request(new AgentConfirmationService.ConfirmationRequest(AGENT, "hash-1", "POST",
                 "/api/exports?format=zip", AgentConfirmation.DECISION_CHALLENGE, "Unusual export", "req-1", null))

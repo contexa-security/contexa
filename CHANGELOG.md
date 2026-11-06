@@ -8,6 +8,7 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- What an agent asks a person to confirm keeps no secret of its target: a value that opens something is masked as it is when the gate stops a request, the path the application serves is shown masked too, and a target that would not fit once masked is refused.
 - An agent's ask for a confirmation now names a standard HTTP method and a target of at most 2048 characters, else it is answered 400. A longer target was cut where it is kept, so the person approved a request they could not read in full, and a method past 16 characters was kept cut in the database and whole in memory; both stores now keep a value past its column alike.
 - A person confirming an agent's request now also reads the path the application will serve when the agent spelled another (`/api/%65xport/x` is served as `/api/export/x`), on the confirmation page, the list and the mail. The target the agent sent is shown as before; what the decoding brings out that cannot be seen, breaks the line or turns the text around, a space included, stays escaped.
 - The mail of a confirmation an agent asks for itself (`POST /contexa/api/agent-confirmations`) now links to `contexa.security.zerotrust.agent.confirmation-link-base-url` and the application's context path, as the mail of a request Contexa stopped does; it was a bare path. Neither link ever takes the host the agent sent, so without that setting the link stays a path: set it for the mail to open.
