@@ -16,6 +16,8 @@
 package io.contexa.autoconfigure.identity;
 
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.security.subject.AgentClientDirectory;
+import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.security.session.SessionIdResolver;
 import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
@@ -37,6 +39,7 @@ import org.springframework.security.oauth2.core.OAuth2RefreshToken;
 import org.springframework.security.oauth2.server.authorization.InMemoryOAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -70,7 +73,9 @@ class SignOutWithTheAccessTokenAloneTest {
         StaticListableBeanFactory none = new StaticListableBeanFactory();
         signOut = configuration.compositeLogoutHandler(tokens, properties,
                 none.getBeanProvider(ZeroTrustSecurityService.class), mock(SessionIdResolver.class), authorizations,
-                none.getBeanProvider(MfaSessionRepository.class), none.getBeanProvider(MfaStateMachineService.class));
+                none.getBeanProvider(MfaSessionRepository.class), none.getBeanProvider(MfaStateMachineService.class),
+                mock(RegisteredClientRepository.class), none.getBeanProvider(AgentClientDirectory.class),
+                none.getBeanProvider(DelegationRegistry.class));
         when(tokens.prepareClearTokens()).thenReturn(TokenTransportResult.builder().build());
         when(tokens.resolveAccessToken(any())).thenAnswer(invocation -> bearer(invocation.getArgument(0)));
         client = RegisteredClient.withId("internal")

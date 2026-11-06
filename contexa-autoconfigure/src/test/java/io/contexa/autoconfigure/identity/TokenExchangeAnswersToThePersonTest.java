@@ -42,6 +42,8 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Base64;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -156,6 +158,33 @@ class TokenExchangeAnswersToThePersonTest {
 
         assertThat(exchanged.getResponse().getStatus()).as(body(exchanged)).isEqualTo(400);
         assertThat(body(exchanged)).contains("invalid_scope");
+    }
+
+    @Test
+    void anExchangedTokenIsNoSubjectOfAnotherExchange() throws Exception {
+        MvcResult first = exchange(personToken(), "reports.read");
+        assertThat(first.getResponse().getStatus()).as(body(first)).isEqualTo(200);
+        String exchanged = json.readTree(body(first)).get("access_token").asText();
+
+        MvcResult chained = exchange(exchanged, "reports.read");
+
+        assertThat(chained.getResponse().getStatus()).as(body(chained)).isEqualTo(400);
+        assertThat(body(chained)).contains("invalid_grant");
+    }
+
+    @Test
+    void anExchangedTokenDoesNotOutliveTheTokenItExchanges() throws Exception {
+        String personToken = personToken();
+        JwtDecoder decoder = context.getBean("contexaJwtDecoder", JwtDecoder.class);
+
+        MvcResult exchanged = exchange(personToken, "reports.read");
+
+        assertThat(exchanged.getResponse().getStatus()).as(body(exchanged)).isEqualTo(200);
+        JsonNode answer = json.readTree(body(exchanged));
+        Instant subjectExpires = decoder.decode(personToken).getExpiresAt();
+        assertThat(decoder.decode(answer.get("access_token").asText()).getExpiresAt()).isEqualTo(subjectExpires);
+        assertThat(answer.get("expires_in").asLong())
+                .isLessThanOrEqualTo(Duration.between(Instant.now(), subjectExpires).getSeconds() + 1);
     }
 
     /** The person's token as the login flows issue it, with the scopes the internal client is configured with. */
