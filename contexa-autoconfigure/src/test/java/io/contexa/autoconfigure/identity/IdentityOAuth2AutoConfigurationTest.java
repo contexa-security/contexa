@@ -524,8 +524,11 @@ class IdentityOAuth2AutoConfigurationTest {
         shadow.setMode(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
         ObjectProvider<SecurityZeroTrustProperties> zeroTrust = mock(ObjectProvider.class);
         when(zeroTrust.getIfAvailable()).thenReturn(shadow);
+        // The claim that names the delegation is off, so that it is the check of the revocation that meets the failure.
+        AuthContextProperties withoutDelegationClaim = new AuthContextProperties();
+        withoutDelegationClaim.getOauth2().setDelegationClaimEnabled(false);
         OAuth2TokenCustomizer<JwtEncodingContext> customizer = new IdentityOAuth2AutoConfiguration(
-                mock(TransactionTemplate.class), new AuthContextProperties(), null, zeroTrust)
+                mock(TransactionTemplate.class), withoutDelegationClaim, null, zeroTrust)
                 .tokenCustomizer(delegations, agents, none());
 
         customizer.customize(exchangeContext("alice"));
