@@ -18,6 +18,7 @@ package io.contexa.contexaidentity.security.handler;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
+import io.contexa.contexaidentity.security.handler.login.LoginFactsDetails;
 import io.contexa.contexaidentity.security.handler.login.LoginFactsRecorder;
 import io.contexa.contexaidentity.security.token.dto.TokenPair;
 import io.contexa.contexaidentity.security.token.service.TokenService;
@@ -88,8 +89,13 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
         LoginFactsRecorder.recordSingleFactor(authentication, request);
         TokenPair tokenPair = createTokenPair(authentication, null, request, response);
         // Before the response leaves, so the next request meets what the sign-in brings.
-        SignInDecision.send(zeroTrustEventPublisher, authentication, request,
-                Map.of("authenticationType", SignInDecision.SINGLE));
+        // The client's next request is a bearer call, which is one session with the login its token carries.
+        Map<String, Object> signIn = new HashMap<>();
+        signIn.put("authenticationType", SignInDecision.SINGLE);
+        if (authentication.getDetails() instanceof LoginFactsDetails facts) {
+            signIn.put(ZeroTrustEventPublisher.TOKEN_SESSION_ID, facts.getSignInId());
+        }
+        SignInDecision.send(zeroTrustEventPublisher, authentication, request, signIn);
         TokenTransportResult transportResult = prepareTokenTransport(tokenPair.getAccessToken(), tokenPair.getRefreshToken());
         Map<String, Object> responseData = buildResponseData(transportResult, authentication, request, response);
 

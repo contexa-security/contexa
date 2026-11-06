@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.utils;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.bridge.AgentSessionKey;
+import io.contexa.contexacommon.security.bridge.OAuth2AuthenticationSupport;
 import io.contexa.contexacommon.security.network.ClientIpResolver;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import jakarta.servlet.http.HttpServletRequest;
@@ -160,6 +161,25 @@ public class SessionFingerprintUtil {
      * id within the current request (session fixation protection), so the current session id wins over the
      * requested one. Without a session the requested id is kept, as in {@link #generateContextBindingHash(HttpServletRequest)}.
      */
+    /**
+     * Context binding hash the client presents on its next request after a sign-in of a token state. That request is a
+     * bearer call, which is one session with the login its token carries ({@code sid}), whether or not it carries the
+     * servlet session a step of the login may have created, so the sign-in is bound to that login and not to the
+     * servlet session of the login request. Without a token session this is
+     * {@link #generateNextRequestContextBindingHash(HttpServletRequest)}.
+     *
+     * @param tokenSessionId the login the token states as its {@code sid}, null in a session state
+     */
+    public static String generateNextRequestContextBindingHash(HttpServletRequest request, @Nullable String tokenSessionId) {
+        if (request == null) {
+            return null;
+        }
+        if (tokenSessionId == null || tokenSessionId.isBlank()) {
+            return generateNextRequestContextBindingHash(request);
+        }
+        return generateContextBindingHash(tokenSessionId.trim(), extractClientIp(request), request.getHeader("User-Agent"));
+    }
+
     public static String generateNextRequestContextBindingHash(HttpServletRequest request) {
         if (request == null) {
             return null;
@@ -172,12 +192,18 @@ public class SessionFingerprintUtil {
 
     /**
      * The session the binding names: an agent's or a client's own token request is bound to the agent's session
-     * (A1-11), so agents on one network and one user agent do not share a binding; any other request to the given
-     * servlet session.
+     * (A1-11), so agents on one network and one user agent do not share a binding; a person's token request to the login
+     * its token carries, as {@link RequestIdentity#sessionId} names it, whether or not the request also holds a servlet
+     * session; any other request to the given servlet session.
      */
     private static String sessionOf(@Nullable Authentication authentication, String servletSession) {
         String agentSession = AgentSessionKey.of(authentication);
-        return agentSession != null ? agentSession : servletSession;
+        if (agentSession != null) {
+            return agentSession;
+        }
+        String tokenSession = OAuth2AuthenticationSupport.tokenAttribute(
+                authentication, OAuth2AuthenticationSupport.SESSION_ID_CLAIM);
+        return tokenSession != null ? tokenSession : servletSession;
     }
 
     /**

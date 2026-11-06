@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
@@ -239,13 +239,13 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
                 eq(response),
                 eq(HttpServletResponse.SC_INTERNAL_SERVER_ERROR),
                 eq("MFA_POST_SUCCESS_PIPELINE_FAILED"),
-                contains("buildResponseData"),
+                argThat(message -> message != null && !message.contains("buildResponseData")),
                 eq("/contexa/admin/login/mfa-ott"),
                 detailCaptor.capture());
+        // The details of the failure are in the log; the client is told the status and no more.
         assertThat(detailCaptor.getValue())
                 .containsEntry("status", "MFA_POST_SUCCESS_PIPELINE_FAILED")
-                .containsEntry("failedStage", "buildResponseData")
-                .containsEntry("userId", "admin");
+                .doesNotContainKeys("failedStage", "userId", "causeType", "causeMessage", "mfaSessionId", "mfaState");
     }
 
     @Test
@@ -507,6 +507,8 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
         private final SecurityLearningService learningService = mock(SecurityLearningService.class);
         private final VerificationLearningService verificationLearning = mock(VerificationLearningService.class);
         private final BlockingSignalBroadcaster broadcaster = mock(BlockingSignalBroadcaster.class);
+        private final ZeroTrustEventPublisher publisher = mock(ZeroTrustEventPublisher.class);
+        private final BlockMfaStateStore blockStore = mock(BlockMfaStateStore.class);
 
         @Test
         @DisplayName("a login MFA does not release a CHALLENGE and is recorded as a login MFA")
@@ -631,6 +633,74 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
             assertThat(record.getValue()).contains("ZERO_TRUST_CHALLENGE_VERIFIED");
         }
 
+        @Test
+        @DisplayName("on the OAuth2 state the sign-in is decided for the login its token carries, not for the login request's servlet session")
+        void oauth2SignInIsDecidedForTheTokenSession() throws Exception {
+            UsernamePasswordAuthenticationToken login = UsernamePasswordAuthenticationToken.authenticated(
+                    "admin", "pw", List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+
+            handler(StateType.OAUTH2).complete(requestWithSession(), new MockHttpServletResponse(), login,
+                    completedFactorContext(false));
+
+            assertThat(sentSignIn(login)).containsEntry(ZeroTrustEventPublisher.TOKEN_SESSION_ID,
+                    ((LoginFactsDetails) login.getDetails()).getSignInId());
+        }
+
+        @Test
+        @DisplayName("on the session state the sign-in carries no token session: its servlet session is its context")
+        void sessionStateSignInCarriesNoTokenSession() throws Exception {
+            UsernamePasswordAuthenticationToken login = UsernamePasswordAuthenticationToken.authenticated(
+                    "admin", "pw", List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+
+            handler(StateType.SESSION).complete(requestWithSession(), new MockHttpServletResponse(), login,
+                    completedFactorContext(false));
+
+            assertThat(sentSignIn(login)).doesNotContainKey(ZeroTrustEventPublisher.TOKEN_SESSION_ID);
+        }
+
+        @Test
+        @DisplayName("on the OAuth2 state the passed challenge is released for the context of the token's calls")
+        void oauth2ChallengeIsReleasedForTheTokenContext() throws Exception {
+            Jwt token = Jwt.withTokenValue("token").header("alg", "RS256").subject("admin")
+                    .claim("auth_time", 1_791_626_134L).claim("amr", List.of("pwd")).claim("acr", "AAL1")
+                    .claim("sid", "login-7").build();
+            when(actionRepository.getActionFromHash("admin")).thenReturn(ZeroTrustAction.CHALLENGE);
+            MockHttpServletRequest request = requestWithSession();
+            request.setRemoteAddr("10.0.0.1");
+            request.addHeader("User-Agent", "browser");
+
+            handler(StateType.OAUTH2).complete(request, new MockHttpServletResponse(),
+                    new TestingAuthenticationToken("admin", "pw", "ROLE_ADMIN"),
+                    completedFactorContext(true, new JwtAuthenticationToken(token)));
+
+            verify(actionRepository).saveActionWithPrevious("admin", ZeroTrustAction.ALLOW,
+                    SessionFingerprintUtil.generateContextBindingHash("login-7", "10.0.0.1", "browser"));
+        }
+
+        @Test
+        @DisplayName("on the OAuth2 state the verification of a BLOCK is kept for the context of the token's calls")
+        void oauth2BlockVerificationIsKeptForTheTokenContext() throws Exception {
+            UsernamePasswordAuthenticationToken login = UsernamePasswordAuthenticationToken.authenticated(
+                    "admin", "pw", List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+            FactorContext blockFlow = completedFactorContext(false);
+            blockFlow.setAttribute(ZeroTrustAccessControlFilter.BLOCK_MFA_FLOW_ATTRIBUTE, true);
+            MockHttpServletRequest request = requestWithSession();
+            request.setRemoteAddr("10.0.0.1");
+            request.addHeader("User-Agent", "browser");
+
+            handler(StateType.OAUTH2).complete(request, new MockHttpServletResponse(), login, blockFlow);
+
+            verify(blockStore).setVerified("admin", SessionFingerprintUtil.generateContextBindingHash(
+                    ((LoginFactsDetails) login.getDetails()).getSignInId(), "10.0.0.1", "browser"));
+        }
+
+        @SuppressWarnings("unchecked")
+        private Map<String, Object> sentSignIn(Authentication login) {
+            ArgumentCaptor<Map<String, Object>> facts = ArgumentCaptor.forClass((Class) Map.class);
+            verify(publisher).publishAuthenticationSuccess(eq(login), any(), facts.capture());
+            return facts.getValue();
+        }
+
         private FactorContext completedFactorContext(boolean challengeFlow) {
             return completedFactorContext(challengeFlow, new TestingAuthenticationToken("admin", "pw", "ROLE_ADMIN"));
         }
@@ -680,14 +750,14 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
                     mock(MfaSessionRepository.class),
                     mock(MfaStateMachineIntegrator.class),
                     properties,
-                    mock(ZeroTrustEventPublisher.class),
+                    publisher,
                     actionRepository,
                     learningService,
                     applicationContext,
                     mock(AuthUrlProvider.class),
                     mock(MfaFlowUrlRegistry.class),
                     mock(IBlockedUserRecorder.class),
-                    mock(BlockMfaStateStore.class),
+                    blockStore,
                     mock(CentralAuditFacade.class),
                     broadcaster,
                     false

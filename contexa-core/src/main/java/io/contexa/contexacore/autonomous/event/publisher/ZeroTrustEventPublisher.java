@@ -123,6 +123,13 @@ public class ZeroTrustEventPublisher {
     @Autowired(required = false)
     private ObjectProvider<BridgeResolutionFilter> bridgeResolution;
 
+    /**
+     * The fact of a sign-in in a token state naming the login its token carries as {@code sid}: the client's next request
+     * is a bearer call, which is one session with that login, so the sign-in is decided for the context of that session
+     * and not for the servlet session of the login request. It steers the context and is not kept as a fact of the sign-in.
+     */
+    public static final String TOKEN_SESSION_ID = "tokenSessionId";
+
     public ZeroTrustEventPublisher(
             ApplicationEventPublisher eventPublisher,
             TieredStrategyProperties properties) {
@@ -174,9 +181,13 @@ public class ZeroTrustEventPublisher {
             // one id as a repeat: the ids of the request are the call's, and the sign-in gets its own.
             REQUEST_IDS.forEach(payload::remove);
         }
-        payload.putAll(signIn);
-        // The session id may have changed with the sign-in: its decision belongs to the session the client presents next.
-        putIfPresent(payload, "contextBindingHash", SessionFingerprintUtil.generateNextRequestContextBindingHash(request));
+        Map<String, Object> facts = new HashMap<>(signIn);
+        Object tokenSession = facts.remove(TOKEN_SESSION_ID);
+        payload.putAll(facts);
+        // The session id may have changed with the sign-in: its decision belongs to the session the client presents next,
+        // which in a token state is the login its token carries.
+        putIfPresent(payload, "contextBindingHash", SessionFingerprintUtil.generateNextRequestContextBindingHash(request,
+                tokenSession != null ? tokenSession.toString() : null));
         populateAuthenticationFallback(authentication, payload);
         String userId = authentication.getName();
         populateStoredSecurityContext(userId, requestInfo, payload);

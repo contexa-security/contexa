@@ -28,6 +28,28 @@ The format is based on Keep a Changelog and the project follows semantic version
   `AgentClientDirectory` of your own throws `AgentClientStatusUnavailableException` from `suspendedAgentClient` when it
   cannot answer, instead of returning `false`; tokens of other registered clients are refused with the same answers until
   the registry answers again.
+- **A sign-in on the token state is decided for the context its bearer calls are bound to.** The context of a request
+  names the session, the address and the browser. A person's bearer call was bound to the session cookie it carried,
+  which a client without cookies never sends, while the sign-in that came before it was bound to the servlet session
+  of the login request, which a step of an MFA flow creates; the first call after such a sign-in read as a change of
+  context and was decided again. A person's bearer call is now bound to the login its token carries (`sid`), which is
+  already the session the engine names for such a request, and the sign-in, the release of a passed step-up and the
+  verification of a BLOCK are bound to the same login, so the context is the same whether or not the client keeps
+  cookies. Two logins of one person from the same address and browser are two contexts. The session state is
+  unchanged. **Check:** on the token state the contexts of the calls change once at the upgrade, so a person who signed
+  in before it is decided once more at the next call.
+
+- **An MFA sign-in or request that fails inside no longer tells the client what failed.** When the processing after a
+  successful MFA sign-in failed, the API answer carried the person's name, the failing step, the exception's class and
+  message and the MFA session's identifier, and a request of the MFA flow that failed while it was processed carried
+  the exception's type and message. Both now answer in general words that the sign-in or the request could not be
+  completed; the details are in the log, and the log line of the failed sign-in now also names the MFA session and its
+  state. The status codes and the `error` codes (`MFA_POST_SUCCESS_PIPELINE_FAILED`, `REQUEST_PROCESSING_ERROR`,
+  `MFA_PROCESSING_ERROR`) are as they were. **Check:** a client that read `userId`, `causeType`, `causeMessage`,
+  `mfaSessionId`, `mfaState` or `failedStage` from the answer of a failed MFA sign-in, or `errorType` or
+  `errorMessage` from the answer of a failed MFA request, no longer gets them, and the `message` of a failed MFA
+  sign-in no longer names the failing step; read the log instead.
+
 - **A role, permission or action name no longer changes the condition it is written into.** A policy condition wrote
   names into SpEL as they were, so a quote in a name ended its literal: `O'Neil` made a condition that broke the save
   (500), and `X') or true or hasAuthority('Y` made one that was always true. Every condition built from a role, a
@@ -654,6 +676,19 @@ The format is based on Keep a Changelog and the project follows semantic version
   list say how many users could not answer a CHALLENGE.
 
 ### Changed
+
+- **The first protected call after a sign-in waits for the sign-in's decision instead of asking the model again.** A
+  call from the context a person has just signed in from can come before the sign-in's decision is stored. The context
+  on record was still the old one, so the call read as a changed context and asked the model the question the sign-in
+  had already asked: one more model call, and its wait, after each sign-in from a new context. The call now waits for
+  that decision, for the time a request waits while the analysis is behind (3 seconds) and no longer, and is answered
+  by it: a BLOCK or CHALLENGE of the sign-in is the call's answer too, and the call takes no place in the person's
+  decisions of a new context, as the sign-in took its own. A decision that does not come in that time leaves the call
+  to be decided as it was, and nothing is waited for while a store is down. The wait is for a sign-in this server
+  handed to the analysis; on several servers a call that reaches another server is decided as before. There is no
+  setting. **Check:** a sign-in from a new context now costs one model call instead of two where the first call used
+  to come first; a first call that comes while a slow sign-in decision is still being reached waits for it, up to 3
+  seconds, before it is decided itself.
 
 - **An ALLOW now lasts 15 minutes instead of 15 seconds.** The 15 seconds were a value for fast tests. Set
   `contexa.security.zerotrust.allow-validity` to change it; production belongs between 10 and 20 minutes, and a time

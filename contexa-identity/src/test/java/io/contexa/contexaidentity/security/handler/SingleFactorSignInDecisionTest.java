@@ -17,6 +17,7 @@ package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
+import io.contexa.contexaidentity.security.handler.login.LoginFactsDetails;
 import io.contexa.contexaidentity.security.token.dto.TokenPair;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportResult;
@@ -107,6 +108,32 @@ class SingleFactorSignInDecisionTest {
         ArgumentCaptor<Map<String, Object>> facts = facts();
         verify(publisher).publishAuthenticationSuccess(eq(alice), eq(request), facts.capture());
         assertThat(facts.getValue()).containsEntry("authenticationType", "SINGLE");
+    }
+
+    @Test
+    @DisplayName("a single-factor login on the token state is decided for the login its token carries")
+    void aTokenLoginIsDecidedForTheLoginItsTokenCarries() throws Exception {
+        MockHttpServletRequest request = jsonRequest();
+
+        tokenHandler().onAuthenticationSuccess(request, new MockHttpServletResponse(), alice);
+
+        ArgumentCaptor<Map<String, Object>> facts = facts();
+        verify(publisher).publishAuthenticationSuccess(eq(alice), eq(request), facts.capture());
+        assertThat(alice.getDetails()).isInstanceOf(LoginFactsDetails.class);
+        assertThat(facts.getValue()).containsEntry(ZeroTrustEventPublisher.TOKEN_SESSION_ID,
+                ((LoginFactsDetails) alice.getDetails()).getSignInId());
+    }
+
+    @Test
+    @DisplayName("a single-factor login on the session state is decided for its servlet session")
+    void aSessionLoginCarriesNoTokenSession() throws Exception {
+        MockHttpServletRequest request = jsonRequest();
+
+        sessionHandler().onAuthenticationSuccess(request, new MockHttpServletResponse(), alice);
+
+        ArgumentCaptor<Map<String, Object>> facts = facts();
+        verify(publisher).publishAuthenticationSuccess(eq(alice), eq(request), facts.capture());
+        assertThat(facts.getValue()).doesNotContainKey(ZeroTrustEventPublisher.TOKEN_SESSION_ID);
     }
 
     @Test
