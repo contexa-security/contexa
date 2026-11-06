@@ -271,7 +271,7 @@ class ApplicationIsolationTest {
     private List<String> writtenBy(String applicationName) {
         // Some keys are one for all users: left by an earlier test, they would not be new.
         try (ApplicationNamespace.Scope ignored = ApplicationNamespace.using(applicationName)) {
-            for (String shared : new String[]{"security:autonomous:baseline:user:index",
+            for (String shared : new String[]{"security:autonomous:baseline-index:user",
                     "security:context:authentication:failures:keys", "security:context:authentication:failures:lost"}) {
                 strings.delete(ApplicationNamespace.key(shared));
             }
