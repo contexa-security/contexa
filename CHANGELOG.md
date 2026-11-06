@@ -8,6 +8,7 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- A request of an agent whose path and query are longer than a confirmation keeps (2048 characters, as a person reads them) no longer asks its accountable person to confirm a request they would read cut: it is refused with `413 AGENT_CONFIRMATION_UNBINDABLE`, as a body too large to bind is. Decided in the request itself, it gets the plain answer to a CHALLENGE and asks no one either.
 - What an agent asks a person to confirm keeps no secret of its target: a value that opens something is masked as it is when the gate stops a request, the path the application serves is shown masked too, and a target that would not fit once masked is refused.
 - An agent's ask for a confirmation now names a standard HTTP method and a target of at most 2048 characters, else it is answered 400. A longer target was cut where it is kept, so the person approved a request they could not read in full, and a method past 16 characters was kept cut in the database and whole in memory; both stores now keep a value past its column alike.
 - A person confirming an agent's request now also reads the path the application will serve when the agent spelled another (`/api/%65xport/x` is served as `/api/export/x`), on the confirmation page, the list and the mail. The target the agent sent is shown as before; what the decoding brings out that cannot be seen, breaks the line or turns the text around, a space included, stays escaped.
