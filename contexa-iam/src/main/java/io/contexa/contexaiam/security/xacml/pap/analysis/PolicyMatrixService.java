@@ -17,6 +17,7 @@ package io.contexa.contexaiam.security.xacml.pap.analysis;
 
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.repository.RoleRepository;
+import io.contexa.contexacommon.security.authority.RoleAuthority;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
@@ -200,19 +201,20 @@ public class PolicyMatrixService {
         // AI expressions
         if (expression.contains("#ai.")) return true;
 
-        String roleAuthority = roleName.startsWith("ROLE_") ? roleName : "ROLE_" + roleName;
+        // What a request of a person who holds the role is asked: the authority the role gives, not the name of the role
+        String roleAuthority = RoleAuthority.authorityOf(roleName);
 
         // hasAuthority('X')
         Matcher authMatcher = HAS_AUTHORITY_PATTERN.matcher(expression);
         while (authMatcher.find()) {
             String value = SpelLiteral.unquote(authMatcher.group(1));
-            if (value.equals(roleName) || value.equals(roleAuthority)) return true;
+            if (value.equals(roleAuthority)) return true;
         }
 
         // hasAnyAuthority('A', 'B')
         Matcher anyAuthMatcher = HAS_ANY_AUTHORITY_PATTERN.matcher(expression);
         if (anyAuthMatcher.find()) {
-            if (matchesAnyQuotedArg(anyAuthMatcher.group(1), roleName)) return true;
+            if (matchesAnyQuotedArg(anyAuthMatcher.group(1), roleAuthority)) return true;
         }
 
         // hasRole('X')
@@ -226,35 +228,33 @@ public class PolicyMatrixService {
         // hasAnyRole('A', 'B')
         Matcher anyRoleMatcher = HAS_ANY_ROLE_PATTERN.matcher(expression);
         if (anyRoleMatcher.find()) {
-            if (matchesAnyQuotedArgRole(anyRoleMatcher.group(1), roleName)) return true;
+            if (matchesAnyQuotedArgRole(anyRoleMatcher.group(1), roleAuthority)) return true;
         }
 
         // Plain authority name (e.g. "ROLE_ADMIN" without hasAuthority wrapper)
         if (!expression.contains("(") && !expression.contains(" ")) {
             String trimmed = expression.trim();
-            if (trimmed.equals(roleName) || trimmed.equals(roleAuthority)) return true;
+            if (trimmed.equals(roleAuthority)) return true;
         }
 
         // Compound expression containing role name directly: a whole literal holds it, not a part of a longer one
-        if (matchesAnyQuotedArg(expression, roleName)) {
+        if (matchesAnyQuotedArg(expression, roleAuthority)) {
             return true;
         }
 
         return false;
     }
 
-    private boolean matchesAnyQuotedArg(String argsString, String roleName) {
-        String roleAuthority = roleName.startsWith("ROLE_") ? roleName : "ROLE_" + roleName;
+    private boolean matchesAnyQuotedArg(String argsString, String roleAuthority) {
         Matcher argMatcher = QUOTED_ARG_PATTERN.matcher(argsString);
         while (argMatcher.find()) {
             String value = SpelLiteral.unquote(argMatcher.group(1));
-            if (value.equals(roleName) || value.equals(roleAuthority)) return true;
+            if (value.equals(roleAuthority)) return true;
         }
         return false;
     }
 
-    private boolean matchesAnyQuotedArgRole(String argsString, String roleName) {
-        String roleAuthority = roleName.startsWith("ROLE_") ? roleName : "ROLE_" + roleName;
+    private boolean matchesAnyQuotedArgRole(String argsString, String roleAuthority) {
         Matcher argMatcher = QUOTED_ARG_PATTERN.matcher(argsString);
         while (argMatcher.find()) {
             String value = SpelLiteral.unquote(argMatcher.group(1));

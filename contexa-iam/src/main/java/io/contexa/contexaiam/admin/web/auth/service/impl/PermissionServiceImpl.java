@@ -25,7 +25,6 @@ import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
-import io.contexa.contexaiam.security.xacml.pdp.evaluation.SpelLiteral;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheConfig;
 import org.springframework.cache.annotation.CacheEvict;
@@ -101,7 +100,7 @@ public class PermissionServiceImpl extends AccountAuthoritiesService implements 
                 .map(permission -> {
                     long roleCount = permissionRepository.countRoleAssignments(id);
                     List<AffectedPolicyResponse> policyList = policyRepository
-                            .findActivePoliciesReferencingExpression(SpelLiteral.body(permission.getName()))
+                            .findActivePoliciesReferencing(List.of(permission.getName()))
                             .stream()
                             .map(AffectedPolicyResponse::from)
                             .toList();

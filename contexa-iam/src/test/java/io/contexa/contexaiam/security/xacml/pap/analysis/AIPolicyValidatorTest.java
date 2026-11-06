@@ -43,7 +43,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.Mock;
 import org.mockito.quality.Strictness;
 import org.springframework.context.MessageSource;
-
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class AIPolicyValidatorTest {
@@ -109,6 +109,20 @@ class AIPolicyValidatorTest {
                     .filter(i -> "Referential Integrity".equals(i.checkName()))
                     .findFirst().get().result()).isEqualTo(CheckResult.FAIL);
             assertThat(report.canApprove()).isFalse();
+        }
+
+        @Test
+        @DisplayName("the authority a role without the ROLE_ prefix gives is a role that exists")
+        void theAuthorityOfARoleWithoutThePrefixExists() {
+            when(roleRepository.findByRoleName("ROLE_O'NEIL")).thenReturn(Optional.empty());
+            when(roleRepository.findAllGrantingAuthority("ROLE_O'NEIL")).thenReturn(List.of(new Role()));
+            Policy policy = buildPolicy("hasAuthority('ROLE_O''NEIL')");
+
+            AIPolicyValidationReport report = validator.validate(policy);
+
+            assertThat(report.items().stream()
+                    .filter(i -> "Referential Integrity".equals(i.checkName()))
+                    .findFirst().get().result()).isEqualTo(CheckResult.PASS);
         }
 
         @Test

@@ -23,6 +23,7 @@ import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.ConsoleSession;
+import io.contexa.contexacommon.security.authority.RoleAuthority;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
@@ -34,7 +35,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -122,7 +122,7 @@ public class LastAdministratorGuard {
     }
 
     private boolean grantsAdministrator(String roleName) {
-        String authority = roleName.startsWith("ROLE_") ? roleName : "ROLE_" + roleName.toUpperCase(Locale.ROOT);
+        String authority = RoleAuthority.authorityOf(roleName);
         if (ConsoleSession.ADMIN_AUTHORITY.equals(authority)) {
             return true;
         }

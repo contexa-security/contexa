@@ -26,13 +26,13 @@ import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacommon.entity.RolePermission;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
+import io.contexa.contexacommon.security.authority.RoleAuthority;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.common.event.dto.RolePermissionsChangedEvent;
 import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicySynchronizationService;
-import io.contexa.contexaiam.security.xacml.pdp.evaluation.SpelLiteral;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheConfig;
@@ -101,8 +101,13 @@ public class RoleServiceImpl extends AccountAuthoritiesService implements RoleSe
     public Optional<AffectedPoliciesResponse> getAffectedPolicies(Long id) {
         return roleRepository.findById(id)
                 .map(role -> {
+                    // The authority the role gives its holders; a condition written before that was kept in step with it
+                    // asks for the name of the role itself.
+                    Set<String> names = new LinkedHashSet<>();
+                    names.add(RoleAuthority.authorityOf(role.getRoleName()));
+                    names.add(role.getRoleName());
                     List<AffectedPolicyResponse> policyList = policyRepository
-                            .findActivePoliciesReferencingExpression(SpelLiteral.body(role.getRoleName()))
+                            .findActivePoliciesReferencing(names)
                             .stream()
                             .map(AffectedPolicyResponse::from)
                             .toList();

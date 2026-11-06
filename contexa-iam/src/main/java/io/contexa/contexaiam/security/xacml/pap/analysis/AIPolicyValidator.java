@@ -89,9 +89,10 @@ public class AIPolicyValidator {
 
         for (String authority : referencedAuthorities) {
             if (authority.startsWith("ROLE_")) {
-                String roleName = authority;
-                if (roleRepository.findByRoleName(roleName).isEmpty()) {
-                    missing.add(roleName);
+                // The authority a role gives is its name only when that starts with ROLE_
+                if (roleRepository.findByRoleName(authority).isEmpty()
+                        && roleRepository.findAllGrantingAuthority(authority).isEmpty()) {
+                    missing.add(authority);
                 }
             } else {
                 if (permissionRepository.findByName(authority).isEmpty()) {

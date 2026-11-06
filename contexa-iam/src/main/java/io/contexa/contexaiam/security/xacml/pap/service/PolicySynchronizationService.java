@@ -38,6 +38,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -83,15 +84,24 @@ public class PolicySynchronizationService {
                         .targetIdentifier(mr.getResourceIdentifier())
                         .httpMethod(mr.getHttpMethod() != null ? mr.getHttpMethod().name() : "ANY")
                         .build())
-                .distinct() 
+                .distinct()
                 .toList();
+
+        Optional<Policy> existingPolicy = policyRepository.findByName(policyName);
+        if (targetDtos.isEmpty() && existingPolicy.isEmpty()) {
+            // A policy needs a target, and the target is the resource a permission guards: with none, there is nothing
+            // for an automatic policy to say. A policy that exists is still brought up to date below.
+            log.info("Role '{}' holds no permission that guards a resource, so it has no automatic policy to make",
+                    role.getRoleName());
+            return;
+        }
 
         String permissionsExpression = role.getRolePermissions().stream()
                 .map(rp -> rp.getPermission().getName())
                 .map(SpelLiteral::hasAuthority)
                 .collect(Collectors.joining(" or "));
 
-        String finalCondition = SpelLiteral.hasAuthority(role.getRoleName())
+        String finalCondition = SpelLiteral.hasRoleAuthority(role.getRoleName())
                 + " and (" + (StringUtils.hasText(permissionsExpression) ? permissionsExpression : "false") + ")";
 
         ConditionDto conditionDto = ConditionDto.builder()
@@ -109,15 +119,12 @@ public class PolicySynchronizationService {
                 .rules(List.of(ruleDto))
                 .build();
 
-        policyRepository.findByName(policyName)
-                .ifPresentOrElse(
-                        existingPolicy -> {
-                            policyDto.setId(existingPolicy.getId());
-                            policyService.updatePolicy(policyDto);
-                                                    },
-                        () -> {
-                            policyService.createPolicy(policyDto);
-                                                    }
-                );
+        existingPolicy.ifPresentOrElse(
+                existing -> {
+                    policyDto.setId(existing.getId());
+                    policyService.updatePolicy(policyDto);
+                },
+                () -> policyService.createPolicy(policyDto)
+        );
     }
 }
