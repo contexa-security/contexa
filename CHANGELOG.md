@@ -21,8 +21,10 @@ The format is based on Keep a Changelog and the project follows semantic version
   completed MFA was read from the principal by the name of a value (`mfa`, `mfaVerified`, ...) and the time of the
   sign-in, so a principal that always carries `mfa=true` released a CHALLENGE with a password sign-in alone. The
   application's sign-in now answers a CHALLENGE only when `contexa.bridge.step-up.reauthentication-url` is set; elsewhere
-  Contexa's step-up does, by a mailed code or a passkey. **Check:** an application whose own MFA re-authentication
-  released CHALLENGEs sets `contexa.bridge.step-up.reauthentication-url` to where it re-authenticates.
+  Contexa's step-up does, by a mailed code or a passkey, and a user whose copy has no real address and no passkey finds
+  no factor on the step-up page. **Check:** an application whose own MFA re-authentication released CHALLENGEs sets
+  `contexa.bridge.step-up.reauthentication-url` to where it re-authenticates, or tells Contexa its users' addresses with a
+  `BridgeUserEmailProvider`.
 - **An address changed on the application's profile no longer gets the step-up's code.** The copy of a user took every
   address the application showed, so whoever held a session could change the profile's address and receive the code
   meant to stop them. A copy that holds a real address now keeps it: another address the application shows waits
