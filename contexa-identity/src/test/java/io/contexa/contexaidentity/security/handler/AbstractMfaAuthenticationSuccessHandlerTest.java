@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
@@ -239,13 +239,13 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
                 eq(response),
                 eq(HttpServletResponse.SC_INTERNAL_SERVER_ERROR),
                 eq("MFA_POST_SUCCESS_PIPELINE_FAILED"),
-                contains("buildResponseData"),
+                argThat(message -> message != null && !message.contains("buildResponseData")),
                 eq("/contexa/admin/login/mfa-ott"),
                 detailCaptor.capture());
+        // The details of the failure are in the log; the client is told the status and no more.
         assertThat(detailCaptor.getValue())
                 .containsEntry("status", "MFA_POST_SUCCESS_PIPELINE_FAILED")
-                .containsEntry("failedStage", "buildResponseData")
-                .containsEntry("userId", "admin");
+                .doesNotContainKeys("failedStage", "userId", "causeType", "causeMessage", "mfaSessionId", "mfaState");
     }
 
     @Test

@@ -8,6 +8,17 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **An MFA sign-in or request that fails inside no longer tells the client what failed.** When the processing after a
+  successful MFA sign-in failed, the API answer carried the person's name, the failing step, the exception's class and
+  message and the MFA session's identifier, and a request of the MFA flow that failed while it was processed carried
+  the exception's type and message. Both now answer in general words that the sign-in or the request could not be
+  completed; the details are in the log, and the log line of the failed sign-in now also names the MFA session and its
+  state. The status codes and the `error` codes (`MFA_POST_SUCCESS_PIPELINE_FAILED`, `REQUEST_PROCESSING_ERROR`,
+  `MFA_PROCESSING_ERROR`) are as they were. **Check:** a client that read `userId`, `causeType`, `causeMessage`,
+  `mfaSessionId`, `mfaState` or `failedStage` from the answer of a failed MFA sign-in, or `errorType` or
+  `errorMessage` from the answer of a failed MFA request, no longer gets them, and the `message` of a failed MFA
+  sign-in no longer names the failing step; read the log instead.
+
 - **A role, permission or action name no longer changes the condition it is written into.** A policy condition wrote
   names into SpEL as they were, so a quote in a name ended its literal: `O'Neil` made a condition that broke the save
   (500), and `X') or true or hasAuthority('Y` made one that was always true. Every condition built from a role, a

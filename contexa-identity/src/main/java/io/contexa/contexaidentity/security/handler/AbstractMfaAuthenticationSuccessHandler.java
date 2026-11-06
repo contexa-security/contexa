@@ -253,30 +253,24 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             return;
         }
 
-        safeLogError("MFA post-success pipeline failed at stage {} for user {}",
+        safeLogError("MFA post-success pipeline failed at stage {} for user {} (MFA session {}, state {})",
                 throwable,
                 failedStage,
-                finalAuthentication.getName());
+                finalAuthentication.getName(),
+                factorContext != null ? factorContext.getMfaSessionId() : null,
+                factorContext != null ? factorContext.getCurrentState() : null);
 
+        // The client learns that the sign-in could not be completed and no more: the person, the failing step, the
+        // exception and the MFA session are the operators', in the log above.
         Map<String, Object> errorDetails = new LinkedHashMap<>();
         errorDetails.put("status", "MFA_POST_SUCCESS_PIPELINE_FAILED");
-        errorDetails.put("failedStage", failedStage);
-        errorDetails.put("userId", finalAuthentication.getName());
-        errorDetails.put("causeType", throwable.getClass().getName());
-        errorDetails.put("causeMessage", throwable.getMessage());
-        if (factorContext != null) {
-            errorDetails.put("mfaSessionId", factorContext.getMfaSessionId());
-            errorDetails.put("mfaState", factorContext.getCurrentState() != null
-                    ? factorContext.getCurrentState().name()
-                    : null);
-        }
 
         if (isApiRequest(request)) {
             responseWriter.writeErrorResponse(
                     response,
                     HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                     "MFA_POST_SUCCESS_PIPELINE_FAILED",
-                    "MFA post-success pipeline failed at stage: " + failedStage,
+                    "The sign-in could not be completed. Please try again, or contact the administrator if it keeps failing.",
                     request.getRequestURI(),
                     errorDetails);
             return;

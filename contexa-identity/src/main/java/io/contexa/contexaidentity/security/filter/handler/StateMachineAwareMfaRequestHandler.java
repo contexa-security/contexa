@@ -55,6 +55,10 @@ import org.springframework.lang.Nullable;
 public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
     private static final int HTTP_STATUS_TOO_MANY_REQUESTS = 429;
+    /** What the client is told of an error that reached the filter; the exception is in the log. */
+    private static final String GENERIC_ERROR_MESSAGE = "A system error occurred during MFA processing.";
+    /** What the client is told of a request that failed while it was processed; the exception is in the log. */
+    private static final String PROCESSING_ERROR_MESSAGE = "An error occurred while processing the request.";
 
     private final AuthContextProperties authContextProperties;
     private final AuthResponseWriter responseWriter;
@@ -193,7 +197,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("error", "MFA_PROCESSING_ERROR");
-        errorResponse.put("message", "A system error occurred during MFA processing.");
+        errorResponse.put("message", GENERIC_ERROR_MESSAGE);
         errorResponse.put("timestamp", System.currentTimeMillis());
 
         if (context != null) {
@@ -202,7 +206,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         }
 
         responseWriter.writeErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                "MFA_PROCESSING_ERROR", error.getMessage(), request.getRequestURI(), errorResponse);
+                "MFA_PROCESSING_ERROR", GENERIC_ERROR_MESSAGE, request.getRequestURI(), errorResponse);
     }
 
     @Override
@@ -532,13 +536,12 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
     private void handleProcessingError(HttpServletRequest request, HttpServletResponse response,
                                        FactorContext context, Exception error) throws IOException {
+        // The exception's type and text name what failed inside: they are the operators', in the log of the caller.
         Map<String, Object> errorResponse = createErrorResponse(context, "REQUEST_PROCESSING_ERROR",
-                "An error occurred while processing the request.");
-        errorResponse.put("errorType", error.getClass().getSimpleName());
-        errorResponse.put("errorMessage", error.getMessage());
+                PROCESSING_ERROR_MESSAGE);
 
         responseWriter.writeErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                "REQUEST_PROCESSING_ERROR", error.getMessage(), request.getRequestURI(), errorResponse);
+                "REQUEST_PROCESSING_ERROR", PROCESSING_ERROR_MESSAGE, request.getRequestURI(), errorResponse);
     }
 
     private Map<String, Object> createBaseResponse(FactorContext context) {
