@@ -352,13 +352,15 @@ public class BridgeProperties {
     /**
      * The step-up of a CHALLENGE when the application owns sign-in (HOST_OWNED). Besides Contexa's verification-only
      * factors, the application's own re-authentication answers a CHALLENGE when the bridge sees a completed MFA newer
-     * than the CHALLENGE; this is where the step-up page sends the user for it.
+     * than the CHALLENGE and the application said where it re-authenticates; this is where the step-up page sends the
+     * user for it.
      */
     @Data
     public static class StepUp {
         /**
          * Where the application re-authenticates the signed-in user with its own MFA or identity provider (for example
-         * an OIDC authorization request with {@code prompt=login} or {@code max_age=0}); not offered when empty.
+         * an OIDC authorization request with {@code prompt=login} or {@code max_age=0}); not offered when empty. Empty,
+         * the application's own sign-in answers no CHALLENGE, whatever MFA the principal shows.
          */
         private String reauthenticationUrl;
 

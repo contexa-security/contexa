@@ -17,6 +17,12 @@ The format is based on Keep a Changelog and the project follows semantic version
   default. **Check:** an application that keeps its agents' delegation in the session names that attribute in
   `contexa.bridge.delegation.session.attribute`. Setting `auto-discover` to `true` reads every attribute again, and the
   start says so at INFO.
+- **The application's own sign-in answers a CHALLENGE only where the application named its re-authentication.** A
+  completed MFA was read from the principal by the name of a value (`mfa`, `mfaVerified`, ...) and the time of the
+  sign-in, so a principal that always carries `mfa=true` released a CHALLENGE with a password sign-in alone. The
+  application's sign-in now answers a CHALLENGE only when `contexa.bridge.step-up.reauthentication-url` is set; elsewhere
+  Contexa's step-up does, by a mailed code or a passkey. **Check:** an application whose own MFA re-authentication
+  released CHALLENGEs sets `contexa.bridge.step-up.reauthentication-url` to where it re-authenticates.
 - A value in a CSV export that a spreadsheet would run as a formula now stays text: users write the names and browsers in those files, and an administrator opens them. A cell that starts with `=`, `+`, `-` or `@` and is no plain number gets a leading quote.
 - A one-time code asked for a name with no account leaves nothing in the log, and the mail shows a name as text, never as markup.
 - **A sign-in by code no longer mails any address a stranger types.** Before a sign-in the name of a code request is what

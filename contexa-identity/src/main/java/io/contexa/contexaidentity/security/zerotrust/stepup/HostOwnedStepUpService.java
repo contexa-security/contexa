@@ -445,9 +445,17 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
 
     // ----- the application's own re-authentication -----
 
+    /**
+     * Only an application that said where it re-authenticates ({@code contexa.bridge.step-up.reauthentication-url})
+     * is taken at its word. Elsewhere a completed MFA is read from values of the principal Contexa cannot vouch for,
+     * such as a flag that MFA is switched on and the time of the last sign-in, which a password alone renews.
+     */
     @Override
     public boolean resolvedByHostReauthentication(HttpServletRequest request, Authentication authentication,
                                                   String decisionKey) {
+        if (reauthenticationUrl == null) {
+            return false;
+        }
         if (!(request.getAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP) instanceof AuthenticationStamp stamp)
                 || !Boolean.TRUE.equals(stamp.mfaCompleted()) || stamp.authenticationTime() == null) {
             return false;
