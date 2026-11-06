@@ -198,9 +198,11 @@ public class IamAdminAuthAutoConfiguration {
             RoleHierarchyRepository roleHierarchyRepository,
             PolicyRepository policyRepository,
             PolicySynchronizationService contexaPolicySynchronizationService,
-            MessageSource messageSource) {
+            MessageSource messageSource,
+            LastAdministratorGuard contexaLastAdministratorGuard) {
         return new RoleServiceImpl(roleRepository, permissionRepository, eventBus, contexaCentralAuditFacade,
-                roleHierarchyRepository, policyRepository, contexaPolicySynchronizationService, messageSource);
+                roleHierarchyRepository, policyRepository, contexaPolicySynchronizationService, messageSource,
+                contexaLastAdministratorGuard);
     }
 
     @Bean(name = "contexaGroupService")
@@ -209,8 +211,10 @@ public class IamAdminAuthAutoConfiguration {
             GroupRepository groupRepository,
             RoleRepository roleRepository,
             RoleHierarchyRepository roleHierarchyRepository,
-            MessageSource messageSource) {
-        return new GroupServiceImpl(groupRepository, roleRepository, roleHierarchyRepository, messageSource);
+            MessageSource messageSource,
+            LastAdministratorGuard contexaLastAdministratorGuard) {
+        return new GroupServiceImpl(groupRepository, roleRepository, roleHierarchyRepository, messageSource,
+                contexaLastAdministratorGuard);
     }
 
     @Bean(name = "contexaPermissionService")
@@ -230,9 +234,10 @@ public class IamAdminAuthAutoConfiguration {
             RoleHierarchyRepository roleHierarchyRepository,
             RoleRepository roleRepository,
             BeanFactory beanFactory,
-            MessageSource messageSource) {
+            MessageSource messageSource,
+            LastAdministratorGuard contexaLastAdministratorGuard) {
         return new RoleHierarchyService(roleHierarchyRepository, roleRepository,
-                ContexaOwnBeans.roleHierarchyImpl(beanFactory), messageSource);
+                ContexaOwnBeans.roleHierarchyImpl(beanFactory), messageSource, contexaLastAdministratorGuard);
     }
 }
 

@@ -169,6 +169,8 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Override
 //    @Protectable
     public void modifyUser(@ModelAttribute UserDto userDto) {
+        // First in the transaction: a change of who administers the console waits for the one before it.
+        lastAdministratorGuard.serializeChanges();
         log.debug("[UserManagementService.modifyUser] findByIdWithGroupsRolesAndPermissions id={}", userDto.getId());
         Users users = userRepository.findByIdWithGroupsRolesAndPermissions(userDto.getId())
                 .orElseThrow(() -> new IllegalArgumentException(msg("msg.user.not.found.id", userDto.getId())));
@@ -335,6 +337,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Transactional(transactionManager = "contexaTransactionManager")
     @Protectable(verificationRequired = false)
     public void deleteUser(Long id) {
+        lastAdministratorGuard.serializeChanges();
         Optional<Users> target = userRepository.findById(id);
         target.ifPresent(lastAdministratorGuard::refuseDeletingTheLast);
         try {

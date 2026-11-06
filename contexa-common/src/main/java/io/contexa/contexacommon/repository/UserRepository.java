@@ -135,6 +135,16 @@ public interface UserRepository extends JpaRepository<Users, Long> {
                                                @Param("roleIds") Collection<Long> roleIds);
 
     /**
+     * The user names of the enabled accounts of Contexa's own that hold one of the roles, directly or through a group
+     * of theirs, in the order of the names; the page bounds how many are read.
+     */
+    @Query("SELECT DISTINCT u.username FROM Users u LEFT JOIN u.userRoles ur LEFT JOIN u.userGroups ug "
+            + "LEFT JOIN ug.group g LEFT JOIN g.groupRoles gr "
+            + "WHERE u.enabled = true AND u.bridgeManaged = false "
+            + "AND (ur.role.id IN :roleIds OR gr.role.id IN :roleIds) ORDER BY u.username")
+    List<String> findEnabledOwnUsernamesHoldingAnyRole(@Param("roleIds") Collection<Long> roleIds, Pageable pageable);
+
+    /**
      * Q-1: the enabled accounts that could not answer a CHALLENGE: no passkey, and no address a code can reach. An agent
      * answers no factor made for people and is left out.
      *

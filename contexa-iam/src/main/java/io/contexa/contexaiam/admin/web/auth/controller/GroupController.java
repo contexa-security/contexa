@@ -16,6 +16,7 @@
 package io.contexa.contexaiam.admin.web.auth.controller;
 
 import io.contexa.contexaiam.admin.web.auth.service.GroupService;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorException;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.domain.dto.GroupDto;
 import io.contexa.contexaiam.domain.dto.RoleMetadataDto;
@@ -26,13 +27,18 @@ import org.modelmapper.ModelMapper;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.ui.ConcurrentModel;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.security.access.prepost.PreAuthorize;
 import java.util.HashSet;
@@ -91,7 +97,7 @@ public class GroupController {
     }
 
     @PostMapping
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public String createGroup(@ModelAttribute("group") GroupDto groupDto,
                               @RequestParam(value = "selectedRoleIds", required = false) List<Long> selectedRoleIds,
                               RedirectAttributes ra) {
@@ -144,7 +150,7 @@ public class GroupController {
     }
 
     @PostMapping("/{id}/edit")
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public String updateGroup(@PathVariable Long id, @ModelAttribute("group") GroupDto groupDto,
                               @RequestParam(value = "selectedRoleIds", required = false) List<Long> selectedRoleIds,
                               RedirectAttributes ra) {
@@ -154,7 +160,9 @@ public class GroupController {
             groupService.updateGroup(group, selectedRoleIds);
 
             ra.addFlashAttribute("message", msg("msg.group.updated", group.getName()));
-                    } catch (IllegalArgumentException e) {
+                    } catch (LastAdministratorException e) {
+            throw e;
+        } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("errorMessage", e.getMessage());
             log.warn("Failed to update group: {}", e.getMessage());
         } catch (Exception e) {
@@ -165,15 +173,31 @@ public class GroupController {
     }
 
     @PostMapping("/delete/{id}")
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public String deleteGroup(@PathVariable Long id, RedirectAttributes ra) {
         try {
             groupService.deleteGroup(id);
             ra.addFlashAttribute("message", msg("msg.group.deleted", id));
-                    } catch (Exception e) {
+                    } catch (LastAdministratorException e) {
+            throw e;
+        } catch (Exception e) {
             ra.addFlashAttribute("errorMessage", msg("msg.group.delete.error", e.getMessage()));
             log.error("Error deleting group ID: {}", id, e);
         }
         return "redirect:/contexa/admin/groups";
+    }
+
+    /**
+     * A change of a group that would take the console's last active administrator is refused with a 409: nothing of it
+     * was kept (the refusal rolls the transaction back), and the list of groups says why.
+     */
+    @ExceptionHandler(LastAdministratorException.class)
+    public ModelAndView lastAdministrator(LastAdministratorException refusal) {
+        Model model = new ConcurrentModel();
+        String view = getGroups(null, PageRequest.of(0, 15, Sort.by(Sort.Direction.DESC, "id")), model);
+        ModelAndView page = new ModelAndView(view, model.asMap());
+        page.setStatus(HttpStatus.CONFLICT);
+        page.addObject("errorMessage", refusal.getMessage());
+        return page;
     }
 }

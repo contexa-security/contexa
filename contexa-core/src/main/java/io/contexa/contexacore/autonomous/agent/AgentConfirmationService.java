@@ -119,7 +119,8 @@ public class AgentConfirmationService {
     /**
      * Asks the accountable person to confirm the request, or answers the confirmation already waiting for it. The person
      * is mailed once per waiting agent: a request of the agent while another of its confirmations waits reaches the
-     * person on the console only, whichever way it came, so an agent cannot fill the person's mailbox.
+     * person on the console only, whichever way it came and also when the requests arrive together, so an agent cannot
+     * fill the person's mailbox.
      *
      * @return empty when no person is accountable for the agent (an agent on its own without a sponsor), or when a
      *         confirmation cannot keep the agent's identifiers whole ({@link AgentConfirmation#keeps})
@@ -150,13 +151,13 @@ public class AgentConfirmationService {
                     Map.of("target", request.method() + " " + request.target(), "trigger", request.trigger()));
             return Optional.empty();
         }
-        boolean anotherWaits = anotherWaits(subjectKey, now);
-        AgentConfirmation confirmation = store.save(new AgentConfirmation(UUID.randomUUID().toString(),
+        AgentConfirmation confirmation = new AgentConfirmation(UUID.randomUUID().toString(),
                 subject.tenantId(), subject.kind().name(), subject.userId(), subject.agentId(),
                 subject.delegationId(), recipient, request.requestHash(), request.method(),
                 request.target(), request.trigger(), request.reason(), request.correlationId(),
                 AgentConfirmation.Status.PENDING, now, now.plus(timeout), null, null, null, null, null,
-                request.bodyBytes()));
+                request.bodyBytes());
+        boolean anotherWaits = saveNotingWaiting(confirmation, subjectKey, now);
         notify(confirmation, AgentNotice.CONFIRMATION_REQUESTED,
                 "The agent " + confirmation.agentId() + " asks you to confirm a request",
                 "The agent " + confirmation.agentId() + " is waiting for your confirmation before it runs "
@@ -356,14 +357,18 @@ public class AgentConfirmationService {
     }
 
     /**
-     * Whether another confirmation of the subject waits for the person now. A store that cannot be read answers no:
-     * the person is then mailed, as before.
+     * Saves the confirmation and tells whether another confirmation of the subject waited for the person when it was
+     * saved, in one step of the store, so that of the first requests of an agent that arrive together exactly one finds
+     * the agent alone. A store that cannot tell answers no: the person is then mailed, as before.
      */
-    private boolean anotherWaits(String subjectKey, Instant now) {
+    private boolean saveNotingWaiting(AgentConfirmation confirmation, String subjectKey, Instant now) {
         try {
-            return store.waiting(subjectKey, now);
+            return store.saveNotingWaiting(confirmation, now);
         } catch (RuntimeException e) {
-            log.error("Reading the waiting confirmations failed; the person is mailed: subjectKey={}", subjectKey, e);
+            log.error("Saving the confirmation with the waiting ones failed; the person is mailed: subjectKey={}",
+                    subjectKey, e);
+            // A save is kept or replaced by the confirmation's identifier, so saving it again leaves one.
+            store.save(confirmation);
             return false;
         }
     }

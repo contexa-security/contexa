@@ -37,13 +37,17 @@ public class IamAdminSessionAutoConfiguration {
     @Bean(name = "contexaSessionManagementService")
     @ConditionalOnMissingBean
     public SessionManagementService sessionManagementService(
-            ActiveSessionRepository activeSessionRepository) {
-        return new SessionManagementService(activeSessionRepository);
+            ActiveSessionRepository activeSessionRepository,
+            @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperations) {
+        JdbcOperations jdbc = jdbcOperations.getIfAvailable();
+        return new SessionManagementService(activeSessionRepository,
+                jdbc != null ? new ActiveSessionReferences(jdbc) : null);
     }
 
     /**
      * The tracked sessions a database kept under their raw identifiers move to their references when the application
-     * starts, before it serves a request; once moved, nothing is left to move.
+     * starts, before it serves a request, and again whenever the console reads the sessions (a node not yet on
+     * references goes on writing the raw value); once moved, nothing is left to move.
      */
     @Bean(name = "contexaActiveSessionReferences")
     public SmartInitializingSingleton contexaActiveSessionReferences(

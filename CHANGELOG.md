@@ -50,6 +50,41 @@ The format is based on Keep a Changelog and the project follows semantic version
   `errorMessage` from the answer of a failed MFA request, no longer gets them, and the `message` of a failed MFA
   sign-in no longer names the failing step; read the log instead.
 
+- **A session an older node tracked after the references were introduced is turned into its reference when the
+  console reads the sessions.** The tracked sessions that a database kept under the value their cookie carries were
+  moved to their references once, when the application started. In a rolling upgrade a node not yet upgraded goes on
+  writing the cookie's value after that, so such a row stayed until the next start: it was listed under its
+  reference, but ending it from the console did nothing, because the console looks the session up by the reference
+  and the row was stored by the raw value. The list, the export and the ending of a session now first turn the rows of
+  the raw value into references (a row forced out stays forced out, and two nodes doing it at once leave one row),
+  and a move that fails stops none of them. The list and the export never showed the raw value and still do not. No
+  setting is added. **Check:** a session served by a node that is not yet upgraded is ended on that node only once it
+  is upgraded, since that node looks the session up by the raw value the console no longer keeps.
+- **Requests of one agent that arrive together mail the person once.** The person accountable for an agent is mailed
+  once while one of the agent's confirmations waits, and the agent's other requests are told on the console only; but
+  the store was asked whether another confirmation waited and then saved the new one as two steps, so the first
+  requests of an agent that arrived together each found the agent alone and each mailed the person (an agent could
+  send as many mails as it could send requests at once). The store now saves the confirmation and answers whether
+  another waited in one step, in memory and in the database alike (the database puts the saves of one agent's
+  confirmations in an order with a lock of its own, taken inside the transaction of the save): of requests that arrive
+  together exactly one is mailed and the others reach the console. A store written for the application keeps working
+  with the old two steps unless it overrides `AgentConfirmationStore.saveNotingWaiting`. No setting is added.
+- **Two administrators can no longer take each other's role at the same moment.** The console kept its last
+  administrator by reading whether another one remained, so two administrators who each took the other's
+  `ROLE_ADMIN` (in the user's page, in the access center, or by deleting each other) in the same moment each read the
+  other as still there, both changes went through and the console was left with none. Every change of who administers
+  the console now takes one lock first, the rows of the roles, held to the end of its transaction, and reads the
+  administrators only after the change before it: the second change waits, then is refused with 409 like a change of
+  the only administrator. No setting is added.
+- **A role, a group or the role hierarchy can no longer be edited to take the console's last administrator.** Renaming
+  or deleting the role that gives `ROLE_ADMIN` (or the role a hierarchy line places over it), taking that role from a
+  group in the group's page or in the access center, deleting the group, and rewriting, deleting or switching off the
+  hierarchy line all took `ROLE_ADMIN` from the last administrator without a word, as a change of the user already was
+  refused. Each is now refused with 409 and the accounts that would lose the role named, on the page the edit came from
+  (the access center answers `success: false` with the reason), and nothing of it is kept; a changed hierarchy is read
+  as it would stand, before the console runs on it. An edit that leaves another administrator, and an edit of what the
+  administrator does not hold, go through as before. **Check:** before renaming or removing the administrators' role,
+  give `ROLE_ADMIN` to a second account.
 - **A role, permission or action name no longer changes the condition it is written into.** A policy condition wrote
   names into SpEL as they were, so a quote in a name ended its literal: `O'Neil` made a condition that broke the save
   (500), and `X') or true or hasAuthority('Y` made one that was always true. Every condition built from a role, a
@@ -389,6 +424,13 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **A console form that fails with a message now shows the message.** A role a hierarchy still names, a group role that
+  does not exist, a hierarchy that exists already, a user name taken and a password the policy refuses each answered an
+  error page (`UnexpectedRollbackException: Transaction silently rolled back because it has been marked as
+  rollback-only`) instead of the message: the controller methods of the users, roles, groups and role hierarchies
+  opened a transaction of their own, the service they called joined it, and the service's exception marked it for
+  rollback before the controller caught it. These methods no longer open a transaction, the services keep theirs, so
+  the refusal is rolled back there and the page the person returns to says why. Nothing else of them changes.
 - **The permission list and the page of a permission no longer fail when a permission guards a resource.** Opening
   `/contexa/admin/permissions` answered 500 (`LazyInitializationException: Could not initialize proxy
   [ManagedResource#...] - no session`) as soon as a permission made from a resource, in the policy center's "Create

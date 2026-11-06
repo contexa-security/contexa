@@ -21,9 +21,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -34,6 +37,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * A database that kept the tracked sessions under their raw identifiers keeps them under their references once Contexa
@@ -103,6 +107,81 @@ class ActiveSessionReferencesTest {
 
         // Once moved, a start moves nothing.
         assertThat(references.referenceStoredSessions()).isZero();
+    }
+
+    /**
+     * A node not yet on references writes the raw value again after the first move, and a node on references tracks the
+     * same session meanwhile: the rows are merged, a failure of the move is not the end of it, and a forced-out row
+     * keeps the session forced out.
+     */
+    @Test
+    void aReferenceTrackedWhileARowIsMovedIsMergedAndNothingFails() {
+        row("RAW-FORCED-OUT", "alice", true);
+        row("RAW-ACTIVE", "bob", false);
+        // Right after the look at the references, a node on references tracks both sessions.
+        JdbcOperations racing = afterLookingAtTheReferences(() -> {
+            row(ref("RAW-FORCED-OUT"), "alice", false);
+            row(ref("RAW-ACTIVE"), "bob", false);
+        });
+
+        assertThat(new ActiveSessionReferences(racing).referenceStoredSessions()).isEqualTo(2);
+
+        assertThat(jdbc.queryForList("select session_id from ctxa_active_sessions", String.class))
+                .containsExactlyInAnyOrder(ref("RAW-FORCED-OUT"), ref("RAW-ACTIVE"));
+        assertThat(expired(ref("RAW-FORCED-OUT"))).isTrue();
+        assertThat(expired(ref("RAW-ACTIVE"))).isFalse();
+    }
+
+    @Test
+    void readingMovesTheRowsAnOlderNodeWroteAfterTheFirstMoveAndMovesNothingTwice() {
+        ActiveSessionReferences references = new ActiveSessionReferences(jdbc);
+        assertThat(references.whenRead()).isZero();
+
+        row("RAW-LATE", "alice", false);
+        row("RAW-LATE-OUT", "bob", true);
+        row(ref("RAW-LATE-OUT"), "bob", false);
+
+        assertThat(references.whenRead()).isEqualTo(2);
+        assertThat(references.whenRead()).isZero();
+        assertThat(jdbc.queryForList("select session_id from ctxa_active_sessions", String.class))
+                .containsExactlyInAnyOrder(ref("RAW-LATE"), ref("RAW-LATE-OUT"))
+                .allMatch(id -> id.matches("sid-[0-9a-f]{24}"));
+        assertThat(expired(ref("RAW-LATE-OUT"))).isTrue();
+    }
+
+    @Test
+    void aDatabaseThatCannotBeReadNowStopsNoReadOfTheSessions() {
+        row("RAW-ACTIVE", "alice", false);
+        JdbcOperations failing = (JdbcOperations) Proxy.newProxyInstance(JdbcOperations.class.getClassLoader(),
+                new Class<?>[]{JdbcOperations.class}, (proxy, method, args) -> {
+                    throw new IllegalStateException("the database cannot be read");
+                });
+        ActiveSessionReferences references = new ActiveSessionReferences(failing);
+
+        assertThat(references.whenRead()).isZero();
+        assertThatThrownBy(references::referenceStoredSessions).isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForList("select session_id from ctxa_active_sessions", String.class))
+                .containsExactly("RAW-ACTIVE");
+    }
+
+    /** The database, but for what happens once, right after the first look at whether the reference of a row exists. */
+    private JdbcOperations afterLookingAtTheReferences(Runnable meanwhile) {
+        boolean[] done = {false};
+        return (JdbcOperations) Proxy.newProxyInstance(JdbcOperations.class.getClassLoader(),
+                new Class<?>[]{JdbcOperations.class}, (proxy, method, args) -> {
+                    Object result;
+                    try {
+                        result = method.invoke(jdbc, args);
+                    } catch (InvocationTargetException e) {
+                        throw e.getCause();
+                    }
+                    if (!done[0] && method.getName().equals("queryForList") && args.length == 3
+                            && String.valueOf(args[0]).startsWith("select expired from ctxa_active_sessions where session_id")) {
+                        done[0] = true;
+                        meanwhile.run();
+                    }
+                    return result;
+                });
     }
 
     private void row(String sessionId, String user, boolean expired) {

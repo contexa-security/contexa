@@ -192,6 +192,7 @@ public class AccessCenterService {
 
     @Transactional(transactionManager = "contexaTransactionManager")
     public AccessActionResponse updateUserGroups(Long userId, UpdateUserGroupsRequest request) {
+        lastAdministratorGuard.serializeChanges();
         List<Long> groupIds = request.groupIdsOrEmpty();
         Users user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
@@ -211,6 +212,7 @@ public class AccessCenterService {
 
     @Transactional(transactionManager = "contexaTransactionManager")
     public AccessActionResponse updateUserDirectRoles(Long userId, AccessRoleAssignmentsRequest request) {
+        lastAdministratorGuard.serializeChanges();
         Users user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
         String principal = extractCurrentUsername();
@@ -316,6 +318,8 @@ public class AccessCenterService {
 
     @Transactional(transactionManager = "contexaTransactionManager")
     public AccessActionResponse updateGroupRoles(Long groupId, AccessRoleAssignmentsRequest request) {
+        lastAdministratorGuard.serializeChanges();
+        List<String> administrators = lastAdministratorGuard.administrators();
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new IllegalArgumentException("Group not found: " + groupId));
         String principal = extractCurrentUsername();
@@ -382,6 +386,7 @@ public class AccessCenterService {
         }
 
         groupRepository.save(group);
+        lastAdministratorGuard.refuseLosingEveryAdministrator(administrators);
         return new AccessActionResponse(true, "Group roles updated successfully.");
     }
 
