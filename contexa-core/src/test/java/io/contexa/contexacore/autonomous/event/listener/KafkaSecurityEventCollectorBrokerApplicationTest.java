@@ -27,6 +27,7 @@ import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.TopicPartition;
@@ -220,8 +221,8 @@ class KafkaSecurityEventCollectorBrokerApplicationTest {
                 admin.listConsumerGroupOffsets(group).partitionsToOffsetAndMetadata().get();
         Map<String, Object> config = new HashMap<>();
         config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrap);
-        try (org.apache.kafka.clients.consumer.KafkaConsumer<String, String> reader =
-                     new org.apache.kafka.clients.consumer.KafkaConsumer<>(config, new StringDeserializer(), new StringDeserializer())) {
+        try (KafkaConsumer<String, String> reader =
+                     new KafkaConsumer<>(config, new StringDeserializer(), new StringDeserializer())) {
             List<TopicPartition> partitions = IntStream.range(0, PARTITIONS).mapToObj(index -> new TopicPartition(topic, index)).toList();
             Map<TopicPartition, Long> ends = reader.endOffsets(partitions);
             long lag = 0;

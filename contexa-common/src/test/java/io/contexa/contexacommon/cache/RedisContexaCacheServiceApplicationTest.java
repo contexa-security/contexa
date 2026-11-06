@@ -21,6 +21,7 @@ import io.contexa.contexacommon.store.ApplicationNamespace;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -30,10 +31,13 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -92,8 +96,8 @@ class RedisContexaCacheServiceApplicationTest {
         RedisContexaCacheService cache = cache();
         Cursor<String> none = mock(Cursor.class);
         when(none.hasNext()).thenReturn(false);
-        when(redis.scan(org.mockito.ArgumentMatchers.any(ScanOptions.class))).thenReturn(none);
-        when(redis.delete(org.mockito.ArgumentMatchers.<Set<String>>any())).thenReturn(0L);
+        when(redis.scan(any(ScanOptions.class))).thenReturn(none);
+        when(redis.delete(ArgumentMatchers.<Set<String>>any())).thenReturn(0L);
 
         try (ApplicationNamespace.Scope ignored = ApplicationNamespace.using("shop")) {
             cache.invalidate("user_details:*");
@@ -101,7 +105,7 @@ class RedisContexaCacheServiceApplicationTest {
         }
 
         ArgumentCaptor<ScanOptions> scans = ArgumentCaptor.forClass(ScanOptions.class);
-        verify(redis, org.mockito.Mockito.times(2)).scan(scans.capture());
+        verify(redis, times(2)).scan(scans.capture());
         assertThat(scans.getAllValues()).extracting(ScanOptions::getPattern)
                 .containsExactly("ctxa:shop:contexa:cache:user_details:*", "ctxa:shop:contexa:cache:*");
         verify(redis).convertAndSend("ctxa:shop:contexa:cache:invalidation", "user_details:*");
@@ -121,7 +125,7 @@ class RedisContexaCacheServiceApplicationTest {
         }
 
         verify(cache).invalidateLocalOnly("user_details:4");
-        verify(cache, org.mockito.Mockito.never()).invalidateLocalOnly("user_details:2");
-        verify(cache, org.mockito.Mockito.never()).invalidateLocalOnly("user_details:3");
+        verify(cache, never()).invalidateLocalOnly("user_details:2");
+        verify(cache, never()).invalidateLocalOnly("user_details:3");
     }
 }

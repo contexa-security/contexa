@@ -36,8 +36,10 @@ import java.util.concurrent.CompletableFuture;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -94,7 +96,7 @@ class KafkaSecurityEventPublisherApplicationTest {
             publisher.publishGenericSecurityEvent(event());
 
             ArgumentCaptor<ProducerRecord<String, Object>> sent = ArgumentCaptor.forClass(ProducerRecord.class);
-            Awaitility.await().untilAsserted(() -> verify(template, org.mockito.Mockito.times(2)).send(sent.capture()));
+            Awaitility.await().untilAsserted(() -> verify(template, times(2)).send(sent.capture()));
             ProducerRecord<String, Object> deadLetter = sent.getAllValues().get(1);
             assertThat(deadLetter.topic()).isEqualTo(properties.getTopic().getDlq());
             assertThat(new String(deadLetter.headers().lastHeader("ctxa-app").value(), StandardCharsets.UTF_8))
@@ -112,8 +114,8 @@ class KafkaSecurityEventPublisherApplicationTest {
             publisher.publishGenericSecurityEvent(event());
 
             Awaitility.await().untilAsserted(() -> verify(template, atLeastOnce())
-                    .send(org.mockito.ArgumentMatchers.eq("security.events.authorization.method"),
-                            org.mockito.ArgumentMatchers.eq("session-1"), any()));
+                    .send(eq("security.events.authorization.method"),
+                            eq("session-1"), any()));
             verify(template, never()).send(any(ProducerRecord.class));
         }
     }

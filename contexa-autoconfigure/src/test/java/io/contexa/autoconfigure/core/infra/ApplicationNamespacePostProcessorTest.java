@@ -20,6 +20,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.boot.context.event.ApplicationPreparedEvent;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.mock.env.MockEnvironment;
@@ -81,7 +82,7 @@ class ApplicationNamespacePostProcessorTest {
                     .web(WebApplicationType.NONE)
                     .properties("spring.application.name=Shop-Front")
                     .listeners(event -> {
-                        if (event instanceof org.springframework.boot.context.event.ApplicationPreparedEvent) {
+                        if (event instanceof ApplicationPreparedEvent) {
                             boundWhenTheContextRefreshes[0] = ApplicationNamespace.identifier();
                         }
                     })
