@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.repository;
 
+import io.contexa.contexacommon.store.ApplicationNamespace;
 import io.contexa.contexacommon.store.StoreFailures;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,7 +55,7 @@ public class RedisProtectableRapidReentryRepository implements ProtectableRapidR
     private String buildKey(String userId, String contextBindingHash, String resourceKey) {
         String raw = userId + KEY_PART_SEPARATOR + contextBindingHash + KEY_PART_SEPARATOR + resourceKey;
         String digest = DigestUtils.md5DigestAsHex(raw.getBytes(StandardCharsets.UTF_8));
-        return KEY_PREFIX + digest;
+        return ApplicationNamespace.key(KEY_PREFIX + digest);
     }
 
     private boolean isInvalid(String value) {

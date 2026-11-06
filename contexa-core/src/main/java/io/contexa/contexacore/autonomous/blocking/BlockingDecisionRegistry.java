@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.blocking;
 
+import io.contexa.contexacommon.store.ApplicationNamespace;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
@@ -62,7 +63,7 @@ public class BlockingDecisionRegistry implements BlockingSignalBroadcaster {
     BlockingDecisionRegistry(RedissonClient redissonClient, BlockedStateProbe probe, Duration probeInterval,
                              LongSupplier clock) {
         this.blockedUsers = new BlockSignals(probe, probeInterval, clock);
-        this.topic = redissonClient.getTopic(TOPIC_NAME);
+        this.topic = redissonClient.getTopic(ApplicationNamespace.key(TOPIC_NAME));
         this.topic.addListener(String.class, (channel, message) -> {
             try {
                 if (message.startsWith(BLOCK_PREFIX)) {

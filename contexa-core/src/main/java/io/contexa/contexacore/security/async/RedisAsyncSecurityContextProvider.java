@@ -17,13 +17,14 @@ package io.contexa.contexacore.security.async;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import io.contexa.contexacommon.store.ApplicationNamespace;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
-
+
 @Slf4j
 public class RedisAsyncSecurityContextProvider extends AbstractAsyncSecurityContextProvider {
 
@@ -51,14 +52,14 @@ public class RedisAsyncSecurityContextProvider extends AbstractAsyncSecurityCont
 
     @Override
     protected void doSave(String userId, String sessionId, AsyncAuthenticationData data) {
-        String userKey = AUTH_KEY_PREFIX + userId;
+        String userKey = ApplicationNamespace.key(AUTH_KEY_PREFIX + userId);
         redisTemplate.opsForValue().set(userKey, data, DEFAULT_TTL);
         authCache.put(userId, Optional.of(data));
 
         if (sessionId != null) {
-            String compositeKey = AUTH_KEY_PREFIX + userId + ":" + sessionId;
+            String compositeKey = ApplicationNamespace.key(AUTH_KEY_PREFIX + userId + ":" + sessionId);
             redisTemplate.opsForValue().set(compositeKey, data, DEFAULT_TTL);
-            String sessionKey = SESSION_KEY_PREFIX + sessionId;
+            String sessionKey = ApplicationNamespace.key(SESSION_KEY_PREFIX + sessionId);
             redisTemplate.opsForValue().set(sessionKey, userId, DEFAULT_TTL);
         }
     }
@@ -75,7 +76,7 @@ public class RedisAsyncSecurityContextProvider extends AbstractAsyncSecurityCont
         }
 
         try {
-            String key = AUTH_KEY_PREFIX + userId;
+            String key = ApplicationNamespace.key(AUTH_KEY_PREFIX + userId);
             Object data = redisTemplate.opsForValue().get(key);
 
             if (data instanceof AsyncAuthenticationData authData) {
@@ -97,11 +98,11 @@ public class RedisAsyncSecurityContextProvider extends AbstractAsyncSecurityCont
         }
 
         try {
-            String sessionKey = SESSION_KEY_PREFIX + sessionId;
+            String sessionKey = ApplicationNamespace.key(SESSION_KEY_PREFIX + sessionId);
             Object userIdObj = redisTemplate.opsForValue().get(sessionKey);
 
             if (userIdObj instanceof String userId) {
-                String compositeKey = AUTH_KEY_PREFIX + userId + ":" + sessionId;
+                String compositeKey = ApplicationNamespace.key(AUTH_KEY_PREFIX + userId + ":" + sessionId);
                 Object data = redisTemplate.opsForValue().get(compositeKey);
                 if (data instanceof AsyncAuthenticationData authData && authData.isValid()) {
                     return Optional.of(authData);
@@ -119,14 +120,14 @@ public class RedisAsyncSecurityContextProvider extends AbstractAsyncSecurityCont
     public void removeAuthentication(String userId, String sessionId) {
         try {
             if (userId != null) {
-                redisTemplate.delete(AUTH_KEY_PREFIX + userId);
+                redisTemplate.delete(ApplicationNamespace.key(AUTH_KEY_PREFIX + userId));
                 authCache.invalidate(userId);
             }
             if (userId != null && sessionId != null) {
-                redisTemplate.delete(AUTH_KEY_PREFIX + userId + ":" + sessionId);
+                redisTemplate.delete(ApplicationNamespace.key(AUTH_KEY_PREFIX + userId + ":" + sessionId));
             }
             if (sessionId != null) {
-                redisTemplate.delete(SESSION_KEY_PREFIX + sessionId);
+                redisTemplate.delete(ApplicationNamespace.key(SESSION_KEY_PREFIX + sessionId));
             }
         } catch (Exception e) {
             log.error("Failed to remove authentication - userId: {}, sessionId: {}", userId, sessionId, e);
@@ -140,7 +141,7 @@ public class RedisAsyncSecurityContextProvider extends AbstractAsyncSecurityCont
         }
 
         try {
-            String userKey = AUTH_KEY_PREFIX + userId;
+            String userKey = ApplicationNamespace.key(AUTH_KEY_PREFIX + userId);
             Object data = redisTemplate.opsForValue().get(userKey);
 
             if (data instanceof AsyncAuthenticationData authData) {
@@ -149,9 +150,9 @@ public class RedisAsyncSecurityContextProvider extends AbstractAsyncSecurityCont
                 authCache.invalidate(userId);
 
                 if (sessionId != null) {
-                    String compositeKey = AUTH_KEY_PREFIX + userId + ":" + sessionId;
+                    String compositeKey = ApplicationNamespace.key(AUTH_KEY_PREFIX + userId + ":" + sessionId);
                     redisTemplate.expire(compositeKey, DEFAULT_TTL);
-                    String sessionKey = SESSION_KEY_PREFIX + sessionId;
+                    String sessionKey = ApplicationNamespace.key(SESSION_KEY_PREFIX + sessionId);
                     redisTemplate.expire(sessionKey, DEFAULT_TTL);
                 }
             }

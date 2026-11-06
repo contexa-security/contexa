@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.event.publisher;
 
+import io.contexa.contexacore.autonomous.event.SecurityEventOrigin;
 import io.contexa.contexacore.autonomous.event.SecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.SecurityEventTopics;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
@@ -145,7 +146,7 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher, Disp
         }
         try {
             String topic = SecurityEventTopics.of(event.getCategory(), event.getEventType());
-            kafkaTemplate.send(topic, generateEventKey(event), event).whenComplete((result, failure) -> {
+            SecurityEventOrigin.send(kafkaTemplate, topic, generateEventKey(event), event).whenComplete((result, failure) -> {
                 if (failure != null) {
                     failed(event, queuedAt, failure);
                     return;
@@ -225,7 +226,7 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher, Disp
                     .build();
 
             dlqDispatchRequestedCount.incrementAndGet();
-            kafkaTemplate.send(securityKafkaProperties.getTopic().getDlq(), dlqEvent)
+            SecurityEventOrigin.send(kafkaTemplate, securityKafkaProperties.getTopic().getDlq(), null, dlqEvent)
                     .whenComplete((result, dlqError) -> {
                         if (dlqError == null) {
                             dlqDispatchConfirmedCount.incrementAndGet();

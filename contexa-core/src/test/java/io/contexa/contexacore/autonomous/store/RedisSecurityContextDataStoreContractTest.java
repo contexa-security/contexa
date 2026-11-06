@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.store;
 
+import io.contexa.contexacommon.store.ApplicationNamespace;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.testsupport.RedisTestTemplates;
 import io.contexa.contexacore.testsupport.TestStores;
@@ -113,7 +114,7 @@ class RedisSecurityContextDataStoreContractTest extends AbstractSecurityContextD
 
     @Override
     protected long heldLoginFailureKeys() {
-        long keys = redisTemplate.keys("security:context:authentication:failure:*").size();
+        long keys = redisTemplate.keys(ApplicationNamespace.key("security:context:authentication:failure:*")).size();
         Long ordered = redisTemplate.opsForZSet().zCard(ZeroTrustRedisKeys.authenticationLoginFailureKeys());
         return Math.max(keys, ordered != null ? ordered : 0);
     }

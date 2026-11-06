@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.zerotrust.stepup;
 
+import io.contexa.contexacommon.store.ApplicationNamespace;
 import io.contexa.contexacore.testsupport.TestStores;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -59,7 +60,7 @@ class RedisStepUpOptionsStoreClaimContractTest extends AbstractStepUpOptionsStor
     @DisplayName("a count never stands in Redis without its time, not even one that lost it")
     void aCountAlwaysHasItsTime() {
         String key = "contract:" + UUID.randomUUID();
-        String stored = "contexa:step-up:options:count:" + key;
+        String stored = ApplicationNamespace.key("contexa:step-up:options:count:" + key);
         StepUpOptionsStore store = store();
 
         store.increment(key, Duration.ofMinutes(1));

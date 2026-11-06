@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.infra.session.impl;
 
+import io.contexa.contexacommon.store.ApplicationNamespace;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.infra.session.generator.RedisSessionIdGenerator;
@@ -51,7 +52,7 @@ class RedisMfaRepositoryContractTest extends AbstractMfaSessionRepositoryContrac
 
     @AfterEach
     void removeStoredSessions() {
-        storedIds.forEach(id -> strings.delete("mfa:session:v2:" + id));
+        storedIds.forEach(id -> strings.delete(ApplicationNamespace.key("mfa:session:v2:" + id)));
     }
 
     @Override

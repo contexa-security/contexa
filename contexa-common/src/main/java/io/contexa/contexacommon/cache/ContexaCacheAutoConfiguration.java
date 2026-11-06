@@ -85,7 +85,7 @@ public class ContexaCacheAutoConfiguration {
             container.setConnectionFactory(connectionFactory);
 
             if (properties.getPubsub().isEnabled()) {
-                ChannelTopic topic = new ChannelTopic(properties.getPubsub().getChannel());
+                ChannelTopic topic = new ChannelTopic(properties.getPubsub().qualifiedChannel());
                 container.addMessageListener(contexaCacheListenerAdapter, topic);
             }
 

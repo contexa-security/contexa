@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.zerotrust.stepup;
 
+import io.contexa.contexacommon.store.ApplicationNamespace;
 import io.contexa.contexacommon.store.StoreFailures;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -42,6 +43,12 @@ import java.util.List;
 public class RedisStepUpOptionsStore implements StepUpOptionsStore {
 
     private static final String PREFIX = "contexa:step-up:options:";
+
+    /** Where this application keeps its options: behind its name when it has one. */
+    private static String prefix() {
+        return ApplicationNamespace.key(PREFIX);
+    }
+
     private static final String CLAIM = "claim:";
     private static final String COUNT = "count:";
 
@@ -71,7 +78,7 @@ public class RedisStepUpOptionsStore implements StepUpOptionsStore {
     public void put(String key, Serializable value) {
         String encoded = encode(value);
         try {
-            redis.opsForValue().set(PREFIX + key, encoded, TIME_TO_LIVE);
+            redis.opsForValue().set(prefix() + key, encoded, TIME_TO_LIVE);
         } catch (RuntimeException unavailable) {
             report("keep a step-up option", unavailable);
         }
@@ -81,7 +88,7 @@ public class RedisStepUpOptionsStore implements StepUpOptionsStore {
     @Override
     public boolean claim(String key, Duration holdFor) {
         try {
-            return Boolean.TRUE.equals(redis.opsForValue().setIfAbsent(PREFIX + CLAIM + key, "1", holdFor));
+            return Boolean.TRUE.equals(redis.opsForValue().setIfAbsent(prefix() + CLAIM + key, "1", holdFor));
         } catch (RuntimeException unavailable) {
             report("claim a step-up option", unavailable);
             return false;
@@ -91,7 +98,7 @@ public class RedisStepUpOptionsStore implements StepUpOptionsStore {
     @Override
     public void release(String key) {
         try {
-            redis.delete(PREFIX + CLAIM + key);
+            redis.delete(prefix() + CLAIM + key);
         } catch (RuntimeException unavailable) {
             report("release a step-up claim", unavailable);
         }
@@ -100,7 +107,7 @@ public class RedisStepUpOptionsStore implements StepUpOptionsStore {
     @Override
     public long increment(String key, Duration holdFor) {
         try {
-            Long count = redis.execute(INCREMENT, List.of(PREFIX + COUNT + key), String.valueOf(holdFor.toMillis()));
+            Long count = redis.execute(INCREMENT, List.of(prefix() + COUNT + key), String.valueOf(holdFor.toMillis()));
             return count != null ? count : Long.MAX_VALUE;
         } catch (RuntimeException unavailable) {
             report("keep a step-up count", unavailable);
@@ -111,7 +118,7 @@ public class RedisStepUpOptionsStore implements StepUpOptionsStore {
     @Override
     public void clearCount(String key) {
         try {
-            redis.delete(PREFIX + COUNT + key);
+            redis.delete(prefix() + COUNT + key);
         } catch (RuntimeException unavailable) {
             report("clear a step-up count", unavailable);
         }
@@ -119,7 +126,7 @@ public class RedisStepUpOptionsStore implements StepUpOptionsStore {
 
     @Override
     public boolean holds(String key) {
-        return Boolean.TRUE.equals(redis.hasKey(PREFIX + key));
+        return Boolean.TRUE.equals(redis.hasKey(prefix() + key));
     }
 
     @Override
@@ -127,7 +134,7 @@ public class RedisStepUpOptionsStore implements StepUpOptionsStore {
     public <T extends Serializable> T take(String key, Class<T> type) {
         String stored;
         try {
-            stored = redis.opsForValue().getAndDelete(PREFIX + key);
+            stored = redis.opsForValue().getAndDelete(prefix() + key);
         } catch (RuntimeException unavailable) {
             report("read a step-up option", unavailable);
             return null;

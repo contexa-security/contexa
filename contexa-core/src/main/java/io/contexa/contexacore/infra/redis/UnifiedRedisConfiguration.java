@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.contexa.contexacommon.config.redis.ContexaJsonRedisSerializer;
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacommon.store.ApplicationNamespace;
 import io.contexa.contexacore.autonomous.notification.SoarApprovalNotifier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,7 +48,13 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 @ConditionalOnProperty(prefix = "contexa.infrastructure", name = "mode", havingValue = "distributed")
 public class UnifiedRedisConfiguration {
 
+    /** The name of the channel; {@link #soarApprovalChannel()} is the one this application listens on and publishes to. */
     public static final String SOAR_APPROVAL_CHANNEL = "soar:approval:requests";
+
+    /** The channel behind the name of the application when it has one, so that another application's approvals are not these. */
+    public static String soarApprovalChannel() {
+        return ApplicationNamespace.key(SOAR_APPROVAL_CHANNEL);
+    }
 
     @Bean(name = "contexaSecurityEventRedisTemplate", defaultCandidate = false)
     public RedisTemplate<String, SecurityEvent> securityEventRedisTemplate(
@@ -88,7 +95,7 @@ public class UnifiedRedisConfiguration {
             MessageListenerAdapter listenerAdapter =
                     new MessageListenerAdapter(soarApprovalNotifier, "receiveApprovalNotification");
             listenerAdapter.setSerializer(contexaGeneralRedisTemplate.getValueSerializer());
-            container.addMessageListener(listenerAdapter, new ChannelTopic(SOAR_APPROVAL_CHANNEL));
+            container.addMessageListener(listenerAdapter, new ChannelTopic(soarApprovalChannel()));
         } else {
         }
 

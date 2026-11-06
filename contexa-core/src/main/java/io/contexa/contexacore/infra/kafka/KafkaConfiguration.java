@@ -16,6 +16,7 @@
 package io.contexa.contexacore.infra.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.store.ApplicationNamespace;
 import io.contexa.contexacore.autonomous.event.listener.DecidedRecordAcknowledger;
 import io.contexa.contexacore.autonomous.service.DeletedAccountWriteFence;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
@@ -81,7 +82,7 @@ public class KafkaConfiguration {
         Map<String, Object> props = new HashMap<>(kafkaProperties.buildConsumerProperties(sslBundles.getIfAvailable()));
         KafkaConnectionDetails details = connectionDetails.getIfAvailable();
         applyConnection(props, details != null ? details.getConsumer() : null);
-        props.putIfAbsent(ConsumerConfig.GROUP_ID_CONFIG, "security-plane-consumer");
+        props.putIfAbsent(ConsumerConfig.GROUP_ID_CONFIG, ApplicationNamespace.consumerGroup("security-plane-consumer"));
         props.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         props.putIfAbsent(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 500);
         keepClientIdApart(props);

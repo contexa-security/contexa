@@ -16,6 +16,7 @@
 package io.contexa.contexacore.infra.session.generator;
 
 import java.util.Locale;
+import io.contexa.contexacommon.store.ApplicationNamespace;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -85,7 +86,7 @@ public class RedisSessionIdGenerator implements SessionIdGenerator {
 
         DefaultRedisScript<String> script = new DefaultRedisScript<>(GENERATE_UNIQUE_ID_SCRIPT, String.class);
         String uniqueId = redisTemplate.execute(script,
-                Collections.singletonList(COLLISION_COUNTER_KEY),
+                Collections.singletonList(ApplicationNamespace.key(COLLISION_COUNTER_KEY)),
                 String.valueOf(timestamp),
                 nodeId,
                 randomPart);

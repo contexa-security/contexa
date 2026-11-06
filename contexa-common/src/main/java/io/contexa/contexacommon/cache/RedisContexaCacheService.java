@@ -29,7 +29,7 @@ import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
-
+
 
 @Slf4j
 public class RedisContexaCacheService extends AbstractContexaCacheService {
@@ -68,7 +68,7 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
         }
 
         if (properties.getType() != ContexaCacheProperties.CacheType.LOCAL) {
-            String redisKey = properties.getRedis().getKeyPrefix() + key;
+            String redisKey = properties.getRedis().qualifiedKeyPrefix() + key;
             try {
                 String redisJson = redisTemplate.opsForValue().get(redisKey);
                 if (redisJson != null) {
@@ -104,7 +104,7 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
             }
 
             if (properties.getType() != ContexaCacheProperties.CacheType.LOCAL) {
-                String redisKey = properties.getRedis().getKeyPrefix() + key;
+                String redisKey = properties.getRedis().qualifiedKeyPrefix() + key;
                 int ttlSeconds = getRedisTtl(domain);
                 writeThrough(key, redisKey, json, ttlSeconds);
             }
@@ -152,7 +152,7 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
         }
 
         if (properties.getType() != ContexaCacheProperties.CacheType.LOCAL) {
-            String redisPattern = properties.getRedis().getKeyPrefix() + key;
+            String redisPattern = properties.getRedis().qualifiedKeyPrefix() + key;
             if (key.contains("*")) {
                 Set<String> keys = scanKeys(redisPattern);
                 if (!keys.isEmpty()) {
@@ -180,7 +180,7 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
         }
 
         if (properties.getType() != ContexaCacheProperties.CacheType.LOCAL) {
-            Set<String> keys = scanKeys(properties.getRedis().getKeyPrefix() + "*");
+            Set<String> keys = scanKeys(properties.getRedis().qualifiedKeyPrefix() + "*");
             if (!keys.isEmpty()) {
                 redisTemplate.delete(keys);
             }
@@ -268,7 +268,7 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
     private void publishInvalidationEvent(String key) {
         try {
             redisTemplate.convertAndSend(
-                    properties.getPubsub().getChannel(),
+                    properties.getPubsub().qualifiedChannel(),
                     key
             );
         } catch (Exception e) {
