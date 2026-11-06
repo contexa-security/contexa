@@ -363,13 +363,17 @@ class OAuth2TokenChainIntegrationTest {
         return json.readTree(result.getResponse().getContentAsString());
     }
 
-    /** A person's token as the login flows issue it: the internal authenticated-user grant. */
+    /**
+     * A person's token as the login flows issue it: the internal authenticated-user grant, with the scopes the internal
+     * client is configured with (an agent's exchange gets no scope the person's token does not hold).
+     */
     private String userToken() throws Exception {
         MvcResult result = mvc.perform(post("/oauth2/token")
                         .header("Authorization", basic(INTERNAL_CLIENT, INTERNAL_SECRET))
                         .requestAttr(OAuth2TokenRequestWrapper.INTERNAL_REQUEST_ATTRIBUTE, true)
                         .param("grant_type", AuthenticatedUserGrantAuthenticationToken.AUTHENTICATED_USER.getValue())
-                        .param("username", "alice"))
+                        .param("username", "alice")
+                        .param("scope", "read reports.read"))
                 .andReturn();
         assertThat(result.getResponse().getStatus()).as(result.getResponse().getContentAsString()).isEqualTo(200);
         return json.readTree(result.getResponse().getContentAsString()).get("access_token").asText();
@@ -466,6 +470,7 @@ class OAuth2TokenChainIntegrationTest {
                     .authorizationGrantType(AuthenticatedUserGrantAuthenticationToken.AUTHENTICATED_USER)
                     .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
                     .scope("read")
+                    .scope("reports.read")
                     .build();
             RegisteredClient agent = RegisteredClient.withId("agent")
                     .clientId(AGENT_CLIENT)
@@ -474,6 +479,7 @@ class OAuth2TokenChainIntegrationTest {
                     .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
                     .authorizationGrantType(AuthorizationGrantType.TOKEN_EXCHANGE)
                     .scope("reports.read")
+                    .scope("reports.write")
                     .build();
             return new InMemoryRegisteredClientRepository(internal, agent);
         }

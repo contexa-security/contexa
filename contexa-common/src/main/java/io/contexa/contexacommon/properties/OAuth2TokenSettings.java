@@ -40,8 +40,10 @@ public class OAuth2TokenSettings {
     /**
      * Whether the token endpoint accepts the RFC 8693 token exchange grant (A1-12): a client registered with the
      * grant, such as an agent's client, exchanges a person's access token (and its own as the actor token) for a
-     * token naming the person as the subject and itself as the actor ({@code act}). Off by default: the grant is then
-     * refused for every client.
+     * token naming the person as the subject and itself as the actor ({@code act}). The exchanged token gets only scopes
+     * both the client and the person's token hold, so a scope an agent asks for in a person's name is one {@code scope}
+     * gives the person's tokens. It is refused while a decision in force stops the person or the account is disabled or
+     * locked, as the person's renewal is. Off by default: the grant is then refused for every client.
      */
     private boolean tokenExchangeEnabled = false;
 

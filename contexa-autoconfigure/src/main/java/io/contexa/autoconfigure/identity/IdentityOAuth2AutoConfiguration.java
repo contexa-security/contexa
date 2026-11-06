@@ -122,6 +122,12 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.authorization.authentication.ClientSecretAuthenticationProvider;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2TokenExchangeCompositeAuthenticationToken;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2TokenExchangeAuthenticationToken;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2ClientAuthenticationToken;
+import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
+import org.springframework.security.oauth2.core.OAuth2AccessToken;
+import org.springframework.security.oauth2.core.OAuth2Token;
+import java.security.Principal;
 import org.springframework.security.oauth2.server.authorization.client.JdbcRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
@@ -501,6 +507,8 @@ public class IdentityOAuth2AutoConfiguration {
 
             UserDetails renewedAccount = renewedAccount(context, accountGuard.getIfAvailable());
 
+            admitExchange(context, accountGuard.getIfAvailable());
+
             // docs/agent F-2: a delegation the person (or Contexa's stop) revoked ends the agent's exchange for them.
             if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())
                     && AuthorizationGrantType.TOKEN_EXCHANGE.equals(context.getAuthorizationGrantType())) {
@@ -573,6 +581,49 @@ public class IdentityOAuth2AutoConfiguration {
             return null;
         }
         return guard.admitRenewal(context.getAuthorization().getPrincipalName());
+    }
+
+    /**
+     * An exchange of a token for another client answers to the token it exchanges. It gets no scope that token does not
+     * hold: Spring checks the scopes asked for against the client's only, and the token would speak for the person beyond
+     * what the person's own token may do; {@code invalid_scope} is Spring's answer to a scope beyond what may be granted.
+     * A person's token is exchanged by the rules of its renewal: not while a decision in force stops the person, not for an
+     * account that is gone, disabled or locked.
+     */
+    static void admitExchange(JwtEncodingContext context, AccountTokenGuard guard) {
+        if (!OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())
+                || !AuthorizationGrantType.TOKEN_EXCHANGE.equals(context.getAuthorizationGrantType())) {
+            return;
+        }
+        OAuth2Authorization subject = context.getAuthorization();
+        if (subject == null) {
+            throw new OAuth2AuthenticationException(OAuth2ErrorCodes.INVALID_GRANT);
+        }
+        if (!subjectScopes(context, subject).containsAll(context.getAuthorizedScopes())) {
+            throw new OAuth2AuthenticationException(new OAuth2Error(OAuth2ErrorCodes.INVALID_SCOPE,
+                    "The scope asked for is beyond the scope of the token exchanged", null));
+        }
+        if (guard != null && isPersonsAuthorization(subject)) {
+            guard.admitExchange(subject.getPrincipalName());
+        }
+    }
+
+    /** The scopes of the token exchanged, as it was issued; the authorization's when the token cannot be told. */
+    private static Set<String> subjectScopes(JwtEncodingContext context, OAuth2Authorization subject) {
+        if (context.getAuthorizationGrant() instanceof OAuth2TokenExchangeAuthenticationToken exchange
+                && exchange.getSubjectToken() != null) {
+            OAuth2Authorization.Token<OAuth2Token> token = subject.getToken(exchange.getSubjectToken());
+            if (token != null && token.getToken() instanceof OAuth2AccessToken accessToken) {
+                return accessToken.getScopes();
+            }
+        }
+        return subject.getAuthorizedScopes();
+    }
+
+    /** Whether an authorization is a person's sign-in rather than a client's own token. */
+    private static boolean isPersonsAuthorization(OAuth2Authorization authorization) {
+        return !AuthorizationGrantType.CLIENT_CREDENTIALS.equals(authorization.getAuthorizationGrantType())
+                && !(authorization.getAttribute(Principal.class.getName()) instanceof OAuth2ClientAuthenticationToken);
     }
 
     private static List<String> principalRoles(Authentication principal) {

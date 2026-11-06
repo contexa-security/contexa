@@ -585,13 +585,23 @@ class IdentityOAuth2AutoConfigurationTest {
                 .build();
     }
 
+    /** An exchange of the person's sign-in token, as Spring's exchange provider hands it to the customizer. */
     private static JwtEncodingContext exchangeContext(String person) {
         RegisteredClient client = RegisteredClient.withId("report-client")
                 .clientId("report-client")
                 .authorizationGrantType(AuthorizationGrantType.TOKEN_EXCHANGE)
                 .build();
+        RegisteredClient internal = RegisteredClient.withId("internal")
+                .clientId("default-client")
+                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                .build();
+        OAuth2Authorization signIn = OAuth2Authorization.withRegisteredClient(internal)
+                .principalName(person)
+                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                .build();
         return JwtEncodingContext.with(JwsHeader.with(SignatureAlgorithm.RS256), JwtClaimsSet.builder().subject(person))
                 .registeredClient(client)
+                .authorization(signIn)
                 .principal(new UsernamePasswordAuthenticationToken(person, null, List.of()))
                 .tokenType(OAuth2TokenType.ACCESS_TOKEN)
                 .authorizationGrantType(AuthorizationGrantType.TOKEN_EXCHANGE)

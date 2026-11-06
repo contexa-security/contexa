@@ -77,25 +77,49 @@ public final class AccountTokenGuard {
     }
 
     /**
+     * Admits an exchange of the person's token for another client, an agent acting for the person, by the rules of a
+     * renewal: the exchanged token speaks for the person as a renewed one does. A decision in force that stops the person
+     * refuses it whatever the decision asks of the person, since the client exchanging cannot answer a challenge in the
+     * person's place; the account refuses it as it refuses a renewal.
+     *
+     * @return the account as it is now
+     */
+    public UserDetails admitExchange(String username) {
+        ZeroTrustActionRepository repository = actions.get();
+        if (repository != null) {
+            ZeroTrustAction action = repository.getCurrentAction(ZeroTrustUserKey.person(username));
+            if (action == ZeroTrustAction.BLOCK || action == ZeroTrustAction.ESCALATE
+                    || action == ZeroTrustAction.CHALLENGE) {
+                throw new OAuth2AuthenticationException(new OAuth2Error(OAuth2ErrorCodes.ACCESS_DENIED,
+                        "The person's token cannot be exchanged while a security decision stops the person", null));
+            }
+        }
+        return activeAccount(username, "The account does not allow this token to be exchanged");
+    }
+
+    /**
      * The account as it is now, or a refusal when it is gone, disabled or locked. {@code invalid_grant} is the answer of
      * RFC 6749 to a grant that no longer stands, and it leaves the refresh token unspent: a lock that ends lets it renew.
      */
     public UserDetails activeAccount(String username) {
+        return activeAccount(username, "The account does not allow this token to be renewed");
+    }
+
+    private UserDetails activeAccount(String username, String refusal) {
         UserDetails account;
         try {
             account = accounts.get().loadUserByUsername(username);
         } catch (UsernameNotFoundException gone) {
-            throw refused();
+            throw refused(refusal);
         }
         if (disabled(account) || !account.isAccountNonLocked()) {
-            throw refused();
+            throw refused(refusal);
         }
         return account;
     }
 
-    private static OAuth2AuthenticationException refused() {
-        return new OAuth2AuthenticationException(new OAuth2Error(OAuth2ErrorCodes.INVALID_GRANT,
-                "The account does not allow this token to be renewed", null));
+    private static OAuth2AuthenticationException refused(String description) {
+        return new OAuth2AuthenticationException(new OAuth2Error(OAuth2ErrorCodes.INVALID_GRANT, description, null));
     }
 
     /** Refuses a renewal while the decision in force stops the user; without a store of decisions nothing does. */
