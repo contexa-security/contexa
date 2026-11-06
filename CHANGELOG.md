@@ -8,6 +8,15 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A value an application keeps in the session no longer moves a person's request to an agent.** The session channel of
+  the delegation read every session attribute and took any that named an agent: a map of request values with `agentId`
+  and `delegated` moved a person's request to `<user>::agent::<agent id>`, past a CHALLENGE on the person, and a bean of
+  the domain that only names an agent sent the person to an agent's confirmation instead of the step-up. The channel now
+  reads `contexa.bridge.delegation.session.attribute` and the names in
+  `contexa.bridge.delegation.session.attribute-candidates`, which is empty by default, and `auto-discover` is off by
+  default. **Check:** an application that keeps its agents' delegation in the session names that attribute in
+  `contexa.bridge.delegation.session.attribute`. Setting `auto-discover` to `true` reads every attribute again, and the
+  start says so at INFO.
 - A value in a CSV export that a spreadsheet would run as a formula now stays text: users write the names and browsers in those files, and an administrator opens them. A cell that starts with `=`, `+`, `-` or `@` and is no plain number gets a leading quote.
 - A one-time code asked for a name with no account leaves nothing in the log, and the mail shows a name as text, never as markup.
 - **A sign-in by code no longer mails any address a stranger types.** Before a sign-in the name of a code request is what

@@ -32,6 +32,7 @@ import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncService
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
 import io.contexa.contexacommon.security.network.ClientIpResolutionPolicy;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.DisposableBean;
 import io.contexa.autoconfigure.iam.IamSecurityCoreAutoConfiguration;
 import org.springframework.beans.factory.ObjectProvider;
@@ -50,6 +51,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnClass(SecurityFilterChain.class)
 @EnableConfigurationProperties(BridgeProperties.class)
@@ -159,7 +161,11 @@ public class AiBridgeConfiguration {
     @Bean(name = "contexaSecurityOffSessionDelegationStampResolver")
     @Order(5)
     @ConditionalOnMissingBean(SessionDelegationStampResolver.class)
-    public DelegationStampResolver securityOffSessionDelegationStampResolver() {
+    public DelegationStampResolver securityOffSessionDelegationStampResolver(BridgeProperties properties) {
+        if (properties.getDelegation().getSession().isEnabled() && properties.getDelegation().getSession().isAutoDiscover()) {
+            log.info("[Bridge] contexa.bridge.delegation.session.auto-discover=true: any session attribute that names an "
+                    + "agent is read as a delegation, and a request of a session holding one is decided as that agent's.");
+        }
         return new SessionDelegationStampResolver();
     }
 
