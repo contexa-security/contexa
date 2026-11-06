@@ -99,6 +99,7 @@ public class SynchronousProtectableDecisionService {
     /** The verdicts this server is reaching for changed contexts, one for each subject and context. */
     private final Map<String, VerdictUnderWay> changedContextVerdicts = new ConcurrentHashMap<>();
     private ExpiringKeySpace<Boolean> unansweredContexts = unansweredContexts(Clock.systemUTC());
+    private NewContextDecisionLimit newContextDecisionLimit;
 
     public SynchronousProtectableDecisionService(
             ZeroTrustEventPublisher zeroTrustEventPublisher,
@@ -113,6 +114,14 @@ public class SynchronousProtectableDecisionService {
 
     public void setUnanalysedRequestRecorder(UnanalysedRequestRecorder unanalysedRequestRecorder) {
         this.unanalysedRequestRecorder = unanalysedRequestRecorder;
+    }
+
+    /**
+     * The decisions of a new context a person may ask for in a short window, which the calls of a changed context take
+     * from with the person's sign-ins; without it every changed context is analysed.
+     */
+    public void setNewContextDecisionLimit(NewContextDecisionLimit newContextDecisionLimit) {
+        this.newContextDecisionLimit = newContextDecisionLimit;
     }
 
     /** PR-54: the longest a synchronous decision holds the request's thread; null analyses in the request. */
@@ -550,7 +559,7 @@ public class SynchronousProtectableDecisionService {
             return answerAfter(underWay, event, gateContext);
         }
         try {
-            return answerOfItsVerdict(event, gateContext, question);
+            return answerOfItsVerdict(event, gateContext, question, mine);
         } finally {
             changedContextVerdicts.remove(question, mine);
             mine.end.complete(null);
@@ -560,7 +569,8 @@ public class SynchronousProtectableDecisionService {
     /**
      * The answer to a request that waits for the verdict another request asked for. The waiting room holds as many as the
      * flights' queue: the requests of one context must not take the application's threads while a model is slow. A request
-     * past it is told to come back, and is never let through for lack of room.
+     * past it is told to come back, and is never let through for lack of room. A request whose context the decision limit
+     * refused is refused with it: it is the same question, and letting it through would pass the limit.
      */
     private AsyncProtectableGate answerAfter(VerdictUnderWay underWay, ZeroTrustSpringEvent event, String gateContext) {
         int room = (agentDecisionFlights != null ? agentDecisionFlights.settings()
@@ -574,6 +584,9 @@ public class SynchronousProtectableDecisionService {
         } finally {
             underWay.waiting.decrementAndGet();
         }
+        if (underWay.pastTheLimit) {
+            return pastTheLimit(event, gateContext);
+        }
         return answerInForce(event, gateContext);
     }
 
@@ -582,9 +595,15 @@ public class SynchronousProtectableDecisionService {
      * that waits for its audit record is not asked for again. Its event is the analysis, so nothing is published after
      * the method: a request let through is only recorded.
      */
-    private AsyncProtectableGate answerOfItsVerdict(ZeroTrustSpringEvent event, String gateContext, String question) {
+    private AsyncProtectableGate answerOfItsVerdict(ZeroTrustSpringEvent event, String gateContext, String question,
+                                                    VerdictUnderWay mine) {
         if (!zeroTrustEventListener.shouldPublishAuthorizationEvent(event)) {
             return answerInForce(event, gateContext);
+        }
+        if (newContextDecisionLimit != null && !newContextDecisionLimit.take(decisionKey(event, event.getUserId()),
+                NewContextDecisionLimit.Kind.CHANGED_CONTEXT)) {
+            mine.pastTheLimit = true;
+            return pastTheLimit(event, gateContext);
         }
         ZeroTrustAction verdict = null;
         try {
@@ -605,6 +624,26 @@ public class SynchronousProtectableDecisionService {
             return AsyncProtectableGate.restricted(verdict);
         }
         return withoutItsVerdict(event, gateContext);
+    }
+
+    /**
+     * The answer to a call from a changed context past the person's decisions of a new context in the window: the model
+     * is not asked, and the call is refused with a CHALLENGE of its own, for a general resource too, since a context
+     * that keeps changing is the signal itself. Nothing is stored: the calls of the context on record go on as they did,
+     * and the window's next room decides this context. A stricter decision in force answers it as it would. While a
+     * store is down the call is asked to come back instead, as no verification could be kept.
+     */
+    private AsyncProtectableGate pastTheLimit(ZeroTrustSpringEvent event, String gateContext) {
+        ZeroTrustAction inForce = currentAction(event, event.getUserId(), gateContext);
+        if (inForce != null && inForce.isAccessRestricted()) {
+            recordUnanalysed(event, inForce);
+            return AsyncProtectableGate.restricted(inForce);
+        }
+        if (contexaStores.anyDown()) {
+            throw ZeroTrustAccessDeniedException.analysisBusy(event.getResource(), STORE_RETRY_AFTER_SECONDS);
+        }
+        recordUnanalysed(event, ZeroTrustAction.CHALLENGE);
+        return AsyncProtectableGate.restricted(ZeroTrustAction.CHALLENGE);
     }
 
     /** The answer of a request whose analysis ran or was not asked for: nothing is published after the method. */
@@ -897,6 +936,8 @@ public class SynchronousProtectableDecisionService {
     private static final class VerdictUnderWay {
         private final CompletableFuture<Void> end = new CompletableFuture<>();
         private final AtomicInteger waiting = new AtomicInteger();
+        /** Set before the end: the decision limit refused the question, so its waiting requests are refused too. */
+        private volatile boolean pastTheLimit;
     }
 
     /** The verdict of a synchronous request did not come in time. */

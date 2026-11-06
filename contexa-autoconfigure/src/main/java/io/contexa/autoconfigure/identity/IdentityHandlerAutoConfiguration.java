@@ -19,6 +19,7 @@ import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import io.contexa.contexacommon.operating.ConditionalOnOwnership;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
+import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
@@ -27,6 +28,7 @@ import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -71,8 +73,13 @@ public class IdentityHandlerAutoConfiguration {
     public SessionSingleAuthSuccessHandler sessionSingleAuthSuccessHandler(
             AuthResponseWriter responseWriter,
             AuthContextProperties authContextProperties,
-            @Autowired(required = false) LoginPolicyHandler contexaLoginPolicyHandler) {
-        return new SessionSingleAuthSuccessHandler(responseWriter, authContextProperties, contexaLoginPolicyHandler);
+            @Autowired(required = false) LoginPolicyHandler contexaLoginPolicyHandler,
+            ObjectProvider<ZeroTrustEventPublisher> zeroTrustEventPublisher) {
+        SessionSingleAuthSuccessHandler handler =
+                new SessionSingleAuthSuccessHandler(responseWriter, authContextProperties, contexaLoginPolicyHandler);
+        // The completed sign-in goes to the engine, as a sign-in the application owns does.
+        handler.setZeroTrustEventPublisher(zeroTrustEventPublisher.getIfAvailable());
+        return handler;
     }
 
     @Bean(name = "contexaOauth2SingleAuthSuccessHandler")
@@ -81,8 +88,13 @@ public class IdentityHandlerAutoConfiguration {
             TokenService tokenService,
             AuthResponseWriter responseWriter,
             AuthContextProperties authContextProperties,
-            @Autowired(required = false) LoginPolicyHandler contexaLoginPolicyHandler) {
-        return new OAuth2SingleAuthSuccessHandler(tokenService, responseWriter, authContextProperties, contexaLoginPolicyHandler);
+            @Autowired(required = false) LoginPolicyHandler contexaLoginPolicyHandler,
+            ObjectProvider<ZeroTrustEventPublisher> zeroTrustEventPublisher) {
+        OAuth2SingleAuthSuccessHandler handler = new OAuth2SingleAuthSuccessHandler(tokenService, responseWriter,
+                authContextProperties, contexaLoginPolicyHandler);
+        // The completed sign-in goes to the engine, as a sign-in the application owns does.
+        handler.setZeroTrustEventPublisher(zeroTrustEventPublisher.getIfAvailable());
+        return handler;
     }
 
     @Bean(name = "contexaOauth2SingleAuthFailureHandler")

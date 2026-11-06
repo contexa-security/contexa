@@ -42,6 +42,7 @@ import io.contexa.contexacore.autonomous.processor.PromptShadowRunner;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
+import io.contexa.contexacore.autonomous.service.NewContextDecisionLimit;
 import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
 import io.contexa.contexacore.autonomous.service.DeletedAccountWriteFence;
 import io.contexa.contexacore.autonomous.service.LearningPromotionService;
@@ -188,16 +189,31 @@ public class CoreAutonomousEventAutoConfiguration {
     }
 
 
+    /**
+     * How many decisions of a new context a person may ask for in a short window on this server, sign-ins and calls from
+     * a changed context together: contexa.security.zerotrust.analysis.new-context-limit.*.
+     */
+    @Bean(name = "contexaNewContextDecisionLimit")
+    @ConditionalOnMissingBean
+    public NewContextDecisionLimit newContextDecisionLimit(SecurityZeroTrustProperties securityZeroTrustProperties,
+                                                           ObjectProvider<CentralAuditFacade> centralAuditFacade) {
+        return new NewContextDecisionLimit(securityZeroTrustProperties.getAnalysis().getNewContextLimit(),
+                centralAuditFacade.getIfAvailable(), null);
+    }
+
     @Bean(name = "contexaZeroTrustEventListener")
     @ConditionalOnMissingBean
     public ZeroTrustEventListener zeroTrustEventListener(
             SecurityEventPublisher securityEventPublisher,
             ZeroTrustActionRepository actionRepository,
             SecurityZeroTrustProperties securityZeroTrustProperties,
-            ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder) {
+            ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder,
+            ObjectProvider<NewContextDecisionLimit> newContextDecisionLimit) {
         ZeroTrustEventListener listener =
                 new ZeroTrustEventListener(securityEventPublisher, actionRepository, securityZeroTrustProperties);
         listener.setUnanalysedRequestRecorder(unanalysedRequestRecorder.getIfAvailable());
+        // A sign-in past the person's decisions of a new context goes on undecided; the next request is asked to verify.
+        listener.setNewContextDecisionLimit(newContextDecisionLimit.getIfAvailable());
         return listener;
     }
 

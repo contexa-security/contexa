@@ -562,6 +562,44 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         }
     }
 
+    /** Checked and written under the user's lock, as the Redis repository does in one script. */
+    @Override
+    public FinalActionWrite writeUndecidedChallenge(String userId, Map<String, Object> fields) {
+        userId = ZeroTrustUserKey.of(userId);
+        if (isBlank(userId)) {
+            return FinalActionWrite.FAILED;
+        }
+        Map<String, Object> challenge = fields != null ? fields : Map.of();
+        ReentrantLock lock = lockUser(userId);
+        try {
+            if (asksAlready(userId, challenge.get("contextBindingHash"))) {
+                return FinalActionWrite.KEPT_STRICTER;
+            }
+            saveAction(userId, ZeroTrustAction.CHALLENGE, challenge);
+            return FinalActionWrite.APPLIED;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * Whether what is in force for the user already asks the context as much as a CHALLENGE no analysis decided: a
+     * BLOCK, an ESCALATE, a CHALLENGE a model decided, or a CHALLENGE held for the sessions that did not answer it.
+     */
+    private boolean asksAlready(String userId, Object context) {
+        if (blockedUsers.contains(userId)) {
+            return true;
+        }
+        AnalysisEntry active = liveAnalysis(userId);
+        ZeroTrustAction inForce = active != null ? ZeroTrustAction.fromString(active.action) : null;
+        if (inForce == ZeroTrustAction.BLOCK || inForce == ZeroTrustAction.ESCALATE
+                || (inForce == ZeroTrustAction.CHALLENGE && !active.technicalChallenge)) {
+            return true;
+        }
+        ChallengeHold hold = challengeHolds.get(userId);
+        return hold != null && !hold.answeredIn(context != null ? context.toString() : null);
+    }
+
     @Override
     public void saveActionWithPrevious(String userId, ZeroTrustAction newAction) {
         userId = ZeroTrustUserKey.of(userId);

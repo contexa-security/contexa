@@ -24,6 +24,8 @@ import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
 import io.contexa.contexacore.autonomous.event.publisher.KafkaSecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.event.SecurityEventPublisher;
+import io.contexa.contexacore.autonomous.service.NewContextDecisionLimit;
 import io.contexa.contexacore.autonomous.service.QueuedAgentEventRecheck;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
@@ -62,7 +64,30 @@ class DecisionFlowWiringTest {
     private static SynchronousProtectableDecisionService service(SecurityZeroTrustProperties properties) {
         return new CoreAutonomousAutoConfiguration().synchronousProtectableDecisionService(
                 mock(ZeroTrustEventPublisher.class), mock(ZeroTrustEventListener.class), mock(SecurityPlaneAgent.class),
-                mock(ZeroTrustActionRepository.class), none(), properties, none(), none());
+                mock(ZeroTrustActionRepository.class), none(), properties, none(), none(), none());
+    }
+
+    /** Sign-ins and calls from a changed context take from one window of the person's decisions. */
+    @Test
+    void signInsAndChangedContextsShareOneLimit() {
+        SecurityZeroTrustProperties properties = new SecurityZeroTrustProperties();
+        properties.getAnalysis().getNewContextLimit().setDecisions(4);
+        NewContextDecisionLimit limit = new CoreAutonomousEventAutoConfiguration().newContextDecisionLimit(properties,
+                none());
+        ZeroTrustEventListener listener = new CoreAutonomousEventAutoConfiguration().zeroTrustEventListener(
+                mock(SecurityEventPublisher.class), mock(ZeroTrustActionRepository.class), properties, none(),
+                one(NewContextDecisionLimit.class, limit));
+        SynchronousProtectableDecisionService service = new CoreAutonomousAutoConfiguration()
+                .synchronousProtectableDecisionService(mock(ZeroTrustEventPublisher.class), listener,
+                        mock(SecurityPlaneAgent.class), mock(ZeroTrustActionRepository.class), none(), properties, none(),
+                        none(), one(NewContextDecisionLimit.class, limit));
+
+        assertThat(ReflectionTestUtils.getField(listener, "newContextDecisionLimit")).isSameAs(limit);
+        assertThat(ReflectionTestUtils.getField(service, "newContextDecisionLimit")).isSameAs(limit);
+        for (int i = 0; i < 4; i++) {
+            assertThat(limit.take("alice", NewContextDecisionLimit.Kind.SIGN_IN)).isTrue();
+        }
+        assertThat(limit.take("alice", NewContextDecisionLimit.Kind.CHANGED_CONTEXT)).as("the setting is read").isFalse();
     }
 
     @Test
