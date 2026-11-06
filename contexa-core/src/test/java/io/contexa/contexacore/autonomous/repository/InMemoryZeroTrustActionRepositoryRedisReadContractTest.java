@@ -20,8 +20,7 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository.Ze
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.testsupport.AdjustableClock;
 import io.contexa.contexacore.testsupport.RedisTestTemplates;
-import java.net.InetSocketAddress;
-import java.net.Socket;
+import io.contexa.contexacore.testsupport.TestStores;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -35,7 +34,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
@@ -59,15 +57,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * and ZeroTrustActionStorageReproductionTest describe (an ALLOW or CHALLENGE lapses with its TTL; only an unresolved
  * ESCALATE stays). Inside a request both answer through the request's context binding.</p>
  */
-@EnabledIf("io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepositoryRedisReadContractTest#isLocalRedisAvailable")
 class InMemoryZeroTrustActionRepositoryRedisReadContractTest {
 
-    private static final String REDIS_HOST =
-            System.getProperty("contexa.test.redis.host",
-                    System.getenv().getOrDefault("CONTEXA_TEST_REDIS_HOST", "localhost"));
-    private static final int REDIS_PORT = Integer.parseInt(
-            System.getProperty("contexa.test.redis.port",
-                    System.getenv().getOrDefault("CONTEXA_TEST_REDIS_PORT", "6379")));
     private static final Duration FAIL_COUNT_TTL = Duration.ofSeconds(2);
 
     private static LettuceConnectionFactory connectionFactory;
@@ -80,18 +71,10 @@ class InMemoryZeroTrustActionRepositoryRedisReadContractTest {
     private InMemoryZeroTrustActionRepository memory;
     private ZeroTrustActionRedisRepository redis;
 
-    static boolean isLocalRedisAvailable() {
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(REDIS_HOST, REDIS_PORT), 500);
-            return true;
-        } catch (Exception ex) {
-            return false;
-        }
-    }
-
     @BeforeAll
     static void connect() {
-        connectionFactory = new LettuceConnectionFactory(new RedisStandaloneConfiguration(REDIS_HOST, REDIS_PORT));
+        TestStores.Redis server = TestStores.disposableRedis();
+        connectionFactory = new LettuceConnectionFactory(new RedisStandaloneConfiguration(server.host(), server.port()));
         connectionFactory.afterPropertiesSet();
         redisTemplate = RedisTestTemplates.newProductionAlignedRedisTemplate(connectionFactory);
         strings = RedisTestTemplates.newStringRedisTemplate(connectionFactory);

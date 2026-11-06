@@ -24,6 +24,7 @@ import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.testsupport.RedisTestTemplates;
+import io.contexa.contexacore.testsupport.TestStores;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -31,7 +32,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
-import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -47,8 +47,6 @@ import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactor
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.RedisTemplate;
 
-import java.net.InetSocketAddress;
-import java.net.Socket;
 import java.time.Duration;
 import java.util.List;
 import java.util.Set;
@@ -71,13 +69,7 @@ import static org.mockito.Mockito.when;
  */
 @Timeout(value = 60, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
 @ExtendWith(OutputCaptureExtension.class)
-@EnabledIf("io.contexa.contexacore.security.zerotrust.RedisForcedLogoutOutageTest#isRedisAvailable")
 class RedisForcedLogoutOutageTest {
-
-    private static final String REDIS_HOST = System.getProperty("contexa.test.redis.host",
-            System.getenv().getOrDefault("CONTEXA_TEST_REDIS_HOST", "localhost"));
-    private static final int REDIS_PORT = Integer.parseInt(System.getProperty("contexa.test.redis.port",
-            System.getenv().getOrDefault("CONTEXA_TEST_REDIS_PORT", "6379")));
 
     /** The Redis a test can cut off: the connections of a real one, refused while it is down. */
     private static final class SwitchedConnections implements RedisConnectionFactory {
@@ -133,18 +125,10 @@ class RedisForcedLogoutOutageTest {
     private RedisTemplate<String, Object> redis;
     private RedisZeroTrustSecurityService service;
 
-    static boolean isRedisAvailable() {
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(REDIS_HOST, REDIS_PORT), 500);
-            return true;
-        } catch (Exception ex) {
-            return false;
-        }
-    }
-
     @BeforeAll
     static void connect() {
-        lettuce = new LettuceConnectionFactory(new RedisStandaloneConfiguration(REDIS_HOST, REDIS_PORT));
+        TestStores.Redis server = TestStores.redis();
+        lettuce = new LettuceConnectionFactory(new RedisStandaloneConfiguration(server.host(), server.port()));
         lettuce.afterPropertiesSet();
     }
 

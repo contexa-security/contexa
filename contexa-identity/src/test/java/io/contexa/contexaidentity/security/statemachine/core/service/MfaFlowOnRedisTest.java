@@ -22,6 +22,7 @@ import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.properties.MfaSettings;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
+import io.contexa.contexacore.testsupport.TestStores;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
@@ -58,7 +59,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.redisson.Redisson;
@@ -91,8 +91,6 @@ import org.springframework.statemachine.data.redis.RedisRepositoryStateMachine;
 import org.springframework.statemachine.data.redis.RedisStateMachineRepository;
 import org.springframework.statemachine.persist.DefaultStateMachinePersister;
 
-import java.net.InetSocketAddress;
-import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -116,15 +114,7 @@ import static org.mockito.Mockito.when;
  * actions and guards, one read of Redis per request as the filters read it. Nothing here keeps a flow between requests
  * except Redis.
  */
-@EnabledIf("io.contexa.contexaidentity.security.statemachine.core.service.MfaFlowOnRedisTest#isRedisAvailable")
 class MfaFlowOnRedisTest {
-
-    static final String REDIS_HOST =
-            System.getProperty("contexa.test.redis.host",
-                    System.getenv().getOrDefault("CONTEXA_TEST_REDIS_HOST", "localhost"));
-    static final int REDIS_PORT = Integer.parseInt(
-            System.getProperty("contexa.test.redis.port",
-                    System.getenv().getOrDefault("CONTEXA_TEST_REDIS_PORT", "6379")));
 
     private static final String FLOW = "mfa";
     private static final String USERNAME = "alice";
@@ -143,18 +133,10 @@ class MfaFlowOnRedisTest {
     private MfaStateMachineServiceImpl service;
     private MfaStateMachineIntegrator integrator;
 
-    static boolean isRedisAvailable() {
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(REDIS_HOST, REDIS_PORT), 500);
-            return true;
-        } catch (Exception ex) {
-            return false;
-        }
-    }
-
     @BeforeAll
     static void connect() {
-        connectionFactory = new LettuceConnectionFactory(new RedisStandaloneConfiguration(REDIS_HOST, REDIS_PORT));
+        TestStores.Redis server = TestStores.redis();
+        connectionFactory = new LettuceConnectionFactory(new RedisStandaloneConfiguration(server.host(), server.port()));
         connectionFactory.afterPropertiesSet();
         RedisTemplate<byte[], byte[]> bytes = new RedisTemplate<>();
         bytes.setConnectionFactory(connectionFactory);
@@ -164,7 +146,7 @@ class MfaFlowOnRedisTest {
         repository = new RedisRepositoryFactory(new RedisKeyValueTemplate(adapter, mappingContext))
                 .getRepository(RedisStateMachineRepository.class);
         Config config = new Config();
-        config.useSingleServer().setAddress("redis://" + REDIS_HOST + ":" + REDIS_PORT);
+        config.useSingleServer().setAddress(server.uri());
         redisson = Redisson.create(config);
     }
 

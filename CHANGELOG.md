@@ -600,6 +600,11 @@ The format is based on Keep a Changelog and the project follows semantic version
   field, and `Users` leaves it out of JSON everywhere. Copies an earlier version wrote are read without it and taken out
   of the store at every start; while old nodes run they can write such copies again, and the last node to start takes
   those out. `AuthorizationContext.subjectEntity().getPassword()` is empty on a cached copy; nothing in Contexa reads it.
+- **Contributors: the tests that use Redis or PostgreSQL no longer fall back to `localhost:6379` and
+  `localhost:5432`**, where a developer's own Redis and database usually listen. Without `CONTEXA_TEST_REDIS_PORT` or
+  `CONTEXA_TEST_DB_URL` they are skipped before they connect, the tests no longer read the application's own
+  `CONTEXA_DB_*` variables, and a test that empties its Redis (`FLUSHDB`) fails on port 6379 instead of running there.
+  CONTRIBUTING.md shows two throwaway containers and the variables; the CI workflow now starts a Redis for these tests.
 
 ### Added
 

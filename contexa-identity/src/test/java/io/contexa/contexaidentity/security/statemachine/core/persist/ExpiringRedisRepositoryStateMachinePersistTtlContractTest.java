@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.statemachine.core.persist;
 
+import io.contexa.contexacore.testsupport.TestStores;
 import io.contexa.contexaidentity.security.statemachine.config.kyro.MfaKryoStateMachineSerialisationService;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
@@ -22,7 +23,6 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisKeyValueAdapter;
@@ -36,24 +36,13 @@ import org.springframework.statemachine.data.redis.RedisStateMachineRepository;
 import org.springframework.statemachine.support.DefaultExtendedState;
 import org.springframework.statemachine.support.DefaultStateMachineContext;
 
-import java.net.InetSocketAddress;
-import java.net.Socket;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** The Redis persist on a Spring Data repository, as the distributed mode's {@code @EnableRedisRepositories} makes. */
-@EnabledIf("io.contexa.contexaidentity.security.statemachine.core.persist."
-        + "ExpiringRedisRepositoryStateMachinePersistTtlContractTest#isLocalRedisAvailable")
 class ExpiringRedisRepositoryStateMachinePersistTtlContractTest extends AbstractMfaStateMachinePersistTtlContractTest {
-
-    private static final String REDIS_HOST =
-            System.getProperty("contexa.test.redis.host",
-                    System.getenv().getOrDefault("CONTEXA_TEST_REDIS_HOST", "localhost"));
-    private static final int REDIS_PORT = Integer.parseInt(
-            System.getProperty("contexa.test.redis.port",
-                    System.getenv().getOrDefault("CONTEXA_TEST_REDIS_PORT", "6379")));
 
     private static LettuceConnectionFactory connectionFactory;
     private static RedisStateMachineRepository repository;
@@ -61,18 +50,10 @@ class ExpiringRedisRepositoryStateMachinePersistTtlContractTest extends Abstract
 
     private ExpiringRedisRepositoryStateMachinePersist persist;
 
-    static boolean isLocalRedisAvailable() {
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(REDIS_HOST, REDIS_PORT), 500);
-            return true;
-        } catch (Exception ex) {
-            return false;
-        }
-    }
-
     @BeforeAll
     static void connect() {
-        connectionFactory = new LettuceConnectionFactory(new RedisStandaloneConfiguration(REDIS_HOST, REDIS_PORT));
+        TestStores.Redis server = TestStores.redis();
+        connectionFactory = new LettuceConnectionFactory(new RedisStandaloneConfiguration(server.host(), server.port()));
         connectionFactory.afterPropertiesSet();
         RedisTemplate<byte[], byte[]> bytes = new RedisTemplate<>();
         bytes.setConnectionFactory(connectionFactory);

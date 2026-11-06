@@ -97,7 +97,9 @@ class OAuth2AuthorizationStoragePostgresTest {
     @AfterEach
     void closeDatabase() {
         AuthorizationServerContextHolder.resetContext();
-        database.close();
+        if (database != null) {
+            database.close();
+        }
     }
 
     // PG-01: the measurement, 200 then 500 then 500

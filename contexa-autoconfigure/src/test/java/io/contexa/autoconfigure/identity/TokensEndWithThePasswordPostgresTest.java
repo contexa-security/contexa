@@ -98,9 +98,15 @@ class TokensEndWithThePasswordPostgresTest {
 
     @AfterEach
     void close() {
-        listening.close();
-        entityManagers.destroy();
-        database.close();
+        if (listening != null) {
+            listening.close();
+        }
+        if (entityManagers != null) {
+            entityManagers.destroy();
+        }
+        if (database != null) {
+            database.close();
+        }
     }
 
     private void issued(String id, String principal, AuthorizationGrantType grant, boolean refreshToken) {

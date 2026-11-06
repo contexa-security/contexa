@@ -15,13 +15,13 @@
  */
 package io.contexa.contexaidentity.security.service.ott;
 
+import io.contexa.contexacore.testsupport.TestStores;
 import io.contexa.contexaidentity.security.zerotrust.stepup.RedisStepUpOptionsStore;
 import io.contexa.contexaidentity.security.zerotrust.stepup.StepUpOptionsStore;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.RepeatedTest;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -29,7 +29,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import java.util.List;
 
 /** Runs only against a Redis named for it: it never falls back to the Redis of the machine. */
-@EnabledIfEnvironmentVariable(named = "CONTEXA_TEST_REDIS_PORT", matches = "[0-9]+")
 class RedisEmailResendIntervalContractTest extends AbstractEmailResendIntervalContractTest {
 
     private static LettuceConnectionFactory connections;
@@ -37,16 +36,17 @@ class RedisEmailResendIntervalContractTest extends AbstractEmailResendIntervalCo
 
     @BeforeAll
     static void connect() {
-        connections = new LettuceConnectionFactory(new RedisStandaloneConfiguration(
-                System.getenv().getOrDefault("CONTEXA_TEST_REDIS_HOST", "127.0.0.1"),
-                Integer.parseInt(System.getenv("CONTEXA_TEST_REDIS_PORT"))));
+        TestStores.Redis server = TestStores.redis();
+        connections = new LettuceConnectionFactory(new RedisStandaloneConfiguration(server.host(), server.port()));
         connections.afterPropertiesSet();
         redis = new StringRedisTemplate(connections);
     }
 
     @AfterAll
     static void disconnect() {
-        connections.destroy();
+        if (connections != null) {
+            connections.destroy();
+        }
     }
 
     @Override

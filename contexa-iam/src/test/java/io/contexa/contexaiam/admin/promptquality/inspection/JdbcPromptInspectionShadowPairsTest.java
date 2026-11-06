@@ -55,7 +55,9 @@ class JdbcPromptInspectionShadowPairsTest {
 
     @AfterEach
     void tearDown() {
-        database.close();
+        if (database != null) {
+            database.close();
+        }
     }
 
     @Test
