@@ -44,7 +44,8 @@ import static org.mockito.Mockito.when;
 /**
  * The address a user's copy holds is where the step-up mails its codes. Once it is a real address, the address the
  * application shows next is not taken at once, since whoever holds the session can change the application's profile:
- * it waits until the user proves the address on record, or an administrator enters one.
+ * it waits until the user proves the address on record and then the address waiting, or an administrator enters one.
+ * The copy takes only the address the user proved: one that waits since then stays waiting.
  */
 class AnAddressOnRecordWaitsForItsUserTest {
 
@@ -163,12 +164,24 @@ class AnAddressOnRecordWaitsForItsUserTest {
     }
 
     @Test
-    @DisplayName("the user's proof of the address on record moves the copy to the address waiting")
+    @DisplayName("the address waiting is told to the step-up, which mails it its code")
+    void theAddressWaitingIsTold() {
+        shows("alice@corp.example");
+        assertThat(sync.pendingEmail(100L)).isNull();
+
+        shows("alice@home.example");
+
+        assertThat(sync.pendingEmail(100L)).isEqualTo("alice@home.example");
+        assertThat(sync.pendingEmail(null)).isNull();
+    }
+
+    @Test
+    @DisplayName("the user's proof of the address waiting moves the copy to it")
     void theUsersProofTakesTheAddressWaiting() {
         shows("alice@corp.example");
         shows("alice@home.example");
 
-        assertThat(sync.confirmPendingEmail(100L)).isTrue();
+        assertThat(sync.confirmPendingEmail(100L, "Alice@Home.example")).isTrue();
 
         assertThat(address()).isEqualTo("alice@home.example");
         assertThat(waiting()).isNull();
@@ -178,12 +191,26 @@ class AnAddressOnRecordWaitsForItsUserTest {
     }
 
     @Test
+    @DisplayName("a proof of another address than the one waiting moves nothing")
+    void aProofOfAnotherAddress() {
+        shows("alice@corp.example");
+        shows("alice@home.example");
+        shows("thief@evil.example");
+
+        assertThat(sync.confirmPendingEmail(100L, "alice@home.example")).isFalse();
+
+        assertThat(address()).isEqualTo("alice@corp.example");
+        assertThat(waiting()).isEqualTo("thief@evil.example");
+    }
+
+    @Test
     @DisplayName("a proof with nothing waiting changes nothing")
     void aProofWithNothingWaiting() {
         shows("alice@corp.example");
 
-        assertThat(sync.confirmPendingEmail(100L)).isFalse();
-        assertThat(sync.confirmPendingEmail(null)).isFalse();
+        assertThat(sync.confirmPendingEmail(100L, "alice@corp.example")).isFalse();
+        assertThat(sync.confirmPendingEmail(null, "alice@corp.example")).isFalse();
+        assertThat(sync.confirmPendingEmail(100L, null)).isFalse();
 
         assertThat(address()).isEqualTo("alice@corp.example");
     }
@@ -198,7 +225,7 @@ class AnAddressOnRecordWaitsForItsUserTest {
         bob.setEmail("bob@corp.example");
         when(users.findFirstByEmailIgnoreCase("bob@corp.example")).thenReturn(Optional.of(bob));
 
-        assertThat(sync.confirmPendingEmail(100L)).isFalse();
+        assertThat(sync.confirmPendingEmail(100L, "bob@corp.example")).isFalse();
 
         assertThat(address()).isEqualTo("alice@corp.example");
         assertThat(waiting()).isEqualTo("bob@corp.example");

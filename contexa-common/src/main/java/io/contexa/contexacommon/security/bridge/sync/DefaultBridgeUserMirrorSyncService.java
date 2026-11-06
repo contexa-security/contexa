@@ -407,7 +407,7 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
         if (!Objects.equals(profile.getPendingEmail(), pendingEmail)) {
             if (pendingEmail != null) {
                 log.warn("[Bridge] The application shows another address for a user whose copy has one; it waits until "
-                        + "the user proves the address on record: userId={}", user.getId());
+                        + "the user proves the address on record and then this address: userId={}", user.getId());
             }
             profile.setPendingEmail(pendingEmail);
             changed = true;
@@ -430,7 +430,8 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
      * The copy's address and the one waiting for the user. The step-up mails its codes to the copy's address, and
      * whoever holds a session can change the application's profile. So the first real address the application shows
      * goes in at once, and once the copy holds one, another address the application shows waits until the user proves
-     * the address on record ({@link #confirmPendingEmail(Long)}) or an administrator enters an address.
+     * the address on record and then that address ({@link #confirmPendingEmail(Long, String)}), or an administrator
+     * enters an address.
      */
     private EmailChange resolveEmail(Users user, @Nullable BridgeUserProfile profile,
                                      AuthenticationStamp authenticationStamp, String bridgeSubjectKey) {
@@ -470,14 +471,31 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
     }
 
     @Override
+    @Nullable
     @Transactional(transactionManager = "contexaTransactionManager")
-    public boolean confirmPendingEmail(Long userId) {
+    public String pendingEmail(Long userId) {
         if (userId == null) {
+            return null;
+        }
+        return bridgeUserProfileRepository.findById(userId).map(BridgeUserProfile::getPendingEmail)
+                .map(this::normalize).orElse(null);
+    }
+
+    @Override
+    @Transactional(transactionManager = "contexaTransactionManager")
+    public boolean confirmPendingEmail(Long userId, String address) {
+        String proven = normalize(address);
+        if (userId == null || proven == null) {
             return false;
         }
         BridgeUserProfile profile = bridgeUserProfileRepository.findById(userId).orElse(null);
         String waiting = profile != null ? normalize(profile.getPendingEmail()) : null;
         if (waiting == null) {
+            return false;
+        }
+        if (!waiting.equalsIgnoreCase(proven)) {
+            log.warn("[Bridge] The address the user proved no longer waits; the copy keeps the address on record: "
+                    + "userId={}", userId);
             return false;
         }
         Users user = userRepository.findById(userId).filter(Users::isBridgeManaged).orElse(null);
@@ -495,8 +513,8 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
         userRepository.save(user);
         bridgeUserProfileRepository.save(profile);
         evictUserCaches(user);
-        log.info("[Bridge] The user proved the address on record; the copy takes the address the application shows: "
-                + "userId={}", userId);
+        log.info("[Bridge] The user proved the address on record and the address waiting; the copy takes the address "
+                + "waiting: userId={}", userId);
         return true;
     }
 

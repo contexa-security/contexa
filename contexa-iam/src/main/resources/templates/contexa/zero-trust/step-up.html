@@ -84,6 +84,27 @@
                 No way to confirm it is you is available. Contact your administrator.</p>
         </th:block>
 
+        <th:block th:if="${situation != null and situation.addressConfirmable}">
+            <p class="mt-6 mb-3 text-center text-sm" style="color: #94a3b8;" th:text="#{zerotrust.stepup.address.desc}">
+                Your profile shows a new email address, and a code was sent to it.</p>
+            <div class="space-y-2">
+                <div class="flex gap-2">
+                    <input id="step-up-address-code" type="text" inputmode="numeric" autocomplete="one-time-code"
+                           class="flex-1 py-3 px-4 rounded-lg text-sm"
+                           style="background: #0f172a; color: #e2e8f0; border: 1px solid rgba(71, 85, 105, 0.5);"
+                           th:placeholder="#{zerotrust.stepup.code.placeholder}">
+                    <button id="step-up-address-verify" type="button"
+                            class="py-3 px-4 rounded-lg text-sm font-semibold"
+                            style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);"
+                            th:text="#{zerotrust.stepup.code.verify}">Verify</button>
+                </div>
+                <button id="step-up-address-send" type="button"
+                        class="w-full py-3 px-6 rounded-lg text-sm font-semibold"
+                        style="background: rgba(71, 85, 105, 0.2); color: #cbd5e1; border: 1px solid rgba(71, 85, 105, 0.4);"
+                        th:text="#{zerotrust.stepup.address.send}">Send the code to the new address again</button>
+            </div>
+        </th:block>
+
         <th:block th:if="${situation != null and situation.passkeyRegistrable}">
             <p class="mt-6 mb-3 text-center text-sm" style="color: #94a3b8;" th:text="#{zerotrust.stepup.register.desc}">
                 Register a passkey for the next verification.</p>
@@ -184,6 +205,19 @@
         document.getElementById('step-up-code-verify').addEventListener('click', async () => {
             const code = document.getElementById('step-up-code').value;
             await finish(await post('/code/verify', new URLSearchParams({code: code}),
+                'application/x-www-form-urlencoded'), texts.codeFailed);
+        });
+    }
+
+    const addressSend = document.getElementById('step-up-address-send');
+    if (addressSend) {
+        addressSend.addEventListener('click', async () => {
+            const result = await (await post('/address/code')).json().catch(() => ({}));
+            message.textContent = result.sent ? texts.sent : (result.wait ? texts.wait : texts.failed);
+        });
+        document.getElementById('step-up-address-verify').addEventListener('click', async () => {
+            const code = document.getElementById('step-up-address-code').value;
+            await finish(await post('/address/verify', new URLSearchParams({code: code}),
                 'application/x-www-form-urlencoded'), texts.codeFailed);
         });
     }

@@ -22,6 +22,7 @@ import org.springframework.core.io.support.PropertiesLoaderUtils;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Properties;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -58,5 +59,19 @@ class StepUpScreenTextsTest {
         assertThat(template).contains("data-code-failed=#{" + KEY + "}");
         assertThat(template).containsPattern("post\\('/code/verify'[^;]*texts\\.codeFailed\\)");
         assertThat(template).doesNotContainPattern("post\\('/passkey/verify'[^;]*texts\\.codeFailed");
+    }
+
+    @Test
+    @DisplayName("the screen takes the code mailed to a new address, and can ask for it again, in every language")
+    void theScreenTakesTheCodeOfANewAddress() throws IOException {
+        String template = template();
+
+        assertThat(template).contains("situation.addressConfirmable");
+        assertThat(template).containsPattern("post\\('/address/verify'[^;]*texts\\.codeFailed\\)");
+        assertThat(template).contains("post('/address/code')");
+        for (String key : List.of("zerotrust.stepup.address.desc", "zerotrust.stepup.address.send")) {
+            assertThat(messages("messages.properties").getProperty(key)).isNotBlank();
+            assertThat(messages("messages_ko.properties").getProperty(key)).isNotBlank();
+        }
     }
 }

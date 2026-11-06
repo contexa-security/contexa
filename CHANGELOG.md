@@ -57,11 +57,14 @@ The format is based on Keep a Changelog and the project follows semantic version
 - **An address changed on the application's profile no longer gets the step-up's code.** The copy of a user took every
   address the application showed, so whoever held a session could change the profile's address and receive the code
   meant to stop them. A copy that holds a real address now keeps it: another address the application shows waits
-  (`ctxa_bridge_user_profile.pending_email`) and takes its place once the user enters a code mailed to the address on
-  record or answers with a passkey. The first real address of a copy that had a made-up one goes in at once, as before,
-  and an address an administrator enters on the user's page of the console now stands. The column is added to an
-  existing database at the next start. **Check:** a user who changed the address and can read neither the old mailbox
-  nor answer with a passkey gets codes at the new address once an administrator enters it in the console.
+  (`ctxa_bridge_user_profile.pending_email`). A user who proves the address on record, with its code or a passkey, has
+  what waited for the proof answered and gets a code at the address waiting; the address takes its place only once that
+  code is entered in the same session, so an address a thief left waiting is not taken at the owner's next proof. A code
+  of the new address answers no CHALLENGE. The first real address of a copy that had a made-up one goes in at once, as
+  before, and an address an administrator enters on the user's page of the console now stands. The column is added to an
+  existing database at the next start. **Check:** a user who changed the address enters, after the step-up, the code
+  that went to the new address; a user who can read neither the old mailbox nor answer with a passkey gets codes at the
+  new address once an administrator enters it in the console.
 - A value in a CSV export that a spreadsheet would run as a formula now stays text: users write the names and browsers in those files, and an administrator opens them. A cell that starts with `=`, `+`, `-` or `@` and is no plain number gets a leading quote.
 - **The admin console shows a stored name as text, never as script.** A role, permission, user or policy name with a quote
   could end a click handler or an attribute in the policy center, the access center, the policy details, the delete dialog
