@@ -45,6 +45,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.MessageSource;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -88,6 +91,32 @@ class IamAdminCenterAutoConfigurationTest {
                 assertThat(context).hasSingleBean(PolicyCenterAnalysisService.class);
                 assertThat(context).hasSingleBean(PolicyCenterController.class);
                 assertThat(context).hasSingleBean(PolicyCenterOperationsController.class);
+            });
+        }
+    }
+
+    @Nested
+    @DisplayName("Transactions of the items of a batch")
+    class ItemTransactions {
+
+        @Test
+        @DisplayName("Should give the command service a transaction of its own for each item when the console has a transaction manager")
+        void shouldWriteEachItemInATransactionOfItsOwn() {
+            contextRunner
+                    .withBean("contexaTransactionManager", PlatformTransactionManager.class,
+                            () -> mock(PlatformTransactionManager.class))
+                    .run(context -> assertThat(ReflectionTestUtils.getField(
+                            context.getBean(PolicyCenterCommandService.class), "itemTransactions"))
+                            .isInstanceOf(TransactionTemplate.class));
+        }
+
+        @Test
+        @DisplayName("Should start without one when the console has no transaction manager")
+        void shouldStartWithoutATransactionManager() {
+            contextRunner.run(context -> {
+                assertThat(context).hasSingleBean(PolicyCenterCommandService.class);
+                assertThat(ReflectionTestUtils.getField(context.getBean(PolicyCenterCommandService.class),
+                        "itemTransactions")).isNull();
             });
         }
     }
