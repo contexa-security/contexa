@@ -501,6 +501,14 @@ The format is based on Keep a Changelog and the project follows semantic version
   opened a transaction of their own, the service they called joined it, and the service's exception marked it for
   rollback before the controller caught it. These methods no longer open a transaction, the services keep theirs, so
   the refusal is rolled back there and the page the person returns to says why. Nothing else of them changes.
+- **A role that accounts or groups still hold is refused with who holds it, and a group with role permissions can be
+  deleted.** Deleting a role an account holds failed in the database with a foreign key nobody can read, and deleting a
+  role a group holds took it from the group without a word. The role is now refused, before anything is changed, with
+  how many accounts and groups hold it and the order to revoke it from them first. Deleting a group failed in the
+  database when roles had been given to it in the access center with their permissions; the group's permissions now go
+  with the group, as its memberships and roles do. **Check:** a role that groups hold can no longer be deleted until it
+  is taken from them, and the refusal of the console's last administrator on deleting the administrators' role is now
+  this one.
 - **A policy form that is refused now shows the refusal.** Creating a policy without a name, editing or deleting a
   policy that is not there, and approving a policy approved already or rejecting one rejected already each answered an
   error page (`UnexpectedRollbackException`) instead of the message, for the reason the user, role, group and role

@@ -54,6 +54,14 @@ public interface RoleRepository extends JpaRepository<Role, Long> {
     @Query("select r from Role r order by r.id")
     List<Role> findAllForUpdate();
 
+    /** How many accounts hold the role directly. */
+    @Query("select count(ur) from UserRole ur where ur.role.id = :roleId")
+    long countAccountsHolding(@Param("roleId") Long roleId);
+
+    /** How many groups hold the role. */
+    @Query("select count(gr) from GroupRole gr where gr.role.id = :roleId")
+    long countGroupsHolding(@Param("roleId") Long roleId);
+
     /**
      * The roles that give their holders the authority, by the rule of {@link RoleAuthority#authorityOf}: a role named
      * {@code ROLE_SALES} and a role named {@code sales} both give {@code ROLE_SALES}. The authority of every role starts

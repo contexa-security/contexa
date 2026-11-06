@@ -232,6 +232,14 @@ public class RoleServiceImpl extends AccountAuthoritiesService implements RoleSe
             throw new IllegalStateException(msg("msg.role.delete.referenced",
                     role.getRoleName(), String.join(", ", referencedIn)));
         }
+        // Counted under the lock taken first and before anything is cleaned up, audited or deleted, so a refusal leaves
+        // nothing behind. The database refuses the deletion of a role an account holds, with a constraint nobody can read,
+        // and drops a role from the groups that hold it without a word.
+        long accounts = roleRepository.countAccountsHolding(id);
+        long groups = roleRepository.countGroupsHolding(id);
+        if (accounts > 0 || groups > 0) {
+            throw new IllegalStateException(msg("msg.role.delete.held", role.getRoleName(), accounts, groups));
+        }
         policySynchronizationService.cleanupAutoPolicy(role.getRoleName());
         auditRoleChange(AuditEventCategory.ROLE_DELETED, role);
         roleRepository.deleteById(id);

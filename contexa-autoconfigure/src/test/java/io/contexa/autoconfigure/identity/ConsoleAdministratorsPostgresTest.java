@@ -35,6 +35,7 @@ import io.contexa.contexaiam.admin.web.auth.service.impl.GroupServiceImpl;
 import io.contexa.contexaiam.admin.web.auth.service.impl.RoleHierarchyService;
 import io.contexa.contexaiam.admin.web.auth.service.impl.RoleServiceImpl;
 import io.contexa.contexaiam.admin.web.auth.service.impl.UserManagementServiceImpl;
+import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos;
 import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos.AccessRoleAssignmentsRequest;
 import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos.UpdateUserGroupsRequest;
 import io.contexa.contexaiam.admin.web.center.service.AccessCenterService;
@@ -286,11 +287,17 @@ class ConsoleAdministratorsPostgresTest {
     }
 
     @Test
-    @DisplayName("deleting the role of the last administrator is refused")
+    @DisplayName("deleting the role of the last administrator is refused: the group of the administrator holds it")
     void deletingTheAdministratorRole() {
-        assertRefusedAndNothingKept(() -> transactions.executeWithoutResult(s -> roleService.deleteRole(adminRole)));
+        assertThatThrownBy(() -> transactions.executeWithoutResult(s -> roleService.deleteRole(adminRole)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("held by 0 account(s) and 1 group(s)");
+
+        assertThat(administrators()).containsExactly("alice");
         assertThat(jdbc.queryForObject("select count(*) from ctxa_role where role_name = 'ROLE_ADMIN'", Integer.class))
                 .isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from ctxa_group_roles where group_id = ? and role_id = ?",
+                Integer.class, ops, adminRole)).isEqualTo(1);
     }
 
     @Test
@@ -353,17 +360,39 @@ class ConsoleAdministratorsPostgresTest {
     // ----- what stays as it was -----
 
     @Test
-    @DisplayName("a role an account holds directly is still not deleted: the database refuses, as before")
-    void aRoleHeldDirectlyIsStillRefusedByTheDatabase() {
+    @DisplayName("a role an account holds directly is refused with who holds it, not with the constraint of the database")
+    void aRoleHeldDirectlyIsRefusedWithWhoHoldsIt() {
         long direct = role("ROLE_DIRECT");
         userRole(bob, direct);
 
         assertThatThrownBy(() -> transactions.executeWithoutResult(s -> roleService.deleteRole(direct)))
-                .isInstanceOf(RuntimeException.class).isNotInstanceOf(LastAdministratorException.class);
+                .isInstanceOf(IllegalStateException.class).isNotInstanceOf(LastAdministratorException.class)
+                .hasMessage("Cannot delete role 'ROLE_DIRECT'. It is held by 1 account(s) and 0 group(s). "
+                        + "Revoke it from them first.");
 
         assertThat(jdbc.queryForObject("select count(*) from ctxa_role where role_name = 'ROLE_DIRECT'", Integer.class))
                 .isEqualTo(1);
         assertThat(administrators()).containsExactly("alice");
+    }
+
+    @Test
+    @DisplayName("a role held by accounts and by groups says how many of each, and goes once they hold it no more")
+    void aRoleHeldByBothIsDeletedOnceRevoked() {
+        long shared = role("ROLE_SHARED");
+        userRole(bob, shared);
+        userRole(alice, shared);
+        long team = group("team", shared);
+
+        assertThatThrownBy(() -> transactions.executeWithoutResult(s -> roleService.deleteRole(shared)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("held by 2 account(s) and 1 group(s)");
+
+        jdbc.update("delete from ctxa_user_roles where role_id = ?", shared);
+        jdbc.update("delete from ctxa_group_roles where group_id = ?", team);
+        transactions.executeWithoutResult(s -> roleService.deleteRole(shared));
+
+        assertThat(jdbc.queryForObject("select count(*) from ctxa_role where role_name = 'ROLE_SHARED'", Integer.class))
+                .isZero();
     }
 
     @Test
@@ -378,9 +407,11 @@ class ConsoleAdministratorsPostgresTest {
         transactions.executeWithoutResult(s -> groupService.deleteGroup(ops));
         transactions.executeWithoutResult(s -> accessCenter.updateUserGroups(alice, groups()));
         assertThat(administrators()).containsExactly("bob");
-        // Bob is the last one now.
+        // Bob is the last one now, and the group he is in holds the role: it is not deleted.
         assertThatThrownBy(() -> transactions.executeWithoutResult(s -> roleService.deleteRole(adminRole)))
-                .isInstanceOf(LastAdministratorException.class);
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("held by 0 account(s) and 1 group(s)");
+        assertThat(administrators()).containsExactly("bob");
     }
 
     @Test
@@ -522,6 +553,31 @@ class ConsoleAdministratorsPostgresTest {
 
         assertThat(jdbc.queryForList("select role_id from ctxa_user_roles where user_id = ? order by 1", Long.class, bob))
                 .containsExactlyInAnyOrder(first, second);
+    }
+
+    // ----- deletions that reach what is assigned to the group -----
+
+    @Test
+    @DisplayName("a group whose roles were given with their permissions in the access center is deleted with them")
+    void aGroupWithRolePermissionsIsDeleted() {
+        long read = jdbc.queryForObject("insert into ctxa_permission (permission_name) values ('READ') returning permission_id",
+                Long.class);
+        long sales = role("ROLE_SALES");
+        long team = group("team");
+        AccessCenterDtos.AccessRoleAssignmentRequest assignment = new AccessCenterDtos.AccessRoleAssignmentRequest();
+        assignment.setRoleId(sales);
+        assignment.setCrudPermissions(List.of("READ"));
+        AccessRoleAssignmentsRequest request = new AccessRoleAssignmentsRequest();
+        request.setRoleAssignments(List.of(assignment));
+        transactions.executeWithoutResult(s -> accessCenter.updateGroupRoles(team, request));
+        assertThat(jdbc.queryForObject("select count(*) from ctxa_group_role_permissions where group_id = ? and permission_id = ?",
+                Integer.class, team, read)).isEqualTo(1);
+
+        transactions.executeWithoutResult(s -> groupService.deleteGroup(team));
+
+        assertThat(jdbc.queryForObject("select count(*) from ctxa_app_group where group_name = 'team'", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from ctxa_group_role_permissions where group_id = ?", Integer.class,
+                team)).isZero();
     }
 
     // ----- helpers -----

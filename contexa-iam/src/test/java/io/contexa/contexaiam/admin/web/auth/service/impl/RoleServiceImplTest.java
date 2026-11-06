@@ -30,6 +30,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -388,6 +389,76 @@ class RoleServiceImplTest {
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("Cannot delete role")
                     .hasMessageContaining("ROLE_ADMIN");
+        }
+
+        @Test
+        @DisplayName("a role accounts or groups still hold is refused with who holds it, and nothing is cleaned up, audited or deleted")
+        void shouldRefuseARoleThatIsHeld() {
+            Role role = buildRole(1L, "ROLE_SALES");
+            when(roleRepository.findById(1L)).thenReturn(Optional.of(role));
+            when(roleHierarchyRepository.findAllByIsActiveTrue()).thenReturn(Collections.emptyList());
+            when(roleRepository.countAccountsHolding(1L)).thenReturn(2L);
+            when(roleRepository.countGroupsHolding(1L)).thenReturn(1L);
+
+            assertThatThrownBy(() -> service.deleteRole(1L))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("Cannot delete role 'ROLE_SALES'. It is held by 2 account(s) and 1 group(s). "
+                            + "Revoke it from them first.");
+
+            verify(roleRepository, never()).deleteById(any());
+            verify(policySynchronizationService, never()).cleanupAutoPolicy(any());
+            verify(centralAuditFacade, never()).recordAsync(any());
+        }
+
+        @Test
+        @DisplayName("a role only groups hold, or only accounts hold, is refused as well")
+        void shouldRefuseARoleThatOnlyOneKindHolds() {
+            Role role = buildRole(1L, "ROLE_SALES");
+            when(roleRepository.findById(1L)).thenReturn(Optional.of(role));
+            when(roleHierarchyRepository.findAllByIsActiveTrue()).thenReturn(Collections.emptyList());
+            when(roleRepository.countGroupsHolding(1L)).thenReturn(3L);
+
+            assertThatThrownBy(() -> service.deleteRole(1L)).isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("held by 0 account(s) and 3 group(s)");
+
+            when(roleRepository.countGroupsHolding(1L)).thenReturn(0L);
+            when(roleRepository.countAccountsHolding(1L)).thenReturn(4L);
+
+            assertThatThrownBy(() -> service.deleteRole(1L)).isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("held by 4 account(s) and 0 group(s)");
+            verify(roleRepository, never()).deleteById(any());
+        }
+
+        @Test
+        @DisplayName("the lock of the console's administrators stays the first thing: the holders are counted under it, before the deletion")
+        void theHoldersAreCountedUnderTheLock() {
+            Role role = buildRole(1L, "ROLE_OLD");
+            when(roleRepository.findById(1L)).thenReturn(Optional.of(role));
+            when(roleHierarchyRepository.findAllByIsActiveTrue()).thenReturn(Collections.emptyList());
+
+            service.deleteRole(1L);
+
+            InOrder order = inOrder(lastAdministratorGuard, roleRepository);
+            order.verify(lastAdministratorGuard).serializeChanges();
+            order.verify(lastAdministratorGuard).administrators();
+            order.verify(roleRepository).findById(1L);
+            order.verify(roleRepository).countAccountsHolding(1L);
+            order.verify(roleRepository).countGroupsHolding(1L);
+            order.verify(roleRepository).deleteById(1L);
+            order.verify(lastAdministratorGuard).refuseLosingEveryAdministrator(any());
+        }
+
+        @Test
+        @DisplayName("a role a hierarchy names is still refused for that, first")
+        void aHierarchyIsToldBeforeTheHolders() {
+            Role role = buildRole(1L, "ROLE_ADMIN");
+            when(roleRepository.findById(1L)).thenReturn(Optional.of(role));
+            when(roleHierarchyRepository.findAllByIsActiveTrue())
+                    .thenReturn(List.of(buildHierarchy(1L, "ROLE_ADMIN > ROLE_USER", true)));
+            when(roleRepository.countAccountsHolding(1L)).thenReturn(2L);
+
+            assertThatThrownBy(() -> service.deleteRole(1L)).isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("Referenced in active hierarchies");
         }
 
         @Test
