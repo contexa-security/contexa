@@ -108,11 +108,19 @@ public class AgentConfirmationService {
     /**
      * Asks the accountable person to confirm the request, or answers the confirmation already waiting for it.
      *
-     * @return empty when no person is accountable for the agent (an agent on its own without a sponsor)
+     * @return empty when no person is accountable for the agent (an agent on its own without a sponsor), or when a
+     *         confirmation cannot keep the agent's identifiers whole ({@link AgentConfirmation#keeps})
      */
     public Optional<AgentConfirmation> request(ConfirmationRequest request) {
         ZeroTrustSubject subject = request.subject();
         if (subject == null || subject.agentId() == null || !StringUtils.hasText(request.requestHash())) {
+            return Optional.empty();
+        }
+        if (!AgentConfirmation.keeps(subject)) {
+            record(AuditEventCategory.AGENT_CONFIRMATION_REQUESTED, "contexa", null, subject, "UNKEEPABLE",
+                    "The agent's identifiers are longer than a confirmation keeps; the request is refused",
+                    Map.of("target", truncate(request.method() + " " + request.target(), 2048),
+                            "trigger", request.trigger()));
             return Optional.empty();
         }
         String subjectKey = subject.storageKey();

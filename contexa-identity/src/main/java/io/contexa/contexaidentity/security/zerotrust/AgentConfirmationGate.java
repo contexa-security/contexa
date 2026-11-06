@@ -69,7 +69,10 @@ public class AgentConfirmationGate {
     public static final String CONFIRMATION_HEADER = "Contexa-Agent-Confirmation";
     /** The answer to a request under a revoked delegation. */
     public static final String DELEGATION_REVOKED = "DELEGATION_REVOKED";
-    /** The answer to a request too large to bind a confirmation to. */
+    /**
+     * The answer to a request too large to bind a confirmation to or to show a person whole, or of an agent whose
+     * identifiers a confirmation cannot keep whole.
+     */
     public static final String CONFIRMATION_UNBINDABLE = "AGENT_CONFIRMATION_UNBINDABLE";
     /** The answer to a request outside the agent's narrowed scope (A5-4). */
     public static final String SCOPE_NARROWED = "AGENT_SCOPE_NARROWED";
@@ -234,7 +237,8 @@ public class AgentConfirmationGate {
      * docs/agent A5-2: answers an agent's request a CHALLENGE decided in the request itself stopped (a synchronous
      * operation, or an agent's request decided in place, F-1): its accountable person is asked to confirm that very
      * request, as for a CHALLENGE in force, and the agent gets the same answer. A request the gate could not bind
-     * (a body over the bound size) is left to the plain CHALLENGE answer.
+     * (a body over the bound size, a target longer than a confirmation keeps, an agent whose identifiers it cannot keep)
+     * is left to the plain CHALLENGE answer.
      *
      * @return whether the answer was written
      */
@@ -313,15 +317,21 @@ public class AgentConfirmationGate {
         }
     }
 
-    /** The request with its body kept, and its binding; no binding for a body over the bound size. */
+    /**
+     * The request with its body kept, and its binding. Nothing binds a body over the bound size, nor a request a person
+     * could not read whole: its target longer than a confirmation keeps. Nor does a request of an agent whose
+     * identifiers a confirmation cannot keep whole ({@link AgentConfirmation#keeps}). No confirmation is then asked.
+     */
     private Bound bind(HttpServletRequest request, ZeroTrustSubject subject) throws IOException {
+        boolean confirmable = target(request).length() <= AgentConfirmation.MAX_TARGET_LENGTH
+                && AgentConfirmation.keeps(subject);
         String path = path(request);
         if (formPost(request)) {
-            return new Bound(request, AgentRequestBinding.hash(subject.tenantId(), subject.userId(),
-                    subject.agentId(), request.getMethod(), path, null, null, request.getParameterMap()));
+            return new Bound(request, confirmable ? AgentRequestBinding.hash(subject.tenantId(), subject.userId(),
+                    subject.agentId(), request.getMethod(), path, null, null, request.getParameterMap()) : null);
         }
         CachedBodyRequest cached = CachedBodyRequest.of(request, maxBodyBytes);
-        if (!cached.bound()) {
+        if (!cached.bound() || !confirmable) {
             return new Bound(cached, null);
         }
         byte[] body = cached.body();

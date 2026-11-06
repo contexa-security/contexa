@@ -75,8 +75,9 @@ public class AgentConfirmationApiController {
 
     /**
      * The request the agent asks a confirmation for: its method (a standard HTTP method), its path with the query (at
-     * most {@value AgentConfirmation#MAX_TARGET_LENGTH} characters, what a confirmation keeps), and its body's SHA-256
-     * in hexadecimal (none for no body), as it will send it.
+     * most {@value AgentConfirmation#MAX_TARGET_LENGTH} characters, what a confirmation keeps, and a space, a control
+     * character or one that turns the text around written escaped, as a request line carries it), and its body's
+     * SHA-256 in hexadecimal (none for no body), as it will send it.
      */
     public record ConfirmationAsk(String method, String target, @Nullable String bodySha256, @Nullable String reason) {
     }
@@ -137,12 +138,14 @@ public class AgentConfirmationApiController {
                 || !ask.target().startsWith("/")) {
             return ResponseEntity.badRequest().build();
         }
-        // An ask the person could not be shown in full, or that names no method a request carries, binds nothing.
+        // An ask the person could not be shown in full or as written, or that names no method a request carries,
+        // binds nothing.
         String method = ask.method().trim().toUpperCase(Locale.ROOT);
         String target = ask.target().trim();
         // Kept as the gate keeps what it stopped: a value that opens something is masked, and what is kept fits whole.
         String kept = RequestFactRedaction.readableTarget(target);
-        if (!METHODS.contains(method) || kept.length() > AgentConfirmation.MAX_TARGET_LENGTH) {
+        if (!METHODS.contains(method) || !AgentConfirmation.keeps(subject) || !AgentConfirmation.readsAsWritten(target)
+                || kept.length() > AgentConfirmation.MAX_TARGET_LENGTH) {
             return ResponseEntity.badRequest().build();
         }
         int query = target.indexOf('?');

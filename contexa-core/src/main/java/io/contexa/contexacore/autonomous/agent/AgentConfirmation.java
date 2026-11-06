@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.agent;
 
 import io.contexa.contexacommon.security.RequestPaths;
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import org.springframework.lang.Nullable;
@@ -74,6 +75,10 @@ public record AgentConfirmation(String confirmationId, @Nullable String tenantId
     public static final int MAX_TARGET_LENGTH = 2048;
     static final int MAX_METHOD_LENGTH = 16;
     static final int MAX_CORRELATION_ID_LENGTH = 160;
+    /** The longest tenant, user or agent a confirmation keeps, its stored columns' size. */
+    static final int MAX_IDENTIFIER_LENGTH = 255;
+    static final int MAX_DELEGATION_ID_LENGTH = 64;
+    static final int MAX_SUBJECT_KEY_LENGTH = 600;
 
     /** What a person could not see in a path, or what would break its line or turn it around: shown escaped. */
     private static final Pattern NOT_SHOWN = Pattern.compile("[\\p{C}\\p{Z}]");
@@ -139,6 +144,29 @@ public record AgentConfirmation(String confirmationId, @Nullable String tenantId
                 UriUtils.encode(character.group(), StandardCharsets.UTF_8)));
         // A secret the path hid behind an escape reads as one only once decoded.
         return shown.equals(path) ? null : RequestFactRedaction.readableTarget(shown);
+    }
+
+    /**
+     * Whether a confirmation keeps the subject's identifiers whole, as every store keeps them. An identifier is never
+     * cut: a cut one names another delegation, agent or person, or none, and a report would stop the wrong one.
+     */
+    public static boolean keeps(ZeroTrustSubject subject) {
+        return fits(AgentRegistrations.tenantKey(subject.tenantId()), MAX_IDENTIFIER_LENGTH)
+                && fits(subject.userId(), MAX_IDENTIFIER_LENGTH) && fits(subject.agentId(), MAX_IDENTIFIER_LENGTH)
+                && fits(subject.delegationId(), MAX_DELEGATION_ID_LENGTH)
+                && fits(subject.storageKey(), MAX_SUBJECT_KEY_LENGTH);
+    }
+
+    private static boolean fits(@Nullable String value, int length) {
+        return value == null || value.length() <= length;
+    }
+
+    /**
+     * Whether the target reads as it is written: it carries no character that cannot be seen, breaks the line or turns
+     * the text around, nor a space. A request line carries none of them as written; escaped, they are asked like any.
+     */
+    public static boolean readsAsWritten(String target) {
+        return !NOT_SHOWN.matcher(target).find();
     }
 
     /** The confirmation decided. */

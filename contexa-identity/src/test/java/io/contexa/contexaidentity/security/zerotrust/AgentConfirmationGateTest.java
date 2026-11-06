@@ -471,6 +471,67 @@ class AgentConfirmationGateTest {
         return request;
     }
 
+    /**
+     * A person confirms what they can read whole: a target longer than a confirmation keeps asks no one and is refused
+     * as a body too large to bind is, decided in the request as well; one that fits is kept whole.
+     */
+    @Test
+    void aTargetLongerThanAConfirmationKeepsAsksNoOneAndIsRefused() throws Exception {
+        MockHttpServletRequest fits = request(BODY);
+        fits.setQueryString("q=" + "a".repeat(AgentConfirmation.MAX_TARGET_LENGTH - "/api/exports?q=".length()));
+        send(fits, ZeroTrustAction.CHALLENGE);
+        assertThat(writer.status).isEqualTo(403);
+        assertThat(store.find((String) writer.details.get("confirmationId"))).map(AgentConfirmation::target)
+                .contains("/api/exports?" + fits.getQueryString());
+
+        MockHttpServletRequest past = request(BODY);
+        past.setQueryString(fits.getQueryString() + "a");
+        Recording refused = send(past, ZeroTrustAction.CHALLENGE);
+
+        assertThat(refused.went()).isFalse();
+        assertThat(writer.status).isEqualTo(413);
+        assertThat(writer.details).containsEntry("error", AgentConfirmationGate.CONFIRMATION_UNBINDABLE);
+        assertThat(store.list(null, 10)).hasSize(1);
+
+        MockHttpServletRequest decidedPast = request(BODY);
+        decidedPast.setQueryString(past.getQueryString());
+        Recording decided = new Recording();
+        decided.answer = (request, response) -> assertThat(gate.answerDecidedChallenge(request, response, subject))
+                .isFalse();
+        gate.filter(decidedPast, new MockHttpServletResponse(), decided, subject, ZeroTrustAction.ALLOW);
+        assertThat(store.list(null, 10)).hasSize(1);
+    }
+
+    /**
+     * An identifier is never cut, since a cut one names another delegation, agent or person and a report would stop
+     * the wrong one: an agent whose identifiers a confirmation cannot keep whole asks no one and is refused.
+     */
+    @Test
+    void anAgentWhoseIdentifiersAConfirmationCannotKeepAsksNoOneAndIsRefused() throws Exception {
+        for (ZeroTrustSubject unkeepable : List.of(
+                new ZeroTrustSubject(null, "alice", SubjectKind.DELEGATED_AGENT, "report-agent", "d".repeat(65)),
+                new ZeroTrustSubject(null, "alice", SubjectKind.DELEGATED_AGENT, "a".repeat(256), null),
+                new ZeroTrustSubject(null, "u".repeat(256), SubjectKind.DELEGATED_AGENT, "report-agent", null),
+                new ZeroTrustSubject("t".repeat(256), "alice", SubjectKind.DELEGATED_AGENT, "report-agent", null))) {
+            Recording refused = send(request(BODY), ZeroTrustAction.CHALLENGE, unkeepable);
+
+            assertThat(refused.went()).isFalse();
+            assertThat(writer.status).isEqualTo(413);
+            assertThat(writer.details).containsEntry("error", AgentConfirmationGate.CONFIRMATION_UNBINDABLE);
+        }
+        assertThat(store.list(null, 10)).isEmpty();
+
+        send(request(BODY), ZeroTrustAction.CHALLENGE, new ZeroTrustSubject("t".repeat(255), "u".repeat(255),
+                SubjectKind.DELEGATED_AGENT, "a".repeat(255), "d".repeat(64)));
+        assertThat(writer.status).isEqualTo(403);
+        assertThat(store.list(null, 10)).singleElement().satisfies(kept -> {
+            assertThat(kept.delegationId()).hasSize(64);
+            assertThat(kept.agentId()).hasSize(255);
+            assertThat(kept.userId()).hasSize(255);
+            assertThat(kept.tenantId()).hasSize(255);
+        });
+    }
+
     @Test
     void aRequestTooLargeToBindIsRefusedWhenItNeedsAConfirmation() throws Exception {
         Recording refused = send(request("x".repeat(2048)), ZeroTrustAction.CHALLENGE);
