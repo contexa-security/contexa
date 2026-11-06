@@ -23,10 +23,12 @@ import org.springframework.beans.factory.SmartInitializingSingleton;
 import java.util.function.Supplier;
 
 /**
- * Q-6: reports at startup that a restart ends the decisions in force. In standalone they live in the memory of this
- * server, so a restart lets a blocked user go on while ctxa_blocked_user still says BLOCKED, and ends a CHALLENGE.
- * Standalone is for development and nothing restores them; the distributed mode keeps them. A repository the host gives
- * keeps the startup silent.
+ * Q-6: reports at startup what a restart ends. In standalone the decisions in force live in the memory of this server, so a
+ * restart ends a CHALLENGE, an ESCALATE and the ALLOW held for a user, and the next request is analyzed again. A BLOCK
+ * is in memory too, but the block record of contexa-iam (ctxa_blocked_user) holds every BLOCK in force and the start
+ * writes it again ({@code RestrictionRestorer}): the user stays blocked. A BLOCK nothing recorded, and every BLOCK
+ * without contexa-iam, ends with the server. Standalone is for development; the distributed mode keeps them all. A
+ * repository the host gives keeps the startup silent.
  */
 @Slf4j
 public class StandaloneEnforcementStateWarning implements SmartInitializingSingleton {
@@ -41,9 +43,11 @@ public class StandaloneEnforcementStateWarning implements SmartInitializingSingl
     public void afterSingletonsInstantiated() {
         if (actionRepository.get() instanceof InMemoryZeroTrustActionRepository) {
             log.warn("[Contexa] contexa.infrastructure.mode is standalone: the decisions in force are kept in memory and "
-                    + "lost on restart, so a BLOCK and a CHALLENGE end with the server although ctxa_blocked_user keeps its "
-                    + "record; standalone is for development, set contexa.infrastructure.mode=distributed with Redis to "
-                    + "keep them.");
+                    + "lost on restart, so a CHALLENGE, an ESCALATE and the ALLOW held for a user end with the server and "
+                    + "the next request is analyzed again. A BLOCK is written again at start only from the block record of "
+                    + "contexa-iam (ctxa_blocked_user): a block it holds in force stays in force, and one it does not hold, "
+                    + "or any block without contexa-iam, ends with the server. Standalone is for development, set "
+                    + "contexa.infrastructure.mode=distributed with Redis to keep them all.");
         }
     }
 }

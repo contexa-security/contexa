@@ -47,7 +47,7 @@ import io.contexa.contexacore.autonomous.audit.AuditPersistenceListener;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.audit.UndecidedCallsAudit;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
-import io.contexa.contexacore.autonomous.service.NamespaceRestrictionRestorer;
+import io.contexa.contexacore.autonomous.service.RestrictionRestorer;
 import io.contexa.contexacommon.store.ContexaStores;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.context.*;
@@ -1057,20 +1057,6 @@ public class CoreAutonomousAutoConfiguration {
                 @Qualifier("contexaGeneralRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
             return new RedisDistributedLockService(redisTemplate);
         }
-
-        /**
-         * A BLOCK and a learning quarantine have no expiry, and the keys an application had before it was given a name are
-         * no longer read: the blocks the database holds in force are written again under the keys of the name, and the
-         * quarantine is carried over, before the web server takes a request. An application without a name does nothing.
-         */
-        @Bean(name = "contexaNamespaceRestrictionRestorer")
-        public NamespaceRestrictionRestorer namespaceRestrictionRestorer(
-                ObjectProvider<ZeroTrustActionRepository> actionRepository,
-                ObjectProvider<IBlockedUserRecorder> blockedUserRecorder,
-                ObjectProvider<SecurityContextDataStore> securityContextDataStore) {
-            return new NamespaceRestrictionRestorer(actionRepository::getIfAvailable, blockedUserRecorder::getIfUnique,
-                    securityContextDataStore::getIfAvailable);
-        }
     }
 
     @Bean(name = "contexaInMemoryZeroTrustActionRepository")
@@ -1178,6 +1164,22 @@ public class CoreAutonomousAutoConfiguration {
     public StandaloneEnforcementStateWarning standaloneEnforcementStateWarning(
             ObjectProvider<ZeroTrustActionRepository> actionRepository) {
         return new StandaloneEnforcementStateWarning(actionRepository::getIfAvailable);
+    }
+
+    /**
+     * A BLOCK and a learning quarantine have no expiry, and a restart can take them from the decision store: the memory of
+     * a standalone server ends with it, a Redis can be emptied or replaced, and the keys an application had before it was
+     * given a name are no longer read. In every infrastructure mode the blocks the database holds in force are written
+     * again where the store has none, and the quarantine of an application with a name is carried over from its earlier
+     * key, before the web server takes a request.
+     */
+    @Bean(name = "contexaRestrictionRestorer")
+    public RestrictionRestorer restrictionRestorer(
+            ObjectProvider<ZeroTrustActionRepository> actionRepository,
+            ObjectProvider<IBlockedUserRecorder> blockedUserRecorder,
+            ObjectProvider<SecurityContextDataStore> securityContextDataStore) {
+        return new RestrictionRestorer(actionRepository::getIfAvailable, blockedUserRecorder::getIfUnique,
+                securityContextDataStore::getIfAvailable);
     }
 
     /** Discards the late writes of a deleted account's requests for the analysis budget and a margin (Q-15). */

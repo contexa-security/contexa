@@ -39,11 +39,12 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The upgrade of an application to a name, on a real Redis: what was blocked before stays blocked, what was released does
- * not come back, another application sharing the Redis is not blocked by it, and an application without a name does
- * nothing. Keys of their own in a shared Redis: nothing here flushes it.
+ * The blocks the database holds in force, on a real Redis: after the upgrade of an application to a name what was blocked
+ * before stays blocked, and in an application with or without a name a block the store lost is in force again. What was
+ * released does not come back, and another application sharing the Redis is not blocked by it. Keys of their own in a
+ * shared Redis: nothing here flushes it.
  */
-class NamespaceRestrictionRestorerRedisTest {
+class RestrictionRestorerRedisTest {
 
     private static final String CONTEXT = "context-1";
     private static final String EARLIER_QUARANTINE = "security:autonomous:learning:quarantine";
@@ -107,7 +108,7 @@ class NamespaceRestrictionRestorerRedisTest {
 
     private void start(String application, IBlockedUserRecorder recorder) {
         try (ApplicationNamespace.Scope ignored = ApplicationNamespace.using(application)) {
-            NamespaceRestrictionRestorer restorer = new NamespaceRestrictionRestorer(() -> actions, () -> recorder,
+            RestrictionRestorer restorer = new RestrictionRestorer(() -> actions, () -> recorder,
                     () -> context, Duration.ofSeconds(10), List.of(Duration.ofMillis(50)));
             restorer.start();
             restorer.stop();
@@ -157,12 +158,50 @@ class NamespaceRestrictionRestorerRedisTest {
     }
 
     @Test
-    @DisplayName("an application without a name reads no record and writes no key")
-    void anUnnamedApplicationDoesNothing() {
+    @DisplayName("an application without a name finds a block its store lost in force again, and a released one is not written")
+    void anUnnamedApplicationRestoresABlockTheStoreLost() {
+        // A Redis that was emptied or replaced: the database holds the block and the store has no flag.
+        assertThat(actionIn("", blocked)).as("before the start").isNotEqualTo(ZeroTrustAction.BLOCK);
+
         start("", database(blocked));
 
+        assertThat(actionIn("", blocked)).isEqualTo(ZeroTrustAction.BLOCK);
+        assertThat(actionIn("", released)).as("the database holds it resolved").isNotEqualTo(ZeroTrustAction.BLOCK);
+        assertThat(strings.opsForValue().get("security:blocked:users:" + blocked)).isEqualTo("true");
+        assertThat(strings.getExpire("security:blocked:users:" + blocked, TimeUnit.SECONDS)).as("a BLOCK has no expiry")
+                .isEqualTo(-1L);
+        assertThat(strings.hasKey("security:blocked:users:" + released)).isFalse();
+    }
+
+    @Test
+    @DisplayName("a flag the store still has is left as it is by an application without a name, and no quarantine is carried")
+    void anUnnamedApplicationLeavesAnExistingFlagAsItIs() {
+        try (ApplicationNamespace.Scope ignored = ApplicationNamespace.using("")) {
+            actions.setBlockedFlag(blocked);
+        }
+        redis.opsForSet().add(EARLIER_QUARANTINE, agent);
+        try {
+            start("", database(blocked));
+
+            assertThat(actionIn("", blocked)).isEqualTo(ZeroTrustAction.BLOCK);
+            assertThat(strings.getExpire("security:blocked:users:" + blocked, TimeUnit.SECONDS)).isEqualTo(-1L);
+            assertThat(strings.hasKey(EARLIER_QUARANTINE + ":carried")).as("there is no earlier key to carry").isFalse();
+        } finally {
+            redis.opsForSet().remove(EARLIER_QUARANTINE, agent);
+        }
+    }
+
+    @Test
+    @DisplayName("an application without a name does not write a block another record no longer holds, on a second start")
+    void anUnnamedApplicationDoesNotWriteAReleasedBlockOnASecondStart() {
+        start("", database(blocked));
+        try (ApplicationNamespace.Scope ignored = ApplicationNamespace.using("")) {
+            actions.removeBlockedFlag(blocked);
+        }
+
+        start("", database());
+
         assertThat(actionIn("", blocked)).isNotEqualTo(ZeroTrustAction.BLOCK);
-        assertThat(strings.hasKey("security:blocked:users:" + blocked)).isFalse();
     }
 
     @Test

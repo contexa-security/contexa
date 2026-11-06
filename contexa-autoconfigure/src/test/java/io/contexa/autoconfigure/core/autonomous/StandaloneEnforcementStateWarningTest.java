@@ -31,8 +31,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 /**
- * PR-52 (Q-6): in standalone a restart ends a BLOCK and a CHALLENGE in force while ctxa_blocked_user still says BLOCKED.
- * Nothing restores them, as standalone is for development; the start says so.
+ * PR-52 (Q-6): in standalone a restart ends the decisions in force that live in memory, a CHALLENGE among them. A BLOCK
+ * that ctxa_blocked_user holds in force is written again when the server starts, and one it does not hold is not; the
+ * start says exactly that, as standalone is for development.
  */
 @ExtendWith(OutputCaptureExtension.class)
 class StandaloneEnforcementStateWarningTest {
@@ -40,12 +41,16 @@ class StandaloneEnforcementStateWarningTest {
     private static final String WARNING = "decisions in force are kept in memory and lost on restart";
 
     @Test
-    @DisplayName("the in-memory decisions make one warning that a restart ends a block and a re-authentication")
+    @DisplayName("the in-memory decisions make one warning that a restart ends a re-authentication, and that a block comes back from the record only")
     void theStartSaysThatARestartEndsTheDecisionsInForce(CapturedOutput output) {
         new StandaloneEnforcementStateWarning(() -> new InMemoryZeroTrustActionRepository(0)).afterSingletonsInstantiated();
 
         assertThat(output).containsOnlyOnce(WARNING);
         assertThat(output).contains("BLOCK").contains("CHALLENGE").contains("contexa.infrastructure.mode=distributed");
+        assertThat(output).as("a BLOCK the record holds in force is written again at start")
+                .contains("ctxa_blocked_user").contains("written again");
+        assertThat(output).as("not the statement that a restart ends every BLOCK")
+                .doesNotContain("a BLOCK and a CHALLENGE end with the server");
     }
 
     @Test

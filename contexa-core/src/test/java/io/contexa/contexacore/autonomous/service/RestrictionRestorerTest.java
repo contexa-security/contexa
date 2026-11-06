@@ -44,12 +44,12 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * An application that is given a name writes the blocks its database holds in force under the keys of its name, and
- * carries its quarantine over, before the web server takes a request. Nothing here may stop the application or hold a
- * request: an error is reported and tried again a number of times.
+ * An application writes the blocks its database holds in force where the decision store has none, and one that is given a
+ * name carries its quarantine over, before the web server takes a request. Nothing here may stop the application or hold
+ * a request: an error is reported and tried again a number of times.
  */
 @ExtendWith(OutputCaptureExtension.class)
-class NamespaceRestrictionRestorerTest {
+class RestrictionRestorerTest {
 
     private static final Duration RETRY = Duration.ofMillis(40);
 
@@ -57,7 +57,7 @@ class NamespaceRestrictionRestorerTest {
     private final IBlockedUserRecorder recorder = mock(IBlockedUserRecorder.class);
     private final SecurityContextDataStore store = mock(SecurityContextDataStore.class);
     private ApplicationNamespace.Scope scope;
-    private NamespaceRestrictionRestorer restorer;
+    private RestrictionRestorer restorer;
 
     @BeforeEach
     void named() {
@@ -72,8 +72,8 @@ class NamespaceRestrictionRestorerTest {
         scope.close();
     }
 
-    private NamespaceRestrictionRestorer restorer(Duration firstAttemptWait) {
-        restorer = new NamespaceRestrictionRestorer(() -> actions, () -> recorder, () -> store, firstAttemptWait,
+    private RestrictionRestorer restorer(Duration firstAttemptWait) {
+        restorer = new RestrictionRestorer(() -> actions, () -> recorder, () -> store, firstAttemptWait,
                 List.of(RETRY, RETRY));
         return restorer;
     }
@@ -81,8 +81,8 @@ class NamespaceRestrictionRestorerTest {
     @Test
     @DisplayName("it starts before the web server, whose lifecycle runs at Integer.MAX_VALUE - 2048")
     void itStartsBeforeTheWebServer() {
-        assertThat(NamespaceRestrictionRestorer.PHASE).isLessThan(Integer.MAX_VALUE - 2048);
-        assertThat(restorer(Duration.ofSeconds(5)).getPhase()).isEqualTo(NamespaceRestrictionRestorer.PHASE);
+        assertThat(RestrictionRestorer.PHASE).isLessThan(Integer.MAX_VALUE - 2048);
+        assertThat(restorer(Duration.ofSeconds(5)).getPhase()).isEqualTo(RestrictionRestorer.PHASE);
         assertThat(restorer.isAutoStartup()).isTrue();
     }
 
@@ -102,15 +102,32 @@ class NamespaceRestrictionRestorerTest {
     }
 
     @Test
-    @DisplayName("an application without a name does nothing: it reads no record and writes no key")
-    void anUnnamedApplicationDoesNothing() {
+    @DisplayName("an application without a name writes the blocks in force too, and carries no quarantine: it has no earlier key")
+    void anUnnamedApplicationWritesTheBlocksAndCarriesNoQuarantine() {
+        when(recorder.blocksInForce()).thenReturn(List.of("alice"));
         scope.close();
         try (ApplicationNamespace.Scope unnamed = ApplicationNamespace.using("")) {
             restorer(Duration.ofSeconds(5)).start();
         }
         scope = ApplicationNamespace.using("shop");
 
-        verifyNoInteractions(recorder, actions, store);
+        verify(actions).restoreBlockedFlag("alice");
+        verify(store, never()).carryOverLearningQuarantine();
+    }
+
+    @Test
+    @DisplayName("an application without a name and without a record of blocks writes nothing and stops nothing")
+    void anUnnamedApplicationWithoutARecordWritesNothing() {
+        scope.close();
+        try (ApplicationNamespace.Scope unnamed = ApplicationNamespace.using("")) {
+            restorer = new RestrictionRestorer(() -> actions, () -> null, () -> store, Duration.ofSeconds(5),
+                    List.of(RETRY));
+            assertThatCode(restorer::start).doesNotThrowAnyException();
+        }
+        scope = ApplicationNamespace.using("shop");
+
+        verifyNoInteractions(actions, store);
+        assertThat(restorer.isRunning()).isTrue();
     }
 
     @Test
@@ -160,7 +177,7 @@ class NamespaceRestrictionRestorerTest {
             release.await(10, TimeUnit.SECONDS);
             return List.of("alice");
         });
-        NamespaceRestrictionRestorer slow = restorer(Duration.ofMillis(300));
+        RestrictionRestorer slow = restorer(Duration.ofMillis(300));
 
         long began = System.nanoTime();
         slow.start();
@@ -176,7 +193,7 @@ class NamespaceRestrictionRestorerTest {
     @Test
     @DisplayName("without a recorder only the quarantine is carried, and without a store only the blocks are written")
     void missingPartsAreSkipped() {
-        NamespaceRestrictionRestorer withoutRecorder = new NamespaceRestrictionRestorer(() -> actions, () -> null, () -> store,
+        RestrictionRestorer withoutRecorder = new RestrictionRestorer(() -> actions, () -> null, () -> store,
                 Duration.ofSeconds(5), List.of(RETRY));
         withoutRecorder.start();
         verify(store).carryOverLearningQuarantine();
@@ -184,7 +201,7 @@ class NamespaceRestrictionRestorerTest {
         withoutRecorder.stop();
 
         when(recorder.blocksInForce()).thenReturn(List.of("alice"));
-        restorer = new NamespaceRestrictionRestorer(() -> actions, () -> recorder, () -> null, Duration.ofSeconds(5),
+        restorer = new RestrictionRestorer(() -> actions, () -> recorder, () -> null, Duration.ofSeconds(5),
                 List.of(RETRY));
         restorer.start();
         verify(actions).restoreBlockedFlag("alice");
