@@ -347,6 +347,14 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **The permission list and the page of a permission no longer fail when a permission guards a resource.** Opening
+  `/contexa/admin/permissions` answered 500 (`LazyInitializationException: Could not initialize proxy
+  [ManagedResource#...] - no session`) as soon as a permission made from a resource, in the policy center's "Create
+  Permission & Policy" or by defining a resource, was among those listed, and so did the page of such a permission, so
+  the warning before it is deleted could not be opened from the list. The screens read the resource of each permission
+  after the session of the query had ended. The permission queries now read the resource together with the permission:
+  in the list, in a search, on the page of one permission and in the permission an update hands back, which the page is
+  shown from the cache. Permissions that guard no resource were not affected.
 - **A policy made for a role whose name does not start with `ROLE_` now lets that role's people through.** A role named
   `sales` gives its holders the authority `ROLE_SALES` (`ROLE_` and the name in capitals), but the policies made for a
   role, in the policy center's quick panel, by a business rule and by the automatic policy of a role, asked for the

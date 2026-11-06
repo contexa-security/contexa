@@ -70,7 +70,7 @@ public class PermissionServiceImpl extends AccountAuthoritiesService implements 
     @Cacheable(value = "permissions", key = "#id")
     @Override
     public Optional<Permission> getPermission(Long id) {
-        return permissionRepository.findById(id);
+        return permissionRepository.findWithManagedResourceById(id);
     }
 
     @Cacheable(value = "permissions", key = "'allPermissions'")
@@ -91,7 +91,7 @@ public class PermissionServiceImpl extends AccountAuthoritiesService implements 
                     pageable
             );
         }
-        return permissionRepository.findAll(pageable);
+        return permissionRepository.findAllWithManagedResourceBy(pageable);
     }
 
     @Override
@@ -147,7 +147,7 @@ public class PermissionServiceImpl extends AccountAuthoritiesService implements 
     @Override
     public Permission updatePermission(Long id, PermissionDto permissionDto) {
         authoritiesChanged();
-        Permission permission = permissionRepository.findById(id)
+        Permission permission = permissionRepository.findWithManagedResourceById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Permission not found: " + id));
 
         permission.setName(permissionDto.getName());

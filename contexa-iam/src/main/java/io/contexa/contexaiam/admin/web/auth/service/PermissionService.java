@@ -26,8 +26,10 @@ import java.util.Optional;
 
 public interface PermissionService {
     Permission createPermission(Permission permission);
+    /** The permission with the resource it guards loaded, so that a screen can show it after the call has returned. */
     Optional<Permission> getPermission(Long id);
     List<Permission> getAllPermissions();
+    /** A page of the permissions whose text contains the keyword, each with the resource it guards loaded. */
     Page<Permission> searchPermissions(String keyword, Pageable pageable);
     Optional<AffectedPoliciesResponse> getAffectedPolicies(Long id);
     void deletePermission(Long id);
