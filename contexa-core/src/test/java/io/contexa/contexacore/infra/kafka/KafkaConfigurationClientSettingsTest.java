@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.infra.kafka;
 
+import io.contexa.contexacommon.store.ApplicationNamespace;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -169,6 +170,17 @@ class KafkaConfigurationClientSettingsTest {
                     .containsEntry(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 500);
             assertThat(producer(context)).containsEntry(ProducerConfig.ACKS_CONFIG, "all");
         });
+    }
+
+    @Test
+    @DisplayName("an application with a name gets a consumer group of its own as the default")
+    void aNamedApplicationHasADefaultGroupOfItsOwn() {
+        try (ApplicationNamespace.Scope ignored = ApplicationNamespace.using("shop")) {
+            runner().run(context -> {
+                assertThat(context).hasNotFailed();
+                assertThat(consumer(context)).containsEntry(ConsumerConfig.GROUP_ID_CONFIG, "security-plane-consumer.shop");
+            });
+        }
     }
 
     @Test

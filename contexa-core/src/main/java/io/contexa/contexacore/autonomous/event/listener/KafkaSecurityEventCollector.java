@@ -20,6 +20,7 @@ import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.SecurityEventListener;
+import io.contexa.contexacore.autonomous.event.SecurityEventOrigin;
 import io.contexa.contexacore.autonomous.event.SecurityEventTopics;
 import io.contexa.contexacore.autonomous.event.support.ZeroTrustSecurityEventConverter;
 import io.contexa.contexacore.properties.SecurityKafkaProperties;
@@ -37,6 +38,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.common.header.Headers;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.Acknowledgment;
@@ -67,6 +70,7 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
     private final AtomicLong eventCount;
     private final AtomicLong ackCount;
     private final AtomicLong errorCount;
+    private final AtomicLong otherApplicationEventCount;
     private final AtomicLong redeliveryScheduledCount;
     private final AtomicLong dlqDispatchRequestedCount;
     private final AtomicLong dlqDispatchConfirmedCount;
@@ -85,6 +89,7 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
         this.eventCount = new AtomicLong(0);
         this.ackCount = new AtomicLong(0);
         this.errorCount = new AtomicLong(0);
+        this.otherApplicationEventCount = new AtomicLong(0);
         this.redeliveryScheduledCount = new AtomicLong(0);
         this.dlqDispatchRequestedCount = new AtomicLong(0);
         this.dlqDispatchConfirmedCount = new AtomicLong(0);
@@ -107,9 +112,21 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
         running = false;
     }
 
+    /** A record that carries no name of an application, as every record of an application without a name does. */
+    public void consumeZeroTrustEvents(String message, String topic, int partition, long offset,
+                                       Acknowledgment acknowledgment) {
+        consumeZeroTrustEvents(message, topic, partition, offset, null, acknowledgment);
+    }
+
+    /**
+     * The group is the application's own ({@code security-plane-consumer.<name>} for an application with a name), so that
+     * the consumers of two applications on one cluster do not split the partitions between them; and a record is
+     * analysed only by the application whose name it carries (see {@link SecurityEventOrigin}).
+     */
     @KafkaListener(
             topicPattern = SecurityEventTopics.PATTERN,
-            groupId = "${security.plane.kafka.group-id:security-plane-consumer}",
+            groupId = "#{T(io.contexa.contexacommon.store.ApplicationNamespace).consumerGroup("
+                    + "'${security.plane.kafka.group-id:security-plane-consumer}')}",
             containerFactory = "contexaKafkaListenerContainerFactory"
     )
     public void consumeZeroTrustEvents(
@@ -117,10 +134,17 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
             @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
             @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
             @Header(KafkaHeaders.OFFSET) long offset,
+            ConsumerRecord<?, ?> record,
             Acknowledgment acknowledgment) {
 
         if (!running) {
             log.warn("[KafkaCollector] Collector stopped, skipping event - topic: {}, offset: {}", topic, offset);
+            return;
+        }
+
+        Headers headers = record != null ? record.headers() : null;
+        if (!SecurityEventOrigin.isOwn(headers)) {
+            skipEventOfAnotherApplication(topic, partition, offset, headers, acknowledgment);
             return;
         }
 
@@ -160,6 +184,28 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
             redeliveryScheduledCount.incrementAndGet();
             sendToDeadLetterQueueAsync(message, topic, partition, offset, e);
             throw new IllegalStateException("Kafka security event processing failed - redelivery scheduled", e);
+        }
+    }
+
+    /**
+     * A record of another application is not analysed here, and the offset moves on all the same: it is taken and settled
+     * at once, so the commit goes past it in its place among the records of the partition, and a partition full of
+     * another application's events never holds this one back.
+     */
+    private void skipEventOfAnotherApplication(String topic, int partition, long offset, Headers headers,
+                                               Acknowledgment acknowledgment) {
+        otherApplicationEventCount.incrementAndGet();
+        if (log.isDebugEnabled()) {
+            log.debug("[KafkaCollector] Skipping an event of another application - application: '{}', topic: {}, "
+                    + "partition: {}, offset: {}", SecurityEventOrigin.nameIn(headers), topic, partition, offset);
+        }
+        DecidedRecordAcknowledger decided = acknowledgment != null ? decidedRecords : null;
+        if (decided != null) {
+            decided.taken(topic, partition, offset, acknowledgment);
+            decided.settled(topic, partition, offset);
+        } else if (acknowledgment != null) {
+            acknowledgment.acknowledge();
+            ackCount.incrementAndGet();
         }
     }
 
@@ -261,6 +307,7 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
         stats.put("undecided_records", decided != null ? decided.undecidedRecords() : 0L);
         stats.put("commit_passed_undecided_count", decided != null ? decided.passedUndecided() : 0L);
         stats.put("error_count", errorCount.get());
+        stats.put("other_application_events_skipped", otherApplicationEventCount.get());
         stats.put("redelivery_scheduled_count", redeliveryScheduledCount.get());
         stats.put("dlq_dispatch_requested_count", dlqDispatchRequestedCount.get());
         stats.put("dlq_dispatch_confirmed_count", dlqDispatchConfirmedCount.get());
@@ -286,7 +333,7 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
             String dlqTopic = securityKafkaProperties.getTopic().getDlq();
             String dlqJson = objectMapper.writeValueAsString(dlqMessage);
             dlqDispatchRequestedCount.incrementAndGet();
-            kafkaTemplate.send(dlqTopic, dlqJson).whenComplete((result, dlqError) -> {
+            SecurityEventOrigin.send(kafkaTemplate, dlqTopic, null, dlqJson).whenComplete((result, dlqError) -> {
                 if (dlqError == null) {
                     dlqDispatchConfirmedCount.incrementAndGet();
                     log.warn("[KafkaCollector] DLQ dispatch confirmed - topic: {}, partition: {}, offset: {}",
