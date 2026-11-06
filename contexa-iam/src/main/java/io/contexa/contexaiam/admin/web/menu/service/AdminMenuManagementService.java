@@ -29,6 +29,7 @@ import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuDtos.AdminMenuSaveReque
 import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuDtos.AdminMenuView;
 import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuDtos.AdminRoleOptionView;
 import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuIcon;
+import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuUrl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
@@ -102,6 +103,7 @@ public class AdminMenuManagementService {
     public AdminMenuActionResponse createMenu(AdminMenuSaveRequest request) {
         String icon = request.valueOrDefault("icon", "");
         requireAllowedIcon(icon);
+        requireAllowedUrl(request.getUrl());
         AdminMenu menu = new AdminMenu();
         menu.setName(request.valueOrDefault("name", ""));
         menu.setUrl(request.getUrl());
@@ -127,6 +129,9 @@ public class AdminMenuManagementService {
         if (request.has("icon")) {
             requireAllowedIcon(request.getIcon());
         }
+        if (request.has("url")) {
+            requireAllowedUrl(request.getUrl());
+        }
         AdminMenu menu = existingMenu.get();
         if (request.has("name")) menu.setName(request.getName());
         if (request.has("url")) menu.setUrl(request.getUrl());
@@ -144,6 +149,13 @@ public class AdminMenuManagementService {
     private void requireAllowedIcon(String icon) {
         if (!AdminMenuIcon.isAllowed(icon)) {
             throw new IllegalArgumentException(msg("msg.menu.icon.invalid"));
+        }
+    }
+
+    /** The address becomes the link of every administrator's side menu, so only a path inside this application is kept. */
+    private void requireAllowedUrl(String url) {
+        if (!AdminMenuUrl.isAllowed(url)) {
+            throw new IllegalArgumentException(msg("msg.menu.url.invalid"));
         }
     }
 

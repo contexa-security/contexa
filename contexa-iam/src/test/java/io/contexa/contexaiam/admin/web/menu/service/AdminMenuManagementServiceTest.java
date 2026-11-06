@@ -162,6 +162,17 @@ class AdminMenuManagementServiceTest {
     }
 
     @Test
+    @DisplayName("a stored address outside the application stays on the list and the edit form as text, to be fixed there")
+    void aStoredAddressOutsideTheApplicationStaysVisibleForFixing() {
+        AdminMenu menu = AdminMenu.builder().id(5L).name("Custom").url("javascript:alert(1)").build();
+        when(adminMenuService.getAllMenus()).thenReturn(List.of(menu));
+        when(adminMenuService.getMenuById(5L)).thenReturn(Optional.of(menu));
+
+        assertThat(service.getPageModel().menus()).extracting(AdminMenuView::url).containsExactly("javascript:alert(1)");
+        assertThat(service.getMenu(5L)).map(AdminMenuResponse::url).contains("javascript:alert(1)");
+    }
+
+    @Test
     @DisplayName("a seeded drawing goes on reaching the list and the edit form")
     void aSeededDrawingIsHandedOut() {
         String drawing = "<svg fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\">"

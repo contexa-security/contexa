@@ -194,6 +194,42 @@ class ConsoleOutputEscapingTest {
         assertThat(screen).doesNotContain("'<i class=\"' + m.icon", "'<i class=\"' + cls");
     }
 
+    @Test
+    @DisplayName("the confirm dialog falls back to a list of the relations it was handed")
+    void theConfirmDialogFallsBackToTheRelationsItWasHanded() throws IOException {
+        String screen = template("admin/role-hierarchy-details.html");
+        String renderer = functionText(screen, "function renderConfirmDiagram(");
+
+        assertThat(renderer).contains("relations.map(");
+        assertThat(renderer).startsWith("function renderConfirmDiagram(mermaidCode, relations)");
+        assertThat(screen).contains("renderConfirmDiagram(mermaidCode, relations);");
+    }
+
+    @Test
+    @DisplayName("a snapshot that fails to load says so, its wording declared before the request that may fail")
+    void aSnapshotThatFailsToLoadSaysSo() throws IOException {
+        String viewer = functionText(template("admin/policydetails.html"), "viewSnapshot: function(");
+
+        assertThat(viewer.indexOf("var _snapI18n")).isNotNegative().isLessThan(viewer.indexOf("fetch("));
+        assertThat(viewer).containsOnlyOnce("var _snapI18n");
+    }
+
+    /** The text of a function, from its signature to the brace that closes its body. */
+    private static String functionText(String source, String signature) {
+        int start = source.indexOf(signature);
+        assertThat(start).as(signature).isNotNegative();
+        int depth = 0;
+        for (int i = source.indexOf('{', start); i < source.length(); i++) {
+            char c = source.charAt(i);
+            if (c == '{') {
+                depth++;
+            } else if (c == '}' && --depth == 0) {
+                return source.substring(start, i + 1);
+            }
+        }
+        throw new AssertionError("no end of " + signature);
+    }
+
     /** Markup opens a tag, closes an attribute or opens one; a lone {@code >} joins a parent and a child role. */
     private static boolean isMarkup(String literal) {
         return literal.contains("<") || literal.contains("\">") || literal.endsWith("=\"");

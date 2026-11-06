@@ -564,6 +564,18 @@ var PolicyVersionUI = {
     },
 
     viewSnapshot: function(versionNumber) {
+        // Declared here, not in the success branch, so the failure branch can say what went wrong.
+        var _snapI18n = {
+            unavailable: /*[[#{msg.policy.version.snapshot.unavailable}]]*/ 'Snapshot data unavailable',
+            loadFailed: /*[[#{msg.policy.version.snapshot.load.failed}]]*/ 'Failed to load snapshot',
+            policyName: /*[[#{admin.policy.detail.policy.name}]]*/ 'Policy Name',
+            description: /*[[#{admin.policy.detail.description}]]*/ 'Description',
+            effect: /*[[#{admin.policy.detail.effect}]]*/ 'Effect',
+            priority: /*[[#{admin.policy.detail.priority}]]*/ 'Priority',
+            targets: /*[[#{admin.policy.detail.targets}]]*/ 'Targets',
+            rules: /*[[#{admin.policy.detail.rules}]]*/ 'Rules',
+            rule: /*[[#{policy.center.js.rule.label}]]*/ 'Rule #'
+        };
         var modal = document.getElementById('version-snapshot-modal');
         document.getElementById('snapshot-title').textContent = 'v' + versionNumber;
         document.getElementById('snapshot-meta').innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
@@ -581,18 +593,6 @@ var PolicyVersionUI = {
                 + '<span>' + PolicyVersionUI.escapeHtml(data.changedBy || '') + '</span>'
                 + '<span>' + PolicyVersionUI.escapeHtml(data.changedAt || '') + '</span>'
                 + (data.changeReason ? '<span style="color:#cbd5e1;">' + PolicyVersionUI.escapeHtml(data.changeReason) + '</span>' : '');
-
-            var _snapI18n = {
-                unavailable: /*[[#{msg.policy.version.snapshot.unavailable}]]*/ 'Snapshot data unavailable',
-                loadFailed: /*[[#{msg.policy.version.snapshot.load.failed}]]*/ 'Failed to load snapshot',
-                policyName: /*[[#{admin.policy.detail.policy.name}]]*/ 'Policy Name',
-                description: /*[[#{admin.policy.detail.description}]]*/ 'Description',
-                effect: /*[[#{admin.policy.detail.effect}]]*/ 'Effect',
-                priority: /*[[#{admin.policy.detail.priority}]]*/ 'Priority',
-                targets: /*[[#{admin.policy.detail.targets}]]*/ 'Targets',
-                rules: /*[[#{admin.policy.detail.rules}]]*/ 'Rules',
-                rule: /*[[#{policy.center.js.rule.label}]]*/ 'Rule #'
-            };
 
             var snapshot;
             try { snapshot = JSON.parse(data.snapshot); } catch(e) { snapshot = null; }
@@ -641,6 +641,7 @@ var PolicyVersionUI = {
             document.getElementById('snapshot-content').innerHTML = html;
         })
         .catch(function(err) {
+            document.getElementById('snapshot-meta').innerHTML = '';
             document.getElementById('snapshot-content').innerHTML = '<p class="text-sm" style="color:#f87171;">' + _snapI18n.loadFailed + '</p>';
         });
     },

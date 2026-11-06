@@ -1129,7 +1129,7 @@
         initializeMermaid();
 
         const mermaidCode = generateConfirmMermaidCode(relations);
-        renderConfirmDiagram(mermaidCode);
+        renderConfirmDiagram(mermaidCode, relations);
 
         displayImpactAnalysis(relations);
 
@@ -1167,7 +1167,8 @@
         return mermaidCode;
     }
 
-    function renderConfirmDiagram(mermaidCode) {
+    // The relations come along so that, if the diagram cannot be drawn, they are listed instead.
+    function renderConfirmDiagram(mermaidCode, relations) {
         const confirmMermaid = document.getElementById('confirm-mermaid');
         if (!confirmMermaid) {
             console.error('Confirm mermaid container not found');
