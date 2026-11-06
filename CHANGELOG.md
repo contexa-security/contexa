@@ -8,6 +8,7 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- A person confirming an agent's request now also reads the path the application will serve when the agent spelled another (`/api/%65xport/x` is served as `/api/export/x`), on the confirmation page, the list and the mail. The target the agent sent is shown as before; what the decoding brings out that cannot be seen, breaks the line or turns the text around, a space included, stays escaped.
 - The mail of a confirmation an agent asks for itself (`POST /contexa/api/agent-confirmations`) now links to `contexa.security.zerotrust.agent.confirmation-link-base-url` and the application's context path, as the mail of a request Contexa stopped does; it was a bare path. Neither link ever takes the host the agent sent, so without that setting the link stays a path: set it for the mail to open.
 - The admin API of delegations no longer lists delegations to an agent holding an administrator's token (403), as the person's own delegation API lists none to it.
 - **An agent holding an administrator's token no longer writes or takes back a person's delegation.** The admin API of delegations (`/contexa/admin/api/agent-delegations`) and the console's revocation (`/contexa/admin/agents/delegations/revoke`) now answer 403 to a request the bridge reads as an agent's, as the person's own delegation API already did. An administrator's own requests, and an integration whose client is no agent, work as before.

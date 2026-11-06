@@ -302,6 +302,46 @@ class AgentConfirmationPagesTest {
 
         String id = askFromAnotherHost(new AgentConfirmationApiController(mailing(mailed)));
 
+        assertThat(mailed).singleElement().satisfies(notice -> assertThat(notice.link())
+                .isEqualTo("/ctx/contexa/agent-confirmations/" + id));
+    }
+
+    /** A person approves what will run: the path the application serves stands beside what the agent sent. */
+    @Test
+    void aPersonSeesThePathTheApplicationServesBesideWhatTheAgentSent() {
+        AgentConfirmation disguised = service.request(new AgentConfirmationService.ConfirmationRequest(AGENT, "hash-1",
+                "POST", "/api/%65xport/x?format=%7A", AgentConfirmation.DECISION_CHALLENGE, null, "req-1", null))
+                .orElseThrow();
+        TestingAuthenticationToken alice = new TestingAuthenticationToken("alice", null);
+        ExtendedModelMap model = new ExtendedModelMap();
+        pages.confirmation(disguised.confirmationId(), alice, new MockHttpServletRequest(), model);
+
+        assertThat(render("contexa/agent-confirmation", Locale.KOREAN, model))
+                .contains("POST /api/%65xport/x?format=%7A", "routedPath", ">/api/export/x<", "앱이 실제로 처리하는 경로");
+        assertThat(render("contexa/agent-confirmation", Locale.ENGLISH, model))
+                .contains("POST /api/%65xport/x?format=%7A", ">/api/export/x<", "The application serves it as");
+        ExtendedModelMap list = new ExtendedModelMap();
+        pages.list(alice, new MockHttpServletRequest(), list);
+        assertThat(render("contexa/agent-confirmations", Locale.ENGLISH, list))
+                .contains("POST /api/%65xport/x?format=%7A", "/api/export/x");
+    }
+
+    @Test
+    void aTargetThatMeansWhatItSaysShowsOneRequestAndMarkupInAPathStaysText() {
+        TestingAuthenticationToken alice = new TestingAuthenticationToken("alice", null);
+        ExtendedModelMap plain = new ExtendedModelMap();
+        pages.confirmation(ask().confirmationId(), alice, new MockHttpServletRequest(), plain);
+        assertThat(render("contexa/agent-confirmation", Locale.ENGLISH, plain)).doesNotContain("routedPath");
+
+        AgentConfirmation marked = service.request(new AgentConfirmationService.ConfirmationRequest(AGENT, "hash-2",
+                "POST", "/api/%3Cscript%3Ealert(1)%3C%2Fscript%3E", AgentConfirmation.DECISION_CHALLENGE, null, "req-1",
+                null)).orElseThrow();
+        ExtendedModelMap model = new ExtendedModelMap();
+        pages.confirmation(marked.confirmationId(), alice, new MockHttpServletRequest(), model);
+        assertThat(render("contexa/agent-confirmation", Locale.ENGLISH, model)).contains("&lt;script&gt;")
+                .doesNotContain("<script>alert");
+    }
+
     /** docs/agent F-2: the agent's own ask is bound in the request's tenant, as the gate binds the request. */
     @Test
     void anAgentsAskIsBoundInTheRequestsTenant() {
