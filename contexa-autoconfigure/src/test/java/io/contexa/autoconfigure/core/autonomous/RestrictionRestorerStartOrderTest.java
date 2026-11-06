@@ -20,6 +20,7 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.RestrictionRestorer;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.WebApplicationType;
@@ -71,6 +72,13 @@ class RestrictionRestorerStartOrderTest {
         }
     }
 
+    @BeforeEach
+    void nothingHasHappenedYet() {
+        SEQUENCE.set(0);
+        restoredAt = 0;
+        serverStartedAt = 0;
+    }
+
     @Test
     @DisplayName("the blocks are written before the web server is started")
     void theBlocksAreWrittenBeforeTheWebServerStarts() {
@@ -80,6 +88,22 @@ class RestrictionRestorerStartOrderTest {
                      .web(WebApplicationType.SERVLET)
                      .properties("spring.application.name=shop", "server.port=0", "spring.main.banner-mode=off").run()) {
             assertThat(ApplicationNamespace.identifier()).isEqualTo("shop");
+            assertThat(context.isRunning()).isTrue();
+        }
+
+        assertThat(restoredAt).as("the block was written").isPositive();
+        assertThat(serverStartedAt).as("the web server was started").isPositive();
+        assertThat(restoredAt).isLessThan(serverStartedAt);
+    }
+
+    @Test
+    @DisplayName("an application without a name writes the blocks before the web server is started too")
+    void anApplicationWithoutANameWritesTheBlocksBeforeTheWebServerStarts() {
+        try (ApplicationNamespace.Scope ignored = ApplicationNamespace.using("");
+             ConfigurableApplicationContext context = new SpringApplicationBuilder(Application.class)
+                     .web(WebApplicationType.SERVLET)
+                     .properties("server.port=0", "spring.main.banner-mode=off").run()) {
+            assertThat(ApplicationNamespace.isNamed()).isFalse();
             assertThat(context.isRunning()).isTrue();
         }
 
