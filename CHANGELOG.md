@@ -8,6 +8,12 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **The admin console shows a stored name as text, never as script.** A role, permission, user or policy name with a quote
+  could end a click handler or an attribute in the policy center, the access center, the policy details, the delete dialog
+  and the role hierarchy screen; names now reach handlers through data attributes and are escaped wherever they meet markup,
+  the hierarchy diagram draws in strict mode with text labels, and a menu icon that opens with a tag has to be a plain SVG
+  drawing of shapes: anything else is refused on save and shown as no icon. **Check:** a custom menu icon with other SVG
+  elements, such as `g` or `text`, is no longer drawn; use a CSS class or a drawing of paths and basic shapes.
 - A one-time code asked for a name with no account leaves nothing in the log, and the mail shows a name as text, never as markup.
 - **A sign-in by code no longer mails any address a stranger types.** Before a sign-in the name of a code request is what
   the form says, and a name of no account was mailed as an address: with `.ott()` anybody could have your mail server send a

@@ -303,6 +303,44 @@ class AdminMenuControllerTest {
         }
 
         @Test
+        @DisplayName("create refuses an icon that opens with a tag and is no plain drawing, without saving")
+        void createMenuRefusesMarkupIcon() throws Exception {
+            mockMvc.perform(post("/contexa/admin/menu-management/api/create")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "name":"Custom",
+                                      "icon":"<b>Sales & Ops</b>"
+                                    }
+                                    """))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.error").value("Menu icon must be a CSS class or a plain SVG drawing"));
+
+            verify(adminMenuService, never()).saveMenu(any());
+        }
+
+        @Test
+        @DisplayName("update refuses an icon that opens with a tag and is no plain drawing, without saving")
+        void updateMenuRefusesMarkupIcon() throws Exception {
+            AdminMenu menu = menu(1L, "Old", "/old", 9L, 1, true);
+            when(adminMenuService.getMenuById(1L)).thenReturn(Optional.of(menu));
+
+            mockMvc.perform(put("/contexa/admin/menu-management/api/1")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "icon":"<b>Sales & Ops</b>"
+                                    }
+                                    """))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.error").value("Menu icon must be a CSS class or a plain SVG drawing"));
+
+            verify(adminMenuService, never()).saveMenu(any());
+        }
+
+        @Test
         @DisplayName("update keeps partial string request contract")
         void updateMenu() throws Exception {
             AdminMenu menu = menu(1L, "Old", "/old", 9L, 1, true);
