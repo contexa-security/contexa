@@ -58,6 +58,9 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
     private static final int MAX_BLOCK_MFA_ATTEMPTS = 2;
     private static final String UNKNOWN_USER = "UnknownUser";
 
+    /** What a person is told of a failure of the MFA flow; the exception's own text stays in the log and the audit. */
+    static final String MFA_FAILURE_MESSAGE = "An error occurred during MFA processing. Please sign in again.";
+
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSessionRepository sessionRepository;
     private final ZeroTrustActionRepository actionRedisRepository;
@@ -197,7 +200,9 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
 
         if (exception.getMessage() != null && exception.getMessage().contains("MFA")) {
             errorCode = "MFA_GLOBAL_FAILURE";
-            errorMessage = "An error occurred during MFA processing: " + exception.getMessage();
+            // The exception's text names what failed inside (a store, a key, a state): it is the operators', in the
+            // log line above and the audit, and the person is told what to do.
+            errorMessage = MFA_FAILURE_MESSAGE;
             failureType = FailureType.MFA_GLOBAL_FAILURE;
         }
 

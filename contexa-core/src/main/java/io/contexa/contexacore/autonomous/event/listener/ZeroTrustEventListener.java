@@ -20,11 +20,15 @@ import io.contexa.contexacore.autonomous.event.SecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
+import io.contexa.contexacore.autonomous.service.NewContextDecisionLimit;
 import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @Slf4j
 public class ZeroTrustEventListener {
@@ -33,6 +37,7 @@ public class ZeroTrustEventListener {
     private final ZeroTrustActionRepository actionRepository;
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
     private UnanalysedRequestRecorder unanalysedRequestRecorder;
+    private NewContextDecisionLimit newContextDecisionLimit;
 
     public ZeroTrustEventListener(
             SecurityEventPublisher securityEventPublisher,
@@ -45,6 +50,14 @@ public class ZeroTrustEventListener {
 
     public void setUnanalysedRequestRecorder(UnanalysedRequestRecorder unanalysedRequestRecorder) {
         this.unanalysedRequestRecorder = unanalysedRequestRecorder;
+    }
+
+    /**
+     * The decisions of a new context a person may ask for in a short window, which a person's sign-ins take from with
+     * the calls of a changed context; without it every sign-in is analysed.
+     */
+    public void setNewContextDecisionLimit(NewContextDecisionLimit newContextDecisionLimit) {
+        this.newContextDecisionLimit = newContextDecisionLimit;
     }
 
     @EventListener
@@ -128,7 +141,67 @@ public class ZeroTrustEventListener {
     }
 
     private void processAuthenticationEvent(ZeroTrustSpringEvent event) {
+        if (signInPastTheLimit(event)) {
+            return;
+        }
         securityEventPublisher.publishGenericSecurityEvent(event);
+    }
+
+    /**
+     * A sign-in past the person's decisions of a new context in the window is not analysed: whoever signs in again and
+     * again would buy a model decision with each. It goes on, as the sign-in itself is never refused; it is kept as a
+     * fact of its session, and where decisions are enforced the person is asked to verify, the session the client
+     * presents next among them, as a CHALLENGE asks every session. A stricter decision in force stays as it is.
+     *
+     * @return whether the sign-in was answered here instead of by an analysis
+     */
+    private boolean signInPastTheLimit(ZeroTrustSpringEvent event) {
+        if (newContextDecisionLimit == null
+                || !ZeroTrustSpringEvent.TYPE_AUTHENTICATION_SUCCESS.equals(event.getEventType())) {
+            return false;
+        }
+        String key = decisionKey(event);
+        if (key == null || key.isBlank()
+                || newContextDecisionLimit.take(key, NewContextDecisionLimit.Kind.SIGN_IN)) {
+            return false;
+        }
+        if (enforced(event)) {
+            askToVerify(key, event);
+        }
+        if (unanalysedRequestRecorder != null) {
+            unanalysedRequestRecorder.record(event, ZeroTrustAction.CHALLENGE);
+        }
+        return true;
+    }
+
+    private void askToVerify(String key, ZeroTrustSpringEvent event) {
+        Map<String, Object> fields = new HashMap<>();
+        Object context = event.getPayloadValue("contextBindingHash");
+        if (context != null && !context.toString().isBlank()) {
+            fields.put("contextBindingHash", context.toString());
+        }
+        fields.put("reasoning", "The person's sign-ins passed the decisions of a new context allowed in a short "
+                + "window; this sign-in went on undecided and the person is asked to verify.");
+        fields.put(ZeroTrustActionRepository.LLM_DECISION_PRESENT, false);
+        try {
+            ZeroTrustActionRepository.FinalActionWrite written = actionRepository.writeUndecidedChallenge(key, fields);
+            if (written == ZeroTrustActionRepository.FinalActionWrite.FAILED) {
+                log.error("[ZeroTrustEventListener] The verification asked of a sign-in past the decision limit could "
+                        + "not be stored: userId={}", key);
+            }
+        } catch (RuntimeException e) {
+            log.error("[ZeroTrustEventListener] The verification asked of a sign-in past the decision limit could not "
+                    + "be stored: userId={}", key, e);
+        }
+    }
+
+    /** Whether decisions are enforced on the event, as the enforcement of an analysed decision would be. */
+    private boolean enforced(ZeroTrustSpringEvent event) {
+        if (!securityZeroTrustProperties.isEnforcementEnabled()) {
+            return false;
+        }
+        Object boundary = event.getPayloadValue("decisionBoundaryMode");
+        return boundary == null || !"SHADOW".equalsIgnoreCase(boundary.toString().trim());
     }
 
     private void processAuthorizationEvent(ZeroTrustSpringEvent event) {

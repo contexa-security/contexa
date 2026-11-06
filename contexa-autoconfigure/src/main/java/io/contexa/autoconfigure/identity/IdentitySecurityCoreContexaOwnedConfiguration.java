@@ -37,6 +37,7 @@ import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
+import io.contexa.contexaidentity.security.zerotrust.ContexaOwnedSignInListener;
 import org.springframework.beans.factory.annotation.Autowired;
 import io.contexa.contexaidentity.security.core.bootstrap.WebSecurityConfigurationDependencyInjector;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -62,6 +63,17 @@ public class IdentitySecurityCoreContexaOwnedConfiguration {
         httpSecurity.securityMatcher("/" + UUID.randomUUID())
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
         return httpSecurity.build();
+    }
+
+    /**
+     * The single-factor sign-in of a flow that keeps Spring Security's own filter and handler (form, one-time code,
+     * passkey) goes to the engine as Contexa's handlers send theirs; a step of an MFA flow waits for its final success.
+     */
+    @Bean(name = "contexaOwnedSignInListener")
+    @ConditionalOnMissingBean
+    public ContexaOwnedSignInListener contexaOwnedSignInListener(ZeroTrustEventPublisher contexaZeroTrustEventPublisher,
+                                                                 MfaStateMachineIntegrator contexaMfaStateMachineIntegrator) {
+        return new ContexaOwnedSignInListener(contexaZeroTrustEventPublisher, contexaMfaStateMachineIntegrator);
     }
 
     @Bean(name = "contexaWebSecurityConfigurationDependencyInjector")

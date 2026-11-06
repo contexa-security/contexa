@@ -59,6 +59,7 @@ import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportResult;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import io.contexa.contexaidentity.security.zerotrust.ChallengeResolution;
+import io.contexa.contexaidentity.security.zerotrust.SignInDecision;
 import io.contexa.contexaidentity.security.zerotrust.ZeroTrustAccessControlFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -193,6 +194,14 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 }
                 successStage = "recordMfaCompletionInSession";
                 recordMfaCompletionInSession(request, factorContext, challengeFlow, stateType, finalAuthentication);
+            }
+
+            if (!isChallengeFlow(factorContext)) {
+                // A completed sign-in is decided as the application's own is where it owns the sign-in, and sent before
+                // the response leaves so the next request meets what it brings. A step-up that answers a CHALLENGE or
+                // releases a BLOCK is no sign-in.
+                successStage = "sendSignIn";
+                sendSignIn(request, finalAuthentication, factorContext);
             }
 
             successStage = "resolvePasskeyRegistrationIntent";
@@ -535,35 +544,26 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         return responseData;
     }
 
-    private void publishAuthenticationSuccessEvent(HttpServletRequest request,
-                                                   Authentication authentication,
-                                                   @Nullable FactorContext factorContext,
-                                                   TokenTransportResult transportResult) {
-        try {
-            if (zeroTrustEventPublisher == null) {
-                return;
+    /** The sign-in this success completed, with what the flow knows of it, to the engine. */
+    private void sendSignIn(HttpServletRequest request, Authentication authentication,
+                            @Nullable FactorContext factorContext) {
+        Map<String, Object> signIn = new HashMap<>();
+        boolean mfaCompleted = factorContext != null && factorContext.isCompleted();
+        signIn.put("authenticationType", mfaCompleted ? "MFA" : "PRIMARY");
+        if (factorContext != null) {
+            signIn.put("mfaCompleted", mfaCompleted);
+            putIfPresent(signIn, "deviceId", factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.DEVICE_ID));
+            if (factorContext.getCurrentProcessingFactor() != null) {
+                signIn.put("mfaMethod", factorContext.getCurrentProcessingFactor().toString());
             }
+            putIfPresent(signIn, "signInFlow", factorContext.getFlowTypeName());
+        }
+        SignInDecision.send(zeroTrustEventPublisher, authentication, request, signIn);
+    }
 
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("authenticationType", factorContext != null && factorContext.isCompleted() ? "MFA" : "PRIMARY");
-
-            if (factorContext != null) {
-                payload.put("mfaCompleted", factorContext.isCompleted());
-                payload.put("deviceId", factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.DEVICE_ID));
-                payload.put("mfaMethod", factorContext.getCurrentProcessingFactor() != null ?
-                        factorContext.getCurrentProcessingFactor().toString() : null);
-            }
-
-            if (transportResult != null && transportResult.getBody() != null) {
-                payload.put("authenticationResult", transportResult.getBody().get("status"));
-            }
-
-            payload.put("action", ZeroTrustAction.ALLOW.name());
-
-            zeroTrustEventPublisher.publishAuthenticationSuccess(authentication, request, payload);
-
-        } catch (Exception e) {
-            safeLogError("Failed to publish authentication success event", e);
+    private static void putIfPresent(Map<String, Object> target, String key, @Nullable Object value) {
+        if (value != null) {
+            target.put(key, value);
         }
     }
 

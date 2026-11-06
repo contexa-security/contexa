@@ -90,6 +90,9 @@ public class ZeroTrustEventPublisher {
     /** CQ-1: the payload key of the argument origins a host gives a protected method ({@link ArgumentOrigins}). */
     public static final String ARGUMENT_ORIGINS = ArgumentOrigins.KEY;
 
+    /** The request attribute that says the request's sign-in went to the engine: one sign-in is one decision. */
+    public static final String SIGN_IN_PUBLISHED = ZeroTrustEventPublisher.class.getName() + ".SIGN_IN_PUBLISHED";
+
     private final ApplicationEventPublisher eventPublisher;
     private final TieredStrategyProperties properties;
     private final SecurityContextDataStore securityContextDataStore;
@@ -144,12 +147,24 @@ public class ZeroTrustEventPublisher {
      * application stated on the request, the bridge's stamps, the authorities of the authentication and the failures on
      * record, so that a guessed password is not a sign-in like any other. What {@code signIn} states of the sign-in stands
      * over them. Without a request only that is known.
+     * <p>
+     * A request signs in once: a sign-in two parts of a login report (the event of Spring Security's filter and the
+     * success of the login's own handler) goes to the engine the first time only, so it is decided once and counted
+     * once against the person's decisions of a new context.
      *
      * @param request the request of the sign-in, null outside one
      * @param signIn  the facts of the sign-in itself
      */
     public void publishAuthenticationSuccess(Authentication authentication, @Nullable HttpServletRequest request,
                                              Map<String, Object> signIn) {
+        if (request != null) {
+            if (request.getAttribute(SIGN_IN_PUBLISHED) != null) {
+                log.debug("[ZeroTrust] The sign-in of this request went to the engine already: userId={}",
+                        authentication != null ? authentication.getName() : null);
+                return;
+            }
+            request.setAttribute(SIGN_IN_PUBLISHED, Boolean.TRUE);
+        }
         resolveBridgeOfSignIn(request, authentication);
         RequestInfo requestInfo = requestInfoOf(request);
         Map<String, Object> payload = new HashMap<>();

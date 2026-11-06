@@ -72,6 +72,7 @@ import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import org.springframework.lang.Nullable;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
+import io.contexa.contexacore.autonomous.service.NewContextDecisionLimit;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
 import io.contexa.contexacore.autonomous.service.DeletedAccountWriteFence;
 import io.contexa.contexacore.autonomous.service.UserAccountChangeListener;
@@ -928,7 +929,8 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder,
             SecurityZeroTrustProperties securityZeroTrustProperties,
             ObjectProvider<AgentAllowReuse> agentAllowReuse,
-            ObjectProvider<AgentDecisionFlights> agentDecisionFlights) {
+            ObjectProvider<AgentDecisionFlights> agentDecisionFlights,
+            ObjectProvider<NewContextDecisionLimit> newContextDecisionLimit) {
         SynchronousProtectableDecisionService service = new SynchronousProtectableDecisionService(
                 contexaZeroTrustEventPublisher,
                 contexaZeroTrustEventListener,
@@ -945,6 +947,9 @@ public class CoreAutonomousAutoConfiguration {
         service.setDecisionWait(securityZeroTrustProperties.getAgent().getFlight().getWait());
         // Q-23: where decisions are not enforced no sensitive request is held for one.
         service.setEnforcing(securityZeroTrustProperties::isEnforcementEnabled);
+        // A call from a changed context past the person's decisions of a new context is refused for itself alone; the
+        // limit is the one the sign-ins take from.
+        service.setNewContextDecisionLimit(newContextDecisionLimit.getIfAvailable());
         return service;
     }
     /**

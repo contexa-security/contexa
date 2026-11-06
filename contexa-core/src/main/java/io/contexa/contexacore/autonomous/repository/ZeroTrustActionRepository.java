@@ -148,6 +148,35 @@ public interface ZeroTrustActionRepository {
         return saveFinalAction(userId, action, additionalFields) ? FinalActionWrite.APPLIED : FinalActionWrite.FAILED;
     }
 
+    /**
+     * Asks every session of the user to verify where no analysis decided: a person whose sign-ins passed the decisions
+     * of a new context allowed in a short window. It is a CHALLENGE as a decided one is, for the CHALLENGE's own TTL,
+     * ended by the step-up of a session (that session alone), an administrator's override or a stricter decision; a
+     * model's less strict decision does not lift it. It never takes the place of a BLOCK (stored or flagged), an
+     * ESCALATE or a CHALLENGE a model decided, nor of a CHALLENGE held for the sessions that did not answer one, which
+     * already asks the given context: those stay as they are and KEPT_STRICTER is returned. A short CHALLENGE no model
+     * decided gives way to it.
+     * <p>
+     * The built-in repositories check and write at once. This default reads the action in force first and writes over
+     * nothing stricter, so a stricter decision written between the two would be replaced.
+     *
+     * @param fields the fields of the CHALLENGE: the context it was asked for ({@code contextBindingHash}) and why
+     * @return APPLIED when it was written, KEPT_STRICTER when what is in force already asks as much, FAILED without a
+     *         user or when it could not be written
+     */
+    default FinalActionWrite writeUndecidedChallenge(String userId, Map<String, Object> fields) {
+        if (userId == null || userId.isBlank()) {
+            return FinalActionWrite.FAILED;
+        }
+        ZeroTrustAction inForce = getActionFromHash(userId);
+        if (inForce == ZeroTrustAction.BLOCK || inForce == ZeroTrustAction.ESCALATE
+                || (inForce == ZeroTrustAction.CHALLENGE && !isTechnicalChallenge(userId))) {
+            return FinalActionWrite.KEPT_STRICTER;
+        }
+        saveAction(userId, ZeroTrustAction.CHALLENGE, fields);
+        return FinalActionWrite.APPLIED;
+    }
+
     void saveActionWithPrevious(String userId, ZeroTrustAction newAction);
 
     void saveActionWithPrevious(String userId, ZeroTrustAction newAction, String contextBindingHash);

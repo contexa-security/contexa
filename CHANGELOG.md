@@ -59,6 +59,30 @@ The format is based on Keep a Changelog and the project follows semantic version
   Contexa schema is managed by its own migrations adds
   `alter table ctxa_agent_confirmation add column if not exists body_bytes bigint;`. A confirmation kept before shows its
   size as not recorded.
+- **Contexa's own sign-in is decided, as the application's own sign-in is.** Where Contexa owns the sign-in, a
+  completed sign-in (after its MFA, without a second step, on the token state, or a single-factor login) only reached
+  the audit, so a password used by someone else was first judged at a later call. It now goes to the engine before the
+  response leaves, and the analysis runs after the response: the sign-in is never held for it, and the next request
+  meets the decision. A step-up that answers a CHALLENGE or releases a BLOCK is no sign-in. A sign-in two parts of a
+  login report in one request (Spring Security's filter event and Contexa's own success) is decided once. Each sign-in
+  costs one model call.
+- **Signing in again and again, or changing the browser string at each call, no longer buys a model call each time.**
+  A person's sign-ins and calls from another session, address or browser than their decision on record now share a
+  limit, `contexa.security.zerotrust.analysis.new-context-limit.decisions` (default 6) in
+  `contexa.security.zerotrust.analysis.new-context-limit.window` (default 1m, sliding), counted on each server. Past it
+  the model is not asked: such a call is refused with a CHALLENGE for itself alone (nothing is stored, the calls of the
+  context on record go on as they did, and a call waiting for the same context is refused with it), and a sign-in goes
+  on undecided while the person's next request is asked to verify, as a decided CHALLENGE asks; a BLOCK, an ESCALATE or
+  a CHALLENGE a model decided stays as it is. Reaching the limit is logged and audited (`DECISION_LIMIT_REACHED`) once a
+  minute for the person. **Check:** an integration that posts a login for each call meets the verification from its
+  seventh sign-in in a minute; raise `decisions`, or set it to 0 to count nothing.
+- **A blocked sign-in no longer says how close it came.** The `403 AUTHENTICATION_BLOCKED` answer carried the risk
+  score, the reason, the user name and a contact address of no one (`security@example.com`); it now carries the status
+  and a general sentence. The log line keeps the three, and the audit now records them (`AUTHENTICATION_FAILURE`,
+  decision `BLOCK`, with the risk score). A failure of the MFA flow answers "An error occurred during MFA processing.
+  Please sign in again." instead of the exception's own text, which stays in the log and the audit. **Check:** a client
+  that read `riskScore`, `reason`, `username` or `supportContact` from that answer reads `status`, `blocked` and
+  `message`.
 - A confirmation is no longer asked for an agent whose tenant, user, agent or delegation identifier is longer than a confirmation keeps (255, 255, 255 and 64 characters): the database refused such a confirmation with an error while memory kept it. An identifier is never cut, since a cut one names another delegation or agent and a report would stop the wrong one, so both stores now ask no one: the gate answers `413 AGENT_CONFIRMATION_UNBINDABLE`, the agent's own ask 400.
 - An agent's ask for a confirmation whose target carries, as written, a space, a control character, a line break or a character that turns the text around (no request line carries one) is answered 400, so an agent cannot write a sentence of its own where the person reads the request. Written escaped, the same characters are asked as before.
 - A request of an agent whose path and query are longer than a confirmation keeps (2048 characters, as a person reads them) no longer asks its accountable person to confirm a request they would read cut: it is refused with `413 AGENT_CONFIRMATION_UNBINDABLE`, as a body too large to bind is. Decided in the request itself, it gets the plain answer to a CHALLENGE and asks no one either.

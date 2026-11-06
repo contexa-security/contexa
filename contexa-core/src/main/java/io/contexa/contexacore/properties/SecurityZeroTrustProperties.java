@@ -200,6 +200,31 @@ public class SecurityZeroTrustProperties {
          * could not be written to the decision observation store.
          */
         private long auditFailureCooldownMs = 30_000L;
+
+        /**
+         * How many decisions of a new context one person may ask the model for in a short window: a sign-in, and a
+         * call from another session, address or browser than the person's decision was reached for. Past it the
+         * model is not asked: such a call is refused with a CHALLENGE for itself alone, and a sign-in goes on
+         * undecided while the person's next request is asked to verify.
+         */
+        @NestedConfigurationProperty
+        private NewContextLimit newContextLimit = new NewContextLimit();
+    }
+
+    /**
+     * The decisions of a new context one person may ask for within {@code window}, counted on each server: sign-ins and
+     * calls from another session, address or browser together. Each asks the model, so without a limit whoever holds a
+     * password or a session buys a model call with every sign-in or every new browser string. A person changes context
+     * a few times an hour; a sign-in and its first call take two, and moving between two devices one at each move.
+     */
+    @Data
+    public static class NewContextLimit {
+
+        /** The decisions of a new context a person may ask for within the window; 0 or less sets no limit. */
+        private int decisions = 6;
+
+        /** The window the decisions are counted in, sliding; a time that is not positive reads as one minute. */
+        private Duration window = Duration.ofMinutes(1);
     }
 
     @Data

@@ -23,11 +23,29 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 
+import java.time.Duration;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class SecurityZeroTrustPropertiesTest {
+
+    /** The decisions of a new context a person may ask for: six a minute by default, and the keys bind. */
+    @Test
+    void theNewContextLimitIsSixAMinuteAndBindsItsKeys() {
+        SecurityZeroTrustProperties.NewContextLimit defaults = new SecurityZeroTrustProperties().getAnalysis()
+                .getNewContextLimit();
+        assertThat(defaults.getDecisions()).isEqualTo(6);
+        assertThat(defaults.getWindow()).isEqualTo(Duration.ofMinutes(1));
+
+        SecurityZeroTrustProperties bound = new Binder(new MapConfigurationPropertySource(Map.of(
+                "contexa.security.zerotrust.analysis.new-context-limit.decisions", "10",
+                "contexa.security.zerotrust.analysis.new-context-limit.window", "2m")))
+                .bind("contexa.security.zerotrust", SecurityZeroTrustProperties.class).get();
+
+        assertThat(bound.getAnalysis().getNewContextLimit().getDecisions()).isEqualTo(10);
+        assertThat(bound.getAnalysis().getNewContextLimit().getWindow()).isEqualTo(Duration.ofMinutes(2));
+    }
 
     /** W4-4: the minimum-action rules start observing with the dictionary's defaults and bind their keys. */
     @Test

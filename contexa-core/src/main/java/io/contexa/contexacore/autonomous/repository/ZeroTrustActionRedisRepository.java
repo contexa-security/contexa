@@ -805,6 +805,35 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
     }
 
+    /**
+     * Checked and written in the script of a final decision: a BLOCK flag, a stored BLOCK or ESCALATE, a CHALLENGE a
+     * model decided (one without the mark of a CHALLENGE no model decided) and a CHALLENGE held for the sessions that
+     * did not answer it each keep the store as it is.
+     */
+    @Override
+    public FinalActionWrite writeUndecidedChallenge(String userId, Map<String, Object> fields) {
+        if (userId == null || userId.isBlank()) {
+            return FinalActionWrite.FAILED;
+        }
+        Map<String, Object> challenge = fields != null ? new HashMap<>(fields) : new HashMap<>();
+        Long written;
+        try {
+            written = stringRedisTemplate.execute(SAVE_FINAL_ACTION_SCRIPT, RedisSerializer.byteArray(),
+                    SCRIPT_RESULT_SERIALIZER, finalActionKeys(userId),
+                    actionScriptArgs(ZeroTrustAction.CHALLENGE, challenge, true,
+                            List.of(ZeroTrustAction.BLOCK, ZeroTrustAction.ESCALATE), List.of(ZeroTrustAction.CHALLENGE),
+                            true).toArray());
+        } catch (Exception exception) {
+            log.error("[ZeroTrustActionRedisRepository] Failed to save an undecided CHALLENGE: userId={}", userId,
+                    exception);
+            return FinalActionWrite.FAILED;
+        }
+        if (written == null) {
+            return FinalActionWrite.FAILED;
+        }
+        return written == 0L ? FinalActionWrite.KEPT_STRICTER : FinalActionWrite.APPLIED;
+    }
+
     public void saveActionWithPrevious(String userId, ZeroTrustAction newAction) {
         if (userId == null || userId.isBlank() || newAction == null) {
             return;

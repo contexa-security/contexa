@@ -18,6 +18,8 @@ package io.contexa.contexaidentity.security.handler;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
+import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
@@ -64,6 +66,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
     private final MfaFlowUrlRegistry mfaFlowUrlRegistry;
     private final ApplicationContext applicationContext;
     private final LoginPolicyHandler loginPolicyService;
+    private final CentralAuditFacade centralAuditFacade;
 
     public PrimaryAuthenticationSuccessHandler(MfaPolicyProvider mfaPolicyProvider, @Nullable TokenService tokenService,
                                                AuthResponseWriter responseWriter, AuthContextProperties authContextProperties,
@@ -89,6 +92,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         this.mfaFlowUrlRegistry = mfaFlowUrlRegistry;
         this.applicationContext = applicationContext;
         this.loginPolicyService = loginPolicyService;
+        this.centralAuditFacade = centralAuditFacade;
     }
 
     @Override
@@ -313,22 +317,21 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
     private void handleAuthenticationBlocked(HttpServletRequest request,
                                              HttpServletResponse response,
                                              FactorContext ctx) throws IOException {
-        String blockReason = (String) ctx.getAttribute("blockReason");
-        Double riskScore = (Double) ctx.getAttribute("aiRiskScore");
+        Object reason = ctx.getAttribute("blockReason");
+        String blockReason = reason != null ? reason.toString() : null;
+        Double riskScore = ctx.getAttribute("aiRiskScore") instanceof Number score ? score.doubleValue() : null;
 
         log.warn("SECURITY_ALERT: Authentication blocked for user '{}' - Risk Score: {}, Reason: {}",
                 ctx.getUsername(), riskScore, blockReason);
+        auditAuthenticationBlocked(request, ctx, riskScore, blockReason);
 
+        // The person learns that the sign-in is blocked and no more: the score, the reason and the name would tell
+        // whoever tries a password how close it came and what to change. The log and the audit keep them.
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("status", "AUTHENTICATION_BLOCKED");
         errorResponse.put("blocked", true);
         errorResponse.put("message", "Authentication has been blocked by security policy. Please contact the administrator.");
-        errorResponse.put("supportContact", "security@example.com");
-        errorResponse.put("username", ctx.getUsername());
         errorResponse.put("timestamp", System.currentTimeMillis());
-
-        errorResponse.put("riskScore", riskScore);
-        errorResponse.put("reason", blockReason);
 
         try {
             stateMachineIntegrator.releaseStateMachine(ctx.getMfaSessionId());
@@ -345,6 +348,41 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                 request.getRequestURI(),
                 errorResponse
         );
+    }
+
+    private void auditAuthenticationBlocked(HttpServletRequest request, FactorContext ctx, @Nullable Double riskScore,
+                                            @Nullable String blockReason) {
+        if (centralAuditFacade == null) {
+            return;
+        }
+        try {
+            Map<String, Object> details = new HashMap<>();
+            details.put("authenticationType", "PRIMARY");
+            if (ctx.getFlowTypeName() != null) {
+                details.put("flow", ctx.getFlowTypeName());
+            }
+            centralAuditFacade.recordAsync(AuditRecord.builder()
+                    .eventCategory(AuditEventCategory.AUTHENTICATION_FAILURE)
+                    .principalName(ctx.getUsername())
+                    .resourceIdentifier(ctx.getUsername())
+                    .eventSource("IDENTITY")
+                    .clientIp(extractClientIp(request))
+                    .sessionId(request.getSession(false) != null ? request.getSession(false).getId() : null)
+                    .userAgent(request.getHeader("User-Agent"))
+                    .resourceUri(request.getRequestURI())
+                    .requestUri(request.getRequestURI())
+                    .httpMethod(request.getMethod())
+                    .action("AUTHENTICATION")
+                    .decision("BLOCK")
+                    .outcome("BLOCKED")
+                    .riskScore(riskScore)
+                    .reason("Authentication blocked by security policy: "
+                            + (blockReason != null ? blockReason : "no reason given"))
+                    .details(details)
+                    .build());
+        } catch (RuntimeException e) {
+            log.error("Failed to audit a blocked authentication for user: {}", ctx.getUsername(), e);
+        }
     }
 
     private void handleConfigError(HttpServletResponse response, HttpServletRequest request,

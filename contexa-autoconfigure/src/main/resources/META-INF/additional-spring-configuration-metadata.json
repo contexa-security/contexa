@@ -7,6 +7,18 @@
       "description": "Whether every spelling of a name (capitals, full-width letters, surrounding spaces) reads one decision, so that a BLOCK of plain-k9 also stops PLAIN-K9. Turn it off when names of the application differ by case alone."
     },
     {
+      "name": "contexa.security.zerotrust.analysis.new-context-limit.decisions",
+      "type": "java.lang.Integer",
+      "defaultValue": 6,
+      "description": "How many decisions of a new context one person may ask the model for within the window, counted on each server: sign-ins and calls from another session, address or browser than the person's decision on record, together. Past it the model is not asked: such a call is refused with a CHALLENGE for itself alone (nothing is stored, the calls of the context on record go on), and a sign-in goes on undecided while the person's next request is asked to verify. Reaching it is logged and audited once a minute. A sign-in and its first call take two; moving between two devices takes one at each move. 0 or less sets no limit."
+    },
+    {
+      "name": "contexa.security.zerotrust.analysis.new-context-limit.window",
+      "type": "java.time.Duration",
+      "defaultValue": "1m",
+      "description": "The sliding window the decisions of a new context are counted in. A time that is not positive reads as one minute."
+    },
+    {
       "name": "contexa.pqa.routes.official-api-root",
       "type": "java.lang.String",
       "defaultValue": "/contexa/admin/api/prompt-quality",
