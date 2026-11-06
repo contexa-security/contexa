@@ -919,6 +919,23 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
     }
 
+    /**
+     * Writes the BLOCK flag only where there is none: an existing flag keeps its value and its time (it has none). Like the
+     * flag of a BLOCK decided here it has no expiry, and it is written with a failure that reaches the caller.
+     */
+    @Override
+    public boolean restoreBlockedFlag(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return false;
+        }
+
+        try {
+            return Boolean.TRUE.equals(stringRedisTemplate.opsForValue().setIfAbsent(ZeroTrustRedisKeys.userBlocked(userId), "true"));
+        } catch (Exception e) {
+            throw new IllegalStateException("A BLOCK flag could not be restored", e);
+        }
+    }
+
     public ZeroTrustAction getLastVerifiedAction(String userId) {
         if (userId == null || userId.isBlank()) {
             return null;

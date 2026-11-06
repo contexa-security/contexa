@@ -515,6 +515,22 @@ public class BlockedUserService implements IBlockedUserRecorder {
                 .orElse(false);
     }
 
+    /**
+     * The users {@link #isBlockInForce} answers true for, under the id each block was recorded with: a user with a record
+     * that is not resolved is looked at, and listed when the latest record of the user is not. The question is the one
+     * {@code isBlockInForce} asks, so the list can never differ from it.
+     */
+    @Override
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    public List<String> blocksInForce() {
+        return blockedUserJpaRepository.findByStatusNot(BlockedUserStatus.RESOLVED).stream()
+                .map(BlockedUser::getUserId)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .filter(this::isBlockInForce)
+                .toList();
+    }
+
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public boolean hasLatestStatus(String userId, BlockedUserStatus status) {
         if (!StringUtils.hasText(userId) || status == null) {

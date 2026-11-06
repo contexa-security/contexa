@@ -706,6 +706,17 @@ abstract class AbstractSecurityContextDataStoreContractTest {
     }
 
     @Test
+    @DisplayName("a store with no earlier key to carry a quarantine from adds nothing and keeps what it has")
+    void carryOverLearningQuarantine_withoutAnEarlierKeyAddsNothing() {
+        store.setLearningQuarantined("agent:agt-1", true);
+
+        assertThat(store.carryOverLearningQuarantine()).isZero();
+        assertThat(store.carryOverLearningQuarantine()).isZero();
+
+        assertThat(store.learningQuarantineScopes()).containsExactly("agent:agt-1");
+    }
+
+    @Test
     @DisplayName("docs/agent A3-8: deleting an agent's learning removes its observations under every learning key only")
     void deleteAgentLearning_removesOnlyThatAgentsObservations() {
         store.addWorkProfileObservation(null, "carol::agent::agt-1", "{\"path\":\"/documents\"}");

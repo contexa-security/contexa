@@ -653,6 +653,26 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         recordWrite(userId);
     }
 
+    /** As the Redis store: the BLOCK is written where there is none, and an existing one is left as it is. */
+    @Override
+    public boolean restoreBlockedFlag(String userId) {
+        userId = ZeroTrustUserKey.of(userId);
+        if (isBlank(userId)) {
+            return false;
+        }
+        ReentrantLock lock = lockUser(userId);
+        boolean written;
+        try {
+            written = blockedUsers.add(userId);
+        } finally {
+            lock.unlock();
+        }
+        if (written) {
+            recordWrite(userId);
+        }
+        return written;
+    }
+
     @Override
     public void removeBlockedFlag(String userId) {
         userId = ZeroTrustUserKey.of(userId);
