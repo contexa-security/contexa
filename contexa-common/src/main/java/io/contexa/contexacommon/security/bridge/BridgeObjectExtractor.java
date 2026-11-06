@@ -21,6 +21,7 @@ import java.lang.reflect.Method;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class BridgeObjectExtractor {
 
@@ -168,8 +169,25 @@ public final class BridgeObjectExtractor {
         return null;
     }
 
+    // What is found for a (class, key) does not change while the class is loaded, and a miss is the usual answer (a host object seldom has every key
+    // as a member), so the lookup is made once: a lookup that fails throws an exception, and on every request of a busy host that cost is the request thread's.
+    private static final ClassValue<ConcurrentHashMap<String, Member>> MEMBERS = new ClassValue<>() {
+        @Override
+        protected ConcurrentHashMap<String, Member> computeValue(Class<?> type) {
+            return new ConcurrentHashMap<>();
+        }
+    };
+
+    private record Member(Method accessor, Field field) {
+    }
+
+    private static Member memberOf(Class<?> type, String key) {
+        return MEMBERS.get(type).computeIfAbsent(key, name -> new Member(findAccessor(type, name), findField(type, name)));
+    }
+
     private static Object extractMemberValue(Object source, String key) {
-        Method accessor = findAccessor(source.getClass(), key);
+        Member member = memberOf(source.getClass(), key);
+        Method accessor = member.accessor();
         if (accessor != null) {
             try {
                 return accessor.invoke(source);
@@ -177,7 +195,7 @@ public final class BridgeObjectExtractor {
             catch (Exception ignored) {
             }
         }
-        Field field = findField(source.getClass(), key);
+        Field field = member.field();
         if (field != null) {
             try {
                 return field.get(source);

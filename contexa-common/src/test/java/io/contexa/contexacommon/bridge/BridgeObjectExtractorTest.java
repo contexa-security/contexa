@@ -40,4 +40,39 @@ class BridgeObjectExtractorTest {
         assertThat(BridgeObjectExtractor.extractBoolean(Map.of("flag", "no"), List.of("flag"))).isFalse();
         assertThat(BridgeObjectExtractor.extractBoolean(Map.of("flag", List.of("1")), List.of("flag"))).isTrue();
     }
+
+    public static class HostPrincipal {
+        private final String loginId = "kim";
+        public String getDisplayName() {
+            return "Kim";
+        }
+        public boolean isMfaDone() {
+            return true;
+        }
+    }
+
+    @Test
+    void membersOfAHostObjectAreFoundByAccessorOrFieldAndTheAnswerDoesNotChangeOnTheNextCall() {
+        HostPrincipal principal = new HostPrincipal();
+        for (int round = 0; round < 3; round++) {
+            assertThat(BridgeObjectExtractor.extractString(principal, List.of("displayName"))).isEqualTo("Kim");
+            assertThat(BridgeObjectExtractor.extractString(principal, List.of("loginId"))).isEqualTo("kim");
+            assertThat(BridgeObjectExtractor.extractBoolean(principal, List.of("mfaDone"))).isTrue();
+            assertThat(BridgeObjectExtractor.extractString(principal, List.of("absent", "displayName"))).isEqualTo("Kim");
+            assertThat(BridgeObjectExtractor.extractString(principal, List.of("absent"))).isNull();
+        }
+    }
+
+    @Test
+    void aKeyThatIsAbsentIsLookedUpOnceNotOnEveryRequest() {
+        HostPrincipal principal = new HostPrincipal();
+        BridgeObjectExtractor.extractString(principal, List.of("neverThere"));
+        long began = System.nanoTime();
+        for (int i = 0; i < 20_000; i++) {
+            BridgeObjectExtractor.extractString(principal, List.of("neverThere"));
+        }
+        long millis = (System.nanoTime() - began) / 1_000_000;
+        // a failed reflective lookup builds an exception each time: 20,000 of them take far longer than this bound
+        assertThat(millis).isLessThan(500);
+    }
 }
