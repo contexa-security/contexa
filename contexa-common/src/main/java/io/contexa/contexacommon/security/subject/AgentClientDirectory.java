@@ -59,6 +59,9 @@ public interface AgentClientDirectory {
      * @param tenantId the tenant the token names, or {@code null} when it names none, as a token Contexa issues: such a
      *                 token is bound to no tenant, so a suspension of the client in any tenant stops it
      * @param clientId the client the token was issued to
+     * @throws AgentClientStatusUnavailableException when the directory cannot read the status (its store failed or did
+     *                                               not answer): a failure never reads as "not suspended", so the caller
+     *                                               stops the client's tokens until the directory answers again
      */
     default boolean suspendedAgentClient(@Nullable String tenantId, String clientId) {
         return false;

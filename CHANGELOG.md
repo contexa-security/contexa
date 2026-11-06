@@ -8,6 +8,16 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A failing agent registry no longer lifts the suspension of an agent.** When the registry could not be read (its store
+  failed, did not answer in time, or all workers of the request path were held), the lookup of a suspension ended as "not
+  suspended", so the tokens of a suspended agent were issued and accepted for as long as the outage lasted. The lookup now
+  ends as "cannot be read", and the token endpoint answers a client's token request (its own, an exchange, a refresh) with
+  `temporarily_unavailable` and the resource server answers a bearer token issued to that client with 401, without a word
+  of the cause; the registry says why in one error line per client a minute, naming the client. A person's token issued to
+  the internal client (Contexa's own sign-in) never asks the registry, so an outage does not touch it. **Check:** an
+  `AgentClientDirectory` of your own throws `AgentClientStatusUnavailableException` from `suspendedAgentClient` when it
+  cannot answer, instead of returning `false`; tokens of other registered clients are refused with the same answers until
+  the registry answers again.
 - **A role, permission or action name no longer changes the condition it is written into.** A policy condition wrote
   names into SpEL as they were, so a quote in a name ended its literal: `O'Neil` made a condition that broke the save
   (500), and `X') or true or hasAuthority('Y` made one that was always true. Every condition built from a role, a

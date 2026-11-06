@@ -20,6 +20,7 @@ import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.security.bridge.AgentTokenClaims;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
+import io.contexa.contexacommon.security.subject.AgentClientStatusUnavailableException;
 import io.contexa.contexaidentity.security.token.service.AccountTokenGuard;
 import io.contexa.contexaidentity.security.token.validator.OAuth2AuthorizationValidator;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
@@ -123,15 +124,31 @@ public class OAuth2JwtAuthenticationConverter implements Converter<Jwt, Abstract
 
     /**
      * docs/agent A5-3: a token issued to a suspended agent is refused, its own and one it holds for a person, so the
-     * suspension stops the agent whichever token it carries and whichever authorization server issued it.
+     * suspension stops the agent whichever token it carries and whichever authorization server issued it. A directory that
+     * cannot read the suspension refuses the token as well, for now.
      */
     private void refuseSuspendedAgent(Jwt jwt) {
         BridgeProperties.Delegation.Token tokenSettings = tokenSettings();
         String clientId = AgentTokenClaims.firstText(jwt.getClaims(), tokenSettings.getClientIdClaims());
-        if (clientId != null && directory().suspendedAgentClient(AgentTokenClaims.tenant(jwt.getClaims(),
-                tokenSettings), clientId)) {
+        // The internal client is the sign-in of a person, never an agent: such a token does not depend on the agent registry.
+        if (clientId == null || isInternalClient(clientId)) {
+            return;
+        }
+        boolean suspended;
+        try {
+            suspended = directory().suspendedAgentClient(AgentTokenClaims.tenant(jwt.getClaims(), tokenSettings), clientId);
+        } catch (AgentClientStatusUnavailableException unreadable) {
+            // A restriction is not lifted by a failure: the token waits until the status can be read. The cause stays in the
+            // log; nothing of it is attached here, since a cause's text becomes the message of the exception.
+            throw new InvalidBearerTokenException("The status of the agent this token was issued to cannot be read now");
+        }
+        if (suspended) {
             throw new InvalidBearerTokenException("The agent this token was issued to is suspended");
         }
+    }
+
+    private boolean isInternalClient(String clientId) {
+        return properties != null && clientId.equals(properties.getOauth2().getClientId());
     }
 
     private AgentClientDirectory directory() {

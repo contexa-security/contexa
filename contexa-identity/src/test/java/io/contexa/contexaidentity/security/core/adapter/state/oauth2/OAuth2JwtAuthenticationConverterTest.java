@@ -28,6 +28,8 @@ import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.enums.OAuth2ServerMode;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
+import io.contexa.contexacommon.security.subject.AgentClientStatusUnavailableException;
+import java.util.concurrent.atomic.AtomicInteger;
 import io.contexa.contexacore.autonomous.agent.AgentRegistrationRequest;
 import io.contexa.contexacore.autonomous.agent.InMemoryAgentRegistry;
 import io.contexa.contexacore.autonomous.agent.RegistryAgentClientDirectory;
@@ -303,6 +305,42 @@ class OAuth2JwtAuthenticationConverterTest {
                 .isInstanceOf(InvalidBearerTokenException.class);
         assertThat(extractAuthorityStrings(clientAware.convert(clientJwt("alice", "report-client", "reports.read"))))
                 .contains("ROLE_USER", "SCOPE_reports.read");
+    }
+
+    /**
+     * A restriction is not lifted by a failure: when the directory cannot say whether a client is a suspended agent, the
+     * tokens issued to it are refused for now (401), its own and those it holds for a person. A person's token issued to the
+     * internal client never asks the directory, so a directory in trouble does not touch it.
+     */
+    @Test
+    void whenTheSuspensionCannotBeReadTheTokensOfThatClientAreRefusedAndAPersonsSignInIsNot() {
+        AtomicInteger asked = new AtomicInteger();
+        AgentClientDirectory directory = new AgentClientDirectory() {
+            @Override
+            public Optional<String> activeAgentForClient(String tenantId, String clientId) {
+                return Optional.empty();
+            }
+
+            @Override
+            public boolean suspendedAgentClient(String tenantId, String clientId) {
+                asked.incrementAndGet();
+                throw new AgentClientStatusUnavailableException("cannot read jdbc:postgresql://secret-host/contexa");
+            }
+        };
+        OAuth2JwtAuthenticationConverter clientAware = converterWith(new AuthContextProperties(), directory);
+        stubUserDetails("alice", List.of(new SimpleGrantedAuthority("ROLE_USER")));
+
+        for (Jwt jwt : List.of(clientJwt("sync-client", "sync-client", "sync.run"),
+                clientJwt("alice", "sync-client", "reports.read"))) {
+            assertThatThrownBy(() -> clientAware.convert(jwt))
+                    .isInstanceOfSatisfying(InvalidBearerTokenException.class, refused ->
+                            assertThat(refused.getMessage()).doesNotContain("secret-host"));
+        }
+        int askedForAgents = asked.get();
+
+        assertThat(extractAuthorityStrings(clientAware.convert(clientJwt("alice", "default-client", "read"))))
+                .contains("ROLE_USER", "SCOPE_read");
+        assertThat(asked.get()).as("a person's token of the internal client never asks the directory").isEqualTo(askedForAgents);
     }
 
     /**

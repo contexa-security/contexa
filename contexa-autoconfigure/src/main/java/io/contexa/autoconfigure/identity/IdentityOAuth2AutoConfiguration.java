@@ -20,6 +20,7 @@ import io.contexa.contexaidentity.security.core.adapter.state.oauth2.OAuth2State
 import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import io.contexa.contexacommon.operating.ConditionalOnOwnership;
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
+import io.contexa.contexacommon.security.subject.AgentClientStatusUnavailableException;
 import io.contexa.contexacore.autonomous.agent.AgentDelegations;
 import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
 import io.contexa.contexaidentity.security.handler.login.LoginFactClaims;
@@ -504,7 +505,8 @@ public class IdentityOAuth2AutoConfiguration {
         return context -> {
 
             // docs/agent A5-3: a suspended agent gets no token, for itself or for a person.
-            refuseSuspendedAgent(context, agentClientDirectory.getIfAvailable());
+            refuseSuspendedAgent(context, agentClientDirectory.getIfAvailable(),
+                    authContextProperties.getOauth2().getClientId());
 
             UserDetails renewedAccount = renewedAccount(context, accountGuard.getIfAvailable());
 
@@ -663,13 +665,27 @@ public class IdentityOAuth2AutoConfiguration {
      */
     /**
      * docs/agent A5-3: refuses to issue a token to a client that is a suspended agent. The token engine knows no tenant
-     * of a client, so a suspension of the client in any tenant refuses it.
+     * of a client, so a suspension of the client in any tenant refuses it. When the suspension cannot be read, the token
+     * waits as well ({@code temporarily_unavailable}, nothing of the cause in the answer): a failure of the store must not
+     * lift a restriction. The internal client is the sign-in of a person and no agent, so its tokens never ask the directory.
      */
-    static void refuseSuspendedAgent(JwtEncodingContext context, AgentClientDirectory agents) {
+    static void refuseSuspendedAgent(JwtEncodingContext context, AgentClientDirectory agents, String internalClientId) {
         if (agents == null || context.getRegisteredClient() == null) {
             return;
         }
-        if (agents.suspendedAgentClient(null, context.getRegisteredClient().getClientId())) {
+        String clientId = context.getRegisteredClient().getClientId();
+        if (clientId == null || clientId.equals(internalClientId)) {
+            return;
+        }
+        boolean suspended;
+        try {
+            suspended = agents.suspendedAgentClient(null, clientId);
+        } catch (AgentClientStatusUnavailableException unreadable) {
+            // No cause is attached: its text would become the message of the exception. The registry says why in the log.
+            throw new OAuth2AuthenticationException(new OAuth2Error(OAuth2ErrorCodes.TEMPORARILY_UNAVAILABLE,
+                    "The status of the agent cannot be read now", null));
+        }
+        if (suspended) {
             throw new OAuth2AuthenticationException(new OAuth2Error(OAuth2ErrorCodes.UNAUTHORIZED_CLIENT,
                     "The agent is suspended", null));
         }
