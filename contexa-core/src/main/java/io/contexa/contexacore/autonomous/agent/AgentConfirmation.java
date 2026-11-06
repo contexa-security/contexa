@@ -56,6 +56,10 @@ import java.util.regex.Pattern;
  * @param authorizationId the verifiable authorization the approval is recorded as ({@link AgentConfirmationAuthorizer}),
  *                        or null
  * @param usedAt          when the approved request ran, or null
+ * @param bodyBytes       the size of the request's body in bytes as the gate read it, {@code 0} for none,
+ *                        {@link #BODY_NOT_SEEN} for a body Contexa did not see (an agent's own ask names its body by
+ *                        hash only), or null when it was not recorded (a confirmation kept before it was). The body
+ *                        itself is never kept: it stays bound by its hash.
  */
 public record AgentConfirmation(String confirmationId, @Nullable String tenantId, String subjectKind, String userId,
                                 String agentId, @Nullable String delegationId, String recipientId,
@@ -63,7 +67,8 @@ public record AgentConfirmation(String confirmationId, @Nullable String tenantId
                                 @Nullable String reason, @Nullable String correlationId, Status status,
                                 Instant createdAt, Instant expiresAt, @Nullable Instant decidedAt,
                                 @Nullable String decidedBy, @Nullable String decisionNote,
-                                @Nullable String authorizationId, @Nullable Instant usedAt) {
+                                @Nullable String authorizationId, @Nullable Instant usedAt,
+                                @Nullable Long bodyBytes) {
 
     /** The decision in force for the agent asks for a confirmation (CHALLENGE). */
     public static final String DECISION_CHALLENGE = "DECISION_CHALLENGE";
@@ -71,6 +76,8 @@ public record AgentConfirmation(String confirmationId, @Nullable String tenantId
     public static final String DELEGATION_ENDED = "DELEGATION_ENDED";
     /** The agent asked for it itself, for a request a policy lets through only once confirmed. */
     public static final String REQUESTED = "REQUESTED";
+    /** The size of a body Contexa did not see: the request has one, of a size no one measured. */
+    public static final long BODY_NOT_SEEN = -1L;
     /** The longest target a confirmation keeps, its stored column's size; an agent's ask past it is refused. */
     public static final int MAX_TARGET_LENGTH = 2048;
     static final int MAX_METHOD_LENGTH = 16;
@@ -112,6 +119,19 @@ public record AgentConfirmation(String confirmationId, @Nullable String tenantId
         method = cut(method, MAX_METHOD_LENGTH);
         target = cut(target, MAX_TARGET_LENGTH);
         correlationId = cut(correlationId, MAX_CORRELATION_ID_LENGTH);
+        bodyBytes = bodyBytes != null && bodyBytes < 0 ? Long.valueOf(BODY_NOT_SEEN) : bodyBytes;
+    }
+
+    /** A confirmation whose request's body was not recorded. */
+    public AgentConfirmation(String confirmationId, @Nullable String tenantId, String subjectKind, String userId,
+                             String agentId, @Nullable String delegationId, String recipientId, String requestHash,
+                             String method, String target, String trigger, @Nullable String reason,
+                             @Nullable String correlationId, Status status, Instant createdAt, Instant expiresAt,
+                             @Nullable Instant decidedAt, @Nullable String decidedBy, @Nullable String decisionNote,
+                             @Nullable String authorizationId, @Nullable Instant usedAt) {
+        this(confirmationId, tenantId, subjectKind, userId, agentId, delegationId, recipientId, requestHash, method,
+                target, trigger, reason, correlationId, status, createdAt, expiresAt, decidedAt, decidedBy,
+                decisionNote, authorizationId, usedAt, null);
     }
 
     /** The key the decisions of the subject are kept under: the agent's own for a delegated agent. */
@@ -174,7 +194,7 @@ public record AgentConfirmation(String confirmationId, @Nullable String tenantId
                                      @Nullable String authorization, Instant until) {
         return new AgentConfirmation(confirmationId, tenantId, subjectKind, userId, agentId, delegationId,
                 recipientId, requestHash, method, target, trigger, reason, correlationId, decision, createdAt, until,
-                at, by, note, authorization, usedAt);
+                at, by, note, authorization, usedAt, bodyBytes);
     }
 
     @Nullable
@@ -186,6 +206,6 @@ public record AgentConfirmation(String confirmationId, @Nullable String tenantId
     public AgentConfirmation withStatus(Status next, @Nullable Instant used) {
         return new AgentConfirmation(confirmationId, tenantId, subjectKind, userId, agentId, delegationId,
                 recipientId, requestHash, method, target, trigger, reason, correlationId, next, createdAt, expiresAt,
-                decidedAt, decidedBy, decisionNote, authorizationId, used);
+                decidedAt, decidedBy, decisionNote, authorizationId, used, bodyBytes);
     }
 }

@@ -50,13 +50,26 @@ public class AgentNotices {
     public AgentNotice notify(String kind, @Nullable String tenantId, @Nullable String recipientId, String agentId,
                               @Nullable String delegationId, String subject, String message, @Nullable String link,
                               @Nullable String correlationId) {
+        return notify(kind, tenantId, recipientId, agentId, delegationId, subject, message, link, correlationId, true);
+    }
+
+    /**
+     * Notifies the person; without delivery the notice is kept for the console only ({@link AgentNotice#CONSOLE}).
+     *
+     * @param deliver whether the channel delivers it too
+     * @return the notice as kept, or null without a person to notify
+     */
+    @Nullable
+    public AgentNotice notify(String kind, @Nullable String tenantId, @Nullable String recipientId, String agentId,
+                              @Nullable String delegationId, String subject, String message, @Nullable String link,
+                              @Nullable String correlationId, boolean deliver) {
         if (!StringUtils.hasText(recipientId)) {
             return null;
         }
         AgentNotice notice = new AgentNotice(UUID.randomUUID().toString(), kind, tenantId, recipientId.trim(), agentId,
                 delegationId, subject, message, link, correlationId, clock.instant(), AgentNotice.CONSOLE, null);
         String deliveredBy = null;
-        if (channel != null) {
+        if (deliver && channel != null) {
             try {
                 deliveredBy = channel.deliver(notice);
             } catch (RuntimeException e) {

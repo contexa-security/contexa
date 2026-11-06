@@ -33,6 +33,7 @@ import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.repository.UserRolePermissionRepository;
 import io.contexa.contexacommon.repository.UserRoleRepository;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos.AccessActionResponse;
 import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos.AccessCenterStats;
@@ -78,6 +79,7 @@ public class AccessCenterService {
     private final RoleService roleService;
     private final UserRolePermissionRepository userRolePermissionRepository;
     private final GroupRolePermissionRepository groupRolePermissionRepository;
+    private final LastAdministratorGuard lastAdministratorGuard;
 
     public AccessCenterStats getStats() {
         return new AccessCenterStats(
@@ -193,6 +195,7 @@ public class AccessCenterService {
         List<Long> groupIds = request.groupIdsOrEmpty();
         Users user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+        boolean wasActiveAdministrator = lastAdministratorGuard.activeAdministrator(user);
 
         user.getUserGroups().clear();
         groupIds.forEach(gid -> {
@@ -200,6 +203,7 @@ public class AccessCenterService {
                     .orElseThrow(() -> new IllegalArgumentException("Group not found: " + gid));
             user.getUserGroups().add(UserGroup.builder().user(user).group(group).build());
         });
+        lastAdministratorGuard.refuseLosingTheLast(user, wasActiveAdministrator);
         userRepository.save(user);
 
         return new AccessActionResponse(true, "Groups updated successfully.");
@@ -210,6 +214,7 @@ public class AccessCenterService {
         Users user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
         String principal = extractCurrentUsername();
+        boolean wasActiveAdministrator = lastAdministratorGuard.activeAdministrator(user);
 
         user.getUserRoles().clear();
         userRolePermissionRepository.deleteByUserId(userId);
@@ -271,6 +276,7 @@ public class AccessCenterService {
                 });
             }
         }
+        lastAdministratorGuard.refuseLosingTheLast(user, wasActiveAdministrator);
 
         userRepository.save(user);
         return new AccessActionResponse(true, "Direct roles updated successfully.");

@@ -80,6 +80,8 @@ public class AgentConfirmationGate {
     public static final String CALL_LIMIT = AgentCallGuard.CALL_LIMIT;
     /** The request's binding, kept for a CHALLENGE decided in the request (A5-2). */
     private static final String BOUND_REQUEST = AgentConfirmationGate.class.getName() + ".boundRequest";
+    /** The size of the bound request's body, kept with its binding. */
+    private static final String BOUND_BODY_BYTES = AgentConfirmationGate.class.getName() + ".boundBodyBytes";
     /** Set when a CHALLENGE decided in the request asked for the request's confirmation. */
     private static final String ASKED_IN_REQUEST = AgentConfirmationGate.class.getName() + ".askedInRequest";
 
@@ -228,7 +230,8 @@ public class AgentConfirmationGate {
         }
         Optional<AgentConfirmation> asked = confirmations.request(new AgentConfirmationService.ConfirmationRequest(
                 subject, bound.hash(), request.getMethod(), target(request), trigger,
-                reason(subject, trigger, ended.orElse(null), at), correlationId(request), linkBase(request)));
+                reason(subject, trigger, ended.orElse(null), at), correlationId(request), linkBase(request),
+                bound.bodyBytes()));
         writeConfirmationRequired(response, request, asked.orElse(null), trigger);
         return asked.isPresent() ? Outcome.WAITS : Outcome.REFUSED;
     }
@@ -251,7 +254,8 @@ public class AgentConfirmationGate {
         String trigger = AgentConfirmation.DECISION_CHALLENGE;
         Optional<AgentConfirmation> asked = confirmations.request(new AgentConfirmationService.ConfirmationRequest(
                 subject, hash, request.getMethod(), target(request), trigger,
-                reason(subject, trigger, null, clock.instant()), correlationId(request), linkBase(request)));
+                reason(subject, trigger, null, clock.instant()), correlationId(request), linkBase(request),
+                request.getAttribute(BOUND_BODY_BYTES) instanceof Long bodyBytes ? bodyBytes : null));
         writeConfirmationRequired(response, request, asked.orElse(null), trigger);
         request.setAttribute(ASKED_IN_REQUEST, asked.isPresent());
         return true;
@@ -262,6 +266,7 @@ public class AgentConfirmationGate {
             throws IOException, ServletException {
         if (bound.hash() != null) {
             bound.request().setAttribute(BOUND_REQUEST, bound.hash());
+            bound.request().setAttribute(BOUND_BODY_BYTES, bound.bodyBytes());
         }
         chain.doFilter(bound.request(), response);
         return Boolean.TRUE.equals(bound.request().getAttribute(ASKED_IN_REQUEST)) ? Outcome.WAITS : Outcome.WENT;
@@ -327,17 +332,20 @@ public class AgentConfirmationGate {
                 && AgentConfirmation.keeps(subject);
         String path = path(request);
         if (formPost(request)) {
+            // A form's body is read by its parameters; its size is what the request declared, when it did.
+            long declared = request.getContentLengthLong();
             return new Bound(request, confirmable ? AgentRequestBinding.hash(subject.tenantId(), subject.userId(),
-                    subject.agentId(), request.getMethod(), path, null, null, request.getParameterMap()) : null);
+                    subject.agentId(), request.getMethod(), path, null, null, request.getParameterMap()) : null,
+                    declared >= 0 ? declared : AgentConfirmation.BODY_NOT_SEEN);
         }
         CachedBodyRequest cached = CachedBodyRequest.of(request, maxBodyBytes);
         if (!cached.bound() || !confirmable) {
-            return new Bound(cached, null);
+            return new Bound(cached, null, null);
         }
         byte[] body = cached.body();
         return new Bound(cached, AgentRequestBinding.hash(subject.tenantId(), subject.userId(), subject.agentId(),
                 request.getMethod(), path, request.getQueryString(),
-                body.length > 0 ? AgentRequestBinding.sha256Hex(body) : null, null));
+                body.length > 0 ? AgentRequestBinding.sha256Hex(body) : null, null), (long) body.length);
     }
 
     /**
@@ -440,6 +448,7 @@ public class AgentConfirmationGate {
                 path(request) + (StringUtils.hasText(request.getQueryString()) ? "?" + request.getQueryString() : ""));
     }
 
-    private record Bound(HttpServletRequest request, @Nullable String hash) {
+    /** The request with its body kept, its binding and its body's size; the body itself goes no further than here. */
+    private record Bound(HttpServletRequest request, @Nullable String hash, @Nullable Long bodyBytes) {
     }
 }

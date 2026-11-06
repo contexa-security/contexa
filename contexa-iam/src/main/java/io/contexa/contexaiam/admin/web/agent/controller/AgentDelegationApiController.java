@@ -120,8 +120,8 @@ public class AgentDelegationApiController {
         }
     }
 
-    /** Whether the bridge stamped the request as an agent's. */
-    static boolean fromAnAgent(HttpServletRequest request) {
+    /** Whether the bridge stamped the request as an agent's: the console refuses it by the same reading. */
+    public static boolean fromAnAgent(HttpServletRequest request) {
         return request.getAttribute(BridgeRequestAttributes.DELEGATION_STAMP) instanceof DelegationStamp stamp
                 && StringUtils.hasText(stamp.agentId());
     }

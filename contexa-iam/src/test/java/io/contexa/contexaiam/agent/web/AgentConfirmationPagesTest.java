@@ -475,7 +475,9 @@ class AgentConfirmationPagesTest {
 
         assertThat(answers).containsExactly(HttpStatus.ACCEPTED, HttpStatus.ACCEPTED, HttpStatus.ACCEPTED,
                 HttpStatus.TOO_MANY_REQUESTS, HttpStatus.TOO_MANY_REQUESTS, HttpStatus.TOO_MANY_REQUESTS);
-        assertThat(mailed).hasSize(3);
+        // The first ask is mailed; the next ones came while it waited, so they reach the console only.
+        assertThat(mailed).hasSize(1);
+        assertThat(notices.store().forRecipient("alice", 10)).hasSize(3);
         assertThat(store.forRecipient("alice", 10)).hasSize(3);
         assertThat(last.getHeaders().getFirst("Retry-After")).isNotBlank();
         assertThat(last.getBody()).asInstanceOf(InstanceOfAssertFactories.map(String.class, Object.class))
@@ -526,6 +528,53 @@ class AgentConfirmationPagesTest {
         return ((AgentConfirmationApiController.ConfirmationStatus) api.ask(
                 new AgentConfirmationApiController.ConfirmationAsk("POST", "/api/exports", null, null),
                 new TestingAuthenticationToken("alice", null), fromAgent).getBody()).confirmationId();
+    }
+
+    /**
+     * The person sees whether the request has a body and how large it is, on the page and in the list; the body itself
+     * is never kept. A body an agent named by its hash only is one Contexa did not see.
+     */
+    @Test
+    void thePageShowsWhetherTheRequestHasABodyAndHowLarge() {
+        TestingAuthenticationToken alice = new TestingAuthenticationToken("alice", null);
+        AgentConfirmation sized = service.request(new AgentConfirmationService.ConfirmationRequest(AGENT, "hash-1",
+                "POST", "/api/exports", AgentConfirmation.DECISION_CHALLENGE, null, "req-1", null, 1234L)).orElseThrow();
+        AgentConfirmation none = service.request(new AgentConfirmationService.ConfirmationRequest(AGENT, "hash-2",
+                "GET", "/api/exports", AgentConfirmation.DECISION_CHALLENGE, null, "req-2", null, 0L)).orElseThrow();
+        AgentConfirmationApiController api = new AgentConfirmationApiController(service);
+        String unseen = ((AgentConfirmationApiController.ConfirmationStatus) api.ask(
+                new AgentConfirmationApiController.ConfirmationAsk("POST", "/api/imports", "ab".repeat(32), null),
+                alice, agentRequest("alice", "report-agent")).getBody()).confirmationId();
+        String bodiless = ((AgentConfirmationApiController.ConfirmationStatus) api.ask(
+                new AgentConfirmationApiController.ConfirmationAsk("DELETE", "/api/imports/7", null, null),
+                alice, agentRequest("alice", "report-agent")).getBody()).confirmationId();
+
+        assertThat(store.find(unseen)).map(AgentConfirmation::bodyBytes).contains(AgentConfirmation.BODY_NOT_SEEN);
+        assertThat(store.find(bodiless)).map(AgentConfirmation::bodyBytes).contains(0L);
+
+        assertThat(page(sized.confirmationId(), Locale.KOREAN)).contains("id=\"requestBody\"", "1,234바이트");
+        assertThat(page(sized.confirmationId(), Locale.ENGLISH)).contains("1,234 bytes")
+                .doesNotContain("{\"project\"");
+        assertThat(page(none.confirmationId(), Locale.ENGLISH)).contains("id=\"requestBody\"", "No body");
+        assertThat(page(unseen, Locale.ENGLISH)).contains("A body Contexa did not see");
+        ExtendedModelMap list = new ExtendedModelMap();
+        pages.list(alice, new MockHttpServletRequest(), list);
+        assertThat(render("contexa/agent-confirmations", Locale.ENGLISH, list)).contains("1,234 bytes", "No body",
+                "A body Contexa did not see");
+
+        // A confirmation kept before the size was recorded says so, and nothing else.
+        store.save(new AgentConfirmation("c-old", null, "DELEGATED_AGENT", "alice", "report-agent", null, "alice",
+                "hash-9", "POST", "/api/old", AgentConfirmation.DECISION_CHALLENGE, null, null,
+                AgentConfirmation.Status.PENDING, Instant.now(), Instant.now().plusSeconds(600), null, null, null, null,
+                null));
+        assertThat(page("c-old", Locale.ENGLISH)).contains("Not recorded");
+    }
+
+    private String page(String confirmationId, Locale locale) {
+        ExtendedModelMap model = new ExtendedModelMap();
+        pages.confirmation(confirmationId, new TestingAuthenticationToken("alice", null), new MockHttpServletRequest(),
+                model);
+        return render("contexa/agent-confirmation", locale, model);
     }
 
     /** What an agent asks for itself is kept as the gate keeps what it stopped: a value that opens something is masked. */

@@ -35,6 +35,7 @@ import io.contexa.contexacommon.security.UserPasswordChangedEvent;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexaiam.domain.dto.UserListDto;
 import io.contexa.contexaiam.testsupport.I18nTestSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -101,6 +102,9 @@ class UserManagementServiceImplTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private LastAdministratorGuard lastAdministratorGuard;
 
     @InjectMocks
     private UserManagementServiceImpl service;

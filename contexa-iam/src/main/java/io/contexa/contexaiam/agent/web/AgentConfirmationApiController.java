@@ -153,10 +153,12 @@ public class AgentConfirmationApiController {
         String hash = AgentRequestBinding.hash(subject.tenantId(), subject.userId(), subject.agentId(), method,
                 path, query < 0 ? null : target.substring(query + 1),
                 StringUtils.hasText(ask.bodySha256()) ? ask.bodySha256().trim().toLowerCase(Locale.ROOT) : null, null);
+        // The agent names its body by hash only: the person is told there is one, of a size Contexa did not see.
         return confirmations.request(new AgentConfirmationService.ConfirmationRequest(subject, hash, method, kept,
                         AgentConfirmation.REQUESTED,
                         StringUtils.hasText(ask.reason()) ? truncate(ask.reason().trim(), 1000) : null,
-                        null, AgentConfirmationService.linkBase(linkBaseUrl, request.getContextPath())))
+                        null, AgentConfirmationService.linkBase(linkBaseUrl, request.getContextPath()),
+                        StringUtils.hasText(ask.bodySha256()) ? AgentConfirmation.BODY_NOT_SEEN : 0L))
                 .<ResponseEntity<?>>map(confirmation -> ResponseEntity.status(HttpStatus.ACCEPTED)
                         .body(ConfirmationStatus.of(confirmation)))
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.CONFLICT).build());

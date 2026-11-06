@@ -124,6 +124,17 @@ public interface UserRepository extends JpaRepository<Users, Long> {
     long countByMfaEnabled(boolean mfaEnabled);
 
     /**
+     * How many enabled accounts of Contexa's own, other than the one named, hold one of the roles, directly or through
+     * a group of theirs.
+     */
+    @Query("SELECT count(DISTINCT u.id) FROM Users u LEFT JOIN u.userRoles ur LEFT JOIN u.userGroups ug "
+            + "LEFT JOIN ug.group g LEFT JOIN g.groupRoles gr "
+            + "WHERE u.id <> :excludedId AND u.enabled = true AND u.bridgeManaged = false "
+            + "AND (ur.role.id IN :roleIds OR gr.role.id IN :roleIds)")
+    long countEnabledOwnAccountsHoldingAnyRole(@Param("excludedId") Long excludedId,
+                                               @Param("roleIds") Collection<Long> roleIds);
+
+    /**
      * Q-1: the enabled accounts that could not answer a CHALLENGE: no passkey, and no address a code can reach. An agent
      * answers no factor made for people and is left out.
      *

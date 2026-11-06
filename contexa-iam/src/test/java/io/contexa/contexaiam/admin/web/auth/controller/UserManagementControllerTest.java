@@ -18,6 +18,13 @@ package io.contexa.contexaiam.admin.web.auth.controller;
 import io.contexa.contexaiam.admin.web.auth.service.GroupService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.auth.service.UserManagementService;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorException;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexaiam.domain.dto.UserListDto;
 import io.contexa.contexacommon.entity.Group;
@@ -318,6 +325,39 @@ class UserManagementControllerTest {
 
             assertThat(view).isEqualTo("redirect:/contexa/admin/users");
             verify(userManagementService).deleteUser(1L);
+        }
+    }
+
+    @Nested
+    @DisplayName("the console's last administrator")
+    class LastAdministrator {
+
+        private MockMvc mvc() {
+            when(userManagementService.getUsers(any(), any())).thenReturn(new PageImpl<>(List.of()));
+            return MockMvcBuilders.standaloneSetup(controller).build();
+        }
+
+        @Test
+        @DisplayName("a change of a user that takes the last active administrator answers 409 with the reason")
+        void anUpdateIsAConflict() throws Exception {
+            doThrow(new LastAdministratorException("no administrator left"))
+                    .when(userManagementService).modifyUser(any());
+
+            mvc().perform(post("/contexa/admin/users/1").param("username", "root").param("enabled", "false"))
+                    .andExpect(status().isConflict())
+                    .andExpect(view().name("contexa/admin/users"))
+                    .andExpect(model().attribute("errorMessage", "no administrator left"));
+        }
+
+        @Test
+        @DisplayName("so does its deletion")
+        void aDeletionIsAConflict() throws Exception {
+            doThrow(new LastAdministratorException("no administrator left"))
+                    .when(userManagementService).deleteUser(1L);
+
+            mvc().perform(post("/contexa/admin/users/delete/1"))
+                    .andExpect(status().isConflict())
+                    .andExpect(model().attribute("errorMessage", "no administrator left"));
         }
     }
 }

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.auth.service;
 
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexaiam.domain.entity.ActiveSession;
 import io.contexa.contexaiam.repository.ActiveSessionRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -106,7 +107,7 @@ class SessionManagementServiceTest {
         void success() {
             service.invalidateSession("sess-1");
 
-            verify(activeSessionRepository).expireSession("sess-1");
+            verify(activeSessionRepository).expireSession(ref("sess-1"));
         }
     }
 
@@ -133,9 +134,9 @@ class SessionManagementServiceTest {
             service.trackSession("new-sess", "user-1", "user1", "127.0.0.1", "Chrome");
 
             verify(activeSessionRepository).upsertSession(
-                    eq("new-sess"), eq("user-1"), eq("user1"), eq("127.0.0.1"), eq("Chrome"),
+                    eq(ref("new-sess")), eq("user-1"), eq("user1"), eq("127.0.0.1"), eq("Chrome"),
                     any(LocalDateTime.class), any(LocalDateTime.class));
-            verify(activeSessionRepository, never()).findById("new-sess");
+            verify(activeSessionRepository, never()).findById(ref("new-sess"));
         }
 
         @Test
@@ -146,7 +147,7 @@ class SessionManagementServiceTest {
             service.trackSession("new-sess", "user-1", "user1", "127.0.0.1", longAgent);
 
             verify(activeSessionRepository).upsertSession(
-                    eq("new-sess"), eq("user-1"), eq("user1"), eq("127.0.0.1"), eq("A".repeat(512)),
+                    eq(ref("new-sess")), eq("user-1"), eq("user1"), eq("127.0.0.1"), eq("A".repeat(512)),
                     any(LocalDateTime.class), any(LocalDateTime.class));
         }
 
@@ -156,7 +157,7 @@ class SessionManagementServiceTest {
             service.trackSession("old-sess", "user-1", "user1", "127.0.0.1", "Chrome");
 
             verify(activeSessionRepository).upsertSession(
-                    eq("old-sess"), eq("user-1"), eq("user1"), eq("127.0.0.1"), eq("Chrome"),
+                    eq(ref("old-sess")), eq("user-1"), eq("user1"), eq("127.0.0.1"), eq("Chrome"),
                     any(LocalDateTime.class),
                     argThat(threshold -> threshold.isBefore(LocalDateTime.now().minusSeconds(59))
                             && threshold.isAfter(LocalDateTime.now().minusSeconds(65))));
@@ -168,9 +169,9 @@ class SessionManagementServiceTest {
             service.trackSession("old-sess", "user-1", "user1", "127.0.0.1", "Chrome");
 
             verify(activeSessionRepository).upsertSession(
-                    eq("old-sess"), eq("user-1"), eq("user1"), eq("127.0.0.1"), eq("Chrome"),
+                    eq(ref("old-sess")), eq("user-1"), eq("user1"), eq("127.0.0.1"), eq("Chrome"),
                     any(LocalDateTime.class), any(LocalDateTime.class));
-            verify(activeSessionRepository, never()).findById("old-sess");
+            verify(activeSessionRepository, never()).findById(ref("old-sess"));
         }
     }
 
@@ -183,12 +184,12 @@ class SessionManagementServiceTest {
         void success() {
             LocalDateTime oldTime = LocalDateTime.now().minusHours(1);
             ActiveSession existing = ActiveSession.builder()
-                    .sessionId("sess-1")
+                    .sessionId(ref("sess-1"))
                     .expired(false)
                     .lastAccessedAt(oldTime)
                     .build();
 
-            when(activeSessionRepository.findById("sess-1")).thenReturn(Optional.of(existing));
+            when(activeSessionRepository.findById(ref("sess-1"))).thenReturn(Optional.of(existing));
 
             service.updateLastAccessed("sess-1");
 
@@ -201,12 +202,12 @@ class SessionManagementServiceTest {
         void expiredSession() {
             LocalDateTime oldTime = LocalDateTime.now().minusHours(1);
             ActiveSession existing = ActiveSession.builder()
-                    .sessionId("sess-1")
+                    .sessionId(ref("sess-1"))
                     .expired(true)
                     .lastAccessedAt(oldTime)
                     .build();
 
-            when(activeSessionRepository.findById("sess-1")).thenReturn(Optional.of(existing));
+            when(activeSessionRepository.findById(ref("sess-1"))).thenReturn(Optional.of(existing));
 
             service.updateLastAccessed("sess-1");
 
@@ -223,7 +224,7 @@ class SessionManagementServiceTest {
         void success() {
             service.markExpired("sess-1");
 
-            verify(activeSessionRepository).expireSession("sess-1");
+            verify(activeSessionRepository).expireSession(ref("sess-1"));
         }
     }
 
@@ -257,5 +258,36 @@ class SessionManagementServiceTest {
 
             assertThat(result).containsExactly(s1);
         }
+    }
+
+    @Nested
+    @DisplayName("the session's identifier")
+    class SessionIdentifier {
+
+        @Test
+        @DisplayName("is kept as its reference, never as the value a cookie carries")
+        void keptAsItsReference() {
+            service.trackSession("RAW-COOKIE-VALUE", "user-1", "user1", "127.0.0.1", "Chrome");
+
+            verify(activeSessionRepository).upsertSession(eq(ref("RAW-COOKIE-VALUE")), eq("user-1"), eq("user1"),
+                    eq("127.0.0.1"), eq("Chrome"), any(LocalDateTime.class), any(LocalDateTime.class));
+            verify(activeSessionRepository, never()).upsertSession(eq("RAW-COOKIE-VALUE"), any(), any(), any(), any(),
+                    any(), any());
+            assertThat(ref("RAW-COOKIE-VALUE")).startsWith("sid-").doesNotContain("RAW-COOKIE-VALUE");
+        }
+
+        @Test
+        @DisplayName("is invalidated by its reference, and by the raw value too for a caller that still has one")
+        void invalidatedByItsReference() {
+            service.invalidateSession(ref("RAW-COOKIE-VALUE"));
+            service.invalidateSession("RAW-COOKIE-VALUE");
+
+            verify(activeSessionRepository, times(2)).expireSession(ref("RAW-COOKIE-VALUE"));
+            verify(activeSessionRepository, never()).expireSession("RAW-COOKIE-VALUE");
+        }
+    }
+
+    private static String ref(String sessionId) {
+        return RequestFactRedaction.sessionReference(sessionId);
     }
 }

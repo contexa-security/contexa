@@ -61,8 +61,8 @@
                     <tr th:each="s : ${sessionPage.content}" style="border-color: rgba(71, 85, 105, 0.3);">
                         <td class="py-4 px-6">
                             <span class="font-mono text-xs" style="color: #94a3b8;"
-                                  th:title="${s.sessionId}"
-                                  th:text="${#strings.abbreviate(s.sessionId, 20)}"></span>
+                                  th:title="${s.sessionReference}"
+                                  th:text="${s.sessionReference}"></span>
                         </td>
                         <td class="py-4 px-6 font-medium" th:text="${s.username}"></td>
                         <td class="py-4 px-6 font-mono text-xs" style="color: #22d3ee;" th:text="${s.clientIp ?: '-'}"></td>
@@ -75,7 +75,7 @@
                         <td class="py-4 px-6 text-xs" style="color: #94a3b8;" th:text="${s.lastAccessedAt != null ? #temporals.format(s.lastAccessedAt, 'yyyy-MM-dd HH:mm') : '-'}"></td>
                         <td class="py-4 px-6">
                             <div class="flex gap-2">
-                                <form th:action="@{/contexa/admin/session-management/{id}/invalidate(id=${s.sessionId})}" method="post" class="inline-block">
+                                <form th:action="@{/contexa/admin/session-management/{id}/invalidate(id=${s.sessionReference})}" method="post" class="inline-block">
                                     <input th:if="${_csrf != null}" type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                                     <button type="submit"
                                             class="px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-300"

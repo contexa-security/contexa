@@ -32,6 +32,7 @@ import io.contexa.contexacommon.repository.UserRolePermissionRepository;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.admin.web.auth.controller.*;
 import io.contexa.contexaiam.admin.web.auth.service.GroupService;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexaiam.admin.web.auth.service.impl.*;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
@@ -39,6 +40,7 @@ import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
 import io.contexa.contexaiam.admin.web.auth.service.UserManagementService;
 import io.contexa.contexaiam.admin.web.auth.service.VerificationCoverageService;
+import io.contexa.contexaiam.admin.web.common.ConsoleAgentRefusal;
 import io.contexa.contexaiam.admin.web.metadata.service.FunctionCatalogService;
 import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
 import io.contexa.contexaiam.repository.FunctionCatalogRepository;
@@ -56,6 +58,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.context.MessageSource;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.web.servlet.handler.MappedInterceptor;
 
 @AutoConfiguration
 public class IamAdminAuthAutoConfiguration {
@@ -131,6 +134,24 @@ public class IamAdminAuthAutoConfiguration {
         return new PermissionController(contexaPermissionService, contexaModelMapper, contexaFunctionCatalogService, messageSource);
     }
 
+    /**
+     * The console refuses a request the bridge stamped as an agent's, on every page and API under it, whatever account
+     * the agent's token is in. A mapped interceptor reaches every handler mapping, whatever MVC setup the application has.
+     */
+    @Bean(name = "contexaConsoleAgentRefusal")
+    public MappedInterceptor contexaConsoleAgentRefusal() {
+        return ConsoleAgentRefusal.mapped();
+    }
+
+    /** Keeps a change of a user from taking the console's last active administrator. */
+    @Bean(name = "contexaLastAdministratorGuard")
+    @ConditionalOnMissingBean
+    public LastAdministratorGuard lastAdministratorGuard(UserRepository userRepository, RoleRepository roleRepository,
+                                                         BeanFactory beanFactory, MessageSource messageSource) {
+        return new LastAdministratorGuard(userRepository, roleRepository, ContexaOwnBeans.roleHierarchy(beanFactory),
+                messageSource);
+    }
+
     @Bean("contexaUserManagementService")
     @ConditionalOnMissingBean
     public UserManagementService userManagementService(
@@ -145,11 +166,12 @@ public class IamAdminAuthAutoConfiguration {
             MessageSource messageSource,
             UserRolePermissionRepository userRolePermissionRepository,
             BridgeUserProfileRepository bridgeUserProfileRepository,
-            ApplicationEventPublisher eventPublisher) {
+            ApplicationEventPublisher eventPublisher,
+            LastAdministratorGuard contexaLastAdministratorGuard) {
         return new UserManagementServiceImpl(
                 userRepository, groupRepository, roleRepository, ContexaOwnBeans.passwordEncoder(beanFactory), contexaModelMapper,
                 contexaCentralAuditFacade, contexaPasswordPolicyService, contexaSystemSettingsService, messageSource,
-                userRolePermissionRepository, bridgeUserProfileRepository, eventPublisher);
+                userRolePermissionRepository, bridgeUserProfileRepository, eventPublisher, contexaLastAdministratorGuard);
     }
 
     /** Q-1: who could not answer a CHALLENGE, for the start and the console's user list. */

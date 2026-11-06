@@ -42,6 +42,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -483,6 +484,81 @@ class ConsoleSessionUnderBlockTest {
                 .andExpect(status().is3xxRedirection());
 
         assertThat(row.getResolvedBy()).isEqualTo(ADMIN);
+    }
+
+    /**
+     * The release path stands behind no access or CHALLENGE filter, so a session under a CHALLENGE or an ESCALATE of its
+     * own reaches it as a session under a BLOCK does: it reads the lists and changes nothing, for someone else or for
+     * the agents, until it passes the step-up.
+     */
+    @ParameterizedTest
+    @EnumSource(value = ZeroTrustAction.class, names = {"CHALLENGE", "ESCALATE"})
+    @DisplayName("a session under a CHALLENGE or an ESCALATE of its own only reads")
+    void aSessionUnderAChallengeOrAnEscalationOnlyReads(ZeroTrustAction restriction) throws Exception {
+        actions.saveAction(OWN_KEY, restriction, Map.of());
+        BlockedUser row = aRecordOf("alice", BlockedUserStatus.BLOCKED);
+        aRunningAgent();
+
+        perform(post("/contexa/admin/blacklist/7/resolve").param("resolvedAction", "ALLOW").param("reason", "checked"))
+                .andExpect(status().isForbidden());
+        perform(post("/contexa/admin/api/blacklist/7/resolve").contentType(MediaType.APPLICATION_JSON)
+                .content(JSON_RESOLVE)).andExpect(status().isForbidden());
+        perform(post("/contexa/admin/blacklist/agents/kill-switch").param("reason", "incident"))
+                .andExpect(status().isForbidden());
+        perform(post("/contexa/admin/api/agents/stops").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"action\":\"KILL_SWITCH\",\"reason\":\"r\"}"))
+                .andExpect(status().isForbidden());
+        actions.saveAction("bob", ZeroTrustAction.CHALLENGE, Map.of());
+        perform(post("/contexa/admin/blacklist/challenge-release").param("userId", "bob").param("reason", "checked"))
+                .andExpect(status().isForbidden());
+
+        assertNothingLifted(row, BlockedUserStatus.BLOCKED);
+        assertThat(registry.find(null, "report-agent")).map(agent -> agent.status()).contains(AgentStatus.ACTIVE);
+        assertThat(actions.getActionFromHash("bob")).isEqualTo(ZeroTrustAction.CHALLENGE);
+        perform(get("/contexa/admin/blacklist")).andExpect(status().isOk());
+        assertThat(perform(get("/contexa/admin/blacklist")).andReturn().getModelAndView().getModel()
+                .get("underOwnBlock")).isEqualTo(true);
+        assertThat(perform(get("/contexa/admin/blacklist/7")).andReturn().getModelAndView().getModel().get("mayLift"))
+                .isEqualTo(false);
+    }
+
+    /**
+     * The console's step-up answers a CHALLENGE in the session that passed it: that session acts again, and another
+     * session of the administrator, which did not answer it, still only reads.
+     */
+    @Test
+    @DisplayName("the step-up answers the session's CHALLENGE in that session only")
+    void theStepUpAnswersTheChallengeInItsSession() throws Exception {
+        actions.saveAction(OWN_KEY, ZeroTrustAction.CHALLENGE, Map.of());
+        BlockedUser row = aRecordOf("alice", BlockedUserStatus.BLOCKED);
+        perform(post("/contexa/admin/blacklist/7/resolve").param("resolvedAction", "ALLOW").param("reason", "checked"))
+                .andExpect(status().isForbidden());
+
+        aStepUpPassedInThisSession();
+
+        performIn("another-session", post("/contexa/admin/blacklist/7/resolve").param("resolvedAction", "ALLOW")
+                .param("reason", "checked")).andExpect(status().isForbidden());
+        assertNothingLifted(row, BlockedUserStatus.BLOCKED);
+        perform(post("/contexa/admin/blacklist/7/resolve").param("resolvedAction", "ALLOW").param("reason", "checked"))
+                .andExpect(status().is3xxRedirection());
+        assertThat(row.getStatus()).isEqualTo(BlockedUserStatus.RESOLVED);
+        assertThat(row.getResolvedBy()).isEqualTo(ADMIN);
+    }
+
+    /** What the console's step-up records for a CHALLENGE it resolves ({@code ChallengeResolution.releaseChallenge}). */
+    private void aStepUpPassedInThisSession() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        console().postProcessRequest(request);
+        String context = SessionFingerprintUtil.generateContextBindingHash(request);
+        actions.holdChallengeForOtherSessions(OWN_KEY, context);
+        actions.saveActionWithPrevious(OWN_KEY, ZeroTrustAction.ALLOW, context);
+    }
+
+    private ResultActions performIn(String session, MockHttpServletRequestBuilder request) throws Exception {
+        return mvc.perform(request.with(console()).with(other -> {
+            other.setRequestedSessionId(session);
+            return other;
+        }).principal(new TestingAuthenticationToken(ADMIN, "password")));
     }
 
     /** A new way to change something here needs a look: it stands behind no filter for a session under a BLOCK. */
