@@ -118,6 +118,23 @@ class StartWithoutContexaDatabaseIntegrationTest {
         assertThat(errorLines(output)).isEmpty();
     }
 
+    /** What the capability guidance used to name: the application did not start, on a bean of Contexa's. */
+    @Test
+    void theEngineSwitchedOffLeavesAnApplicationThatKeepsItsSignInRunningWithoutContexa(CapturedOutput output) throws Exception {
+        try (ConfigurableApplicationContext context = start(HostApplication.class, "contexa.autonomous.enabled=false")) {
+            assertTheApplicationRunsWithoutContexa(context);
+        }
+        assertThat(errorLines(output)).hasSize(1);
+        assertThat(errorLines(output).get(0)).contains("contexa.autonomous.enabled=false", "starts without Contexa",
+                "contexa.security.zerotrust.mode=DISABLED");
+    }
+
+    @Test
+    void theEngineSwitchedOffStopsAnApplicationWhoseSignInContexaOwnsWithTheReason() {
+        assertThatThrownBy(() -> start(ContexaOwnedApplication.class, "contexa.autonomous.enabled=false").close())
+                .hasStackTraceContaining("nobody could sign in");
+    }
+
     /** Where Contexa owns the sign-in nobody could sign in without it. */
     @Test
     void anApplicationWhoseSignInContexaOwnsDoesNotStart() {

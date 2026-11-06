@@ -68,6 +68,12 @@ The format is based on Keep a Changelog and the project follows semantic version
   they no longer count as reads for `contexa.security.zerotrust.agent.flight.pass-families`. **Check:** a read served over
   `POST`, such as a search, is now a write: while an agent is narrowed it gets `403 AGENT_SCOPE_NARROWED` until the period
   ends or its accountable person confirms that request.
+- **A blocked console session only reads.** The block list stays open to a console session under a BLOCK, and from there it
+  could lift the BLOCK of anyone else, delete a record, release a CHALLENGE, and stop and resume the agents. It now reads
+  the lists, its pages offer it nothing to change, and each of those is a 403 that stays in the audit, also after it passed
+  a verification. Its own BLOCK is lifted as before: by another administrator, or by the session itself after it verifies at
+  `/contexa/admin/blacklist/step-up`. Other administrators work as they did, and under SHADOW, OBSERVE or DISABLED a stored
+  BLOCK stops nothing here either.
 - **A sign-in no longer wipes the failures of its address.** A password that was right took the address's count back, so
   whoever held one account of their own could try any number of others from that address. The address now keeps its count
   until its window ends; the count of each account is reset as before. Behind a shared address a public NAT counts everyone's
@@ -221,8 +227,21 @@ The format is based on Keep a Changelog and the project follows semantic version
   now reads the account. Rows an earlier version made stay in `ctxa_users`. The console's user list shows a copy of an
   application's user under the application's name for it.
 - The start names an `actions` value of `@Protectable` outside the action families; the value had no effect on the request.
+- An MFA code submitted after its session ended counts against no account, and writes no ERROR. It was sent to the lock's
+  count from the failure handler, which failed there for want of a transaction; the account's failures are counted by the
+  failure event of the sign-in, as before.
+- Lifting a block record that is lifted already, or deleting one still in force, is answered with 409 by the block list's
+  API, and an id with no record with 404, instead of 500 with an ERROR stack. The console's pages say why without an ERROR.
+- **A CHALLENGE decided in the request takes the browser SDK to the step-up.** The request filters named it in `error` and a
+  synchronous decision in `code`, so the SDK, which follows `error`, stayed on the page. Both answers now carry `error` and
+  `code`: `error` is `MFA_CHALLENGE_REQUIRED` where a step-up can go on and `ZERO_TRUST_CHALLENGE` where none is offered, `code`
+  is `ZERO_TRUST_CHALLENGE`. A synchronous answer also carries `challengeNoticeUrl`, and every other synchronous refusal
+  carries its code in `error` too.
 - The guidance for running without decisions names `contexa.security.zerotrust.mode=DISABLED`. The
-  `contexa.autonomous.enabled=false` it named stops the start of an application with `@EnableAISecurity`.
+  `contexa.autonomous.enabled=false` it named stopped the start of an application with `@EnableAISecurity`, on a bean of
+  Contexa's. That setting takes away the decision engine all of Contexa reads, so an application that keeps its sign-in now
+  writes one ERROR and starts without Contexa, as with Contexa's database down; where Contexa owns the sign-in the start is
+  refused and says why. To turn off only the decisions, use `contexa.security.zerotrust.mode=DISABLED`.
 - A new session of a user no longer writes `Context binding hash mismatch` at ERROR: it is the ordinary way to a new decision.
 - Contexa adds no `BeanPostProcessorChecker` line to an application's start log.
 - **A store outage is no longer an outage of the application.** Redis or Contexa's database that stops, freezes or runs out
@@ -395,6 +414,9 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Added
 
+- **An administrator unlocks an account.** A locked user's page in the console has an Unlock button, and
+  `POST /contexa/admin/users/{id}/unlock` ends the lock and the count of failures ahead of time. The audit records who did
+  it. A limit on the address the failures came from stays.
 - **A way out for a user with neither a mail address nor a passkey.** An application tells a user's address with a
   `BridgeUserEmailProvider` bean. An administrator can enter the address on the user's page, or release a CHALLENGE on the
   block list; the release is recorded in the audit and nothing is learned from it. The user who passes a code is offered

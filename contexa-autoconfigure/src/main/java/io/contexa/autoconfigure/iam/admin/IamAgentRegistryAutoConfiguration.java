@@ -92,6 +92,7 @@ import io.contexa.contexacore.autonomous.agent.AgentContainmentService;
 import io.contexa.contexaiam.admin.web.agent.controller.AgentStopApiController;
 import io.contexa.contexaiam.admin.web.agent.controller.AgentStopController;
 import io.contexa.contexaiam.admin.web.agent.service.AgentContainmentAdminService;
+import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
 import io.contexa.contexaidentity.security.agent.MailAgentNoticeChannel;
 import io.contexa.contexaidentity.security.agent.OAuth2AgentTokenRevoker;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.DeviceAwareOAuth2AuthorizationService;
@@ -459,11 +460,12 @@ public class IamAgentRegistryAutoConfiguration {
     public AgentContainmentAdminService agentContainmentAdminService(
             ObjectProvider<AgentContainmentService> containment, AgentRegistry contexaAgentRegistry,
             ObjectProvider<AuditLogRepository> auditLogRepository, AgentNoticeStore contexaAgentNoticeStore,
-            ObjectProvider<AgentScopeService> scopes) {
+            ObjectProvider<AgentScopeService> scopes, ObjectProvider<BlockedUserService> blockedUsers) {
         AgentContainmentAdminService service = new AgentContainmentAdminService(containment.getIfAvailable(),
                 contexaAgentRegistry, auditLogRepository.getIfAvailable(), contexaAgentNoticeStore);
         // docs/agent A5-4: the agents still narrowed, shown with the stops.
         service.setScopes(scopes.getIfAvailable());
+        service.setBlockedUsers(blockedUsers.getIfAvailable());
         return service;
     }
 

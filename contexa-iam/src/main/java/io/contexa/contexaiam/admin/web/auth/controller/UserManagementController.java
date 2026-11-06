@@ -186,6 +186,22 @@ public class UserManagementController {
 		return "redirect:/contexa/admin/users";
 	}
 
+	@PostMapping("/{id}/unlock")
+	@Transactional(transactionManager = "contexaTransactionManager")
+	public String unlockUser(@PathVariable Long id, RedirectAttributes ra) {
+		try {
+			if (userManagementService.unlockUser(id)) {
+				ra.addFlashAttribute("message", msg("msg.user.unlocked"));
+			} else {
+				ra.addFlashAttribute("errorMessage", msg("msg.user.not.locked"));
+			}
+		} catch (IllegalArgumentException e) {
+			ra.addFlashAttribute("errorMessage", e.getMessage());
+			return "redirect:/contexa/admin/users";
+		}
+		return "redirect:/contexa/admin/users/" + id;
+	}
+
 	@DeleteMapping("/{id}")
 	@Transactional(transactionManager = "contexaTransactionManager")
 	public String removeUser(@PathVariable Long id, RedirectAttributes ra) {

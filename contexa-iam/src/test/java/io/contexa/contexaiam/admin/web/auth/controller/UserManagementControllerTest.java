@@ -271,6 +271,41 @@ class UserManagementControllerTest {
     }
 
     @Nested
+    @DisplayName("unlockUser")
+    class UnlockUser {
+
+        @Test
+        @DisplayName("goes back to the user and says the lock is gone")
+        void unlocked() {
+            RedirectAttributes ra = new RedirectAttributesModelMap();
+            when(userManagementService.unlockUser(5L)).thenReturn(true);
+
+            assertThat(controller.unlockUser(5L, ra)).isEqualTo("redirect:/contexa/admin/users/5");
+            assertThat(ra.getFlashAttributes().get("message")).isEqualTo("msg.user.unlocked");
+        }
+
+        @Test
+        @DisplayName("an account under no lock is told so")
+        void notLocked() {
+            RedirectAttributes ra = new RedirectAttributesModelMap();
+            when(userManagementService.unlockUser(5L)).thenReturn(false);
+
+            assertThat(controller.unlockUser(5L, ra)).isEqualTo("redirect:/contexa/admin/users/5");
+            assertThat(ra.getFlashAttributes().get("errorMessage")).isEqualTo("msg.user.not.locked");
+        }
+
+        @Test
+        @DisplayName("an unknown account goes back to the list")
+        void unknown() {
+            RedirectAttributes ra = new RedirectAttributesModelMap();
+            doThrow(new IllegalArgumentException("not found")).when(userManagementService).unlockUser(5L);
+
+            assertThat(controller.unlockUser(5L, ra)).isEqualTo("redirect:/contexa/admin/users");
+            assertThat(ra.getFlashAttributes().get("errorMessage")).isEqualTo("not found");
+        }
+    }
+
+    @Nested
     @DisplayName("removeUserGet")
     class RemoveUserGet {
 

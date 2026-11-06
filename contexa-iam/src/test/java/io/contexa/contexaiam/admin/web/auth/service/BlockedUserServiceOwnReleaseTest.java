@@ -325,15 +325,17 @@ class BlockedUserServiceOwnReleaseTest {
     }
 
     @Test
-    @DisplayName("a session under a BLOCK still lifts the BLOCK of someone else: the list stays what it was")
+    @DisplayName("a session under a BLOCK does not lift the BLOCK of someone else either")
     void someoneElse() {
         actions.saveAction(OWN_KEY, ZeroTrustAction.BLOCK, Map.of());
         actions.setBlockedFlag(OWN_KEY);
         BlockedUser row = row("alice", BlockedUserStatus.BLOCKED);
 
-        service.resolveBlockById(7L, ADMIN, "ALLOW", "checked");
+        assertThatThrownBy(() -> service.resolveBlockById(7L, ADMIN, "ALLOW", "checked"))
+                .isInstanceOf(AccessDeniedException.class);
 
-        assertResolved(row, ADMIN);
+        assertThat(row.getStatus()).isEqualTo(BlockedUserStatus.BLOCKED);
+        assertThat(row.getResolvedBy()).isNull();
     }
 
     @Test

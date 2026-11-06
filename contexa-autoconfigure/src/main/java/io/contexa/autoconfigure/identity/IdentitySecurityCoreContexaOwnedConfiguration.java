@@ -106,11 +106,10 @@ public class IdentitySecurityCoreContexaOwnedConfiguration {
             AuthContextProperties authContextProperties,
             IBlockedUserRecorder contexaBlockedUserRecorder,
             @Autowired(required = false) CentralAuditFacade contexaCentralAuditFacade,
-            @Autowired(required = false) LoginPolicyHandler contexaLoginPolicyHandler,
             @Autowired(required = false) SecurityContextDataStore securityContextDataStore) {
         return new UnifiedAuthenticationFailureHandler(contexaAuthResponseWriter, contexaMfaStateMachineIntegrator,
                 contexaMfaSessionRepository, actionRedisRepository, authContextProperties.getMfa(),
-                contexaBlockedUserRecorder, contexaCentralAuditFacade, contexaLoginPolicyHandler, securityContextDataStore);
+                contexaBlockedUserRecorder, contexaCentralAuditFacade, securityContextDataStore);
     }
 
     @Bean(name = "contexaMfaFactorProcessingSuccessHandler")

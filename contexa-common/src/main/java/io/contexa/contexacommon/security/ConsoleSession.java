@@ -32,8 +32,8 @@ import java.util.List;
  * and they read and write decisions under a key of their own.
  * <p>
  * The block list stays open to a console session whatever is decided about it: it is where a BLOCK is lifted, and
- * without it an administrator could lock the console for good. A session does not lift its own BLOCK there, though: that
- * takes another administrator or a verification passed in that session.
+ * without it an administrator could lock the console for good. A session under a BLOCK only reads it, though. Its own
+ * BLOCK takes another administrator or a verification passed in that session, and it changes nothing else until then.
  * <p>
  * Where the console and the application share one account (CONTEXA_OWNED) no request is marked here. An administrator
  * under a BLOCK who passed MFA in the session reaches the people of the block list and nothing else: the access

@@ -24,7 +24,6 @@ import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.properties.MfaSettings;
 import io.contexa.contexacommon.security.LocalCredentialsVerifier;
-import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
@@ -65,7 +64,6 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
     private final MfaSettings mfaSettings;
     private final IBlockedUserRecorder blockedUserRecorder;
     private final CentralAuditFacade centralAuditFacade;
-    private final LoginPolicyHandler loginPolicyService;
     private final SecurityContextDataStore securityContextDataStore;
 
     public UnifiedAuthenticationFailureHandler(AuthResponseWriter responseWriter,
@@ -75,7 +73,6 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                                                MfaSettings mfaSettings,
                                                IBlockedUserRecorder blockedUserRecorder,
                                                CentralAuditFacade centralAuditFacade,
-                                               @Nullable LoginPolicyHandler loginPolicyService,
                                                @Nullable SecurityContextDataStore securityContextDataStore) {
         super(responseWriter);
         this.stateMachineIntegrator = stateMachineIntegrator;
@@ -84,7 +81,6 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         this.mfaSettings = mfaSettings;
         this.blockedUserRecorder = blockedUserRecorder;
         this.centralAuditFacade = centralAuditFacade;
-        this.loginPolicyService = loginPolicyService;
         this.securityContextDataStore = securityContextDataStore;
     }
 
@@ -175,13 +171,9 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         log.warn("Primary Authentication or Global MFA Failure using {} repository for user '{}' (MFA Session ID: '{}'). Reason: {}",
                 sessionRepository.getRepositoryType(), usernameForLog, sessionIdForLog, exception.getMessage());
 
-        if (loginPolicyService != null && isKnownUsername(usernameForLog)) {
-            try {
-                loginPolicyService.onLoginFailure(usernameForLog);
-            } catch (Exception e) {
-                log.error("Failed to record login failure for user: {}", usernameForLog, e);
-            }
-        }
+        // The account's count is kept by the failure event of the sign-in, which names who was tried. What reaches this
+        // handler without one, an MFA submission whose session is gone, is no guess at a password and counts against no
+        // account: counting it would lock the user who only came back late.
 
         if (factorContext != null && StringUtils.hasText(factorContext.getMfaSessionId())) {
             try {
