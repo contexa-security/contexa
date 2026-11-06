@@ -353,6 +353,20 @@ class ConsoleAdministratorsPostgresTest {
     // ----- what stays as it was -----
 
     @Test
+    @DisplayName("a role an account holds directly is still not deleted: the database refuses, as before")
+    void aRoleHeldDirectlyIsStillRefusedByTheDatabase() {
+        long direct = role("ROLE_DIRECT");
+        userRole(bob, direct);
+
+        assertThatThrownBy(() -> transactions.executeWithoutResult(s -> roleService.deleteRole(direct)))
+                .isInstanceOf(RuntimeException.class).isNotInstanceOf(LastAdministratorException.class);
+
+        assertThat(jdbc.queryForObject("select count(*) from ctxa_role where role_name = 'ROLE_DIRECT'", Integer.class))
+                .isEqualTo(1);
+        assertThat(administrators()).containsExactly("alice");
+    }
+
+    @Test
     @DisplayName("with another administrator the same edits go through")
     void withAnotherAdministratorTheEditsGoThrough() {
         long ops2 = group("ops2", adminRole);
