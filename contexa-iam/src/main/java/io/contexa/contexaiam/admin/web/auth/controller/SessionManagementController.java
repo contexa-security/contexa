@@ -64,6 +64,8 @@ public class SessionManagementController {
                        @RequestParam(required = false) String keyword,
                        Model model) {
         model.addAttribute("activePage", "session-management");
+        // What a node not yet on references wrote since the last read is turned into references before it is listed.
+        sessionManagementService.referenceRawSessions();
 
         PageRequest pageable = PageRequest.of(page, PAGE_SIZE, Sort.by(Sort.Direction.DESC, "lastAccessedAt"));
         Page<ActiveSession> sessionPage = sessionManagementService.searchActiveSessions(keyword, pageable);
@@ -79,6 +81,8 @@ public class SessionManagementController {
     @PostMapping("/{sessionId}/invalidate")
     public String invalidateSession(@PathVariable String sessionId, RedirectAttributes ra) {
         try {
+            // The session is named by its reference: a row a node not yet on references wrote must be one before it is ended.
+            sessionManagementService.referenceRawSessions();
             sessionManagementService.invalidateSession(sessionId);
             ra.addFlashAttribute("message", msg("admin.session.invalidated"));
         } catch (Exception e) {
@@ -102,6 +106,7 @@ public class SessionManagementController {
 
     @GetMapping("/export")
     public void export(HttpServletResponse response) throws IOException {
+        sessionManagementService.referenceRawSessions();
         List<CsvColumn<ActiveSession>> columns = List.of(
                 new CsvColumn<>("Session Reference", s -> s.getSessionReference() != null ? s.getSessionReference() : ""),
                 new CsvColumn<>("Username", s -> s.getUsername() != null ? s.getUsername() : ""),

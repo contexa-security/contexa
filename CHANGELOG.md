@@ -8,6 +8,16 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A session an older node tracked after the references were introduced is turned into its reference when the
+  console reads the sessions.** The tracked sessions that a database kept under the value their cookie carries were
+  moved to their references once, when the application started. In a rolling upgrade a node not yet upgraded goes on
+  writing the cookie's value after that, so such a row stayed until the next start: it was listed under its
+  reference, but ending it from the console did nothing, because the console looks the session up by the reference
+  and the row was stored by the raw value. The list, the export and the ending of a session now first turn the rows of
+  the raw value into references (a row forced out stays forced out, and two nodes doing it at once leave one row),
+  and a move that fails stops none of them. The list and the export never showed the raw value and still do not. No
+  setting is added. **Check:** a session served by a node that is not yet upgraded is ended on that node only once it
+  is upgraded, since that node looks the session up by the raw value the console no longer keeps.
 - **Requests of one agent that arrive together mail the person once.** The person accountable for an agent is mailed
   once while one of the agent's confirmations waits, and the agent's other requests are told on the console only; but
   the store was asked whether another confirmation waited and then saved the new one as two steps, so the first

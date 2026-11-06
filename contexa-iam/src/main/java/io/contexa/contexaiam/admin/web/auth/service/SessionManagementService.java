@@ -19,10 +19,11 @@ import java.util.Locale;
 import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexaiam.domain.entity.ActiveSession;
 import io.contexa.contexaiam.repository.ActiveSessionRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.lang.Nullable;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
@@ -35,13 +36,39 @@ import java.util.List;
  * over raw is turned into its reference here; a reference stays as it is.
  */
 @Slf4j
-@RequiredArgsConstructor
 public class SessionManagementService {
 
     private static final long UPDATE_THRESHOLD_SECONDS = 60;
     private static final int CLEANUP_RETENTION_DAYS = 7;
 
     private final ActiveSessionRepository activeSessionRepository;
+    private final ActiveSessionReferences references;
+
+    public SessionManagementService(ActiveSessionRepository activeSessionRepository) {
+        this(activeSessionRepository, null);
+    }
+
+    /**
+     * @param references turns the rows a node not yet on references wrote into their references when the console reads
+     *                   the sessions, or null to leave them to the next start
+     */
+    public SessionManagementService(ActiveSessionRepository activeSessionRepository,
+                                    @Nullable ActiveSessionReferences references) {
+        this.activeSessionRepository = activeSessionRepository;
+        this.references = references;
+    }
+
+    /**
+     * Turns the tracked sessions that a node not yet on references wrote under the value their cookie carries into
+     * their references, so that what the console lists, exports and ends is what is stored. Call it before reading the
+     * sessions, outside the transaction of the read: it writes, and a read-only transaction does not.
+     *
+     * @return how many tracked sessions were turned into their references
+     */
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
+    public int referenceRawSessions() {
+        return references != null ? references.whenRead() : 0;
+    }
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public Page<ActiveSession> getActiveSessions(Pageable pageable) {
