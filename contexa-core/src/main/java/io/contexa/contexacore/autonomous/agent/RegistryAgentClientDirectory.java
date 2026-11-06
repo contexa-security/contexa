@@ -32,9 +32,10 @@ import java.util.function.LongSupplier;
 /**
  * The approved agents of the agent registry (A1-2, AG-12b): a client is an agent when the registry holds it as
  * allowlisted through the life cycle interface and in service. An agent only observed in requests, registered as not
- * approved, suspended or deregistered is not one. A registry that cannot answer names no agent, so a token it cannot
- * vouch for is refused rather than admitted; and it cannot say a client is not suspended either: the suspension of a
- * client it could not read is reported as unreadable, never as absent, since a failure must not lift a restriction.
+ * approved, suspended or deregistered is not one. A registry that cannot answer cannot say that a client is no agent, which
+ * tenant it belongs to, or that it is not suspended: what it could not read is reported as unreadable, never as absent,
+ * since a failure must not lift a restriction (a suspension, a delegation a person revoked) by making the client look like
+ * no agent. Whoever asks stops what the client would do for now.
  */
 @Slf4j
 public class RegistryAgentClientDirectory implements AgentClientDirectory {
@@ -62,18 +63,21 @@ public class RegistryAgentClientDirectory implements AgentClientDirectory {
         this.nanoClock = nanoClock;
     }
 
+    /**
+     * @throws AgentClientStatusUnavailableException when the registry fails or does not answer in time: a client the
+     *                                               registry cannot be asked about is not "no agent"
+     */
     @Override
     public Optional<String> activeAgentForClient(String tenantId, String clientId) {
         if (registry == null || AgentRegistrations.blank(clientId)) {
             return Optional.empty();
         }
         try {
-            return find(tenantId, clientId)
+            return answered(requestPathDatabaseGuard.call(() -> registry.findByClientId(tenantId, clientId), null))
                     .filter(registration -> registration.allowlisted() && registration.status() == AgentStatus.ACTIVE)
                     .map(AgentRegistration::agentId);
-        } catch (RuntimeException e) {
-            log.error("Agent registry lookup failed; the client is not taken as an agent. clientId={}", clientId, e);
-            return Optional.empty();
+        } catch (RuntimeException failed) {
+            throw unreadable(clientId, "The agent of the client " + clientId + " cannot be read", failed);
         }
     }
 
@@ -102,19 +106,18 @@ public class RegistryAgentClientDirectory implements AgentClientDirectory {
                         .ifPresent(registrations::add);
             }
             return registrations.stream().anyMatch(registration -> registration.status() == AgentStatus.SUSPENDED);
-        } catch (AgentClientStatusUnavailableException unreadable) {
-            reportUnreadable(clientId, unreadable);
-            throw unreadable;
         } catch (RuntimeException failed) {
-            reportUnreadable(clientId, failed);
-            throw new AgentClientStatusUnavailableException(
-                    "The suspension of the client " + clientId + " cannot be read", failed);
+            throw unreadable(clientId, "The suspension of the client " + clientId + " cannot be read", failed);
         }
     }
 
     /**
      * The tenant that registered the client's agent: none when the single-tenant deployment registered it, and none
      * when two tenants did, since the client then is no one tenant's. A sighting registers nothing.
+     *
+     * @throws AgentClientStatusUnavailableException when the registry fails or does not answer in time: the agent would
+     *                                               otherwise be looked up in the single-tenant deployment, where a client
+     *                                               of a tenant is no agent
      */
     @Override
     public Optional<String> tenantOfClient(String clientId) {
@@ -122,26 +125,25 @@ public class RegistryAgentClientDirectory implements AgentClientDirectory {
             return Optional.empty();
         }
         try {
-            List<AgentRegistration> registered = everyTenant(clientId).stream()
+            List<AgentRegistration> registered = answered(requestPathDatabaseGuard.call(
+                    () -> registry.findAllByClientId(clientId), null)).stream()
                     .filter(registration -> registration.source() == AgentRegistrationSource.LIFECYCLE)
                     .toList();
             if (registered.size() != 1) {
                 return Optional.empty();
             }
             return Optional.ofNullable(registered.get(0).tenantId());
-        } catch (RuntimeException e) {
-            log.error("Agent registry lookup failed; the client's tenant is not known. clientId={}", clientId, e);
-            return Optional.empty();
+        } catch (RuntimeException failed) {
+            throw unreadable(clientId, "The tenant of the client " + clientId + " cannot be read", failed);
         }
     }
 
-    /** A registry that does not answer in time reads as one that failed: the client is not taken as an agent. */
-    private Optional<AgentRegistration> find(String tenantId, String clientId) {
-        return requestPathDatabaseGuard.call(() -> registry.findByClientId(tenantId, clientId), Optional.empty());
-    }
-
-    private List<AgentRegistration> everyTenant(String clientId) {
-        return requestPathDatabaseGuard.call(() -> registry.findAllByClientId(clientId), List.of());
+    /** What the failure of a read becomes: the unreadable answer, reported once in a while, without the cause in its text. */
+    private AgentClientStatusUnavailableException unreadable(String clientId, String message, RuntimeException failed) {
+        reportUnreadable(clientId, failed);
+        return failed instanceof AgentClientStatusUnavailableException unavailable
+                ? unavailable
+                : new AgentClientStatusUnavailableException(message, failed);
     }
 
     /** The guard answers null when the registry did not answer in time (or its store is known to be down). */

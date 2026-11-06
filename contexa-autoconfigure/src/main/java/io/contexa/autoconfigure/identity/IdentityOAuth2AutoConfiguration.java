@@ -84,6 +84,7 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.UUID;
@@ -482,9 +483,10 @@ public class IdentityOAuth2AutoConfiguration {
     }
 
     /*
-     * No OAuth2TokenGenerator bean (CF-06): the authorization server chain then builds Spring's generator, which applies
-     * Spring's default claims (act for token exchange, cnf for DPoP and mutual TLS bound tokens) before the token
-     * customizer below. An application that declares its own generator adds those claims itself.
+     * No OAuth2TokenGenerator bean: the authorization server chain then builds Spring's generator, which applies Spring's
+     * default claims (act for token exchange, cnf for DPoP and mutual TLS bound tokens) before the token customizer below.
+     * An application that declares its own generator adds those claims itself; the chain puts Contexa's token checks in
+     * front of it (CheckedTokenGenerator), since the server never offers a token to the customizer then.
      */
 
     /** What a person's token answers to at its renewal: the account as it is now, and the decision in force. */
@@ -542,8 +544,9 @@ public class IdentityOAuth2AutoConfiguration {
                     refuseRevokedDelegation(context, delegationRegistry.getIfAvailable(),
                             agentClientDirectory.getIfAvailable());
                 } catch (OAuth2AuthenticationException refused) {
-                    // docs/agent G-9: in the report-only mode the refusal is logged and the token is issued.
-                    if (zeroTrustEnforcing()) {
+                    // docs/agent G-9: in the report-only mode the refusal of a revoked delegation is logged and the token is
+                    // issued. A registry that cannot be read is no revoked delegation the operator chose to let through.
+                    if (zeroTrustEnforcing() || OAuth2ErrorCodes.TEMPORARILY_UNAVAILABLE.equals(refused.getError().getErrorCode())) {
                         throw refused;
                     }
                     log.info("[ZeroTrust][SHADOW] An exchange under a revoked delegation goes on: client={}",
@@ -640,12 +643,31 @@ public class IdentityOAuth2AutoConfiguration {
             guard.admitExchange(subject.getPrincipalName());
         }
         // The exchanged token ends no later than the token it exchanges.
-        Instant subjectExpiresAt = subjectToken != null ? subjectToken.getExpiresAt() : null;
-        if (subjectExpiresAt != null) {
-            Instant expiresAt = context.getClaims().build().getExpiresAt();
-            if (expiresAt == null || expiresAt.isAfter(subjectExpiresAt)) {
-                context.getClaims().expiresAt(subjectExpiresAt);
-            }
+        holdToLimit(context, subjectToken != null ? subjectToken.getExpiresAt() : null);
+    }
+
+    /**
+     * The end of the token an exchange is issued for, which the exchanged token does not outlive; null for any other token
+     * and for an exchange whose subject token tells no end.
+     */
+    static Instant exchangeLimit(JwtEncodingContext context) {
+        if (!OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())
+                || !AuthorizationGrantType.TOKEN_EXCHANGE.equals(context.getAuthorizationGrantType())
+                || context.getAuthorization() == null) {
+            return null;
+        }
+        OAuth2AccessToken subjectToken = subjectToken(context, context.getAuthorization());
+        return subjectToken != null ? subjectToken.getExpiresAt() : null;
+    }
+
+    /** Ends the token at the limit when it would end after it; a token that ends sooner is left as it is. */
+    static void holdToLimit(JwtEncodingContext context, Instant limit) {
+        if (limit == null) {
+            return;
+        }
+        Instant expiresAt = context.getClaims().build().getExpiresAt();
+        if (expiresAt == null || expiresAt.isAfter(limit)) {
+            context.getClaims().expiresAt(limit);
         }
     }
 
@@ -704,14 +726,21 @@ public class IdentityOAuth2AutoConfiguration {
         try {
             suspended = agents.suspendedAgentClient(null, clientId);
         } catch (AgentClientStatusUnavailableException unreadable) {
-            // No cause is attached: its text would become the message of the exception. The registry says why in the log.
-            throw new OAuth2AuthenticationException(new OAuth2Error(OAuth2ErrorCodes.TEMPORARILY_UNAVAILABLE,
-                    "The status of the agent cannot be read now", null));
+            throw agentUnreadable();
         }
         if (suspended) {
             throw new OAuth2AuthenticationException(new OAuth2Error(OAuth2ErrorCodes.UNAUTHORIZED_CLIENT,
                     "The agent is suspended", null));
         }
+    }
+
+    /**
+     * What a token waits with while the agent registry cannot be read. No cause is attached: its text would become the
+     * message of the exception. The registry says why in the log.
+     */
+    private static OAuth2AuthenticationException agentUnreadable() {
+        return new OAuth2AuthenticationException(new OAuth2Error(OAuth2ErrorCodes.TEMPORARILY_UNAVAILABLE,
+                "The status of the agent cannot be read now", null));
     }
 
     /** Whether Contexa enforces its zero trust decisions (not the report-only SHADOW mode). */
@@ -733,8 +762,17 @@ public class IdentityOAuth2AutoConfiguration {
             return;
         }
         String clientId = context.getRegisteredClient().getClientId();
-        String tenant = agents.tenantOfClient(clientId).orElse(null);
-        agents.activeAgentForClient(tenant, clientId).ifPresent(agentId -> {
+        // A registry that cannot say which tenant and which agent the client is does not let the exchange through as one of
+        // no agent: the person's revocation could not be found.
+        String tenant;
+        Optional<String> agent;
+        try {
+            tenant = agents.tenantOfClient(clientId).orElse(null);
+            agent = agents.activeAgentForClient(tenant, clientId);
+        } catch (AgentClientStatusUnavailableException unreadable) {
+            throw agentUnreadable();
+        }
+        agent.ifPresent(agentId -> {
             Instant now = Instant.now();
             AgentDelegations.current(registry.list(tenant, person, agentId, DELEGATION_CANDIDATES), now)
                     .filter(delegation -> !delegation.validAt(now) && delegation.revokedAt() != null
@@ -772,8 +810,15 @@ public class IdentityOAuth2AutoConfiguration {
             return;
         }
         String clientId = context.getRegisteredClient().getClientId();
-        String tenant = agents.tenantOfClient(clientId).orElse(null);
-        agents.activeAgentForClient(tenant, clientId).ifPresent(agentId -> {
+        String tenant;
+        Optional<String> agent;
+        try {
+            tenant = agents.tenantOfClient(clientId).orElse(null);
+            agent = agents.activeAgentForClient(tenant, clientId);
+        } catch (AgentClientStatusUnavailableException unreadable) {
+            throw agentUnreadable();
+        }
+        agent.ifPresent(agentId -> {
             Instant now = Instant.now();
             AgentDelegations.current(registry.list(tenant, person, agentId, DELEGATION_CANDIDATES), now)
                     .filter(delegation -> delegation.validAt(now))

@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -86,19 +87,80 @@ class RegistryAgentClientDirectoryTest {
         assertThat(directory.activeAgentForClient("tenant-other", "acme-client")).isEmpty();
     }
 
+    /**
+     * A registry that fails cannot say that a client is no agent: the answer is "cannot be read", never "no agent", since
+     * a caller that read "no agent" would skip what an agent is held to (a delegation revoked, a tenant it belongs to).
+     * A directory without a registry, and a blank client, are named no agent as before.
+     */
     @Test
-    void aRegistryFailureNamesNoAgent() {
+    void aRegistryFailureIsUnreadableAndNeverNoAgent() {
         AgentRegistry failing = new InMemoryAgentRegistry() {
             @Override
             public Optional<AgentRegistration> findByClientId(String tenantId, String clientId) {
                 throw new IllegalStateException("registry unavailable");
             }
-        };
 
-        assertThat(new RegistryAgentClientDirectory(failing).activeAgentForClient(null, "report-client")).isEmpty();
+            @Override
+            public List<AgentRegistration> findAllByClientId(String clientId) {
+                throw new IllegalStateException("registry unavailable");
+            }
+        };
+        RegistryAgentClientDirectory directory = new RegistryAgentClientDirectory(failing);
+
+        assertThatThrownBy(() -> directory.activeAgentForClient(null, "report-client"))
+                .isInstanceOf(AgentClientStatusUnavailableException.class)
+                .hasMessageNotContaining("registry unavailable");
+        assertThatThrownBy(() -> directory.activeAgentForClient("tenant-a", "report-client"))
+                .isInstanceOf(AgentClientStatusUnavailableException.class);
+        assertThatThrownBy(() -> directory.activeAgentForAccount(null, "report-client"))
+                .isInstanceOf(AgentClientStatusUnavailableException.class);
+        assertThatThrownBy(() -> directory.tenantOfClient("report-client"))
+                .isInstanceOf(AgentClientStatusUnavailableException.class)
+                .hasMessageNotContaining("registry unavailable");
+
         assertThat(new RegistryAgentClientDirectory(null).activeAgentForClient(null, "report-client")).isEmpty();
-        assertThat(List.of(directory.activeAgentForClient(null, null), directory.activeAgentForClient(null, " ")))
+        assertThat(new RegistryAgentClientDirectory(null).tenantOfClient("report-client")).isEmpty();
+        assertThat(List.of(this.directory.activeAgentForClient(null, null), this.directory.activeAgentForClient(null, " ")))
                 .allMatch(Optional::isEmpty);
+        assertThat(List.of(this.directory.tenantOfClient(null), this.directory.tenantOfClient(" ")))
+                .allMatch(Optional::isEmpty);
+    }
+
+    /** Each read of the registry stands alone: one that answered before does not make a later one that fails answer. */
+    @Test
+    void aReadThatFailsAfterOneThatAnsweredIsUnreadableToo() {
+        registry.register(new AgentRegistrationRequest("tenant-a", "tenant-bot", "Tenant bot", null, "tenant-client", "carol", null));
+        AtomicBoolean failing = new AtomicBoolean();
+        AgentRegistry flapping = new InMemoryAgentRegistry() {
+            @Override
+            public Optional<AgentRegistration> findByClientId(String tenantId, String clientId) {
+                return failing.get() ? failed() : registry.findByClientId(tenantId, clientId);
+            }
+
+            @Override
+            public List<AgentRegistration> findAllByClientId(String clientId) {
+                return failing.get() ? failedAll() : registry.findAllByClientId(clientId);
+            }
+
+            private Optional<AgentRegistration> failed() {
+                throw new IllegalStateException("registry unavailable");
+            }
+
+            private List<AgentRegistration> failedAll() {
+                throw new IllegalStateException("registry unavailable");
+            }
+        };
+        RegistryAgentClientDirectory directory = new RegistryAgentClientDirectory(flapping);
+
+        assertThat(directory.tenantOfClient("tenant-client")).contains("tenant-a");
+        failing.set(true);
+        assertThatThrownBy(() -> directory.activeAgentForClient("tenant-a", "tenant-client"))
+                .isInstanceOf(AgentClientStatusUnavailableException.class);
+        assertThatThrownBy(() -> directory.tenantOfClient("tenant-client"))
+                .isInstanceOf(AgentClientStatusUnavailableException.class);
+        failing.set(false);
+        assertThat(directory.activeAgentForClient("tenant-a", "tenant-client")).contains("tenant-bot");
+        assertThat(directory.tenantOfClient("tenant-client")).contains("tenant-a");
     }
 
     @Test
@@ -117,8 +179,11 @@ class RegistryAgentClientDirectoryTest {
         RegistryAgentClientDirectory outage = new RegistryAgentClientDirectory(hanging, guard);
         try {
             assertTimeoutPreemptively(Duration.ofSeconds(3), () -> {
-                assertThat(outage.activeAgentForClient(null, "report-client")).isEmpty();
-                // The wait ends, and what it ends with is "cannot tell", never "not suspended".
+                // The wait ends, and what it ends with is "cannot tell", never "no agent" and never "not suspended".
+                assertThatThrownBy(() -> outage.activeAgentForClient(null, "report-client"))
+                        .isInstanceOf(AgentClientStatusUnavailableException.class);
+                assertThatThrownBy(() -> outage.tenantOfClient("report-client"))
+                        .isInstanceOf(AgentClientStatusUnavailableException.class);
                 assertThatThrownBy(() -> outage.suspendedAgentClient(null, "report-client"))
                         .isInstanceOf(AgentClientStatusUnavailableException.class);
             });

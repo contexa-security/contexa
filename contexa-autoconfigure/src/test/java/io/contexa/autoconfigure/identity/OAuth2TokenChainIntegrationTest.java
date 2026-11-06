@@ -96,7 +96,13 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
+import org.springframework.security.oauth2.core.OAuth2Token;
+import org.springframework.security.oauth2.server.authorization.token.DelegatingOAuth2TokenGenerator;
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
+import org.springframework.security.oauth2.server.authorization.token.JwtGenerator;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2AccessTokenGenerator;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2RefreshTokenGenerator;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenGenerator;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
@@ -404,6 +410,111 @@ class OAuth2TokenChainIntegrationTest {
         assertThat(agentTokenRequest().getResponse().getStatus()).isEqualTo(200);
     }
 
+    /**
+     * An application's customizer that lengthens a token cannot lengthen an exchanged token beyond the token it exchanges:
+     * Contexa's limit is put on again after the application's customizers ran. A token of any other grant keeps what the
+     * application made of it.
+     */
+    @Test
+    void anApplicationCustomizerCannotLengthenAnExchangedTokenBeyondTheTokenItExchanges() throws Exception {
+        start(true, List.of(), ApplicationLifetimeCustomizer.class);
+        String userToken = userToken();
+        Instant personEnds = decode(userToken).getExpiresAt();
+
+        MvcResult exchanged = exchange(userToken, "reports.read");
+
+        assertThat(exchanged.getResponse().getStatus()).as(exchanged.getResponse().getContentAsString()).isEqualTo(200);
+        Jwt claims = decode(json.readTree(exchanged.getResponse().getContentAsString()).get("access_token").asText());
+        assertThat(claims.getExpiresAt()).as("the exchanged token ends no later than the token it exchanges")
+                .isBeforeOrEqualTo(personEnds);
+        assertThat(claims.getClaimAsString("client_id")).isEqualTo(AGENT_CLIENT);
+
+        Instant agentTokenEnds = decode(clientCredentials(null).get("access_token").asText()).getExpiresAt();
+        assertThat(agentTokenEnds).as("the agent's own token keeps the lifetime the application gave it")
+                .isAfter(Instant.now().plus(Duration.ofDays(29)));
+    }
+
+    /**
+     * An application that declares its own token generator builds its tokens itself, and the authorization server then
+     * never offers a token to the customizer. Contexa's checks and claims still apply to what the generator issues.
+     */
+    @Test
+    void aSuspendedAgentGetsNoTokenAlsoWhenTheApplicationHasATokenGeneratorOfItsOwn() throws Exception {
+        start(true, List.of(), ApplicationTokenGenerator.class, SwitchableDirectory.class);
+        DirectoryState state = context.getBean(DirectoryState.class);
+
+        MvcResult served = agentTokenRequest();
+        assertThat(served.getResponse().getStatus()).as(served.getResponse().getContentAsString()).isEqualTo(200);
+        assertThat(decode(json.readTree(served.getResponse().getContentAsString()).get("access_token").asText())
+                .getClaimAsString("tenant")).as("the application's generator issued it").isEqualTo("acme");
+
+        state.suspended = true;
+        MvcResult suspended = agentTokenRequest();
+        assertThat(suspended.getResponse().getStatus()).as(suspended.getResponse().getContentAsString()).isEqualTo(400);
+        assertThat(suspended.getResponse().getContentAsString()).contains("unauthorized_client");
+
+        state.suspended = false;
+        state.unreadable = true;
+        MvcResult unreadable = agentTokenRequest();
+        assertThat(unreadable.getResponse().getStatus()).isEqualTo(400);
+        assertThat(unreadable.getResponse().getContentAsString()).contains("temporarily_unavailable")
+                .doesNotContain("secret-host");
+        assertThat(decode(userToken()).getClaimAsString("client_id")).as("a person's sign-in never asks the agent registry")
+                .isEqualTo(INTERNAL_CLIENT);
+
+        state.unreadable = false;
+        assertThat(agentTokenRequest().getResponse().getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void theTokensOfAnApplicationsGeneratorCarryContexasClaimsSoTheResourceServerReadsThemAsBefore() throws Exception {
+        start(true, List.of(), ApplicationTokenGenerator.class);
+
+        String agentToken = clientCredentials(null).get("access_token").asText();
+        Jwt agent = decode(agentToken);
+        assertThat(agent.getClaimAsString("tenant")).isEqualTo("acme");
+        assertThat(agent.getClaimAsString("client_id")).isEqualTo(AGENT_CLIENT);
+        assertThat(callApi(agentToken)).isEqualTo(200);
+
+        Jwt person = decode(userToken());
+        assertThat(person.getClaimAsString("tenant")).isEqualTo("acme");
+        assertThat(person.getClaimAsString("client_id")).isEqualTo(INTERNAL_CLIENT);
+        assertThat(person.getClaimAsStringList("roles")).contains("USER");
+    }
+
+    @Test
+    void anExchangeThroughTheApplicationsGeneratorKeepsContexasRules() throws Exception {
+        start(true, List.of(), ApplicationTokenGenerator.class);
+        String userToken = userToken();
+        Instant personEnds = decode(userToken).getExpiresAt();
+
+        MvcResult exchanged = exchange(userToken, "reports.read");
+        assertThat(exchanged.getResponse().getStatus()).as(exchanged.getResponse().getContentAsString()).isEqualTo(200);
+        String delegated = json.readTree(exchanged.getResponse().getContentAsString()).get("access_token").asText();
+        Jwt claims = decode(delegated);
+        assertThat(claims.getSubject()).isEqualTo("alice");
+        assertThat(claims.getClaimAsString("client_id")).isEqualTo(AGENT_CLIENT);
+        assertThat(claims.getExpiresAt()).as("ends no later than the token it exchanges").isBeforeOrEqualTo(personEnds);
+
+        MvcResult beyondScope = exchange(userToken, "reports.write");
+        assertThat(beyondScope.getResponse().getStatus()).isEqualTo(400);
+        assertThat(beyondScope.getResponse().getContentAsString()).contains("invalid_scope");
+
+        MvcResult again = exchange(delegated, "reports.read");
+        assertThat(again.getResponse().getStatus()).isEqualTo(400);
+        assertThat(again.getResponse().getContentAsString()).contains("invalid_grant");
+    }
+
+    private MvcResult exchange(String subjectToken, String scope) throws Exception {
+        return mvc.perform(post("/oauth2/token")
+                        .header("Authorization", basic(AGENT_CLIENT, AGENT_SECRET))
+                        .param("grant_type", TOKEN_EXCHANGE)
+                        .param("subject_token", subjectToken)
+                        .param("subject_token_type", ACCESS_TOKEN_TYPE)
+                        .param("scope", scope))
+                .andReturn();
+    }
+
     private MvcResult agentTokenRequest() throws Exception {
         return mvc.perform(post("/oauth2/token")
                         .header("Authorization", basic(AGENT_CLIENT, AGENT_SECRET))
@@ -679,6 +790,32 @@ class OAuth2TokenChainIntegrationTest {
         OAuth2TokenCustomizer<JwtEncodingContext> first() {
             return context -> context.getClaims().claim("saw_client_id",
                     context.getClaims().build().getClaims().get("client_id"));
+        }
+    }
+
+    /** An application's customizer that lengthens every token but a person's sign-in to a month. */
+    @Configuration
+    static class ApplicationLifetimeCustomizer {
+
+        @Bean
+        OAuth2TokenCustomizer<JwtEncodingContext> longerLife() {
+            return context -> {
+                if (!AuthenticatedUserGrantAuthenticationToken.AUTHENTICATED_USER.equals(context.getAuthorizationGrantType())) {
+                    context.getClaims().expiresAt(Instant.now().plus(Duration.ofDays(30)));
+                }
+            };
+        }
+    }
+
+    /** An application's own token generator: it builds its tokens itself and knows nothing of Contexa's customizer. */
+    @Configuration
+    static class ApplicationTokenGenerator {
+
+        @Bean
+        OAuth2TokenGenerator<OAuth2Token> applicationTokenGenerator(JwtEncoder encoder) {
+            JwtGenerator jwt = new JwtGenerator(encoder);
+            jwt.setJwtCustomizer(context -> context.getClaims().claim("tenant", "acme"));
+            return new DelegatingOAuth2TokenGenerator(jwt, new OAuth2AccessTokenGenerator(), new OAuth2RefreshTokenGenerator());
         }
     }
 
