@@ -123,9 +123,9 @@ class ConsoleWriteTransactionTest {
 
         RoleServiceImpl roleService = new RoleServiceImpl(roles, permissions, mock(IntegrationEventBus.class),
                 mock(CentralAuditFacade.class), hierarchies, mock(PolicyRepository.class),
-                mock(PolicySynchronizationService.class), messages);
+                mock(PolicySynchronizationService.class), messages, guard);
         console.registerBean("roleService", RoleService.class, () -> roleService);
-        GroupServiceImpl groupService = new GroupServiceImpl(groups, roles, hierarchies, messages);
+        GroupServiceImpl groupService = new GroupServiceImpl(groups, roles, hierarchies, messages, guard);
         console.registerBean("groupService", GroupService.class, () -> groupService);
         PermissionServiceImpl permissionService = new PermissionServiceImpl(permissions,
                 mock(ManagedResourceRepository.class), mock(PolicyRepository.class),
@@ -138,7 +138,7 @@ class ConsoleWriteTransactionTest {
                 guard);
         console.registerBean("userManagementService", UserManagementService.class, () -> userService);
         RoleHierarchyService hierarchyService = new RoleHierarchyService(hierarchies, roles, new RoleHierarchyImpl(),
-                messages);
+                messages, guard);
         console.registerBean("roleHierarchyService", RoleHierarchyService.class, () -> hierarchyService);
 
         console.registerBean("roleController", RoleController.class,

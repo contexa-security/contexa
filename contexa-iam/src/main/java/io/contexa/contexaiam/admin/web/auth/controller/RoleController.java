@@ -16,6 +16,7 @@
 package io.contexa.contexaiam.admin.web.auth.controller;
 
 import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPoliciesResponse;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorException;
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
@@ -26,15 +27,19 @@ import org.modelmapper.ModelMapper;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.ui.ConcurrentModel;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.security.access.prepost.PreAuthorize;
 
@@ -141,9 +146,25 @@ public class RoleController {
 		try {
 			roleService.deleteRole(id);
 			ra.addFlashAttribute("message", msg("msg.role.deleted"));
+		} catch (LastAdministratorException e) {
+			throw e;
 		} catch (Exception e) {
 			ra.addFlashAttribute("errorMessage", e.getMessage());
 		}
 		return "redirect:/contexa/admin/roles";
+	}
+
+	/**
+	 * A change of a role that would take the console's last active administrator is refused with a 409: nothing of it was
+	 * kept (the refusal rolls the transaction back), and the list of roles says why.
+	 */
+	@ExceptionHandler(LastAdministratorException.class)
+	public ModelAndView lastAdministrator(LastAdministratorException refusal) {
+		Model model = new ConcurrentModel();
+		String view = getRoles(null, PageRequest.of(0, 15, Sort.by(Sort.Direction.DESC, "id")), model);
+		ModelAndView page = new ModelAndView(view, model.asMap());
+		page.setStatus(HttpStatus.CONFLICT);
+		page.addObject("errorMessage", refusal.getMessage());
+		return page;
 	}
 }

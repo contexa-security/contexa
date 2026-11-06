@@ -148,6 +148,8 @@ public class AccessCenterController {
             @RequestBody AccessRoleAssignmentsRequest request) {
         try {
             return ResponseEntity.ok(accessCenterService.updateGroupRoles(groupId, request));
+        } catch (LastAdministratorException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(new AccessActionResponse(false, e.getMessage()));
         } catch (Exception e) {
             log.error("Failed to update group roles", e);
             return ResponseEntity.badRequest().body(new AccessActionResponse(false, e.getMessage()));

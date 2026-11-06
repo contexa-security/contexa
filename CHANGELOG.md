@@ -8,6 +8,22 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **Two administrators can no longer take each other's role at the same moment.** The console kept its last
+  administrator by reading whether another one remained, so two administrators who each took the other's
+  `ROLE_ADMIN` (in the user's page, in the access center, or by deleting each other) in the same moment each read the
+  other as still there, both changes went through and the console was left with none. Every change of who administers
+  the console now takes one lock first, the rows of the roles, held to the end of its transaction, and reads the
+  administrators only after the change before it: the second change waits, then is refused with 409 like a change of
+  the only administrator. No setting is added.
+- **A role, a group or the role hierarchy can no longer be edited to take the console's last administrator.** Renaming
+  or deleting the role that gives `ROLE_ADMIN` (or the role a hierarchy line places over it), taking that role from a
+  group in the group's page or in the access center, deleting the group, and rewriting, deleting or switching off the
+  hierarchy line all took `ROLE_ADMIN` from the last administrator without a word, as a change of the user already was
+  refused. Each is now refused with 409 and the accounts that would lose the role named, on the page the edit came from
+  (the access center answers `success: false` with the reason), and nothing of it is kept; a changed hierarchy is read
+  as it would stand, before the console runs on it. An edit that leaves another administrator, and an edit of what the
+  administrator does not hold, go through as before. **Check:** before renaming or removing the administrators' role,
+  give `ROLE_ADMIN` to a second account.
 - **A role, permission or action name no longer changes the condition it is written into.** A policy condition wrote
   names into SpEL as they were, so a quote in a name ended its literal: `O'Neil` made a condition that broke the save
   (500), and `X') or true or hasAuthority('Y` made one that was always true. Every condition built from a role, a

@@ -27,6 +27,7 @@ import io.contexa.contexacommon.entity.RolePermission;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.security.authority.RoleAuthority;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.common.event.dto.RolePermissionsChangedEvent;
 import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
@@ -65,6 +66,7 @@ public class RoleServiceImpl extends AccountAuthoritiesService implements RoleSe
     private final PolicyRepository policyRepository;
     private final PolicySynchronizationService policySynchronizationService;
     private final MessageSource messageSource;
+    private final LastAdministratorGuard lastAdministratorGuard;
 
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
@@ -160,6 +162,9 @@ public class RoleServiceImpl extends AccountAuthoritiesService implements RoleSe
             put = {@CachePut(value = "roles", key = "#result.id")}
     )
     public Role updateRole(Role role, List<Long> permissionIds) {
+        // First in the transaction: a change of who administers the console waits for the one before it.
+        lastAdministratorGuard.serializeChanges();
+        List<String> administrators = lastAdministratorGuard.administrators();
         authoritiesChanged();
         Role existingRole = roleRepository.findByIdWithPermissions(role.getId())
                 .orElseThrow(() -> new IllegalArgumentException("Role not found with ID: " + role.getId()));
@@ -186,6 +191,7 @@ public class RoleServiceImpl extends AccountAuthoritiesService implements RoleSe
         }
 
         Role savedRole = roleRepository.save(existingRole);
+        lastAdministratorGuard.refuseLosingEveryAdministrator(administrators);
         eventBus.publish(new RolePermissionsChangedEvent(savedRole.getId()));
         auditRoleChange(AuditEventCategory.ROLE_UPDATED, savedRole);
 
@@ -202,6 +208,8 @@ public class RoleServiceImpl extends AccountAuthoritiesService implements RoleSe
             }
     )
     public void deleteRole(long id) {
+        lastAdministratorGuard.serializeChanges();
+        List<String> administrators = lastAdministratorGuard.administrators();
         authoritiesChanged();
         // Check if role is referenced in any active hierarchy (exact token matching)
         Role role = roleRepository.findById(id)
@@ -227,6 +235,7 @@ public class RoleServiceImpl extends AccountAuthoritiesService implements RoleSe
         policySynchronizationService.cleanupAutoPolicy(role.getRoleName());
         auditRoleChange(AuditEventCategory.ROLE_DELETED, role);
         roleRepository.deleteById(id);
+        lastAdministratorGuard.refuseLosingEveryAdministrator(administrators);
     }
 
     private void auditRoleChange(AuditEventCategory category, Role role) {

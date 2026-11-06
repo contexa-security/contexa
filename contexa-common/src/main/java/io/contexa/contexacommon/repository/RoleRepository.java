@@ -17,7 +17,9 @@ package io.contexa.contexacommon.repository;
 
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.security.authority.RoleAuthority;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -42,6 +44,15 @@ public interface RoleRepository extends JpaRepository<Role, Long> {
     Page<Role> findByRoleNameContainingIgnoreCaseOrRoleDescContainingIgnoreCase(String roleName, String roleDesc, Pageable pageable);
 
     Optional<Role> findByRoleName(String name);
+
+    /**
+     * Every role, each row locked for the rest of the transaction. The console takes it first when it changes who may
+     * administer it, so that two such changes follow one another instead of both reading the other's state as it was.
+     * The rows are taken in the order of their identifiers, so two of them never wait on each other.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from Role r order by r.id")
+    List<Role> findAllForUpdate();
 
     /**
      * The roles that give their holders the authority, by the rule of {@link RoleAuthority#authorityOf}: a role named
