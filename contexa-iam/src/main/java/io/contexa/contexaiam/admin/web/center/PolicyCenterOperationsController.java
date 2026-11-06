@@ -24,6 +24,7 @@ import io.contexa.contexaiam.admin.web.center.dto.PolicySimulationRequest;
 import io.contexa.contexaiam.admin.web.center.service.PolicyCenterAnalysisService;
 import io.contexa.contexaiam.admin.web.center.service.PolicyCenterCommandService;
 import io.contexa.contexaiam.admin.web.center.service.PolicyCenterQueryService;
+import io.contexa.contexaiam.admin.web.common.ConsoleFault;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
@@ -155,7 +156,7 @@ public class PolicyCenterOperationsController {
                     null,
                     null,
                     null,
-                    e.getMessage()));
+                    ConsoleFault.textOf(e)));
         }
     }
 

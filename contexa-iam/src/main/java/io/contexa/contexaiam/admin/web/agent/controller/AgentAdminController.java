@@ -23,6 +23,7 @@ import io.contexa.contexaiam.admin.web.agent.dto.AgentView;
 import io.contexa.contexaiam.admin.web.agent.service.AgentDelegationService;
 import io.contexa.contexaiam.admin.web.agent.service.AgentProvisioning;
 import io.contexa.contexaiam.admin.web.agent.service.AgentLearningAdminService;
+import io.contexa.contexaiam.admin.web.common.ConsoleFault;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -216,7 +217,7 @@ public class AgentAdminController {
         } catch (RuntimeException e) {
             log.error("[AgentAdmin] Agent learning action failed: agentId={}, action={}", agentId, action, e);
             redirectAttributes.addFlashAttribute("errorMessage", messageSource.getMessage(
-                    "admin.agents.learning.failed", new Object[]{e.getMessage()}, LocaleContextHolder.getLocale()));
+                    "admin.agents.learning.failed", new Object[]{ConsoleFault.textOf(e)}, LocaleContextHolder.getLocale()));
         }
         redirectAttributes.addAttribute("agentId", agentId);
         if (tenant != null && !tenant.isBlank()) {
@@ -260,7 +261,7 @@ public class AgentAdminController {
             log.error("[AgentAdmin] Agent registration failed: agentId={}", agentId, e);
             model.addAttribute("provisioningAvailable", provisioning.available());
             model.addAttribute("errorMessage", messageSource.getMessage("admin.agents.register.failed",
-                    new Object[]{e.getMessage()}, LocaleContextHolder.getLocale()));
+                    new Object[]{ConsoleFault.textOf(e)}, LocaleContextHolder.getLocale()));
             return "contexa/admin/agent-register";
         }
     }
@@ -337,7 +338,7 @@ public class AgentAdminController {
                                 RedirectAttributes redirectAttributes) {
         log.error("[AgentAdmin] Agent management failed: agentId={}", agentId, e);
         redirectAttributes.addFlashAttribute("errorMessage", messageSource.getMessage("admin.agents.manage.failed",
-                new Object[]{e.getMessage()}, LocaleContextHolder.getLocale()));
+                new Object[]{ConsoleFault.textOf(e)}, LocaleContextHolder.getLocale()));
         return toDetail(agentId, tenant, redirectAttributes);
     }
 
@@ -383,7 +384,7 @@ public class AgentAdminController {
             log.error("[AgentAdmin] Delegation revocation failed: agentId={}, delegationId={}", agentId,
                     delegationId, e);
             redirectAttributes.addFlashAttribute("errorMessage", messageSource.getMessage(
-                    "admin.agents.delegations.failed", new Object[]{e.getMessage()},
+                    "admin.agents.delegations.failed", new Object[]{ConsoleFault.textOf(e)},
                     LocaleContextHolder.getLocale()));
         }
         redirectAttributes.addAttribute("agentId", agentId);

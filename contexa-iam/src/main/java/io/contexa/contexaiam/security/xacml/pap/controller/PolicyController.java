@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.security.xacml.pap.controller;
 
+import io.contexa.contexaiam.admin.web.common.ConsoleFault;
 import io.contexa.contexaiam.domain.dto.ConditionDto;
 import io.contexa.contexaiam.domain.dto.PolicyDto;
 import io.contexa.contexaiam.domain.dto.RuleDto;
@@ -87,7 +88,7 @@ public class PolicyController {
             ra.addFlashAttribute("errorMessage", msg("msg.policy.name.duplicate"));
         } catch (Exception e) {
             log.error("Failed to create policy", e);
-            ra.addFlashAttribute("errorMessage", msg("msg.policy.create.error", e.getMessage()));
+            ra.addFlashAttribute("errorMessage", msg("msg.policy.create.error", ConsoleFault.textOf(e)));
         }
         return "redirect:/contexa/admin/policy-center?tab=list";
     }
@@ -116,7 +117,7 @@ public class PolicyController {
             ra.addFlashAttribute("errorMessage", msg("msg.policy.name.duplicate"));
         } catch (Exception e) {
             log.error("Failed to update policy", e);
-            ra.addFlashAttribute("errorMessage", msg("msg.policy.create.error", e.getMessage()));
+            ra.addFlashAttribute("errorMessage", msg("msg.policy.create.error", ConsoleFault.textOf(e)));
         }
         return "redirect:/contexa/admin/policy-center?tab=list";
     }
@@ -175,7 +176,7 @@ public class PolicyController {
             policyService.deletePolicy(id, changeReason);
             ra.addFlashAttribute("message", msg("msg.policy.deleted"));
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", msg("msg.policy.delete.error", e.getMessage()));
+            ra.addFlashAttribute("errorMessage", msg("msg.policy.delete.error", ConsoleFault.textOf(e)));
             log.error("Error deleting policy", e);
         }
         return "redirect:/contexa/admin/policy-center?tab=list";
@@ -189,7 +190,7 @@ public class PolicyController {
             policyService.approvePolicy(id, approver);
             ra.addFlashAttribute("message", msg("msg.policy.approved", id));
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", e.getMessage());
+            ra.addFlashAttribute("errorMessage", ConsoleFault.textOf(e));
             log.error("Error approving policy", e);
         }
         return "redirect:/contexa/admin/policy-center?tab=list";
@@ -203,7 +204,7 @@ public class PolicyController {
             policyService.rejectPolicy(id, rejector);
             ra.addFlashAttribute("message", msg("msg.policy.rejected", id));
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", e.getMessage());
+            ra.addFlashAttribute("errorMessage", ConsoleFault.textOf(e));
             log.error("Error rejecting policy", e);
         }
         return "redirect:/contexa/admin/policy-center?tab=list";

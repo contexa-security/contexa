@@ -66,6 +66,19 @@ The format is based on Keep a Changelog and the project follows semantic version
   record that is not there or is in force, an administrator who may not do it, a form left incomplete). **Check:** a
   client that read the cause from the `error` of one of these 500 answers must read the server log instead.
 
+- **The console no longer shows an administrator the text of a fault of the server.** When a save, a delete or a refresh
+  failed inside, many pages and answers of the console carried the exception's own text, which can name a statement,
+  a constraint or a class: a role that an account still holds was refused with the foreign key of the database, for
+  example. This held for the users, groups, roles, permissions and role hierarchies, the policies and the policy center,
+  the resources, the access center, the block list, the IP rules, the sessions, the agents, the password policy and the
+  system settings. What the console refuses on purpose (a name taken, a record that is not there, a state that does not
+  allow it, the last administrator, the policies a new one conflicts with, an agent that is not known) is told in its own
+  words as before. Any other exception is told as "The action could not be completed. See the server log." and kept
+  with its stack in the log. The status of each answer and the attribute or field that carries the text are as they
+  were. **Check:** a script or a person that read the cause from one of these pages or answers reads the server log
+  instead; where a page puts the text after a sentence of its own ("Failed to delete: ..."), the sentence stays and the
+  general sentence follows it.
+
 - **A session an older node tracked after the references were introduced is turned into its reference when the
   console reads the sessions.** The tracked sessions that a database kept under the value their cookie carries were
   moved to their references once, when the application started. In a rolling upgrade a node not yet upgraded goes on

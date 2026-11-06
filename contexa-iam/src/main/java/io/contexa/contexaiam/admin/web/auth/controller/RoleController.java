@@ -19,6 +19,7 @@ import io.contexa.contexaiam.admin.web.auth.dto.AffectedPolicyDtos.AffectedPolic
 import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorException;
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
+import io.contexa.contexaiam.admin.web.common.ConsoleFault;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
 import io.contexa.contexaiam.domain.dto.RoleDto;
 import io.contexa.contexacommon.entity.Role;
@@ -149,7 +150,7 @@ public class RoleController {
 		} catch (LastAdministratorException e) {
 			throw e;
 		} catch (Exception e) {
-			ra.addFlashAttribute("errorMessage", e.getMessage());
+			ra.addFlashAttribute("errorMessage", ConsoleFault.textOf(e, log, "delete role " + id));
 		}
 		return "redirect:/contexa/admin/roles";
 	}

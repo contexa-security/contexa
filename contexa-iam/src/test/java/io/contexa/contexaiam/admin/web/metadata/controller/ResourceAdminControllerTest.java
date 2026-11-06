@@ -165,7 +165,7 @@ class ResourceAdminControllerTest {
                             .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                             .param("friendlyName", "Orders Read"))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.message").value("definition failed"));
+                    .andExpect(jsonPath("$.message").value("The action could not be completed. See the server log."));
         }
 
         @Test
@@ -323,7 +323,7 @@ class ResourceAdminControllerTest {
 
             mockMvc.perform(post("/contexa/admin/workbench/resources/1/restore"))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.message").value("restore failed"));
+                    .andExpect(jsonPath("$.message").value("The action could not be completed. See the server log."));
         }
 
         @Test
@@ -334,7 +334,7 @@ class ResourceAdminControllerTest {
 
             mockMvc.perform(post("/contexa/admin/workbench/resources/1/exclude"))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.message").value("exclude failed"));
+                    .andExpect(jsonPath("$.message").value("The action could not be completed. See the server log."));
         }
     }
 }
