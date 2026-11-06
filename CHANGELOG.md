@@ -58,6 +58,14 @@ The format is based on Keep a Changelog and the project follows semantic version
   (`MFA_PROCESSING_ERROR`, `UNKNOWN_STATE`, `UNSUPPORTED_REQUEST`) and the fields of the answers are as they were.
   **Check:** a client that matched on the text of the `message` of these answers must match on the `error` code.
 
+- **The console's API no longer answers a fault of the server with the exception's text.** Resolving or deleting a
+  block record, an agent learning action and the three generations of condition templates answered 500 with the
+  exception's message (in the `error` field), which can name a connection, a statement or a class. They now answer that
+  the action could not be completed and to see the server log, where the exception is kept as before. The status codes
+  and the fields of the answers are as they were, and so are the answers to what the application refuses on purpose (a
+  record that is not there or is in force, an administrator who may not do it, a form left incomplete). **Check:** a
+  client that read the cause from the `error` of one of these 500 answers must read the server log instead.
+
 - **A session an older node tracked after the references were introduced is turned into its reference when the
   console reads the sessions.** The tracked sessions that a database kept under the value their cookie carries were
   moved to their references once, when the application started. In a rolling upgrade a node not yet upgraded goes on

@@ -197,13 +197,13 @@ class BlacklistApiControllerTest {
                 .andExpect(jsonPath("$.id").value(7))
                 .andExpect(jsonPath("$.error").doesNotExist());
 
-        doThrow(new RuntimeException("Cannot delete active block"))
+        doThrow(new RuntimeException("could not execute statement [ERROR: deadlock detected]"))
                 .when(blockedUserService).deleteBlockRecord(8L, "admin");
 
         mockMvc.perform(delete("/contexa/admin/api/blacklist/8"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.error").value("Cannot delete active block"))
+                .andExpect(jsonPath("$.error").value("The action could not be completed. See the server log."))
                 .andExpect(jsonPath("$.id").doesNotExist());
     }
 
