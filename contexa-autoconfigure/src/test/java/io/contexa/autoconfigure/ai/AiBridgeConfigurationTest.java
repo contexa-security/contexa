@@ -105,6 +105,23 @@ class AiBridgeConfigurationTest {
                 });
     }
 
+    /** The session's authorization is read from the attribute the application names; reading every one is said at start. */
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void theSessionsAuthorizationIsReadFromTheNamedAttributeOnly(CapturedOutput output) {
+        contextRunner.run(context -> {
+            BridgeProperties.Authorization.Session session = context.getBean(BridgeProperties.class).getAuthorization().getSession();
+            assertThat(session.isAutoDiscover()).isFalse();
+            assertThat(session.getAttributeCandidates()).isEmpty();
+            assertThat(output).doesNotContain("contexa.bridge.authorization.session.auto-discover=true");
+        });
+        contextRunner.withPropertyValues("contexa.bridge.authorization.session.auto-discover=true")
+                .run(context -> {
+                    assertThat(context.getBean(BridgeProperties.class).getAuthorization().getSession().isAutoDiscover()).isTrue();
+                    assertThat(output).contains("contexa.bridge.authorization.session.auto-discover=true");
+                });
+    }
+
     @Test
     void shouldRegisterBridgeFilterButKeepDisabledPropertyWhenDisabledPropertyIsSet() {
         contextRunner.withPropertyValues("contexa.bridge.enabled=false")

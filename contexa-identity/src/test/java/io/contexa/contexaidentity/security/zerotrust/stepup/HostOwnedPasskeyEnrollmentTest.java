@@ -19,23 +19,30 @@ import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.BridgeProperties;
+import io.contexa.contexacommon.security.bridge.resolver.SecurityContextAuthenticationStampResolver;
+import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
 import io.contexa.contexaidentity.security.webauthn.codec.PasskeyCreationOptionsCodec;
 import io.contexa.contexaidentity.security.zerotrust.ChallengeResolution;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.authentication.ott.DefaultOneTimeToken;
 import org.springframework.security.authentication.ott.OneTimeTokenService;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.webauthn.management.PublicKeyCredentialUserEntityRepository;
 import org.springframework.security.web.webauthn.management.UserCredentialRepository;
 import org.springframework.security.web.webauthn.management.WebAuthnRelyingPartyOperations;
 
+import java.security.Principal;
 import java.time.Instant;
 import java.util.List;
 
@@ -49,8 +56,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Q-13 (PR-60): a passkey is what answers a CHALLENGE, so whoever holds only the password must not be able to register
- * one. A first passkey needs the user's mail code or the application's own fresh re-authentication.
+ * A passkey is what answers a CHALLENGE, so whoever holds only the password must not be able to register one. A first
+ * passkey needs the user's mail code, or the application's own fresh re-authentication where the application named
+ * where it re-authenticates: elsewhere the MFA the bridge reads is a value of the principal Contexa cannot vouch for,
+ * which a password sign-in alone renews.
  */
 class HostOwnedPasskeyEnrollmentTest {
 
@@ -67,10 +76,35 @@ class HostOwnedPasskeyEnrollmentTest {
     private final Authentication alice = new TestingAuthenticationToken("alice", null, "ROLE_USER");
     private HostOwnedStepUpService service;
 
+    /** A principal whose mfa flag says MFA is switched on, and whose loginTime moves with each password sign-in. */
+    public static class AppUser implements Principal {
+        private final Instant loginTime;
+
+        AppUser(Instant loginTime) {
+            this.loginTime = loginTime;
+        }
+
+        @Override
+        public String getName() {
+            return "alice";
+        }
+
+        public String getUsername() {
+            return "alice";
+        }
+
+        public boolean isMfa() {
+            return true;
+        }
+
+        public Instant getLoginTime() {
+            return loginTime;
+        }
+    }
+
     @BeforeEach
     void setUp() {
-        service = new HostOwnedStepUpService(actions, resolution, users, "shadow.contexa.local",
-                new InMemoryStepUpOptionsStore(), oneTimeTokens, email, relyingParty, entities, credentials, codec, null, 5);
+        service = stepUp(null);
         request.setRemoteAddr("198.51.100.1");
         when(email.isMailSenderConfigured()).thenReturn(true);
         Users user = mock(Users.class);
@@ -79,6 +113,32 @@ class HostOwnedPasskeyEnrollmentTest {
         when(user.getEmail()).thenReturn("alice@corp.example");
         when(users.findByExternalSubjectIdAndBridgeManagedTrue("alice")).thenReturn(List.of(user));
         when(oneTimeTokens.consume(any())).thenReturn(new DefaultOneTimeToken("654321", "step-up:42", Instant.now()));
+    }
+
+    @AfterEach
+    void clear() {
+        SecurityContextHolder.clearContext();
+    }
+
+    private HostOwnedStepUpService stepUp(String reauthenticationUrl) {
+        return new HostOwnedStepUpService(actions, resolution, users, "shadow.contexa.local",
+                new InMemoryStepUpOptionsStore(), oneTimeTokens, email, relyingParty, entities, credentials, codec,
+                reauthenticationUrl, 5);
+    }
+
+    /** What the bridge reads of the principal the application signed in with a password just now. */
+    private Authentication signedInWithAPassword() {
+        Authentication authentication = new UsernamePasswordAuthenticationToken(new AppUser(Instant.now()), null,
+                List.of());
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        AuthenticationStamp stamp = new SecurityContextAuthenticationStampResolver().resolve(request,
+                new RequestContextSnapshot("/profile", "GET", "198.51.100.1", "ua", "s-1", "r-1", "/profile", null,
+                        false, Instant.now()), new BridgeProperties()).orElseThrow();
+        assertThat(stamp.principalId()).isEqualTo("alice");
+        assertThat(stamp.mfaCompleted()).isTrue();
+        assertThat(stamp.authenticationTime()).isNotNull();
+        request.setAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP, stamp);
+        return authentication;
     }
 
     private void decided(ZeroTrustAction action) {
@@ -171,8 +231,10 @@ class HostOwnedPasskeyEnrollmentTest {
     }
 
     @Test
-    @DisplayName("the application's own MFA sign-in moments ago is proof; an old one and a sign-in of one factor are not")
+    @DisplayName("where the application named its re-authentication, its MFA sign-in moments ago is proof; an old one "
+            + "and a sign-in of one factor are not")
     void theApplicationsReauthentication() {
+        service = stepUp("/login?prompt=login");
         decided(ZeroTrustAction.ALLOW);
 
         request.setAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP, signIn(true, Instant.now().minusSeconds(30)));
@@ -183,5 +245,44 @@ class HostOwnedPasskeyEnrollmentTest {
 
         request.setAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP, signIn(false, Instant.now().minusSeconds(30)));
         assertThat(service.situation(request, alice).passkeyRegistrable()).isFalse();
+    }
+
+    @Test
+    @DisplayName("where the application named no re-authentication, an MFA sign-in it reports opens no registration")
+    void noReauthenticationUrl() {
+        decided(ZeroTrustAction.ALLOW);
+        request.setAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP, signIn(true, Instant.now().minusSeconds(30)));
+
+        assertThat(service.situation(request, alice).passkeyEnrollable()).isTrue();
+        assertThat(service.situation(request, alice).passkeyRegistrable()).isFalse();
+        assertThat(service.situation(request, alice).reauthenticationUrl()).isNull();
+        assertThat(service.registrationOptions(request, alice)).isNull();
+        verify(relyingParty, never()).createPublicKeyCredentialCreationOptions(any());
+    }
+
+    @Test
+    @DisplayName("a principal that always says mfa: a password sign-in alone registers no passkey")
+    void aPrincipalThatAlwaysSaysMfa() {
+        decided(ZeroTrustAction.ALLOW);
+        Authentication password = signedInWithAPassword();
+
+        assertThat(service.situation(request, password).passkeyRegistrable()).isFalse();
+        assertThat(service.registrationOptions(request, password)).isNull();
+        verify(relyingParty, never()).createPublicKeyCredentialCreationOptions(any());
+    }
+
+    @Test
+    @DisplayName("where the application named no re-authentication, the mail code still opens the registration after "
+            + "such a sign-in")
+    void theMailCodeStillOpensItWithoutTheUrl() {
+        decided(ZeroTrustAction.ALLOW);
+        Authentication password = signedInWithAPassword();
+        when(oneTimeTokens.generate(any())).thenReturn(new DefaultOneTimeToken("654321", "step-up:42", Instant.now()));
+
+        assertThat(service.situation(request, password).oneTimeCode()).isTrue();
+        assertThat(service.sendCode(request, password)).isEqualTo(HostOwnedStepUpService.CodeSending.SENT);
+        assertThat(service.verifyCode(request, password, "654321")).isTrue();
+
+        assertThat(service.situation(request, password).passkeyRegistrable()).isTrue();
     }
 }

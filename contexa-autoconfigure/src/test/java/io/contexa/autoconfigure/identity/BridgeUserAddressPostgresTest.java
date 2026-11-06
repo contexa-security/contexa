@@ -116,9 +116,14 @@ class BridgeUserAddressPostgresTest {
                 + "on u.id = p.user_id where u.external_subject_id = 'alice'", String.class);
     }
 
-    private boolean confirmed() {
+    private boolean confirmed(String address) {
         Long id = copyId();
-        return Boolean.TRUE.equals(transactions.execute(status -> sync.confirmPendingEmail(id)));
+        return Boolean.TRUE.equals(transactions.execute(status -> sync.confirmPendingEmail(id, address)));
+    }
+
+    private String told() {
+        Long id = copyId();
+        return transactions.execute(status -> sync.pendingEmail(id));
     }
 
     private int pendingColumns() {
@@ -140,11 +145,14 @@ class BridgeUserAddressPostgresTest {
         assertThat(waiting()).isEqualTo("thief@evil.example");
 
         shows("alice@home.example");
-        assertThat(confirmed()).isTrue();
+        assertThat(told()).isEqualTo("alice@home.example");
+        assertThat(confirmed("thief@evil.example")).isFalse();
+        assertThat(confirmed("alice@home.example")).isTrue();
 
         assertThat(address()).isEqualTo("alice@home.example");
         assertThat(waiting()).isNull();
-        assertThat(confirmed()).isFalse();
+        assertThat(told()).isNull();
+        assertThat(confirmed("alice@home.example")).isFalse();
     }
 
     @Test
@@ -172,7 +180,7 @@ class BridgeUserAddressPostgresTest {
         shows("alice@home.example");
         assertThat(address()).isEqualTo("alice@corp.example");
         assertThat(waiting()).isEqualTo("alice@home.example");
-        assertThat(confirmed()).isTrue();
+        assertThat(confirmed("alice@home.example")).isTrue();
         assertThat(address()).isEqualTo("alice@home.example");
     }
 }

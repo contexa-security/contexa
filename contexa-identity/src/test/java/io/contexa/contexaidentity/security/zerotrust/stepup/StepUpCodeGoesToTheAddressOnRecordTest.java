@@ -26,15 +26,16 @@ import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.sync.DefaultBridgeUserMirrorSyncService;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
 import io.contexa.contexaidentity.security.zerotrust.ChallengeResolution;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.authentication.ott.DefaultOneTimeToken;
+import org.springframework.security.authentication.ott.GenerateOneTimeTokenRequest;
 import org.springframework.security.authentication.ott.OneTimeTokenAuthenticationToken;
 import org.springframework.security.authentication.ott.OneTimeTokenService;
 import org.springframework.security.core.Authentication;
@@ -48,25 +49,33 @@ import org.springframework.security.web.webauthn.management.UserCredentialReposi
 import org.springframework.security.web.webauthn.management.WebAuthnRelyingPartyOperations;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
  * Whoever holds a session can change the address the application's profile shows. The step-up's code goes to the
- * address on record, and the copy moves to the new one only once the user proved the address on record with its code,
- * or with a passkey.
+ * address on record, and the copy moves to the new one only once the user proved both: the address on record, with its
+ * code or a passkey, and then the new address, with a code mailed there. The first proof answers the CHALLENGE and
+ * leaves the new address waiting; a thief who left an address waiting gets it confirmed by no proof of the owner.
  */
 class StepUpCodeGoesToTheAddressOnRecordTest {
+
+    /** A mail the step-up sent, and the code in it. */
+    private record Mail(String to, String subject, String code) {
+    }
 
     private final UserRepository users = mock(UserRepository.class);
     private final BridgeUserProfileRepository profiles = mock(BridgeUserProfileRepository.class);
@@ -86,9 +95,14 @@ class StepUpCodeGoesToTheAddressOnRecordTest {
             null, null, 5);
     private final MockHttpServletRequest request = new MockHttpServletRequest("POST", "/contexa/step-up/code");
     private final Authentication alice = new TestingAuthenticationToken("alice", null, "ROLE_USER");
+    /** The codes of the token service, as its table keeps them: a code is good once. */
+    private final Map<String, String> issued = new ConcurrentHashMap<>();
+    private final AtomicInteger serial = new AtomicInteger(100000);
+    private final List<Mail> mails = new ArrayList<>();
 
     @BeforeEach
     void wire() {
+        request.setRemoteAddr("198.51.100.9");
         when(users.findByBridgeSubjectKey(anyString())).thenAnswer(call -> Optional.ofNullable(copy.get()));
         when(users.findByExternalSubjectIdAndAuthenticationSourceAndOrganizationIdIsNull(anyString(), anyString()))
                 .thenAnswer(call -> Optional.ofNullable(copy.get()));
@@ -109,11 +123,22 @@ class StepUpCodeGoesToTheAddressOnRecordTest {
             return call.getArgument(0);
         });
         when(mail.isMailSenderConfigured()).thenReturn(true);
-        when(codes.generate(any())).thenReturn(new DefaultOneTimeToken("123456", "step-up:100",
-                Instant.now().plusSeconds(300)));
-        when(codes.consume(any())).thenAnswer(call -> "123456".equals(
-                call.getArgument(0, OneTimeTokenAuthenticationToken.class).getTokenValue())
-                ? new DefaultOneTimeToken("123456", "step-up:100", Instant.now().plusSeconds(300)) : null);
+        doAnswer(call -> {
+            String body = call.getArgument(2, String.class);
+            String code = issued.keySet().stream().filter(body::contains).findFirst().orElse(null);
+            mails.add(new Mail(call.getArgument(0), call.getArgument(1), code));
+            return null;
+        }).when(mail).sendHtmlMessage(anyString(), anyString(), anyString());
+        when(codes.generate(any())).thenAnswer(call -> {
+            String value = String.valueOf(serial.incrementAndGet());
+            issued.put(value, call.getArgument(0, GenerateOneTimeTokenRequest.class).getUsername());
+            return new DefaultOneTimeToken(value, issued.get(value), Instant.now().plusSeconds(300));
+        });
+        when(codes.consume(any())).thenAnswer(call -> {
+            String value = call.getArgument(0, OneTimeTokenAuthenticationToken.class).getTokenValue();
+            String owner = issued.remove(value);
+            return owner != null ? new DefaultOneTimeToken(value, owner, Instant.now().plusSeconds(300)) : null;
+        });
         service.setUserMirror(sync);
     }
 
@@ -124,10 +149,44 @@ class StepUpCodeGoesToTheAddressOnRecordTest {
                         false, Instant.now()));
     }
 
-    private String mailedTo() {
-        ArgumentCaptor<String> to = ArgumentCaptor.forClass(String.class);
-        verify(mail).sendHtmlMessage(to.capture(), anyString(), anyString());
-        return to.getValue();
+    private List<Mail> mailsTo(String address) {
+        return mails.stream().filter(m -> m.to().equals(address)).toList();
+    }
+
+    private String lastCodeTo(String address) {
+        List<Mail> to = mailsTo(address);
+        assertThat(to).isNotEmpty();
+        return to.get(to.size() - 1).code();
+    }
+
+    private ZeroTrustAction decision() {
+        return actions.getCurrentAction("alice", SessionFingerprintUtil.generateContextBindingHash(request));
+    }
+
+    /** The owner answers the CHALLENGE with the code mailed to the address on record. */
+    private void provesTheAddressOnRecord(String onRecord) {
+        actions.saveAction("alice", ZeroTrustAction.CHALLENGE, Map.of());
+        assertThat(service.sendCode(request, alice)).isEqualTo(HostOwnedStepUpService.CodeSending.SENT);
+        assertThat(service.verifyCode(request, alice, lastCodeTo(onRecord))).isTrue();
+        assertThat(decision()).isNotEqualTo(ZeroTrustAction.CHALLENGE);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void provesTheAddressOnRecordWithAPasskey() {
+        actions.saveAction("alice", ZeroTrustAction.CHALLENGE, Map.of());
+        String owner = copy.get().getUsername();
+        PublicKeyCredentialUserEntity entity = mock(PublicKeyCredentialUserEntity.class);
+        when(entity.getId()).thenReturn(Bytes.random());
+        when(entity.getName()).thenReturn(owner);
+        when(entities.findByUsername(owner)).thenReturn(entity);
+        when(credentials.findByUserId(any())).thenReturn(List.of(mock(CredentialRecord.class)));
+        when(relyingParty.createCredentialRequestOptions(any())).thenReturn(
+                mock(PublicKeyCredentialRequestOptions.class));
+        when(relyingParty.authenticate(any())).thenReturn(entity);
+
+        assertThat(service.passkeyOptions(request, alice)).isNotNull();
+        assertThat(service.verifyPasskey(request, alice, mock(PublicKeyCredential.class))).isTrue();
+        assertThat(decision()).isNotEqualTo(ZeroTrustAction.CHALLENGE);
     }
 
     @Test
@@ -138,7 +197,7 @@ class StepUpCodeGoesToTheAddressOnRecordTest {
 
         assertThat(service.sendCode(request, alice)).isEqualTo(HostOwnedStepUpService.CodeSending.SENT);
 
-        assertThat(mailedTo()).isEqualTo("alice@corp.example");
+        assertThat(mails).extracting(Mail::to).containsExactly("alice@corp.example");
     }
 
     @Test
@@ -150,23 +209,127 @@ class StepUpCodeGoesToTheAddressOnRecordTest {
 
         assertThat(service.sendCode(request, alice)).isEqualTo(HostOwnedStepUpService.CodeSending.SENT);
 
-        assertThat(mailedTo()).isEqualTo("alice@corp.example");
+        assertThat(mails).extracting(Mail::to).containsExactly("alice@corp.example");
         assertThat(copy.get().getEmail()).isEqualTo("alice@corp.example");
     }
 
     @Test
-    @DisplayName("the code of the address on record moves the copy to the address the application shows")
-    void theCodeOfTheAddressOnRecordMovesTheAddress() {
+    @DisplayName("a thief's address left waiting: the owner's code answers the CHALLENGE and the address stays waiting")
+    void theOwnersCodeLeavesAThiefsAddressWaiting() {
+        shows("alice@corp.example");
+        shows("thief@evil.example");
+
+        provesTheAddressOnRecord("alice@corp.example");
+
+        assertThat(copy.get().getEmail()).isEqualTo("alice@corp.example");
+        assertThat(profile.get().getPendingEmail()).isEqualTo("thief@evil.example");
+    }
+
+    @Test
+    @DisplayName("a thief's address left waiting: the owner's passkey answers the CHALLENGE and the address stays waiting")
+    void theOwnersPasskeyLeavesAThiefsAddressWaiting() {
+        shows("alice@corp.example");
+        shows("thief@evil.example");
+
+        provesTheAddressOnRecordWithAPasskey();
+
+        assertThat(copy.get().getEmail()).isEqualTo("alice@corp.example");
+        assertThat(profile.get().getPendingEmail()).isEqualTo("thief@evil.example");
+    }
+
+    @Test
+    @DisplayName("the code mailed to the thief's address confirms nothing from the thief's own session")
+    void theThiefsCodeFromTheThiefsSession() {
+        shows("alice@corp.example");
+        shows("thief@evil.example");
+        provesTheAddressOnRecord("alice@corp.example");
+        String thiefs = lastCodeTo("thief@evil.example");
+        MockHttpServletRequest thief = new MockHttpServletRequest("POST", "/contexa/step-up/address/verify");
+        thief.setRemoteAddr("203.0.113.66");
+
+        assertThat(service.situation(thief, alice).addressConfirmable()).isFalse();
+        assertThat(service.verifyAddressCode(thief, alice, thiefs)).isFalse();
+
+        assertThat(copy.get().getEmail()).isEqualTo("alice@corp.example");
+        assertThat(profile.get().getPendingEmail()).isEqualTo("thief@evil.example");
+    }
+
+    @Test
+    @DisplayName("after the code of the address on record a code goes to the address waiting, and that code moves the copy")
+    void theCodeOfTheNewAddressMovesTheAddress() {
         shows("alice@corp.example");
         shows("alice@home.example");
-        actions.saveAction("alice", ZeroTrustAction.CHALLENGE, Map.of());
-        service.sendCode(request, alice);
-        assertThat(mailedTo()).isEqualTo("alice@corp.example");
 
-        assertThat(service.verifyCode(request, alice, "123456")).isTrue();
+        provesTheAddressOnRecord("alice@corp.example");
+
+        assertThat(mailsTo("alice@home.example")).hasSize(1);
+        assertThat(copy.get().getEmail()).isEqualTo("alice@corp.example");
+        assertThat(service.situation(request, alice).addressConfirmable()).isTrue();
+
+        assertThat(service.verifyAddressCode(request, alice, lastCodeTo("alice@home.example"))).isTrue();
 
         assertThat(copy.get().getEmail()).isEqualTo("alice@home.example");
         assertThat(profile.get().getPendingEmail()).isNull();
+        assertThat(service.situation(request, alice).addressConfirmable()).isFalse();
+    }
+
+    @Test
+    @DisplayName("after the user's passkey a code goes to the address waiting, and that code moves the copy")
+    void thePasskeyThenTheCodeOfTheNewAddress() {
+        shows("alice@corp.example");
+        shows("alice@home.example");
+
+        provesTheAddressOnRecordWithAPasskey();
+
+        assertThat(copy.get().getEmail()).isEqualTo("alice@corp.example");
+        assertThat(service.verifyAddressCode(request, alice, lastCodeTo("alice@home.example"))).isTrue();
+        assertThat(copy.get().getEmail()).isEqualTo("alice@home.example");
+        assertThat(profile.get().getPendingEmail()).isNull();
+    }
+
+    @Test
+    @DisplayName("the code of the new address answers no CHALLENGE")
+    void theCodeOfTheNewAddressAnswersNoChallenge() {
+        shows("alice@corp.example");
+        shows("thief@evil.example");
+        provesTheAddressOnRecord("alice@corp.example");
+        String toTheNewAddress = lastCodeTo("thief@evil.example");
+        actions.saveAction("alice", ZeroTrustAction.CHALLENGE, Map.of());
+
+        assertThat(service.verifyCode(request, alice, toTheNewAddress)).isFalse();
+
+        assertThat(decision()).isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThat(copy.get().getEmail()).isEqualTo("alice@corp.example");
+    }
+
+    @Test
+    @DisplayName("a code of the address on record confirms no new address")
+    void aCodeOfTheAddressOnRecordConfirmsNoAddress() {
+        shows("alice@corp.example");
+        shows("alice@home.example");
+        provesTheAddressOnRecord("alice@corp.example");
+        actions.saveAction("alice", ZeroTrustAction.CHALLENGE, Map.of());
+        service.sendCode(request, alice);
+
+        assertThat(service.verifyAddressCode(request, alice, lastCodeTo("alice@corp.example"))).isFalse();
+
+        assertThat(copy.get().getEmail()).isEqualTo("alice@corp.example");
+        assertThat(profile.get().getPendingEmail()).isEqualTo("alice@home.example");
+    }
+
+    @Test
+    @DisplayName("a code mailed to an address that waits no longer confirms the address waiting now")
+    void anAddressReplacedAfterTheCode() {
+        shows("alice@corp.example");
+        shows("alice@home.example");
+        provesTheAddressOnRecord("alice@corp.example");
+        String toHome = lastCodeTo("alice@home.example");
+
+        shows("thief@evil.example");
+
+        assertThat(service.verifyAddressCode(request, alice, toHome)).isFalse();
+        assertThat(copy.get().getEmail()).isEqualTo("alice@corp.example");
+        assertThat(profile.get().getPendingEmail()).isEqualTo("thief@evil.example");
     }
 
     @Test
@@ -178,34 +341,35 @@ class StepUpCodeGoesToTheAddressOnRecordTest {
         service.sendCode(request, alice);
 
         assertThat(service.verifyCode(request, alice, "000000")).isFalse();
+        assertThat(service.verifyAddressCode(request, alice, "000000")).isFalse();
 
         assertThat(copy.get().getEmail()).isEqualTo("alice@corp.example");
         assertThat(profile.get().getPendingEmail()).isEqualTo("thief@evil.example");
+        assertThat(mailsTo("thief@evil.example")).isEmpty();
     }
 
     @Test
-    @DisplayName("the user's passkey moves the copy to the address the application shows")
-    @SuppressWarnings("unchecked")
-    void thePasskeyMovesTheAddress() {
+    @DisplayName("the new address gets one code a while, however often it is asked again")
+    void theNewAddressIsNotFlooded() {
         shows("alice@corp.example");
         shows("alice@home.example");
-        actions.saveAction("alice", ZeroTrustAction.CHALLENGE, Map.of());
-        String owner = copy.get().getUsername();
-        PublicKeyCredentialUserEntity entity = mock(PublicKeyCredentialUserEntity.class);
-        when(entity.getId()).thenReturn(Bytes.random());
-        when(entity.getName()).thenReturn(owner);
-        when(entities.findByUsername(owner)).thenReturn(entity);
-        when(credentials.findByUserId(any())).thenReturn(List.of(mock(CredentialRecord.class)));
-        when(relyingParty.createCredentialRequestOptions(any())).thenReturn(
-                mock(PublicKeyCredentialRequestOptions.class));
-        when(relyingParty.authenticate(any())).thenReturn(entity);
-        assertThat(copy.get().getEmail()).isEqualTo("alice@corp.example");
+        provesTheAddressOnRecord("alice@corp.example");
 
-        assertThat(service.passkeyOptions(request, alice)).isNotNull();
-        assertThat(service.verifyPasskey(request, alice, mock(PublicKeyCredential.class))).isTrue();
+        assertThat(service.sendAddressCode(request, alice)).isEqualTo(HostOwnedStepUpService.CodeSending.TOO_SOON);
 
-        assertThat(copy.get().getEmail()).isEqualTo("alice@home.example");
-        assertThat(profile.get().getPendingEmail()).isNull();
+        assertThat(mailsTo("alice@home.example")).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("nothing waiting: the proof mails nothing more")
+    void nothingWaiting() {
+        shows("alice@corp.example");
+
+        provesTheAddressOnRecord("alice@corp.example");
+
+        assertThat(mails).extracting(Mail::to).containsExactly("alice@corp.example");
+        assertThat(service.situation(request, alice).addressConfirmable()).isFalse();
+        assertThat(service.sendAddressCode(request, alice)).isEqualTo(HostOwnedStepUpService.CodeSending.UNAVAILABLE);
     }
 
     @Test
@@ -214,11 +378,10 @@ class StepUpCodeGoesToTheAddressOnRecordTest {
         service.setUserMirror(null);
         shows("alice@corp.example");
         shows("alice@home.example");
-        actions.saveAction("alice", ZeroTrustAction.CHALLENGE, Map.of());
-        service.sendCode(request, alice);
 
-        assertThat(service.verifyCode(request, alice, "123456")).isTrue();
+        provesTheAddressOnRecord("alice@corp.example");
 
         assertThat(copy.get().getEmail()).isEqualTo("alice@corp.example");
+        assertThat(mailsTo("alice@home.example")).isEmpty();
     }
 }

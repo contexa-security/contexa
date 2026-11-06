@@ -34,6 +34,26 @@ The format is based on Keep a Changelog and the project follows semantic version
   default. **Check:** an application that keeps its agents' delegation in the session names that attribute in
   `contexa.bridge.delegation.session.attribute`. Setting `auto-discover` to `true` reads every attribute again, and the
   start says so at INFO.
+- **A value an application keeps in the session no longer adds to what the decisions read of a user's authorization.**
+  The session channel of the authorization read every session attribute and took the one that looked most like an
+  authorization: a map of request values with `roles=ROLE_ADMIN`, `privileged=true` or `effect=ALLOW` added that role,
+  privilege or verdict to the authorization evidence of the request, which the decisions read. The channel now reads
+  `contexa.bridge.authorization.session.attribute` and the names in
+  `contexa.bridge.authorization.session.attribute-candidates`, which is empty by default, and `auto-discover` is off by
+  default, as for the delegation. **Check:** an application that keeps the user's roles or its authorization verdicts in
+  the session, under a name of its own or one of the former candidate names (`currentUser`, `authenticatedUser`,
+  `sessionUser`, `userSession`, `principal`, `user`, `securityUser`, `authenticatedPrincipal`), names that attribute in
+  `contexa.bridge.authorization.session.attribute`. Setting `auto-discover` to `true` reads every attribute again, and the
+  start says so at INFO.
+- **A first passkey is no longer registered on the strength of an MFA the application's principal only states.** Before
+  a first passkey the step-up confirms the user, with a code mailed to the address on record or the application's own MFA
+  sign-in moments before. That sign-in was read from the principal by the name of a value (`mfa`, `mfaVerified`, ...) and
+  the time of the sign-in, so where a principal always carries `mfa=true` a password alone registered a passkey, which
+  then answered CHALLENGEs. The application's sign-in now confirms the user for a passkey only when
+  `contexa.bridge.step-up.reauthentication-url` is set, as for a CHALLENGE; elsewhere the mailed code does. **Check:** an
+  application whose users registered their first passkey right after its own MFA sign-in sets
+  `contexa.bridge.step-up.reauthentication-url`; without it a user whose copy has no real address registers no passkey,
+  and the step-up page says to contact an administrator.
 - **The application's own sign-in answers a CHALLENGE only where the application named its re-authentication.** A
   completed MFA was read from the principal by the name of a value (`mfa`, `mfaVerified`, ...) and the time of the
   sign-in, so a principal that always carries `mfa=true` released a CHALLENGE with a password sign-in alone. The
@@ -45,11 +65,14 @@ The format is based on Keep a Changelog and the project follows semantic version
 - **An address changed on the application's profile no longer gets the step-up's code.** The copy of a user took every
   address the application showed, so whoever held a session could change the profile's address and receive the code
   meant to stop them. A copy that holds a real address now keeps it: another address the application shows waits
-  (`ctxa_bridge_user_profile.pending_email`) and takes its place once the user enters a code mailed to the address on
-  record or answers with a passkey. The first real address of a copy that had a made-up one goes in at once, as before,
-  and an address an administrator enters on the user's page of the console now stands. The column is added to an
-  existing database at the next start. **Check:** a user who changed the address and can read neither the old mailbox
-  nor answer with a passkey gets codes at the new address once an administrator enters it in the console.
+  (`ctxa_bridge_user_profile.pending_email`). A user who proves the address on record, with its code or a passkey, has
+  what waited for the proof answered and gets a code at the address waiting; the address takes its place only once that
+  code is entered in the same session, so an address a thief left waiting is not taken at the owner's next proof. A code
+  of the new address answers no CHALLENGE. The first real address of a copy that had a made-up one goes in at once, as
+  before, and an address an administrator enters on the user's page of the console now stands. The column is added to an
+  existing database at the next start. **Check:** a user who changed the address enters, after the step-up, the code
+  that went to the new address; a user who can read neither the old mailbox nor answer with a passkey gets codes at the
+  new address once an administrator enters it in the console.
 - A value in a CSV export that a spreadsheet would run as a formula now stays text: users write the names and browsers in those files, and an administrator opens them. A cell that starts with `=`, `+`, `-` or `@` and is no plain number gets a leading quote.
 - **The admin console shows a stored name as text, never as script.** A role, permission, user or policy name with a quote
   could end a click handler or an attribute in the policy center, the access center, the policy details, the delete dialog

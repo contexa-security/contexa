@@ -84,7 +84,8 @@ class BridgeResolutionFilterTest {
     void shouldResolveAuthenticationAuthorizationAndDelegationFromSessionOnly() throws Exception {
         BridgeProperties properties = new BridgeProperties();
         enableTrustedHeaders(properties);
-        // The session's delegation is read from the attribute the application names.
+        // The session's authorization and delegation are read from the attribute the application names.
+        properties.getAuthorization().getSession().setAttribute("LOGIN_USER");
         properties.getDelegation().getSession().setAttribute("LOGIN_USER");
         BridgeResolutionFilter filter = createExternalContextFilter(properties);
         Authentication hostAuthentication = authenticateHost("host-user", "ROLE_HOST");
@@ -269,6 +270,7 @@ class BridgeResolutionFilterTest {
     @Test
     void shouldPreferExplicitSessionDenyOverSecurityContextUnknown() throws Exception {
         BridgeProperties properties = new BridgeProperties();
+        properties.getAuthorization().getSession().setAttribute("LOGIN_USER");
         BridgeResolutionFilter filter = createSecurityContextAndSessionFilter(properties);
         Authentication hostAuthentication = authenticateHost("alice", "ROLE_HOST");
         SessionUser user = sessionUser("alice", List.of("REPORT_EXPORT"));
@@ -293,6 +295,7 @@ class BridgeResolutionFilterTest {
     @Test
     void shouldFailSafeToDenyWhenExplicitAuthorizationEffectsConflict() throws Exception {
         BridgeProperties properties = new BridgeProperties();
+        properties.getAuthorization().getSession().setAttribute("LOGIN_USER");
         BridgeResolutionFilter filter = createSecurityContextAndSessionFilter(properties);
         Authentication hostAuthentication = authenticateHost("alice", "ROLE_HOST");
         ((UsernamePasswordAuthenticationToken) hostAuthentication).setDetails(Map.of(

@@ -103,14 +103,31 @@ public class HostOwnedStepUpController {
         if (user == null) {
             return unauthorized();
         }
-        if (!service.verifyCode(request, user, code)) {
-            return verified(request, false);
+        return service.verifyCode(request, user, code) ? afterProof(request, user) : verified(request, false);
+    }
+
+    /** A code goes again to the address the application shows since, for a session that proved the one on record. */
+    @PostMapping(value = "/address/code", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> sendAddressCode(HttpServletRequest request) {
+        Authentication user = currentUser();
+        if (user == null) {
+            return unauthorized();
         }
-        // Q-1: the moment the user proved who they are is the moment to offer the passkey that spares the next code.
-        HostOwnedStepUpService.Situation situation = service.situation(request, user);
-        return situation != null && situation.passkeyRegistrable()
-                ? ResponseEntity.ok(Map.of("verified", true, "redirectUrl", stepUpBase(request)))
-                : verified(request, true);
+        HostOwnedStepUpService.CodeSending sending = service.sendAddressCode(request, user);
+        return ResponseEntity.ok(Map.of("sent", sending == HostOwnedStepUpService.CodeSending.SENT,
+                "wait", sending == HostOwnedStepUpService.CodeSending.TOO_SOON));
+    }
+
+    @PostMapping(value = "/address/verify", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> verifyAddressCode(HttpServletRequest request,
+                                                                 @RequestParam("code") String code) {
+        Authentication user = currentUser();
+        if (user == null) {
+            return unauthorized();
+        }
+        return service.verifyAddressCode(request, user, code) ? afterProof(request, user) : verified(request, false);
     }
 
     @PostMapping(value = "/passkey/options", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -134,7 +151,8 @@ public class HostOwnedStepUpController {
             return unauthorized();
         }
         try {
-            return verified(request, service.verifyPasskey(request, user, json.readValue(body, ASSERTION)));
+            return service.verifyPasskey(request, user, json.readValue(body, ASSERTION))
+                    ? afterProof(request, user) : verified(request, false);
         } catch (IOException e) {
             return ResponseEntity.badRequest().body(Map.of("verified", false));
         }
@@ -175,6 +193,17 @@ public class HostOwnedStepUpController {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         return authentication != null && authentication.isAuthenticated()
                 && !(authentication instanceof AnonymousAuthenticationToken) ? authentication : null;
+    }
+
+    /**
+     * The moment the user proved who they are is the moment to offer the passkey that spares the next code, and to take
+     * the code mailed to an address the application shows since: the page stays open for them.
+     */
+    private ResponseEntity<Map<String, Object>> afterProof(HttpServletRequest request, Authentication user) {
+        HostOwnedStepUpService.Situation situation = service.situation(request, user);
+        return situation != null && (situation.passkeyRegistrable() || situation.addressConfirmable())
+                ? ResponseEntity.ok(Map.of("verified", true, "redirectUrl", stepUpBase(request)))
+                : verified(request, true);
     }
 
     private static ResponseEntity<Map<String, Object>> verified(HttpServletRequest request, boolean verified) {
