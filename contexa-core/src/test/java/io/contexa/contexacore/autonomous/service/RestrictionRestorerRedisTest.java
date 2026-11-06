@@ -44,7 +44,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * released does not come back, and another application sharing the Redis is not blocked by it. Keys of their own in a
  * shared Redis: nothing here flushes it.
  */
-class NamespaceRestrictionRestorerRedisTest {
+class RestrictionRestorerRedisTest {
 
     private static final String CONTEXT = "context-1";
     private static final String EARLIER_QUARANTINE = "security:autonomous:learning:quarantine";
@@ -108,7 +108,7 @@ class NamespaceRestrictionRestorerRedisTest {
 
     private void start(String application, IBlockedUserRecorder recorder) {
         try (ApplicationNamespace.Scope ignored = ApplicationNamespace.using(application)) {
-            NamespaceRestrictionRestorer restorer = new NamespaceRestrictionRestorer(() -> actions, () -> recorder,
+            RestrictionRestorer restorer = new RestrictionRestorer(() -> actions, () -> recorder,
                     () -> context, Duration.ofSeconds(10), List.of(Duration.ofMillis(50)));
             restorer.start();
             restorer.stop();

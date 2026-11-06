@@ -19,7 +19,7 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
-import io.contexa.contexacore.autonomous.service.NamespaceRestrictionRestorer;
+import io.contexa.contexacore.autonomous.service.RestrictionRestorer;
 import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import org.junit.jupiter.api.DisplayName;
@@ -41,7 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * mode that keeps them in memory as much as the distributed mode that keeps them in Redis; the bean starts before the web
  * server.
  */
-class NamespaceRestrictionRestorerWiringTest {
+class RestrictionRestorerWiringTest {
 
     private static final String BEAN = "org.springframework.context.annotation.Bean";
     private static final String ON_PROPERTY = "org.springframework.boot.autoconfigure.condition.ConditionalOnProperty";
@@ -57,15 +57,15 @@ class NamespaceRestrictionRestorerWiringTest {
 
         Set<MethodMetadata> beans = autoConfiguration.getAnnotatedMethods(BEAN);
 
-        assertThat(beans).filteredOn(method -> method.getMethodName().equals("namespaceRestrictionRestorer"))
+        assertThat(beans).filteredOn(method -> method.getMethodName().equals("restrictionRestorer"))
                 .singleElement().satisfies(method -> {
-                    assertThat(method.getReturnTypeName()).isEqualTo(NamespaceRestrictionRestorer.class.getName());
+                    assertThat(method.getReturnTypeName()).isEqualTo(RestrictionRestorer.class.getName());
                     assertThat(method.isAnnotated(ON_PROPERTY)).as("no infrastructure mode is asked for").isFalse();
                 });
         assertThat(distributed.getAnnotatedMethods(BEAN)).extracting(MethodMetadata::getReturnTypeName)
-                .doesNotContain(NamespaceRestrictionRestorer.class.getName());
-        assertThat(SmartLifecycle.class).isAssignableFrom(NamespaceRestrictionRestorer.class);
-        assertThat(NamespaceRestrictionRestorer.PHASE).isLessThan(Integer.MAX_VALUE - 2048);
+                .doesNotContain(RestrictionRestorer.class.getName());
+        assertThat(SmartLifecycle.class).isAssignableFrom(RestrictionRestorer.class);
+        assertThat(RestrictionRestorer.PHASE).isLessThan(Integer.MAX_VALUE - 2048);
     }
 
     @Test
@@ -92,7 +92,7 @@ class NamespaceRestrictionRestorerWiringTest {
         beans.addBean("record", record);
         beans.addBean("context", new InMemorySecurityContextDataStore());
 
-        NamespaceRestrictionRestorer restorer = new CoreAutonomousAutoConfiguration().namespaceRestrictionRestorer(
+        RestrictionRestorer restorer = new CoreAutonomousAutoConfiguration().restrictionRestorer(
                 beans.getBeanProvider(ZeroTrustActionRepository.class), beans.getBeanProvider(IBlockedUserRecorder.class),
                 beans.getBeanProvider(SecurityContextDataStore.class));
         restorer.start();

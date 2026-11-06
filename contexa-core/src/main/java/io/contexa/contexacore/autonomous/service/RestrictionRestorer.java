@@ -49,7 +49,7 @@ import java.util.function.Supplier;
  * record of blocks (no contexa-iam) there is nothing to write.
  */
 @Slf4j
-public class NamespaceRestrictionRestorer implements SmartLifecycle {
+public class RestrictionRestorer implements SmartLifecycle {
 
     /** Before the web server starts: Spring Boot's server lifecycle runs at {@code Integer.MAX_VALUE - 2048}. */
     public static final int PHASE = SmartLifecycle.DEFAULT_PHASE - 4096;
@@ -73,13 +73,13 @@ public class NamespaceRestrictionRestorer implements SmartLifecycle {
     private volatile ScheduledThreadPoolExecutor executor;
 
     /** The parts are asked for when the try is made: they all exist by the time the lifecycle starts. */
-    public NamespaceRestrictionRestorer(Supplier<ZeroTrustActionRepository> actions,
+    public RestrictionRestorer(Supplier<ZeroTrustActionRepository> actions,
                                         Supplier<IBlockedUserRecorder> recorder,
                                         Supplier<SecurityContextDataStore> contextStore) {
         this(actions, recorder, contextStore, FIRST_ATTEMPT_WAIT, RETRY_DELAYS);
     }
 
-    NamespaceRestrictionRestorer(Supplier<ZeroTrustActionRepository> actions, Supplier<IBlockedUserRecorder> recorder,
+    RestrictionRestorer(Supplier<ZeroTrustActionRepository> actions, Supplier<IBlockedUserRecorder> recorder,
                                  Supplier<SecurityContextDataStore> contextStore, Duration firstAttemptWait,
                                  List<Duration> retryDelays) {
         this.actions = actions;

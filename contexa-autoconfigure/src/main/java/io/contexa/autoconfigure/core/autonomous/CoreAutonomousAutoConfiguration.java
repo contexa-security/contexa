@@ -47,7 +47,7 @@ import io.contexa.contexacore.autonomous.audit.AuditPersistenceListener;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.audit.UndecidedCallsAudit;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
-import io.contexa.contexacore.autonomous.service.NamespaceRestrictionRestorer;
+import io.contexa.contexacore.autonomous.service.RestrictionRestorer;
 import io.contexa.contexacommon.store.ContexaStores;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.context.*;
@@ -1173,12 +1173,12 @@ public class CoreAutonomousAutoConfiguration {
      * again where the store has none, and the quarantine of an application with a name is carried over from its earlier
      * key, before the web server takes a request.
      */
-    @Bean(name = "contexaNamespaceRestrictionRestorer")
-    public NamespaceRestrictionRestorer namespaceRestrictionRestorer(
+    @Bean(name = "contexaRestrictionRestorer")
+    public RestrictionRestorer restrictionRestorer(
             ObjectProvider<ZeroTrustActionRepository> actionRepository,
             ObjectProvider<IBlockedUserRecorder> blockedUserRecorder,
             ObjectProvider<SecurityContextDataStore> securityContextDataStore) {
-        return new NamespaceRestrictionRestorer(actionRepository::getIfAvailable, blockedUserRecorder::getIfUnique,
+        return new RestrictionRestorer(actionRepository::getIfAvailable, blockedUserRecorder::getIfUnique,
                 securityContextDataStore::getIfAvailable);
     }
 

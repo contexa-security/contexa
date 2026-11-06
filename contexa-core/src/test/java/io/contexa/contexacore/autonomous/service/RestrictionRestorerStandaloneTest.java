@@ -69,7 +69,7 @@ class RestrictionRestorerStandaloneTest {
     }
 
     private static void start(ZeroTrustActionRepository actions, IBlockedUserRecorder recorder) {
-        NamespaceRestrictionRestorer restorer = new NamespaceRestrictionRestorer(() -> actions, () -> recorder,
+        RestrictionRestorer restorer = new RestrictionRestorer(() -> actions, () -> recorder,
                 InMemorySecurityContextDataStore::new, Duration.ofSeconds(10), List.of(Duration.ofMillis(50)));
         restorer.start();
         restorer.stop();

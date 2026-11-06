@@ -18,7 +18,7 @@ package io.contexa.autoconfigure.core.autonomous;
 import io.contexa.contexacommon.store.ApplicationNamespace;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
-import io.contexa.contexacore.autonomous.service.NamespaceRestrictionRestorer;
+import io.contexa.contexacore.autonomous.service.RestrictionRestorer;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,7 +43,7 @@ import static org.mockito.Mockito.when;
  * On a real Spring Boot start with a real web server: the restrictions are brought under the keys of the application's
  * name before the server is started (and so before it takes a request).
  */
-class NamespaceRestrictionRestorerStartOrderTest {
+class RestrictionRestorerStartOrderTest {
 
     private static final AtomicInteger SEQUENCE = new AtomicInteger();
     private static volatile int restoredAt;
@@ -54,7 +54,7 @@ class NamespaceRestrictionRestorerStartOrderTest {
     static class Application {
 
         @Bean
-        NamespaceRestrictionRestorer restorer() {
+        RestrictionRestorer restorer() {
             ZeroTrustActionRepository actions = mock(ZeroTrustActionRepository.class);
             when(actions.restoreBlockedFlag("alice")).thenAnswer(call -> {
                 restoredAt = SEQUENCE.incrementAndGet();
@@ -62,7 +62,7 @@ class NamespaceRestrictionRestorerStartOrderTest {
             });
             IBlockedUserRecorder recorder = mock(IBlockedUserRecorder.class);
             when(recorder.blocksInForce()).thenReturn(List.of("alice"));
-            return new NamespaceRestrictionRestorer(() -> actions, () -> recorder, () -> mock(SecurityContextDataStore.class));
+            return new RestrictionRestorer(() -> actions, () -> recorder, () -> mock(SecurityContextDataStore.class));
         }
 
         @Bean
