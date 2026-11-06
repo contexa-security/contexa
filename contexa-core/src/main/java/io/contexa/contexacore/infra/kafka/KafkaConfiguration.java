@@ -74,7 +74,7 @@ public class KafkaConfiguration {
      * The consumer starts from what Spring Boot makes of the application's settings, so everything that says how to reach
      * and enter the cluster is the application's ({@code spring.kafka.security.*}, {@code ssl.*}, {@code properties.*}, the
      * consumer's own of these), and so are its group and how it reads. What Contexa's reading depends on is set here over
-     * them: it reads strings and acknowledges a record itself, once the analysis is done with it (PR-88).
+     * them: it reads strings and acknowledges a record itself, once the analysis is done with it.
      */
     @Bean(name = "contexaConsumerConfigs", defaultCandidate = false)
     public Map<String, Object> consumerConfigs() {
@@ -100,7 +100,7 @@ public class KafkaConfiguration {
     /**
      * The producer starts from what Spring Boot makes of the application's settings, as the consumer does. A security
      * event is sent whole, acknowledged by the cluster and never held up, whatever the application decided for its own
-     * records, so its format, delivery and waits are set here over them; it takes no part in a transaction (PR-88).
+     * records, so its format, delivery and waits are set here over them; it takes no part in a transaction.
      */
     @Bean(name = "contexaProducerConfigs", defaultCandidate = false)
     public Map<String, Object> producerConfigs() {

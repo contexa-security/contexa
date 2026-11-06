@@ -77,7 +77,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Q-35 (PR-90): how long an event waits to be taken in while the analysis is behind, on a real broker, for when the
+ * How long an event waits to be taken in while the analysis is behind, on a real broker, for when the
  * record is acknowledged. The collector, the monitoring queue, the agent and the analysis pool are Contexa's own, with
  * their default sizes; only the model is a timed stand-in, so nothing is paid for. Not a test: it is run by hand.
  * <p>
@@ -278,7 +278,7 @@ public final class AckTimingBrokerMeasure {
 
         int expected = measured.burst() + PROBE_DELAYS_MS.length;
         List<Probe> probes = new ArrayList<>();
-        // What a sensitive call meets while the backlog lasts: the gate of Q-23 reads isBehind().
+        // What a sensitive call meets while the backlog lasts: the gate of a sensitive call reads isBehind().
         AtomicLong samples = new AtomicLong();
         AtomicLong behindSamples = new AtomicLong();
         AtomicInteger mostInProgress = new AtomicInteger();
