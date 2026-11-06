@@ -15,40 +15,89 @@
  */
 package io.contexa.autoconfigure.core.autonomous;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.NamespaceRestrictionRestorer;
+import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.core.type.AnnotationMetadata;
 import org.springframework.core.type.MethodMetadata;
 import org.springframework.core.type.classreading.SimpleMetadataReaderFactory;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The restrictions without an expiry are brought under the keys of an application's name by a bean of the distributed mode,
- * the mode that keeps them in Redis; the bean starts before the web server.
+ * The blocks the database holds in force are written again by a bean that every infrastructure mode has, the standalone
+ * mode that keeps them in memory as much as the distributed mode that keeps them in Redis; the bean starts before the web
+ * server.
  */
 class NamespaceRestrictionRestorerWiringTest {
 
+    private static final String BEAN = "org.springframework.context.annotation.Bean";
+    private static final String ON_PROPERTY = "org.springframework.boot.autoconfigure.condition.ConditionalOnProperty";
+
     @Test
-    @DisplayName("the distributed mode declares the restorer, and the restorer starts before Spring Boot's web server lifecycle")
-    void theDistributedModeDeclaresTheRestorer() throws IOException {
-        AnnotationMetadata distributed = new SimpleMetadataReaderFactory().getMetadataReader(
+    @DisplayName("the restorer is declared for every infrastructure mode, not by the distributed one, and starts before Spring Boot's web server lifecycle")
+    void everyModeDeclaresTheRestorer() throws IOException {
+        SimpleMetadataReaderFactory readers = new SimpleMetadataReaderFactory();
+        AnnotationMetadata autoConfiguration =
+                readers.getMetadataReader(CoreAutonomousAutoConfiguration.class.getName()).getAnnotationMetadata();
+        AnnotationMetadata distributed = readers.getMetadataReader(
                 CoreAutonomousAutoConfiguration.class.getName() + "$DistributedRepositoryConfiguration").getAnnotationMetadata();
 
-        Set<MethodMetadata> beans = distributed.getAnnotatedMethods("org.springframework.context.annotation.Bean");
+        Set<MethodMetadata> beans = autoConfiguration.getAnnotatedMethods(BEAN);
 
-        assertThat(beans).anySatisfy(method -> {
-            assertThat(method.getMethodName()).isEqualTo("namespaceRestrictionRestorer");
-            assertThat(method.getReturnTypeName()).isEqualTo(NamespaceRestrictionRestorer.class.getName());
-        });
-        assertThat(distributed.getAnnotationAttributes("org.springframework.boot.autoconfigure.condition.ConditionalOnProperty"))
-                .containsEntry("havingValue", "distributed");
+        assertThat(beans).filteredOn(method -> method.getMethodName().equals("namespaceRestrictionRestorer"))
+                .singleElement().satisfies(method -> {
+                    assertThat(method.getReturnTypeName()).isEqualTo(NamespaceRestrictionRestorer.class.getName());
+                    assertThat(method.isAnnotated(ON_PROPERTY)).as("no infrastructure mode is asked for").isFalse();
+                });
+        assertThat(distributed.getAnnotatedMethods(BEAN)).extracting(MethodMetadata::getReturnTypeName)
+                .doesNotContain(NamespaceRestrictionRestorer.class.getName());
         assertThat(SmartLifecycle.class).isAssignableFrom(NamespaceRestrictionRestorer.class);
         assertThat(NamespaceRestrictionRestorer.PHASE).isLessThan(Integer.MAX_VALUE - 2048);
+    }
+
+    @Test
+    @DisplayName("the bean of a standalone application writes again the blocks the record holds in force into the memory store")
+    void theStandaloneBeanWritesTheBlocksIntoMemory() {
+        InMemoryZeroTrustActionRepository memory = new InMemoryZeroTrustActionRepository(0);
+        IBlockedUserRecorder record = new IBlockedUserRecorder() {
+            @Override
+            public void recordBlock(String requestId, String userId, String username, String action, String reasoning,
+                                    String sourceIp, String userAgent) {
+            }
+
+            @Override
+            public void resolveBlock(String userId, String adminId, String resolvedAction, String reason) {
+            }
+
+            @Override
+            public List<String> blocksInForce() {
+                return List.of("alice");
+            }
+        };
+        StaticListableBeanFactory beans = new StaticListableBeanFactory();
+        beans.addBean("actions", memory);
+        beans.addBean("record", record);
+        beans.addBean("context", new InMemorySecurityContextDataStore());
+
+        NamespaceRestrictionRestorer restorer = new CoreAutonomousAutoConfiguration().namespaceRestrictionRestorer(
+                beans.getBeanProvider(ZeroTrustActionRepository.class), beans.getBeanProvider(IBlockedUserRecorder.class),
+                beans.getBeanProvider(SecurityContextDataStore.class));
+        restorer.start();
+        restorer.stop();
+
+        assertThat(memory.getCurrentAction("alice")).isEqualTo(ZeroTrustAction.BLOCK);
     }
 }

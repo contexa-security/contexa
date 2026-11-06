@@ -44,9 +44,9 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * An application that is given a name writes the blocks its database holds in force under the keys of its name, and
- * carries its quarantine over, before the web server takes a request. Nothing here may stop the application or hold a
- * request: an error is reported and tried again a number of times.
+ * An application writes the blocks its database holds in force where the decision store has none, and one that is given a
+ * name carries its quarantine over, before the web server takes a request. Nothing here may stop the application or hold
+ * a request: an error is reported and tried again a number of times.
  */
 @ExtendWith(OutputCaptureExtension.class)
 class NamespaceRestrictionRestorerTest {
@@ -102,15 +102,32 @@ class NamespaceRestrictionRestorerTest {
     }
 
     @Test
-    @DisplayName("an application without a name does nothing: it reads no record and writes no key")
-    void anUnnamedApplicationDoesNothing() {
+    @DisplayName("an application without a name writes the blocks in force too, and carries no quarantine: it has no earlier key")
+    void anUnnamedApplicationWritesTheBlocksAndCarriesNoQuarantine() {
+        when(recorder.blocksInForce()).thenReturn(List.of("alice"));
         scope.close();
         try (ApplicationNamespace.Scope unnamed = ApplicationNamespace.using("")) {
             restorer(Duration.ofSeconds(5)).start();
         }
         scope = ApplicationNamespace.using("shop");
 
-        verifyNoInteractions(recorder, actions, store);
+        verify(actions).restoreBlockedFlag("alice");
+        verify(store, never()).carryOverLearningQuarantine();
+    }
+
+    @Test
+    @DisplayName("an application without a name and without a record of blocks writes nothing and stops nothing")
+    void anUnnamedApplicationWithoutARecordWritesNothing() {
+        scope.close();
+        try (ApplicationNamespace.Scope unnamed = ApplicationNamespace.using("")) {
+            restorer = new NamespaceRestrictionRestorer(() -> actions, () -> null, () -> store, Duration.ofSeconds(5),
+                    List.of(RETRY));
+            assertThatCode(restorer::start).doesNotThrowAnyException();
+        }
+        scope = ApplicationNamespace.using("shop");
+
+        verifyNoInteractions(actions, store);
+        assertThat(restorer.isRunning()).isTrue();
     }
 
     @Test

@@ -32,17 +32,21 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 /**
- * Brings the restrictions that have no expiry under the keys of an application that was given a name. A BLOCK and a
- * learning quarantine are kept until someone lifts them, and the keys an application had before it had a name are no
- * longer read (they may be another application's), so an upgrade would otherwise lift them. The database holds the blocks
- * in force ({@link IBlockedUserRecorder#blocksInForce}) and they are written again as the BLOCK flags of the application,
- * where there is none; the quarantine is carried from the earlier key ({@link SecurityContextDataStore#carryOverLearningQuarantine}).
- * An application without a name has nothing to bring.
+ * Writes again the restrictions that have no expiry and that the decision store may have lost. A BLOCK and a learning
+ * quarantine are kept until someone lifts them, and a restart can take them: in standalone the store is the memory of
+ * the server; in distributed mode a Redis that was emptied or replaced, or the keys an application had before it was
+ * given a name, which are no longer read (they may be another application's). The database holds the blocks in force
+ * ({@link IBlockedUserRecorder#blocksInForce}), the second copy of every BLOCK, and they are written again as the BLOCK
+ * flags of the store, where there is none, in every mode and with or without a name. The quarantine has no such record: it
+ * is carried only from the earlier key of an application that was given a name
+ * ({@link SecurityContextDataStore#carryOverLearningQuarantine}), and not at all in standalone, where it ends with the
+ * memory.
  * <p>
  * It runs when the application starts, before the web server takes a request (Spring Boot starts the server in a lifecycle
  * at {@code Integer.MAX_VALUE - 2048}). What goes wrong never stops the application and never holds a request: the first
  * try is given a short time, then it goes on in the background; an error is reported at ERROR and tried again a number of
- * times, and said once more when the last try fails. A try writes only what is absent, so it can be repeated.
+ * times, and said once more when the last try fails. A try writes only what is absent, so it can be repeated. Without a
+ * record of blocks (no contexa-iam) there is nothing to write.
  */
 @Slf4j
 public class NamespaceRestrictionRestorer implements SmartLifecycle {
@@ -91,9 +95,6 @@ public class NamespaceRestrictionRestorer implements SmartLifecycle {
             return;
         }
         running = true;
-        if (!ApplicationNamespace.isNamed()) {
-            return;
-        }
         ScheduledThreadPoolExecutor own = new ScheduledThreadPoolExecutor(1, task -> {
             Thread thread = new Thread(task, THREAD);
             thread.setDaemon(true);
@@ -106,13 +107,11 @@ public class NamespaceRestrictionRestorer implements SmartLifecycle {
             first.get(firstAttemptWait.toMillis(), TimeUnit.MILLISECONDS);
         } catch (TimeoutException slow) {
             log.warn("[RestrictionRestorer] The first try did not end within {}: the application goes on starting and the "
-                    + "restrictions are brought under the keys of '{}' in the background", firstAttemptWait,
-                    ApplicationNamespace.identifier());
+                    + "blocks in force are written again in the background", firstAttemptWait);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
         } catch (ExecutionException unexpected) {
-            log.error("[RestrictionRestorer] The restrictions could not be brought under the keys of '{}'",
-                    ApplicationNamespace.identifier(), unexpected.getCause());
+            log.error("[RestrictionRestorer] The restrictions could not be restored", unexpected.getCause());
         }
     }
 
@@ -150,7 +149,8 @@ public class NamespaceRestrictionRestorer implements SmartLifecycle {
         int written = 0;
         int inForce = 0;
 
-        SecurityContextDataStore store = contextStore.get();
+        // Only an application with a name has earlier keys to carry the quarantine from.
+        SecurityContextDataStore store = ApplicationNamespace.isNamed() ? contextStore.get() : null;
         if (store != null) {
             try {
                 carried = store.carryOverLearningQuarantine();
@@ -183,23 +183,21 @@ public class NamespaceRestrictionRestorer implements SmartLifecycle {
             throw failure;
         }
         if (carried > 0 || written > 0) {
-            log.info("[RestrictionRestorer] Restrictions without an expiry were brought under the keys of '{}': {} of {} blocks "
-                    + "in force written again, {} quarantined scopes carried over", ApplicationNamespace.identifier(), written,
-                    inForce, carried);
+            log.info("[RestrictionRestorer] Restrictions without an expiry were restored: {} of {} blocks in force written "
+                    + "again, {} quarantined scopes carried over", written, inForce, carried);
         }
     }
 
     private void retryOrGiveUp(int attempt, RuntimeException failure) {
         int attempts = retryDelays.size() + 1;
         if (attempt >= attempts) {
-            log.error("[RestrictionRestorer] Restrictions could not be restored under the keys of '{}': gave up after {} tries, "
-                    + "so a block the database holds in force, or a quarantine, may not be in force until the next start",
-                    ApplicationNamespace.identifier(), attempts, failure);
+            log.error("[RestrictionRestorer] Restrictions could not be restored: gave up after {} tries, so a block the "
+                    + "database holds in force, or a quarantine, may not be in force until the next start", attempts, failure);
             return;
         }
         Duration delay = retryDelays.get(attempt - 1);
-        log.error("[RestrictionRestorer] Restrictions could not be restored under the keys of '{}' (try {} of {}), again in {}: {}",
-                ApplicationNamespace.identifier(), attempt, attempts, delay, describe(failure));
+        log.error("[RestrictionRestorer] Restrictions could not be restored (try {} of {}), again in {}: {}",
+                attempt, attempts, delay, describe(failure));
         ScheduledThreadPoolExecutor own = executor;
         if (!running || own == null) {
             return;
