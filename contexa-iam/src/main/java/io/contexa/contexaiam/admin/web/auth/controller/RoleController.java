@@ -31,6 +31,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -92,7 +93,7 @@ public class RoleController {
 	}
 
 	@PostMapping
-	@Transactional(transactionManager = "contexaTransactionManager")
+	@Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
 	public String createRole(@ModelAttribute("role") RoleDto roleDto, RedirectAttributes ra) {
 		Role role = modelMapper.map(roleDto, Role.class);
 		roleService.createRole(role, roleDto.getPermissionIds());
@@ -117,7 +118,7 @@ public class RoleController {
 	}
 
 	@PostMapping("/{id}/edit")
-	@Transactional(transactionManager = "contexaTransactionManager")
+	@Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
 	public String updateRole(@PathVariable Long id, @ModelAttribute("role") RoleDto roleDto, RedirectAttributes ra) {
 		roleDto.setId(id);
 		Role role = modelMapper.map(roleDto, Role.class);
@@ -135,7 +136,7 @@ public class RoleController {
 	}
 
 	@PostMapping("/delete/{id}")
-	@Transactional(transactionManager = "contexaTransactionManager")
+	@Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
 	public String deleteRole(@PathVariable Long id, RedirectAttributes ra) {
 		try {
 			roleService.deleteRole(id);

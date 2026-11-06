@@ -37,6 +37,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -95,7 +96,7 @@ public class RoleHierarchyController {
     }
 
     @PostMapping
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public String createRoleHierarchy(@ModelAttribute("hierarchy") RoleHierarchyDto hierarchyDto, RedirectAttributes ra) {
         try {
             RoleHierarchyEntity entity = modelMapper.map(hierarchyDto, RoleHierarchyEntity.class);
@@ -155,7 +156,7 @@ public class RoleHierarchyController {
     }
 
     @PostMapping("/{id}/edit")
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public String updateRoleHierarchy(@PathVariable Long id, @ModelAttribute("hierarchy") RoleHierarchyDto hierarchyDto, RedirectAttributes ra) {
         try {
             hierarchyDto.setId(id);
@@ -170,7 +171,7 @@ public class RoleHierarchyController {
     }
 
     @PostMapping("/delete/{id}")
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public String deleteRoleHierarchy(@PathVariable Long id, RedirectAttributes ra) {
         try {
             roleHierarchyService.deleteRoleHierarchy(id);
@@ -183,7 +184,7 @@ public class RoleHierarchyController {
     }
 
     @PostMapping("/{id}/activate")
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public String activateRoleHierarchy(@PathVariable Long id, RedirectAttributes ra) {
         try {
             boolean newState = roleHierarchyService.activateRoleHierarchy(id);

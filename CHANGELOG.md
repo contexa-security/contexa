@@ -347,6 +347,13 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **A console form that fails with a message now shows the message.** A role a hierarchy still names, a group role that
+  does not exist, a hierarchy that exists already, a user name taken and a password the policy refuses each answered an
+  error page (`UnexpectedRollbackException: Transaction silently rolled back because it has been marked as
+  rollback-only`) instead of the message: the controller methods of the users, roles, groups and role hierarchies
+  opened a transaction of their own, the service they called joined it, and the service's exception marked it for
+  rollback before the controller caught it. These methods no longer open a transaction, the services keep theirs, so
+  the refusal is rolled back there and the page the person returns to says why. Nothing else of them changes.
 - **The permission list and the page of a permission no longer fail when a permission guards a resource.** Opening
   `/contexa/admin/permissions` answered 500 (`LazyInitializationException: Could not initialize proxy
   [ManagedResource#...] - no session`) as soon as a permission made from a resource, in the policy center's "Create

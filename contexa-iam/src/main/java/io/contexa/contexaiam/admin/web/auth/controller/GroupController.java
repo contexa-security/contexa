@@ -30,6 +30,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -91,7 +92,7 @@ public class GroupController {
     }
 
     @PostMapping
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public String createGroup(@ModelAttribute("group") GroupDto groupDto,
                               @RequestParam(value = "selectedRoleIds", required = false) List<Long> selectedRoleIds,
                               RedirectAttributes ra) {
@@ -144,7 +145,7 @@ public class GroupController {
     }
 
     @PostMapping("/{id}/edit")
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public String updateGroup(@PathVariable Long id, @ModelAttribute("group") GroupDto groupDto,
                               @RequestParam(value = "selectedRoleIds", required = false) List<Long> selectedRoleIds,
                               RedirectAttributes ra) {
@@ -165,7 +166,7 @@ public class GroupController {
     }
 
     @PostMapping("/delete/{id}")
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public String deleteGroup(@PathVariable Long id, RedirectAttributes ra) {
         try {
             groupService.deleteGroup(id);

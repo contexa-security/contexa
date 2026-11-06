@@ -37,6 +37,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -140,7 +141,7 @@ public class UserManagementController {
 	}
 
 	@PutMapping("/{id}")
-	@Transactional(transactionManager = "contexaTransactionManager")
+	@Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
 	public String updateUser(@PathVariable Long id,
 							 @ModelAttribute("user") UserDto userDto,
 							 @RequestParam(value = "selectedGroupIds", required = false) List<Long> selectedGroupIds,
@@ -161,7 +162,7 @@ public class UserManagementController {
 	}
 
 	@PostMapping("/{id}")
-	@Transactional(transactionManager = "contexaTransactionManager")
+	@Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
 	public String updateUserPost(@PathVariable Long id,
 								 @ModelAttribute("user") UserDto userDto,
 								 @RequestParam(value = "selectedGroupIds", required = false) List<Long> selectedGroupIds,
@@ -170,7 +171,7 @@ public class UserManagementController {
 	}
 
 	@PostMapping("")
-	@Transactional(transactionManager = "contexaTransactionManager")
+	@Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
 	public String createUser(@ModelAttribute("user") UserDto userDto,
 							 @RequestParam(value = "selectedGroupIds", required = false) List<Long> selectedGroupIds,
 							 Model model,
@@ -193,7 +194,7 @@ public class UserManagementController {
 	}
 
 	@PostMapping("/{id}/unlock")
-	@Transactional(transactionManager = "contexaTransactionManager")
+	@Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
 	public String unlockUser(@PathVariable Long id, RedirectAttributes ra) {
 		try {
 			if (userManagementService.unlockUser(id)) {
@@ -209,7 +210,7 @@ public class UserManagementController {
 	}
 
 	@DeleteMapping("/{id}")
-	@Transactional(transactionManager = "contexaTransactionManager")
+	@Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
 	public String removeUser(@PathVariable Long id, RedirectAttributes ra) {
 		try {
 			userManagementService.deleteUser(id);
@@ -224,7 +225,7 @@ public class UserManagementController {
 	}
 
 	@PostMapping("/delete/{id}")
-	@Transactional(transactionManager = "contexaTransactionManager")
+	@Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
 	public String removeUserGet(@PathVariable Long id, RedirectAttributes ra) {
 		return removeUser(id, ra);
 	}
