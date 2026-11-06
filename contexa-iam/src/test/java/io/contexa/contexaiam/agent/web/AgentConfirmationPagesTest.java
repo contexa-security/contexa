@@ -339,6 +339,35 @@ class AgentConfirmationPagesTest {
         assertThat(store.find(fits.confirmationId())).map(AgentConfirmation::target).contains(longest);
     }
 
+    /**
+     * A target is what a request line carries: a space, a control character, a line break or a character that turns the
+     * text around cannot stand in one as written, so an ask with one is refused. Escaped, they are asked.
+     */
+    @Test
+    void anAskWhoseTargetCarriesWhatNoRequestLineCarriesIsRefused() {
+        AgentConfirmationApiController api = new AgentConfirmationApiController(service);
+        TestingAuthenticationToken token = new TestingAuthenticationToken("alice", null);
+        MockHttpServletRequest fromAgent = agentRequest("alice", "report-agent");
+        List<Integer> unwritable = List.of(0x20, 0x09, 0x0A, 0x0D, 0x0B, 0x00, 0x7F, 0x85, 0xA0, 0x2028, 0x2029, 0x202E,
+                0x2066, 0x200B, 0xFEFF, 0x3000);
+
+        for (int codePoint : unwritable) {
+            String character = Character.toString(codePoint);
+            for (String target : List.of("/api/exports" + character + "x", "/api/exports?note=a" + character + "b")) {
+                assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", target, null, null),
+                        token, fromAgent).getStatusCode()).as("U+%04X in %s", codePoint, target)
+                        .isEqualTo(HttpStatus.BAD_REQUEST);
+            }
+        }
+        assertThat(store.forRecipient("alice", 10)).isEmpty();
+
+        String escaped = "/api/exports%20x%0A%E2%80%AE?note=a%20b%E2%80%8B";
+        AgentConfirmationApiController.ConfirmationStatus asked = (AgentConfirmationApiController.ConfirmationStatus)
+                api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", escaped, null, null), token,
+                        fromAgent).getBody();
+        assertThat(store.find(asked.confirmationId())).map(AgentConfirmation::target).contains(escaped);
+    }
+
     /** A person approves what will run: the path the application serves stands beside what the agent sent. */
     @Test
     void aPersonSeesThePathTheApplicationServesBesideWhatTheAgentSent() {
@@ -513,6 +542,14 @@ class AgentConfirmationPagesTest {
         return service.request(new AgentConfirmationService.ConfirmationRequest(AGENT, "hash-1", "POST",
                 "/api/exports?format=zip", AgentConfirmation.DECISION_CHALLENGE, "Unusual export", "req-1", null))
                 .orElseThrow();
+    }
+
+    private static MockHttpServletRequest agentRequest(String user, String agent, String delegationId) {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setAttribute(BridgeRequestAttributes.DELEGATION_STAMP, new DelegationStamp(user, agent, true, null,
+                null, null, List.of(), List.of(), null, null, null, null,
+                delegationId != null ? Map.of("delegationId", delegationId) : Map.of()));
+        return request;
     }
 
     private static MockHttpServletRequest agentRequest(String user, String agent) {

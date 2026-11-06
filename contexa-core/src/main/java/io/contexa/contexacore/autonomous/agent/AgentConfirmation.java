@@ -141,6 +141,14 @@ public record AgentConfirmation(String confirmationId, @Nullable String tenantId
         return shown.equals(path) ? null : RequestFactRedaction.readableTarget(shown);
     }
 
+    /**
+     * Whether the target reads as it is written: it carries no character that cannot be seen, breaks the line or turns
+     * the text around, nor a space. A request line carries none of them as written; escaped, they are asked like any.
+     */
+    public static boolean readsAsWritten(String target) {
+        return !NOT_SHOWN.matcher(target).find();
+    }
+
     /** The confirmation decided. */
     public AgentConfirmation decided(Status decision, Instant at, String by, @Nullable String note,
                                      @Nullable String authorization, Instant until) {
