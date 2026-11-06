@@ -645,7 +645,10 @@ public class IdentityOAuth2AutoConfiguration {
      * docs/agent OC-1: names the delegation the person holds with the agent the client is, when one holds now. The
      * person is the exchange's subject; an agent that is not approved and in service gets no delegation.
      */
-    /** docs/agent A5-3: refuses to issue a token to a client that is a suspended agent. */
+    /**
+     * docs/agent A5-3: refuses to issue a token to a client that is a suspended agent. The token engine knows no tenant
+     * of a client, so a suspension of the client in any tenant refuses it.
+     */
     static void refuseSuspendedAgent(JwtEncodingContext context, AgentClientDirectory agents) {
         if (agents == null || context.getRegisteredClient() == null) {
             return;
@@ -674,9 +677,11 @@ public class IdentityOAuth2AutoConfiguration {
         if (person == null) {
             return;
         }
-        agents.activeAgentForClient(null, context.getRegisteredClient().getClientId()).ifPresent(agentId -> {
+        String clientId = context.getRegisteredClient().getClientId();
+        String tenant = agents.tenantOfClient(clientId).orElse(null);
+        agents.activeAgentForClient(tenant, clientId).ifPresent(agentId -> {
             Instant now = Instant.now();
-            AgentDelegations.current(registry.list(null, person, agentId, DELEGATION_CANDIDATES), now)
+            AgentDelegations.current(registry.list(tenant, person, agentId, DELEGATION_CANDIDATES), now)
                     .filter(delegation -> !delegation.validAt(now) && delegation.revokedAt() != null
                             && !delegation.revokedAt().isAfter(delegation.expiresAt()))
                     .ifPresent(revoked -> {
@@ -711,9 +716,11 @@ public class IdentityOAuth2AutoConfiguration {
         if (person == null || person.isBlank()) {
             return;
         }
-        agents.activeAgentForClient(null, context.getRegisteredClient().getClientId()).ifPresent(agentId -> {
+        String clientId = context.getRegisteredClient().getClientId();
+        String tenant = agents.tenantOfClient(clientId).orElse(null);
+        agents.activeAgentForClient(tenant, clientId).ifPresent(agentId -> {
             Instant now = Instant.now();
-            AgentDelegations.current(registry.list(null, person, agentId, DELEGATION_CANDIDATES), now)
+            AgentDelegations.current(registry.list(tenant, person, agentId, DELEGATION_CANDIDATES), now)
                     .filter(delegation -> delegation.validAt(now))
                     .ifPresent(delegation -> context.getClaims().claim(DELEGATION_ID_CLAIM,
                             delegation.delegationId()));

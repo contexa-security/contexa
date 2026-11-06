@@ -37,6 +37,20 @@ public interface AgentRegistry {
      */
     Optional<AgentRegistration> findByClientId(String tenantId, String clientId);
 
+    /**
+     * The client's agent in every tenant that holds one, the single-tenant deployment's included: for each tenant, what
+     * {@link #findByClientId} answers there. A token that names no tenant, as every token Contexa issues, is matched to
+     * an agent with it, so an agent registered in a tenant is found by its client and its suspension stops its tokens.
+     * The answer reflects a life cycle change at once, as {@link #findByClientId} does. A registry that does not
+     * override it reads every agent it holds.
+     */
+    default List<AgentRegistration> findAllByClientId(String clientId) {
+        if (AgentRegistrations.blank(clientId)) {
+            return List.of();
+        }
+        return AgentRegistrations.eachTenantsForClient(list(null, Integer.MAX_VALUE), clientId.trim());
+    }
+
     /** The tenant's agents (every tenant's for {@code null}), latest seen first, at most {@code limit}. */
     List<AgentRegistration> list(String tenantId, int limit);
 

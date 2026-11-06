@@ -57,6 +57,9 @@ import io.contexa.contexacore.autonomous.agent.AgentDelegation;
 import io.contexa.contexacore.autonomous.agent.AgentDelegationRequest;
 import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
 import io.contexa.contexacore.autonomous.agent.InMemoryDelegationRegistry;
+import io.contexa.contexacore.autonomous.agent.AgentRegistrationRequest;
+import io.contexa.contexacore.autonomous.agent.InMemoryAgentRegistry;
+import io.contexa.contexacore.autonomous.agent.RegistryAgentClientDirectory;
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
@@ -384,6 +387,45 @@ class IdentityOAuth2AutoConfigurationTest {
         JwtEncodingContext other = accessTokenContext("report-client");
         customizer.customize(other);
         assertThat(other.getClaims().build().getClaims()).containsEntry("client_id", "report-client");
+    }
+
+    /**
+     * The token engine knows no tenant of a client: an agent registered in a tenant is found by its client all the same,
+     * so its suspension and a revoked delegation of it stop its tokens as they stop those of an agent of no tenant.
+     */
+    @Test
+    @DisplayName("a suspended agent of a tenant gets no token, and an agent of a tenant gets no exchange under a revoked delegation")
+    @SuppressWarnings("unchecked")
+    void anAgentOfATenantIsStoppedAtTheTokenEndpoint() {
+        InMemoryAgentRegistry registry = new InMemoryAgentRegistry();
+        registry.register(new AgentRegistrationRequest("tenant-a", "tenant-bot", "Tenant bot", "AGENT", "sync-client",
+                "carol", true));
+        registry.register(new AgentRegistrationRequest("tenant-a", "report-agent", "Reports", "AGENT", "report-client",
+                "carol", true));
+        ObjectProvider<AgentClientDirectory> agents = mock(ObjectProvider.class);
+        when(agents.getIfAvailable()).thenReturn(new RegistryAgentClientDirectory(registry));
+        InMemoryDelegationRegistry delegations = new InMemoryDelegationRegistry();
+        ObjectProvider<DelegationRegistry> delegationRegistry = mock(ObjectProvider.class);
+        when(delegationRegistry.getIfAvailable()).thenReturn(delegations);
+        OAuth2TokenCustomizer<JwtEncodingContext> customizer =
+                configuration(new AuthContextProperties()).tokenCustomizer(delegationRegistry, agents, none());
+
+        customizer.customize(accessTokenContext("sync-client"));
+        registry.suspend("tenant-a", "tenant-bot", "stopped");
+
+        assertThatThrownBy(() -> customizer.customize(accessTokenContext("sync-client")))
+                .isInstanceOf(OAuth2AuthenticationException.class)
+                .satisfies(e -> assertThat(((OAuth2AuthenticationException) e).getError().getErrorCode())
+                        .isEqualTo(OAuth2ErrorCodes.UNAUTHORIZED_CLIENT));
+
+        AgentDelegation revoked = delegations.record(new AgentDelegationRequest("tenant-a", "alice", "report-agent",
+                null, "REPORTING", "Weekly report", List.of("READ"), List.of(), null, null, null,
+                Instant.now().minusSeconds(3600), Instant.now().plusSeconds(3600), null, null));
+        delegations.revoke(revoked.delegationId(), "alice", "done");
+        assertThatThrownBy(() -> customizer.customize(exchangeContext("alice")))
+                .isInstanceOf(OAuth2AuthenticationException.class)
+                .satisfies(e -> assertThat(((OAuth2AuthenticationException) e).getError().getErrorCode())
+                        .isEqualTo(OAuth2ErrorCodes.INVALID_GRANT));
     }
 
     @Test

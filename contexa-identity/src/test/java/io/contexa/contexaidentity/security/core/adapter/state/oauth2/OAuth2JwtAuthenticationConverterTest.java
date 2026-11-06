@@ -28,6 +28,9 @@ import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.enums.OAuth2ServerMode;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
+import io.contexa.contexacore.autonomous.agent.AgentRegistrationRequest;
+import io.contexa.contexacore.autonomous.agent.InMemoryAgentRegistry;
+import io.contexa.contexacore.autonomous.agent.RegistryAgentClientDirectory;
 import org.springframework.security.oauth2.server.resource.InvalidBearerTokenException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
@@ -300,6 +303,27 @@ class OAuth2JwtAuthenticationConverterTest {
                 .isInstanceOf(InvalidBearerTokenException.class);
         assertThat(extractAuthorityStrings(clientAware.convert(clientJwt("alice", "report-client", "reports.read"))))
                 .contains("ROLE_USER", "SCOPE_reports.read");
+    }
+
+    /**
+     * A token Contexa issues names no tenant: the token an agent registered in a tenant holds for a person is refused once
+     * the agent is suspended there, as the token of an agent of no tenant is.
+     */
+    @Test
+    void theTokenASuspendedAgentOfATenantHoldsForAPersonIsRefused() {
+        InMemoryAgentRegistry registry = new InMemoryAgentRegistry();
+        registry.register(new AgentRegistrationRequest("tenant-a", "tenant-bot", "Tenant bot", "AGENT", "tenant-client",
+                "carol", true));
+        OAuth2JwtAuthenticationConverter clientAware = converterWith(new AuthContextProperties(),
+                new RegistryAgentClientDirectory(registry));
+        stubUserDetails("alice", List.of(new SimpleGrantedAuthority("ROLE_USER")));
+
+        assertThat(extractAuthorityStrings(clientAware.convert(clientJwt("alice", "tenant-client", "reports.read"))))
+                .contains("ROLE_USER");
+        registry.suspend("tenant-a", "tenant-bot", "stopped");
+
+        assertThatThrownBy(() -> clientAware.convert(clientJwt("alice", "tenant-client", "reports.read")))
+                .isInstanceOf(InvalidBearerTokenException.class);
     }
 
     // -- helper methods --
