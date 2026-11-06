@@ -18,7 +18,11 @@ package io.contexa.contexaiam.agent;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmation;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmationStore;
 import io.contexa.contexacore.autonomous.agent.AgentRegistrations;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcOperations;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.PreparedStatementCallback;
+import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 import org.springframework.lang.Nullable;
 
 import java.sql.ResultSet;
@@ -40,6 +44,9 @@ public class JdbcAgentConfirmationStore implements AgentConfirmationStore {
             + "correlation_id, status, created_at, expires_at, decided_at, decided_by, decision_note, "
             + "authorization_id, used_at, body_bytes";
 
+    /** The first key of the advisory lock that puts the saves of one subject's confirmations in an order. */
+    private static final int SUBJECT_LOCK_CLASS = 0x43434F4E;
+
     private final JdbcOperations jdbc;
 
     public JdbcAgentConfirmationStore(JdbcOperations jdbc) {
@@ -48,7 +55,55 @@ public class JdbcAgentConfirmationStore implements AgentConfirmationStore {
 
     @Override
     public AgentConfirmation save(AgentConfirmation confirmation) {
-        jdbc.update("insert into ctxa_agent_confirmation (" + COLUMNS + ") values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
+        insert(jdbc, confirmation);
+        return confirmation;
+    }
+
+    /**
+     * Saves the confirmation in a transaction that first takes a lock of the database on the subject, held to its end:
+     * the saves of one subject's confirmations follow one another, and each reads the waiting ones after the save
+     * before it has committed. Within a transaction of the caller the lock is held to the end of that one.
+     */
+    @Override
+    public boolean saveNotingWaiting(AgentConfirmation confirmation, Instant now) {
+        Boolean waited = jdbc.execute((ConnectionCallback<Boolean>) connection -> {
+            boolean ownTransaction = connection.getAutoCommit();
+            if (ownTransaction) {
+                connection.setAutoCommit(false);
+            }
+            try {
+                JdbcOperations inTheTransaction = new JdbcTemplate(new SingleConnectionDataSource(connection, true));
+                lockSubject(inTheTransaction, confirmation.subjectKey());
+                boolean another = waiting(inTheTransaction, confirmation.subjectKey(), now);
+                insert(inTheTransaction, confirmation);
+                if (ownTransaction) {
+                    connection.commit();
+                }
+                return another;
+            } catch (SQLException | RuntimeException e) {
+                if (ownTransaction) {
+                    connection.rollback();
+                }
+                throw e;
+            } finally {
+                if (ownTransaction) {
+                    connection.setAutoCommit(true);
+                }
+            }
+        });
+        return Boolean.TRUE.equals(waited);
+    }
+
+    private static void lockSubject(JdbcOperations operations, String subjectKey) {
+        operations.execute("select pg_advisory_xact_lock(?, hashtext(?))", (PreparedStatementCallback<Boolean>) statement -> {
+            statement.setInt(1, SUBJECT_LOCK_CLASS);
+            statement.setString(2, subjectKey);
+            return statement.execute();
+        });
+    }
+
+    private static void insert(JdbcOperations operations, AgentConfirmation confirmation) {
+        operations.update("insert into ctxa_agent_confirmation (" + COLUMNS + ") values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
                         + "?, ?, ?, ?, ?, ?, ?, ?, ?, ?) on conflict (confirmation_id) do update set "
                         + "status = excluded.status, expires_at = excluded.expires_at, "
                         + "decided_at = excluded.decided_at, decided_by = excluded.decided_by, "
@@ -62,7 +117,6 @@ public class JdbcAgentConfirmationStore implements AgentConfirmationStore {
                 timestamp(confirmation.createdAt()), timestamp(confirmation.expiresAt()),
                 timestamp(confirmation.decidedAt()), confirmation.decidedBy(), confirmation.decisionNote(),
                 confirmation.authorizationId(), timestamp(confirmation.usedAt()), confirmation.bodyBytes());
-        return confirmation;
     }
 
     @Override
@@ -83,7 +137,11 @@ public class JdbcAgentConfirmationStore implements AgentConfirmationStore {
 
     @Override
     public boolean waiting(String subjectKey, Instant now) {
-        return Boolean.TRUE.equals(jdbc.queryForObject("select exists (select 1 from ctxa_agent_confirmation "
+        return waiting(jdbc, subjectKey, now);
+    }
+
+    private static boolean waiting(JdbcOperations operations, String subjectKey, Instant now) {
+        return Boolean.TRUE.equals(operations.queryForObject("select exists (select 1 from ctxa_agent_confirmation "
                         + "where subject_key = ? and status = ? and expires_at > ?)", Boolean.class, subjectKey,
                 AgentConfirmation.Status.PENDING.name(), timestamp(now)));
     }

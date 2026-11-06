@@ -8,6 +8,15 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **Requests of one agent that arrive together mail the person once.** The person accountable for an agent is mailed
+  once while one of the agent's confirmations waits, and the agent's other requests are told on the console only; but
+  the store was asked whether another confirmation waited and then saved the new one as two steps, so the first
+  requests of an agent that arrived together each found the agent alone and each mailed the person (an agent could
+  send as many mails as it could send requests at once). The store now saves the confirmation and answers whether
+  another waited in one step, in memory and in the database alike (the database puts the saves of one agent's
+  confirmations in an order with a lock of its own, taken inside the transaction of the save): of requests that arrive
+  together exactly one is mailed and the others reach the console. A store written for the application keeps working
+  with the old two steps unless it overrides `AgentConfirmationStore.saveNotingWaiting`. No setting is added.
 - **Two administrators can no longer take each other's role at the same moment.** The console kept its last
   administrator by reading whether another one remained, so two administrators who each took the other's
   `ROLE_ADMIN` (in the user's page, in the access center, or by deleting each other) in the same moment each read the
