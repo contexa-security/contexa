@@ -22,6 +22,7 @@ import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
+import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncService;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
@@ -164,6 +165,8 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
     @Nullable
     private final String reauthenticationUrl;
     private final int maxCodeAnswers;
+    @Nullable
+    private BridgeUserMirrorSyncService userMirror;
 
     /**
      * @param maxCodeAnswers the answers a session context gets for a one-time code, the setting of Contexa's own MFA
@@ -191,6 +194,11 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
         this.creationOptionsCodec = creationOptionsCodec;
         this.reauthenticationUrl = reauthenticationUrl != null && !reauthenticationUrl.isBlank()
                 ? reauthenticationUrl : null;
+    }
+
+    /** Where the copy of the user is kept: a proof of the address on record moves the copy to the address that waits. */
+    public void setUserMirror(@Nullable BridgeUserMirrorSyncService userMirror) {
+        this.userMirror = userMirror;
     }
 
     /**
@@ -328,6 +336,7 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
             complete(request, situation, null);
         }
         options.put(userConfirmedKey(request, situation.decisionKey()), Boolean.TRUE);
+        confirmAddress(situation);
         return true;
     }
 
@@ -400,6 +409,7 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
             return false;
         }
         complete(request, situation, null);
+        confirmAddress(situation);
         return true;
     }
 
@@ -487,6 +497,22 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
         resolution.markMfaVerified(situation.decisionKey(),
                 verifiedAt != null ? verifiedAt : observedAt != null ? observedAt : Instant.now());
         log.info("[StepUp] Step-up passed: decisionKey={}, purpose={}", situation.decisionKey(), situation.purpose());
+    }
+
+    /**
+     * The user proved the address on record, by its code or by a passkey: the copy takes the address the application
+     * showed since, which waited for this proof. A failure here fails no verification.
+     */
+    private void confirmAddress(Situation situation) {
+        if (userMirror == null || situation.user() == null || !situation.user().isBridgeManaged()) {
+            return;
+        }
+        try {
+            userMirror.confirmPendingEmail(situation.user().getId());
+        } catch (RuntimeException e) {
+            log.error("[StepUp] The address waiting for the user could not be taken: decisionKey={}",
+                    situation.decisionKey(), e);
+        }
     }
 
     /** The bridge's copy of the application's user; only bridge-managed users, and only one. */

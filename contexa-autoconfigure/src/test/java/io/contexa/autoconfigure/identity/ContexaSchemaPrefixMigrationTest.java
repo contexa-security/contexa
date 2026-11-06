@@ -114,6 +114,8 @@ class ContexaSchemaPrefixMigrationTest {
         assertThat(jdbc.queryForList("select object_name from ctxa_schema_inventory_object where product_owner = 'HOST'", String.class))
                 .as("a table of the application is not renamed in the record").containsExactly("orders");
         assertThat(new ContexaSchemaPrefixMigration(legacy).migrate()).isEqualTo(ContexaSchemaPrefixMigration.Outcome.NOT_NEEDED);
+        // The start goes on with the schema maintenance, which adds the columns that came after the move.
+        IamSeedDataAutoConfiguration.applyCanonicalSchemaMaintenance(legacy, new OssSchemaMaintenanceBacklog(legacy), false);
 
         DataSource fresh = inSchema(FRESH);
         install(fresh, "META-INF/contexa/db/schema.sql");

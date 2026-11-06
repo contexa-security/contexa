@@ -23,6 +23,14 @@ The format is based on Keep a Changelog and the project follows semantic version
   application's sign-in now answers a CHALLENGE only when `contexa.bridge.step-up.reauthentication-url` is set; elsewhere
   Contexa's step-up does, by a mailed code or a passkey. **Check:** an application whose own MFA re-authentication
   released CHALLENGEs sets `contexa.bridge.step-up.reauthentication-url` to where it re-authenticates.
+- **An address changed on the application's profile no longer gets the step-up's code.** The copy of a user took every
+  address the application showed, so whoever held a session could change the profile's address and receive the code
+  meant to stop them. A copy that holds a real address now keeps it: another address the application shows waits
+  (`ctxa_bridge_user_profile.pending_email`) and takes its place once the user enters a code mailed to the address on
+  record or answers with a passkey. The first real address of a copy that had a made-up one goes in at once, as before,
+  and an address an administrator enters on the user's page of the console now stands. The column is added to an
+  existing database at the next start. **Check:** a user who changed the address and can read neither the old mailbox
+  nor answer with a passkey gets codes at the new address once an administrator enters it in the console.
 - A value in a CSV export that a spreadsheet would run as a formula now stays text: users write the names and browsers in those files, and an administrator opens them. A cell that starts with `=`, `+`, `-` or `@` and is no plain number gets a leading quote.
 - A one-time code asked for a name with no account leaves nothing in the log, and the mail shows a name as text, never as markup.
 - **A sign-in by code no longer mails any address a stranger types.** Before a sign-in the name of a code request is what

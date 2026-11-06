@@ -26,4 +26,15 @@ public interface BridgeUserMirrorSyncService {
             AuthorizationStamp authorizationStamp,
             RequestContextSnapshot requestContext
     );
+
+    /**
+     * The user proved the address on record (a one-time code mailed there, or a passkey): the copy takes the address
+     * the application showed since, if one waits for it.
+     *
+     * @param userId the ID of the copy
+     * @return whether the copy now has the address that waited
+     */
+    default boolean confirmPendingEmail(Long userId) {
+        return false;
+    }
 }
