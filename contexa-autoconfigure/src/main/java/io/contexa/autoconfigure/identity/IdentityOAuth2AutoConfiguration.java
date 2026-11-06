@@ -642,12 +642,31 @@ public class IdentityOAuth2AutoConfiguration {
             guard.admitExchange(subject.getPrincipalName());
         }
         // The exchanged token ends no later than the token it exchanges.
-        Instant subjectExpiresAt = subjectToken != null ? subjectToken.getExpiresAt() : null;
-        if (subjectExpiresAt != null) {
-            Instant expiresAt = context.getClaims().build().getExpiresAt();
-            if (expiresAt == null || expiresAt.isAfter(subjectExpiresAt)) {
-                context.getClaims().expiresAt(subjectExpiresAt);
-            }
+        holdToLimit(context, subjectToken != null ? subjectToken.getExpiresAt() : null);
+    }
+
+    /**
+     * The end of the token an exchange is issued for, which the exchanged token does not outlive; null for any other token
+     * and for an exchange whose subject token tells no end.
+     */
+    static Instant exchangeLimit(JwtEncodingContext context) {
+        if (!OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())
+                || !AuthorizationGrantType.TOKEN_EXCHANGE.equals(context.getAuthorizationGrantType())
+                || context.getAuthorization() == null) {
+            return null;
+        }
+        OAuth2AccessToken subjectToken = subjectToken(context, context.getAuthorization());
+        return subjectToken != null ? subjectToken.getExpiresAt() : null;
+    }
+
+    /** Ends the token at the limit when it would end after it; a token that ends sooner is left as it is. */
+    static void holdToLimit(JwtEncodingContext context, Instant limit) {
+        if (limit == null) {
+            return;
+        }
+        Instant expiresAt = context.getClaims().build().getExpiresAt();
+        if (expiresAt == null || expiresAt.isAfter(limit)) {
+            context.getClaims().expiresAt(limit);
         }
     }
 

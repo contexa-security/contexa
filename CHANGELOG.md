@@ -8,6 +8,25 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **An OAuth2 token generator of your own no longer takes Contexa's token checks away.** The authorization server asks a
+  token customizer only from the generator it builds itself, so an application that declared an `OAuth2TokenGenerator`
+  bean issued its tokens without any of Contexa's checks, and without a word at the start: a suspended agent got its
+  token, the renewal of a person's token was not checked against the account, and a token exchange could outlive the
+  token it exchanged. Contexa's checks now run in front of the application's generator, on the token about to be
+  issued, so a refusal ends the issuance before the generator does anything. A JWT the generator issued gets the claims
+  the checks write where it has none of its own (`client_id`, `roles`, the login facts, the delegation), and an exchanged
+  token ends no later than the token it exchanges; a token whose claims or lifetime had to change is signed again, once,
+  with the authorization server's encoder. The start logs one INFO line naming the generator. Where Contexa's checks
+  are not there to put in front (the application took the place of Contexa's token customizer with a bean named
+  `contexaTokenCustomizer`), the generator is used as it is and the start logs a warning that nothing checks its tokens.
+  **Check:** tokens of an application's own generator are now refused for a suspended agent (`unauthorized_client`) and
+  while the agent registry cannot be read (`temporarily_unavailable`), its JWTs carry `client_id` and the other claims
+  Contexa writes, and a token that is no JWT (a reference token) is checked but gets no claims added.
+- **A token customizer of your own can no longer lengthen an exchanged token beyond the token it exchanges.** Contexa
+  ends an exchanged token no later than the token it exchanges, but it did so before the application's customizers ran,
+  so a customizer that set a later expiry took the limit away. The limit now holds after the application's customizers:
+  they may shorten the token, or lengthen it up to the end of the token exchanged. Tokens of any other grant keep the
+  lifetime the application gave them.
 - **A failing agent registry no longer lets an agent's token exchange skip the delegation a person revoked.** The lookup
   of an agent by its client and the lookup of the tenant of its client ended as "no agent" and "no tenant" when the
   registry failed or did not answer in time, so an exchange read the client as no agent and skipped the check for a
