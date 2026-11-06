@@ -205,9 +205,17 @@ public class UserManagementServiceImpl implements UserManagementService {
                 ? new HashSet<>(userDto.getSelectedGroupIds())
                 : new HashSet<>();
 
-        users.getUserGroups().clear();
+        // A group the user keeps stays the row it is. Dropped and made again under the same key, it would meet itself in
+        // the session as soon as a query flushes, and the check of the last administrator below runs one.
+        users.getUserGroups().removeIf(userGroup -> !desiredGroupIds.contains(userGroup.getGroup().getId()));
+        Set<Long> keptGroupIds = users.getUserGroups().stream()
+                .map(userGroup -> userGroup.getGroup().getId())
+                .collect(Collectors.toSet());
 
         for (Long groupId : desiredGroupIds) {
+            if (keptGroupIds.contains(groupId)) {
+                continue;
+            }
             Group group = groupRepository.findById(groupId)
                     .orElseThrow(() -> new IllegalArgumentException(msg("msg.group.not.found.id", groupId)));
             UserGroup userGroup = UserGroup.builder()

@@ -198,8 +198,13 @@ public class AccessCenterService {
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
         boolean wasActiveAdministrator = lastAdministratorGuard.activeAdministrator(user);
 
-        user.getUserGroups().clear();
-        groupIds.forEach(gid -> {
+        // A group the user keeps stays the row it is. Dropped and made again under the same key, it would meet itself in
+        // the session as soon as a query flushes, and the check of the last administrator below runs one.
+        Set<Long> desiredGroupIds = new HashSet<>(groupIds);
+        user.getUserGroups().removeIf(userGroup -> !desiredGroupIds.contains(userGroup.getGroup().getId()));
+        Set<Long> keptGroupIds = new HashSet<>();
+        user.getUserGroups().forEach(userGroup -> keptGroupIds.add(userGroup.getGroup().getId()));
+        desiredGroupIds.stream().filter(gid -> !keptGroupIds.contains(gid)).forEach(gid -> {
             Group group = groupRepository.findById(gid)
                     .orElseThrow(() -> new IllegalArgumentException("Group not found: " + gid));
             user.getUserGroups().add(UserGroup.builder().user(user).group(group).build());

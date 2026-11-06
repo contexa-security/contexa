@@ -453,6 +453,14 @@ The format is based on Keep a Changelog and the project follows semantic version
   hierarchy forms did: the controller methods opened a transaction of their own that the service joined. The five write
   methods of the policy controller no longer open a transaction; the service keeps its own, so a refusal is rolled back
   there and the policy center's list says why. Nothing else of them changes.
+- **Editing an administrator of the console no longer fails when the account keeps a group.** Saving the user form of an
+  account that was an active administrator, or setting its groups in the access center, answered an error
+  (`EntityExistsException: A different object with the same identifier value was already associated with the session`)
+  and kept nothing whenever the account kept at least one of its groups, which is every edit that does not empty them.
+  The groups were dropped and made again under the same key, and the check of the last administrator that follows reads
+  the roles, which writes what is pending while the dropped row is still in the session. The groups an account keeps are
+  now left as they are: only the groups dropped are removed and only the new ones are added. Accounts that were not
+  administrators were not affected.
 - **The permission list and the page of a permission no longer fail when a permission guards a resource.** Opening
   `/contexa/admin/permissions` answered 500 (`LazyInitializationException: Could not initialize proxy
   [ManagedResource#...] - no session`) as soon as a permission made from a resource, in the policy center's "Create
