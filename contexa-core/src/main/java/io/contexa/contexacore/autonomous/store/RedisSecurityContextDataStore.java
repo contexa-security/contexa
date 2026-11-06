@@ -163,6 +163,36 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore, 
     private static final Duration USER_SESSIONS_TTL = Duration.ofDays(7);
     private static final Duration LOGIN_FAILURE_MINIMUM_RETENTION = Duration.ofMinutes(5);
     private static final Duration LOGIN_FAILURE_EXPIRY_MARGIN = Duration.ofMinutes(5);
+    /**
+     * Keeps a failed sign-in under KEYS[1] within the limits of every store: the failures of the retention (ARGV[3]), the
+     * latest of them, and a number of keys. KEYS[2] orders the keys by their last failure on this server's clock (ARGV[5]);
+     * past the bound the keys written the longest ago go, as from the in-memory store, and KEYS[3] then says for the
+     * retention that a name without a record may have lost it. 1 when a key went.
+     */
+    private static final DefaultRedisScript<Long> RECORD_LOGIN_FAILURE_SCRIPT = new DefaultRedisScript<>(
+            "local failedAt = tonumber(string.match(ARGV[1], '%-?%d+')) "
+                    + "local retention = tonumber(string.match(ARGV[3], '%d+')) "
+                    + "local expiry = tonumber(string.match(ARGV[4], '%d+')) "
+                    + "local now = tonumber(string.match(ARGV[5], '%d+')) "
+                    + "redis.call('zadd', KEYS[1], failedAt, ARGV[2]) "
+                    + "redis.call('zremrangebyscore', KEYS[1], 0, failedAt - retention) "
+                    + "local over = redis.call('zcard', KEYS[1]) - " + LoginFailureRecording.MAX_PER_KEY + " "
+                    + "if over > 0 then redis.call('zremrangebyrank', KEYS[1], 0, over - 1) end "
+                    + "redis.call('pexpire', KEYS[1], expiry) "
+                    + "redis.call('zadd', KEYS[2], now, KEYS[1]) "
+                    + "redis.call('zremrangebyscore', KEYS[2], 0, now - expiry) "
+                    + "redis.call('pexpire', KEYS[2], expiry) "
+                    + "local excess = redis.call('zcard', KEYS[2]) - " + LoginFailureRecording.MAX_KEYS + " "
+                    + "if excess <= 0 then return 0 end "
+                    + "for _, key in ipairs(redis.call('zrange', KEYS[2], 0, excess - 1)) do "
+                    + "redis.call('del', key) end "
+                    + "redis.call('zremrangebyrank', KEYS[2], 0, excess - 1) "
+                    + "redis.call('psetex', KEYS[3], retention, now) "
+                    + "return 1",
+            Long.class);
+    /** Removes the failures under KEYS[1] and their place in the order of the keys, KEYS[2]. */
+    private static final DefaultRedisScript<Long> FORGET_LOGIN_FAILURES_SCRIPT = new DefaultRedisScript<>(
+            "redis.call('zrem', KEYS[2], KEYS[1]) return redis.call('del', KEYS[1])", Long.class);
     private static final String CHALLENGE_VERIFIED_VALUE_SEPARATOR = ":";
     private static final Duration MFA_VERIFIED_TTL = Duration.ofHours(1);
     private final AtomicLong authenticationEventSequence = new AtomicLong();
@@ -649,8 +679,7 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore, 
     @Override
     public void recordLoginFailure(String userId, String clientIp, long currentTimeMs) {
         if (hasText(userId)) {
-            recordLoginFailureCounter(
-                    ZeroTrustRedisKeys.authenticationLoginFailuresByUser(userId.trim()), currentTimeMs);
+            recordLoginFailureCounter(loginFailureKey(userId), currentTimeMs);
         }
         if (hasText(clientIp)) {
             recordLoginFailureCounter(
@@ -662,10 +691,7 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore, 
     public int getRecentLoginFailureCount(
             String userId, String clientIp, long windowStartMs, long currentTimeMs) {
         int userCount = hasText(userId)
-                ? countLoginFailures(
-                        ZeroTrustRedisKeys.authenticationLoginFailuresByUser(userId.trim()),
-                        windowStartMs,
-                        currentTimeMs)
+                ? countLoginFailures(loginFailureKey(userId), windowStartMs, currentTimeMs)
                 : 0;
         int ipCount = hasText(clientIp)
                 ? countLoginFailures(
@@ -1202,7 +1228,6 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore, 
                 ZeroTrustRedisKeys.userPreviousPath(userId),
                 ZeroTrustRedisKeys.authenticationMfaVerified(userKey),
                 ZeroTrustRedisKeys.authenticationChallengeVerified(userKey),
-                ZeroTrustRedisKeys.authenticationLoginFailuresByUser(userId.trim()),
                 ZeroTrustRedisKeys.userSessions(userId),
                 // QF-57: the session ids Zero Trust tracks for the user, which used to share the list above.
                 ZeroTrustRedisKeys.userSessionDeadlines(userId),
@@ -1228,6 +1253,8 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore, 
         keys.addAll(scanKeys(ZeroTrustRedisKeys.userAuthorizationScopeState(agentKeys)));
         keys.addAll(scanKeys(ZeroTrustRedisKeys.userAuthorizationScopeState("*::" + agentKeys)));
         redisTemplate.delete(keys);
+        redisTemplate.execute(FORGET_LOGIN_FAILURES_SCRIPT,
+                List.of(loginFailureKey(userKey), ZeroTrustRedisKeys.authenticationLoginFailureKeys()));
     }
 
     /** The user's keys in every tenant: an agent that bears the user's name ends the same way and is left alone. */
@@ -1331,9 +1358,15 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore, 
             return null;
         }
         try {
-            Long count = redisTemplate.opsForZSet().count(
-                    ZeroTrustRedisKeys.authenticationLoginFailuresByUser(userId.trim()), windowStartMs, currentTimeMs);
-            return count != null ? count.intValue() : null;
+            String key = loginFailureKey(userId);
+            Long count = redisTemplate.opsForZSet().count(key, windowStartMs, currentTimeMs);
+            if (count == null) {
+                return null;
+            }
+            boolean lost = count == 0
+                    && Boolean.TRUE.equals(redisTemplate.hasKey(ZeroTrustRedisKeys.authenticationLoginFailuresLost()))
+                    && !Boolean.TRUE.equals(redisTemplate.hasKey(key));
+            return lost ? null : count.intValue();
         } catch (Exception e) {
             if (!StoreFailures.isReportedOutage(e)) {
                 log.error("[SecurityContextDataStore] Failed to count login failures: userId={}", userId, e);
@@ -1342,15 +1375,29 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore, 
         }
     }
 
+    private static String loginFailureKey(String userId) {
+        return ZeroTrustRedisKeys.authenticationLoginFailuresByUser(LoginFailureRecording.subject(userId));
+    }
+
     private void recordLoginFailureCounter(String key, long currentTimeMs) {
         try {
             Duration retention = loginFailureRetention;
-            String member = currentTimeMs + ":" + authenticationEventSequence.incrementAndGet();
-            redisTemplate.opsForZSet().add(key, member, currentTimeMs);
-            redisTemplate.opsForZSet().removeRangeByScore(key, 0, currentTimeMs - retention.toMillis());
-            redisTemplate.expire(key, retention.plus(LOGIN_FAILURE_EXPIRY_MARGIN));
+            long now = System.currentTimeMillis();
+            Long lost = redisTemplate.execute(RECORD_LOGIN_FAILURE_SCRIPT,
+                    List.of(key, ZeroTrustRedisKeys.authenticationLoginFailureKeys(),
+                            ZeroTrustRedisKeys.authenticationLoginFailuresLost()),
+                    Long.toString(currentTimeMs),
+                    currentTimeMs + ":" + authenticationEventSequence.incrementAndGet(),
+                    Long.toString(retention.toMillis()),
+                    Long.toString(retention.plus(LOGIN_FAILURE_EXPIRY_MARGIN).toMillis()),
+                    Long.toString(now));
+            if (lost != null && lost == 1L) {
+                LoginFailureRecording.reportLoss(now, retention);
+            }
         } catch (Exception e) {
-            log.error("[SecurityContextDataStore] Failed to record login failure: key={}", key, e);
+            if (!StoreFailures.isReportedOutage(e)) {
+                log.error("[SecurityContextDataStore] Failed to record login failure: key={}", key, e);
+            }
         }
     }
 

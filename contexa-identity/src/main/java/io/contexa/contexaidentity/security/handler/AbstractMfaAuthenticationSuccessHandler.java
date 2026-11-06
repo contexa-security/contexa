@@ -544,11 +544,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 return;
             }
 
-            String userName = authentication.getName();
-
             Map<String, Object> payload = new HashMap<>();
-            payload.put("requestPath", request.getRequestURI());
-            payload.put("httpMethod", request.getMethod());
             payload.put("authenticationType", factorContext != null && factorContext.isCompleted() ? "MFA" : "PRIMARY");
 
             if (factorContext != null) {
@@ -564,13 +560,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
             payload.put("action", ZeroTrustAction.ALLOW.name());
 
-            zeroTrustEventPublisher.publishAuthenticationSuccess(
-                    userName,
-                    request.getSession(false) != null ? request.getSession().getId() : null,
-                    extractClientIp(request),
-                    extractUserAgent(request),
-                    payload
-            );
+            zeroTrustEventPublisher.publishAuthenticationSuccess(authentication, request, payload);
 
         } catch (Exception e) {
             safeLogError("Failed to publish authentication success event", e);
@@ -612,10 +602,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         } catch (Exception e) {
             safeLogError("Failed to audit authentication success", e);
         }
-    }
-
-    private String extractUserAgent(HttpServletRequest request) {
-        return request.getHeader("User-Agent");
     }
 
     private AuthUrlProvider resolveProvider(HttpServletRequest request, @Nullable FactorContext factorContext) {

@@ -21,7 +21,11 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.OAuth2AuthenticatedPrincipal;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AccessTokenAuthenticationToken;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationGrantAuthenticationToken;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2ClientAuthenticationToken;
 import org.springframework.security.oauth2.server.resource.authentication.AbstractOAuth2TokenAuthenticationToken;
+import org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthenticationToken;
 import org.springframework.util.ClassUtils;
 
 import java.util.Collections;
@@ -51,6 +55,10 @@ public final class OAuth2AuthenticationSupport {
             CLASS_LOADER);
     private static final boolean OAUTH2_CLIENT_PRESENT = ClassUtils.isPresent(
             "org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken", CLASS_LOADER);
+
+    private static final boolean AUTHORIZATION_SERVER_PRESENT = ClassUtils.isPresent(
+            "org.springframework.security.oauth2.server.authorization.authentication.OAuth2ClientAuthenticationToken",
+            CLASS_LOADER);
 
     /** The claim that names the login session behind a token (OpenID Connect {@code sid}). */
     public static final String SESSION_ID_CLAIM = "sid";
@@ -101,6 +109,16 @@ public final class OAuth2AuthenticationSupport {
         return name.trim();
     }
 
+    /**
+     * Token traffic is no sign-in of a person: a request presenting an OAuth2 bearer token carries no credential typed by
+     * a user (and the name of a rejected bearer token is the token value itself), and the authorization server
+     * authenticates OAuth2 clients and token grants, whose names are client ids.
+     */
+    public static boolean isTokenTraffic(@Nullable Authentication authentication) {
+        return (RESOURCE_SERVER_PRESENT && ResourceServerTypes.isBearerToken(authentication))
+                || (AUTHORIZATION_SERVER_PRESENT && AuthorizationServerTypes.isTokenGrant(authentication));
+    }
+
     public static boolean isOAuth2Authentication(@Nullable Authentication authentication) {
         if (authentication == null || authentication instanceof BridgeAuthenticationToken) {
             return false;
@@ -117,6 +135,18 @@ public final class OAuth2AuthenticationSupport {
                 && OAuth2CoreTypes.isOAuth2Principal(principal);
     }
 
+    private static final class AuthorizationServerTypes {
+
+        private AuthorizationServerTypes() {
+        }
+
+        static boolean isTokenGrant(Authentication authentication) {
+            return authentication instanceof OAuth2ClientAuthenticationToken
+                    || authentication instanceof OAuth2AccessTokenAuthenticationToken
+                    || authentication instanceof OAuth2AuthorizationGrantAuthenticationToken;
+        }
+    }
+
     private static final class ResourceServerTypes {
 
         private ResourceServerTypes() {
@@ -124,6 +154,11 @@ public final class OAuth2AuthenticationSupport {
 
         static boolean isOAuth2Token(Authentication authentication) {
             return authentication instanceof AbstractOAuth2TokenAuthenticationToken<?>;
+        }
+
+        static boolean isBearerToken(Authentication authentication) {
+            return authentication instanceof BearerTokenAuthenticationToken
+                    || authentication instanceof AbstractOAuth2TokenAuthenticationToken<?>;
         }
 
         static Object tokenAttribute(Authentication authentication, String name) {

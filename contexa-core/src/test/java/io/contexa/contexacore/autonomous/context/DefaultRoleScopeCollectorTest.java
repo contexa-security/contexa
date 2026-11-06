@@ -91,6 +91,21 @@ class DefaultRoleScopeCollectorTest {
     }
 
     @Test
+    @DisplayName("a sign-in is no work of the role: the POST of its form neither joins the scope nor is compared with it")
+    void aSignInIsNoWorkOfTheRole() {
+        SecurityEvent signIn = peerEvent(LocalDateTime.of(2026, 3, 26, 9, 0), List.of("ROLE_ANALYST"),
+                List.of("customer_data"), List.of("report.read"), "WRITE", "REPORT", true);
+        signIn.addMetadata("zerotrust.category", "AUTHENTICATION");
+
+        assertThat(collector.collect(signIn)).isEmpty();
+        collector.recorder().commit(signIn, "ALLOW", true);
+
+        RoleScopeSnapshot snapshot = collect(event(LocalDateTime.of(2026, 3, 26, 10, 0), List.of("ROLE_ANALYST"),
+                List.of("customer_data"), List.of("report.read"), "READ", "REPORT", true)).orElseThrow();
+        assertThat(snapshot.getExpectedActionFamilies()).doesNotContain("WRITE");
+    }
+
+    @Test
     @DisplayName("a request the decision challenged joins no scope, while its permission state is kept (W2-7, S-10)")
     void aChallengedRequestJoinsNoScopeButItsPermissionStateIsKept() {
         SecurityEvent challenged = event(LocalDateTime.of(2026, 3, 26, 9, 0), List.of("ROLE_ANALYST"),
