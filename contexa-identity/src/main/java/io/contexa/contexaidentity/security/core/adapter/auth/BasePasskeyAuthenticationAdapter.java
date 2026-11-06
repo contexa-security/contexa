@@ -32,8 +32,10 @@ public abstract class BasePasskeyAuthenticationAdapter extends AbstractAuthentic
                                          PlatformAuthenticationSuccessHandler successHandler,
                                          PlatformAuthenticationFailureHandler failureHandler) throws Exception {
 
-        // WebAuthn looks for the store as the only bean of its type, and the application may have several
-        http.setSharedObject(UserDetailsService.class, ContexaUserStore.of(http.getSharedObject(PlatformContext.class).applicationContext()));
+        // WebAuthn looks for the store as the only bean of its type, and the application may have several. Spring's passkey
+        // provider takes the account the key names as it is: the store refuses a locked or disabled one.
+        http.setSharedObject(UserDetailsService.class, new AccountStateCheckingUserDetailsService(
+                ContexaUserStore.of(http.getSharedObject(PlatformContext.class).applicationContext())));
         http.webAuthn(web -> {
             web.rpName(opts.getRpName())
                     .rpId(opts.getRpId())

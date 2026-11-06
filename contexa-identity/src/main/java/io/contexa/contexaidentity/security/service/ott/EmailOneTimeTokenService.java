@@ -18,6 +18,7 @@ package io.contexa.contexaidentity.security.service.ott;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.properties.MfaSettings;
 import io.contexa.contexacommon.jdbc.LibraryTableNames;
+import io.contexa.contexacommon.security.LocalAccountStatusChecker;
 import io.contexa.contexaidentity.security.zerotrust.stepup.InMemoryStepUpOptionsStore;
 import io.contexa.contexaidentity.security.zerotrust.stepup.StepUpOptionsStore;
 import jakarta.mail.internet.AddressException;
@@ -27,6 +28,8 @@ import org.springframework.beans.factory.DisposableBean;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.ott.*;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -155,10 +158,11 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
      * and the mailbox is someone's. The claim comes first, so requests at once find it held and leave no code behind.
      * A store that gives no claim mails nothing, as for a claim that is held. A name of no account is mailed nothing:
      * before a sign-in the name is what a form says, so the code would go to any address a stranger typed, and it would
-     * sign in to nothing.
+     * sign in to nothing. A locked or disabled account is mailed nothing either: the code would sign in to nothing, and the
+     * answer is the one a name of no account gets, so asking tells nothing of the account's state.
      *
      * @return the code, or a token of the user with an empty value: inside the interval, where the code mailed before stays
-     * good, and for a name of no account
+     * good, for a name of no account, and for an account the sign-in refuses
      */
     public OneTimeToken generateAndSendVerificationCode(String username, String emailPurpose, String customEmail) {
         Assert.hasText(username, "Username cannot be empty");
@@ -166,7 +170,12 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
 
         String registeredEmail = lookupRegisteredEmail(username);
         refuseAnotherAddress(username, registeredEmail, customEmail);
-        if (!StringUtils.hasText(registeredEmail) && !signsIn(username)) {
+        Standing standing = standing(username);
+        if (standing == Standing.REFUSED) {
+            log.debug("OTT email not sent, the account does not sign in: username={}", username);
+            return new NothingMailed(username, Instant.now());
+        }
+        if (!StringUtils.hasText(registeredEmail) && standing != Standing.OPEN) {
             log.debug("OTT email not sent, the name is no account: username={}", username);
             return new NothingMailed(username, Instant.now());
         }
@@ -278,16 +287,36 @@ public class EmailOneTimeTokenService implements OneTimeTokenService, Disposable
         return StringUtils.hasText(registeredEmail) ? registeredEmail.trim() : username;
     }
 
-    /** Whether the store the sign-in reads knows the name; a store that cannot say leaves the code unmailed. */
-    private boolean signsIn(String username) {
+    /** What the store the sign-in reads says of a name. */
+    private enum Standing {
+        /** An account that may sign in. */
+        OPEN,
+        /** An account the sign-in refuses: locked, disabled, expired, or one that signs in elsewhere only. */
+        REFUSED,
+        /** No store, no account of the name, or a store that cannot say. */
+        UNKNOWN
+    }
+
+    /**
+     * What the store the sign-in reads says of the name. A code signs in to no account the store refuses, so none is made
+     * for it; a store that cannot say leaves a name of no registered address unmailed.
+     */
+    private Standing standing(String username) {
         try {
             UserDetailsService store = userStore.get();
-            return store != null && store.loadUserByUsername(username) != null;
+            UserDetails account = store != null ? store.loadUserByUsername(username) : null;
+            if (account == null) {
+                return Standing.UNKNOWN;
+            }
+            LocalAccountStatusChecker.checkBeforeCredentials(account);
+            return Standing.OPEN;
         } catch (UsernameNotFoundException noAccount) {
-            return false;
+            return Standing.UNKNOWN;
+        } catch (AuthenticationException refused) {
+            return Standing.REFUSED;
         } catch (RuntimeException e) {
             log.error("The user store could not say whether a name is an account: username={}", username, e);
-            return false;
+            return Standing.UNKNOWN;
         }
     }
 

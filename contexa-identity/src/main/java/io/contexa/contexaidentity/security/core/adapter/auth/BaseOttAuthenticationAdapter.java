@@ -82,8 +82,9 @@ public abstract class BaseOttAuthenticationAdapter extends AbstractAuthenticatio
                         MfaStateMachineIntegrator flows = appContext.getBeanProvider(MfaStateMachineIntegrator.class).getIfAvailable();
                         return flows != null ? flows.loadFactorContextFromRequest(request) : null;
                     }))
-                    .authenticationProvider(new LoginFactsAuthenticationProvider(
-                            new OneTimeTokenAuthenticationProvider(oneTimeTokenService, userDetailsService)));
+                    // Spring's provider takes the account the code names as it is: the store refuses a locked or disabled one
+                    .authenticationProvider(new LoginFactsAuthenticationProvider(new OneTimeTokenAuthenticationProvider(
+                            oneTimeTokenService, new AccountStateCheckingUserDetailsService(userDetailsService))));
 
             if (successHandler != null) ott.successHandler(successHandler);
             else if (opts.getSuccessHandler() != null) ott.successHandler(opts.getSuccessHandler());
