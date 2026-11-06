@@ -483,9 +483,10 @@ public class IdentityOAuth2AutoConfiguration {
     }
 
     /*
-     * No OAuth2TokenGenerator bean (CF-06): the authorization server chain then builds Spring's generator, which applies
-     * Spring's default claims (act for token exchange, cnf for DPoP and mutual TLS bound tokens) before the token
-     * customizer below. An application that declares its own generator adds those claims itself.
+     * No OAuth2TokenGenerator bean: the authorization server chain then builds Spring's generator, which applies Spring's
+     * default claims (act for token exchange, cnf for DPoP and mutual TLS bound tokens) before the token customizer below.
+     * An application that declares its own generator adds those claims itself; the chain puts Contexa's token checks in
+     * front of it (CheckedTokenGenerator), since the server never offers a token to the customizer then.
      */
 
     /** What a person's token answers to at its renewal: the account as it is now, and the decision in force. */
