@@ -20,6 +20,7 @@ import io.contexa.contexaidentity.security.core.adapter.state.oauth2.OAuth2State
 import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import io.contexa.contexacommon.operating.ConditionalOnOwnership;
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
+import io.contexa.contexacommon.security.subject.AgentClientStatusUnavailableException;
 import io.contexa.contexacore.autonomous.agent.AgentDelegations;
 import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
 import io.contexa.contexaidentity.security.handler.login.LoginFactClaims;
@@ -92,6 +93,7 @@ import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -494,8 +496,30 @@ public class IdentityOAuth2AutoConfiguration {
                 () -> zeroTrustEnforcing() ? zeroTrustActions.getIfAvailable() : null);
     }
 
+    /**
+     * The token customizer the authorization server finds: Contexa's own checks first, then the application's customizers
+     * (any number, in their order) that {@link HostTokenCustomizerDemotion} took out of the bean type the server looks for.
+     * The server takes one customizer bean; before, a customizer of the application replaced Contexa's and its checks
+     * with it.
+     */
     @Bean(name = "contexaTokenCustomizer")
-    @ConditionalOnMissingBean(OAuth2TokenCustomizer.class)
+    @ConditionalOnMissingBean(name = "contexaTokenCustomizer")
+    public ComposedTokenCustomizer composedTokenCustomizer(
+            ObjectProvider<DelegationRegistry> delegationRegistry,
+            ObjectProvider<AgentClientDirectory> agentClientDirectory,
+            ObjectProvider<AccountTokenGuard> accountGuard,
+            ObjectProvider<HostTokenCustomizer> applicationCustomizers) {
+        return new ComposedTokenCustomizer(tokenCustomizer(delegationRegistry, agentClientDirectory, accountGuard),
+                applicationCustomizers.orderedStream().toList());
+    }
+
+    /** Takes the application's token customizers out of the type the authorization server takes only one of. */
+    @Bean(name = "contexaTokenCustomizerComposition")
+    public static BeanFactoryPostProcessor tokenCustomizerComposition() {
+        return new HostTokenCustomizerDemotion();
+    }
+
+    /** Contexa's own token checks and claims; the bean the server finds is {@link #composedTokenCustomizer}. */
     public OAuth2TokenCustomizer<JwtEncodingContext> tokenCustomizer(
             ObjectProvider<DelegationRegistry> delegationRegistry,
             ObjectProvider<AgentClientDirectory> agentClientDirectory,
@@ -504,7 +528,8 @@ public class IdentityOAuth2AutoConfiguration {
         return context -> {
 
             // docs/agent A5-3: a suspended agent gets no token, for itself or for a person.
-            refuseSuspendedAgent(context, agentClientDirectory.getIfAvailable());
+            refuseSuspendedAgent(context, agentClientDirectory.getIfAvailable(),
+                    authContextProperties.getOauth2().getClientId());
 
             UserDetails renewedAccount = renewedAccount(context, accountGuard.getIfAvailable());
 
@@ -663,13 +688,27 @@ public class IdentityOAuth2AutoConfiguration {
      */
     /**
      * docs/agent A5-3: refuses to issue a token to a client that is a suspended agent. The token engine knows no tenant
-     * of a client, so a suspension of the client in any tenant refuses it.
+     * of a client, so a suspension of the client in any tenant refuses it. When the suspension cannot be read, the token
+     * waits as well ({@code temporarily_unavailable}, nothing of the cause in the answer): a failure of the store must not
+     * lift a restriction. The internal client is the sign-in of a person and no agent, so its tokens never ask the directory.
      */
-    static void refuseSuspendedAgent(JwtEncodingContext context, AgentClientDirectory agents) {
+    static void refuseSuspendedAgent(JwtEncodingContext context, AgentClientDirectory agents, String internalClientId) {
         if (agents == null || context.getRegisteredClient() == null) {
             return;
         }
-        if (agents.suspendedAgentClient(null, context.getRegisteredClient().getClientId())) {
+        String clientId = context.getRegisteredClient().getClientId();
+        if (clientId == null || clientId.equals(internalClientId)) {
+            return;
+        }
+        boolean suspended;
+        try {
+            suspended = agents.suspendedAgentClient(null, clientId);
+        } catch (AgentClientStatusUnavailableException unreadable) {
+            // No cause is attached: its text would become the message of the exception. The registry says why in the log.
+            throw new OAuth2AuthenticationException(new OAuth2Error(OAuth2ErrorCodes.TEMPORARILY_UNAVAILABLE,
+                    "The status of the agent cannot be read now", null));
+        }
+        if (suspended) {
             throw new OAuth2AuthenticationException(new OAuth2Error(OAuth2ErrorCodes.UNAUTHORIZED_CLIENT,
                     "The agent is suspended", null));
         }

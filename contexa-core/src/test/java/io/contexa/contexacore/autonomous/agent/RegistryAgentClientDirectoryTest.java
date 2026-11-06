@@ -16,8 +16,14 @@
 
 package io.contexa.contexacore.autonomous.agent;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.contexa.contexacommon.security.bridge.runtime.RequestPathDatabaseGuard;
+import io.contexa.contexacommon.security.subject.AgentClientStatusUnavailableException;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -26,8 +32,11 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -100,16 +109,133 @@ class RegistryAgentClientDirectoryTest {
             databaseBack.await();
             return Optional.empty();
         });
+        when(hanging.findAllByClientId(any())).thenAnswer(call -> {
+            databaseBack.await();
+            return List.of();
+        });
         RequestPathDatabaseGuard guard = new RequestPathDatabaseGuard(Duration.ofMillis(150), 4);
         RegistryAgentClientDirectory outage = new RegistryAgentClientDirectory(hanging, guard);
         try {
             assertTimeoutPreemptively(Duration.ofSeconds(3), () -> {
                 assertThat(outage.activeAgentForClient(null, "report-client")).isEmpty();
-                assertThat(outage.suspendedAgentClient(null, "report-client")).isFalse();
+                // The wait ends, and what it ends with is "cannot tell", never "not suspended".
+                assertThatThrownBy(() -> outage.suspendedAgentClient(null, "report-client"))
+                        .isInstanceOf(AgentClientStatusUnavailableException.class);
             });
         } finally {
             databaseBack.countDown();
             guard.destroy();
         }
+    }
+
+    /** A failure never lifts a suspension: the status is unreadable, whatever the failure and whichever token asks. */
+    @Test
+    void aRegistryFailureMakesTheSuspensionUnreadableAndNeverAbsent() {
+        AgentRegistry failing = new InMemoryAgentRegistry() {
+            @Override
+            public Optional<AgentRegistration> findByClientId(String tenantId, String clientId) {
+                throw new IllegalStateException("registry unavailable");
+            }
+
+            @Override
+            public List<AgentRegistration> findAllByClientId(String clientId) {
+                throw new IllegalStateException("registry unavailable");
+            }
+        };
+        RegistryAgentClientDirectory directory = new RegistryAgentClientDirectory(failing);
+
+        assertThatThrownBy(() -> directory.suspendedAgentClient(null, "report-client"))
+                .isInstanceOf(AgentClientStatusUnavailableException.class)
+                .hasMessageNotContaining("registry unavailable");
+        assertThatThrownBy(() -> directory.suspendedAgentClient("tenant-a", "report-client"))
+                .isInstanceOf(AgentClientStatusUnavailableException.class);
+    }
+
+    @Test
+    void whenEveryWorkerIsHeldTheSuspensionIsUnreadableAtOnce() {
+        CountDownLatch databaseBack = new CountDownLatch(1);
+        AgentRegistry hanging = mock(AgentRegistry.class);
+        when(hanging.findAllByClientId(any())).thenAnswer(call -> {
+            databaseBack.await();
+            return List.of();
+        });
+        RequestPathDatabaseGuard guard = new RequestPathDatabaseGuard(Duration.ofMillis(100), 1);
+        RegistryAgentClientDirectory outage = new RegistryAgentClientDirectory(hanging, guard);
+        try {
+            assertTimeoutPreemptively(Duration.ofSeconds(3), () -> {
+                // The first call holds the only worker past its wait; the second finds none free and does not wait.
+                assertThatThrownBy(() -> outage.suspendedAgentClient(null, "report-client"))
+                        .isInstanceOf(AgentClientStatusUnavailableException.class);
+                assertThatThrownBy(() -> outage.suspendedAgentClient(null, "report-client"))
+                        .isInstanceOf(AgentClientStatusUnavailableException.class);
+            });
+        } finally {
+            databaseBack.countDown();
+            guard.destroy();
+        }
+    }
+
+    /**
+     * The outage is one error line for a client in a minute, not one for every request that meets it, and the line names
+     * the client and nothing the registry said.
+     */
+    @Test
+    void anOutageIsReportedOncePerClientInAMinute() {
+        AgentRegistry failing = new InMemoryAgentRegistry() {
+            @Override
+            public List<AgentRegistration> findAllByClientId(String clientId) {
+                throw new IllegalStateException("password authentication failed for user contexa");
+            }
+        };
+        AtomicLong nanos = new AtomicLong();
+        RequestPathDatabaseGuard guard = new RequestPathDatabaseGuard();
+        RegistryAgentClientDirectory directory = new RegistryAgentClientDirectory(failing, guard, nanos::get);
+        ListAppender<ILoggingEvent> logged = new ListAppender<>();
+        Logger logger = (Logger) LoggerFactory.getLogger(RegistryAgentClientDirectory.class);
+        logged.start();
+        logger.addAppender(logged);
+        try {
+            for (int request = 0; request < 5; request++) {
+                assertThatThrownBy(() -> directory.suspendedAgentClient(null, "report-client"))
+                        .isInstanceOf(AgentClientStatusUnavailableException.class);
+            }
+            assertThat(errors(logged)).hasSize(1);
+            assertThat(errors(logged).get(0).getFormattedMessage()).contains("report-client")
+                    .doesNotContain("password");
+
+            nanos.addAndGet(TimeUnit.SECONDS.toNanos(30));
+            assertThatThrownBy(() -> directory.suspendedAgentClient(null, "report-client"))
+                    .isInstanceOf(AgentClientStatusUnavailableException.class);
+            assertThat(errors(logged)).as("still the same minute").hasSize(1);
+
+            assertThatThrownBy(() -> directory.suspendedAgentClient(null, "sync-client"))
+                    .isInstanceOf(AgentClientStatusUnavailableException.class);
+            assertThat(errors(logged)).as("another client is another line").hasSize(2);
+
+            nanos.addAndGet(TimeUnit.SECONDS.toNanos(31));
+            assertThatThrownBy(() -> directory.suspendedAgentClient(null, "report-client"))
+                    .isInstanceOf(AgentClientStatusUnavailableException.class);
+            assertThat(errors(logged)).as("a minute later, the outage is said again").hasSize(3);
+        } finally {
+            logger.detachAppender(logged);
+            guard.destroy();
+        }
+    }
+
+    private static List<ILoggingEvent> errors(ListAppender<ILoggingEvent> logged) {
+        return logged.list.stream().filter(event -> event.getLevel() == Level.ERROR).toList();
+    }
+
+    /** What the registry answers is unchanged while it answers: a suspension is found, a client not suspended is not. */
+    @Test
+    void aRegistryThatAnswersStillTellsSuspendedFromNot() {
+        registry.register(new AgentRegistrationRequest(null, "report-bot", "Report bot", null, "report-client", "carol", null));
+        registry.register(new AgentRegistrationRequest(null, "sync-bot", "Sync bot", null, "sync-client", "carol", null));
+        registry.suspend(null, "sync-bot", "stopped");
+
+        assertThat(directory.suspendedAgentClient(null, "report-client")).isFalse();
+        assertThat(directory.suspendedAgentClient(null, "sync-client")).isTrue();
+        assertThat(directory.suspendedAgentClient(null, "unknown-client")).isFalse();
+        assertThat(new RegistryAgentClientDirectory(null).suspendedAgentClient(null, "report-client")).isFalse();
     }
 }

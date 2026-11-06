@@ -53,6 +53,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.security.subject.AgentClientStatusUnavailableException;
+import io.contexa.contexacore.autonomous.agent.AgentRegistration;
+import java.util.concurrent.atomic.AtomicInteger;
 import io.contexa.contexacore.autonomous.agent.AgentDelegation;
 import io.contexa.contexacore.autonomous.agent.AgentDelegationRequest;
 import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
@@ -390,6 +393,96 @@ class IdentityOAuth2AutoConfigurationTest {
     }
 
     /**
+     * A restriction is not lifted by a failure: when the directory cannot say whether the client is a suspended agent, the
+     * client gets no token for now, for itself or for a person. The answer tells the status could not be read and nothing of
+     * why. A person's own sign-in is not asked of the directory at all, so it goes on.
+     */
+    @Test
+    @DisplayName("a directory that cannot read the suspension stops the client's token for now; a person's sign-in never asks it")
+    @SuppressWarnings("unchecked")
+    void aDirectoryThatCannotReadTheSuspensionStopsTheClientsToken() {
+        UnreadableDirectory directory = new UnreadableDirectory("sync-client");
+        ObjectProvider<AgentClientDirectory> agents = mock(ObjectProvider.class);
+        when(agents.getIfAvailable()).thenReturn(directory);
+        OAuth2TokenCustomizer<JwtEncodingContext> customizer =
+                configuration(new AuthContextProperties()).tokenCustomizer(none(), agents, none());
+
+        for (JwtEncodingContext context : List.of(accessTokenContext("sync-client"), exchangeContext("alice", "sync-client"))) {
+            assertThatThrownBy(() -> customizer.customize(context))
+                    .isInstanceOfSatisfying(OAuth2AuthenticationException.class, refused -> {
+                        assertThat(refused.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.TEMPORARILY_UNAVAILABLE);
+                        assertThat(refused.getError().getDescription()).doesNotContain("secret-host");
+                    });
+        }
+        JwtEncodingContext other = accessTokenContext("report-client");
+        customizer.customize(other);
+        assertThat(other.getClaims().build().getClaims()).containsEntry("client_id", "report-client");
+
+        int askedForAgents = directory.asked.get();
+        JwtEncodingContext signIn = accessTokenContext("default-client");
+        customizer.customize(signIn);
+        customizer.customize(refreshContext(JwtClaimsSet.builder().subject("alice"), "default-client"));
+        assertThat(signIn.getClaims().build().getClaims()).containsEntry("client_id", "default-client");
+        assertThat(directory.asked.get()).as("the internal client is no agent: its tokens never ask the directory")
+                .isEqualTo(askedForAgents);
+    }
+
+    /** The same failure from Contexa's own directory: a registry that throws stops the agent's token, not a person's. */
+    @Test
+    @DisplayName("a failing agent registry stops the agent client's token and leaves the sign-in of a person alone")
+    @SuppressWarnings("unchecked")
+    void aFailingAgentRegistryStopsTheAgentClientsTokenAndNotAPersons() {
+        InMemoryAgentRegistry failing = new InMemoryAgentRegistry() {
+            @Override
+            public Optional<AgentRegistration> findByClientId(String tenantId, String clientId) {
+                throw new IllegalStateException("registry unavailable");
+            }
+
+            @Override
+            public List<AgentRegistration> findAllByClientId(String clientId) {
+                throw new IllegalStateException("registry unavailable");
+            }
+        };
+        ObjectProvider<AgentClientDirectory> agents = mock(ObjectProvider.class);
+        when(agents.getIfAvailable()).thenReturn(new RegistryAgentClientDirectory(failing));
+        OAuth2TokenCustomizer<JwtEncodingContext> customizer =
+                configuration(new AuthContextProperties()).tokenCustomizer(none(), agents, none());
+
+        assertThatThrownBy(() -> customizer.customize(accessTokenContext("sync-client")))
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, refused ->
+                        assertThat(refused.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.TEMPORARILY_UNAVAILABLE));
+        JwtEncodingContext signIn = accessTokenContext("default-client");
+        customizer.customize(signIn);
+        assertThat(signIn.getClaims().build().getClaims()).containsEntry("client_id", "default-client");
+    }
+
+    /** Names one client whose suspension cannot be read, and counts how often the directory is asked. */
+    private static final class UnreadableDirectory implements AgentClientDirectory {
+
+        final AtomicInteger asked = new AtomicInteger();
+        private final String unreadableClient;
+
+        UnreadableDirectory(String unreadableClient) {
+            this.unreadableClient = unreadableClient;
+        }
+
+        @Override
+        public Optional<String> activeAgentForClient(String tenantId, String clientId) {
+            return Optional.empty();
+        }
+
+        @Override
+        public boolean suspendedAgentClient(String tenantId, String clientId) {
+            asked.incrementAndGet();
+            if (unreadableClient.equals(clientId)) {
+                throw new AgentClientStatusUnavailableException(
+                        "cannot read jdbc:postgresql://secret-host/contexa");
+            }
+            return false;
+        }
+    }
+
+    /**
      * The token engine knows no tenant of a client: an agent registered in a tenant is found by its client all the same,
      * so its suspension and a revoked delegation of it stop its tokens as they stop those of an agent of no tenant.
      */
@@ -614,7 +707,11 @@ class IdentityOAuth2AutoConfigurationTest {
 
     /** What Spring's refresh provider hands the customizer: the principal the sign-in stored, here an administrator. */
     private static JwtEncodingContext refreshContext(JwtClaimsSet.Builder claims) {
-        RegisteredClient client = RegisteredClient.withId("client-1").clientId("client-1")
+        return refreshContext(claims, "client-1");
+    }
+
+    private static JwtEncodingContext refreshContext(JwtClaimsSet.Builder claims, String clientId) {
+        RegisteredClient client = RegisteredClient.withId(clientId).clientId(clientId)
                 .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN).build();
         return JwtEncodingContext.with(JwsHeader.with(SignatureAlgorithm.RS256), claims)
                 .registeredClient(client)
@@ -629,8 +726,12 @@ class IdentityOAuth2AutoConfigurationTest {
 
     /** An exchange of the person's sign-in token, as Spring's exchange provider hands it to the customizer. */
     private static JwtEncodingContext exchangeContext(String person) {
-        RegisteredClient client = RegisteredClient.withId("report-client")
-                .clientId("report-client")
+        return exchangeContext(person, "report-client");
+    }
+
+    private static JwtEncodingContext exchangeContext(String person, String clientId) {
+        RegisteredClient client = RegisteredClient.withId(clientId)
+                .clientId(clientId)
                 .authorizationGrantType(AuthorizationGrantType.TOKEN_EXCHANGE)
                 .build();
         RegisteredClient internal = RegisteredClient.withId("internal")
