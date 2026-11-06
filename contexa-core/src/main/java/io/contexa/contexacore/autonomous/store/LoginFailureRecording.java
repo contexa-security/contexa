@@ -44,8 +44,12 @@ public final class LoginFailureRecording {
      */
     public static final int MAX_KEYS = 10_000;
 
-    /** How many failures a key keeps, the latest ones: the count of one name stops here. */
-    public static final int MAX_PER_KEY = 1_000;
+    /**
+     * How many failures a key keeps, the latest ones: the count of one name stops here, twice the count at which the
+     * decisions read a name as abused. With {@link #MAX_KEYS} it bounds what the worst flood holds: two million failures,
+     * some 100 MB in memory.
+     */
+    public static final int MAX_PER_KEY = 200;
 
     /** The longest name kept: a request can carry megabytes of one, and no account has such a name. */
     static final int MAX_NAME_LENGTH = 256;

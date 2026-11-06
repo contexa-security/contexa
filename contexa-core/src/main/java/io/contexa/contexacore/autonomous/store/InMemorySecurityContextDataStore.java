@@ -35,7 +35,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
@@ -140,7 +140,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         this.verificationLearning = learningSpace(this::releaseHeldRecords);
         this.promotionLearning = learningSpace(this::releaseHeldRecords);
         this.stoppedRequests = ExpiringKeySpace.<StoppedRequests>builder(clock).build();
-        this.loginFailures = ExpiringKeySpace.<ConcurrentSkipListMap<Long, String>>builder(clock)
+        this.loginFailures = ExpiringKeySpace.<ConcurrentSkipListSet<Long>>builder(clock)
                 .bound(LoginFailureRecording.MAX_KEYS).evictWith(this::evictLoginFailures).build();
         this.mfaVerifiedAt = ExpiringKeySpace.<Long>builder(clock).ttl(MFA_VERIFIED_TTL).build();
         this.challengeVerifiedAt = ExpiringKeySpace.<Long>builder(clock).ttl(MFA_VERIFIED_TTL).build();
@@ -192,7 +192,8 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private final ExpiringKeySpace<Long> lastRequestTimes;
     private final ExpiringKeySpace<String> previousPaths;
     /** The failed sign-ins of each name and address, within the bounds of {@link LoginFailureRecording}. */
-    private final ExpiringKeySpace<ConcurrentSkipListMap<Long, String>> loginFailures;
+    /** Each failure is its time and a sequence, nothing else: what a key holds is as small as it can be. */
+    private final ExpiringKeySpace<ConcurrentSkipListSet<Long>> loginFailures;
     /** Until when a name without a record of failures may have lost it to the bound. */
     private volatile long loginFailuresLostUntilMs;
     /** When each user last completed MFA, on the request clock, while the mark lasts. */
@@ -1147,15 +1148,15 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private void recordLoginFailureCounter(String key, long currentTimeMs) {
         Duration retention = loginFailureRetention;
         loginFailures.compute(key, (ignored, counter) -> {
-            ConcurrentSkipListMap<Long, String> values = counter != null
+            ConcurrentSkipListSet<Long> values = counter != null
                     ? counter
-                    : new ConcurrentSkipListMap<>();
+                    : new ConcurrentSkipListSet<>();
             long sequence = authenticationEventSequence.incrementAndGet() % 1_000_000L;
-            values.put(currentTimeMs * 1_000_000L + sequence, Long.toString(currentTimeMs));
+            values.add(currentTimeMs * 1_000_000L + sequence);
             long cutoff = (currentTimeMs - retention.toMillis()) * 1_000_000L;
-            values.headMap(cutoff).clear();
+            values.headSet(cutoff).clear();
             while (values.size() > LoginFailureRecording.MAX_PER_KEY) {
-                values.pollFirstEntry();
+                values.pollFirst();
             }
             return values;
         }, retention);
@@ -1171,13 +1172,13 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     }
 
     private int countLoginFailures(String key, long windowStartMs, long currentTimeMs) {
-        ConcurrentSkipListMap<Long, String> counter = loginFailures.get(key);
+        ConcurrentSkipListSet<Long> counter = loginFailures.get(key);
         if (counter == null) {
             return 0;
         }
         long from = windowStartMs * 1_000_000L;
         long to = currentTimeMs * 1_000_000L + 999_999L;
-        return counter.subMap(from, true, to, true).size();
+        return counter.subSet(from, true, to, true).size();
     }
 
     private static boolean hasText(String value) {
