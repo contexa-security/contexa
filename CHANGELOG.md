@@ -286,6 +286,7 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **The log says again which partitions the security event consumer holds.** Since the consumer's decided-record listener replaced the container's own, the lines `partitions assigned`, `partitions revoked` and `partitions lost` were no longer written, and a runbook or a check that waits for the first of them found nothing. The listener writes the three lines itself, with the consumer group in front, as Spring Kafka does.
 - **A role's policy is made after the role is saved.** The policy that follows a role's permissions was made on another
   thread as soon as the change was announced, before it was committed: a new role was not found ("Role not found for
   synchronization") and a changed one was read with its old permissions. It is now made after the commit, and a change

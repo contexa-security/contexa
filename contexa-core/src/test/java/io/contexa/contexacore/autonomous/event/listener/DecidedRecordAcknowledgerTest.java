@@ -18,7 +18,10 @@ package io.contexa.contexacore.autonomous.event.listener;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.common.TopicPartition;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Timeout;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.kafka.support.Acknowledgment;
 
 import java.time.Clock;
@@ -47,6 +50,7 @@ import static org.mockito.Mockito.mock;
  * those after it to be delivered again.
  */
 @Timeout(value = 60, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+@ExtendWith(OutputCaptureExtension.class)
 class DecidedRecordAcknowledgerTest {
 
     private static final String TOPIC = "security.events.authentication";
@@ -71,6 +75,23 @@ class DecidedRecordAcknowledgerTest {
         for (long offset : offsets) {
             decided.settled(TOPIC, 0, offset);
         }
+    }
+
+    // ----- a rebalance is still told in the log -----
+
+    @Test
+    void aRebalanceIsToldInTheLogAsSpringKafkaTellsItWhenItKeepsTheListener(CapturedOutput output) {
+        Consumer<?, ?> consumer = mock(Consumer.class);
+        TopicPartition partition = new TopicPartition(TOPIC, 3);
+
+        decided.onPartitionsAssigned(consumer, List.of(partition));
+        decided.onPartitionsRevokedBeforeCommit(consumer, List.of(partition));
+        decided.onPartitionsLost(consumer, List.of(partition));
+
+        assertThat(output.getAll())
+                .contains("partitions assigned: [" + partition + "]")
+                .contains("partitions revoked: [" + partition + "]")
+                .contains("partitions lost: [" + partition + "]");
     }
 
     // ----- the commit stays below what is undecided -----

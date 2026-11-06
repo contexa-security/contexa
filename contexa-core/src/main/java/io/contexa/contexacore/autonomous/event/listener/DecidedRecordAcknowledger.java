@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.event.listener;
 import io.contexa.contexacore.util.ErrorLogThrottle;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerGroupMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.springframework.kafka.listener.ConsumerAwareRebalanceListener;
 import org.springframework.kafka.support.Acknowledgment;
@@ -104,6 +105,8 @@ public class DecidedRecordAcknowledger implements ConsumerAwareRebalanceListener
 
     @Override
     public void onPartitionsAssigned(Consumer<?, ?> consumer, Collection<TopicPartition> assigned) {
+        // The container keeps its own log of a rebalance only while it has no listener of this kind: this one tells it
+        log.info("{}: partitions assigned: {}", groupOf(consumer), assigned);
         assigned.forEach(partition -> {
             HeldPartition former = partitions.put(partition, new HeldPartition(consumer));
             if (former != null) {
@@ -115,12 +118,23 @@ public class DecidedRecordAcknowledger implements ConsumerAwareRebalanceListener
     /** Before the container's last commit: what was acknowledged is in it, and nothing is acknowledged after it. */
     @Override
     public void onPartitionsRevokedBeforeCommit(Consumer<?, ?> consumer, Collection<TopicPartition> revoked) {
+        log.info("{}: partitions revoked: {}", groupOf(consumer), revoked);
         forget(consumer, revoked);
     }
 
     @Override
     public void onPartitionsLost(Consumer<?, ?> consumer, Collection<TopicPartition> lost) {
+        log.info("{}: partitions lost: {}", groupOf(consumer), lost);
         forget(consumer, lost);
+    }
+
+    private static String groupOf(Consumer<?, ?> consumer) {
+        try {
+            ConsumerGroupMetadata metadata = consumer.groupMetadata();
+            return metadata != null && metadata.groupId() != null ? metadata.groupId() : "?";
+        } catch (RuntimeException unknown) {
+            return "?";
+        }
     }
 
     /** A consumer thrown out of its group may learn it only after the partition went to another consumer of this node. */
