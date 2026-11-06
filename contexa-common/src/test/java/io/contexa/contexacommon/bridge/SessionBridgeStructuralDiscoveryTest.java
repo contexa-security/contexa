@@ -117,10 +117,13 @@ class SessionBridgeStructuralDiscoveryTest {
         session.setAttribute("CLIENT_RUNTIME_CONTEXT", sessionContext);
         request.setSession(session);
 
+        // The delegation channel reads unknown attribute names only when the application turns discovery on.
+        BridgeProperties properties = new BridgeProperties();
+        properties.getDelegation().getSession().setAutoDiscover(true);
         DelegationStamp stamp = resolver.resolve(
                 request,
                 new RequestContextSnapshot("/api/customers/export", "GET", "127.0.0.1", "JUnit", "session-1", "request-1", "/api/customers/export", null, false, Instant.now()),
-                new BridgeProperties()
+                properties
         ).orElseThrow();
 
         assertThat(stamp.subjectId()).isEqualTo("alice");

@@ -24,7 +24,10 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpSession;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -53,11 +56,13 @@ class SessionDelegationStampResolverTest {
 
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/reports/export");
         request.setSession(session);
+        BridgeProperties properties = new BridgeProperties();
+        properties.getDelegation().getSession().setAttribute("LOGIN_USER");
 
         DelegationStamp stamp = resolver.resolve(
                 request,
                 new RequestContextSnapshot("/reports/export", "POST", "10.0.0.10", "JUnit", "session-1", "request-1", "/reports/export", null, false, Instant.now()),
-                new BridgeProperties()
+                properties
         ).orElseThrow();
 
         assertThat(stamp.subjectId()).isEqualTo("alice");
@@ -73,6 +78,71 @@ class SessionDelegationStampResolverTest {
         assertThat(stamp.containmentOnly()).isFalse();
         assertThat(stamp.expiresAt()).isEqualTo(Instant.parse("2026-03-24T00:00:00Z"));
         assertThat(stamp.attributes()).containsEntry("delegationResolver", "SESSION");
+    }
+
+    private Optional<DelegationStamp> resolve(MockHttpSession session, BridgeProperties properties) {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/orders");
+        request.setSession(session);
+        return resolver.resolve(request,
+                new RequestContextSnapshot("/orders", "GET", "10.0.0.10", "JUnit", "session-1", "request-1", "/orders", null, false, Instant.now()),
+                properties);
+    }
+
+    private static SessionDelegation delegationOf(String agentId) {
+        SessionDelegation delegation = new SessionDelegation();
+        delegation.setUserId("alice");
+        delegation.setDelegated(true);
+        delegation.setAgentId(agentId);
+        return delegation;
+    }
+
+    @Test
+    void whatAnApplicationKeepsInTheSessionForItsPagesIsNoDelegation() {
+        MockHttpSession session = new MockHttpSession();
+        session.setAttribute("lastSearch", new HashMap<>(Map.of("q", "laptop", "agentId", "x", "delegated", "true")));
+        session.setAttribute("policyForm", new HashMap<>(Map.of("agentId", "sales-agent-7")));
+        session.setAttribute("user", delegationOf("agent-1"));
+
+        assertThat(resolve(session, new BridgeProperties())).isEmpty();
+    }
+
+    @Test
+    void onlyTheAttributeTheApplicationNamesIsRead() {
+        BridgeProperties properties = new BridgeProperties();
+        properties.getDelegation().getSession().setAttribute("agentDelegation");
+        MockHttpSession session = new MockHttpSession();
+        session.setAttribute("agentDelegation", delegationOf("agent-1"));
+        session.setAttribute("lastSearch", new HashMap<>(Map.of("agentId", "x", "delegated", "true",
+                "objectiveId", "o-1", "allowedOperations", List.of("EXPORT"))));
+
+        DelegationStamp stamp = resolve(session, properties).orElseThrow();
+
+        assertThat(stamp.agentId()).isEqualTo("agent-1");
+        assertThat(stamp.attributes()).containsEntry("bridgeSessionAttribute", "agentDelegation");
+    }
+
+    @Test
+    void anApplicationThatTurnsAutoDiscoveryOnHasEveryAttributeRead() {
+        BridgeProperties properties = new BridgeProperties();
+        properties.getDelegation().getSession().setAutoDiscover(true);
+        MockHttpSession session = new MockHttpSession();
+        session.setAttribute("LOGIN_USER", delegationOf("agent-1"));
+
+        DelegationStamp stamp = resolve(session, properties).orElseThrow();
+
+        assertThat(stamp.agentId()).isEqualTo("agent-1");
+        assertThat(stamp.attributes()).containsEntry("bridgeSessionAttribute", "LOGIN_USER");
+    }
+
+    @Test
+    void theNamesTheApplicationListsAreRead() {
+        BridgeProperties properties = new BridgeProperties();
+        properties.getDelegation().getSession().setAttributeCandidates(List.of("agentContext"));
+        MockHttpSession session = new MockHttpSession();
+        session.setAttribute("agentContext", delegationOf("agent-1"));
+        session.setAttribute("lastSearch", new HashMap<>(Map.of("agentId", "x", "delegated", "true")));
+
+        assertThat(resolve(session, properties).orElseThrow().agentId()).isEqualTo("agent-1");
     }
 
     public static class SessionDelegation {

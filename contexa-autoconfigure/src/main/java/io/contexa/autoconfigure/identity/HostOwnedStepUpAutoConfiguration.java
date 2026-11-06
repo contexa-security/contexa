@@ -22,6 +22,7 @@ import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.properties.PasskeyUrls;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
+import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncService;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
@@ -99,7 +100,8 @@ public class HostOwnedStepUpAutoConfiguration {
             ObjectProvider<ContexaPasskeyStores> contexaPasskeyStores,
             ObjectProvider<PublicKeyCredentialUserEntityRepository> userEntities,
             ObjectProvider<UserCredentialRepository> userCredentials,
-            ObjectProvider<PasskeyCreationOptionsCodec> passkeyCreationOptionsCodec) {
+            ObjectProvider<PasskeyCreationOptionsCodec> passkeyCreationOptionsCodec,
+            ObjectProvider<BridgeUserMirrorSyncService> userMirror) {
         ChallengeResolution resolution = new ChallengeResolution(actionRepository,
                 securityLearningService.getIfAvailable(), verificationLearningService::getIfAvailable,
                 securityContextDataStore::getIfAvailable, blockingSignalBroadcaster.getIfAvailable(),
@@ -115,12 +117,15 @@ public class HostOwnedStepUpAutoConfiguration {
         Webauthn4JRelyingPartyOperations relyingParty = entities != null && credentials != null
                 ? relyingParty(entities, credentials, authContextProperties, environment) : null;
 
-        return new HostOwnedStepUpService(actionRepository, resolution, userRepository,
+        HostOwnedStepUpService service = new HostOwnedStepUpService(actionRepository, resolution, userRepository,
                 bridgeProperties.getSync().getSyntheticEmailDomain(), contexaStepUpOptionsStore,
                 stepUpCodes, emailService.getIfAvailable(), relyingParty, entities,
                 credentials, passkeyCreationOptionsCodec.getIfAvailable(DefaultPasskeyCreationOptionsCodec::new),
                 bridgeProperties.getStepUp().getReauthenticationUrl(),
                 authContextProperties.getMfa().getMaxRetryAttempts());
+        // An address the application showed for a copy that has one waits for the user's proof of the address on record.
+        service.setUserMirror(userMirror.getIfAvailable());
+        return service;
     }
 
     @Bean(name = "contexaHostOwnedStepUpController")

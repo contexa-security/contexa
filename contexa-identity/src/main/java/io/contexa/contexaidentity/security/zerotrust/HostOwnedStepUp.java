@@ -43,7 +43,8 @@ public interface HostOwnedStepUp {
 
     /**
      * Whether the application re-authenticated the user with more than one factor after the CHALLENGE in force; when
-     * it did, the CHALLENGE is resolved here as a completed step-up and the request goes on.
+     * it did, the CHALLENGE is resolved here as a completed step-up and the request goes on. Only an application that
+     * named where it re-authenticates is asked.
      *
      * @param decisionKey the key the CHALLENGE is stored under
      */

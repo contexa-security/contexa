@@ -17,6 +17,31 @@ The format is based on Keep a Changelog and the project follows semantic version
 - The mail of a confirmation an agent asks for itself (`POST /contexa/api/agent-confirmations`) now links to `contexa.security.zerotrust.agent.confirmation-link-base-url` and the application's context path, as the mail of a request Contexa stopped does; it was a bare path. Neither link ever takes the host the agent sent, so without that setting the link stays a path: set it for the mail to open.
 - The admin API of delegations no longer lists delegations to an agent holding an administrator's token (403), as the person's own delegation API lists none to it.
 - **An agent holding an administrator's token no longer writes or takes back a person's delegation.** The admin API of delegations (`/contexa/admin/api/agent-delegations`) and the console's revocation (`/contexa/admin/agents/delegations/revoke`) now answer 403 to a request the bridge reads as an agent's, as the person's own delegation API already did. An administrator's own requests, and an integration whose client is no agent, work as before.
+- **A value an application keeps in the session no longer moves a person's request to an agent.** The session channel of
+  the delegation read every session attribute and took any that named an agent: a map of request values with `agentId`
+  and `delegated` moved a person's request to `<user>::agent::<agent id>`, past a CHALLENGE on the person, and a bean of
+  the domain that only names an agent sent the person to an agent's confirmation instead of the step-up. The channel now
+  reads `contexa.bridge.delegation.session.attribute` and the names in
+  `contexa.bridge.delegation.session.attribute-candidates`, which is empty by default, and `auto-discover` is off by
+  default. **Check:** an application that keeps its agents' delegation in the session names that attribute in
+  `contexa.bridge.delegation.session.attribute`. Setting `auto-discover` to `true` reads every attribute again, and the
+  start says so at INFO.
+- **The application's own sign-in answers a CHALLENGE only where the application named its re-authentication.** A
+  completed MFA was read from the principal by the name of a value (`mfa`, `mfaVerified`, ...) and the time of the
+  sign-in, so a principal that always carries `mfa=true` released a CHALLENGE with a password sign-in alone. The
+  application's sign-in now answers a CHALLENGE only when `contexa.bridge.step-up.reauthentication-url` is set; elsewhere
+  Contexa's step-up does, by a mailed code or a passkey, and a user whose copy has no real address and no passkey finds
+  no factor on the step-up page. **Check:** an application whose own MFA re-authentication released CHALLENGEs sets
+  `contexa.bridge.step-up.reauthentication-url` to where it re-authenticates, or tells Contexa its users' addresses with a
+  `BridgeUserEmailProvider`.
+- **An address changed on the application's profile no longer gets the step-up's code.** The copy of a user took every
+  address the application showed, so whoever held a session could change the profile's address and receive the code
+  meant to stop them. A copy that holds a real address now keeps it: another address the application shows waits
+  (`ctxa_bridge_user_profile.pending_email`) and takes its place once the user enters a code mailed to the address on
+  record or answers with a passkey. The first real address of a copy that had a made-up one goes in at once, as before,
+  and an address an administrator enters on the user's page of the console now stands. The column is added to an
+  existing database at the next start. **Check:** a user who changed the address and can read neither the old mailbox
+  nor answer with a passkey gets codes at the new address once an administrator enters it in the console.
 - A value in a CSV export that a spreadsheet would run as a formula now stays text: users write the names and browsers in those files, and an administrator opens them. A cell that starts with `=`, `+`, `-` or `@` and is no plain number gets a leading quote.
 - **The admin console shows a stored name as text, never as script.** A role, permission, user or policy name with a quote
   could end a click handler or an attribute in the policy center, the access center, the policy details, the delete dialog

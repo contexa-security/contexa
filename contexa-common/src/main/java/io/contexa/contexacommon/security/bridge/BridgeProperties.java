@@ -215,12 +215,20 @@ public class BridgeProperties {
             private List<String> expiresAtClaims = List.of("delegation_expires_at", "execution_expires_at", "delegationExpiresAt");
         }
 
+        /**
+         * The delegation an application keeps in the session. Only the attribute the application names is read, and
+         * the names it lists: a session also holds what the application keeps for its own pages, such as a search form
+         * or a bean of a domain with agents, and a value there that names an agent would move a person's request to
+         * that agent's decision, away from a restriction on the person.
+         */
         @Data
         public static class Session {
             private boolean enabled = true;
             private String attribute = "";
-            private List<String> attributeCandidates = List.of("currentUser", "authenticatedUser", "sessionUser", "userSession", "principal", "user", "securityUser", "authenticatedPrincipal");
-            private boolean autoDiscover = true;
+            /** Further attribute names read for the delegation; none by default. */
+            private List<String> attributeCandidates = List.of();
+            /** Reads every other session attribute too; an application turns it on only if no attribute it keeps names an agent. */
+            private boolean autoDiscover = false;
             private List<String> principalIdKeys = List.of("userId", "username", "id", "loginId", "email");
             private List<String> delegatedKeys = List.of("delegated", "delegationEnabled", "agentDelegated");
             private List<String> agentIdKeys = List.of("agentId", "delegateAgentId");
@@ -344,13 +352,15 @@ public class BridgeProperties {
     /**
      * The step-up of a CHALLENGE when the application owns sign-in (HOST_OWNED). Besides Contexa's verification-only
      * factors, the application's own re-authentication answers a CHALLENGE when the bridge sees a completed MFA newer
-     * than the CHALLENGE; this is where the step-up page sends the user for it.
+     * than the CHALLENGE and the application said where it re-authenticates; this is where the step-up page sends the
+     * user for it.
      */
     @Data
     public static class StepUp {
         /**
          * Where the application re-authenticates the signed-in user with its own MFA or identity provider (for example
-         * an OIDC authorization request with {@code prompt=login} or {@code max_age=0}); not offered when empty.
+         * an OIDC authorization request with {@code prompt=login} or {@code max_age=0}); not offered when empty. Empty,
+         * the application's own sign-in answers no CHALLENGE, whatever MFA the principal shows.
          */
         private String reauthenticationUrl;
 

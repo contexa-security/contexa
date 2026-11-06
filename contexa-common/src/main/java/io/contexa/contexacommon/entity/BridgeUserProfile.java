@@ -61,6 +61,13 @@ public class BridgeUserProfile {
     @Column(length = 128)
     private String lastSyncHash;
 
+    /**
+     * Another address the application shows for a user whose copy already holds a real one. It waits here until the
+     * user proves the address on record, since whoever holds a session can change the application's profile.
+     */
+    @Column(length = 255)
+    private String pendingEmail;
+
     @Column
     private LocalDateTime lastSyncedAt;
 

@@ -44,6 +44,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -144,10 +145,11 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
 
         Users user = existingUser.orElseGet(Users::new);
         boolean created = user.getId() == null;
-        boolean updated = applyUser(user, authenticationStamp, requestContext, bridgeSubjectKey, externalSubjectId, authenticationSource, organizationId, now);
+        EmailChange email = resolveEmail(user, existingProfile, authenticationStamp, bridgeSubjectKey);
+        boolean updated = applyUser(user, authenticationStamp, requestContext, bridgeSubjectKey, externalSubjectId, authenticationSource, organizationId, email, now);
 
         Users savedUser = userRepository.save(user);
-        boolean profileUpdated = syncProfile(savedUser, existingProfile, syncSnapshot, now);
+        boolean profileUpdated = syncProfile(savedUser, existingProfile, syncSnapshot, email.pending(), now);
         evictUserCaches(savedUser);
 
         return new BridgeUserMirrorSyncResult(
@@ -221,7 +223,7 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
         if (!syncSnapshot.syncHash().equals(existingProfile.getLastSyncHash())) {
             return false;
         }
-        if (hasUserFieldChanges(existingUser, authenticationStamp, requestContext, bridgeSubjectKey, externalSubjectId, authenticationSource, organizationId)) {
+        if (hasUserFieldChanges(existingUser, existingProfile, authenticationStamp, requestContext, bridgeSubjectKey, externalSubjectId, authenticationSource, organizationId)) {
             return false;
         }
         return true;
@@ -229,6 +231,7 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
 
     private boolean hasUserFieldChanges(
             Users user,
+            BridgeUserProfile profile,
             AuthenticationStamp authenticationStamp,
             RequestContextSnapshot requestContext,
             String bridgeSubjectKey,
@@ -254,7 +257,9 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
         if (wouldChangeString(user.getOrganizationId(), organizationId)) {
             return true;
         }
-        if (wouldChangeString(user.getEmail(), resolveEmail(user, authenticationStamp, bridgeSubjectKey))) {
+        EmailChange email = resolveEmail(user, profile, authenticationStamp, bridgeSubjectKey);
+        if (wouldChangeString(user.getEmail(), email.email())
+                || !Objects.equals(normalize(profile.getPendingEmail()), email.pending())) {
             return true;
         }
         if (wouldChangeString(user.getName(), fit(firstText(authenticationStamp.displayName(), externalSubjectId), TEXT_MAX))) {
@@ -292,6 +297,7 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
             String externalSubjectId,
             String authenticationSource,
             String organizationId,
+            EmailChange email,
             LocalDateTime now
     ) {
         boolean changed = false;
@@ -304,7 +310,7 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
             changed = true;
         }
 
-        changed |= setIfChanged(user.getEmail(), resolveEmail(user, authenticationStamp, bridgeSubjectKey), user::setEmail);
+        changed |= setIfChanged(user.getEmail(), email.email(), user::setEmail);
         changed |= setIfChanged(user.getName(), fit(firstText(authenticationStamp.displayName(), externalSubjectId), TEXT_MAX), user::setName);
         changed |= setIfChanged(user.getPhone(), fit(attribute(authenticationStamp.attributes(), "phone", "mobile", "mobileNumber"), PHONE_MAX), user::setPhone);
         changed |= setIfChanged(user.getDepartment(), fit(attribute(authenticationStamp.attributes(), "department", "team", "division"), TEXT_MAX), user::setDepartment);
@@ -381,6 +387,7 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
             Users user,
             @Nullable BridgeUserProfile existingProfile,
             SyncSnapshot syncSnapshot,
+            @Nullable String pendingEmail,
             LocalDateTime now
     ) {
         BridgeUserProfile profile = existingProfile != null
@@ -397,6 +404,14 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
         changed |= setIfChanged(profile.getLastAuthoritiesJson(), syncSnapshot.authoritiesJson(), profile::setLastAuthoritiesJson);
         changed |= setIfChanged(profile.getLastAttributesJson(), syncSnapshot.attributesJson(), profile::setLastAttributesJson);
         changed |= setIfChanged(profile.getLastSyncHash(), syncSnapshot.syncHash(), profile::setLastSyncHash);
+        if (!Objects.equals(profile.getPendingEmail(), pendingEmail)) {
+            if (pendingEmail != null) {
+                log.warn("[Bridge] The application shows another address for a user whose copy has one; it waits until "
+                        + "the user proves the address on record: userId={}", user.getId());
+            }
+            profile.setPendingEmail(pendingEmail);
+            changed = true;
+        }
 
         if (!now.equals(profile.getLastSyncedAt())) {
             profile.setLastSyncedAt(now);
@@ -411,15 +426,78 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
         return false;
     }
 
-    private String resolveEmail(Users user, AuthenticationStamp authenticationStamp, String bridgeSubjectKey) {
+    /**
+     * The copy's address and the one waiting for the user. The step-up mails its codes to the copy's address, and
+     * whoever holds a session can change the application's profile. So the first real address the application shows
+     * goes in at once, and once the copy holds one, another address the application shows waits until the user proves
+     * the address on record ({@link #confirmPendingEmail(Long)}) or an administrator enters an address.
+     */
+    private EmailChange resolveEmail(Users user, @Nullable BridgeUserProfile profile,
+                                     AuthenticationStamp authenticationStamp, String bridgeSubjectKey) {
+        String current = normalize(user.getEmail());
+        String waiting = profile != null ? normalize(profile.getPendingEmail()) : null;
+        String shown = applicationEmail(user, authenticationStamp, bridgeSubjectKey);
+        if (shown == null) {
+            return new EmailChange(firstText(current, syntheticEmail(bridgeSubjectKey)), waiting);
+        }
+        if (!isRealAddress(current)) {
+            return new EmailChange(shown, null);
+        }
+        if (shown.equalsIgnoreCase(current)) {
+            return new EmailChange(current, null);
+        }
+        return new EmailChange(current, shown);
+    }
+
+    /** The address the application shows for the user now, or null for none that fits the column. */
+    @Nullable
+    private String applicationEmail(Users user, AuthenticationStamp authenticationStamp, String bridgeSubjectKey) {
         String email = normalize(attribute(authenticationStamp.attributes(), "email", "mail", "userEmail"));
         if (email == null) {
             email = providedEmail(user, authenticationStamp, bridgeSubjectKey);
         }
         if (email == null || email.length() > LONG_TEXT_MAX) {
-            return firstText(user.getEmail(), syntheticEmail(bridgeSubjectKey));
+            return null;
         }
         return email.toLowerCase(Locale.ROOT);
+    }
+
+    /** An address a code can go to: not none, and not the one made up for a user who showed none. */
+    private boolean isRealAddress(@Nullable String address) {
+        String domain = bridgeProperties.getSync().getSyntheticEmailDomain();
+        return address != null && address.contains("@")
+                && (domain == null || !address.toLowerCase(Locale.ROOT).endsWith("@" + domain.toLowerCase(Locale.ROOT)));
+    }
+
+    @Override
+    @Transactional(transactionManager = "contexaTransactionManager")
+    public boolean confirmPendingEmail(Long userId) {
+        if (userId == null) {
+            return false;
+        }
+        BridgeUserProfile profile = bridgeUserProfileRepository.findById(userId).orElse(null);
+        String waiting = profile != null ? normalize(profile.getPendingEmail()) : null;
+        if (waiting == null) {
+            return false;
+        }
+        Users user = userRepository.findById(userId).filter(Users::isBridgeManaged).orElse(null);
+        if (user == null) {
+            return false;
+        }
+        Optional<Users> holder = userRepository.findFirstByEmailIgnoreCase(waiting);
+        if (holder.isPresent() && !userId.equals(holder.get().getId())) {
+            log.warn("[Bridge] The address waiting for a user is another user's; the copy keeps the address on record: "
+                    + "userId={}", userId);
+            return false;
+        }
+        user.setEmail(waiting);
+        profile.setPendingEmail(null);
+        userRepository.save(user);
+        bridgeUserProfileRepository.save(profile);
+        evictUserCaches(user);
+        log.info("[Bridge] The user proved the address on record; the copy takes the address the application shows: "
+                + "userId={}", userId);
+        return true;
     }
 
     /**
@@ -580,6 +658,10 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
         } catch (NoSuchAlgorithmException ex) {
             throw new IllegalStateException("SHA-256 algorithm is unavailable", ex);
         }
+    }
+
+    /** The copy's address, and the address that waits for the user to prove the one on record (null for none). */
+    private record EmailChange(String email, @Nullable String pending) {
     }
 
     private record SyncSnapshot(

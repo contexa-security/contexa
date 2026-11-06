@@ -34,7 +34,10 @@ import io.contexa.contexaidentity.security.core.bootstrap.configurer.BridgeResol
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -83,6 +86,23 @@ class AiBridgeConfigurationTest {
             assertThat(resolvers.get(4)).isInstanceOf(AgentAccountDelegationStampResolver.class);
             assertThat(context.getBean(BridgeProperties.class).getDelegation().getToken().isEnabled()).isTrue();
         });
+    }
+
+    /** The session's delegation is read from the attribute the application names; reading every one is said at start. */
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void theSessionsDelegationIsReadFromTheNamedAttributeOnly(CapturedOutput output) {
+        contextRunner.run(context -> {
+            BridgeProperties.Delegation.Session session = context.getBean(BridgeProperties.class).getDelegation().getSession();
+            assertThat(session.isAutoDiscover()).isFalse();
+            assertThat(session.getAttributeCandidates()).isEmpty();
+            assertThat(output).doesNotContain("contexa.bridge.delegation.session.auto-discover=true");
+        });
+        contextRunner.withPropertyValues("contexa.bridge.delegation.session.auto-discover=true")
+                .run(context -> {
+                    assertThat(context.getBean(BridgeProperties.class).getDelegation().getSession().isAutoDiscover()).isTrue();
+                    assertThat(output).contains("contexa.bridge.delegation.session.auto-discover=true");
+                });
     }
 
     @Test
