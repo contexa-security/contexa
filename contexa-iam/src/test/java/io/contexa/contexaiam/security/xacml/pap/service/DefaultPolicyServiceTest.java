@@ -36,6 +36,7 @@ import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.security.xacml.pap.analysis.AIPolicyValidator;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.AuthorityProbe;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictAnalyzer;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyImpactAnalyzer;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicySimulator;
@@ -395,6 +396,33 @@ class DefaultPolicyServiceTest {
             // then
             verify(policyRepository).findByIdWithDetails(200L);
             verify(policyRepository).save(any(Policy.class));
+        }
+
+        @Test
+        @DisplayName("a permission named to end its literal is asked for as it is, and is found again for the change event")
+        void aPermissionNamedToEndItsLiteralIsAskedForAsItIs() {
+            String name = AuthorityProbe.ALWAYS_TRUE_NAME;
+            Permission permission = mock(Permission.class);
+            when(permission.getName()).thenReturn(name);
+            when(permission.getFriendlyName()).thenReturn("Orders");
+            ManagedResource resource = mock(ManagedResource.class);
+            when(resource.getResourceType()).thenReturn(ManagedResource.ResourceType.URL);
+            when(resource.getResourceIdentifier()).thenReturn("/api/orders");
+            when(resource.getHttpMethod()).thenReturn(ManagedResource.HttpMethod.POST);
+            when(permission.getManagedResource()).thenReturn(resource);
+            when(policyRepository.findByName(anyString())).thenReturn(Optional.empty());
+            when(policyRepository.save(any(Policy.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(permissionRepository.findAllByNameIn(anySet())).thenReturn(Collections.emptyList());
+
+            policyService.synchronizePolicyForPermission(permission);
+
+            ArgumentCaptor<Policy> saved = ArgumentCaptor.forClass(Policy.class);
+            verify(policyRepository).save(saved.capture());
+            String expression = saved.getValue().getRules().iterator().next().getConditions().iterator().next().getExpression();
+            AuthorityProbe.Outcome nobody = AuthorityProbe.evaluate(expression, "R&D", "Ops");
+            assertThat(nobody.granted()).isFalse();
+            assertThat(nobody.asked()).containsExactly(name);
+            verify(permissionRepository).findAllByNameIn(Set.of(name));
         }
 
         @Test

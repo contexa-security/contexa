@@ -21,6 +21,7 @@ import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.security.xacml.pap.dto.DuplicatePolicyDto;
 import io.contexa.contexaiam.security.xacml.pap.dto.DuplicatePolicyDto.DuplicateType;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.SpelLiteral;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
@@ -50,8 +51,14 @@ public class PolicyDuplicateDetector {
     private final RoleHierarchy roleHierarchy;
     private final MessageSource messageSource;
 
-    private static final Pattern HAS_ROLE_PATTERN = Pattern.compile("hasRole\\(['\"]([^'\"]*)['\"]\\)");
-    private static final Pattern HAS_AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\(['\"]([^'\"]*)['\"]\\)");
+    /** The argument is a single-quoted literal (group 1, quotes doubled) or a double-quoted one (group 2). */
+    private static final String ARGUMENT = "\\((?:" + SpelLiteral.PATTERN + "|\"([^\"]*)\")\\)";
+    private static final Pattern HAS_ROLE_PATTERN = Pattern.compile("hasRole" + ARGUMENT);
+    private static final Pattern HAS_AUTHORITY_PATTERN = Pattern.compile("hasAuthority" + ARGUMENT);
+
+    private static String argument(Matcher matcher) {
+        return matcher.group(1) != null ? SpelLiteral.unquote(matcher.group(1)) : matcher.group(2);
+    }
 
     /**
      * Detect duplicate policies for a candidate policy.
@@ -160,12 +167,12 @@ public class PolicyDuplicateDetector {
                 String expr = condition.getExpression();
                 Matcher roleMatcher = HAS_ROLE_PATTERN.matcher(expr);
                 while (roleMatcher.find()) {
-                    String role = roleMatcher.group(1);
+                    String role = argument(roleMatcher);
                     roles.add(role.startsWith("ROLE_") ? role : "ROLE_" + role);
                 }
                 Matcher authMatcher = HAS_AUTHORITY_PATTERN.matcher(expr);
                 while (authMatcher.find()) {
-                    String auth = authMatcher.group(1);
+                    String auth = argument(authMatcher);
                     if (auth.startsWith("ROLE_")) {
                         roles.add(auth);
                     }
@@ -236,10 +243,8 @@ public class PolicyDuplicateDetector {
         Matcher matcher = HAS_ROLE_PATTERN.matcher(normalized);
         StringBuilder sb = new StringBuilder();
         while (matcher.find()) {
-            String roleName = matcher.group(1);
-            String replacement = roleName.startsWith("ROLE_")
-                    ? "hasAuthority('" + roleName + "')"
-                    : "hasAuthority('ROLE_" + roleName + "')";
+            String roleName = argument(matcher);
+            String replacement = SpelLiteral.hasAuthority(roleName.startsWith("ROLE_") ? roleName : "ROLE_" + roleName);
             matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
         }
         matcher.appendTail(sb);

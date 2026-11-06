@@ -34,6 +34,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.testsupport.I18nTestSupport;
 import org.mockito.Spy;
 import org.springframework.context.MessageSource;
@@ -70,6 +71,20 @@ class RoleServiceImplTest {
 
     @Mock
     private PolicySynchronizationService policySynchronizationService;
+
+    @Mock
+    private PolicyRepository policyRepository;
+
+    @Test
+    @DisplayName("the policies of a role with a quote are looked for as its literal in a condition writes the name")
+    void thePoliciesOfARoleWithAQuoteAreLookedForAsWritten() {
+        when(roleRepository.findById(1L)).thenReturn(Optional.of(buildRole(1L, "O'Neil")));
+        when(policyRepository.findActivePoliciesReferencingExpression(any())).thenReturn(List.of());
+
+        service.getAffectedPolicies(1L);
+
+        verify(policyRepository).findActivePoliciesReferencingExpression("O''Neil");
+    }
 
     // Real (spy-wrapped) ResourceBundleMessageSource so msg() returns the
     // production English text. EnglishLocale extension pins LocaleContextHolder

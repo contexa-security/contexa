@@ -8,6 +8,14 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A role, permission or action name no longer changes the condition it is written into.** A policy condition wrote
+  names into SpEL as they were, so a quote in a name ended its literal: `O'Neil` made a condition that broke the save
+  (500), and `X') or true or hasAuthority('Y` made one that was always true. Every condition built from a role, a
+  permission, a CRUD action, an AI action or a template value now writes the name as one literal, its quotes doubled,
+  and asks for exactly that name; the policy matrix, impact analysis, duplicate check, editing of a policy and the
+  affected-policy warnings read such a name back as it is. Stored conditions are not changed, and a name with no quote
+  is written as before. **Check:** a CRUD action or a template value carrying SpEL is now saved as an inert value instead
+  of being refused.
 - A confirmation is no longer asked for an agent whose tenant, user, agent or delegation identifier is longer than a confirmation keeps (255, 255, 255 and 64 characters): the database refused such a confirmation with an error while memory kept it. An identifier is never cut, since a cut one names another delegation or agent and a report would stop the wrong one, so both stores now ask no one: the gate answers `413 AGENT_CONFIRMATION_UNBINDABLE`, the agent's own ask 400.
 - An agent's ask for a confirmation whose target carries, as written, a space, a control character, a line break or a character that turns the text around (no request line carries one) is answered 400, so an agent cannot write a sentence of its own where the person reads the request. Written escaped, the same characters are asked as before.
 - A request of an agent whose path and query are longer than a confirmation keeps (2048 characters, as a person reads them) no longer asks its accountable person to confirm a request they would read cut: it is refused with `413 AGENT_CONFIRMATION_UNBINDABLE`, as a body too large to bind is. Decided in the request itself, it gets the plain answer to a CHALLENGE and asks no one either.
@@ -249,6 +257,16 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Fixed
 
+- **A role's policy is made after the role is saved.** The policy that follows a role's permissions was made on another
+  thread as soon as the change was announced, before it was committed: a new role was not found ("Role not found for
+  synchronization") and a changed one was read with its old permissions. It is now made after the commit, and a change
+  that rolls back makes none.
+- The role hierarchy diagram shows each role's own name: `R&D` no longer reads `R&amp;D`, a name with `<` is no longer
+  cut, two names such as `R&D` and `R_D` are no longer drawn as one node in the confirm dialog, and a diagram that cannot
+  be drawn shows its error state.
+- Saving a menu with some of its fields keeps the others: a request without a parent no longer moves the menu to the top.
+- The cancel button of the delete dialog, the policy center's loading text and two Korean sub-menu labels of the quality
+  inspection show their text instead of their message key.
 - **A CHALLENGE no model decided stays short through a Redis outage.** What a server read last stands while Redis does not
   answer, and it stood for a CHALLENGE's half hour even when the CHALLENGE came from a failed analysis and lasts a minute. It
   now stands for that minute, and a CHALLENGE held for other sessions stands as long as what Redis holds of it.

@@ -301,9 +301,58 @@
             .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
     }
 
-    // A node label of the diagram is a quoted string: a quote in a role name would end it, a line break would end the line.
+    // Mermaid cleans a node label as markup and then writes it as SVG text, so a role named R&D would show as R&amp;D
+    // and one with <b> in it would lose that part. A node is drawn with a stand-in of the same length instead, in which
+    // every character that matters to Mermaid (the quote that ends the label, # of its entity codes, & < > and the
+    // backtick) is an underscore, and the role's own name is put back as plain text once the node is drawn.
     function mermaidLabel(value) {
-        return String(value == null ? '' : value).replace(/"/g, '#quot;').replace(/[\r\n]+/g, ' ');
+        return String(value == null ? '' : value).replace(/[\r\n]/g, ' ').replace(/[&<>"#`]/g, '_');
+    }
+
+    // Node ids of one diagram, one per role name, so two names never share a node.
+    function diagramNodes() {
+        const ids = new Map();
+        return {
+            id(name) {
+                if (!ids.has(name)) ids.set(name, 'N' + ids.size);
+                return ids.get(name);
+            },
+            names() {
+                return new Map([...ids].map(([name, id]) => [id, name]));
+            }
+        };
+    }
+
+    // Puts each role's own name, as text, where Mermaid wrote its stand-in, row by row as Mermaid wrapped it.
+    function restoreDiagramNames(element, names) {
+        element.querySelectorAll('g.node[data-id]').forEach(node => {
+            const name = names.get(node.getAttribute('data-id'));
+            if (name === undefined) return;
+            const standIn = mermaidLabel(name);
+            const rows = [...node.querySelectorAll('text tspan.row')];
+            let from = 0;
+            const parts = rows.map(row => {
+                const at = standIn.indexOf(row.textContent, from);
+                if (at < 0) return null;
+                from = at + row.textContent.length;
+                return name.substring(at, from);
+            });
+            if (rows.length > 0 && parts.every(part => part !== null)) {
+                rows.forEach((row, index) => { row.textContent = parts[index]; });
+                return;
+            }
+            const first = rows[0] || node.querySelector('text') || node.querySelector('.nodeLabel');
+            if (!first) return;
+            first.textContent = name;
+            rows.slice(1).forEach(row => row.remove());
+        });
+    }
+
+    // Draws the diagram code of the element, then shows each role's own name; a failure rejects the promise.
+    function drawDiagram(element, nodes) {
+        return Promise.resolve()
+            .then(() => mermaid.init(undefined, element))
+            .then(() => restoreDiagramNames(element, nodes.names()));
     }
 
     const groupsWithRoles = /*[[${groupsWithRoles}]]*/ [];
@@ -789,14 +838,11 @@
         return roleName.replace(/["\n]/g, ' ').trim();
     }
 
-    function generateMermaidCode(relations) {
-        const nodeMap = new Map();
-        let nodeIndex = 0;
+    function generateMermaidCode(relations, nodes = diagramNodes()) {
         let mermaidCode = 'graph TD\n';
 
         function getNodeId(role) {
-            if (!nodeMap.has(role)) nodeMap.set(role, `N${nodeIndex++}`);
-            return nodeMap.get(role);
+            return nodes.id(role);
         }
 
         const existingKeys = new Set(existingRelations.map(r => r.parent + '>' + r.child));
@@ -964,7 +1010,8 @@
 
         container.innerHTML = '';
 
-        const mermaidCode = generateMermaidCode(relations);
+        const nodes = diagramNodes();
+        const mermaidCode = generateMermaidCode(relations, nodes);
         console.log('Generated Mermaid code:', mermaidCode);
 
         const diagramDiv = document.createElement('div');
@@ -975,19 +1022,18 @@
         container.appendChild(diagramDiv);
 
         setTimeout(() => {
-            try {
-                if (typeof mermaid !== 'undefined' && diagramDiv && diagramDiv.parentNode) {
-                    mermaid.init(undefined, diagramDiv);
+            if (typeof mermaid === 'undefined' || !diagramDiv.parentNode) return;
+            drawDiagram(diagramDiv, nodes)
+                .then(() => {
                     console.log('Mermaid diagram rendered successfully');
-
                     setTimeout(() => {
                         centerDiagram(container);
                     }, 100);
-                }
-            } catch (e) {
-                console.error('Mermaid visualization error:', e);
-                showErrorState(container, relations);
-            }
+                })
+                .catch(e => {
+                    console.error('Mermaid visualization error:', e);
+                    showErrorState(container, relations);
+                });
         }, 100);
     }
 
@@ -1067,7 +1113,8 @@
         const container = document.getElementById(containerId);
         if (!container) return;
 
-        const mermaidCode = generateMermaidCode(relations);
+        const nodes = diagramNodes();
+        const mermaidCode = generateMermaidCode(relations, nodes);
 
         container.innerHTML = '';
         const diagramDiv = document.createElement('div');
@@ -1076,22 +1123,21 @@
         container.appendChild(diagramDiv);
 
         setTimeout(() => {
-            try {
-                if (typeof mermaid !== 'undefined') {
-                    mermaid.init(undefined, diagramDiv);
-
+            if (typeof mermaid === 'undefined') return;
+            drawDiagram(diagramDiv, nodes)
+                .then(() => {
                     setTimeout(() => {
                         centerDiagram(container);
                     }, 100);
-                }
-            } catch (e) {
-                console.error('Fullscreen Mermaid error:', e);
-                container.innerHTML = `
-                    <div class="text-center text-slate-400 p-8">
-                        <p>${_i18n.errorRender}</p>
-                    </div>
-                `;
-            }
+                })
+                .catch(e => {
+                    console.error('Fullscreen Mermaid error:', e);
+                    container.innerHTML = `
+                        <div class="text-center text-slate-400 p-8">
+                            <p>${_i18n.errorRender}</p>
+                        </div>
+                    `;
+                });
         }, 100);
     }
 
@@ -1128,8 +1174,9 @@
 
         initializeMermaid();
 
-        const mermaidCode = generateConfirmMermaidCode(relations);
-        renderConfirmDiagram(mermaidCode, relations);
+        const nodes = diagramNodes();
+        const mermaidCode = generateConfirmMermaidCode(relations, nodes);
+        renderConfirmDiagram(mermaidCode, relations, nodes);
 
         displayImpactAnalysis(relations);
 
@@ -1151,12 +1198,12 @@
         return relations;
     }
 
-    function generateConfirmMermaidCode(relations) {
+    function generateConfirmMermaidCode(relations, nodes = diagramNodes()) {
         let mermaidCode = 'graph TB\n';
 
         relations.forEach(rel => {
-            const parentId = rel.parent.replace(/[^a-zA-Z0-9]/g, '_');
-            const childId = rel.child.replace(/[^a-zA-Z0-9]/g, '_');
+            const parentId = nodes.id(rel.parent);
+            const childId = nodes.id(rel.child);
 
             const parentLabel = mermaidLabel(rel.parent);
             const childLabel = mermaidLabel(rel.child);
@@ -1168,7 +1215,7 @@
     }
 
     // The relations come along so that, if the diagram cannot be drawn, they are listed instead.
-    function renderConfirmDiagram(mermaidCode, relations) {
+    function renderConfirmDiagram(mermaidCode, relations, nodes) {
         const confirmMermaid = document.getElementById('confirm-mermaid');
         if (!confirmMermaid) {
             console.error('Confirm mermaid container not found');
@@ -1183,23 +1230,22 @@
         confirmMermaid.appendChild(diagramDiv);
 
         setTimeout(() => {
-            try {
-                if (typeof mermaid !== 'undefined' && diagramDiv && diagramDiv.parentNode) {
-                    mermaid.init(undefined, diagramDiv);
-
+            if (typeof mermaid === 'undefined' || !diagramDiv.parentNode) return;
+            drawDiagram(diagramDiv, nodes)
+                .then(() => {
                     setTimeout(() => {
                         const container = confirmMermaid.closest('.mermaid-container');
                         if (container) {
                             centerDiagram(container);
                         }
                     }, 100);
-                }
-            } catch (e) {
-                console.error('Mermaid confirm dialog error:', e);
-                confirmMermaid.innerHTML = '<pre style="color: #e2e8f0; font-size: 12px;">' +
-                    relations.map(r => escapeHtml(`${r.parent} → ${r.child}`)).join('\n') +
-                    '</pre>';
-            }
+                })
+                .catch(e => {
+                    console.error('Mermaid confirm dialog error:', e);
+                    confirmMermaid.innerHTML = '<pre style="color: #e2e8f0; font-size: 12px;">' +
+                        relations.map(r => escapeHtml(`${r.parent} → ${r.child}`)).join('\n') +
+                        '</pre>';
+                });
         }, 200);
     }
 

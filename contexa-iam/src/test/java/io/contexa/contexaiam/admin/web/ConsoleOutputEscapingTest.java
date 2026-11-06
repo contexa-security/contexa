@@ -166,6 +166,22 @@ class ConsoleOutputEscapingTest {
     }
 
     @Test
+    @DisplayName("every diagram is drawn from stand-in labels and then shows each role's own name as text")
+    void everyDiagramShowsEachRolesOwnName() throws IOException {
+        String screen = template("admin/role-hierarchy-details.html");
+        String draw = functionText(screen, "function drawDiagram(");
+        String label = functionText(screen, "function mermaidLabel(");
+        String restore = functionText(screen, "function restoreDiagramNames(");
+
+        assertThat(screen.split("mermaid\\.init\\(", -1)).as("mermaid is started in one place").hasSize(2);
+        assertThat(draw).contains("mermaid.init(", "restoreDiagramNames(");
+        assertThat(screen.split("drawDiagram\\(", -1)).as("the main, full-screen and confirm diagrams").hasSize(5);
+        assertThat(label).doesNotContain("#quot;");
+        assertThat(restore).contains(".textContent = ").doesNotContain("innerHTML");
+        assertThat(screen).doesNotContain(".replace(/[^a-zA-Z0-9]/g, '_')");
+    }
+
+    @Test
     @DisplayName("the hierarchy screen writes role names and messages as text")
     void theHierarchyScreenWritesNamesAsText() throws IOException {
         String screen = template("admin/role-hierarchy-details.html");
@@ -201,8 +217,8 @@ class ConsoleOutputEscapingTest {
         String renderer = functionText(screen, "function renderConfirmDiagram(");
 
         assertThat(renderer).contains("relations.map(");
-        assertThat(renderer).startsWith("function renderConfirmDiagram(mermaidCode, relations)");
-        assertThat(screen).contains("renderConfirmDiagram(mermaidCode, relations);");
+        assertThat(renderer).startsWith("function renderConfirmDiagram(mermaidCode, relations, nodes)");
+        assertThat(screen).contains("renderConfirmDiagram(mermaidCode, relations, nodes);");
     }
 
     @Test

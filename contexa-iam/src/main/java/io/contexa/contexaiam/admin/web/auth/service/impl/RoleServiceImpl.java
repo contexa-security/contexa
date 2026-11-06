@@ -32,6 +32,7 @@ import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicySynchronizationService;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.SpelLiteral;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheConfig;
@@ -101,7 +102,7 @@ public class RoleServiceImpl extends AccountAuthoritiesService implements RoleSe
         return roleRepository.findById(id)
                 .map(role -> {
                     List<AffectedPolicyResponse> policyList = policyRepository
-                            .findActivePoliciesReferencingExpression(role.getRoleName())
+                            .findActivePoliciesReferencingExpression(SpelLiteral.body(role.getRoleName()))
                             .stream()
                             .map(AffectedPolicyResponse::from)
                             .toList();
