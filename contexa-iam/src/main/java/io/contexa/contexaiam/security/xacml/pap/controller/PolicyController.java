@@ -30,6 +30,7 @@ import org.springframework.context.MessageSource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -76,7 +77,7 @@ public class PolicyController {
     }
 
     @PostMapping
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public String createPolicy(@ModelAttribute PolicyDto policyDto, RedirectAttributes ra) {
         try {
             policyService.createPolicy(policyDto);
@@ -104,7 +105,7 @@ public class PolicyController {
     }
 
     @PostMapping("/{id}/edit")
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public String updatePolicy(@PathVariable Long id, @ModelAttribute PolicyDto policyDto, RedirectAttributes ra) {
         try {
             policyDto.setId(id);
@@ -166,7 +167,7 @@ public class PolicyController {
     }
 
     @PostMapping("/delete/{id}")
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public String deletePolicy(@PathVariable Long id,
                                 @RequestParam(required = false) String changeReason,
                                 RedirectAttributes ra) {
@@ -181,7 +182,7 @@ public class PolicyController {
     }
 
     @PostMapping("/{id}/approve")
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public String approvePolicy(@PathVariable Long id, RedirectAttributes ra) {
         try {
             String approver = extractCurrentUsername();
@@ -195,7 +196,7 @@ public class PolicyController {
     }
 
     @PostMapping("/{id}/reject")
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public String rejectPolicy(@PathVariable Long id, RedirectAttributes ra) {
         try {
             String rejector = extractCurrentUsername();

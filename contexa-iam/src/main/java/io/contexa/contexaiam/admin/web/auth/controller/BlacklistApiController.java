@@ -40,6 +40,9 @@ import java.util.List;
 @PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class BlacklistApiController {
 
+    /** What the administrator is told of a fault of the server; the exception is in the log. */
+    private static final String SERVER_FAULT_MESSAGE = "The action could not be completed. See the server log.";
+
     private final BlockedUserService blockedUserService;
     private final MessageSource messageSource;
 
@@ -100,7 +103,7 @@ public class BlacklistApiController {
         } catch (Exception e) {
             log.error("[BlacklistApi] Failed to resolve block: id={}", id, e);
             return ResponseEntity.internalServerError()
-                    .body(BlacklistActionResponse.failed(e.getMessage()));
+                    .body(BlacklistActionResponse.failed(SERVER_FAULT_MESSAGE));
         }
     }
 
@@ -117,7 +120,7 @@ public class BlacklistApiController {
         } catch (Exception e) {
             log.error("[BlacklistApi] Failed to delete block record: id={}", id, e);
             return ResponseEntity.internalServerError()
-                    .body(BlacklistActionResponse.failed(e.getMessage()));
+                    .body(BlacklistActionResponse.failed(SERVER_FAULT_MESSAGE));
         }
     }
 

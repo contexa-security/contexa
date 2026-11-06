@@ -526,6 +526,26 @@ class UserManagementServiceImplTest {
         }
 
         @Test
+        @DisplayName("a group the account keeps stays the row it is: only the groups dropped and the new ones change")
+        void keptGroupsStayTheRowsTheyAre() {
+            Users user = buildUser(1L, "alice", "Alice");
+            UserGroup keptRow = UserGroup.builder().user(user).group(buildGroup(10L, "kept")).build();
+            user.getUserGroups().add(keptRow);
+            user.getUserGroups().add(UserGroup.builder().user(user).group(buildGroup(11L, "dropped")).build());
+            UserDto dto = buildUserDto(1L, "alice", "Alice");
+            dto.setSelectedGroupIds(List.of(10L, 12L));
+            when(userRepository.findByIdWithGroupsRolesAndPermissions(1L)).thenReturn(Optional.of(user));
+            when(groupRepository.findById(12L)).thenReturn(Optional.of(buildGroup(12L, "added")));
+
+            service.modifyUser(dto);
+
+            assertThat(user.getUserGroups()).hasSize(2).anySatisfy(row -> assertThat(row).isSameAs(keptRow));
+            assertThat(user.getUserGroups()).extracting(row -> row.getGroup().getId())
+                    .containsExactlyInAnyOrder(10L, 12L);
+            verify(groupRepository, never()).findById(10L);
+        }
+
+        @Test
         @DisplayName("should throw when user not found")
         void shouldThrowWhenNotFound() {
             UserDto dto = buildUserDto(999L, "ghost", "Ghost");

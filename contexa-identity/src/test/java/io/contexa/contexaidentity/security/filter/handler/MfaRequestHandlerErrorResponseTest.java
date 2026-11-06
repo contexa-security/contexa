@@ -159,6 +159,65 @@ class MfaRequestHandlerErrorResponseTest {
                 argThat(text -> text != null && !text.contains(INTERNAL_CAUSE)), any(), any());
     }
 
+    @Test
+    @DisplayName("a request of a kind the flow has no step for is answered with its status and error code, and not the kind's name")
+    void anUnsupportedRequestIsAnsweredWithoutTheKindsName() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/contexa/mfa/anything");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        handler.handleRequest(MfaRequestType.UNKNOWN, request, response, context, mock(FilterChain.class));
+
+        assertThat(response.getStatus()).isEqualTo(HttpServletResponse.SC_BAD_REQUEST);
+        JsonNode body = mapper.readTree(response.getContentAsString());
+        assertThat(body.path("error").asText()).isEqualTo("UNSUPPORTED_REQUEST");
+        assertThat(body.path("message").asText()).isEqualTo("Unsupported request type");
+        assertThat(body.path("success").asBoolean(true)).isFalse();
+        assertThat(body.path("mfaSessionId").asText()).isEqualTo(MFA_SESSION);
+        assertThat(response.getContentAsString()).doesNotContain(MfaRequestType.UNKNOWN.getDescription());
+    }
+
+    @Test
+    @DisplayName("the log keeps the kind of an unsupported request for the operators")
+    void theLogKeepsTheKindOfAnUnsupportedRequest() throws Exception {
+        handler.handleRequest(MfaRequestType.UNKNOWN, new MockHttpServletRequest("GET", "/contexa/mfa/anything"),
+                new MockHttpServletResponse(), context, mock(FilterChain.class));
+
+        assertThat(logged.list).anySatisfy(event -> assertThat(event.getFormattedMessage())
+                .contains(MfaRequestType.UNKNOWN.name(), MFA_SESSION));
+    }
+
+    @Test
+    @DisplayName("a flow found in a terminal state no answer is written for is answered with its status and error code, and not the state's name in words")
+    void anUnknownTerminalStateIsAnsweredWithoutTheStateInTheMessage() throws Exception {
+        context.changeState(MfaState.MFA_SESSION_INVALIDATED);
+        when(integrator.getCurrentState(MFA_SESSION)).thenReturn(MfaState.MFA_SESSION_INVALIDATED);
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/contexa/mfa/verify");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        handler.handleTerminalContext(request, response, context);
+
+        assertThat(response.getStatus()).isEqualTo(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        JsonNode body = mapper.readTree(response.getContentAsString());
+        assertThat(body.path("error").asText()).isEqualTo("UNKNOWN_STATE");
+        assertThat(body.path("status").asText()).isEqualTo("UNKNOWN_TERMINAL_STATE");
+        assertThat(body.path("message").asText()).isNotBlank().doesNotContain(MfaState.MFA_SESSION_INVALIDATED.name(),
+                "Unknown terminal state");
+        assertThat(body.path("terminal").asBoolean(false)).isTrue();
+    }
+
+    @Test
+    @DisplayName("the log keeps the state of a flow found in a terminal state no answer is written for")
+    void theLogKeepsTheUnknownTerminalState() throws Exception {
+        context.changeState(MfaState.MFA_SESSION_INVALIDATED);
+        when(integrator.getCurrentState(MFA_SESSION)).thenReturn(MfaState.MFA_SESSION_INVALIDATED);
+
+        handler.handleTerminalContext(new MockHttpServletRequest("POST", "/contexa/mfa/verify"),
+                new MockHttpServletResponse(), context);
+
+        assertThat(logged.list).anySatisfy(event -> assertThat(event.getFormattedMessage())
+                .contains(MfaState.MFA_SESSION_INVALIDATED.name(), MFA_SESSION));
+    }
+
     private MockHttpServletResponse processingFails(RuntimeException failure) throws Exception {
         FilterChain failing = mock(FilterChain.class);
         doThrow(failure).when(failing).doFilter(any(), any());

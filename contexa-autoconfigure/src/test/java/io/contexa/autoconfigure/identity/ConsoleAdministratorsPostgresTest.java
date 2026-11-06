@@ -399,7 +399,136 @@ class ConsoleAdministratorsPostgresTest {
         assertThat(administrators()).containsExactly("alice");
     }
 
+    // ----- an edit of an account that keeps groups it already has -----
+
+    @Test
+    @DisplayName("editing an account that keeps the two groups it has keeps both")
+    void anAccountKeepsTheTwoGroupsItIsEditedWith() {
+        long extra = group("extra");
+        userGroup(bob, extra);
+
+        transactions.executeWithoutResult(s -> userManagement.modifyUser(form(bob, "bob", staff, extra)));
+
+        assertThat(groupsOf(bob)).containsExactlyInAnyOrder(staff, extra);
+    }
+
+    @Test
+    @DisplayName("editing an account that keeps its one group keeps it")
+    void anAccountKeepsTheOneGroupItIsEditedWith() {
+        transactions.executeWithoutResult(s -> userManagement.modifyUser(form(bob, "bob", staff)));
+
+        assertThat(groupsOf(bob)).containsExactly(staff);
+    }
+
+    @Test
+    @DisplayName("editing an account that keeps one of its groups, drops one and takes one changes exactly those")
+    void anAccountKeepsOneGroupDropsOneAndTakesOne() {
+        long extra = group("extra");
+        long other = group("other");
+        userGroup(bob, extra);
+
+        transactions.executeWithoutResult(s -> userManagement.modifyUser(form(bob, "bob", staff, other)));
+
+        assertThat(groupsOf(bob)).containsExactlyInAnyOrder(staff, other);
+    }
+
+    @Test
+    @DisplayName("editing the last administrator who keeps the two groups the account has keeps both")
+    void anAdministratorKeepsTheTwoGroupsItIsEditedWith() {
+        long extra = group("extra");
+        userGroup(alice, extra);
+
+        transactions.executeWithoutResult(s -> userManagement.modifyUser(form(alice, "alice", ops, extra)));
+
+        assertThat(groupsOf(alice)).containsExactlyInAnyOrder(ops, extra);
+        assertThat(administrators()).containsExactly("alice");
+    }
+
+    @Test
+    @DisplayName("editing the last administrator who keeps the one group the account has keeps it")
+    void anAdministratorKeepsTheOneGroupItIsEditedWith() {
+        transactions.executeWithoutResult(s -> userManagement.modifyUser(form(alice, "alice", ops)));
+
+        assertThat(groupsOf(alice)).containsExactly(ops);
+        assertThat(administrators()).containsExactly("alice");
+    }
+
+    @Test
+    @DisplayName("an administrator who gives up one of two groups and keeps the one that makes it an administrator keeps just that one")
+    void anAdministratorGivesUpTheGroupThatIsNotTheAdministrators() {
+        long extra = group("extra");
+        userGroup(alice, extra);
+
+        transactions.executeWithoutResult(s -> userManagement.modifyUser(form(alice, "alice", ops)));
+
+        assertThat(groupsOf(alice)).containsExactly(ops);
+    }
+
+    @Test
+    @DisplayName("the direct role of the last administrator is kept by an edit that keeps it")
+    void anAdministratorKeepsItsDirectRole() {
+        userRole(alice, adminRole);
+
+        transactions.executeWithoutResult(s -> accessCenter.updateUserDirectRoles(alice, roleIds(adminRole)));
+
+        assertThat(jdbc.queryForList("select role_id from ctxa_user_roles where user_id = ?", Long.class, alice))
+                .containsExactly(adminRole);
+    }
+
+    @Test
+    @DisplayName("the role of the group of the last administrator is kept by an edit that keeps it")
+    void aGroupKeepsItsAdministratorRole() {
+        transactions.executeWithoutResult(s -> accessCenter.updateGroupRoles(ops, roleIds(adminRole)));
+        transactions.executeWithoutResult(s -> groupService.updateGroup(Group.builder().id(ops).name("ops").build(),
+                List.of(adminRole)));
+
+        assertThat(jdbc.queryForList("select role_id from ctxa_group_roles where group_id = ?", Long.class, ops))
+                .containsExactly(adminRole);
+        assertThat(administrators()).containsExactly("alice");
+    }
+
+    @Test
+    @DisplayName("the groups of the last administrator in the access center are kept the same way")
+    void theAccessCenterKeepsTheGroupsOfAnAdministratorToo() {
+        long extra = group("extra");
+        userGroup(alice, extra);
+
+        transactions.executeWithoutResult(s -> accessCenter.updateUserGroups(alice, groups(ops, extra)));
+
+        assertThat(groupsOf(alice)).containsExactlyInAnyOrder(ops, extra);
+        assertThat(administrators()).containsExactly("alice");
+    }
+
+    @Test
+    @DisplayName("the groups of an account in the access center are kept the same way")
+    void theAccessCenterKeepsTheGroupsToo() {
+        long extra = group("extra");
+        userGroup(bob, extra);
+
+        transactions.executeWithoutResult(s -> accessCenter.updateUserGroups(bob, groups(staff, extra)));
+
+        assertThat(groupsOf(bob)).containsExactlyInAnyOrder(staff, extra);
+    }
+
+    @Test
+    @DisplayName("the two direct roles of an account in the access center are kept the same way")
+    void theAccessCenterKeepsTheDirectRolesToo() {
+        long first = role("ROLE_FIRST");
+        long second = role("ROLE_SECOND");
+        userRole(bob, first);
+        userRole(bob, second);
+
+        transactions.executeWithoutResult(s -> accessCenter.updateUserDirectRoles(bob, roleIds(first, second)));
+
+        assertThat(jdbc.queryForList("select role_id from ctxa_user_roles where user_id = ? order by 1", Long.class, bob))
+                .containsExactlyInAnyOrder(first, second);
+    }
+
     // ----- helpers -----
+
+    private static List<Long> groupsOf(long userId) {
+        return jdbc.queryForList("select group_id from ctxa_user_groups where user_id = ? order by 1", Long.class, userId);
+    }
 
     private void assertRefusedAndNothingKept(Runnable edit) {
         List<String> before = administrators();
