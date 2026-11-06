@@ -8,6 +8,17 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A sign-in on the token state is decided for the context its bearer calls are bound to.** The context of a request
+  names the session, the address and the browser. A person's bearer call was bound to the session cookie it carried,
+  which a client without cookies never sends, while the sign-in that came before it was bound to the servlet session
+  of the login request, which a step of an MFA flow creates; the first call after such a sign-in read as a change of
+  context and was decided again. A person's bearer call is now bound to the login its token carries (`sid`), which is
+  already the session the engine names for such a request, and the sign-in, the release of a passed step-up and the
+  verification of a BLOCK are bound to the same login, so the context is the same whether or not the client keeps
+  cookies. Two logins of one person from the same address and browser are two contexts. The session state is
+  unchanged. **Check:** on the token state the contexts of the calls change once at the upgrade, so a person who signed
+  in before it is decided once more at the next call.
+
 - **An MFA sign-in or request that fails inside no longer tells the client what failed.** When the processing after a
   successful MFA sign-in failed, the API answer carried the person's name, the failing step, the exception's class and
   message and the MFA session's identifier, and a request of the MFA flow that failed while it was processed carried

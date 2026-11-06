@@ -180,7 +180,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             if (factorContext != null && factorContext.isCompleted()) {
                 Boolean blockMfaFlow = (Boolean) factorContext.getAttribute(ZeroTrustAccessControlFilter.BLOCK_MFA_FLOW_ATTRIBUTE);
                 if (Boolean.TRUE.equals(blockMfaFlow)) {
-                    handleBlockMfaSuccess(userId, request, response);
+                    handleBlockMfaSuccess(userId, request, response, stateType, finalAuthentication);
                     return;
                 }
                 boolean challengeFlow = isChallengeFlow(factorContext);
@@ -190,7 +190,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                     // A login MFA, in this or another session, does not answer a Zero Trust challenge; only the
                     // step-up the challenge started releases it and is learned as normal behaviour.
                     successStage = "resetActionOnMfaSuccess";
-                    resetActionOnMfaSuccess(userId, request, factorContext);
+                    resetActionOnMfaSuccess(userId, request, factorContext, stateType, finalAuthentication);
                 }
                 successStage = "recordMfaCompletionInSession";
                 recordMfaCompletionInSession(request, factorContext, challengeFlow, stateType, finalAuthentication);
@@ -201,7 +201,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 // the response leaves so the next request meets what it brings. A step-up that answers a CHALLENGE or
                 // releases a BLOCK is no sign-in.
                 successStage = "sendSignIn";
-                sendSignIn(request, finalAuthentication, factorContext);
+                sendSignIn(request, finalAuthentication, factorContext, stateType);
             }
 
             successStage = "resolvePasskeyRegistrationIntent";
@@ -540,8 +540,9 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
     /** The sign-in this success completed, with what the flow knows of it, to the engine. */
     private void sendSignIn(HttpServletRequest request, Authentication authentication,
-                            @Nullable FactorContext factorContext) {
+                            @Nullable FactorContext factorContext, StateType stateType) {
         Map<String, Object> signIn = new HashMap<>();
+        putIfPresent(signIn, ZeroTrustEventPublisher.TOKEN_SESSION_ID, tokenSessionOf(stateType, authentication));
         boolean mfaCompleted = factorContext != null && factorContext.isCompleted();
         signIn.put("authenticationType", mfaCompleted ? "MFA" : "PRIMARY");
         if (factorContext != null) {
@@ -687,9 +688,11 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     }
 
     private void handleBlockMfaSuccess(String userId, HttpServletRequest request,
-                                         HttpServletResponse response) throws IOException {
+                                         HttpServletResponse response, StateType stateType,
+                                         Authentication finalAuthentication) throws IOException {
         // Bound to the session the client uses next, as an answered CHALLENGE is: MFA success may have rotated its id.
-        challengeResolution().releaseBlockByMfa(userId, SessionFingerprintUtil.generateNextRequestContextBindingHash(request));
+        challengeResolution().releaseBlockByMfa(userId, SessionFingerprintUtil.generateNextRequestContextBindingHash(
+                request, tokenSessionOf(stateType, finalAuthentication)));
 
         String redirectUrl = request.getContextPath() + "/contexa/zero-trust/blocked";
 
@@ -722,14 +725,16 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     }
 
     private void resetActionOnMfaSuccess(String userId, HttpServletRequest request,
-                                         @Nullable FactorContext factorContext) {
+                                         @Nullable FactorContext factorContext, StateType stateType,
+                                         Authentication finalAuthentication) {
         if (userId == null || userId.isBlank() || actionRedisRepository == null) {
             return;
         }
         String originalIp = factorContext != null
                 ? (String) factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.CLIENT_IP) : null;
         // Bind to the session the client uses next: MFA success has already rotated the session id.
-        String contextBindingHash = SessionFingerprintUtil.generateNextRequestContextBindingHash(request);
+        String contextBindingHash = SessionFingerprintUtil.generateNextRequestContextBindingHash(
+                request, tokenSessionOf(stateType, finalAuthentication));
         // Q-87 (N-P3-1): an ESCALATE waits for a review (an approved override, or BLOCK when it lapses); a
         // verification of the user neither lifts it nor releases the user.
         if (challengeResolution().releaseChallenge(userId, contextBindingHash, request, originalIp)) {
@@ -785,10 +790,21 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     @Nullable
     private static String engineSessionId(HttpServletRequest request, StateType stateType,
                                           Authentication finalAuthentication) {
-        if (stateType == StateType.OAUTH2 && finalAuthentication.getDetails() instanceof LoginFactsDetails facts) {
-            return facts.getSignInId();
+        String tokenSession = tokenSessionOf(stateType, finalAuthentication);
+        if (tokenSession != null) {
+            return tokenSession;
         }
         return request.getSession(false) != null ? request.getSession(false).getId() : null;
+    }
+
+    /**
+     * The login the issued token carries as its {@code sid} claim on the OAuth2 state, which is the session of the
+     * client's next requests (bearer calls); null on the session state, whose next requests belong to the HTTP session.
+     */
+    @Nullable
+    private static String tokenSessionOf(StateType stateType, Authentication finalAuthentication) {
+        return stateType == StateType.OAUTH2 && finalAuthentication.getDetails() instanceof LoginFactsDetails facts
+                ? facts.getSignInId() : null;
     }
 
     @Nullable
