@@ -38,6 +38,9 @@ public interface AgentClientDirectory {
      *
      * @param tenantId the tenant the token names, or {@code null} for a single-tenant deployment
      * @param clientId the client the token was issued to
+     * @throws AgentClientStatusUnavailableException when the directory cannot read it (its store failed or did not
+     *                                               answer): a failure is no answer of "not an agent", since a caller
+     *                                               that read it so would skip what an agent is held to
      */
     Optional<String> activeAgentForClient(@Nullable String tenantId, String clientId);
 
@@ -47,6 +50,7 @@ public interface AgentClientDirectory {
      *
      * @param tenantId    the tenant of the request, or {@code null} for a single-tenant deployment
      * @param accountName the name the request authenticated as
+     * @throws AgentClientStatusUnavailableException as {@link #activeAgentForClient} does
      */
     default Optional<String> activeAgentForAccount(@Nullable String tenantId, String accountName) {
         return activeAgentForClient(tenantId, accountName);
@@ -70,7 +74,10 @@ public interface AgentClientDirectory {
     /**
      * The tenant that registered the agent the client is, as the authorization server issuing the client's tokens knows
      * it: its tokens name no tenant, so the agent and its delegations are read in the tenant this answers. Empty for an
-     * agent of the single-tenant deployment, and when the directory cannot say. None by default.
+     * agent of the single-tenant deployment. None by default.
+     *
+     * @throws AgentClientStatusUnavailableException when the directory cannot read it: a failure is no answer of "no
+     *                                               tenant", since the agent would then be looked up in the wrong one
      */
     default Optional<String> tenantOfClient(String clientId) {
         return Optional.empty();

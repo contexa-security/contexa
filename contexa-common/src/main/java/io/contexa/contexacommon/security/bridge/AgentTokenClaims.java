@@ -16,6 +16,7 @@
 package io.contexa.contexacommon.security.bridge;
 
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
+import io.contexa.contexacommon.security.subject.AgentClientStatusUnavailableException;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -128,15 +129,24 @@ public final class AgentTokenClaims {
         return config == null ? null : firstText(claims, config.getTenantClaims());
     }
 
-    /** The registered identifier of the approved agent the token's client is, or {@code null}. */
+    /**
+     * The registered identifier of the approved agent the token's client is, or {@code null}. This reads a token that was
+     * already accepted, for the stamp of the request, and refuses nothing: the request must go on, and every request that
+     * carries a client reaches this, a person's included. A directory that cannot answer (it says so in its log) leaves the
+     * token unnamed here; the places that accept or issue tokens refuse a client they cannot read about.
+     */
     static String registeredAgent(Map<String, Object> claims, String clientId,
                                   BridgeProperties.Delegation.Token config, AgentClientDirectory directory) {
         if (clientId == null || directory == null) {
             return null;
         }
-        return directory.activeAgentForClient(tenant(claims, config), clientId)
-                .map(AgentTokenClaims::text)
-                .orElse(null);
+        try {
+            return directory.activeAgentForClient(tenant(claims, config), clientId)
+                    .map(AgentTokenClaims::text)
+                    .orElse(null);
+        } catch (AgentClientStatusUnavailableException unreadable) {
+            return null;
+        }
     }
 
     /**

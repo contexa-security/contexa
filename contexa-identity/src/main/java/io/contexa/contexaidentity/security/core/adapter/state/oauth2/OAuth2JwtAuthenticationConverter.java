@@ -115,11 +115,24 @@ public class OAuth2JwtAuthenticationConverter implements Converter<Jwt, Abstract
         }
         List<String> serviceClients = properties != null ? properties.getOauth2().getServiceClientIds() : List.of();
         boolean serviceClient = serviceClients != null && serviceClients.contains(clientId);
-        if (!serviceClient && directory().activeAgentForClient(AgentTokenClaims.tenant(claims, tokenSettings), clientId).isEmpty()) {
+        if (!serviceClient && !isApprovedAgent(AgentTokenClaims.tenant(claims, tokenSettings), clientId)) {
             return Optional.empty();
         }
         // The token's scopes only: a client has no account, and a role claim is not a grant to a client.
         return Optional.of(new JwtAuthenticationToken(jwt, scopeConverter.convert(jwt)));
+    }
+
+    /**
+     * Whether the directory names the client as an approved agent in service. A directory that cannot say refuses the token
+     * as it does when it cannot read a suspension: the client is not taken for no agent by the failure, and the failure is
+     * the token's refusal and no error of the application.
+     */
+    private boolean isApprovedAgent(String tenantId, String clientId) {
+        try {
+            return directory().activeAgentForClient(tenantId, clientId).isPresent();
+        } catch (AgentClientStatusUnavailableException unreadable) {
+            throw new InvalidBearerTokenException("The agent this token was issued to cannot be read now");
+        }
     }
 
     /**

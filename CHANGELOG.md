@@ -8,6 +8,18 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A failing agent registry no longer lets an agent's token exchange skip the delegation a person revoked.** The lookup
+  of an agent by its client and the lookup of the tenant of its client ended as "no agent" and "no tenant" when the
+  registry failed or did not answer in time, so an exchange read the client as no agent and skipped the check for a
+  delegation the person had revoked, or looked the agent up in the wrong tenant, also when the suspension of the client
+  had been read a moment before. Both lookups now end as "cannot be read": the token endpoint answers
+  `temporarily_unavailable` (also in the report-only mode, which lets a revoked delegation through but not a registry
+  that cannot be read), and the resource server answers 401 to a client's own token whose agent it cannot read, with one
+  error line per client a minute and nothing of the cause in the answer. A person's sign-in and tokens issued to the
+  internal client never ask the registry. **Check:** an `AgentClientDirectory` of your own throws
+  `AgentClientStatusUnavailableException` from `activeAgentForClient`, `activeAgentForAccount` and `tenantOfClient`
+  when it cannot answer, instead of returning an empty answer. The stamp the bridge reads from a request that already
+  passed is unchanged: it leaves a client the registry cannot answer about unnamed and does not fail the request.
 - **A token customizer of your own no longer takes Contexa's token checks away.** The authorization server takes exactly
   one `OAuth2TokenCustomizer<JwtEncodingContext>` bean and Contexa registered its own only when the application had no
   customizer (of any token type), so an application that declared one lost the refusal of a suspended agent's token,

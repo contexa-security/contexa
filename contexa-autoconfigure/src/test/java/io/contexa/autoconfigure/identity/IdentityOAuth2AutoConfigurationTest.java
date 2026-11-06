@@ -456,6 +456,161 @@ class IdentityOAuth2AutoConfigurationTest {
         assertThat(signIn.getClaims().build().getClaims()).containsEntry("client_id", "default-client");
     }
 
+    /**
+     * An exchange of an agent is held to the delegation a person revoked. When the registry cannot say which agent the
+     * client is, or which tenant it belongs to, the exchange waits: reading that failure as "no agent" would let it go on
+     * under a delegation that was revoked. The failures here come after the suspension was read, the gap in which an
+     * earlier read answered and a later one does not.
+     */
+    @Test
+    @DisplayName("an exchange waits when the registry cannot say which agent the client is, after the suspension was read")
+    void anExchangeWaitsWhenTheAgentOfTheClientCannotBeRead() {
+        FlappingRegistry registry = new FlappingRegistry();
+        registry.register(new AgentRegistrationRequest(null, "report-agent", "Reports", "AGENT", "report-client", "carol", true));
+        InMemoryDelegationRegistry delegations = revokedDelegation(null);
+        OAuth2TokenCustomizer<JwtEncodingContext> customizer = customizerOver(registry, delegations, new AuthContextProperties());
+
+        assertThatThrownBy(() -> customizer.customize(exchangeContext("alice")))
+                .as("healthy: the revoked delegation stops the exchange")
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, refused ->
+                        assertThat(refused.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.INVALID_GRANT));
+
+        registry.agentReadsFail = true;
+        assertThatThrownBy(() -> customizer.customize(exchangeContext("alice")))
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, refused -> {
+                    assertThat(refused.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.TEMPORARILY_UNAVAILABLE);
+                    assertThat(refused.getError().getDescription()).doesNotContain("unavailable-store");
+                });
+
+        registry.agentReadsFail = false;
+        assertThatThrownBy(() -> customizer.customize(exchangeContext("alice")))
+                .as("served as before once the registry answers")
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, refused ->
+                        assertThat(refused.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.INVALID_GRANT));
+    }
+
+    @Test
+    @DisplayName("an exchange waits when the registry cannot say which tenant the client belongs to, after the suspension was read")
+    void anExchangeWaitsWhenTheTenantOfTheClientCannotBeRead() {
+        FlappingRegistry registry = new FlappingRegistry();
+        registry.register(new AgentRegistrationRequest("tenant-a", "report-agent", "Reports", "AGENT", "report-client", "carol", true));
+        InMemoryDelegationRegistry delegations = revokedDelegation("tenant-a");
+        OAuth2TokenCustomizer<JwtEncodingContext> customizer = customizerOver(registry, delegations, new AuthContextProperties());
+
+        assertThatThrownBy(() -> customizer.customize(exchangeContext("alice")))
+                .as("healthy: the revoked delegation stops the exchange")
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, refused ->
+                        assertThat(refused.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.INVALID_GRANT));
+
+        // The suspension is read first and answers; the read of the client's tenant right after it does not.
+        registry.failAllReadsAfter(1);
+        assertThatThrownBy(() -> customizer.customize(exchangeContext("alice")))
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, refused ->
+                        assertThat(refused.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.TEMPORARILY_UNAVAILABLE));
+    }
+
+    /** The report-only mode lets a revoked delegation go on, as its operator chose; it does not let a registry that cannot be read through. */
+    @Test
+    @DisplayName("in the report-only mode an exchange still waits when the registry cannot be read")
+    @SuppressWarnings("unchecked")
+    void inTheReportOnlyModeAnExchangeStillWaitsWhenTheRegistryCannotBeRead() {
+        FlappingRegistry registry = new FlappingRegistry();
+        registry.register(new AgentRegistrationRequest(null, "report-agent", "Reports", "AGENT", "report-client", "carol", true));
+        ObjectProvider<AgentClientDirectory> agents = mock(ObjectProvider.class);
+        when(agents.getIfAvailable()).thenReturn(new RegistryAgentClientDirectory(registry));
+        ObjectProvider<DelegationRegistry> delegations = mock(ObjectProvider.class);
+        when(delegations.getIfAvailable()).thenReturn(revokedDelegation(null));
+        SecurityZeroTrustProperties shadow = new SecurityZeroTrustProperties();
+        shadow.setMode(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
+        ObjectProvider<SecurityZeroTrustProperties> zeroTrust = mock(ObjectProvider.class);
+        when(zeroTrust.getIfAvailable()).thenReturn(shadow);
+        OAuth2TokenCustomizer<JwtEncodingContext> customizer = new IdentityOAuth2AutoConfiguration(
+                mock(TransactionTemplate.class), new AuthContextProperties(), null, zeroTrust)
+                .tokenCustomizer(delegations, agents, none());
+
+        customizer.customize(exchangeContext("alice"));
+        registry.agentReadsFail = true;
+        assertThatThrownBy(() -> customizer.customize(exchangeContext("alice")))
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, refused ->
+                        assertThat(refused.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.TEMPORARILY_UNAVAILABLE));
+    }
+
+    /** The claim that names the delegation is not left out for a failure either: the token waits. */
+    @Test
+    @DisplayName("an exchange is not issued without the delegation claim because the registry cannot be read")
+    void anExchangeIsNotIssuedWithoutTheDelegationClaimBecauseTheRegistryCannotBeRead() {
+        FlappingRegistry registry = new FlappingRegistry();
+        registry.register(new AgentRegistrationRequest(null, "report-agent", "Reports", "AGENT", "report-client", "carol", true));
+        InMemoryDelegationRegistry delegations = new InMemoryDelegationRegistry();
+        delegations.record(new AgentDelegationRequest(null, "alice", "report-agent", null, "REPORTING", "Weekly report",
+                List.of("READ"), List.of(), null, null, null, Instant.now().minusSeconds(3600),
+                Instant.now().plusSeconds(3600), null, null));
+        RegistryAgentClientDirectory directory = new RegistryAgentClientDirectory(registry);
+
+        JwtEncodingContext healthy = exchangeContext("alice");
+        IdentityOAuth2AutoConfiguration.delegationClaim(healthy, delegations, directory);
+        assertThat(healthy.getClaims().build().getClaims()).containsKey("delegation_id");
+
+        registry.agentReadsFail = true;
+        assertThatThrownBy(() -> IdentityOAuth2AutoConfiguration.delegationClaim(exchangeContext("alice"), delegations, directory))
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, refused ->
+                        assertThat(refused.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.TEMPORARILY_UNAVAILABLE));
+    }
+
+    /** A recorded delegation of alice to report-agent that alice revoked. */
+    private static InMemoryDelegationRegistry revokedDelegation(String tenantId) {
+        InMemoryDelegationRegistry delegations = new InMemoryDelegationRegistry();
+        AgentDelegation revoked = delegations.record(new AgentDelegationRequest(tenantId, "alice", "report-agent", null,
+                "REPORTING", "Weekly report", List.of("READ"), List.of(), null, null, null,
+                Instant.now().minusSeconds(3600), Instant.now().plusSeconds(3600), null, null));
+        delegations.revoke(revoked.delegationId(), "alice", "done");
+        return delegations;
+    }
+
+    @SuppressWarnings("unchecked")
+    private OAuth2TokenCustomizer<JwtEncodingContext> customizerOver(InMemoryAgentRegistry registry,
+                                                                       DelegationRegistry delegations,
+                                                                       AuthContextProperties properties) {
+        ObjectProvider<AgentClientDirectory> agents = mock(ObjectProvider.class);
+        when(agents.getIfAvailable()).thenReturn(new RegistryAgentClientDirectory(registry));
+        ObjectProvider<DelegationRegistry> delegationRegistry = mock(ObjectProvider.class);
+        when(delegationRegistry.getIfAvailable()).thenReturn(delegations);
+        return configuration(properties).tokenCustomizer(delegationRegistry, agents, none());
+    }
+
+    /**
+     * An agent registry whose reads fail on demand: the read of an agent by its client, or every read of a client's
+     * registrations after a number of them answered.
+     */
+    private static final class FlappingRegistry extends InMemoryAgentRegistry {
+
+        volatile boolean agentReadsFail;
+        private final AtomicInteger allReads = new AtomicInteger();
+        private volatile int allReadsThatAnswer = Integer.MAX_VALUE;
+
+        /** The registrations of a client answer this many times from now on, and fail after that. */
+        void failAllReadsAfter(int answers) {
+            allReads.set(0);
+            allReadsThatAnswer = answers;
+        }
+
+        @Override
+        public Optional<AgentRegistration> findByClientId(String tenantId, String clientId) {
+            if (agentReadsFail) {
+                throw new IllegalStateException("unavailable-store");
+            }
+            return super.findByClientId(tenantId, clientId);
+        }
+
+        @Override
+        public List<AgentRegistration> findAllByClientId(String clientId) {
+            if (allReads.incrementAndGet() > allReadsThatAnswer) {
+                throw new IllegalStateException("unavailable-store");
+            }
+            return super.findAllByClientId(clientId);
+        }
+    }
+
     /** Names one client whose suspension cannot be read, and counts how often the directory is asked. */
     private static final class UnreadableDirectory implements AgentClientDirectory {
 

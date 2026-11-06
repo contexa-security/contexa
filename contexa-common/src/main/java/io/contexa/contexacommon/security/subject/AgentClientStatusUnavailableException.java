@@ -16,10 +16,12 @@
 package io.contexa.contexacommon.security.subject;
 
 /**
- * An {@link AgentClientDirectory} could not tell whether a client is a suspended agent: its store failed or did not
- * answer in time. A suspension is a restriction, and a restriction is never lifted by a failure, so whoever asked
- * stops what the client would do for now (a token is neither issued nor accepted) instead of reading the failure as
- * "not suspended". The exception carries no more than the client it is about; the cause stays in the log.
+ * An {@link AgentClientDirectory} could not tell what it was asked about a client (whether it is a suspended agent, which
+ * agent it is, which tenant it belongs to): its store failed or did not answer in time. What the client is held to (a
+ * suspension, a delegation a person revoked) is a restriction, and a restriction is never lifted by a failure, so whoever
+ * asked stops what the client would do for now (a token is neither issued nor accepted) instead of reading the failure as
+ * "not suspended", "no agent" or "no tenant". The exception carries no more than the client it is about; the cause stays
+ * in the log.
  */
 public class AgentClientStatusUnavailableException extends RuntimeException {
 

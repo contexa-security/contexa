@@ -84,6 +84,7 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.UUID;
@@ -542,8 +543,9 @@ public class IdentityOAuth2AutoConfiguration {
                     refuseRevokedDelegation(context, delegationRegistry.getIfAvailable(),
                             agentClientDirectory.getIfAvailable());
                 } catch (OAuth2AuthenticationException refused) {
-                    // docs/agent G-9: in the report-only mode the refusal is logged and the token is issued.
-                    if (zeroTrustEnforcing()) {
+                    // docs/agent G-9: in the report-only mode the refusal of a revoked delegation is logged and the token is
+                    // issued. A registry that cannot be read is no revoked delegation the operator chose to let through.
+                    if (zeroTrustEnforcing() || OAuth2ErrorCodes.TEMPORARILY_UNAVAILABLE.equals(refused.getError().getErrorCode())) {
                         throw refused;
                     }
                     log.info("[ZeroTrust][SHADOW] An exchange under a revoked delegation goes on: client={}",
@@ -704,14 +706,21 @@ public class IdentityOAuth2AutoConfiguration {
         try {
             suspended = agents.suspendedAgentClient(null, clientId);
         } catch (AgentClientStatusUnavailableException unreadable) {
-            // No cause is attached: its text would become the message of the exception. The registry says why in the log.
-            throw new OAuth2AuthenticationException(new OAuth2Error(OAuth2ErrorCodes.TEMPORARILY_UNAVAILABLE,
-                    "The status of the agent cannot be read now", null));
+            throw agentUnreadable();
         }
         if (suspended) {
             throw new OAuth2AuthenticationException(new OAuth2Error(OAuth2ErrorCodes.UNAUTHORIZED_CLIENT,
                     "The agent is suspended", null));
         }
+    }
+
+    /**
+     * What a token waits with while the agent registry cannot be read. No cause is attached: its text would become the
+     * message of the exception. The registry says why in the log.
+     */
+    private static OAuth2AuthenticationException agentUnreadable() {
+        return new OAuth2AuthenticationException(new OAuth2Error(OAuth2ErrorCodes.TEMPORARILY_UNAVAILABLE,
+                "The status of the agent cannot be read now", null));
     }
 
     /** Whether Contexa enforces its zero trust decisions (not the report-only SHADOW mode). */
@@ -733,8 +742,17 @@ public class IdentityOAuth2AutoConfiguration {
             return;
         }
         String clientId = context.getRegisteredClient().getClientId();
-        String tenant = agents.tenantOfClient(clientId).orElse(null);
-        agents.activeAgentForClient(tenant, clientId).ifPresent(agentId -> {
+        // A registry that cannot say which tenant and which agent the client is does not let the exchange through as one of
+        // no agent: the person's revocation could not be found.
+        String tenant;
+        Optional<String> agent;
+        try {
+            tenant = agents.tenantOfClient(clientId).orElse(null);
+            agent = agents.activeAgentForClient(tenant, clientId);
+        } catch (AgentClientStatusUnavailableException unreadable) {
+            throw agentUnreadable();
+        }
+        agent.ifPresent(agentId -> {
             Instant now = Instant.now();
             AgentDelegations.current(registry.list(tenant, person, agentId, DELEGATION_CANDIDATES), now)
                     .filter(delegation -> !delegation.validAt(now) && delegation.revokedAt() != null
@@ -772,8 +790,15 @@ public class IdentityOAuth2AutoConfiguration {
             return;
         }
         String clientId = context.getRegisteredClient().getClientId();
-        String tenant = agents.tenantOfClient(clientId).orElse(null);
-        agents.activeAgentForClient(tenant, clientId).ifPresent(agentId -> {
+        String tenant;
+        Optional<String> agent;
+        try {
+            tenant = agents.tenantOfClient(clientId).orElse(null);
+            agent = agents.activeAgentForClient(tenant, clientId);
+        } catch (AgentClientStatusUnavailableException unreadable) {
+            throw agentUnreadable();
+        }
+        agent.ifPresent(agentId -> {
             Instant now = Instant.now();
             AgentDelegations.current(registry.list(tenant, person, agentId, DELEGATION_CANDIDATES), now)
                     .filter(delegation -> delegation.validAt(now))

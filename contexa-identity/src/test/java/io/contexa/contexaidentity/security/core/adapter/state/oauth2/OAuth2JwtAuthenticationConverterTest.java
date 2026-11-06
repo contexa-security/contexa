@@ -344,6 +344,31 @@ class OAuth2JwtAuthenticationConverterTest {
     }
 
     /**
+     * The suspension was read and answered, and the read of the agent right after it fails: the client's own token is
+     * refused as a token the resource server cannot vouch for (401), and the failure is not an uncaught exception that
+     * would reach the application as a server error.
+     */
+    @Test
+    void aClientsOwnTokenIsRefusedWhenTheAgentOfTheClientCannotBeReadAfterTheSuspensionWas() {
+        AgentClientDirectory directory = new AgentClientDirectory() {
+            @Override
+            public Optional<String> activeAgentForClient(String tenantId, String clientId) {
+                throw new AgentClientStatusUnavailableException("cannot read jdbc:postgresql://secret-host/contexa");
+            }
+
+            @Override
+            public boolean suspendedAgentClient(String tenantId, String clientId) {
+                return false;
+            }
+        };
+        OAuth2JwtAuthenticationConverter clientAware = converterWith(new AuthContextProperties(), directory);
+
+        assertThatThrownBy(() -> clientAware.convert(clientJwt("sync-client", "sync-client", "sync.run")))
+                .isInstanceOfSatisfying(InvalidBearerTokenException.class, refused ->
+                        assertThat(refused.getMessage()).doesNotContain("secret-host"));
+    }
+
+    /**
      * A token Contexa issues names no tenant: the token an agent registered in a tenant holds for a person is refused once
      * the agent is suspended there, as the token of an agent of no tenant is.
      */
