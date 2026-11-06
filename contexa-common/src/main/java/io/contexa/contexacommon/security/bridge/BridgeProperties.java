@@ -123,12 +123,20 @@ public class BridgeProperties {
                     "scopeTags", "scopes", "scope", "scp", "roles", "effectiveRoles", "permissions", "effectiveAuthorities");
         }
 
+        /**
+         * The authorization an application keeps in the session. Only the attribute the application names is read, and
+         * the names it lists: a session also holds what the application keeps for its own pages, such as the values of
+         * a search form, and a value there named like a role, an authority, a privilege or a verdict would become the
+         * evidence of what the user may do that the decisions read.
+         */
         @Data
         public static class Session {
             private boolean enabled = true;
             private String attribute = "";
-            private List<String> attributeCandidates = List.of("currentUser", "authenticatedUser", "sessionUser", "userSession", "principal", "user", "securityUser", "authenticatedPrincipal");
-            private boolean autoDiscover = true;
+            /** Further attribute names read for the authorization; none by default. */
+            private List<String> attributeCandidates = List.of();
+            /** Reads every other session attribute too; an application turns it on only if no attribute it keeps holds such names. */
+            private boolean autoDiscover = false;
             private String objectTypeName = "";
             private List<String> principalIdKeys = List.of("userId", "username", "id", "loginId", "email");
             private List<String> authorizationEffectKeys = List.of("authorizationEffect", "effect", "decision", "decisionEffect");

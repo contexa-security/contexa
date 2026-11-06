@@ -88,10 +88,13 @@ class SessionBridgeStructuralDiscoveryTest {
         session.setAttribute("CLIENT_RUNTIME_CONTEXT", sessionContext);
         request.setSession(session);
 
+        // The authorization channel reads unknown attribute names only when the application turns discovery on.
+        BridgeProperties properties = new BridgeProperties();
+        properties.getAuthorization().getSession().setAutoDiscover(true);
         AuthorizationStamp stamp = resolver.resolve(
                 request,
                 new RequestContextSnapshot("/api/customers/export", "GET", "127.0.0.1", "JUnit", "session-1", "request-1", "/api/customers/export", null, false, Instant.now()),
-                new BridgeProperties()
+                properties
         ).orElseThrow();
 
         assertThat(stamp.subjectId()).isEqualTo("alice");
@@ -135,6 +138,7 @@ class SessionBridgeStructuralDiscoveryTest {
     @Test
     void shouldPopulateSecurityContextFromStructurallyDiscoveredSessionContext() throws Exception {
         BridgeProperties properties = new BridgeProperties();
+        properties.getAuthorization().getSession().setAttribute("CLIENT_RUNTIME_CONTEXT");
         BridgeResolutionFilter filter = new BridgeResolutionFilter(
                 properties,
                 new RequestContextCollector(),

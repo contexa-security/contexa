@@ -128,7 +128,12 @@ public class AiBridgeConfiguration {
     @Bean(name = "contexaSecurityOffSessionAuthorizationStampResolver")
     @Order(5)
     @ConditionalOnMissingBean(SessionAuthorizationStampResolver.class)
-    public AuthorizationStampResolver securityOffSessionAuthorizationStampResolver() {
+    public AuthorizationStampResolver securityOffSessionAuthorizationStampResolver(BridgeProperties properties) {
+        if (properties.getAuthorization().getSession().isEnabled() && properties.getAuthorization().getSession().isAutoDiscover()) {
+            log.info("[Bridge] contexa.bridge.authorization.session.auto-discover=true: any session attribute that names "
+                    + "roles, authorities, a privilege or a verdict is read as the user's authorization, and the decisions "
+                    + "read it as such.");
+        }
         return new SessionAuthorizationStampResolver();
     }
 

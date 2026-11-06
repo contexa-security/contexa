@@ -26,6 +26,17 @@ The format is based on Keep a Changelog and the project follows semantic version
   default. **Check:** an application that keeps its agents' delegation in the session names that attribute in
   `contexa.bridge.delegation.session.attribute`. Setting `auto-discover` to `true` reads every attribute again, and the
   start says so at INFO.
+- **A value an application keeps in the session no longer adds to what the decisions read of a user's authorization.**
+  The session channel of the authorization read every session attribute and took the one that looked most like an
+  authorization: a map of request values with `roles=ROLE_ADMIN`, `privileged=true` or `effect=ALLOW` added that role,
+  privilege or verdict to the authorization evidence of the request, which the decisions read. The channel now reads
+  `contexa.bridge.authorization.session.attribute` and the names in
+  `contexa.bridge.authorization.session.attribute-candidates`, which is empty by default, and `auto-discover` is off by
+  default, as for the delegation. **Check:** an application that keeps the user's roles or its authorization verdicts in
+  the session, under a name of its own or one of the former candidate names (`currentUser`, `authenticatedUser`,
+  `sessionUser`, `userSession`, `principal`, `user`, `securityUser`, `authenticatedPrincipal`), names that attribute in
+  `contexa.bridge.authorization.session.attribute`. Setting `auto-discover` to `true` reads every attribute again, and the
+  start says so at INFO.
 - **The application's own sign-in answers a CHALLENGE only where the application named its re-authentication.** A
   completed MFA was read from the principal by the name of a value (`mfa`, `mfaVerified`, ...) and the time of the
   sign-in, so a principal that always carries `mfa=true` released a CHALLENGE with a password sign-in alone. The
