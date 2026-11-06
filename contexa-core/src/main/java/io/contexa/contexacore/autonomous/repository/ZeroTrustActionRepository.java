@@ -201,6 +201,22 @@ public interface ZeroTrustActionRepository {
 
     void setBlockedFlag(String userId);
 
+    /**
+     * Writes the BLOCK of a user that the record of blocks holds in force and this store does not: a BLOCK has no expiry,
+     * so what the store lost (the keys an application had before it was given a name, or a Redis that was emptied) is
+     * written again from the record. Nothing is touched when the BLOCK is already there, neither its value nor its time.
+     *
+     * @param userId the key the block was recorded under, as {@link #setBlockedFlag} takes it
+     * @return whether the BLOCK was written; false when it was there, or when the id is blank
+     */
+    default boolean restoreBlockedFlag(String userId) {
+        if (userId == null || userId.isBlank() || getCurrentAction(userId) == ZeroTrustAction.BLOCK) {
+            return false;
+        }
+        setBlockedFlag(userId);
+        return true;
+    }
+
     void removeBlockedFlag(String userId);
 
     void clearBlockMfaPending(String userId);

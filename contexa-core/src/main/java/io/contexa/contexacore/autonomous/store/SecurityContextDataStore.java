@@ -360,6 +360,20 @@ public interface SecurityContextDataStore {
     }
 
     /**
+     * A quarantine has no expiry, so one an operator made before the application was given a name must not end with the
+     * keys it had before: the scopes quarantined under the earlier key are added to those of the application, once. The
+     * earlier key is left as it is, and a scope the operator releases afterwards stays released. A quarantine only keeps
+     * learning from being read or written, so a scope added from the earlier key can make a decision more careful and
+     * never less.
+     *
+     * @return the number of scopes added; 0 when nothing earlier is there, when it was done before, and for a store that
+     *         has no earlier key
+     */
+    default int carryOverLearningQuarantine() {
+        return 0;
+    }
+
+    /**
      * docs/agent A3-8: removes the work-profile observations of every learning key of the agent, in all tenants
      * ({@code <user>::agent::<id>}); the number of keys removed. Stores that cannot delete must fail loudly.
      */

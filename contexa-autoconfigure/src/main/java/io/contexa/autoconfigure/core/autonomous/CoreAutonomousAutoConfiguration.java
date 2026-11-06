@@ -47,6 +47,7 @@ import io.contexa.contexacore.autonomous.audit.AuditPersistenceListener;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.audit.UndecidedCallsAudit;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
+import io.contexa.contexacore.autonomous.service.NamespaceRestrictionRestorer;
 import io.contexa.contexacommon.store.ContexaStores;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.context.*;
@@ -1055,6 +1056,20 @@ public class CoreAutonomousAutoConfiguration {
         public RedisDistributedLockService redisDistributedLockService(
                 @Qualifier("contexaGeneralRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
             return new RedisDistributedLockService(redisTemplate);
+        }
+
+        /**
+         * A BLOCK and a learning quarantine have no expiry, and the keys an application had before it was given a name are
+         * no longer read: the blocks the database holds in force are written again under the keys of the name, and the
+         * quarantine is carried over, before the web server takes a request. An application without a name does nothing.
+         */
+        @Bean(name = "contexaNamespaceRestrictionRestorer")
+        public NamespaceRestrictionRestorer namespaceRestrictionRestorer(
+                ObjectProvider<ZeroTrustActionRepository> actionRepository,
+                ObjectProvider<IBlockedUserRecorder> blockedUserRecorder,
+                ObjectProvider<SecurityContextDataStore> securityContextDataStore) {
+            return new NamespaceRestrictionRestorer(actionRepository::getIfAvailable, blockedUserRecorder::getIfUnique,
+                    securityContextDataStore::getIfAvailable);
         }
     }
 

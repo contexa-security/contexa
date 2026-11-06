@@ -198,6 +198,20 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore, 
     /** Removes the failures under KEYS[1] and their place in the order of the keys, KEYS[2]. */
     private static final DefaultRedisScript<Long> FORGET_LOGIN_FAILURES_SCRIPT = new DefaultRedisScript<>(
             "redis.call('zrem', KEYS[2], KEYS[1]) return redis.call('del', KEYS[1])", Long.class);
+    /**
+     * Adds the members of the quarantine kept under the earlier key (KEYS[1]) to the application's own (KEYS[2]), once: a
+     * mark (KEYS[3]) says it was done, so that a scope released afterwards is not added again. Nothing is marked while
+     * there is nothing earlier. The members are copied as they are stored. The number of scopes added.
+     */
+    private static final DefaultRedisScript<Long> CARRY_OVER_QUARANTINE_SCRIPT = new DefaultRedisScript<>(
+            "if redis.call('exists', KEYS[3]) == 1 then return 0 end "
+                    + "local members = redis.call('smembers', KEYS[1]) "
+                    + "if #members == 0 then return 0 end "
+                    + "local added = 0 "
+                    + "for _, member in ipairs(members) do added = added + redis.call('sadd', KEYS[2], member) end "
+                    + "redis.call('set', KEYS[3], '1') "
+                    + "return added",
+            Long.class);
     private static final String CHALLENGE_VERIFIED_VALUE_SEPARATOR = ":";
     private static final Duration MFA_VERIFIED_TTL = Duration.ofHours(1);
     private final AtomicLong authenticationEventSequence = new AtomicLong();
@@ -1203,6 +1217,26 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore, 
             return Set.of();
         }
         return scopes.stream().filter(Objects::nonNull).map(String::valueOf).collect(Collectors.toUnmodifiableSet());
+    }
+
+    /**
+     * A quarantine has no expiry, so the one kept under the key an application had before it was given a name is added to
+     * the application's own, once (see {@link #CARRY_OVER_QUARANTINE_SCRIPT}). An application without a name has no
+     * earlier key. A failure reaches the caller: a quarantine not carried is a learning read that an operator stopped.
+     */
+    @Override
+    public int carryOverLearningQuarantine() {
+        if (!ApplicationNamespace.isNamed()) {
+            return 0;
+        }
+        Long added = redisTemplate.execute(CARRY_OVER_QUARANTINE_SCRIPT, List.of(
+                ApplicationNamespace.withoutName(LEARNING_QUARANTINE_NAME), learningQuarantineKey(),
+                learningQuarantineCarriedKey()));
+        return added != null ? added.intValue() : 0;
+    }
+
+    private static String learningQuarantineCarriedKey() {
+        return ApplicationNamespace.key(LEARNING_QUARANTINE_NAME + ":carried");
     }
 
     @Override
