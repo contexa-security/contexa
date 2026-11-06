@@ -19,6 +19,7 @@ import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.properties.MfaSettings;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
+import io.contexa.contexacore.testsupport.TestStores;
 import io.contexa.contexaidentity.security.core.bootstrap.ConfiguredFactorFilterProvider;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
@@ -91,6 +92,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
@@ -150,16 +152,19 @@ class MfaDoubleClickTest {
     private volatile CountDownLatch verifying;
     private volatile CountDownLatch mayFinish;
 
+    /** Redis too: without a Redis named for the tests its cases are skipped, and the memory cases still run. */
     static Stream<Store> stores() {
-        return MfaFlowOnRedisTest.isRedisAvailable() ? Stream.of(Store.MEMORY, Store.REDIS) : Stream.of(Store.MEMORY);
+        return Stream.of(Store.MEMORY, Store.REDIS);
     }
 
     @BeforeAll
     static void connect() {
-        if (!MfaFlowOnRedisTest.isRedisAvailable()) {
+        Optional<TestStores.Redis> named = TestStores.findRedis();
+        if (named.isEmpty()) {
             return;
         }
-        connectionFactory = new LettuceConnectionFactory(new RedisStandaloneConfiguration(MfaFlowOnRedisTest.REDIS_HOST, MfaFlowOnRedisTest.REDIS_PORT));
+        TestStores.Redis server = named.get();
+        connectionFactory = new LettuceConnectionFactory(new RedisStandaloneConfiguration(server.host(), server.port()));
         connectionFactory.afterPropertiesSet();
         RedisTemplate<byte[], byte[]> bytes = new RedisTemplate<>();
         bytes.setConnectionFactory(connectionFactory);
@@ -168,7 +173,7 @@ class MfaDoubleClickTest {
         repository = new RedisRepositoryFactory(new RedisKeyValueTemplate(new RedisKeyValueAdapter(bytes, mappingContext), mappingContext))
                 .getRepository(RedisStateMachineRepository.class);
         Config config = new Config();
-        config.useSingleServer().setAddress("redis://" + MfaFlowOnRedisTest.REDIS_HOST + ":" + MfaFlowOnRedisTest.REDIS_PORT);
+        config.useSingleServer().setAddress(server.uri());
         redisson = Redisson.create(config);
     }
 
@@ -185,7 +190,9 @@ class MfaDoubleClickTest {
     @AfterEach
     void removeTheFlows() {
         clicks.shutdownNow();
-        startedFlows.forEach(service::releaseStateMachine);
+        if (service != null) {
+            startedFlows.forEach(service::releaseStateMachine);
+        }
     }
 
     @ParameterizedTest
@@ -394,6 +401,9 @@ class MfaDoubleClickTest {
     }
 
     private void build(Store store) throws Exception {
+        if (store == Store.REDIS) {
+            TestStores.redis();
+        }
         settings.setMinimumDelayMs(0);
         PlatformConfig platform = PlatformConfig.builder().addFlow(MfaFlowOnRedisTest.mfaFlow()).build();
         MfaPolicyProvider policy = mock(MfaPolicyProvider.class);

@@ -20,11 +20,11 @@ import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.testsupport.RedisTestTemplates;
+import io.contexa.contexacore.testsupport.TestStores;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.data.redis.connection.DataType;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
@@ -41,8 +41,6 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthentication;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
-import java.net.InetSocketAddress;
-import java.net.Socket;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -62,15 +60,7 @@ import static org.mockito.Mockito.mock;
  * reached by a forced logout once it is dead, and a user with only such ids leaves no key behind; ids without a
  * deadline are kept up to the per-user limit; every live id, and every id of the user's session list, stays reachable.
  */
-@EnabledIf("io.contexa.contexacore.security.zerotrust.RedisZeroTrustSessionTrackingDeadlineTest#isLocalRedisAvailable")
 class RedisZeroTrustSessionTrackingDeadlineTest {
-
-    private static final String REDIS_HOST =
-            System.getProperty("contexa.test.redis.host",
-                    System.getenv().getOrDefault("CONTEXA_TEST_REDIS_HOST", "localhost"));
-    private static final int REDIS_PORT = Integer.parseInt(
-            System.getProperty("contexa.test.redis.port",
-                    System.getenv().getOrDefault("CONTEXA_TEST_REDIS_PORT", "6379")));
 
     private static LettuceConnectionFactory connectionFactory;
     private static RedisTemplate<String, Object> redis;
@@ -80,18 +70,10 @@ class RedisZeroTrustSessionTrackingDeadlineTest {
     private final List<String> users = new ArrayList<>();
     private final List<String> sessionIds = new ArrayList<>();
 
-    static boolean isLocalRedisAvailable() {
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(REDIS_HOST, REDIS_PORT), 500);
-            return true;
-        } catch (Exception ex) {
-            return false;
-        }
-    }
-
     @BeforeAll
     static void connect() {
-        connectionFactory = new LettuceConnectionFactory(new RedisStandaloneConfiguration(REDIS_HOST, REDIS_PORT));
+        TestStores.Redis server = TestStores.redis();
+        connectionFactory = new LettuceConnectionFactory(new RedisStandaloneConfiguration(server.host(), server.port()));
         connectionFactory.afterPropertiesSet();
         redis = RedisTestTemplates.newProductionAlignedRedisTemplate(connectionFactory);
     }

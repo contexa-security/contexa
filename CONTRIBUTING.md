@@ -68,6 +68,39 @@ Filter to a single test class or method:
 ./gradlew :contexa-iam:test --tests '*PolicyEvaluatorTest.someMethod'
 ```
 
+`--tests` filters only the task right before it. To filter two modules, give each its own
+`:module:test --tests ...`; `./gradlew :contexa-iam:test :contexa-core:test --tests X` runs every test of `contexa-iam`.
+
+### Tests that need Redis or PostgreSQL
+
+Some tests use a real Redis or PostgreSQL. They never fall back to `localhost:6379` or `localhost:5432`, where your own
+Redis and database usually listen: without the variables below they are skipped before they connect, and the skip
+message names what to set. Point the variables at throwaway servers, never at a Redis or database whose data you keep:
+
+```bash
+docker run -d --rm --name contexa-test-redis -p 127.0.0.1:56379:6379 redis:7.2-alpine
+docker run -d --rm --name contexa-test-postgres -p 127.0.0.1:55432:5432 \
+  -e POSTGRES_USER=contexa_test -e POSTGRES_PASSWORD=contexa_test -e POSTGRES_DB=contexa_test pgvector/pgvector:pg16
+
+export CONTEXA_TEST_REDIS_HOST=127.0.0.1
+export CONTEXA_TEST_REDIS_PORT=56379
+export CONTEXA_BACKLOG_REDIS_PORT=56379
+export CONTEXA_TEST_DB_URL=jdbc:postgresql://127.0.0.1:55432/contexa_test
+export CONTEXA_TEST_DB_USERNAME=contexa_test
+export CONTEXA_TEST_DB_PASSWORD=contexa_test
+```
+
+- Some Redis tests empty the Redis they use (`FLUSHDB`). They fail on port 6379 instead of running there, even when
+  the variable names it.
+- The database tests create and drop databases of their own, so the user needs the right to create databases.
+- More tests run when their own variable is set: `CONTEXA_TEST_UPGRADE_DB_URL`, `CONTEXA_TEST_PGVECTOR_URL` (with
+  `_USERNAME` and `_PASSWORD`), `CONTEXA_TEST_RESTRICTED_DB_URL`, and the Kafka ports `CONTEXA_TEST_KAFKA_PORT`,
+  `CONTEXA_TEST_KAFKA_LOGIN_PORT`, `CONTEXA_TEST_KAFKA_DECIDED_PORT` and `CONTEXA_TEST_KAFKA_REFUSING_PORT`.
+- Gradle does not count environment variables as inputs of a test task: after changing them, run the task again with
+  `--rerun` (for example `./gradlew :contexa-core:test --rerun`).
+
+The CI workflow starts a PostgreSQL and a Redis service and sets these variables for the test step.
+
 ## Coding Standards
 
 - follow existing code conventions and package structure

@@ -146,7 +146,9 @@ class StoredRecordsOfARequestTest {
         if (compiled != null) {
             compiled.close();
         }
-        database.close();
+        if (database != null) {
+            database.close();
+        }
     }
 
     @Test

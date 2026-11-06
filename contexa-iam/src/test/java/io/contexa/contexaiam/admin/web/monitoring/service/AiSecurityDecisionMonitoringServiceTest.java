@@ -5,6 +5,7 @@
 package io.contexa.contexaiam.admin.web.monitoring.service;
 
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexacore.testsupport.TestStores;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.FailureSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.LlmDecisionSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MonitoringResetRequest;
@@ -31,13 +32,8 @@ class AiSecurityDecisionMonitoringServiceTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        Connection connection = DriverManager.getConnection(
-                setting("contexa.test.postgres.url", "CONTEXA_TEST_DB_URL", "CONTEXA_DB_URL",
-                        "jdbc:postgresql://localhost:5432/contexa"),
-                setting("contexa.test.postgres.username", "CONTEXA_TEST_DB_USERNAME", "CONTEXA_DB_USERNAME",
-                        "contexa"),
-                setting("contexa.test.postgres.password", "CONTEXA_TEST_DB_PASSWORD", "CONTEXA_DB_PASSWORD",
-                        "contexa1234!@#"));
+        TestStores.Database database = TestStores.database();
+        Connection connection = DriverManager.getConnection(database.url(), database.username(), database.password());
         dataSource = new SingleConnectionDataSource(connection, true);
         jdbcTemplate = new JdbcTemplate(dataSource);
         createTables();
@@ -153,15 +149,5 @@ class AiSecurityDecisionMonitoringServiceTest {
     private long countRows(String tableName) {
         Long count = jdbcTemplate.queryForObject("select count(*) from " + tableName, Long.class);
         return count == null ? 0L : count;
-    }
-
-    private String setting(String propertyName, String primaryEnvironmentName,
-                           String fallbackEnvironmentName, String fallback) {
-        String property = System.getProperty(propertyName);
-        if (property != null && !property.isBlank()) return property.trim();
-        String primary = System.getenv(primaryEnvironmentName);
-        if (primary != null && !primary.isBlank()) return primary.trim();
-        String secondary = System.getenv(fallbackEnvironmentName);
-        return secondary != null && !secondary.isBlank() ? secondary.trim() : fallback;
     }
 }

@@ -24,6 +24,16 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      # The Redis tests run only against the Redis CONTEXA_TEST_REDIS_* name, and the ones that empty it refuse 6379.
+      redis:
+        image: redis:7.2-alpine
+        ports:
+          - 16379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
@@ -46,6 +56,9 @@ jobs:
           CONTEXA_TEST_DB_URL: jdbc:postgresql://localhost:5432/contexa
           CONTEXA_TEST_DB_USERNAME: admin
           CONTEXA_TEST_DB_PASSWORD: 1111
+          CONTEXA_TEST_REDIS_HOST: 127.0.0.1
+          CONTEXA_TEST_REDIS_PORT: 16379
+          CONTEXA_BACKLOG_REDIS_PORT: 16379
         run: ./gradlew test jacocoTestReport
 
       - name: Upload test reports

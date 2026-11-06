@@ -29,6 +29,9 @@ dependencies {
 
     testFixturesImplementation 'org.springframework.boot:spring-boot-starter-jdbc'
     testFixturesImplementation project(':contexa-core')
+    // TestStores: the test database and Redis come from CONTEXA_TEST_* only, never from a default address
+    testFixturesImplementation(testFixtures(project(':contexa-core')))
+    testImplementation(testFixtures(project(':contexa-core')))
     testFixturesImplementation platform("org.springframework.ai:spring-ai-bom:1.1.8")
     testFixturesImplementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     testFixturesImplementation 'org.springframework:spring-context'

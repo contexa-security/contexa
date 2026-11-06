@@ -19,13 +19,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.testsupport.RedisTestTemplates;
-import java.net.InetSocketAddress;
-import java.net.Socket;
+import io.contexa.contexacore.testsupport.TestStores;
 import java.util.Map;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
@@ -34,33 +32,17 @@ import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
-@EnabledIf("io.contexa.contexacore.autonomous.repository.RedisZeroTrustActionRepositorySaveActionWithPreviousTest#isLocalRedisAvailable")
 class RedisZeroTrustActionRepositorySaveActionWithPreviousTest {
-
-    private static final String REDIS_HOST =
-            System.getProperty("contexa.test.redis.host",
-                    System.getenv().getOrDefault("CONTEXA_TEST_REDIS_HOST", "localhost"));
-    private static final int REDIS_PORT = Integer.parseInt(
-            System.getProperty("contexa.test.redis.port",
-                    System.getenv().getOrDefault("CONTEXA_TEST_REDIS_PORT", "6379")));
 
     private static LettuceConnectionFactory connectionFactory;
     private static RedisTemplate<String, Object> redisTemplate;
     private static StringRedisTemplate stringRedisTemplate;
     private ZeroTrustActionRedisRepository repository;
 
-    static boolean isLocalRedisAvailable() {
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(REDIS_HOST, REDIS_PORT), 500);
-            return true;
-        } catch (Exception ex) {
-            return false;
-        }
-    }
-
     @BeforeAll
     static void startRedis() {
-        RedisStandaloneConfiguration config = new RedisStandaloneConfiguration(REDIS_HOST, REDIS_PORT);
+        TestStores.Redis server = TestStores.disposableRedis();
+        RedisStandaloneConfiguration config = new RedisStandaloneConfiguration(server.host(), server.port());
         connectionFactory = new LettuceConnectionFactory(config);
         connectionFactory.afterPropertiesSet();
         redisTemplate = RedisTestTemplates.newProductionAlignedRedisTemplate(connectionFactory);

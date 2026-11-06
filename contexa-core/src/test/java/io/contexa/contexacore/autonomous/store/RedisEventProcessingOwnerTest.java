@@ -19,20 +19,18 @@ import io.contexa.contexacore.autonomous.store.SecurityContextDataStore.EventPro
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore.EventProcessingLease;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.testsupport.RedisTestTemplates;
+import io.contexa.contexacore.testsupport.TestStores;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 
-import java.net.InetSocketAddress;
-import java.net.Socket;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -51,13 +49,8 @@ import static org.mockito.Mockito.when;
  * event next once it is gone, however it came back. A container comes back as PID 1 again, under the same host name or a
  * new one; two live containers can look the same from here.
  */
-@EnabledIf("io.contexa.contexacore.autonomous.store.RedisEventProcessingOwnerTest#isRedisAvailable")
 class RedisEventProcessingOwnerTest {
 
-    private static final String HOST =
-            System.getProperty("contexa.test.redis.host", System.getenv().getOrDefault("CONTEXA_TEST_REDIS_HOST", "localhost"));
-    private static final int PORT = Integer.parseInt(
-            System.getProperty("contexa.test.redis.port", System.getenv().getOrDefault("CONTEXA_TEST_REDIS_PORT", "6379")));
     private static final String EVENT = "event-of-a-process";
 
     private static LettuceConnectionFactory connectionFactory;
@@ -65,25 +58,19 @@ class RedisEventProcessingOwnerTest {
 
     private final List<RedisSecurityContextDataStore> stores = new ArrayList<>();
 
-    static boolean isRedisAvailable() {
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(HOST, PORT), 500);
-            return true;
-        } catch (Exception unreachable) {
-            return false;
-        }
-    }
-
     @BeforeAll
     static void connect() {
-        connectionFactory = new LettuceConnectionFactory(new RedisStandaloneConfiguration(HOST, PORT));
+        TestStores.Redis server = TestStores.disposableRedis();
+        connectionFactory = new LettuceConnectionFactory(new RedisStandaloneConfiguration(server.host(), server.port()));
         connectionFactory.afterPropertiesSet();
         redis = RedisTestTemplates.newProductionAlignedRedisTemplate(connectionFactory);
     }
 
     @AfterAll
     static void disconnect() {
-        connectionFactory.destroy();
+        if (connectionFactory != null) {
+            connectionFactory.destroy();
+        }
     }
 
     @BeforeEach

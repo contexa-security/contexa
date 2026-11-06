@@ -128,7 +128,9 @@ abstract class AbstractEmailResendIntervalContractTest {
 
     @AfterAll
     static void closeDatabase() {
-        database.close();
+        if (database != null) {
+            database.close();
+        }
     }
 
     @BeforeEach

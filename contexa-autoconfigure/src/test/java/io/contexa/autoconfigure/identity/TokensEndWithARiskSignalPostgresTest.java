@@ -97,8 +97,12 @@ class TokensEndWithARiskSignalPostgresTest {
 
     @AfterEach
     void close() {
-        entityManagers.destroy();
-        database.close();
+        if (entityManagers != null) {
+            entityManagers.destroy();
+        }
+        if (database != null) {
+            database.close();
+        }
     }
 
     private void issued(String id, String principal, AuthorizationGrantType grant, boolean refreshToken) {
