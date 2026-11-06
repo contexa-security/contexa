@@ -28,6 +28,7 @@ import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuDtos.AdminMenuRolesRequ
 import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuDtos.AdminMenuSaveRequest;
 import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuDtos.AdminMenuView;
 import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuDtos.AdminRoleOptionView;
+import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuIcon;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
@@ -99,10 +100,12 @@ public class AdminMenuManagementService {
 
     @Transactional(transactionManager = "contexaTransactionManager")
     public AdminMenuActionResponse createMenu(AdminMenuSaveRequest request) {
+        String icon = request.valueOrDefault("icon", "");
+        requireAllowedIcon(icon);
         AdminMenu menu = new AdminMenu();
         menu.setName(request.valueOrDefault("name", ""));
         menu.setUrl(request.getUrl());
-        menu.setIcon(request.valueOrDefault("icon", ""));
+        menu.setIcon(icon);
         menu.setDataPage(request.getDataPage());
         menu.setMenuType(request.valueOrDefault("menuType", "CORE"));
         menu.setParentId(request.parentIdAsLong());
@@ -121,6 +124,9 @@ public class AdminMenuManagementService {
             return AdminMenuActionResponse.error(msg("msg.menu.not.found"));
         }
 
+        if (request.has("icon")) {
+            requireAllowedIcon(request.getIcon());
+        }
         AdminMenu menu = existingMenu.get();
         if (request.has("name")) menu.setName(request.getName());
         if (request.has("url")) menu.setUrl(request.getUrl());
@@ -132,6 +138,13 @@ public class AdminMenuManagementService {
         menu.setParentId(request.parentIdAsLong());
         adminMenuService.saveMenu(menu);
         return AdminMenuActionResponse.ok();
+    }
+
+    /** An icon that opens with a tag reaches every administrator's page as markup, so only a plain drawing is kept. */
+    private void requireAllowedIcon(String icon) {
+        if (!AdminMenuIcon.isAllowed(icon)) {
+            throw new IllegalArgumentException(msg("msg.menu.icon.invalid"));
+        }
     }
 
     private record AdminMenuOrderUpdate(Long menuId, int menuOrder) {

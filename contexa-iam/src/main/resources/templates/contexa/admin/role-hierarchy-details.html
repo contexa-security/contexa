@@ -295,6 +295,17 @@
 
     var _i18n = document.getElementById('i18n-hierarchy').dataset;
 
+    // A role name or description reaches markup only through this, quotes included.
+    function escapeHtml(value) {
+        return String(value == null ? '' : value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
+    // A node label of the diagram is a quoted string: a quote in a role name would end it, a line break would end the line.
+    function mermaidLabel(value) {
+        return String(value == null ? '' : value).replace(/"/g, '#quot;').replace(/[\r\n]+/g, ' ');
+    }
+
     const groupsWithRoles = /*[[${groupsWithRoles}]]*/ [];
     const ungroupedRoles = /*[[${ungroupedRoles}]]*/ [];
     const allRolesFromServer = /*[[${allRoles}]]*/ [];
@@ -357,10 +368,10 @@
                     tertiaryBkg: '#475569',
                     fontSize: CONFIG.MERMAID.FONT_SIZE
                 },
-                securityLevel: 'loose',
+                securityLevel: 'strict',
                 flowchart: {
                     useMaxWidth: false,
-                    htmlLabels: true,
+                    htmlLabels: false,
                     curve: 'basis',
                     nodeSpacing: CONFIG.MERMAID.NODE_SPACING,
                     rankSpacing: CONFIG.MERMAID.RANK_SPACING,
@@ -379,11 +390,11 @@
         const desc = element.dataset.desc;
         const permissions = element.querySelectorAll('.permission-tag');
 
-        let content = `<strong>${role}</strong><br/>${desc}`;
+        let content = `<strong>${escapeHtml(role)}</strong><br/>${escapeHtml(desc)}`;
         if (permissions.length > 0) {
             content += '<br/><br/><strong>' + _i18n.tooltipPermissions + '</strong><br/>';
             permissions.forEach(p => {
-                content += `• ${p.textContent}<br/>`;
+                content += `• ${escapeHtml(p.textContent)}<br/>`;
             });
         }
 
@@ -417,7 +428,7 @@
         roles.forEach(role => {
             if (lower && !role.roleName.toLowerCase().includes(lower) && !role.roleDesc.toLowerCase().includes(lower)) return;
             const displayText = role.roleName + ' (' + role.roleDesc + ')';
-            optionsHtml += '<option value="' + role.roleName + '">' + displayText + '</option>';
+            optionsHtml += '<option value="' + escapeHtml(role.roleName) + '">' + escapeHtml(displayText) + '</option>';
         });
 
         return optionsHtml;
@@ -882,10 +893,12 @@
                 renderedExistingEdges.add(edgeKey);
                 const pid = getNodeId(rel.parent);
                 const cid = getNodeId(rel.child);
+                const parentLabel = mermaidLabel(rel.parent);
+                const childLabel = mermaidLabel(rel.child);
                 if (existingCycleNodes.has(rel.parent) && existingCycleNodes.has(rel.child)) {
-                    mermaidCode += `    ${pid}["${rel.parent}"]:::conflict -.->|"${_i18n.mermaidExistingCycle}"| ${cid}["${rel.child}"]:::conflict\n`;
+                    mermaidCode += `    ${pid}["${parentLabel}"]:::conflict -.->|"${_i18n.mermaidExistingCycle}"| ${cid}["${childLabel}"]:::conflict\n`;
                 } else {
-                    mermaidCode += `    ${pid}["${rel.parent}"]:::existing -.->|"${_i18n.mermaidExisting}"| ${cid}["${rel.child}"]:::existing\n`;
+                    mermaidCode += `    ${pid}["${parentLabel}"]:::existing -.->|"${_i18n.mermaidExisting}"| ${cid}["${childLabel}"]:::existing\n`;
                 }
             });
         }
@@ -893,8 +906,8 @@
         relations.forEach(rel => {
             const pid = getNodeId(rel.parent);
             const cid = getNodeId(rel.child);
-            const parentLabel = rel.parent;
-            const childLabel = rel.child;
+            const parentLabel = mermaidLabel(rel.parent);
+            const childLabel = mermaidLabel(rel.child);
             const edgeKey = rel.parent + '>' + rel.child;
             const isDirectConflict = directConflictEdges.has(edgeKey);
             const isCycle = cycleEdges.has(edgeKey);
@@ -997,7 +1010,7 @@
         container.innerHTML = `
             <div class="text-center text-slate-400 p-8">
                 <p>${_i18n.errorRender}</p>
-                <p class="text-sm mt-2">${_i18n.errorRenderRelations.replace('{0}', relations.map(r => r.parent + ' > ' + r.child).join(', '))}</p>
+                <p class="text-sm mt-2">${escapeHtml(_i18n.errorRenderRelations.replace('{0}', relations.map(r => r.parent + ' > ' + r.child).join(', ')))}</p>
             </div>
         `;
     }
@@ -1145,8 +1158,8 @@
             const parentId = rel.parent.replace(/[^a-zA-Z0-9]/g, '_');
             const childId = rel.child.replace(/[^a-zA-Z0-9]/g, '_');
 
-            const parentLabel = rel.parent;
-            const childLabel = rel.child;
+            const parentLabel = mermaidLabel(rel.parent);
+            const childLabel = mermaidLabel(rel.child);
 
             mermaidCode += `    ${parentId}["${parentLabel}"] --> ${childId}["${childLabel}"]\n`;
         });
@@ -1183,7 +1196,7 @@
             } catch (e) {
                 console.error('Mermaid confirm dialog error:', e);
                 confirmMermaid.innerHTML = '<pre style="color: #e2e8f0; font-size: 12px;">' +
-                    relations.map(r => `${r.parent} → ${r.child}`).join('\n') +
+                    relations.map(r => escapeHtml(`${r.parent} → ${r.child}`)).join('\n') +
                     '</pre>';
             }
         }, 200);
@@ -1311,7 +1324,9 @@
             info: '<i class="fas fa-info-circle mr-2"></i>'
         };
 
-        toast.innerHTML = (icons[type] || icons.info) + message;
+        // A message may carry a role name or a server reply, so it is added as text after the icon.
+        toast.innerHTML = icons[type] || icons.info;
+        toast.appendChild(document.createTextNode(message));
         toastContainer.appendChild(toast);
 
         setTimeout(() => {

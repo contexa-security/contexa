@@ -20,6 +20,7 @@ import java.util.Objects;
 import io.contexa.contexacommon.entity.AdminMenu;
 import io.contexa.contexacommon.entity.AdminMenuRole;
 import io.contexa.contexacommon.repository.AdminMenuRepository;
+import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuIcon;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -351,6 +352,10 @@ public class AdminMenuService {
             String dataPage, String menuType, boolean enabled,
             Set<String> roles, List<MenuNode> children
     ) {
+        public MenuNode {
+            icon = AdminMenuIcon.displayable(icon);
+        }
+
         public boolean isGroup() {
             return url == null || url.isBlank();
         }

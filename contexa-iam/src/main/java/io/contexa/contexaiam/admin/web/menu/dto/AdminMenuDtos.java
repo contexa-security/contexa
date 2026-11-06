@@ -79,6 +79,10 @@ public final class AdminMenuDtos {
             String dataPage,
             List<AdminMenuRoleView> roles
     ) {
+        public AdminMenuView {
+            icon = AdminMenuIcon.displayable(icon);
+        }
+
         public Long getId() { return id; }
         public String getName() { return name; }
         public String getUrl() { return url; }
@@ -111,6 +115,9 @@ public final class AdminMenuDtos {
             boolean enabled,
             List<String> roles
     ) {
+        public AdminMenuResponse {
+            icon = AdminMenuIcon.displayable(icon);
+        }
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)

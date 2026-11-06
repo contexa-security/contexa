@@ -551,6 +551,12 @@
     line-height: 1.4 !important;
 }
 
+/* Labels are SVG text (htmlLabels: false), coloured by fill rather than color */
+.mermaid .node .label text,
+.mermaid .node .label tspan {
+    fill: #f1f5f9 !important;
+}
+
 /* 노드 크기 */
 .mermaid .node rect {
     min-width: 120px !important;
@@ -617,6 +623,11 @@
 .mermaid .edgeLabel rect {
     fill: #0f172a !important;
     stroke: none !important;
+}
+
+.mermaid .edgeLabel text,
+.mermaid .edgeLabel tspan {
+    fill: #cbd5e1 !important;
 }
 
 /* 특별한 노드 타입별 색상 - 중후한 톤 */

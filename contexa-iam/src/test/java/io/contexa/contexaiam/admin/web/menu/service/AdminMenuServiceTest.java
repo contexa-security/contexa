@@ -187,6 +187,16 @@ class AdminMenuServiceTest {
     }
 
     @Test
+    @DisplayName("a stored icon of no known form stays out of the menu tree")
+    void aStoredIconOfNoKnownFormStaysOutOfTheTree() {
+        AdminMenuService service = new AdminMenuService(menuRepository, menuQueryCache, false, false);
+        AdminMenu menu = AdminMenu.builder().id(1L).name("Custom").icon("<b>Sales & Ops</b>").enabled(true).build();
+        when(menuQueryCache.findAllWithRoles()).thenReturn(List.of(menu));
+
+        assertThat(service.getMenuTreeForUser(List.of())).extracting(AdminMenuService.MenuNode::icon).containsExactly("");
+    }
+
+    @Test
     @DisplayName("deleteMenu should delete children and parent")
     void deleteMenu() {
         AdminMenuService service = new AdminMenuService(menuRepository, menuQueryCache, false, false);

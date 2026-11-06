@@ -53,6 +53,13 @@ class PromptReleasePageControllerTest {
     }
 
     @Test
+    void aWordThatClosesAScriptElementStaysInsideIt() throws Exception {
+        messages.addMessage("promptRelease.gate.ready", Locale.GERMAN, "Sales </script> Ops");
+
+        assertThat(scriptMessages(Locale.GERMAN)).containsEntry("promptRelease.gate.ready", "Sales </script> Ops");
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void theScreensTakeTheCanonicalStatesAndTheButtonsFromOnePlace() throws Exception {
         MvcResult result = mvc.perform(get("/contexa/admin/prompt-quality/releases")).andReturn();

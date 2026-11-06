@@ -151,6 +151,30 @@ class AdminMenuManagementServiceTest {
     }
 
     @Test
+    @DisplayName("a stored icon of no known form stays off the list and the edit form")
+    void aStoredIconOfNoKnownFormIsNotHandedOut() {
+        AdminMenu menu = AdminMenu.builder().id(3L).name("Custom").icon("<b>Sales & Ops</b>").build();
+        when(adminMenuService.getAllMenus()).thenReturn(List.of(menu));
+        when(adminMenuService.getMenuById(3L)).thenReturn(Optional.of(menu));
+
+        assertThat(service.getPageModel().menus()).extracting(AdminMenuView::icon).containsExactly("");
+        assertThat(service.getMenu(3L)).map(AdminMenuResponse::icon).contains("");
+    }
+
+    @Test
+    @DisplayName("a seeded drawing goes on reaching the list and the edit form")
+    void aSeededDrawingIsHandedOut() {
+        String drawing = "<svg fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\">"
+                + "<path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M3.75 21h16.5\"/></svg>";
+        AdminMenu menu = AdminMenu.builder().id(4L).name("menu.dashboard").icon(drawing).build();
+        when(adminMenuService.getAllMenus()).thenReturn(List.of(menu));
+        when(adminMenuService.getMenuById(4L)).thenReturn(Optional.of(menu));
+
+        assertThat(service.getPageModel().menus()).extracting(AdminMenuView::icon).containsExactly(drawing);
+        assertThat(service.getMenu(4L)).map(AdminMenuResponse::icon).contains(drawing);
+    }
+
+    @Test
     @DisplayName("deleteMenu should block system menu delete")
     void deleteMenuSystem() {
         AdminMenu menu = AdminMenu.builder().id(1L).name("menu.dashboard").build();
