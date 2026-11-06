@@ -107,7 +107,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
                 .toList();
 
         if (!removedResources.isEmpty()) {
-            log.error("{} resources not found in current code (e.g. {})", removedResources.size(), removedResources.get(0).getResourceIdentifier());
+            log.info("{} resources not found in current code (e.g. {})", removedResources.size(), removedResources.get(0).getResourceIdentifier());
         }
 
         if (!newResources.isEmpty()) {
@@ -137,7 +137,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
             if (!allPolicyTargets.contains(key)) {
                 resource.setStatus(ManagedResource.Status.PERMISSION_CREATED);
                 managedResourceRepository.save(resource);
-                log.error("Resource status reverted to PERMISSION_CREATED (no matching policy): {}", resource.getResourceIdentifier());
+                log.info("Resource status reverted to PERMISSION_CREATED (no matching policy): {}", resource.getResourceIdentifier());
             }
         }
     }
@@ -145,7 +145,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
     public void processResourceBatch(List<ManagedResource> batch) {
 
         if (batch == null || batch.isEmpty()) {
-            log.error("Empty batch, skipping processing");
+            log.debug("Empty batch, skipping processing");
             return;
         }
 
@@ -156,7 +156,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
                 .collect(Collectors.toList());
 
         if (resourcesToSuggest.isEmpty()) {
-            log.error("No valid resources, skipping AI suggestion");
+            log.debug("No valid resources, skipping AI suggestion");
             batch.forEach(this::applyFallback);
             managedResourceRepository.saveAll(batch);
             return;
@@ -198,16 +198,16 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
                     : suggestionResponse.getFailedIdentifiers();
 
             if (suggestionResponse == null) {
-                log.error("AI did not return a resource naming response; applying fallback for requested resources");
+                log.warn("AI did not return a resource naming response; applying fallback for requested resources");
             } else {
                 if (!failedIdentifiers.isEmpty()) {
-                    log.error("AI resource naming response contained invalid entries: {}", failedIdentifiers);
+                    log.warn("AI resource naming response contained invalid entries: {}", failedIdentifiers);
                 }
                 if (!unexpectedIdentifiers.isEmpty()) {
-                    log.error("AI resource naming response contained identifiers that were not requested: {}", unexpectedIdentifiers);
+                    log.warn("AI resource naming response contained identifiers that were not requested: {}", unexpectedIdentifiers);
                 }
                 if (!missingIdentifiers.isEmpty()) {
-                    log.error("AI resource naming response missed {} of {} requested identifiers: {}",
+                    log.warn("AI resource naming response missed {} of {} requested identifiers: {}",
                             missingIdentifiers.size(), requestedIdentifiers.size(), missingIdentifiers);
                 }
             }
@@ -219,7 +219,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
                     resource.setFriendlyName(suggestion.friendlyName());
                     resource.setDescription(suggestion.description());
                 } else {
-                    log.error("AI did not return suggestion for resource '{}', keeping default", resource.getResourceIdentifier());
+                    log.debug("AI did not return suggestion for resource '{}', keeping default", resource.getResourceIdentifier());
                     applyFallback(resource);
                 }
             }

@@ -23,6 +23,7 @@ import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -41,6 +42,7 @@ class AuditingHandlerTest {
         CentralAuditFacade facade = mock(CentralAuditFacade.class);
         SecurityEvent event = SecurityEvent.builder()
                 .userId("alice")
+                .sessionId("LIVE-SESSION-9")
                 .timestamp(Instant.parse("2026-10-24T05:00:00Z"))
                 .build();
         event.addMetadata("executionSubjectKind", "DELEGATED_AGENT");
@@ -66,6 +68,9 @@ class AuditingHandlerTest {
         ArgumentCaptor<AuditRecord> captor = ArgumentCaptor.forClass(AuditRecord.class);
         verify(facade).recordSync(captor.capture());
         AuditLog row = captor.getValue().toAuditLog(null);
+        // Q-11 (PR-59): a decision record names the session by its reference.
+        assertThat(row.getSessionId()).isEqualTo(RequestFactRedaction.sessionReference(event.getSessionId()));
+        assertThat(row.getSessionId()).isNotEqualTo(event.getSessionId());
         assertThat(row.getDecision()).isEqualTo("BLOCK");
         assertThat(row.getCorrelationId()).isEqualTo("request-9");
         assertThat(row.getSubjectKind()).isEqualTo("DELEGATED_AGENT");

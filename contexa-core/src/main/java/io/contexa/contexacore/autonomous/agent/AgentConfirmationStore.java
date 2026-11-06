@@ -40,6 +40,31 @@ public interface AgentConfirmationStore {
     Optional<AgentConfirmation> latest(String subjectKey, String requestHash, AgentConfirmation.Status status);
 
     /**
+     * Whether a confirmation of the subject's, of any request, still waits for the person at {@code now}: pending and
+     * not expired. A store that cannot tell answers false, so every request is mailed as before.
+     *
+     * @param subjectKey the key the subject's decisions are kept under ({@link AgentConfirmation#subjectKey()})
+     */
+    default boolean waiting(String subjectKey, Instant now) {
+        return false;
+    }
+
+    /**
+     * Saves the confirmation and tells, in the same step, whether another confirmation of the subject waited for the
+     * person when it was saved: pending and not expired at {@code now}. The two are one decision, so that the first
+     * requests of one agent that arrive together are put in an order here and exactly one of them finds the agent
+     * alone, which is the one the person is mailed about. The default reads and then saves, which is right for a store
+     * that is used by one caller at a time; a store that is not overrides it.
+     *
+     * @return whether another confirmation of the subject waited
+     */
+    default boolean saveNotingWaiting(AgentConfirmation confirmation, Instant now) {
+        boolean waited = waiting(confirmation.subjectKey(), now);
+        save(confirmation);
+        return waited;
+    }
+
+    /**
      * Replaces the confirmation with its next state when it still stands in the expected status.
      *
      * @return whether it was replaced; false when another decision came first

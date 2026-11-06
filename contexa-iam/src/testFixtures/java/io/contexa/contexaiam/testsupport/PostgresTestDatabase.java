@@ -2,17 +2,19 @@ package io.contexa.contexaiam.testsupport;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import io.contexa.contexacore.testsupport.TestStores;
 import java.util.Locale;
 import java.util.UUID;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+/**
+ * A database of its own for each test, created on the PostgreSQL that {@code CONTEXA_TEST_DB_URL} names and dropped on
+ * {@link #close()}. Without the variable the test is skipped before anything connects (see {@link TestStores}).
+ */
 public final class PostgresTestDatabase implements AutoCloseable {
 
-    private static final String DEFAULT_URL = "jdbc:postgresql://localhost:5432/contexa";
-    private static final String DEFAULT_USERNAME = "contexa";
-    private static final String DEFAULT_PASSWORD = "contexa1234!@#";
     private static final String TEMPLATE_DATABASE = "contexa_test_template";
 
     private static boolean templateReady;
@@ -43,7 +45,7 @@ public final class PostgresTestDatabase implements AutoCloseable {
     }
 
     private static PostgresTestDatabase create(boolean migrated) {
-        Settings settings = settings();
+        TestStores.Database settings = TestStores.database();
         HikariDataSource adminDataSource = dataSource(
                 urlForDatabase(settings.url(), "postgres"),
                 settings.username(),
@@ -66,7 +68,7 @@ public final class PostgresTestDatabase implements AutoCloseable {
         return new PostgresTestDatabase(databaseName, adminDataSource, testDataSource);
     }
 
-    private static synchronized void ensureTemplate(JdbcTemplate admin, Settings settings) {
+    private static synchronized void ensureTemplate(JdbcTemplate admin, TestStores.Database settings) {
         if (templateReady) {
             return;
         }
@@ -144,29 +146,5 @@ public final class PostgresTestDatabase implements AutoCloseable {
             throw new IllegalArgumentException("PostgreSQL JDBC URL must include a database name: " + url);
         }
         return base.substring(0, slash + 1) + databaseName + query;
-    }
-
-    private static Settings settings() {
-        return new Settings(
-                setting("contexa.test.postgres.url", "CONTEXA_TEST_DB_URL",
-                        setting(null, "CONTEXA_DB_URL", DEFAULT_URL)),
-                setting("contexa.test.postgres.username", "CONTEXA_TEST_DB_USERNAME",
-                        setting(null, "CONTEXA_DB_USERNAME", DEFAULT_USERNAME)),
-                setting("contexa.test.postgres.password", "CONTEXA_TEST_DB_PASSWORD",
-                        setting(null, "CONTEXA_DB_PASSWORD", DEFAULT_PASSWORD)));
-    }
-
-    private static String setting(String propertyName, String environmentName, String fallback) {
-        if (propertyName != null) {
-            String property = System.getProperty(propertyName);
-            if (property != null && !property.isBlank()) {
-                return property.trim();
-            }
-        }
-        String environment = System.getenv(environmentName);
-        return environment != null && !environment.isBlank() ? environment.trim() : fallback;
-    }
-
-    private record Settings(String url, String username, String password) {
     }
 }

@@ -24,6 +24,7 @@ import io.contexa.contexaiam.security.xacml.pap.dto.DuplicatePolicyDto;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyConflictDto;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.SpelLiteral;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
@@ -50,7 +51,7 @@ public class AIPolicyValidator {
     private final PolicyDuplicateDetector duplicateDetector;
     private final MessageSource messageSource;
 
-    private static final Pattern HAS_AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\('([^']*)'\\)");
+    private static final Pattern HAS_AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\(" + SpelLiteral.PATTERN + "\\)");
     private static final int LEAST_PRIVILEGE_THRESHOLD = 10;
 
     private String i18n(String code, Object... args) {
@@ -88,9 +89,10 @@ public class AIPolicyValidator {
 
         for (String authority : referencedAuthorities) {
             if (authority.startsWith("ROLE_")) {
-                String roleName = authority;
-                if (roleRepository.findByRoleName(roleName).isEmpty()) {
-                    missing.add(roleName);
+                // The authority a role gives is its name only when that starts with ROLE_
+                if (roleRepository.findByRoleName(authority).isEmpty()
+                        && roleRepository.findAllGrantingAuthority(authority).isEmpty()) {
+                    missing.add(authority);
                 }
             } else {
                 if (permissionRepository.findByName(authority).isEmpty()) {
@@ -184,7 +186,7 @@ public class AIPolicyValidator {
             for (PolicyCondition condition : rule.getConditions()) {
                 Matcher matcher = HAS_AUTHORITY_PATTERN.matcher(condition.getExpression());
                 while (matcher.find()) {
-                    authorities.add(matcher.group(1));
+                    authorities.add(SpelLiteral.unquote(matcher.group(1)));
                 }
             }
         }

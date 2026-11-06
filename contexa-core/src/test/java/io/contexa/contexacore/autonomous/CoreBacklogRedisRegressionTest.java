@@ -181,10 +181,13 @@ class CoreBacklogRedisRegressionTest {
     }
 
     @Test
-    void defaultAllowTtlExpiresWhileBlockFlagRemainsInBothRepositories() {
+    void anAllowExpiresWhileBlockFlagRemainsInBothRepositories() {
         String user = UUID.randomUUID().toString();
         String blocked = UUID.randomUUID().toString();
+        Duration validity = Duration.ofSeconds(2);
+        actions.setAllowValidity(validity);
         InMemoryZeroTrustActionRepository memory = new InMemoryZeroTrustActionRepository();
+        memory.setAllowValidity(validity);
         actions.saveAction(user, ZeroTrustAction.ALLOW, Map.of());
         memory.saveAction(user, ZeroTrustAction.ALLOW, Map.of());
         actions.saveAction(blocked, ZeroTrustAction.ALLOW, Map.of());

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.core.mfa.util;
 
+import io.contexa.contexacommon.security.SameAppPath;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.lang.Nullable;
@@ -110,10 +111,7 @@ public final class MfaPasskeyRegistrationIntent {
     }
 
     private static boolean isSameOriginPath(@Nullable String url) {
-        return StringUtils.hasText(url)
-                && url.startsWith("/")
-                && !url.startsWith("//")
-                && !url.contains("\\");
+        return SameAppPath.isWithin(url, "");
     }
 
     @Nullable

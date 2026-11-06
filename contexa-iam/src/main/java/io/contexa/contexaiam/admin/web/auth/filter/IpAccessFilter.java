@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaiam.admin.web.auth.filter;
 
+import io.contexa.contexacommon.security.RequestPaths;
+import io.contexa.contexacommon.security.ZeroTrustScreens;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexaiam.admin.web.auth.service.IpAccessRuleService;
@@ -29,6 +31,8 @@ import java.io.IOException;
 
 @Slf4j
 public class IpAccessFilter extends OncePerRequestFilter {
+
+    private static final String FAVICON_PATH = "/favicon.ico";
 
     private final IpAccessRuleService ipAccessRuleService;
     private final TieredStrategyProperties.Security securityProperties;
@@ -60,12 +64,12 @@ public class IpAccessFilter extends OncePerRequestFilter {
             log.warn("IP access rules could not be read; the request goes on: {}", e.toString());
         }
         if (denied) {
-            log.error("IP access denied for: {}", clientIp);
+            log.warn("IP access denied for: {}", clientIp);
             response.sendError(HttpServletResponse.SC_FORBIDDEN, "Access denied");
             return;
         }
         if (rejected) {
-            log.error("IP access rejected by allow-list: {}", clientIp);
+            log.warn("IP access rejected by allow-list: {}", clientIp);
             response.sendError(HttpServletResponse.SC_FORBIDDEN, "Access denied");
             return;
         }
@@ -75,8 +79,8 @@ public class IpAccessFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String uri = request.getRequestURI();
         // Skip static resources
-        return uri.startsWith("/contexa/css/") || uri.startsWith("/contexa/js/") || uri.startsWith("/contexa/img/") || uri.startsWith("/favicon");
+        String path = RequestPaths.of(request);
+        return FAVICON_PATH.equals(path) || ZeroTrustScreens.isScreenResource(path);
     }
 }

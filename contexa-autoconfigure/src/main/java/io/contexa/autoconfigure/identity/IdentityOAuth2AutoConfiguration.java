@@ -15,10 +15,12 @@
  */
 package io.contexa.autoconfigure.identity;
 
+import io.contexa.contexaidentity.security.core.adapter.state.oauth2.AuthorizationServerIssuer;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.OAuth2StateAdapter;
 import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import io.contexa.contexacommon.operating.ConditionalOnOwnership;
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
+import io.contexa.contexacommon.security.subject.AgentClientStatusUnavailableException;
 import io.contexa.contexacore.autonomous.agent.AgentDelegations;
 import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
 import io.contexa.contexaidentity.security.handler.login.LoginFactClaims;
@@ -47,13 +49,18 @@ import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.Authe
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.MfaGrantedAuthority;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.MfaGrantedAuthorityMixin;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
+import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.handler.logout.CompositeLogoutHandler;
 import io.contexa.contexaidentity.security.handler.logout.LogoutStrategy;
+import io.contexa.contexaidentity.security.handler.logout.MfaFlowLogoutStrategy;
+import io.contexa.contexaidentity.security.handler.logout.ExchangedTokensOfASignOut;
 import io.contexa.contexaidentity.security.handler.logout.OAuth2LogoutStrategy;
 import io.contexa.contexaidentity.security.handler.logout.OAuth2LogoutSuccessHandler;
 import io.contexa.contexaidentity.security.handler.logout.SessionLogoutStrategy;
 import io.contexa.contexaidentity.security.handler.logout.ZeroTrustLogoutStrategy;
+import io.contexa.contexaidentity.security.statemachine.core.service.MfaStateMachineService;
 import io.contexa.contexaidentity.security.handler.oauth2.OAuth2TokenSuccessHandler;
+import io.contexa.contexaidentity.security.token.service.AccountTokenGuard;
 import io.contexa.contexaidentity.security.token.service.OAuth2TokenService;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportStrategy;
@@ -77,14 +84,17 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.UUID;
 import javax.sql.DataSource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -96,6 +106,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.jackson2.SecurityJackson2Modules;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
@@ -115,6 +126,12 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.authorization.authentication.ClientSecretAuthenticationProvider;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2TokenExchangeCompositeAuthenticationToken;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2TokenExchangeAuthenticationToken;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2ClientAuthenticationToken;
+import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
+import org.springframework.security.oauth2.core.OAuth2AccessToken;
+import org.springframework.security.oauth2.core.OAuth2Token;
+import java.security.Principal;
 import org.springframework.security.oauth2.server.authorization.client.JdbcRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
@@ -141,6 +158,7 @@ import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexacore.security.ContexaUserStore;
 import io.contexa.contexacommon.jdbc.LibraryTableNames;
 
 @Slf4j
@@ -201,8 +219,7 @@ public class IdentityOAuth2AutoConfiguration {
     @ConditionalOnMissingBean(JwtDecoder.class)
     public JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource,
                                  ObjectProvider<AuthorizationServerSettings> authorizationServerSettings) {
-        AuthorizationServerSettings serverSettings = authorizationServerSettings.getIfAvailable();
-        return jwtDecoder(jwkSource, serverSettings != null ? serverSettings.getIssuer() : null);
+        return jwtDecoder(jwkSource, authorizationServerSettings.getIfAvailable());
     }
 
     /** Beside the application's own decoders it stays out of their way. */
@@ -215,19 +232,18 @@ public class IdentityOAuth2AutoConfiguration {
 
     /** The decoder for tokens of this authorization server, which issues them under its settings' issuer. */
     public JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource) {
-        return jwtDecoder(jwkSource, authorizationServerSettings().getIssuer());
+        return jwtDecoder(jwkSource, authorizationServerSettings());
     }
 
     /**
      * Checks a token's lifetime, its issuer and its configured audiences (A1-7). The expected issuer is the one the
-     * authorization server issues under; without one, {@code issuer-uri}.
+     * authorization server issues under.
      */
-    private JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource, String serverIssuer) {
+    private JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource, AuthorizationServerSettings serverSettings) {
         JwtDecoder decoder = OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource);
         if (decoder instanceof NimbusJwtDecoder nimbusDecoder) {
             OAuth2TokenSettings oauth2 = authContextProperties.getOauth2();
-            String expectedIssuer = StringUtils.hasText(serverIssuer) ? serverIssuer : oauth2.getIssuerUri();
-            nimbusDecoder.setJwtValidator(ResourceServerTokenValidators.of(oauth2, expectedIssuer));
+            nimbusDecoder.setJwtValidator(ResourceServerTokenValidators.of(oauth2, AuthorizationServerIssuer.of(serverSettings, oauth2)));
         }
         return decoder;
     }
@@ -459,7 +475,7 @@ public class IdentityOAuth2AutoConfiguration {
         if (StringUtils.hasText(issuerUri)) {
             builder.issuer(issuerUri);
         } else {
-            log.error("[OAuth2] Issuer URI not configured (spring.auth.oauth2.issuer-uri) - Spring Authorization Server will "
+            log.info("[OAuth2] Issuer URI not configured (contexa.auth.oauth2.issuer-uri) - Spring Authorization Server will "
                     + "resolve the issuer from the current request for the internal token engine.");
         }
 
@@ -467,21 +483,59 @@ public class IdentityOAuth2AutoConfiguration {
     }
 
     /*
-     * No OAuth2TokenGenerator bean (CF-06): the authorization server chain then builds Spring's generator, which applies
-     * Spring's default claims (act for token exchange, cnf for DPoP and mutual TLS bound tokens) before the token
-     * customizer below. An application that declares its own generator adds those claims itself.
+     * No OAuth2TokenGenerator bean: the authorization server chain then builds Spring's generator, which applies Spring's
+     * default claims (act for token exchange, cnf for DPoP and mutual TLS bound tokens) before the token customizer below.
+     * An application that declares its own generator adds those claims itself; the chain puts Contexa's token checks in
+     * front of it (CheckedTokenGenerator), since the server never offers a token to the customizer then.
      */
 
+    /** What a person's token answers to at its renewal: the account as it is now, and the decision in force. */
+    @Bean(name = "contexaAccountTokenGuard")
+    @ConditionalOnMissingBean(AccountTokenGuard.class)
+    public AccountTokenGuard accountTokenGuard(BeanFactory beanFactory,
+                                               ObjectProvider<ZeroTrustActionRepository> zeroTrustActions) {
+        return new AccountTokenGuard(() -> ContexaUserStore.of(beanFactory),
+                () -> zeroTrustEnforcing() ? zeroTrustActions.getIfAvailable() : null);
+    }
+
+    /**
+     * The token customizer the authorization server finds: Contexa's own checks first, then the application's customizers
+     * (any number, in their order) that {@link HostTokenCustomizerDemotion} took out of the bean type the server looks for.
+     * The server takes one customizer bean; before, a customizer of the application replaced Contexa's and its checks
+     * with it.
+     */
     @Bean(name = "contexaTokenCustomizer")
-    @ConditionalOnMissingBean(OAuth2TokenCustomizer.class)
+    @ConditionalOnMissingBean(name = "contexaTokenCustomizer")
+    public ComposedTokenCustomizer composedTokenCustomizer(
+            ObjectProvider<DelegationRegistry> delegationRegistry,
+            ObjectProvider<AgentClientDirectory> agentClientDirectory,
+            ObjectProvider<AccountTokenGuard> accountGuard,
+            ObjectProvider<HostTokenCustomizer> applicationCustomizers) {
+        return new ComposedTokenCustomizer(tokenCustomizer(delegationRegistry, agentClientDirectory, accountGuard),
+                applicationCustomizers.orderedStream().toList());
+    }
+
+    /** Takes the application's token customizers out of the type the authorization server takes only one of. */
+    @Bean(name = "contexaTokenCustomizerComposition")
+    public static BeanFactoryPostProcessor tokenCustomizerComposition() {
+        return new HostTokenCustomizerDemotion();
+    }
+
+    /** Contexa's own token checks and claims; the bean the server finds is {@link #composedTokenCustomizer}. */
     public OAuth2TokenCustomizer<JwtEncodingContext> tokenCustomizer(
             ObjectProvider<DelegationRegistry> delegationRegistry,
-            ObjectProvider<AgentClientDirectory> agentClientDirectory) {
+            ObjectProvider<AgentClientDirectory> agentClientDirectory,
+            ObjectProvider<AccountTokenGuard> accountGuard) {
 
         return context -> {
 
             // docs/agent A5-3: a suspended agent gets no token, for itself or for a person.
-            refuseSuspendedAgent(context, agentClientDirectory.getIfAvailable());
+            refuseSuspendedAgent(context, agentClientDirectory.getIfAvailable(),
+                    authContextProperties.getOauth2().getClientId());
+
+            UserDetails renewedAccount = renewedAccount(context, accountGuard.getIfAvailable());
+
+            admitExchange(context, accountGuard.getIfAvailable());
 
             // docs/agent F-2: a delegation the person (or Contexa's stop) revoked ends the agent's exchange for them.
             if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())
@@ -490,8 +544,9 @@ public class IdentityOAuth2AutoConfiguration {
                     refuseRevokedDelegation(context, delegationRegistry.getIfAvailable(),
                             agentClientDirectory.getIfAvailable());
                 } catch (OAuth2AuthenticationException refused) {
-                    // docs/agent G-9: in the report-only mode the refusal is logged and the token is issued.
-                    if (zeroTrustEnforcing()) {
+                    // docs/agent G-9: in the report-only mode the refusal of a revoked delegation is logged and the token is
+                    // issued. A registry that cannot be read is no revoked delegation the operator chose to let through.
+                    if (zeroTrustEnforcing() || OAuth2ErrorCodes.TEMPORARILY_UNAVAILABLE.equals(refused.getError().getErrorCode())) {
                         throw refused;
                     }
                     log.info("[ZeroTrust][SHADOW] An exchange under a revoked delegation goes on: client={}",
@@ -536,19 +591,114 @@ public class IdentityOAuth2AutoConfiguration {
             }
             LoginFactClaims.writeClaims(loginFacts, (name, value) -> context.getClaims().claim(name, value));
 
-            if (context.getPrincipal() != null) {
-                var authorities = context.getPrincipal().getAuthorities();
-                if (authorities != null && !authorities.isEmpty()) {
-                    List<String> roles = authorities.stream()
-                            .map(grantedAuthority -> {
-                                String auth = grantedAuthority.getAuthority();
-                                return auth.startsWith("ROLE_") ? auth.substring(5) : auth;
-                            })
-                            .collect(Collectors.toList());
-                    context.getClaims().claim("roles", roles);
-                }
+            List<String> roles = renewedAccount != null
+                    ? AccountTokenGuard.rolesClaim(renewedAccount, context.getAuthorizedScopes())
+                    : principalRoles(context.getPrincipal());
+            if (!roles.isEmpty()) {
+                context.getClaims().claim(AccountTokenGuard.ROLES_CLAIM, roles);
             }
         };
+    }
+
+    /**
+     * The account a token being refreshed answers to, as it is now, or a refusal. Spring refreshes with the principal stored
+     * at the sign-in, whatever became of the account since; null for a token of any other grant.
+     */
+    private static UserDetails renewedAccount(JwtEncodingContext context, AccountTokenGuard guard) {
+        if (guard == null || context.getAuthorization() == null
+                || !AuthorizationGrantType.REFRESH_TOKEN.equals(context.getAuthorizationGrantType())) {
+            return null;
+        }
+        return guard.admitRenewal(context.getAuthorization().getPrincipalName());
+    }
+
+    /**
+     * An exchange of a token for another client answers to the token it exchanges. It gets no scope that token does not
+     * hold: Spring checks the scopes asked for against the client's only, and the token would speak for the person beyond
+     * what the person's own token may do; {@code invalid_scope} is Spring's answer to a scope beyond what may be granted.
+     * A person's token is exchanged by the rules of its renewal: not while a decision in force stops the person, not for an
+     * account that is gone, disabled or locked.
+     */
+    static void admitExchange(JwtEncodingContext context, AccountTokenGuard guard) {
+        if (!OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())
+                || !AuthorizationGrantType.TOKEN_EXCHANGE.equals(context.getAuthorizationGrantType())) {
+            return;
+        }
+        OAuth2Authorization subject = context.getAuthorization();
+        if (subject == null) {
+            throw new OAuth2AuthenticationException(OAuth2ErrorCodes.INVALID_GRANT);
+        }
+        // An exchanged token is no subject: exchanged again it would outlive the sign-in it came from without end.
+        if (AuthorizationGrantType.TOKEN_EXCHANGE.equals(subject.getAuthorizationGrantType())) {
+            throw new OAuth2AuthenticationException(new OAuth2Error(OAuth2ErrorCodes.INVALID_GRANT,
+                    "A token issued by token exchange cannot be exchanged again", null));
+        }
+        OAuth2AccessToken subjectToken = subjectToken(context, subject);
+        Set<String> subjectScopes = subjectToken != null ? subjectToken.getScopes() : subject.getAuthorizedScopes();
+        if (!subjectScopes.containsAll(context.getAuthorizedScopes())) {
+            throw new OAuth2AuthenticationException(new OAuth2Error(OAuth2ErrorCodes.INVALID_SCOPE,
+                    "The scope asked for is beyond the scope of the token exchanged", null));
+        }
+        if (guard != null && isPersonsAuthorization(subject)) {
+            guard.admitExchange(subject.getPrincipalName());
+        }
+        // The exchanged token ends no later than the token it exchanges.
+        holdToLimit(context, subjectToken != null ? subjectToken.getExpiresAt() : null);
+    }
+
+    /**
+     * The end of the token an exchange is issued for, which the exchanged token does not outlive; null for any other token
+     * and for an exchange whose subject token tells no end.
+     */
+    static Instant exchangeLimit(JwtEncodingContext context) {
+        if (!OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())
+                || !AuthorizationGrantType.TOKEN_EXCHANGE.equals(context.getAuthorizationGrantType())
+                || context.getAuthorization() == null) {
+            return null;
+        }
+        OAuth2AccessToken subjectToken = subjectToken(context, context.getAuthorization());
+        return subjectToken != null ? subjectToken.getExpiresAt() : null;
+    }
+
+    /** Ends the token at the limit when it would end after it; a token that ends sooner is left as it is. */
+    static void holdToLimit(JwtEncodingContext context, Instant limit) {
+        if (limit == null) {
+            return;
+        }
+        Instant expiresAt = context.getClaims().build().getExpiresAt();
+        if (expiresAt == null || expiresAt.isAfter(limit)) {
+            context.getClaims().expiresAt(limit);
+        }
+    }
+
+    /** The token exchanged, as it was issued, or null when the authorization does not tell it. */
+    private static OAuth2AccessToken subjectToken(JwtEncodingContext context, OAuth2Authorization subject) {
+        if (context.getAuthorizationGrant() instanceof OAuth2TokenExchangeAuthenticationToken exchange
+                && exchange.getSubjectToken() != null) {
+            OAuth2Authorization.Token<OAuth2Token> token = subject.getToken(exchange.getSubjectToken());
+            if (token != null && token.getToken() instanceof OAuth2AccessToken accessToken) {
+                return accessToken;
+            }
+        }
+        return null;
+    }
+
+    /** Whether an authorization is a person's sign-in rather than a client's own token. */
+    private static boolean isPersonsAuthorization(OAuth2Authorization authorization) {
+        return !AuthorizationGrantType.CLIENT_CREDENTIALS.equals(authorization.getAuthorizationGrantType())
+                && !(authorization.getAttribute(Principal.class.getName()) instanceof OAuth2ClientAuthenticationToken);
+    }
+
+    private static List<String> principalRoles(Authentication principal) {
+        if (principal == null || principal.getAuthorities() == null) {
+            return List.of();
+        }
+        return principal.getAuthorities().stream()
+                .map(grantedAuthority -> {
+                    String auth = grantedAuthority.getAuthority();
+                    return auth.startsWith("ROLE_") ? auth.substring(5) : auth;
+                })
+                .collect(Collectors.toList());
     }
 
     /** The claim naming the delegation a token exchanged for an agent runs under (the bridge reads it by default). */
@@ -558,15 +708,39 @@ public class IdentityOAuth2AutoConfiguration {
      * docs/agent OC-1: names the delegation the person holds with the agent the client is, when one holds now. The
      * person is the exchange's subject; an agent that is not approved and in service gets no delegation.
      */
-    /** docs/agent A5-3: refuses to issue a token to a client that is a suspended agent. */
-    static void refuseSuspendedAgent(JwtEncodingContext context, AgentClientDirectory agents) {
+    /**
+     * docs/agent A5-3: refuses to issue a token to a client that is a suspended agent. The token engine knows no tenant
+     * of a client, so a suspension of the client in any tenant refuses it. When the suspension cannot be read, the token
+     * waits as well ({@code temporarily_unavailable}, nothing of the cause in the answer): a failure of the store must not
+     * lift a restriction. The internal client is the sign-in of a person and no agent, so its tokens never ask the directory.
+     */
+    static void refuseSuspendedAgent(JwtEncodingContext context, AgentClientDirectory agents, String internalClientId) {
         if (agents == null || context.getRegisteredClient() == null) {
             return;
         }
-        if (agents.suspendedAgentClient(null, context.getRegisteredClient().getClientId())) {
+        String clientId = context.getRegisteredClient().getClientId();
+        if (clientId == null || clientId.equals(internalClientId)) {
+            return;
+        }
+        boolean suspended;
+        try {
+            suspended = agents.suspendedAgentClient(null, clientId);
+        } catch (AgentClientStatusUnavailableException unreadable) {
+            throw agentUnreadable();
+        }
+        if (suspended) {
             throw new OAuth2AuthenticationException(new OAuth2Error(OAuth2ErrorCodes.UNAUTHORIZED_CLIENT,
                     "The agent is suspended", null));
         }
+    }
+
+    /**
+     * What a token waits with while the agent registry cannot be read. No cause is attached: its text would become the
+     * message of the exception. The registry says why in the log.
+     */
+    private static OAuth2AuthenticationException agentUnreadable() {
+        return new OAuth2AuthenticationException(new OAuth2Error(OAuth2ErrorCodes.TEMPORARILY_UNAVAILABLE,
+                "The status of the agent cannot be read now", null));
     }
 
     /** Whether Contexa enforces its zero trust decisions (not the report-only SHADOW mode). */
@@ -587,9 +761,20 @@ public class IdentityOAuth2AutoConfiguration {
         if (person == null) {
             return;
         }
-        agents.activeAgentForClient(null, context.getRegisteredClient().getClientId()).ifPresent(agentId -> {
+        String clientId = context.getRegisteredClient().getClientId();
+        // A registry that cannot say which tenant and which agent the client is does not let the exchange through as one of
+        // no agent: the person's revocation could not be found.
+        String tenant;
+        Optional<String> agent;
+        try {
+            tenant = agents.tenantOfClient(clientId).orElse(null);
+            agent = agents.activeAgentForClient(tenant, clientId);
+        } catch (AgentClientStatusUnavailableException unreadable) {
+            throw agentUnreadable();
+        }
+        agent.ifPresent(agentId -> {
             Instant now = Instant.now();
-            AgentDelegations.current(registry.list(null, person, agentId, DELEGATION_CANDIDATES), now)
+            AgentDelegations.current(registry.list(tenant, person, agentId, DELEGATION_CANDIDATES), now)
                     .filter(delegation -> !delegation.validAt(now) && delegation.revokedAt() != null
                             && !delegation.revokedAt().isAfter(delegation.expiresAt()))
                     .ifPresent(revoked -> {
@@ -624,9 +809,18 @@ public class IdentityOAuth2AutoConfiguration {
         if (person == null || person.isBlank()) {
             return;
         }
-        agents.activeAgentForClient(null, context.getRegisteredClient().getClientId()).ifPresent(agentId -> {
+        String clientId = context.getRegisteredClient().getClientId();
+        String tenant;
+        Optional<String> agent;
+        try {
+            tenant = agents.tenantOfClient(clientId).orElse(null);
+            agent = agents.activeAgentForClient(tenant, clientId);
+        } catch (AgentClientStatusUnavailableException unreadable) {
+            throw agentUnreadable();
+        }
+        agent.ifPresent(agentId -> {
             Instant now = Instant.now();
-            AgentDelegations.current(registry.list(null, person, agentId, DELEGATION_CANDIDATES), now)
+            AgentDelegations.current(registry.list(tenant, person, agentId, DELEGATION_CANDIDATES), now)
                     .filter(delegation -> delegation.validAt(now))
                     .ifPresent(delegation -> context.getClaims().claim(DELEGATION_ID_CLAIM,
                             delegation.delegationId()));
@@ -658,7 +852,9 @@ public class IdentityOAuth2AutoConfiguration {
             OAuth2AuthorizationService contexaAuthorizationService,
             TokenValidator contexaOauth2TokenValidator,
             @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
-            ObjectProvider<ZeroTrustActionRepository> zeroTrustActionRepositoryProvider) {
+            ObjectProvider<ZeroTrustActionRepository> zeroTrustActionRepositoryProvider,
+            ObjectProvider<AccountTokenGuard> accountGuard,
+            RegisteredClientRepository registeredClientRepository) {
 
         TokenTransportStrategy transport = TokenTransportStrategyFactory.create(authContextProperties);
 
@@ -671,6 +867,8 @@ public class IdentityOAuth2AutoConfiguration {
                 objectMapper,
                 transport);
         tokenService.setZeroTrustActionRepository(zeroTrustActionRepositoryProvider.getIfAvailable());
+        tokenService.setAccountGuard(accountGuard.getIfAvailable());
+        tokenService.setRegisteredClients(registeredClientRepository);
         return tokenService;
     }
 
@@ -687,13 +885,22 @@ public class IdentityOAuth2AutoConfiguration {
             AuthContextProperties authContextProperties,
             ObjectProvider<ZeroTrustSecurityService> zeroTrustSecurityServiceProvider,
             SessionIdResolver sessionIdResolver,
-            DeviceAwareOAuth2AuthorizationService authorizationService) {
+            DeviceAwareOAuth2AuthorizationService authorizationService,
+            ObjectProvider<MfaSessionRepository> mfaSessionRepository,
+            ObjectProvider<MfaStateMachineService> mfaStateMachineService,
+            RegisteredClientRepository registeredClientRepository,
+            ObjectProvider<AgentClientDirectory> agentClientDirectory,
+            ObjectProvider<DelegationRegistry> delegationRegistry) {
 
         ZeroTrustSecurityService zeroTrustService = zeroTrustSecurityServiceProvider.getIfAvailable();
+        // A person's sign-out ends the tokens agents got by exchanging the person's tokens, unless a delegation governs them.
+        ExchangedTokensOfASignOut exchangedTokens = new ExchangedTokensOfASignOut(authorizationService,
+                registeredClientRepository, agentClientDirectory::getIfAvailable, delegationRegistry::getIfAvailable);
 
         List<LogoutStrategy> strategies = new ArrayList<>();
+        strategies.add(new MfaFlowLogoutStrategy(mfaSessionRepository, mfaStateMachineService));
         strategies.add(new SessionLogoutStrategy(new HttpSessionCsrfTokenRepository(), authContextProperties));
-        strategies.add(new OAuth2LogoutStrategy(tokenService));
+        strategies.add(new OAuth2LogoutStrategy(tokenService, authorizationService, exchangedTokens));
         if (zeroTrustService != null) {
             strategies.add(new ZeroTrustLogoutStrategy(zeroTrustService, sessionIdResolver));
         }

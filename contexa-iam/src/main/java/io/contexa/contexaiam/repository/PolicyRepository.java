@@ -17,7 +17,9 @@ package io.contexa.contexaiam.repository;
 
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.SpelLiteral;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -25,13 +27,21 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.util.AntPathMatcher;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public interface PolicyRepository extends JpaRepository<Policy, Long> {
 
-    @Query(value = "SELECT DISTINCT p FROM Policy p " +
-            "LEFT JOIN FETCH p.targets " +
+    @Query(value = "SELECT p.id FROM Policy p " +
             "WHERE (:pattern IS NULL OR LOWER(p.name) LIKE :pattern)" +
             " AND (:approvalStatus IS NULL OR p.approvalStatus = :approvalStatus)" +
             " AND (:activeFilter IS NULL OR p.isActive = :activeFilter)",
@@ -39,17 +49,40 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
             "WHERE (:pattern IS NULL OR LOWER(p.name) LIKE :pattern)" +
             " AND (:approvalStatus IS NULL OR p.approvalStatus = :approvalStatus)" +
             " AND (:activeFilter IS NULL OR p.isActive = :activeFilter)")
-    Page<Policy> searchByFilters(@Param("pattern") String pattern,
-                                 @Param("approvalStatus") Policy.ApprovalStatus approvalStatus,
-                                 @Param("activeFilter") Boolean activeFilter,
-                                 Pageable pageable);
+    Page<Long> searchIdsByFilters(@Param("pattern") String pattern,
+                                  @Param("approvalStatus") Policy.ApprovalStatus approvalStatus,
+                                  @Param("activeFilter") Boolean activeFilter,
+                                  Pageable pageable);
 
-    @Query(value = "SELECT DISTINCT p FROM Policy p " +
-            "LEFT JOIN FETCH p.targets " +
-            "WHERE :pattern IS NULL OR LOWER(p.name) LIKE :pattern",
-            countQuery = "SELECT COUNT(p) FROM Policy p " +
-            "WHERE :pattern IS NULL OR LOWER(p.name) LIKE :pattern")
-    Page<Policy> searchByKeyword(@Param("pattern") String pattern, Pageable pageable);
+    @Query(value = "SELECT p.id FROM Policy p WHERE :pattern IS NULL OR LOWER(p.name) LIKE :pattern",
+            countQuery = "SELECT COUNT(p) FROM Policy p WHERE :pattern IS NULL OR LOWER(p.name) LIKE :pattern")
+    Page<Long> searchIdsByKeyword(@Param("pattern") String pattern, Pageable pageable);
+
+    @Query("SELECT DISTINCT p FROM Policy p LEFT JOIN FETCH p.targets WHERE p.id IN :ids")
+    List<Policy> findAllWithTargetsByIdIn(@Param("ids") Collection<Long> ids);
+
+    default Page<Policy> searchByFilters(String pattern, Policy.ApprovalStatus approvalStatus, Boolean activeFilter,
+                                         Pageable pageable) {
+        return withTargets(searchIdsByFilters(pattern, approvalStatus, activeFilter, pageable));
+    }
+
+    default Page<Policy> searchByKeyword(String pattern, Pageable pageable) {
+        return withTargets(searchIdsByKeyword(pattern, pageable));
+    }
+
+    /**
+     * PR-4: a page and a fetched collection in one query cannot be cut in the database, so Hibernate read every policy into
+     * memory for each page. The page is cut on the ids, and the targets are read for those policies only.
+     */
+    private Page<Policy> withTargets(Page<Long> ids) {
+        if (ids.isEmpty()) {
+            return new PageImpl<>(List.of(), ids.getPageable(), ids.getTotalElements());
+        }
+        Map<Long, Policy> policies = findAllWithTargetsByIdIn(ids.getContent()).stream()
+                .collect(Collectors.toMap(Policy::getId, Function.identity()));
+        List<Policy> page = ids.getContent().stream().map(policies::get).filter(Objects::nonNull).toList();
+        return new PageImpl<>(page, ids.getPageable(), ids.getTotalElements());
+    }
 
     Optional<Policy> findByName(String name);
 
@@ -184,9 +217,37 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
     @Query("SELECT p.approvalStatus, COUNT(p) FROM Policy p GROUP BY p.approvalStatus")
     List<Object[]> countGroupByApprovalStatus();
 
-    @Query("SELECT DISTINCT p FROM Policy p " +
-           "LEFT JOIN FETCH p.targets " +
-           "LEFT JOIN p.rules r JOIN r.conditions c " +
-           "WHERE p.isActive = true AND c.expression LIKE %:keyword%")
-    List<Policy> findActivePoliciesReferencingExpression(@Param("keyword") String keyword);
+    /**
+     * The id and expression of each condition of an active policy whose text contains the given text. A plain search of
+     * the text: a {@code %} or {@code _} in it is a character, not a wildcard. A text that contains the name is not yet
+     * a condition that names it, which {@link #findActivePoliciesReferencing} decides.
+     */
+    @Query("SELECT p.id, c.expression FROM Policy p " +
+           "JOIN p.rules r JOIN r.conditions c " +
+           "WHERE p.isActive = true AND LOCATE(:text, c.expression) > 0")
+    List<Object[]> findActiveConditionsContainingText(@Param("text") String text);
+
+    /**
+     * The active policies with a condition that has a SpEL literal exactly equal to one of the names: the policies a
+     * role or permission is named in. A name that is only a part of a longer literal does not count, so the policies
+     * of {@code ROLE_O} are not the policies of {@code ROLE_OTHER}, and a name with a quote is found as the literal
+     * that doubles the quote.
+     */
+    default List<Policy> findActivePoliciesReferencing(Collection<String> names) {
+        Set<Long> ids = new TreeSet<>();
+        for (String name : new LinkedHashSet<>(names)) {
+            if (name == null || name.isEmpty()) {
+                continue;
+            }
+            for (Object[] condition : findActiveConditionsContainingText(SpelLiteral.quote(name))) {
+                if (SpelLiteral.holds((String) condition[1], name)) {
+                    ids.add((Long) condition[0]);
+                }
+            }
+        }
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        return findAllById(ids).stream().sorted(Comparator.comparing(Policy::getId)).toList();
+    }
 }

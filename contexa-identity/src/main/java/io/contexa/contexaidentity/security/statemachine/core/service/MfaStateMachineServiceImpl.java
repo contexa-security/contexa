@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.statemachine.core.service;
 
+import io.contexa.contexacommon.store.ApplicationNamespace;
 import io.contexa.contexaidentity.security.statemachine.config.StateMachineProperties;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
@@ -50,16 +51,43 @@ public class MfaStateMachineServiceImpl extends AbstractMfaStateMachineService {
         this.redissonClient = redissonClient;
     }
 
+    /**
+     * Redis replaces a record in two commands (Spring Data deletes the key, then sets it) and this read takes no lock,
+     * so a read between them finds no flow while the flow exists. The filters end a flow they do not find, so a flow that
+     * looks gone is read again once the lock says no write is under way. A flow that cannot be read does not get here:
+     * its read fails.
+     */
+    @Override
+    public FactorContext getFactorContext(String sessionId) {
+        FactorContext context = super.getFactorContext(sessionId);
+        return context != null ? context : readBehindWrites(sessionId);
+    }
+
+    private FactorContext readBehindWrites(String sessionId) {
+        boolean lockAcquired = false;
+        try {
+            lockAcquired = tryAcquireLock(sessionId, userRequestLockWaitTimeMillis(), TimeUnit.MILLISECONDS);
+            return super.getFactorContext(sessionId);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new MfaStateMachineException("FactorContext retrieval interrupted: " + sessionId, e);
+        } finally {
+            if (lockAcquired) {
+                releaseLock(sessionId);
+            }
+        }
+    }
+
     @Override
     protected boolean tryAcquireLock(String sessionId, long waitTime, TimeUnit unit) throws InterruptedException {
-        RLock lock = redissonClient.getLock(LOCK_KEY_PREFIX + sessionId);
+        RLock lock = redissonClient.getLock(ApplicationNamespace.key(LOCK_KEY_PREFIX + sessionId));
         long leaseTime = Math.max(1, unit.convert(lockLeaseTimeSeconds(), TimeUnit.SECONDS));
         return lock.tryLock(waitTime, leaseTime, unit);
     }
 
     @Override
     protected void releaseLock(String sessionId) {
-        RLock lock = redissonClient.getLock(LOCK_KEY_PREFIX + sessionId);
+        RLock lock = redissonClient.getLock(ApplicationNamespace.key(LOCK_KEY_PREFIX + sessionId));
         if (lock.isHeldByCurrentThread()) {
             lock.unlock();
         }
@@ -67,7 +95,7 @@ public class MfaStateMachineServiceImpl extends AbstractMfaStateMachineService {
 
     @Override
     protected void onReleaseStateMachine(String sessionId) {
-        String redisKey = REDIS_STATEMACHINE_KEY_PREFIX + sessionId;
+        String redisKey = ApplicationNamespace.key(REDIS_STATEMACHINE_KEY_PREFIX + sessionId);
         long deletedCount = redissonClient.getKeys().delete(redisKey);
         if (deletedCount == 0) {
             log.debug("[MFA SM Service] [{}] StateMachine not found in Redis, skipping release.", sessionId);
@@ -76,7 +104,7 @@ public class MfaStateMachineServiceImpl extends AbstractMfaStateMachineService {
 
     @Override
     protected void beforeSaveFactorContext(String sessionId) {
-        String redisKey = REDIS_STATEMACHINE_KEY_PREFIX + sessionId;
+        String redisKey = ApplicationNamespace.key(REDIS_STATEMACHINE_KEY_PREFIX + sessionId);
         long keyExists = redissonClient.getKeys().countExists(redisKey);
         if (keyExists == 0) {
             log.debug("[MFA SM Service] [{}] StateMachine not found in Redis, proceeding with initialization", sessionId);

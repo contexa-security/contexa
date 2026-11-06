@@ -33,6 +33,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.ToLongFunction;
 
 /**
  * Z-16 (N-1): one kind of in-memory state whose keys expire as the keys of a Redis store do, so that an in-memory store
@@ -51,6 +52,8 @@ import java.util.function.Predicate;
  * it), and may say how a key goes (with what it keeps for the key elsewhere).</li>
  * <li>A value the space removes by itself, expired or evicted for the bound, is handed to {@code onRemoved}; a value the
  * owner removes is returned to the owner instead.</li>
+ * <li>An optional {@link ExpiringKeyBudget} keeps the values within a number of bytes, for the same memory: every
+ * value that enters, changes or leaves moves it here, whichever way it does.</li>
  * </ul>
  * A function given to an update runs while its key is locked and must not update this same space. A write made inside
  * the function of another space's update leaves the bound to the next write made outside one, or to the sweep.
@@ -69,6 +72,8 @@ public final class ExpiringKeySpace<V> {
     private final int maxKeys;
     private final Predicate<String> evictable;
     private final Consumer<String> evictor;
+    private final ExpiringKeyBudget budget;
+    private final ToLongFunction<? super V> weigher;
     /** The keys chosen to go next for the bound, earliest expiry first; guarded by {@link #trimLock}. */
     private final ArrayDeque<TrimCandidate> candidates = new ArrayDeque<>();
     private final ReentrantLock trimLock = new ReentrantLock();
@@ -85,6 +90,8 @@ public final class ExpiringKeySpace<V> {
         this.maxKeys = builder.maxKeys;
         this.evictable = builder.evictable;
         this.evictor = builder.evictor;
+        this.budget = builder.budget;
+        this.weigher = builder.weigher;
     }
 
     /** A space reading the time from {@code clock}; see {@link Builder}. */
@@ -114,12 +121,13 @@ public final class ExpiringKeySpace<V> {
     public V getAndRefresh(String key, Duration ttl) {
         long nowMs = clock.millis();
         long expiresAtMs = expiryAfter(nowMs, ttl);
-        Entry<V> refreshed = entries.computeIfPresent(key, (ignored, entry) -> {
+        Entry<V> refreshed = entries.computeIfPresent(key, (held, entry) -> {
             if (entry.expired(nowMs)) {
+                counted(held, entry, null);
                 removed(entry.value);
                 return null;
             }
-            return new Entry<>(entry.value, expiresAtMs);
+            return new Entry<>(entry.value, expiresAtMs, entry.weight);
         });
         return refreshed == null ? null : refreshed.value;
     }
@@ -151,7 +159,9 @@ public final class ExpiringKeySpace<V> {
     public V put(String key, V value, Duration ttl) {
         Objects.requireNonNull(value, "value");
         long nowMs = clock.millis();
-        Entry<V> previous = entries.put(key, new Entry<>(value, expiryAfter(nowMs, ttl)));
+        Entry<V> written = entryOf(value, expiryAfter(nowMs, ttl));
+        Entry<V> previous = entries.put(key, written);
+        counted(key, previous, written);
         trimToBound();
         if (previous == null) {
             return null;
@@ -177,7 +187,7 @@ public final class ExpiringKeySpace<V> {
         long nowMs = clock.millis();
         long expiresAtMs = expiryAfter(nowMs, ttl);
         boolean[] held = new boolean[1];
-        entries.compute(key, (ignored, entry) -> {
+        entries.compute(key, (heldKey, entry) -> {
             if (entry != null && !entry.expired(nowMs)) {
                 return entry;
             }
@@ -185,7 +195,9 @@ public final class ExpiringKeySpace<V> {
                 removed(entry.value);
             }
             held[0] = true;
-            return new Entry<>(value, expiresAtMs);
+            Entry<V> written = entryOf(value, expiresAtMs);
+            counted(heldKey, entry, written);
+            return written;
         });
         if (held[0]) {
             trimToBound();
@@ -216,7 +228,9 @@ public final class ExpiringKeySpace<V> {
                 }
             }
             V value = apply(remapping, held, current);
-            return value == null ? null : new Entry<>(value, expiresAtMs);
+            Entry<V> written = value == null ? null : entryOf(value, expiresAtMs);
+            counted(held, entry, written);
+            return written;
         });
         trimToBound();
         return next == null ? null : next.value;
@@ -231,15 +245,20 @@ public final class ExpiringKeySpace<V> {
         long nowMs = clock.millis();
         Entry<V> next = entries.computeIfPresent(key, (held, entry) -> {
             if (entry.expired(nowMs)) {
+                counted(held, entry, null);
                 removed(entry.value);
                 return null;
             }
             V value = apply(remapping, held, entry.value);
             if (value == null) {
+                counted(held, entry, null);
                 return null;
             }
-            return value == entry.value ? entry : new Entry<>(value, entry.expiresAtMs);
+            Entry<V> written = value == entry.value && weigher == null ? entry : entryOf(value, entry.expiresAtMs);
+            counted(held, entry, written);
+            return written;
         });
+        keepWithinBudget();
         return next == null ? null : next.value;
     }
 
@@ -252,7 +271,7 @@ public final class ExpiringKeySpace<V> {
         long nowMs = clock.millis();
         List<R> result = new ArrayList<>(1);
         boolean[] written = new boolean[1];
-        entries.compute(key, (ignored, entry) -> {
+        entries.compute(key, (held, entry) -> {
             Entry<V> live = entry;
             if (entry != null && entry.expired(nowMs)) {
                 removed(entry.value);
@@ -267,6 +286,9 @@ public final class ExpiringKeySpace<V> {
             }
             Entry<V> next = slot.next();
             written[0] = next != null && next != live;
+            if (next != entry) {
+                counted(held, entry, next);
+            }
             return next;
         });
         if (written[0]) {
@@ -281,6 +303,7 @@ public final class ExpiringKeySpace<V> {
         if (entry == null) {
             return null;
         }
+        counted(key, entry, null);
         if (entry.expired(clock.millis())) {
             removed(entry.value);
             return null;
@@ -292,14 +315,16 @@ public final class ExpiringKeySpace<V> {
     public boolean remove(String key, Object value) {
         long nowMs = clock.millis();
         boolean[] released = new boolean[1];
-        entries.computeIfPresent(key, (ignored, entry) -> {
+        entries.computeIfPresent(key, (held, entry) -> {
             if (entry.expired(nowMs)) {
+                counted(held, entry, null);
                 removed(entry.value);
                 return null;
             }
             if (!Objects.equals(entry.value, value)) {
                 return entry;
             }
+            counted(held, entry, null);
             released[0] = true;
             return null;
         });
@@ -325,7 +350,8 @@ public final class ExpiringKeySpace<V> {
             if (!keyMatches.test(key)) {
                 continue;
             }
-            entries.computeIfPresent(key, (ignored, entry) -> {
+            entries.computeIfPresent(key, (held, entry) -> {
+                counted(held, entry, null);
                 if (entry.expired(nowMs)) {
                     removed(entry.value);
                     return null;
@@ -350,6 +376,7 @@ public final class ExpiringKeySpace<V> {
     public void evict(String key) {
         Entry<V> entry = entries.remove(key);
         if (entry != null) {
+            counted(key, entry, null);
             removed(entry.value);
         }
     }
@@ -398,11 +425,12 @@ public final class ExpiringKeySpace<V> {
             if (!held.getValue().expired(nowMs)) {
                 continue;
             }
-            entries.computeIfPresent(held.getKey(), (ignored, entry) -> {
+            entries.computeIfPresent(held.getKey(), (key, entry) -> {
                 if (!entry.expired(nowMs)) {
                     return entry;
                 }
                 expired[0]++;
+                counted(key, entry, null);
                 removed(entry.value);
                 return null;
             });
@@ -425,6 +453,7 @@ public final class ExpiringKeySpace<V> {
      * update, or while another thread keeps the bound. Every write that adds a key calls it.
      */
     public void trimToBound() {
+        keepWithinBudget();
         if (maxKeys <= 0 || entries.size() <= maxKeys || UPDATE_DEPTH.get()[0] > 0 || !trimLock.tryLock()) {
             return;
         }
@@ -488,10 +517,11 @@ public final class ExpiringKeySpace<V> {
             }
             return;
         }
-        entries.computeIfPresent(key, (ignored, entry) -> {
+        entries.computeIfPresent(key, (held, entry) -> {
             if (entry.expiresAtMs != candidate.expiresAtMs()) {
                 return entry;
             }
+            counted(held, entry, null);
             removed(entry.value);
             return null;
         });
@@ -499,7 +529,32 @@ public final class ExpiringKeySpace<V> {
 
     private void dropExpired(String key, Entry<V> entry) {
         if (entries.remove(key, entry)) {
+            counted(key, entry, null);
             removed(entry.value);
+        }
+    }
+
+    private Entry<V> entryOf(V value, long expiresAtMs) {
+        return new Entry<>(value, expiresAtMs, weigher != null ? weigher.applyAsLong(value) : 0L);
+    }
+
+    /** The key's {@code previous} entry was replaced with {@code next}, or left when there is none. */
+    private void counted(String key, Entry<V> previous, Entry<V> next) {
+        if (budget == null) {
+            return;
+        }
+        long before = previous != null ? previous.weight : 0L;
+        if (next != null) {
+            budget.written(key, next.weight - before);
+        } else if (previous != null) {
+            budget.left(key, before);
+        }
+    }
+
+    /** Lets keys go for the budget, outside the functions of updates: going takes other keys' locks. */
+    private void keepWithinBudget() {
+        if (budget != null && UPDATE_DEPTH.get()[0] == 0) {
+            budget.keepWithinLimit();
         }
     }
 
@@ -588,6 +643,8 @@ public final class ExpiringKeySpace<V> {
         private int maxKeys;
         private Predicate<String> evictable = key -> true;
         private Consumer<String> evictor;
+        private ExpiringKeyBudget budget;
+        private ToLongFunction<? super V> weigher;
 
         private Builder(Clock clock) {
             this.clock = Objects.requireNonNull(clock, "clock");
@@ -635,20 +692,35 @@ public final class ExpiringKeySpace<V> {
             return this;
         }
 
+        /**
+         * Counts every value against {@code budget} at what {@code weigher} says, in bytes. The weigher is asked
+         * each time the value is written and must answer at once: it runs while the key is locked.
+         */
+        public Builder<V> weighed(ExpiringKeyBudget budget, ToLongFunction<? super V> weigher) {
+            this.budget = Objects.requireNonNull(budget, "budget");
+            this.weigher = Objects.requireNonNull(weigher, "weigher");
+            return this;
+        }
+
         public ExpiringKeySpace<V> build() {
             return new ExpiringKeySpace<>(this);
         }
     }
 
-    /** A value and when it expires, in epoch milliseconds; an entry is replaced, never changed. */
+    /**
+     * A value, when it expires, in epoch milliseconds, and what it was counted at when written; an entry is replaced,
+     * never changed.
+     */
     private static final class Entry<V> {
 
         private final V value;
         private final long expiresAtMs;
+        private final long weight;
 
-        private Entry(V value, long expiresAtMs) {
+        private Entry(V value, long expiresAtMs, long weight) {
             this.value = value;
             this.expiresAtMs = expiresAtMs;
+            this.weight = weight;
         }
 
         private boolean expired(long nowMs) {
@@ -736,7 +808,7 @@ public final class ExpiringKeySpace<V> {
             if (live != null && value == live.value && expiresAtMs == live.expiresAtMs) {
                 return live;
             }
-            return new Entry<>(value, expiresAtMs);
+            return entryOf(value, expiresAtMs);
         }
     }
 }

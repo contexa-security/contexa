@@ -23,10 +23,13 @@ import io.contexa.contexaiam.admin.web.agent.dto.AgentView;
 import io.contexa.contexaiam.admin.web.agent.service.AgentDelegationService;
 import io.contexa.contexaiam.admin.web.agent.service.AgentProvisioning;
 import io.contexa.contexaiam.admin.web.agent.service.AgentLearningAdminService;
+import io.contexa.contexaiam.common.ConsoleFault;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -36,6 +39,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.time.Clock;
@@ -213,7 +217,7 @@ public class AgentAdminController {
         } catch (RuntimeException e) {
             log.error("[AgentAdmin] Agent learning action failed: agentId={}, action={}", agentId, action, e);
             redirectAttributes.addFlashAttribute("errorMessage", messageSource.getMessage(
-                    "admin.agents.learning.failed", new Object[]{e.getMessage()}, LocaleContextHolder.getLocale()));
+                    "admin.agents.learning.failed", new Object[]{ConsoleFault.textOf(e)}, LocaleContextHolder.getLocale()));
         }
         redirectAttributes.addAttribute("agentId", agentId);
         if (tenant != null && !tenant.isBlank()) {
@@ -257,7 +261,7 @@ public class AgentAdminController {
             log.error("[AgentAdmin] Agent registration failed: agentId={}", agentId, e);
             model.addAttribute("provisioningAvailable", provisioning.available());
             model.addAttribute("errorMessage", messageSource.getMessage("admin.agents.register.failed",
-                    new Object[]{e.getMessage()}, LocaleContextHolder.getLocale()));
+                    new Object[]{ConsoleFault.textOf(e)}, LocaleContextHolder.getLocale()));
             return "contexa/admin/agent-register";
         }
     }
@@ -334,7 +338,7 @@ public class AgentAdminController {
                                 RedirectAttributes redirectAttributes) {
         log.error("[AgentAdmin] Agent management failed: agentId={}", agentId, e);
         redirectAttributes.addFlashAttribute("errorMessage", messageSource.getMessage("admin.agents.manage.failed",
-                new Object[]{e.getMessage()}, LocaleContextHolder.getLocale()));
+                new Object[]{ConsoleFault.textOf(e)}, LocaleContextHolder.getLocale()));
         return toDetail(agentId, tenant, redirectAttributes);
     }
 
@@ -357,13 +361,19 @@ public class AgentAdminController {
         return Arrays.stream(value.split("[,\\s]+")).filter(word -> !word.isBlank()).toList();
     }
 
-    /** docs/agent OC-1: revokes a delegation of the agent at once, with the administrator's reason. */
+    /**
+     * docs/agent OC-1: revokes a delegation of the agent at once, with the administrator's reason. An agent holding an
+     * administrator's token is refused, as the admin API refuses it.
+     */
     @PostMapping("/delegations/revoke")
     public String revokeDelegation(@RequestParam("agentId") String agentId,
                                    @RequestParam(value = "tenant", required = false) String tenant,
                                    @RequestParam("delegationId") String delegationId,
                                    @RequestParam(value = "reason", required = false) String reason,
-                                   RedirectAttributes redirectAttributes) {
+                                   HttpServletRequest request, RedirectAttributes redirectAttributes) {
+        if (AgentDelegationApiController.fromAnAgent(request)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "An agent cannot revoke a delegation");
+        }
         try {
             boolean revoked = delegationService.revokeAsAdministrator(currentAdmin(), delegationId, reason)
                     .isPresent();
@@ -374,7 +384,7 @@ public class AgentAdminController {
             log.error("[AgentAdmin] Delegation revocation failed: agentId={}, delegationId={}", agentId,
                     delegationId, e);
             redirectAttributes.addFlashAttribute("errorMessage", messageSource.getMessage(
-                    "admin.agents.delegations.failed", new Object[]{e.getMessage()},
+                    "admin.agents.delegations.failed", new Object[]{ConsoleFault.textOf(e)},
                     LocaleContextHolder.getLocale()));
         }
         redirectAttributes.addAttribute("agentId", agentId);

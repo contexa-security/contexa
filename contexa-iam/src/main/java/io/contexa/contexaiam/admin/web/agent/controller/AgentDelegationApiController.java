@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaiam.admin.web.agent.controller;
 
+import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexaiam.admin.web.agent.controller.AgentDelegationViews.DelegationBody;
 import io.contexa.contexaiam.admin.web.agent.controller.AgentDelegationViews.DelegationView;
@@ -25,6 +27,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -66,6 +69,7 @@ public class AgentDelegationApiController {
             return error(HttpStatus.BAD_REQUEST, "A delegation is required");
         }
         try {
+            refuseAnAgent(request);
             return ResponseEntity.status(HttpStatus.CREATED).body(DelegationView.of(delegations.recordOwn(
                     authentication, RequestInfoExtractor.extractTenantId(request), body.toRequest()),
                     clock.instant()));
@@ -79,6 +83,7 @@ public class AgentDelegationApiController {
     @GetMapping
     public ResponseEntity<?> own(Authentication authentication, HttpServletRequest request) {
         try {
+            refuseAnAgent(request);
             List<DelegationView> views = delegations.listOwn(authentication,
                             RequestInfoExtractor.extractTenantId(request), LIST_LIMIT).stream()
                     .map(delegation -> DelegationView.of(delegation, clock.instant())).toList();
@@ -93,6 +98,7 @@ public class AgentDelegationApiController {
                                     @RequestBody(required = false) RevokeBody body, Authentication authentication,
                                     HttpServletRequest request) {
         try {
+            refuseAnAgent(request);
             return delegations.revokeOwn(authentication, RequestInfoExtractor.extractTenantId(request), delegationId,
                             body != null ? body.reason() : null)
                     .<ResponseEntity<?>>map(delegation -> ResponseEntity.ok(DelegationView.of(delegation,
@@ -101,6 +107,23 @@ public class AgentDelegationApiController {
         } catch (AgentDelegationService.AgentCallerException e) {
             return error(HttpStatus.FORBIDDEN, e.getMessage());
         }
+    }
+
+    /**
+     * A request the bridge stamped as an agent's is refused, as on the confirmation pages: an agent can hold a token in
+     * the person's name that no claim the service reads gives away, and only the bridge reads every form of one. The
+     * admin API and the console refuse it by the same reading, whatever the token's account may do.
+     */
+    static void refuseAnAgent(HttpServletRequest request) {
+        if (fromAnAgent(request)) {
+            throw new AgentDelegationService.AgentCallerException();
+        }
+    }
+
+    /** Whether the bridge stamped the request as an agent's: the console refuses it by the same reading. */
+    public static boolean fromAnAgent(HttpServletRequest request) {
+        return request.getAttribute(BridgeRequestAttributes.DELEGATION_STAMP) instanceof DelegationStamp stamp
+                && StringUtils.hasText(stamp.agentId());
     }
 
     static ResponseEntity<Map<String, String>> error(HttpStatus status, String message) {

@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -61,12 +62,21 @@ public class AiSecurityDecisionObservationWriter {
             String requestId,
             String decisionBoundaryMode,
             String runtimeEnforcementMode,
-            String reasoning) {
+            String reasoning,
+            Boolean llmDecisionPresent) {
         public PersistedFinalDecision(String observationId, String tenantId, String userId,
                                       String finalAction, String contextBindingHash,
                                       String processingGeneration, String requestId) {
             this(observationId, tenantId, userId, finalAction, contextBindingHash,
                     processingGeneration, requestId, null, null, null);
+        }
+
+        public PersistedFinalDecision(String observationId, String tenantId, String userId,
+                                      String finalAction, String contextBindingHash,
+                                      String processingGeneration, String requestId,
+                                      String decisionBoundaryMode, String runtimeEnforcementMode, String reasoning) {
+            this(observationId, tenantId, userId, finalAction, contextBindingHash, processingGeneration, requestId,
+                    decisionBoundaryMode, runtimeEnforcementMode, reasoning, null);
         }
     }
 
@@ -135,22 +145,26 @@ public class AiSecurityDecisionObservationWriter {
         if (triggerSource == null) {
             triggerSource = LEGACY_TRIGGER_SOURCE_NOT_APPLICABLE;
         }
-        String modelId = firstTextWithFallback(metadata, defaultModelId,
+        // Q-22: the record names the model that answered, else the one the call asked; the configured model only stands
+        // in for a decision a model gave, or a decision that never reached a model would name a model never called.
+        boolean modelDecided = Boolean.TRUE.equals(llmDecisionPresent);
+        String fallbackModelProvider = modelDecided ? defaultModelProvider : null;
+        String modelId = firstTextWithFallback(metadata, modelDecided ? defaultModelId : null,
+                "providerResponseModel",
                 "selectedModelId",
                 "modelId",
                 "runtimeModelId",
-                "providerResponseModel",
                 "requestedModelId",
                 "preferredModel");
         String modelProvider = firstText(
-                firstTextWithFallback(metadata, defaultModelProvider,
+                firstTextWithFallback(metadata, fallbackModelProvider,
                         "selectedModelProvider",
                         "modelProvider",
                         "runtimeModelProvider",
                         "structuredOutputProviderFamily"),
                 inferProviderFromModelId(modelId));
         if (isUnknown(modelProvider)) {
-            modelProvider = firstText(defaultModelProvider, inferProviderFromModelId(modelId));
+            modelProvider = firstText(fallbackModelProvider, inferProviderFromModelId(modelId));
         }
         String contextBindingHash = firstText(metadata, "contextBindingHash");
         if (contextBindingHash == null) {
@@ -158,6 +172,8 @@ public class AiSecurityDecisionObservationWriter {
                     event.getSessionId(), event.getSourceIp(), event.getUserAgent());
         }
         Map<String, Object> storedMetadata = metadataWithLatencyBreakdown(metadata, result, System.currentTimeMillis());
+        storedMetadata.computeIfPresent("sessionId",
+                (key, session) -> RequestFactRedaction.sessionReference(String.valueOf(session)));
         if (result != null && result.getReasoning() != null) {
             storedMetadata.put("finalDecisionReasoning", SensitiveValueSanitizer.sanitizeText(result.getReasoning()));
         }
@@ -256,7 +272,7 @@ public class AiSecurityDecisionObservationWriter {
                     correlationId,
                     testRunId,
                     userId,
-                    event.getSessionId(),
+                    RequestFactRedaction.sessionReference(event.getSessionId()),
                     contextBindingHash,
                     actorSessionKey,
                     windowId,
@@ -325,7 +341,8 @@ public class AiSecurityDecisionObservationWriter {
                            processing_generation,
                            request_id,
                            decision_boundary_mode,
-                           metadata_json
+                           metadata_json,
+                           llm_decision_present
                       FROM ctxa_ai_security_decision_observation
                      WHERE idempotency_key = ?
                        AND success = TRUE
@@ -343,7 +360,8 @@ public class AiSecurityDecisionObservationWriter {
                             resultSet.getString("request_id"),
                             resultSet.getString("decision_boundary_mode"),
                             persistedMetadataText(resultSet.getString("metadata_json"), "runtimeEnforcementMode"),
-                            persistedMetadataText(resultSet.getString("metadata_json"), "finalDecisionReasoning")),
+                            persistedMetadataText(resultSet.getString("metadata_json"), "finalDecisionReasoning"),
+                            resultSet.getObject("llm_decision_present", Boolean.class)),
                     normalizedKey);
             return decisions.isEmpty() ? null : decisions.get(0);
         } catch (DataAccessException exception) {

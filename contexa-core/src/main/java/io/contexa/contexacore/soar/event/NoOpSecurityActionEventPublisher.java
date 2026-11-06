@@ -27,7 +27,7 @@ public class NoOpSecurityActionEventPublisher implements SecurityActionEventPubl
     @Override
     public void publish(SecurityActionEvent event) {
         if (!logged) {
-            log.error("[NoOpActionPublisher] SOAR auto-response is disabled in standalone mode");
+            log.info("[NoOpActionPublisher] SOAR auto-response is disabled in standalone mode");
             logged = true;
         }
     }

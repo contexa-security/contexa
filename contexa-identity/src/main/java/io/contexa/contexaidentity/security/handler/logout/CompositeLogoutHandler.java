@@ -79,7 +79,7 @@ public class CompositeLogoutHandler implements LogoutHandler, IForceLogoutServic
             return;
         }
 
-        log.error("[ForceLogout] Executing force-logout: userId={}, reason={}", userId, reason);
+        log.warn("[ForceLogout] Executing force-logout: userId={}, reason={}", userId, reason);
 
         if (zeroTrustSecurityService != null) {
             try {

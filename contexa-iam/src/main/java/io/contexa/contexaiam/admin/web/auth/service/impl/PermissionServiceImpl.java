@@ -44,7 +44,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 @CacheConfig(cacheManager = "contexaCacheManager")
-public class PermissionServiceImpl implements PermissionService {
+public class PermissionServiceImpl extends AccountAuthoritiesService implements PermissionService {
     private final PermissionRepository permissionRepository;
     private final ManagedResourceRepository managedResourceRepository;
     private final PolicyRepository policyRepository;
@@ -70,7 +70,7 @@ public class PermissionServiceImpl implements PermissionService {
     @Cacheable(value = "permissions", key = "#id")
     @Override
     public Optional<Permission> getPermission(Long id) {
-        return permissionRepository.findById(id);
+        return permissionRepository.findWithManagedResourceById(id);
     }
 
     @Cacheable(value = "permissions", key = "'allPermissions'")
@@ -91,7 +91,7 @@ public class PermissionServiceImpl implements PermissionService {
                     pageable
             );
         }
-        return permissionRepository.findAll(pageable);
+        return permissionRepository.findAllWithManagedResourceBy(pageable);
     }
 
     @Override
@@ -100,7 +100,7 @@ public class PermissionServiceImpl implements PermissionService {
                 .map(permission -> {
                     long roleCount = permissionRepository.countRoleAssignments(id);
                     List<AffectedPolicyResponse> policyList = policyRepository
-                            .findActivePoliciesReferencingExpression(permission.getName())
+                            .findActivePoliciesReferencing(List.of(permission.getName()))
                             .stream()
                             .map(AffectedPolicyResponse::from)
                             .toList();
@@ -118,6 +118,7 @@ public class PermissionServiceImpl implements PermissionService {
     )
     @Override
     public void deletePermission(Long id) {
+        authoritiesChanged();
         long roleCount = permissionRepository.countRoleAssignments(id);
         if (roleCount > 0) {
             throw new IllegalStateException(
@@ -126,6 +127,16 @@ public class PermissionServiceImpl implements PermissionService {
 
         Permission permission = permissionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Permission not found: " + id));
+
+        // Counted before anything is changed, so a refusal leaves nothing behind. The database refuses the deletion of a
+        // permission that roles were given to groups or accounts with, with a constraint nobody can read; it stays the
+        // backstop when such a grant comes in between the count and the deletion. A permission is no part of who
+        // administers the console, so the deletion does not take the lock that serializes those changes.
+        long groups = permissionRepository.countGroupAssignments(id);
+        long accounts = permissionRepository.countAccountAssignments(id);
+        if (groups > 0 || accounts > 0) {
+            throw new IllegalStateException(msg("msg.permission.delete.used", permission.getName(), groups, accounts));
+        }
 
         ManagedResource resource = permission.getManagedResource();
         if (resource != null) {
@@ -145,7 +156,8 @@ public class PermissionServiceImpl implements PermissionService {
     @Transactional(transactionManager = "contexaTransactionManager")
     @Override
     public Permission updatePermission(Long id, PermissionDto permissionDto) {
-        Permission permission = permissionRepository.findById(id)
+        authoritiesChanged();
+        Permission permission = permissionRepository.findWithManagedResourceById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Permission not found: " + id));
 
         permission.setName(permissionDto.getName());

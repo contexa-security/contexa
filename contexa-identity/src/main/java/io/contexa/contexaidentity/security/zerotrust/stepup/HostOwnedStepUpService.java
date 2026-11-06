@@ -18,12 +18,16 @@ package io.contexa.contexaidentity.security.zerotrust.stepup;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
+import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncService;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
 import io.contexa.contexaidentity.security.webauthn.codec.PasskeyCreationOptionsCodec;
 import io.contexa.contexaidentity.security.webauthn.state.PasskeyCreationOptionsState;
@@ -56,9 +60,13 @@ import org.springframework.security.web.webauthn.management.RelyingPartyPublicKe
 import org.springframework.security.web.webauthn.management.UserCredentialRepository;
 import org.springframework.security.web.webauthn.management.WebAuthnRelyingPartyOperations;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 
@@ -72,11 +80,32 @@ import java.util.Locale;
  * The user is the bridge's copy of the application's user (matched by the application's principal name, bridge-managed
  * users only, so an application user never reaches a Contexa account of the same name). Factors: a passkey registered
  * for that copy, a one-time code when the copy has a real e-mail address and mail is configured, and a re-authentication
- * the application itself makes (its own MFA or identity provider), seen in the bridge's authentication stamp.
+ * the application itself makes (its own MFA or identity provider), seen in the bridge's authentication stamp, where the
+ * application said where it re-authenticates.
+ * <p>
+ * A passkey answers a CHALLENGE, so registering one is no matter for the first factor: the session has to confirm the
+ * user first, with a one-time code, or with the application's own MFA sign-in moments before where the application
+ * said where it re-authenticates. A code passed for a verification counts, so a user who just answered a CHALLENGE is
+ * offered the passkey at once.
+ * <p>
+ * The copy's address is where the codes go, and whoever holds a session can change the address the application's
+ * profile shows. Another address the application shows waits; a proof of the address on record answers what it
+ * answers and mails a code to the address waiting, and the copy takes that address only once its own code comes back
+ * to the session that gave the proof.
+ * <p>
+ * A console session verifies itself on the same factors, under the console's key and for Contexa's own account of
+ * that name: the bridge's copies are the application's users. It enrols no passkey here, and the application's
+ * re-authentication says nothing about it. A BLOCK of the session needs no administrator's leave: the verification only
+ * lets the session lift it itself, which it could not do before.
  * <p>
  * The one-time code is Spring Security's ({@code JdbcOneTimeTokenService} over Contexa's {@code ctxa_one_time_tokens}),
  * kept under a short key of the copy ({@code step-up:<id>}): the bridge's user names are longer than the table's
  * user name column. Contexa's mail sender delivers it to the copy's own address.
+ * <p>
+ * A session context gets a limited number of answers for a code. At the limit the codes it asked for are discarded, and
+ * it answers nothing more until a new code is mailed for it. The answers are counted for the context and not for the
+ * user: a stolen cookie is another address or browser, so a thief's wrong answers use up the thief's own answers and
+ * discard only what the thief asked for, and the owner of the session goes on with a code of their own.
  */
 @Slf4j
 public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
@@ -93,11 +122,16 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
      * @param purpose            what a verification resolves, or null when nothing waits for one
      * @param passkey            a passkey is registered for the user
      * @param oneTimeCode        a one-time code can be sent to the user's address
-     * @param passkeyRegistrable a passkey can be registered now (no restriction in force, none registered yet)
+     * @param passkeyEnrollable  a passkey can be registered once the user is confirmed (no restriction in force, none
+     *                           registered yet)
+     * @param passkeyRegistrable a passkey can be registered now: it is enrollable and this session confirmed the user
+     * @param addressConfirmable  this session proved the address on record and a code went to the address the
+     *                           application shows since, which that code confirms
      * @param reauthenticationUrl where the application re-authenticates the user, when it said so
      */
     public record Situation(String decisionKey, @Nullable Purpose purpose, @Nullable Users user, boolean passkey,
-                            boolean oneTimeCode, boolean passkeyRegistrable, @Nullable String reauthenticationUrl) {
+                            boolean oneTimeCode, boolean passkeyEnrollable, boolean passkeyRegistrable,
+                            boolean addressConfirmable, @Nullable String reauthenticationUrl) {
     }
 
     private static final String ASSERTION = "assertion:";
@@ -105,9 +139,23 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
     private static final String CODE_KEY = "step-up:";
     private static final String CODE_SENT = "code-sent:";
     private static final String CODE_SPENT = "code-spent:";
+    private static final String CODE_ANSWERS = "code-answers:";
+    private static final String CODE_ISSUED = "code-issued:";
+    private static final String CODE_DISCARDED = "code-discarded:";
+    private static final String CODE_RECOVERY = "code-recovery:";
+    private static final String USER_CONFIRMED = "user-confirmed:";
+    /** The token service's name for the codes mailed to an address waiting for the user, apart from the step-up's. */
+    private static final String ADDRESS_CODE_KEY = "step-up-address:";
+    private static final String ADDRESS_PROVEN = "address-proven:";
+    private static final String ADDRESS_ISSUED = "address-issued:";
+    private static final String ADDRESS_ANSWERS = "address-answers:";
+    private static final String ADDRESS_SENT = "address-sent:";
 
     /** How long a user waits before the next code is mailed (the earlier one is good for minutes still). */
     static final Duration CODE_RESEND_INTERVAL = Duration.ofSeconds(30);
+
+    /** How long ago the application's own MFA sign-in may lie to confirm the user for a passkey (Q-13). */
+    static final Duration RECENT_HOST_SIGN_IN = Duration.ofMinutes(5);
 
     /** Longer than a code lives, so a spent code is never accepted again, by a race or later. */
     private static final Duration CODE_SPENT_HOLD = Duration.ofMinutes(15);
@@ -131,7 +179,14 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
     private final PasskeyCreationOptionsCodec creationOptionsCodec;
     @Nullable
     private final String reauthenticationUrl;
+    private final int maxCodeAnswers;
+    @Nullable
+    private BridgeUserMirrorSyncService userMirror;
 
+    /**
+     * @param maxCodeAnswers the answers a session context gets for a one-time code, the setting of Contexa's own MFA
+     *                       ({@code contexa.auth.mfa.max-retry-attempts})
+     */
     public HostOwnedStepUpService(ZeroTrustActionRepository actions, ChallengeResolution resolution,
                                   UserRepository users, String syntheticEmailDomain, StepUpOptionsStore options,
                                   @Nullable OneTimeTokenService stepUpCodes, @Nullable EmailService email,
@@ -139,7 +194,8 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
                                   @Nullable PublicKeyCredentialUserEntityRepository userEntities,
                                   @Nullable UserCredentialRepository credentials,
                                   @Nullable PasskeyCreationOptionsCodec creationOptionsCodec,
-                                  @Nullable String reauthenticationUrl) {
+                                  @Nullable String reauthenticationUrl, int maxCodeAnswers) {
+        this.maxCodeAnswers = maxCodeAnswers;
         this.actions = actions;
         this.resolution = resolution;
         this.users = users;
@@ -153,6 +209,11 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
         this.creationOptionsCodec = creationOptionsCodec;
         this.reauthenticationUrl = reauthenticationUrl != null && !reauthenticationUrl.isBlank()
                 ? reauthenticationUrl : null;
+    }
+
+    /** Where the copy of the user is kept: a proof of the address on record moves the copy to the address that waits. */
+    public void setUserMirror(@Nullable BridgeUserMirrorSyncService userMirror) {
+        this.userMirror = userMirror;
     }
 
     /**
@@ -173,21 +234,57 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
         if (authentication == null || !authentication.isAuthenticated() || isAgentRequest(request)) {
             return null;
         }
-        String decisionKey = authentication.getName();
+        boolean console = ConsoleSession.of(request);
+        String person = ZeroTrustUserKey.person(authentication.getName());
+        String decisionKey = console ? ZeroTrustSubject.CONSOLE_KEY + person : person;
         ZeroTrustAction action = actions.getCurrentAction(decisionKey,
                 SessionFingerprintUtil.generateContextBindingHash(request));
         Purpose purpose = null;
         if (action == ZeroTrustAction.CHALLENGE) {
             purpose = Purpose.CHALLENGE;
-        } else if (action == ZeroTrustAction.BLOCK && actions.isBlockMfaPending(decisionKey)) {
+        } else if (action == ZeroTrustAction.BLOCK && (console || actions.isBlockMfaPending(decisionKey))) {
             purpose = Purpose.BLOCK;
         }
-        Users user = bridgedUser(decisionKey);
+        Users user = console ? consoleAccount(authentication.getName()) : bridgedUser(authentication.getName());
         boolean passkey = user != null && hasPasskey(user);
         boolean restricted = action == ZeroTrustAction.CHALLENGE || action == ZeroTrustAction.BLOCK
                 || action == ZeroTrustAction.ESCALATE;
-        return new Situation(decisionKey, purpose, user, passkey, user != null && canSendCode(user),
-                user != null && relyingParty != null && !passkey && !restricted, reauthenticationUrl);
+        boolean enrollable = !console && user != null && relyingParty != null && !passkey && !restricted;
+        return new Situation(decisionKey, purpose, user, passkey, user != null && canSendCode(user), enrollable,
+                enrollable && userConfirmed(request, decisionKey),
+                !console && user != null && addressWaitsForThisSession(request, decisionKey, user),
+                console ? null : reauthenticationUrl);
+    }
+
+    /**
+     * Whether the session passed a one-time code in the last minutes, or the application signed in with MFA just now.
+     * The application's sign-in counts only where the application said where it re-authenticates
+     * ({@code contexa.bridge.step-up.reauthentication-url}): elsewhere a completed MFA is read from values of the
+     * principal Contexa cannot vouch for, such as a flag that MFA is switched on and the time of the last sign-in,
+     * which a password alone renews.
+     */
+    private boolean userConfirmed(HttpServletRequest request, String decisionKey) {
+        if (reauthenticationUrl != null
+                && request.getAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP) instanceof AuthenticationStamp stamp
+                && Boolean.TRUE.equals(stamp.mfaCompleted()) && stamp.authenticationTime() != null
+                && stamp.authenticationTime().isAfter(Instant.now().minus(RECENT_HOST_SIGN_IN))) {
+            return true;
+        }
+        return options.holds(userConfirmedKey(request, decisionKey));
+    }
+
+    /** This session proved the address on record, and an address the application showed since waits for its code. */
+    private boolean addressWaitsForThisSession(HttpServletRequest request, String decisionKey, Users user) {
+        return options.holds(ADDRESS_PROVEN + sessionContext(request, decisionKey)) && waitingAddress(user) != null;
+    }
+
+    /** Bound to the session's context, as an ALLOW is: the proof of one session opens nothing in another. */
+    private static String userConfirmedKey(HttpServletRequest request, String decisionKey) {
+        return USER_CONFIRMED + sessionContext(request, decisionKey);
+    }
+
+    private static String sessionContext(HttpServletRequest request, String decisionKey) {
+        return decisionKey + ":" + SessionFingerprintUtil.generateContextBindingHash(request);
     }
 
     // ----- one-time code -----
@@ -198,7 +295,7 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
      */
     public CodeSending sendCode(HttpServletRequest request, Authentication authentication) {
         Situation situation = situation(request, authentication);
-        if (situation == null || situation.purpose() == null || !situation.oneTimeCode()) {
+        if (!codeAnswers(situation)) {
             return CodeSending.UNAVAILABLE;
         }
         String interval = CODE_SENT + situation.user().getId();
@@ -211,6 +308,7 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
                     "<p>Your verification code is: <strong style=\"font-size:1.2em;\">" + token.getTokenValue()
                             + "</strong></p><p>It expires in a few minutes. If you did not ask for it, ignore this "
                             + "email.</p>");
+            keepAsIssued(sessionContext(request, situation.decisionKey()), token);
             return CodeSending.SENT;
         } catch (RuntimeException e) {
             options.release(interval);
@@ -220,15 +318,41 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
         }
     }
 
-    /** Checks a one-time code of the user and, when it is the user's, resolves the step-up. */
+    /** The context a code was mailed for answers for it from now on, with all its answers back. */
+    private void keepAsIssued(String context, OneTimeToken token) {
+        String earlier = options.take(CODE_ISSUED + context, String.class);
+        String issued = fingerprint(token.getTokenValue());
+        options.put(CODE_ISSUED + context, earlier != null ? earlier + "," + issued : issued);
+        options.clearCount(CODE_ANSWERS + context);
+    }
+
+    /** A one-time code answers a verification that waits, or confirms the user for a first passkey (Q-13). */
+    private static boolean codeAnswers(@Nullable Situation situation) {
+        return situation != null && situation.oneTimeCode()
+                && (situation.purpose() != null || situation.passkeyEnrollable());
+    }
+
+    /**
+     * Checks a one-time code of the user and, when it is the user's, resolves the step-up and confirms the user. The
+     * caller is told the same for a wrong code and for a code past the limit, so nothing shows where the limit lies.
+     */
     public boolean verifyCode(HttpServletRequest request, Authentication authentication, String code) {
         Situation situation = situation(request, authentication);
-        if (situation == null || situation.purpose() == null || !situation.oneTimeCode() || code == null
-                || code.isBlank()) {
+        if (!codeAnswers(situation) || code == null || code.isBlank()) {
             return false;
         }
-        OneTimeToken token = stepUpCodes.consume(OneTimeTokenAuthenticationToken.unauthenticated(code.trim()));
+        // Counted before any code is looked at: answers at once look at no more codes than the limit lets through.
+        String context = sessionContext(request, situation.decisionKey());
+        long answer = options.increment(CODE_ANSWERS + context, StepUpOptionsStore.TIME_TO_LIVE);
+        if (answer > maxCodeAnswers) {
+            return false;
+        }
+        OneTimeToken token = options.holds(CODE_DISCARDED + fingerprint(code.trim())) ? null
+                : stepUpCodes.consume(OneTimeTokenAuthenticationToken.unauthenticated(code.trim()));
         if (token == null || !codeKey(situation.user()).equals(token.getUsername())) {
+            if (answer == maxCodeAnswers) {
+                discardCodes(context, situation);
+            }
             return false;
         }
         // The token service reads a code before it deletes it, so requests at once can all be handed the same one:
@@ -236,8 +360,158 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
         if (!options.claim(CODE_SPENT + token.getTokenValue(), CODE_SPENT_HOLD)) {
             return false;
         }
-        complete(request, situation, null);
+        options.clearCount(CODE_ANSWERS + context);
+        if (situation.purpose() != null) {
+            complete(request, situation, null);
+        }
+        options.put(userConfirmedKey(request, situation.decisionKey()), Boolean.TRUE);
+        offerWaitingAddress(request, situation);
         return true;
+    }
+
+    /**
+     * The context used up its answers: the codes mailed for it stop answering, and a context that asked for none
+     * discards nothing, so wrong answers from a stolen cookie spoil no code of the owner's. Only one caller gets here
+     * for a count. The wait between two mails is lifted so that a user who typed wrongly gets a new code at once, but
+     * once in the life of a code: lifted each time, wrong answers would mail as fast as they can be sent.
+     */
+    private void discardCodes(String context, Situation situation) {
+        log.warn("[StepUp] A session context used up its answers for a code: decisionKey={}", situation.decisionKey());
+        String issued = options.take(CODE_ISSUED + context, String.class);
+        if (issued == null) {
+            return;
+        }
+        for (String code : issued.split(",")) {
+            options.put(CODE_DISCARDED + code, Boolean.TRUE);
+        }
+        if (options.claim(CODE_RECOVERY + situation.user().getId(), StepUpOptionsStore.TIME_TO_LIVE)) {
+            options.release(CODE_SENT + situation.user().getId());
+        }
+    }
+
+    /** What the store keeps of a code: a code is good for minutes, and only the token service holds it as it is. */
+    private static String fingerprint(String code) {
+        try {
+            return HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256").digest(code.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is not available", e);
+        }
+    }
+
+    // ----- the address waiting for the user -----
+
+    /**
+     * Mails the code of the address waiting for the user again, once per interval. Only a session that proved the
+     * address on record a moment ago asks for it.
+     */
+    public CodeSending sendAddressCode(HttpServletRequest request, Authentication authentication) {
+        Situation situation = situation(request, authentication);
+        if (situation == null || !situation.addressConfirmable()) {
+            return CodeSending.UNAVAILABLE;
+        }
+        return mailAddressCode(request, situation);
+    }
+
+    /**
+     * Checks the code mailed to the address waiting for the user and, when it is that code, the copy takes the address
+     * the code went to, if it still waits. Only the session that proved the address on record answers it: whoever
+     * reads the new mailbox does not change the address with its code alone. The code answers nothing else, and the
+     * step-up's code of the address on record answers nothing here.
+     */
+    public boolean verifyAddressCode(HttpServletRequest request, Authentication authentication, String code) {
+        Situation situation = situation(request, authentication);
+        if (situation == null || !situation.addressConfirmable() || stepUpCodes == null || code == null
+                || code.isBlank()) {
+            return false;
+        }
+        String context = sessionContext(request, situation.decisionKey());
+        if (options.increment(ADDRESS_ANSWERS + context, StepUpOptionsStore.TIME_TO_LIVE) > maxCodeAnswers) {
+            return false;
+        }
+        String answer = code.trim();
+        String address = options.take(ADDRESS_ISSUED + context + ":" + fingerprint(answer), String.class);
+        if (address == null) {
+            return false;
+        }
+        OneTimeToken token = stepUpCodes.consume(OneTimeTokenAuthenticationToken.unauthenticated(answer));
+        if (token == null || !addressCodeKey(situation.user()).equals(token.getUsername())
+                || !options.claim(CODE_SPENT + token.getTokenValue(), CODE_SPENT_HOLD)) {
+            return false;
+        }
+        boolean taken;
+        try {
+            taken = userMirror.confirmPendingEmail(situation.user().getId(), address);
+        } catch (RuntimeException e) {
+            log.error("[StepUp] The address waiting for the user could not be taken: decisionKey={}",
+                    situation.decisionKey(), e);
+            return false;
+        }
+        if (taken) {
+            options.take(ADDRESS_PROVEN + context, Boolean.class);
+            options.clearCount(ADDRESS_ANSWERS + context);
+            log.info("[StepUp] The user proved the address waiting: decisionKey={}", situation.decisionKey());
+        }
+        return taken;
+    }
+
+    /**
+     * The user proved the address on record, by its code or by a passkey. That proof answers what it answers and moves
+     * no address: an address the application showed since may be a thief's, left waiting for the owner's next proof.
+     * The address waiting gets a code of its own, which this session answers. A failure here fails no verification.
+     */
+    private void offerWaitingAddress(HttpServletRequest request, Situation situation) {
+        if (situation.user() == null || !mailable(waitingAddress(situation.user()))) {
+            return;
+        }
+        options.put(ADDRESS_PROVEN + sessionContext(request, situation.decisionKey()), Boolean.TRUE);
+        mailAddressCode(request, situation);
+    }
+
+    private CodeSending mailAddressCode(HttpServletRequest request, Situation situation) {
+        Users user = situation.user();
+        String waiting = waitingAddress(user);
+        if (!mailable(waiting)) {
+            return CodeSending.UNAVAILABLE;
+        }
+        String interval = ADDRESS_SENT + user.getId();
+        if (!options.claim(interval, CODE_RESEND_INTERVAL)) {
+            return CodeSending.TOO_SOON;
+        }
+        String context = sessionContext(request, situation.decisionKey());
+        try {
+            OneTimeToken token = stepUpCodes.generate(new GenerateOneTimeTokenRequest(addressCodeKey(user)));
+            email.sendHtmlMessage(waiting, "Confirm your email address",
+                    "<p>Your code to confirm this email address is: <strong style=\"font-size:1.2em;\">"
+                            + token.getTokenValue() + "</strong></p><p>It expires in a few minutes. If you did not "
+                            + "ask for it, ignore this email.</p>");
+            options.put(ADDRESS_ISSUED + context + ":" + fingerprint(token.getTokenValue()), waiting);
+            options.clearCount(ADDRESS_ANSWERS + context);
+            return CodeSending.SENT;
+        } catch (RuntimeException e) {
+            options.release(interval);
+            log.warn("[StepUp] The code of the address waiting could not be sent: decisionKey={}, reason={}",
+                    situation.decisionKey(), e.getMessage());
+            return CodeSending.UNAVAILABLE;
+        }
+    }
+
+    /** The address the application showed for a bridged user since the copy took a real one; null for none. */
+    @Nullable
+    private String waitingAddress(Users user) {
+        if (userMirror == null || !user.isBridgeManaged()) {
+            return null;
+        }
+        try {
+            return userMirror.pendingEmail(user.getId());
+        } catch (RuntimeException e) {
+            log.error("[StepUp] The address waiting for the user could not be read: userId={}", user.getId(), e);
+            return null;
+        }
+    }
+
+    private static String addressCodeKey(Users user) {
+        return ADDRESS_CODE_KEY + user.getId();
     }
 
     // ----- passkey -----
@@ -279,10 +553,11 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
             return false;
         }
         complete(request, situation, null);
+        offerWaitingAddress(request, situation);
         return true;
     }
 
-    /** The options of a first passkey registration; only while no restriction is in force. */
+    /** The options of a first passkey registration; only while no restriction is in force and the user is confirmed. */
     @Nullable
     public PublicKeyCredentialCreationOptions registrationOptions(HttpServletRequest request,
                                                                   Authentication authentication) {
@@ -313,6 +588,7 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
             relyingParty.registerCredential(new ImmutableRelyingPartyRegistrationRequest(
                     creationOptionsCodec.decode(state),
                     new RelyingPartyPublicKey(credential, label == null || label.isBlank() ? "passkey" : label)));
+            options.take(userConfirmedKey(request, situation.decisionKey()), Boolean.class);
             return true;
         } catch (RuntimeException e) {
             log.warn("[StepUp] A passkey registration was refused: decisionKey={}, reason={}", situation.decisionKey(),
@@ -323,9 +599,17 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
 
     // ----- the application's own re-authentication -----
 
+    /**
+     * Only an application that said where it re-authenticates ({@code contexa.bridge.step-up.reauthentication-url})
+     * is taken at its word. Elsewhere a completed MFA is read from values of the principal Contexa cannot vouch for,
+     * such as a flag that MFA is switched on and the time of the last sign-in, which a password alone renews.
+     */
     @Override
     public boolean resolvedByHostReauthentication(HttpServletRequest request, Authentication authentication,
                                                   String decisionKey) {
+        if (reauthenticationUrl == null) {
+            return false;
+        }
         if (!(request.getAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP) instanceof AuthenticationStamp stamp)
                 || !Boolean.TRUE.equals(stamp.mfaCompleted()) || stamp.authenticationTime() == null) {
             return false;
@@ -348,7 +632,7 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
 
     private void complete(HttpServletRequest request, Situation situation, @Nullable Instant verifiedAt) {
         if (situation.purpose() == Purpose.BLOCK) {
-            resolution.releaseBlockByMfa(situation.decisionKey());
+            resolution.releaseBlockByMfa(situation.decisionKey(), SessionFingerprintUtil.verificationContext(request));
         } else {
             resolution.releaseChallenge(situation.decisionKey(),
                     SessionFingerprintUtil.generateContextBindingHash(request), request, null);
@@ -378,6 +662,17 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
         }
     }
 
+    /** The console signs in with Contexa's own accounts; a bridge's copy is an application's user. */
+    @Nullable
+    private Users consoleAccount(String principal) {
+        try {
+            return users.findByUsername(principal).filter(user -> !user.isBridgeManaged()).orElse(null);
+        } catch (RuntimeException e) {
+            log.error("[StepUp] The console's account could not be read: principal={}", principal, e);
+            return null;
+        }
+    }
+
     private boolean hasPasskey(Users user) {
         if (userEntities == null || credentials == null) {
             return false;
@@ -387,7 +682,11 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
     }
 
     private boolean canSendCode(Users user) {
-        String address = user.getEmail();
+        return mailable(user.getEmail());
+    }
+
+    /** A code can be mailed to the address: codes and mail are configured, and it is no address made up for a user. */
+    private boolean mailable(@Nullable String address) {
         return stepUpCodes != null && email != null && email.isMailSenderConfigured() && address != null
                 && address.contains("@")
                 && !address.toLowerCase(Locale.ROOT).endsWith("@" + syntheticEmailDomain.toLowerCase(Locale.ROOT));
@@ -415,6 +714,11 @@ public class HostOwnedStepUpService implements HostOwnedStepUp, DisposableBean {
     @Nullable
     private Instant challengedAt(String decisionKey) {
         try {
+            // Q-12: another session's answer replaced the decision, and this session still has the CHALLENGE to answer.
+            Instant heldSince = actions.challengeHeldSince(decisionKey);
+            if (heldSince != null) {
+                return heldSince;
+            }
             ZeroTrustActionRepository.ZeroTrustAnalysisData analysis = actions.getAnalysisData(decisionKey);
             return analysis != null && analysis.updatedAt() != null ? Instant.parse(analysis.updatedAt()) : null;
         } catch (DateTimeParseException | IllegalArgumentException e) {

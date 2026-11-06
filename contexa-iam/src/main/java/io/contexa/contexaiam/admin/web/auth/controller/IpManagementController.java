@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.auth.controller;
 
+import io.contexa.contexaiam.common.ConsoleFault;
 import java.util.Locale;
 import io.contexa.contexaiam.admin.web.auth.service.IpAccessRuleService;
 import io.contexa.contexaiam.admin.web.common.CsvColumn;
@@ -124,7 +125,7 @@ public class IpManagementController {
             ra.addFlashAttribute("message", msg("admin.ip.deleted"));
         } catch (Exception e) {
             log.error("Failed to delete IP rule: id={}", id, e);
-            ra.addFlashAttribute("errorMessage", msg("msg.ip.delete.error", e.getMessage()));
+            ra.addFlashAttribute("errorMessage", msg("msg.ip.delete.error", ConsoleFault.textOf(e)));
         }
         return "redirect:/contexa/admin/ip-management";
     }
@@ -136,7 +137,7 @@ public class IpManagementController {
             ra.addFlashAttribute("message", msg("admin.ip.toggled"));
         } catch (Exception e) {
             log.error("Failed to toggle IP rule: id={}", id, e);
-            ra.addFlashAttribute("errorMessage", msg("msg.ip.toggle.error", e.getMessage()));
+            ra.addFlashAttribute("errorMessage", msg("msg.ip.toggle.error", ConsoleFault.textOf(e)));
         }
         return "redirect:/contexa/admin/ip-management";
     }

@@ -16,22 +16,44 @@
 package io.contexa.contexaiam.security.core;
 
 import io.contexa.contexacommon.domain.UserDto;
+import io.contexa.contexacommon.security.LoginAddressBlockedException;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class CustomAuthenticationProviderTest {
+
+    /** PR-69: the right password from a blocked address signed in; the block is read before the credentials are. */
+    @Test
+    void aBlockedAddressIsRefusedWithoutReadingTheCredentials() {
+        UserDetailsService userDetailsService = mock(UserDetailsService.class);
+        PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
+        LoginPolicyHandler loginPolicyHandler = mock(LoginPolicyHandler.class);
+        doThrow(new LoginAddressBlockedException("blocked")).when(loginPolicyHandler).checkSignInAddress("admin");
+        CustomAuthenticationProvider provider = new CustomAuthenticationProvider(userDetailsService, passwordEncoder, loginPolicyHandler);
+
+        assertThatThrownBy(() -> provider.authenticate(new UsernamePasswordAuthenticationToken("admin", "right-password")))
+                .isInstanceOf(LoginAddressBlockedException.class);
+        verifyNoInteractions(userDetailsService, passwordEncoder);
+    }
 
     @Test
     void shouldRejectPasswordAuthenticationForExternalAuthOnlyAccount() {
@@ -81,5 +103,45 @@ class CustomAuthenticationProviderTest {
 
         assertThat(result.isAuthenticated()).isTrue();
         assertThat(result.getName()).isEqualTo("local-user");
+    }
+
+    @Test
+    void anUnknownUserAndAWrongPasswordFailAlikeAndCostTheSamePasswordCheck() {
+        UserDetailsService userDetailsService = mock(UserDetailsService.class);
+        PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
+        when(passwordEncoder.encode(any())).thenReturn("decoy");
+        when(userDetailsService.loadUserByUsername("ghost"))
+                .thenThrow(new UsernameNotFoundException("User not found: ghost"));
+        when(userDetailsService.loadUserByUsername("alice")).thenReturn(new UnifiedCustomUserDetails(
+                UserDto.builder().username("alice").password("encoded").enabled(true).build(), Set.of()));
+        CustomAuthenticationProvider provider = new CustomAuthenticationProvider(
+                userDetailsService, passwordEncoder, mock(LoginPolicyHandler.class));
+
+        assertThatThrownBy(() -> provider.authenticate(new UsernamePasswordAuthenticationToken("ghost", "pw")))
+                .isExactlyInstanceOf(BadCredentialsException.class)
+                .hasMessage("Invalid username or password.");
+        assertThatThrownBy(() -> provider.authenticate(new UsernamePasswordAuthenticationToken("alice", "pw")))
+                .isExactlyInstanceOf(BadCredentialsException.class)
+                .hasMessage("Invalid username or password.");
+
+        verify(passwordEncoder, times(1)).matches("pw", "decoy");
+        verify(passwordEncoder, times(1)).matches("pw", "encoded");
+    }
+
+    @Test
+    void aLockedAccountCostsThePasswordCheckAWrongPasswordCosts() {
+        UserDetailsService userDetailsService = mock(UserDetailsService.class);
+        PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
+        when(passwordEncoder.encode(any())).thenReturn("decoy");
+        when(userDetailsService.loadUserByUsername("locked")).thenReturn(new UnifiedCustomUserDetails(
+                UserDto.builder().username("locked").password("encoded").enabled(true).accountLocked(true).build(),
+                Set.of()));
+        CustomAuthenticationProvider provider = new CustomAuthenticationProvider(
+                userDetailsService, passwordEncoder, mock(LoginPolicyHandler.class));
+
+        assertThatThrownBy(() -> provider.authenticate(new UsernamePasswordAuthenticationToken("locked", "pw")))
+                .isInstanceOf(LockedException.class);
+
+        verify(passwordEncoder, times(1)).matches("pw", "decoy");
     }
 }

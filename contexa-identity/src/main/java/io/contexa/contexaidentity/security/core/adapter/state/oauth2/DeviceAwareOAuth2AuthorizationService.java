@@ -38,6 +38,9 @@ public class DeviceAwareOAuth2AuthorizationService implements OAuth2Authorizatio
 
     private static final String FIND_IDS_BY_PRINCIPAL =
             "SELECT id FROM ctxa_oauth2_authorization WHERE principal_name = ? AND refresh_token_value IS NOT NULL";
+    private static final String FIND_UNEXPIRED_IDS_BY_PRINCIPAL =
+            "SELECT id FROM ctxa_oauth2_authorization WHERE principal_name = ?"
+                    + " AND (access_token_expires_at > ? OR refresh_token_expires_at > ?)";
     private static final String FIND_UNEXPIRED_IDS_BY_PRINCIPAL_AND_CLIENT =
             "SELECT id FROM ctxa_oauth2_authorization WHERE principal_name = ? AND registered_client_id = ?"
                     + " AND (access_token_expires_at > ? OR refresh_token_expires_at > ?)";
@@ -150,8 +153,21 @@ public class DeviceAwareOAuth2AuthorizationService implements OAuth2Authorizatio
         Assert.hasText(principalName, "principalName cannot be empty");
         Assert.hasText(registeredClientId, "registeredClientId cannot be empty");
         Timestamp now = Timestamp.from(Instant.now());
-        List<String> ids = jdbcTemplate.queryForList(FIND_UNEXPIRED_IDS_BY_PRINCIPAL_AND_CLIENT, String.class,
-                principalName, registeredClientId, now, now);
+        return usableOf(jdbcTemplate.queryForList(FIND_UNEXPIRED_IDS_BY_PRINCIPAL_AND_CLIENT, String.class,
+                principalName, registeredClientId, now, now));
+    }
+
+    /**
+     * The principal's authorizations whose access or refresh token still works, through any client: its sign-ins and the
+     * tokens without a refresh token that clients got for it by token exchange.
+     */
+    public List<OAuth2Authorization> findUsableByPrincipalName(String principalName) {
+        Assert.hasText(principalName, "principalName cannot be empty");
+        Timestamp now = Timestamp.from(Instant.now());
+        return usableOf(jdbcTemplate.queryForList(FIND_UNEXPIRED_IDS_BY_PRINCIPAL, String.class, principalName, now, now));
+    }
+
+    private List<OAuth2Authorization> usableOf(List<String> ids) {
         return ids.stream()
                 .map(this::safeFindById)
                 .filter(Objects::nonNull)
@@ -164,14 +180,27 @@ public class DeviceAwareOAuth2AuthorizationService implements OAuth2Authorizatio
         return token != null && !token.isInvalidated() && !token.isExpired();
     }
 
+    /**
+     * A stored row that cannot be read is removed and passed over. The failure must not leave the read's transaction: it
+     * joins the transaction of a login that saves a new authorization, and would mark that one for rollback, so that the
+     * login failed and took the removal with it, at every sign-in of the user. The removal comes after the read, which
+     * outside such a transaction is read-only.
+     */
     private OAuth2Authorization safeFindById(String id) {
-        try {
-            return onOneConnection(() -> delegate.findById(id));
-        } catch (Exception e) {
-            log.error("[OAuth2] Failed to deserialize authorization {}: {}", id, e.getMessage());
+        Exception[] unreadable = new Exception[1];
+        OAuth2Authorization authorization = onOneConnection(() -> {
+            try {
+                return delegate.findById(id);
+            } catch (Exception e) {
+                unreadable[0] = e;
+                return null;
+            }
+        });
+        if (unreadable[0] != null) {
+            log.error("[OAuth2] Failed to deserialize authorization {}: {}", id, unreadable[0].getMessage());
             cleanupCorruptedAuthorization(id);
-            return null;
         }
+        return authorization;
     }
 
     private void cleanupCorruptedAuthorization(String id) {
@@ -208,11 +237,12 @@ public class DeviceAwareOAuth2AuthorizationService implements OAuth2Authorizatio
         saveOnOneConnection(builder.build());
     }
 
+    /**
+     * Ends whatever was issued for the principal and still works: its sign-ins, and the tokens without a refresh token an
+     * agent's client got for it by token exchange, which {@link #findActiveByPrincipalName} does not answer.
+     */
     public void invalidateAllByPrincipalName(String principalName) {
-        Assert.hasText(principalName, "principalName cannot be empty");
-
-        List<OAuth2Authorization> activeAuthorizations = findActiveByPrincipalName(principalName);
-        activeAuthorizations.forEach(this::invalidateAuthorization);
+        findUsableByPrincipalName(principalName).forEach(this::invalidateAuthorization);
     }
 
     private void enforceConcurrentLoginPolicy(OAuth2Authorization authorization) {

@@ -226,7 +226,7 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
                     preferredFactor = AuthType.valueOf(preferredFactorStr.toUpperCase(Locale.ROOT));
 
                     if (!availableFactors.contains(preferredFactor)) {
-                        log.error("User preferred factor {} not available, ignoring preference for user: {}",
+                        log.debug("User preferred factor {} not available, ignoring preference for user: {}",
                                 preferredFactor, user.getUsername());
                         preferredFactor = null;
                     }

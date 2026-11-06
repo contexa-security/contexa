@@ -63,6 +63,9 @@ public class AgentLearningApiController {
         }
     }
 
+    /** What the administrator is told of a fault of the server; the exception is in the log. */
+    private static final String SERVER_FAULT_MESSAGE = "The action could not be completed. See the server log.";
+
     private final AgentLearningAdminService learningService;
 
     public AgentLearningApiController(AgentLearningAdminService learningService) {
@@ -104,7 +107,7 @@ public class AgentLearningApiController {
         } catch (RuntimeException e) {
             log.error("[AgentLearningApi] Agent learning action failed: agentId={}, action={}", request.agentId(),
                     action, e);
-            return ResponseEntity.internalServerError().body(LearningActionResponse.failed(e.getMessage()));
+            return ResponseEntity.internalServerError().body(LearningActionResponse.failed(SERVER_FAULT_MESSAGE));
         }
     }
 

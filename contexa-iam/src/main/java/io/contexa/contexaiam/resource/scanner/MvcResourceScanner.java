@@ -40,6 +40,7 @@ public class MvcResourceScanner implements ResourceScanner {
     private final IamAdminProperties iamAdminProperties;
     @Nullable
     private final SystemRuntimeSettingsService runtimeSettingsService;
+    private final List<String> applicationPackages;
 
     public MvcResourceScanner(ApplicationContext applicationContext, IamAdminProperties iamAdminProperties) {
         this(applicationContext, iamAdminProperties, null);
@@ -49,9 +50,18 @@ public class MvcResourceScanner implements ResourceScanner {
             ApplicationContext applicationContext,
             IamAdminProperties iamAdminProperties,
             @Nullable SystemRuntimeSettingsService runtimeSettingsService) {
+        this(applicationContext, iamAdminProperties, runtimeSettingsService, List.of());
+    }
+
+    public MvcResourceScanner(
+            ApplicationContext applicationContext,
+            IamAdminProperties iamAdminProperties,
+            @Nullable SystemRuntimeSettingsService runtimeSettingsService,
+            List<String> applicationPackages) {
         this.applicationContext = applicationContext;
         this.iamAdminProperties = iamAdminProperties;
         this.runtimeSettingsService = runtimeSettingsService;
+        this.applicationPackages = applicationPackages;
     }
 
     @Override
@@ -106,10 +116,10 @@ public class MvcResourceScanner implements ResourceScanner {
     }
 
     private List<String> scannerBasePackages() {
-        if (runtimeSettingsService == null) {
-            return SystemRuntimeSettingsService.normalizePackagePrefixes(null);
-        }
-        return runtimeSettingsService.getMvcResourceScannerBasePackages();
+        List<String> configured = runtimeSettingsService == null
+                ? SystemRuntimeSettingsService.normalizePackagePrefixes(null)
+                : runtimeSettingsService.getMvcResourceScannerBasePackages();
+        return SystemRuntimeSettingsService.withApplicationPackages(configured, applicationPackages);
     }
 
     boolean isConfiguredScannerPackage(Class<?> beanType, List<String> basePackages) {

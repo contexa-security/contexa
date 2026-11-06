@@ -20,6 +20,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
+import io.contexa.contexacommon.store.StoreFailures;
 import jakarta.annotation.PostConstruct;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -28,7 +29,7 @@ import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
-
+
 
 @Slf4j
 public class RedisContexaCacheService extends AbstractContexaCacheService {
@@ -67,7 +68,7 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
         }
 
         if (properties.getType() != ContexaCacheProperties.CacheType.LOCAL) {
-            String redisKey = properties.getRedis().getKeyPrefix() + key;
+            String redisKey = properties.getRedis().qualifiedKeyPrefix() + key;
             try {
                 String redisJson = redisTemplate.opsForValue().get(redisKey);
                 if (redisJson != null) {
@@ -79,7 +80,9 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
                     return value;
                 }
             } catch (Exception e) {
-                log.error("L2 cache lookup failed: {}", key, e);
+                if (!StoreFailures.isReportedOutage(e)) {
+                    log.error("L2 cache lookup failed: {}", key, e);
+                }
             }
         }
 
@@ -101,13 +104,24 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
             }
 
             if (properties.getType() != ContexaCacheProperties.CacheType.LOCAL) {
-                String redisKey = properties.getRedis().getKeyPrefix() + key;
+                String redisKey = properties.getRedis().qualifiedKeyPrefix() + key;
                 int ttlSeconds = getRedisTtl(domain);
-                redisTemplate.opsForValue().set(redisKey, json, ttlSeconds, TimeUnit.SECONDS);
+                writeThrough(key, redisKey, json, ttlSeconds);
             }
 
         } catch (JsonProcessingException e) {
             log.error("Cache serialization failed: {}", key, e);
+        }
+    }
+
+    /** D-2 (PR-84): a cache Redis does not take is a cache without the entry, as a local cache never fails its caller. */
+    private void writeThrough(String key, String redisKey, String json, int ttlSeconds) {
+        try {
+            redisTemplate.opsForValue().set(redisKey, json, ttlSeconds, TimeUnit.SECONDS);
+        } catch (RuntimeException e) {
+            if (!StoreFailures.isReportedOutage(e)) {
+                log.error("L2 cache write failed: {}", key, e);
+            }
         }
     }
 
@@ -138,7 +152,7 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
         }
 
         if (properties.getType() != ContexaCacheProperties.CacheType.LOCAL) {
-            String redisPattern = properties.getRedis().getKeyPrefix() + key;
+            String redisPattern = properties.getRedis().qualifiedKeyPrefix() + key;
             if (key.contains("*")) {
                 Set<String> keys = scanKeys(redisPattern);
                 if (!keys.isEmpty()) {
@@ -166,7 +180,7 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
         }
 
         if (properties.getType() != ContexaCacheProperties.CacheType.LOCAL) {
-            Set<String> keys = scanKeys(properties.getRedis().getKeyPrefix() + "*");
+            Set<String> keys = scanKeys(properties.getRedis().qualifiedKeyPrefix() + "*");
             if (!keys.isEmpty()) {
                 redisTemplate.delete(keys);
             }
@@ -254,7 +268,7 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
     private void publishInvalidationEvent(String key) {
         try {
             redisTemplate.convertAndSend(
-                    properties.getPubsub().getChannel(),
+                    properties.getPubsub().qualifiedChannel(),
                     key
             );
         } catch (Exception e) {

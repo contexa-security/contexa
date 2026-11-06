@@ -104,6 +104,15 @@ class JdbcAgentNoticeStoreTest {
         assertThat(store.list("tenant-acme", 10)).extracting(AgentNotice::noticeId).containsExactly("n-2");
         assertThat(store.list(null, 1)).hasSize(1);
 
+        // The notice of what a correlation names, as it was delivered: a confirmation's request is looked up by it.
+        assertThat(store.find("alice", AgentNotice.AGENT_STOPPED, "req-n-1")).map(AgentNotice::noticeId)
+                .contains("n-1");
+        assertThat(store.find("alice", AgentNotice.AGENT_STOPPED, "req-n-1")).map(AgentNotice::deliveredBy)
+                .contains("MAIL");
+        assertThat(store.find("alice", AgentNotice.CONFIRMATION_REQUESTED, "req-n-1")).isEmpty();
+        assertThat(store.find("carol", AgentNotice.AGENT_STOPPED, "req-n-1")).isEmpty();
+        assertThat(store.find("alice", AgentNotice.AGENT_STOPPED, "req-n-9")).isEmpty();
+
         assertThat(store.markRead("n-1", "bob")).isFalse();
         assertThat(store.markRead("n-1", "alice")).isTrue();
         assertThat(store.forRecipient("alice", 10).get(1).readAt()).isEqualTo(NOW.plusSeconds(60));

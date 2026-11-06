@@ -36,6 +36,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -223,6 +226,53 @@ class SecurityMonitoringServiceTest {
                 .containsEntry("batchDispatchFailureCount", 2)
                 .containsEntry("batchRequeueExhausted", true)
                 .containsEntry("batchRequeueExhaustedReason", "max_batch_requeue_attempts_exceeded");
+    }
+
+    @Test
+    @DisplayName("what the analysis is done with goes to the collector, and a collector that fails stops nothing")
+    void shouldTellTheCollectorAnEventIsSettled() {
+        service = new SecurityMonitoringService(eventCollector, new SecurityPlaneProperties());
+        SecurityEvent event = SecurityEvent.builder().eventId("evt-settled").userId("user-1").build();
+        doThrow(new IllegalStateException("collector stopped")).when(eventCollector).settled(event);
+
+        assertThatCode(() -> service.settled(event)).doesNotThrowAnyException();
+
+        verify(eventCollector).settled(event);
+    }
+
+    @Test
+    @DisplayName("the listener of the queue says its events go on after it returns")
+    void shouldSayItsEventsAreSettledLater() {
+        service = new SecurityMonitoringService(eventCollector, new SecurityPlaneProperties());
+        service.initialize();
+
+        ArgumentCaptor<SecurityEventListener> listenerCaptor = ArgumentCaptor.forClass(SecurityEventListener.class);
+        verify(eventCollector).registerListener(listenerCaptor.capture());
+
+        assertThat(listenerCaptor.getValue().settlesItsEvents()).isTrue();
+    }
+
+    @Test
+    @DisplayName("an event given up after its batch failed is settled, so it holds nothing back")
+    void shouldSettleAnEventDroppedAfterTheRequeueBudget() throws Exception {
+        SecurityPlaneProperties properties = new SecurityPlaneProperties();
+        properties.getMonitor().setQueueSize(4);
+        properties.getMonitor().setBatchSize(1);
+        properties.getMonitor().setFlushIntervalMs(10);
+        properties.getAgent().setMaxDeferredRetries(1);
+
+        service = new SecurityMonitoringService(eventCollector, properties);
+        service.setBatchProcessor(events -> {
+            throw new IllegalStateException("the agent is stopped");
+        });
+        service.initialize();
+        ArgumentCaptor<SecurityEventListener> listenerCaptor = ArgumentCaptor.forClass(SecurityEventListener.class);
+        verify(eventCollector).registerListener(listenerCaptor.capture());
+        SecurityEvent event = SecurityEvent.builder().eventId("evt-given-up").userId("user-1").build();
+
+        listenerCaptor.getValue().onSecurityEvent(event);
+
+        verify(eventCollector, timeout(3000)).settled(event);
     }
 
     private boolean waitForMetadata(SecurityEvent event, String key, Object expectedValue) throws InterruptedException {

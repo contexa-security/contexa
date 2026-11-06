@@ -29,6 +29,13 @@ class InMemorySecurityContextDataStoreContractTest extends AbstractSecurityConte
     }
 
     @Override
+    protected SecurityContextDataStore createStoreWithAllowValidity(Duration validity) {
+        InMemorySecurityContextDataStore store = (InMemorySecurityContextDataStore) createStore();
+        store.setAllowValidity(validity);
+        return store;
+    }
+
+    @Override
     protected SecurityContextDataStore createStoreWithLoginFailureRetention(Duration retention) {
         InMemorySecurityContextDataStore store = new InMemorySecurityContextDataStore();
         store.setLoginFailureRetention(retention);
@@ -42,6 +49,12 @@ class InMemorySecurityContextDataStoreContractTest extends AbstractSecurityConte
         return store;
     }
 
+    /** Nothing of a store in memory outlives its process. */
+    @Override
+    protected SecurityContextDataStore storeOfTheNextProcess() {
+        return createStore();
+    }
+
     @Override
     protected SecurityContextDataStore createStoreWithEventProcessedTtl(Duration ttl) {
         return new InMemorySecurityContextDataStore(
@@ -53,6 +66,14 @@ class InMemorySecurityContextDataStoreContractTest extends AbstractSecurityConte
     @Override
     protected void passTime(Duration elapsed) {
         clock.advance(elapsed);
+    }
+
+    /** A sweep first, as a Redis key past its TTL is gone without one. */
+    @Override
+    protected long heldLoginFailureKeys() {
+        InMemorySecurityContextDataStore memory = (InMemorySecurityContextDataStore) store;
+        memory.removeExpiredEntries();
+        return memory.keyCounts().get("loginFailures");
     }
 
     /** The only session risk of the test; a sweep first, so that a risk past its TTL is not counted. */

@@ -93,6 +93,12 @@ public class VectorStoreCacheLayer {
     }
 
     private static final VectorSearchScope UNSCOPED = new VectorSearchScope(null, null);
+    /** PR-91: the documents kept may take a thirty-second of the maximum heap, within these bounds. */
+    private static final int CACHE_HEAP_SHARE_DIVISOR = 32;
+    private static final long MIN_CACHE_BYTES = 8L * 1024 * 1024;
+    private static final long MAX_CACHE_BYTES = 128L * 1024 * 1024;
+    /** What a document takes around its text and metadata. */
+    private static final long DOCUMENT_BYTES = 256;
 
     private Cache<String, List<Document>> cache;
     /** The scope of each cached search, so that a write clears only the searches it can change (W2-15). */
@@ -103,8 +109,16 @@ public class VectorStoreCacheLayer {
     public void init() {
         TieredStrategyProperties.VectorCache vectorCache = tieredStrategyProperties.getVectorCache();
 
-        Caffeine<Object, Object> builder = Caffeine.newBuilder()
-                .maximumSize(vectorCache.getMaxSize())
+        // PR-91: a search weighs its documents and at least its share of the budget, so that the number of searches
+        // set for the cache holds as well: a search kept or not gives the same documents, one not kept is searched again.
+        int maxSearches = vectorCache.getMaxSize();
+        long budget = maxSearches > 0 ? defaultCacheBudgetBytes(Runtime.getRuntime().maxMemory()) : 0;
+        long searchShare = maxSearches > 0 ? (budget + maxSearches - 1) / maxSearches : 0;
+
+        Caffeine<String, List<Document>> builder = Caffeine.newBuilder()
+                .maximumWeight(budget)
+                .weigher((String key, List<Document> documents) ->
+                        (int) Math.min(Integer.MAX_VALUE, Math.max(searchShare, documentsBytes(documents))))
                 .expireAfterWrite(vectorCache.getExpireMinutes(), TimeUnit.MINUTES)
                 .evictionListener((key, value, cause) -> {
                     if (key != null) {
@@ -128,12 +142,12 @@ public class VectorStoreCacheLayer {
         try {
             String cacheKey = generateCacheKey(request);
 
-            List<Document> documents = cache.get(cacheKey, ignored -> {
+            // The scope goes in before the search is kept, so that whatever removes the search removes its scope.
+            return cache.get(cacheKey, ignored -> {
                 List<Document> result = search(request);
+                scopes.put(cacheKey, VectorSearchScope.of(request.getFilterExpression()));
                 return result != null ? List.copyOf(result) : List.of();
             });
-            scopes.put(cacheKey, VectorSearchScope.of(request.getFilterExpression()));
-            return documents;
 
         } catch (Exception e) {
             log.error("[VectorStoreCacheLayer] Error during similarity search", e);
@@ -229,6 +243,42 @@ public class VectorStoreCacheLayer {
 
         cache.invalidateAll();
         scopes.clear();
+    }
+
+    /**
+     * PR-91: the limit of the documents kept for a maximum heap of {@code maxHeapBytes}: a thirty-second of it, between
+     * 8 MiB and 128 MiB. A 512 MiB heap gives 16 MiB, 2 GiB 64 MiB, 4 GiB or more 128 MiB.
+     */
+    static long defaultCacheBudgetBytes(long maxHeapBytes) {
+        return Math.max(MIN_CACHE_BYTES, Math.min(MAX_CACHE_BYTES, maxHeapBytes / CACHE_HEAP_SHARE_DIVISOR));
+    }
+
+    /** Their text and metadata at two bytes a character. */
+    private static long documentsBytes(List<Document> documents) {
+        long bytes = 0;
+        for (Document document : documents) {
+            String text = document.getText();
+            bytes += DOCUMENT_BYTES + 2L * ((text != null ? text.length() : 0) + document.getMetadata().toString().length());
+        }
+        return bytes;
+    }
+
+    /** The bytes the documents kept are counted at (PR-91). */
+    long cachedBytes() {
+        cache.cleanUp();
+        return cache.policy().eviction().orElseThrow().weightedSize().orElseThrow();
+    }
+
+    /** How many searches are kept. */
+    long cachedSearches() {
+        cache.cleanUp();
+        return cache.asMap().size();
+    }
+
+    /** How many searches have a scope kept for them. */
+    long scopedSearches() {
+        cache.cleanUp();
+        return scopes.size();
     }
 
     public CacheStatistics getStatistics() {

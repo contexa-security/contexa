@@ -165,6 +165,9 @@ class ContexaDefaultPropertiesPostProcessorTest {
     }
 
     private MockEnvironment activeEnvironment() {
-        return new MockEnvironment().withProperty("contexa.ai.security.mode", "SANDBOX");
+        MockEnvironment environment = new MockEnvironment();
+        environment.getPropertySources().addFirst(new MapPropertySource(
+                "contexaAiSecurityAnnotation", Map.of("contexa.ai.security.mode", "SANDBOX")));
+        return environment;
     }
 }

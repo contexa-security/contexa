@@ -26,6 +26,8 @@ import io.contexa.contexacore.autonomous.agent.InMemoryAgentRegistry;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
 import io.contexa.contexaiam.admin.web.agent.service.AgentContainmentAdminService;
+import io.contexa.contexaiam.domain.entity.BlockedUser;
+import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
 import io.contexa.contexacore.autonomous.agent.AgentScopeRestriction;
 import io.contexa.contexacore.autonomous.context.support.ActionFamily;
 import org.junit.jupiter.api.AfterEach;
@@ -226,6 +228,47 @@ class AgentStopsTest {
         String blockList = render("contexa/admin/blacklist", "/contexa/admin/blacklist", Locale.KOREAN,
                 Map.of("blockedUsers", List.of(), "currentFilter", "all"));
         assertThat(blockList).contains("blacklistTabs", "/contexa/admin/blacklist/agents", ">에이전트<", ">사람<");
+    }
+
+    @Test
+    void theScreensOfferASessionUnderItsOwnBlockNothingToChange() {
+        registry.register(new AgentRegistrationRequest(null, "sync-agent", "Sync", "SYNC", "sync-client", "carol",
+                true));
+        registry.suspend(null, "sync-agent", "BLOCK: Bulk export at night");
+        when(auditLog.findTop500ByEventCategoryInOrderByTimestampDesc(any())).thenReturn(List.of(
+                stop("AGENT_STOPPED", "alice", "report-agent", 11, null)));
+        Map<String, Object> variables = new HashMap<>();
+        variables.put("available", true);
+        variables.put("underOwnBlock", true);
+        variables.put("suspendedAgents", service.suspendedAgents());
+        variables.put("stoppedDelegations", service.stoppedDelegations());
+        variables.put("history", service.history());
+        variables.put("notices", service.notices());
+        variables.put("narrowedAgents", List.of());
+
+        String stops = render("contexa/admin/agent-stops", "/contexa/admin/blacklist/agents", Locale.ENGLISH, variables);
+        assertThat(stops).contains("readOnlyNotice", "sync-agent", "report-agent")
+                .doesNotContain("/contexa/admin/blacklist/agents/kill-switch", "/contexa/admin/blacklist/agents/release-agent",
+                        "/contexa/admin/blacklist/agents/release-delegation");
+
+        BlockedUser resolved = BlockedUser.builder().id(7L).userId("alice").username("alice")
+                .status(BlockedUserStatus.RESOLVED).blockCount(1).blockedAt(LocalDateTime.now()).build();
+        String list = render("contexa/admin/blacklist", "/contexa/admin/blacklist", Locale.ENGLISH,
+                Map.of("blockedUsers", List.of(resolved), "currentFilter", "all", "underOwnBlock", true));
+        assertThat(list).contains("readOnlyNotice", "/contexa/admin/blacklist/7")
+                .doesNotContain("/contexa/admin/blacklist/challenge-release", "/contexa/admin/blacklist/7/delete");
+
+        String open = render("contexa/admin/blacklist", "/contexa/admin/blacklist", Locale.ENGLISH,
+                Map.of("blockedUsers", List.of(resolved), "currentFilter", "all", "underOwnBlock", false));
+        assertThat(open).contains("/contexa/admin/blacklist/challenge-release", "/contexa/admin/blacklist/7/delete")
+                .doesNotContain("readOnlyNotice");
+
+        BlockedUser blocked = BlockedUser.builder().id(8L).userId("alice").username("alice")
+                .status(BlockedUserStatus.BLOCKED).blockCount(1).blockedAt(LocalDateTime.now()).build();
+        assertThat(render("contexa/admin/blacklist-detail", "/contexa/admin/blacklist/8", Locale.ENGLISH,
+                Map.of("blocked", blocked, "mayLift", false))).doesNotContain("resolveForm\"");
+        assertThat(render("contexa/admin/blacklist-detail", "/contexa/admin/blacklist/8", Locale.ENGLISH,
+                Map.of("blocked", blocked, "mayLift", true))).contains("/contexa/admin/blacklist/8/resolve");
     }
 
     private static AuditLog stop(String category, String delegator, String agent, int hour, String correlation) {

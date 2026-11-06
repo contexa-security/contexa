@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.infra.redis;
 
+import io.contexa.contexacommon.store.ApplicationNamespace;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +43,12 @@ public class RedisDistributedLockService implements DistributedLockService {
     private final RedisTemplate<String, Object> redisTemplate;
 
     private static final String LOCK_PREFIX = "distributed:lock:";
+
+    /** The key of a lock: behind the name of the application when it has one, so that the locks of another application sharing the Redis are not these. */
+    private static String lockKeyOf(String sanitizedKey) {
+        return ApplicationNamespace.key(LOCK_PREFIX + sanitizedKey);
+    }
+
     private static final int MAX_KEY_LENGTH = 128;
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(30);
 
@@ -156,7 +163,7 @@ public class RedisDistributedLockService implements DistributedLockService {
     public boolean tryLock(String resourceKey, String owner, Duration timeout) {
         requireKeyAndOwner(resourceKey, owner);
         String sanitizedKey = sanitizeKey(resourceKey);
-        String lockKey = LOCK_PREFIX + sanitizedKey;
+        String lockKey = lockKeyOf(sanitizedKey);
 
         try {
             // As the in-memory service: the timeout as given, to the millisecond; thirty seconds without one.
@@ -187,7 +194,7 @@ public class RedisDistributedLockService implements DistributedLockService {
     public boolean unlock(String resourceKey, String owner) {
         requireKeyAndOwner(resourceKey, owner);
         String sanitizedKey = sanitizeKey(resourceKey);
-        String lockKey = LOCK_PREFIX + sanitizedKey;
+        String lockKey = lockKeyOf(sanitizedKey);
 
         try {
             Long result = redisTemplate.execute(
@@ -285,7 +292,7 @@ public class RedisDistributedLockService implements DistributedLockService {
             return null;
         }
         String sanitizedKey = sanitizeKey(resourceKey);
-        String lockKey = LOCK_PREFIX + sanitizedKey;
+        String lockKey = lockKeyOf(sanitizedKey);
 
         try {
             String owner = (String) redisTemplate.opsForHash().get(lockKey, "owner");
@@ -316,7 +323,7 @@ public class RedisDistributedLockService implements DistributedLockService {
             return false;
         }
         String sanitizedKey = sanitizeKey(resourceKey);
-        String lockKey = LOCK_PREFIX + sanitizedKey;
+        String lockKey = lockKeyOf(sanitizedKey);
 
         try {
             Boolean deleted = redisTemplate.delete(lockKey);
@@ -332,7 +339,7 @@ public class RedisDistributedLockService implements DistributedLockService {
 
     public void clearAllLocks() {
         try {
-            Set<String> keys = redisTemplate.keys(LOCK_PREFIX + "*");
+            Set<String> keys = redisTemplate.keys(lockKeyOf("*"));
             if (keys != null && !keys.isEmpty()) {
                 redisTemplate.delete(keys);
             }
@@ -346,7 +353,7 @@ public class RedisDistributedLockService implements DistributedLockService {
             return false;
         }
         String sanitizedKey = sanitizeKey(resourceKey);
-        String lockKey = LOCK_PREFIX + sanitizedKey;
+        String lockKey = lockKeyOf(sanitizedKey);
 
         try {
             return redisTemplate.hasKey(lockKey);

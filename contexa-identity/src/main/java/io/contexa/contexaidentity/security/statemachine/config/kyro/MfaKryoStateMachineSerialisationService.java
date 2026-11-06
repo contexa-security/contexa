@@ -17,22 +17,16 @@ package io.contexa.contexaidentity.security.statemachine.config.kyro;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.serializers.DefaultSerializers;
+import com.esotericsoftware.kryo.serializers.FieldSerializer;
 import com.esotericsoftware.kryo.util.DefaultInstantiatorStrategy;
-import io.contexa.contexacore.security.zerotrust.ZeroTrustAuthenticationToken;
 import io.contexa.contexaidentity.security.core.config.StateConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.StateType;
-import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
-import io.contexa.contexaidentity.security.filter.RestAuthenticationToken;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
-import io.contexa.contexacommon.entity.Users;
-import lombok.extern.slf4j.Slf4j;
 import org.objenesis.strategy.StdInstantiatorStrategy;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.statemachine.kryo.KryoStateMachineSerialisationService;
 import org.springframework.statemachine.kryo.StateMachineContextSerializer;
 import org.springframework.statemachine.support.DefaultExtendedState;
@@ -43,26 +37,41 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-@Slf4j
+/**
+ * What a distributed deployment keeps of an MFA flow. The fields of the flow are Contexa's own and are stored by value.
+ * Its two open fields hold what belongs to the application, and neither decides whether a flow can be restored (PR-80):
+ * of the sign-in only the facts the flow reads are kept ({@link MinimalAuthenticationSerializer}), and each attribute is
+ * kept on its own ({@link FactorContextAttributesSerializer}). A user who cannot restore the flow cannot answer a
+ * CHALLENGE, so no object of the application may be able to stop it.
+ */
 public class MfaKryoStateMachineSerialisationService extends KryoStateMachineSerialisationService<MfaState, MfaEvent> {
 
     @Override
     protected void configureKryoInstance(Kryo kryo) {
+        configureTypes(kryo);
+
+        Kryo attributeValues = new Kryo();
+        attributeValues.setClassLoader(kryo.getClassLoader());
+        configureTypes(attributeValues);
+
+        kryo.register(FactorContext.class, factorContextSerializer(kryo, attributeValues));
+    }
+
+    private void configureTypes(Kryo kryo) {
 
         super.configureKryoInstance(kryo);
-        kryo.setInstantiatorStrategy(
-                new DefaultInstantiatorStrategy(new StdInstantiatorStrategy())
-        );
-        kryo.setRegistrationRequired(false);
+        configureValueTypes(kryo);
         kryo.register(DefaultStateMachineContext.class);
         kryo.register(DefaultExtendedState.class);
-        kryo.register(FactorContext.class);
         kryo.register(FactorContext.MfaAttemptDetail.class);
         kryo.register(StateConfig.class);
         kryo.register(StateType.class, new DefaultSerializers.EnumSerializer(StateType.class));
@@ -84,24 +93,38 @@ public class MfaKryoStateMachineSerialisationService extends KryoStateMachineSer
         kryo.register(AtomicInteger.class, new AtomicIntegerSerializer()); 
         kryo.register(AuthType.class);
         kryo.register(Instant.class);
-        MinimalAuthenticationSerializer minimalAuthenticationSerializer = new MinimalAuthenticationSerializer();
-        kryo.register(Authentication.class, minimalAuthenticationSerializer);
-        kryo.register(UsernamePasswordAuthenticationToken.class, minimalAuthenticationSerializer);
-        kryo.register(RestAuthenticationToken.class, minimalAuthenticationSerializer);
-        kryo.register(ZeroTrustAuthenticationToken.class, minimalAuthenticationSerializer);
-        try {
-            Class<?> unmodifiableListClass = Collections.unmodifiableList(new ArrayList<>()).getClass();
-            kryo.register(unmodifiableListClass, new UnmodifiableListSerializer());
-            Class<?> emptyListClass = Collections.emptyList().getClass();
-            if (kryo.getRegistration(emptyListClass) == null) {
-                kryo.register(emptyListClass);
-            }
-        } catch (Exception e) {
-            log.error("Failed to register unmodifiable collection types for Kryo", e);
-        }
-        kryo.register(SimpleGrantedAuthority.class);
-        kryo.register(UnifiedCustomUserDetails.class);
-        kryo.register(Users.class);
         kryo.addDefaultSerializer(DefaultStateMachineContext.class, new StateMachineContextSerializer<MfaState, MfaEvent>());
+    }
+
+    /**
+     * How a value of any type is made and read. The read-only views of {@link Collections} are added here because
+     * Kryo's readers would refill them; Kryo itself covers the empty, singleton and {@code List.of} kinds and
+     * {@code Arrays.asList}.
+     */
+    private static void configureValueTypes(Kryo kryo) {
+        kryo.setInstantiatorStrategy(new DefaultInstantiatorStrategy(new StdInstantiatorStrategy()));
+        kryo.setRegistrationRequired(false);
+        kryo.addDefaultSerializer(Authentication.class, new MinimalAuthenticationSerializer());
+        kryo.addDefaultSerializer(Collections.unmodifiableCollection(new ArrayList<>()).getClass(),
+                new UnmodifiableListSerializer());
+        kryo.addDefaultSerializer(Collections.unmodifiableList(new LinkedList<>()).getClass(),
+                new UnmodifiableListSerializer());
+        kryo.addDefaultSerializer(Collections.unmodifiableSet(new HashSet<>()).getClass(),
+                new UnmodifiableSetSerializer());
+        kryo.addDefaultSerializer(Collections.unmodifiableMap(new HashMap<>()).getClass(),
+                new UnmodifiableMapSerializer());
+    }
+
+    /**
+     * The value class of the sign-in is fixed, so the class of the application's authentication is not written either:
+     * a reader that cannot load it would fail before any serializer is asked.
+     */
+    private static FieldSerializer<FactorContext> factorContextSerializer(Kryo kryo, Kryo attributeValues) {
+        FieldSerializer<FactorContext> serializer = new FieldSerializer<>(kryo, FactorContext.class);
+        serializer.getField("primaryAuthentication")
+                .setValueClass(Authentication.class, new MinimalAuthenticationSerializer());
+        serializer.getField("attributes")
+                .setValueClass(Map.class, new FactorContextAttributesSerializer(attributeValues));
+        return serializer;
     }
 }

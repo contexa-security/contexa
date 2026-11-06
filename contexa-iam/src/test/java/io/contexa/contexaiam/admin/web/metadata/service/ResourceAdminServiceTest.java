@@ -139,7 +139,7 @@ class ResourceAdminServiceTest {
             assertThat(res.get(1).skipped()).isTrue();
             assertThat(res.get(2).skipped()).isFalse();
             assertThat(res.get(2).permissionId()).isEqualTo(300L);
-            assertThat(res.get(3).error()).contains("create failed");
+            assertThat(res.get(3).error()).isEqualTo("The action could not be completed. See the server log.");
         }
     }
 

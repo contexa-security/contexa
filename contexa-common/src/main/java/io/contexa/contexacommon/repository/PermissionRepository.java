@@ -23,6 +23,7 @@ import java.util.Optional;
 import java.util.Set;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -48,6 +49,19 @@ public interface PermissionRepository extends JpaRepository<Permission, Long> {
             Pageable pageable);
     Optional<Permission> findByName(String name);
 
+    /** A page of all permissions, each read together with the resource it guards. */
+    @EntityGraph(attributePaths = "managedResource")
+    Page<Permission> findAllWithManagedResourceBy(Pageable pageable);
+
+    /** The permission, read together with the resource it guards. */
+    @EntityGraph(attributePaths = "managedResource")
+    Optional<Permission> findWithManagedResourceById(Long id);
+
+    /**
+     * The permissions whose name, friendly name or description contains the text, each read together with the resource it
+     * guards: a screen that lists them shows that resource after the session of this query has ended.
+     */
+    @EntityGraph(attributePaths = "managedResource")
     Page<Permission> findByNameContainingIgnoreCaseOrFriendlyNameContainingIgnoreCaseOrDescriptionContainingIgnoreCase(
             String name, String friendlyName, String description, Pageable pageable);
 
@@ -73,6 +87,14 @@ public interface PermissionRepository extends JpaRepository<Permission, Long> {
 
     @Query("SELECT COUNT(rp) FROM RolePermission rp WHERE rp.permission.id = :permissionId")
     long countRoleAssignments(@Param("permissionId") Long permissionId);
+
+    /** How many roles given to groups carry the permission with them. */
+    @Query("SELECT COUNT(grp) FROM GroupRolePermission grp WHERE grp.permission.id = :permissionId")
+    long countGroupAssignments(@Param("permissionId") Long permissionId);
+
+    /** How many roles given to accounts carry the permission with them. */
+    @Query("SELECT COUNT(urp) FROM UserRolePermission urp WHERE urp.permission.id = :permissionId")
+    long countAccountAssignments(@Param("permissionId") Long permissionId);
 
     @Modifying
     @Query("DELETE FROM Permission p WHERE p.id IN :ids")

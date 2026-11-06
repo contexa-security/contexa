@@ -17,18 +17,30 @@ package io.contexa.contexacore.autonomous.service;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.store.ContexaStores;
+import io.contexa.contexacommon.store.StoreUnavailableException;
 import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
+import io.contexa.contexacore.autonomous.audit.AgentDecisionRecord;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
+import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedException;
+import io.contexa.contexacore.autonomous.handler.handler.SecurityDecisionEnforcementHandler;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageLevel;
+import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageReport;
+import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
+import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
+import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
+import io.contexa.contexacommon.security.context.RequestSecurityContextAttributes;
 import io.contexa.contexacore.autonomous.agent.AgentAllowReuse;
 import io.contexa.contexacore.autonomous.context.support.ActionFamily;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import org.aopalliance.intercept.MethodInvocation;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,16 +50,22 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -92,6 +110,105 @@ class SynchronousProtectableDecisionServiceTest {
     @AfterEach
     void tearDown() {
         RequestContextHolder.resetRequestAttributes();
+    }
+
+    private void aRequestToBeDecided() {
+        aRequestToBeDecided(methodEvent("/admin/reports"));
+    }
+
+    /** A request that ends in a failure reads less of the store than one that ends in a decision. */
+    private void aRequestToBeDecided(ZeroTrustSpringEvent event) {
+        bindRequest(request("/admin/reports"));
+        lenient().when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null))
+                .thenReturn(event);
+        lenient().when(eventListener.generateAuthorizationContextBindingHash(event)).thenReturn(CONTEXT_HASH);
+        lenient().when(eventListener.shouldPublishSynchronousAuthorizationEvent(event)).thenReturn(true);
+        lenient().when(actionRepository.getCurrentAction(USER_ID, CONTEXT_HASH)).thenReturn(ZeroTrustAction.PENDING_ANALYSIS);
+        lenient().when(actionRepository.getAnalysisData(USER_ID)).thenReturn(ZeroTrustActionRepository.ZeroTrustAnalysisData.pending());
+    }
+
+    /** What the enforcement leaves on the event when the record of a decision could not be written. */
+    private void theStoreDidNotTakeTheDecision(ZeroTrustAction decided) {
+        when(securityPlaneAgent.processSecurityEvent(any(SecurityEvent.class))).thenAnswer(call -> {
+            SecurityEvent event = call.getArgument(0);
+            event.addMetadata(SecurityDecisionEnforcementHandler.AUDIT_PENDING_PROCESSING_RESULT,
+                    ProcessingResult.builder().success(true).action(decided.name()).build());
+            throw new IllegalStateException("Security event pipeline did not produce a final result");
+        });
+    }
+
+    @Test
+    @DisplayName("Q-7: a restriction the model decided stands for this request though the store did not take it")
+    void aRestrictionTheStoreDidNotTakeAnswersTheRequest() {
+        aRequestToBeDecided();
+        theStoreDidNotTakeTheDecision(ZeroTrustAction.BLOCK);
+
+        assertThat(service.analyze(methodInvocation, authentication).action()).isEqualTo(ZeroTrustAction.BLOCK);
+    }
+
+    @Test
+    @DisplayName("Q-7: an ALLOW the store did not take reads as an outage: the call goes on undecided, without a server error")
+    void anAllowTheStoreDidNotTakeIsAnOutage() {
+        aRequestToBeDecided();
+        theStoreDidNotTakeTheDecision(ZeroTrustAction.ALLOW);
+
+        assertThatThrownBy(() -> service.analyze(methodInvocation, authentication))
+                .isInstanceOf(StoreUnavailableException.class);
+    }
+
+    @Test
+    @DisplayName("Q-7: an analysis a store ended reads as an outage")
+    void anAnalysisAStoreEndedIsAnOutage() {
+        aRequestToBeDecided();
+        when(securityPlaneAgent.processSecurityEvent(any(SecurityEvent.class))).thenThrow(new RuntimeException(
+                "Event processing failed", new CannotCreateTransactionException("no connection")));
+
+        assertThatThrownBy(() -> service.analyze(methodInvocation, authentication))
+                .isInstanceOf(StoreUnavailableException.class);
+    }
+
+    @Test
+    @DisplayName("Q-7: a failure that is not a store's stays what it is")
+    void anotherFailureStaysWhatItIs() {
+        aRequestToBeDecided();
+        when(securityPlaneAgent.processSecurityEvent(any(SecurityEvent.class)))
+                .thenThrow(new IllegalStateException("a bug"));
+
+        assertThatThrownBy(() -> service.analyze(methodInvocation, authentication))
+                .isInstanceOf(IllegalStateException.class).hasMessage("a bug");
+    }
+
+    @Test
+    @DisplayName("Q-7: no decision while a store is down reads as an outage; with the stores up it stays no decision")
+    void noDecisionWhileAStoreIsDown() {
+        aRequestToBeDecided();
+        when(securityPlaneAgent.processSecurityEvent(any(SecurityEvent.class))).thenReturn(mock(SecurityEventContext.class));
+
+        assertThat(service.analyze(methodInvocation, authentication).action()).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+
+        ContexaStores stores = new ContexaStores();
+        stores.redis().watchWith(() -> {
+            throw new IllegalStateException("still down");
+        });
+        stores.redis().fail(new QueryTimeoutException("no answer"));
+        service.setContexaStores(stores);
+        try {
+            assertThatThrownBy(() -> service.analyze(methodInvocation, authentication))
+                    .isInstanceOf(StoreUnavailableException.class);
+        } finally {
+            stores.destroy();
+        }
+    }
+
+    @Test
+    @DisplayName("Q-7, A1-5: an agent is never let through without a verdict: an outage refuses it as busy")
+    void anAgentIsRefusedAsBusy() {
+        aRequestToBeDecided(subjectEvent("DELEGATED_AGENT"));
+        when(securityPlaneAgent.processSecurityEvent(any(SecurityEvent.class))).thenThrow(new RuntimeException(
+                "Event processing failed", new CannotCreateTransactionException("no connection")));
+
+        assertThatThrownBy(() -> service.analyze(methodInvocation, authentication))
+                .isInstanceOf(ZeroTrustAccessDeniedException.class);
     }
 
     @Test
@@ -149,6 +266,29 @@ class SynchronousProtectableDecisionServiceTest {
                 service.analyze(methodInvocation, authentication);
 
         assertThat(result.action()).isEqualTo(ZeroTrustAction.CHALLENGE);
+    }
+
+    @Test
+    @DisplayName("PR-86: a decision the store kept out is no answer when the restriction cannot be read back")
+    void analyze_keptOutDecisionIsNoAnswerWithoutTheRestriction() {
+        MockHttpServletRequest request = request("/admin/reports");
+        bindRequest(request);
+        ZeroTrustSpringEvent event = methodEvent("/admin/reports");
+        stubEvent(event);
+        SecurityEvent decided = SecurityEvent.builder().eventId("event-1").userId(USER_ID).build();
+        decided.addMetadata(AgentDecisionRecord.ENFORCEMENT_OUTCOME, AgentDecisionRecord.KEPT_STRICTER);
+        SecurityEventContext processingContext = mock(SecurityEventContext.class);
+        when(processingContext.getSecurityEvent()).thenReturn(decided);
+        when(processingContext.getMetadata()).thenReturn(Map.of("processingResult",
+                ProcessingResult.builder().action(ZeroTrustAction.ALLOW.name()).build()));
+        when(securityPlaneAgent.processSecurityEvent(any(SecurityEvent.class))).thenReturn(processingContext);
+
+        assertThat(service.analyze(methodInvocation, authentication).action()).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+
+        // A request's own restriction kept out stays its answer: it still stops the request and says how to go on.
+        when(processingContext.getMetadata()).thenReturn(Map.of("processingResult",
+                ProcessingResult.builder().action(ZeroTrustAction.CHALLENGE.name()).build()));
+        assertThat(service.analyze(methodInvocation, authentication).action()).isEqualTo(ZeroTrustAction.CHALLENGE);
     }
 
     @Test
@@ -405,6 +545,74 @@ class SynchronousProtectableDecisionServiceTest {
         assertThat(gateFor("DELEGATED_AGENT", "/api/customers/3", null).decideInPlace()).isFalse();
     }
 
+    /**
+     * A record is often named by a value of the query, not by the path, and the event keeps only the query's names: the
+     * ALLOW of one sensitive record answers that record and no other. The events are built from real requests.
+     */
+    @Test
+    @DisplayName("an agent's ALLOW of a sensitive record named in the query answers that record, not the next one")
+    void asyncGate_aSensitiveRecordNamedInTheQueryIsDecidedOnItsOwn() throws Exception {
+        SynchronousProtectableDecisionService gate = withRealEvents();
+
+        bindRequest(agentRequest("id=1", "RESTRICTED"));
+        gate.analyze(methodInvocation, authentication);
+
+        bindRequest(agentRequest("id=1", "RESTRICTED"));
+        assertThat(gate.asyncGate(methodInvocation, authentication).decideInPlace()).as("the record decided").isFalse();
+        for (int id = 2; id <= 10; id++) {
+            bindRequest(agentRequest("id=" + id, "RESTRICTED"));
+            assertThat(gate.asyncGate(methodInvocation, authentication).decideInPlace()).as("record %d", id).isTrue();
+        }
+    }
+
+    /** A general resource keeps its path as the resource: the pages of a list are one resource, up to the request limit. */
+    @Test
+    @DisplayName("an agent's ALLOW of a general resource answers its other queries within the request limit")
+    void asyncGate_theQueriesOfAGeneralResourceAreOneResource() throws Exception {
+        SynchronousProtectableDecisionService gate = withRealEvents();
+
+        bindRequest(agentRequest("page=1", null));
+        gate.analyze(methodInvocation, authentication);
+
+        for (int page = 2; page <= 5; page++) {
+            bindRequest(agentRequest("page=" + page, null));
+            assertThat(gate.asyncGate(methodInvocation, authentication).decideInPlace()).as("page %d", page).isFalse();
+        }
+    }
+
+    /** The gate over the events the publisher builds from the bound request; the ALLOW of the first request is in force. */
+    private SynchronousProtectableDecisionService withRealEvents() throws Exception {
+        SynchronousProtectableDecisionService gate = new SynchronousProtectableDecisionService(
+                new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties()),
+                eventListener, securityPlaneAgent, actionRepository);
+        gate.setAgentAllowReuse(new AgentAllowReuse(10, 3, 1, null));
+        when(methodInvocation.getMethod()).thenReturn(Object.class.getMethod("toString"));
+        when(eventListener.generateAuthorizationContextBindingHash(any())).thenReturn(CONTEXT_HASH);
+        when(eventListener.shouldPublishSynchronousAuthorizationEvent(any())).thenReturn(true);
+        when(securityPlaneAgent.processSecurityEvent(any(SecurityEvent.class))).thenReturn(mock(SecurityEventContext.class));
+        lenient().when(actionRepository.getCurrentAction(any(), any())).thenReturn(ZeroTrustAction.ALLOW);
+        return gate;
+    }
+
+    /** An agent's read of {@code /api/customers}, as the bridge leaves it. */
+    private MockHttpServletRequest agentRequest(String query, String sensitivity) {
+        MockHttpServletRequest request = request("/api/customers");
+        request.setQueryString(query);
+        request.setAttribute(BridgeRequestAttributes.RESOLUTION_RESULT, new BridgeResolutionResult(
+                new RequestContextSnapshot("/api/customers", "GET", "203.0.113.10", "JUnit", "session-1", "request-1",
+                        "/api/customers", null, false, Instant.now()),
+                null,
+                null,
+                new DelegationStamp(USER_ID, "report-agent", true, null, null, null, List.of(), List.of(), null, null,
+                        null, null, Map.of("delegationResolver", "TOKEN")),
+                new BridgeCoverageReport(BridgeCoverageLevel.DELEGATION_CONTEXT, 90, Set.of(), "summary", List.of())));
+        if (sensitivity != null) {
+            request.setAttribute(RequestSecurityContextAttributes.Field.RESOURCE_SENSITIVITY.canonicalAttributeKey(),
+                    sensitivity);
+        }
+        return request;
+    }
+
     private SynchronousProtectableDecisionService.AsyncProtectableGate gateFor(String subjectKind, String resource) {
         return gateFor(subjectKind, resource, null);
     }
@@ -530,6 +738,22 @@ class SynchronousProtectableDecisionServiceTest {
         request.setRemoteAddr("203.0.113.10");
         request.addHeader("User-Agent", "JUnit");
         return request;
+    }
+
+    @Test
+    @DisplayName("a call reads as sensitive as the gate of a call without a decision reads it")
+    void aCallReadsAsSensitiveAsTheGateReadsIt() {
+        ZeroTrustSpringEvent declared = ZeroTrustSpringEvent.builder(new Object())
+                .category(ZeroTrustEventCategory.AUTHORIZATION).eventType(ZeroTrustSpringEvent.TYPE_AUTHORIZATION_METHOD)
+                .userId(USER_ID).payload(Map.of("resourceImportance", "SENSITIVE")).build();
+        ZeroTrustSpringEvent general = ZeroTrustSpringEvent.builder(new Object())
+                .category(ZeroTrustEventCategory.AUTHORIZATION).eventType(ZeroTrustSpringEvent.TYPE_AUTHORIZATION_METHOD)
+                .userId(USER_ID).payload(Map.of()).build();
+        when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null))
+                .thenReturn(declared, general);
+
+        assertThat(service.sensitive(methodInvocation, authentication)).isTrue();
+        assertThat(service.sensitive(methodInvocation, authentication)).isFalse();
     }
 
     private void bindRequest(MockHttpServletRequest request) {

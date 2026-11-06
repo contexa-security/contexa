@@ -20,6 +20,7 @@ import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
+import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.testsupport.I18nTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -55,8 +56,22 @@ class PermissionServiceImplTest {
     @Spy
     private MessageSource messageSource = I18nTestSupport.englishMessageSource();
 
+    @Mock
+    private PolicyRepository policyRepository;
+
     @InjectMocks
     private PermissionServiceImpl service;
+
+    @Test
+    @DisplayName("the policies of a permission are looked for by its name, as it is")
+    void thePoliciesOfAPermissionAreLookedForByItsName() {
+        when(permissionRepository.findById(1L)).thenReturn(Optional.of(buildPermission(1L, "URL_O'Neil")));
+        when(policyRepository.findActivePoliciesReferencing(any())).thenReturn(List.of());
+
+        service.getAffectedPolicies(1L);
+
+        verify(policyRepository).findActivePoliciesReferencing(List.of("URL_O'Neil"));
+    }
 
     // ===== Helper methods =====
 
@@ -126,7 +141,7 @@ class PermissionServiceImplTest {
         @DisplayName("should return permission when found")
         void shouldReturnWhenFound() {
             Permission perm = buildPermission(1L, "READ");
-            when(permissionRepository.findById(1L)).thenReturn(Optional.of(perm));
+            when(permissionRepository.findWithManagedResourceById(1L)).thenReturn(Optional.of(perm));
 
             Optional<Permission> result = service.getPermission(1L);
 
@@ -137,7 +152,7 @@ class PermissionServiceImplTest {
         @Test
         @DisplayName("should return empty when not found")
         void shouldReturnEmpty() {
-            when(permissionRepository.findById(999L)).thenReturn(Optional.empty());
+            when(permissionRepository.findWithManagedResourceById(999L)).thenReturn(Optional.empty());
 
             Optional<Permission> result = service.getPermission(999L);
 
@@ -227,7 +242,7 @@ class PermissionServiceImplTest {
         void shouldUpdateFields() {
             Permission existing = buildPermission(1L, "OLD_NAME");
             PermissionDto dto = buildPermissionDto("UPDATED_NAME");
-            when(permissionRepository.findById(1L)).thenReturn(Optional.of(existing));
+            when(permissionRepository.findWithManagedResourceById(1L)).thenReturn(Optional.of(existing));
             when(permissionRepository.save(any(Permission.class))).thenAnswer(inv -> inv.getArgument(0));
 
             Permission result = service.updatePermission(1L, dto);
@@ -241,7 +256,7 @@ class PermissionServiceImplTest {
         @DisplayName("should throw when permission not found")
         void shouldThrowWhenNotFound() {
             PermissionDto dto = buildPermissionDto("X");
-            when(permissionRepository.findById(999L)).thenReturn(Optional.empty());
+            when(permissionRepository.findWithManagedResourceById(999L)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> service.updatePermission(999L, dto))
                     .isInstanceOf(IllegalArgumentException.class)
@@ -295,6 +310,40 @@ class PermissionServiceImplTest {
             assertThatThrownBy(() -> service.deletePermission(1L))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("assigned to");
+        }
+
+        @Test
+        @DisplayName("a permission roles were given to groups or accounts with is refused with where it is used, before anything is changed")
+        void shouldRefuseAPermissionTheAssignmentsCarry() {
+            ManagedResource resource = new ManagedResource();
+            Permission perm = buildPermission(1L, "READ");
+            resource.setPermission(perm);
+            perm.setManagedResource(resource);
+            when(permissionRepository.countRoleAssignments(1L)).thenReturn(0L);
+            when(permissionRepository.findById(1L)).thenReturn(Optional.of(perm));
+            when(permissionRepository.countGroupAssignments(1L)).thenReturn(2L);
+            when(permissionRepository.countAccountAssignments(1L)).thenReturn(1L);
+
+            assertThatThrownBy(() -> service.deletePermission(1L))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("Cannot delete permission 'READ'. It is given to 2 group role assignment(s) and "
+                            + "1 account role assignment(s). Revoke it from them first.");
+
+            verify(managedResourceRepository, never()).save(any());
+            verify(permissionRepository, never()).delete(any());
+            assertThat(resource.getPermission()).isSameAs(perm);
+        }
+
+        @Test
+        @DisplayName("a permission only accounts were given is refused as well")
+        void shouldRefuseAPermissionOnlyAccountsWereGiven() {
+            Permission perm = buildPermission(1L, "READ");
+            when(permissionRepository.findById(1L)).thenReturn(Optional.of(perm));
+            when(permissionRepository.countAccountAssignments(1L)).thenReturn(4L);
+
+            assertThatThrownBy(() -> service.deletePermission(1L)).isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("0 group role assignment(s) and 4 account role assignment(s)");
+            verify(permissionRepository, never()).delete(any());
         }
 
         @Test

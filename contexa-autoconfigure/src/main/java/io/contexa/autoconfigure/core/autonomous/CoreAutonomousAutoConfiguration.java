@@ -33,16 +33,22 @@ import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
 import io.contexa.contexacore.autonomous.service.LearningPromotionService;
 import io.contexa.contexacore.autonomous.service.LearningStoreRejectionPolicy;
 import io.contexa.contexacore.autonomous.service.VerificationLearningService;
+import io.contexa.autoconfigure.core.infra.StandaloneEnforcementStateWarning;
 import io.contexa.autoconfigure.core.infra.StandaloneLearningStateWarning;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.autonomous.SecurityEventProcessor;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
 import io.contexa.contexacommon.security.bridge.runtime.RequestPathDatabaseGuard;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.audit.AuditPersistenceListener;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexacore.autonomous.audit.UndecidedCallsAudit;
+import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
+import io.contexa.contexacore.autonomous.service.RestrictionRestorer;
+import io.contexa.contexacommon.store.ContexaStores;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.context.*;
 import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
@@ -50,6 +56,7 @@ import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.execution.DelegatedExecutionFingerprintService;
 import io.contexa.contexacore.autonomous.execution.ZeroTrustChallengeFlowStarter;
+import io.contexa.contexacore.autonomous.execution.ZeroTrustEnforcementExceptionResolver;
 import io.contexa.contexacore.autonomous.execution.ZeroTrustExceptionHandler;
 import io.contexa.contexacore.autonomous.handler.handler.AuditingHandler;
 import io.contexa.contexacore.autonomous.handler.handler.SecurityDecisionEnforcementHandler;
@@ -66,8 +73,10 @@ import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import org.springframework.lang.Nullable;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
+import io.contexa.contexacore.autonomous.service.NewContextDecisionLimit;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
 import io.contexa.contexacore.autonomous.service.DeletedAccountWriteFence;
+import io.contexa.contexacore.autonomous.service.UserAccountChangeListener;
 import io.contexa.contexacore.autonomous.service.UserAccountDeletionListener;
 import io.contexa.contexacore.autonomous.service.UserEngineStatePurger;
 import io.contexa.contexacommon.repository.BridgeUserProfileRepository;
@@ -94,6 +103,7 @@ import io.contexa.contexacore.autonomous.utils.InMemoryThreatScoreUtil;
 import io.contexa.contexacore.autonomous.utils.RedisThreatScoreUtil;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
 import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
 import io.contexa.contexacore.autonomous.baseline.store.InMemoryBaselineDataStore;
@@ -112,11 +122,13 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -130,6 +142,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import java.time.Duration;
 import java.util.List;
@@ -216,6 +229,32 @@ public class CoreAutonomousAutoConfiguration {
     public DisposableBean contexaClientIpResolutionBinding(TieredStrategyProperties tieredStrategyProperties) {
         SessionFingerprintUtil.bindClientIpResolution(tieredStrategyProperties);
         return () -> SessionFingerprintUtil.unbindClientIpResolution(tieredStrategyProperties);
+    }
+
+    /**
+     * Q-18: binds whether every spelling of a name reads one decision, for the stores and the signals that key by user.
+     * The binding is created eagerly because no other bean depends on it.
+     */
+    @Bean("contexaUserKeyBinding")
+    @Lazy(false)
+    @ConditionalOnMissingBean(name = "contexaUserKeyBinding")
+    public DisposableBean contexaUserKeyBinding(SecurityZeroTrustProperties securityZeroTrustProperties) {
+        ZeroTrustUserKey.bind(securityZeroTrustProperties);
+        return () -> ZeroTrustUserKey.unbind(securityZeroTrustProperties);
+    }
+
+    /**
+     * Tells the decision store what a stored ESCALATE ends as, whichever store the application runs on: one it declares
+     * itself as well as the built-in ones. The binding is created eagerly because no other bean depends on it.
+     */
+    @Bean("contexaEscalateTerminalActionBinding")
+    @Lazy(false)
+    @ConditionalOnMissingBean(name = "contexaEscalateTerminalActionBinding")
+    public SmartInitializingSingleton contexaEscalateTerminalActionBinding(
+            ObjectProvider<ZeroTrustActionRepository> actionRepository,
+            TieredStrategyProperties tieredStrategyProperties) {
+        return () -> actionRepository.ifAvailable(repository -> repository.setEscalateTerminalAction(
+                tieredStrategyProperties.getLayer2().escalateTerminalAction()));
     }
 
     @Bean(name = "contexaBaselineLearningService")
@@ -768,10 +807,18 @@ public class CoreAutonomousAutoConfiguration {
         SecurityPlaneAgent agent = new SecurityPlaneAgent(
                 securityMonitor, dataStore, contexaCentralAuditFacade,
                 processingOrchestrator, securityPlaneProperties, llmAnalysisExecutor);
-        // docs/agent RL-12 (QD): an agent's queued event is read against the stored decisions again at its turn.
-        agent.setQueuedEventRecheck(event -> {
-            QueuedAgentEventRecheck recheck = queuedAgentEventRecheckProvider.getIfAvailable();
-            return recheck != null && recheck.answeredWithoutAnalysis(event);
+        // docs/agent RL-12 (QD), PR-82: a queued event is read against the stored decisions again at its turn.
+        agent.setQueuedEventRecheck(new SecurityPlaneAgent.QueuedEventRecheck() {
+            @Override
+            public boolean answeredWithoutAnalysis(SecurityEvent event) {
+                QueuedAgentEventRecheck recheck = queuedAgentEventRecheckProvider.getIfAvailable();
+                return recheck != null && recheck.answeredWithoutAnalysis(event);
+            }
+
+            @Override
+            public void leftOut(SecurityEvent event) {
+                queuedAgentEventRecheckProvider.ifAvailable(recheck -> recheck.leftOut(event));
+            }
         });
         agent.setAiSecurityDecisionObservationWriterSupplier(aiSecurityDecisionObservationWriterProvider::getIfAvailable);
         agent.setZeroTrustActionRepository(zeroTrustActionRepository);
@@ -883,7 +930,8 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder,
             SecurityZeroTrustProperties securityZeroTrustProperties,
             ObjectProvider<AgentAllowReuse> agentAllowReuse,
-            ObjectProvider<AgentDecisionFlights> agentDecisionFlights) {
+            ObjectProvider<AgentDecisionFlights> agentDecisionFlights,
+            ObjectProvider<NewContextDecisionLimit> newContextDecisionLimit) {
         SynchronousProtectableDecisionService service = new SynchronousProtectableDecisionService(
                 contexaZeroTrustEventPublisher,
                 contexaZeroTrustEventListener,
@@ -896,6 +944,13 @@ public class CoreAutonomousAutoConfiguration {
         service.setAgentAllowReuse(agentAllowReuse.getIfAvailable());
         // docs/agent RL-12: one agent's requests that come in numbers are analysed once per question.
         service.setAgentDecisionFlights(agentDecisionFlights.getIfAvailable());
+        // PR-54: a synchronous request waits for its verdict as long as a request of the flights does.
+        service.setDecisionWait(securityZeroTrustProperties.getAgent().getFlight().getWait());
+        // Q-23: where decisions are not enforced no sensitive request is held for one.
+        service.setEnforcing(securityZeroTrustProperties::isEnforcementEnabled);
+        // A call from a changed context past the person's decisions of a new context is refused for itself alone; the
+        // limit is the one the sign-ins take from.
+        service.setNewContextDecisionLimit(newContextDecisionLimit.getIfAvailable());
         return service;
     }
     /**
@@ -910,6 +965,22 @@ public class CoreAutonomousAutoConfiguration {
             ZeroTrustChallengeFlowStarter starter = challengeFlowStarters.getIfUnique();
             return starter == null ? Optional.empty() : starter.start(request, response);
         });
+    }
+
+    /**
+     * The decisions of a protected method are answered ahead of the application's exception handlers (Q-9). Its own class
+     * so that an application without Spring MVC, where nothing answers through a resolver, does not load the type. An
+     * application that looks for a resolver by type does not meet this one; the DispatcherServlet finds it all the same.
+     */
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnClass(HandlerExceptionResolver.class)
+    static class EnforcementAnswerConfiguration {
+
+        @Bean(name = "contexaZeroTrustEnforcementExceptionResolver", defaultCandidate = false)
+        @ConditionalOnMissingBean
+        ZeroTrustEnforcementExceptionResolver zeroTrustEnforcementExceptionResolver(ZeroTrustExceptionHandler answers) {
+            return new ZeroTrustEnforcementExceptionResolver(answers);
+        }
     }
 
 
@@ -931,15 +1002,27 @@ public class CoreAutonomousAutoConfiguration {
         @ConditionalOnMissingBean(ZeroTrustActionRepository.class)
         public ZeroTrustActionRedisRepository zeroTrustActionRedisRepository(
                 @Qualifier("contexaGeneralRedisTemplate") RedisTemplate<String, Object> redisTemplate,
-                StringRedisTemplate stringRedisTemplate) {
-            return new ZeroTrustActionRedisRepository(redisTemplate, stringRedisTemplate);
+                StringRedisTemplate stringRedisTemplate,
+                ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustProperties,
+                @Qualifier("contexaStringRedisTemplate") ObjectProvider<StringRedisTemplate> contexaStrings,
+                ObjectProvider<IBlockedUserRecorder> blockedUserRecorder) {
+            ZeroTrustActionRedisRepository repository = new ZeroTrustActionRedisRepository(redisTemplate,
+                    contexaStrings.getIfAvailable(() -> stringRedisTemplate));
+            securityZeroTrustProperties.ifAvailable(properties -> repository.setAllowValidity(properties.getAllowValidity()));
+            // Resolved at the read: the recorder needs this repository.
+            repository.setBlockRecord(userId -> {
+                IBlockedUserRecorder recorder = blockedUserRecorder.getIfUnique();
+                return recorder != null && recorder.isBlockInForce(userId);
+            });
+            return repository;
         }
 
         @Bean(name = "contexaRedisProtectableRapidReentryRepository")
         @ConditionalOnMissingBean(ProtectableRapidReentryRepository.class)
         public RedisProtectableRapidReentryRepository redisProtectableRapidReentryRepository(
-                StringRedisTemplate stringRedisTemplate) {
-            return new RedisProtectableRapidReentryRepository(stringRedisTemplate);
+                StringRedisTemplate stringRedisTemplate,
+                @Qualifier("contexaStringRedisTemplate") ObjectProvider<StringRedisTemplate> contexaStrings) {
+            return new RedisProtectableRapidReentryRepository(contexaStrings.getIfAvailable(() -> stringRedisTemplate));
         }
 
         @Bean(name = "contexaRedisThreatScoreUtil")
@@ -954,8 +1037,10 @@ public class CoreAutonomousAutoConfiguration {
         @ConditionalOnMissingBean(SecurityContextDataStore.class)
         public RedisSecurityContextDataStore redisSecurityContextDataStore(
                 @Qualifier("contexaGeneralRedisTemplate") RedisTemplate<String, Object> redisTemplate,
-                ObjectProvider<SecurityPlaneProperties> securityPlaneProperties) {
+                ObjectProvider<SecurityPlaneProperties> securityPlaneProperties,
+                ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustProperties) {
             RedisSecurityContextDataStore store = new RedisSecurityContextDataStore(redisTemplate);
+            securityZeroTrustProperties.ifAvailable(zeroTrust -> store.setAllowValidity(zeroTrust.getAllowValidity()));
             SecurityPlaneProperties properties = securityPlaneProperties.getIfAvailable();
             if (properties != null) {
                 store.setLoginFailureRetention(Duration.ofMinutes(
@@ -981,8 +1066,13 @@ public class CoreAutonomousAutoConfiguration {
               ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustProperties) {
           // QF-42: the bound on users the store keeps; without a setting the one derived from the maximum heap.
           SecurityZeroTrustProperties properties = securityZeroTrustProperties.getIfAvailable();
-          return new InMemoryZeroTrustActionRepository(properties != null && properties.getStandalone() != null
-                  ? properties.getStandalone().getMaxDecisionUsers() : 0);
+          InMemoryZeroTrustActionRepository repository = new InMemoryZeroTrustActionRepository(
+                  properties != null && properties.getStandalone() != null
+                          ? properties.getStandalone().getMaxDecisionUsers() : 0);
+          if (properties != null) {
+              repository.setAllowValidity(properties.getAllowValidity());
+          }
+          return repository;
       }
 
       /** BR-C11 (DD-52): the in-memory store keeps each baseline for the same configured retention. */
@@ -1033,6 +1123,9 @@ public class CoreAutonomousAutoConfiguration {
         }
         // QF-42: the byte budget of the held learning records; without a setting the one derived from the maximum heap.
         SecurityZeroTrustProperties zeroTrustProperties = securityZeroTrustProperties.getIfAvailable();
+        if (zeroTrustProperties != null) {
+            store.setAllowValidity(zeroTrustProperties.getAllowValidity());
+        }
         if (zeroTrustProperties != null && zeroTrustProperties.getStandalone() != null) {
             store.setHeldLearningBudgetBytes(zeroTrustProperties.getStandalone().getMaxHeldLearningBytes());
         }
@@ -1049,6 +1142,43 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<BaselineDataStore> baselineDataStore,
             ObjectProvider<SecurityContextDataStore> securityContextDataStore) {
         return new StandaloneLearningStateWarning(baselineDataStore::getIfAvailable,
+                securityContextDataStore::getIfAvailable);
+    }
+
+    /**
+     * Q-7: what the outage of a store means for the decisions. The decision service tells an outage from a decision, and
+     * the calls that went on without one are written to the audit log.
+     */
+    @Bean(name = "contexaDecisionStores")
+    public SmartInitializingSingleton decisionStores(ObjectProvider<ContexaStores> contexaStores,
+            ObjectProvider<SynchronousProtectableDecisionService> decisions, ObjectProvider<CentralAuditFacade> audit) {
+        return () -> contexaStores.ifAvailable(stores -> {
+            decisions.ifAvailable(service -> service.setContexaStores(stores));
+            audit.ifAvailable(facade -> stores.setRecorder(new UndecidedCallsAudit(facade)));
+        });
+    }
+
+    /** Q-6: one warning at startup says that a restart ends the decisions in force when they are kept in memory. */
+    @Bean(name = "contexaStandaloneEnforcementStateWarning")
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
+    public StandaloneEnforcementStateWarning standaloneEnforcementStateWarning(
+            ObjectProvider<ZeroTrustActionRepository> actionRepository) {
+        return new StandaloneEnforcementStateWarning(actionRepository::getIfAvailable);
+    }
+
+    /**
+     * A BLOCK and a learning quarantine have no expiry, and a restart can take them from the decision store: the memory of
+     * a standalone server ends with it, a Redis can be emptied or replaced, and the keys an application had before it was
+     * given a name are no longer read. In every infrastructure mode the blocks the database holds in force are written
+     * again where the store has none, and the quarantine of an application with a name is carried over from its earlier
+     * key, before the web server takes a request.
+     */
+    @Bean(name = "contexaRestrictionRestorer")
+    public RestrictionRestorer restrictionRestorer(
+            ObjectProvider<ZeroTrustActionRepository> actionRepository,
+            ObjectProvider<IBlockedUserRecorder> blockedUserRecorder,
+            ObjectProvider<SecurityContextDataStore> securityContextDataStore) {
+        return new RestrictionRestorer(actionRepository::getIfAvailable, blockedUserRecorder::getIfUnique,
                 securityContextDataStore::getIfAvailable);
     }
 
@@ -1109,6 +1239,18 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     public UserAccountDeletionListener userAccountDeletionListener(UserEngineStatePurger contexaUserEngineStatePurger) {
         return new UserAccountDeletionListener(contexaUserEngineStatePurger);
+    }
+
+    /** Q-14: a change of accounts reaches the sessions that are open once it has committed. */
+    @Bean(name = "contexaUserAccountChangeListener")
+    @ConditionalOnMissingBean
+    public UserAccountChangeListener userAccountChangeListener(
+            ObjectProvider<SecurityContextDataStore> securityContextDataStore,
+            ObjectProvider<IForceLogoutService> forceLogoutService,
+            ObjectProvider<ContexaStores> contexaStores) {
+        UserAccountChangeListener listener = new UserAccountChangeListener(securityContextDataStore, forceLogoutService);
+        contexaStores.ifAvailable(listener::setContexaStores);
+        return listener;
     }
 
     @Bean(name = "contexaInMemoryStateSweeper", destroyMethod = "close")

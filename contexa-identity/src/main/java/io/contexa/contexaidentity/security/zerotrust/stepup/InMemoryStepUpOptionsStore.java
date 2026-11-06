@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.zerotrust.stepup;
 
+import io.contexa.contexacore.autonomous.store.ExpiringStateStore;
 import org.springframework.lang.Nullable;
 
 import java.io.Serializable;
@@ -25,12 +26,13 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /** The step-up options of one application instance (standalone), with the same expiry as the Redis store. */
-public class InMemoryStepUpOptionsStore implements StepUpOptionsStore {
+public class InMemoryStepUpOptionsStore implements StepUpOptionsStore, ExpiringStateStore {
 
     private record Entry(Serializable value, Instant expiresAt) {
     }
 
     private static final String CLAIM_PREFIX = "claim:";
+    private static final String COUNT_PREFIX = "count:";
 
     private final Map<String, Entry> entries = new ConcurrentHashMap<>();
     private final Clock clock;
@@ -43,11 +45,20 @@ public class InMemoryStepUpOptionsStore implements StepUpOptionsStore {
         this.clock = clock;
     }
 
+    /**
+     * Claims are made for any address asked for and counts for any context that answers, and no put may ever come: the
+     * sweep frees them as Redis expires them.
+     */
     @Override
-    public void put(String key, Serializable value) {
+    public void removeExpiredEntries() {
         Instant now = clock.instant();
         entries.values().removeIf(entry -> !entry.expiresAt().isAfter(now));
-        entries.put(key, new Entry(value, now.plus(TIME_TO_LIVE)));
+    }
+
+    @Override
+    public void put(String key, Serializable value) {
+        removeExpiredEntries();
+        entries.put(key, new Entry(value, clock.instant().plus(TIME_TO_LIVE)));
     }
 
     @Override
@@ -67,6 +78,31 @@ public class InMemoryStepUpOptionsStore implements StepUpOptionsStore {
     @Override
     public void release(String key) {
         entries.remove(CLAIM_PREFIX + key);
+    }
+
+    @Override
+    public long increment(String key, Duration holdFor) {
+        Instant now = clock.instant();
+        long[] count = {1};
+        entries.compute(COUNT_PREFIX + key, (k, held) -> {
+            if (held != null && held.expiresAt().isAfter(now)) {
+                count[0] = (Long) held.value() + 1;
+                return new Entry(count[0], held.expiresAt());
+            }
+            return new Entry(count[0], now.plus(holdFor));
+        });
+        return count[0];
+    }
+
+    @Override
+    public void clearCount(String key) {
+        entries.remove(COUNT_PREFIX + key);
+    }
+
+    @Override
+    public boolean holds(String key) {
+        Entry entry = entries.get(key);
+        return entry != null && entry.expiresAt().isAfter(clock.instant());
     }
 
     @Override

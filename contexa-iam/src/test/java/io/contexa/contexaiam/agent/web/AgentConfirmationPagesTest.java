@@ -21,12 +21,16 @@ import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.security.subject.SubjectKind;
+import io.contexa.contexacore.autonomous.agent.AgentCallGuard;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmation;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmationService;
 import io.contexa.contexacore.autonomous.agent.AgentDelegation;
 import io.contexa.contexacore.autonomous.agent.AgentDelegationRequest;
+import io.contexa.contexacore.autonomous.agent.AgentNotice;
+import io.contexa.contexacore.autonomous.agent.AgentNotices;
 import io.contexa.contexacore.autonomous.agent.AgentRequestBinding;
 import io.contexa.contexacore.autonomous.agent.InMemoryAgentConfirmationStore;
+import io.contexa.contexacore.autonomous.agent.InMemoryAgentNoticeStore;
 import io.contexa.contexacore.autonomous.agent.InMemoryDelegationRegistry;
 import io.contexa.contexacore.autonomous.agent.SignedAgentConfirmationAuthorizer;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
@@ -38,12 +42,16 @@ import io.contexa.contexacore.autonomous.agent.AgentStatus;
 import io.contexa.contexacore.autonomous.agent.InMemoryAgentRegistry;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.agent.service.AgentContainmentAdminService;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockServletContext;
@@ -61,6 +69,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
@@ -257,7 +266,8 @@ class AgentConfirmationPagesTest {
         assertThat(api.status(asked.confirmationId(), new TestingAuthenticationToken("alice", null),
                 new MockHttpServletRequest()).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
-        AgentConfirmationApiController.ConfirmationStatus requested = api.ask(
+        AgentConfirmationApiController.ConfirmationStatus requested =
+                (AgentConfirmationApiController.ConfirmationStatus) api.ask(
                 new AgentConfirmationApiController.ConfirmationAsk("post", "/api/exports?format=zip", null,
                         "The weekly export was moved to tonight"),
                 new TestingAuthenticationToken("alice", null), fromAgent).getBody();
@@ -269,6 +279,149 @@ class AgentConfirmationPagesTest {
                 .isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
+    /**
+     * The mail of an agent's own ask links as the mail of a request the gate stopped does: the configured address and
+     * the application's path, whatever host the agent sent.
+     */
+    @Test
+    void theMailOfAnAgentsAskLinksToTheConfiguredAddressWhateverHostTheAgentSent() {
+        List<AgentNotice> mailed = new ArrayList<>();
+        AgentConfirmationApiController api = new AgentConfirmationApiController(mailing(mailed));
+        api.setLinkBaseUrl(" https://app.test/ ");
+
+        String id = askFromAnotherHost(api);
+
+        assertThat(mailed).singleElement().satisfies(notice -> assertThat(notice.link())
+                .isEqualTo("https://app.test/ctx/contexa/agent-confirmations/" + id));
+    }
+
+    /** With no address configured the link stays a path: the agent chooses its host header, and a person gets it. */
+    @Test
+    void withoutAConfiguredAddressTheMailNeverTakesTheHostTheAgentSent() {
+        List<AgentNotice> mailed = new ArrayList<>();
+
+        String id = askFromAnotherHost(new AgentConfirmationApiController(mailing(mailed)));
+
+        assertThat(mailed).singleElement().satisfies(notice -> assertThat(notice.link())
+                .isEqualTo("/ctx/contexa/agent-confirmations/" + id));
+    }
+
+    /**
+     * A method is one a request can carry and a target fits where it is kept: an ask past either is refused, so what
+     * the person approves is what was asked, in full, whichever store keeps it.
+     */
+    @Test
+    void anAskNamesAStandardMethodAndATargetThatFitsWhereItIsKept() {
+        AgentConfirmationApiController api = new AgentConfirmationApiController(service);
+        TestingAuthenticationToken token = new TestingAuthenticationToken("alice", null);
+        MockHttpServletRequest fromAgent = agentRequest("alice", "report-agent");
+
+        for (String refused : List.of("PROPFIND", "CONNECT", "FETCH-EVERYTHING-NOW", "GET /x", "POST\r\nX: y")) {
+            assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk(refused, "/api/exports", null, null),
+                    token, fromAgent).getStatusCode()).as(refused).isEqualTo(HttpStatus.BAD_REQUEST);
+        }
+        assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", "/" + "a".repeat(2048), null,
+                null), token, fromAgent).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(store.forRecipient("alice", 10)).isEmpty();
+
+        List<String> accepted = List.of("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "TRACE");
+        for (String method : accepted) {
+            assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk(" " + method.toLowerCase(Locale.ROOT),
+                    "/api/exports", null, null), token, fromAgent).getStatusCode()).as(method)
+                    .isEqualTo(HttpStatus.ACCEPTED);
+        }
+        assertThat(store.forRecipient("alice", 10)).extracting(AgentConfirmation::method)
+                .containsExactlyInAnyOrderElementsOf(accepted);
+        String longest = "/" + "a".repeat(2047);
+        AgentConfirmationApiController.ConfirmationStatus fits = (AgentConfirmationApiController.ConfirmationStatus)
+                api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", longest, null, null), token,
+                        fromAgent).getBody();
+        assertThat(store.find(fits.confirmationId())).map(AgentConfirmation::target).contains(longest);
+    }
+
+    /**
+     * A target is what a request line carries: a space, a control character, a line break or a character that turns the
+     * text around cannot stand in one as written, so an ask with one is refused. Escaped, they are asked.
+     */
+    @Test
+    void anAskWhoseTargetCarriesWhatNoRequestLineCarriesIsRefused() {
+        AgentConfirmationApiController api = new AgentConfirmationApiController(service);
+        TestingAuthenticationToken token = new TestingAuthenticationToken("alice", null);
+        MockHttpServletRequest fromAgent = agentRequest("alice", "report-agent");
+        List<Integer> unwritable = List.of(0x20, 0x09, 0x0A, 0x0D, 0x0B, 0x00, 0x7F, 0x85, 0xA0, 0x2028, 0x2029, 0x202E,
+                0x2066, 0x200B, 0xFEFF, 0x3000);
+
+        for (int codePoint : unwritable) {
+            String character = Character.toString(codePoint);
+            for (String target : List.of("/api/exports" + character + "x", "/api/exports?note=a" + character + "b")) {
+                assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", target, null, null),
+                        token, fromAgent).getStatusCode()).as("U+%04X in %s", codePoint, target)
+                        .isEqualTo(HttpStatus.BAD_REQUEST);
+            }
+        }
+        assertThat(store.forRecipient("alice", 10)).isEmpty();
+
+        String escaped = "/api/exports%20x%0A%E2%80%AE?note=a%20b%E2%80%8B";
+        AgentConfirmationApiController.ConfirmationStatus asked = (AgentConfirmationApiController.ConfirmationStatus)
+                api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", escaped, null, null), token,
+                        fromAgent).getBody();
+        assertThat(store.find(asked.confirmationId())).map(AgentConfirmation::target).contains(escaped);
+    }
+
+    /** An identifier is never cut: an agent whose identifiers a confirmation cannot keep whole asks no one. */
+    @Test
+    void anAskOfAnAgentWhoseIdentifiersAConfirmationCannotKeepIsRefused() {
+        AgentConfirmationApiController api = new AgentConfirmationApiController(service);
+        TestingAuthenticationToken token = new TestingAuthenticationToken("alice", null);
+
+        for (MockHttpServletRequest unkeepable : List.of(agentRequest("alice", "report-agent", "d".repeat(65)),
+                agentRequest("alice", "a".repeat(256), null))) {
+            assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", "/api/exports", null, null),
+                    token, unkeepable).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        }
+        assertThat(store.forRecipient("alice", 10)).isEmpty();
+
+        assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", "/api/exports", null, null),
+                token, agentRequest("alice", "a".repeat(255), "d".repeat(64))).getStatusCode())
+                .isEqualTo(HttpStatus.ACCEPTED);
+    }
+
+    /** A person approves what will run: the path the application serves stands beside what the agent sent. */
+    @Test
+    void aPersonSeesThePathTheApplicationServesBesideWhatTheAgentSent() {
+        AgentConfirmation disguised = service.request(new AgentConfirmationService.ConfirmationRequest(AGENT, "hash-1",
+                "POST", "/api/%65xport/x?format=%7A", AgentConfirmation.DECISION_CHALLENGE, null, "req-1", null))
+                .orElseThrow();
+        TestingAuthenticationToken alice = new TestingAuthenticationToken("alice", null);
+        ExtendedModelMap model = new ExtendedModelMap();
+        pages.confirmation(disguised.confirmationId(), alice, new MockHttpServletRequest(), model);
+
+        assertThat(render("contexa/agent-confirmation", Locale.KOREAN, model))
+                .contains("POST /api/%65xport/x?format=%7A", "routedPath", ">/api/export/x<", "앱이 실제로 처리하는 경로");
+        assertThat(render("contexa/agent-confirmation", Locale.ENGLISH, model))
+                .contains("POST /api/%65xport/x?format=%7A", ">/api/export/x<", "The application serves it as");
+        ExtendedModelMap list = new ExtendedModelMap();
+        pages.list(alice, new MockHttpServletRequest(), list);
+        assertThat(render("contexa/agent-confirmations", Locale.ENGLISH, list))
+                .contains("POST /api/%65xport/x?format=%7A", "/api/export/x");
+    }
+
+    @Test
+    void aTargetThatMeansWhatItSaysShowsOneRequestAndMarkupInAPathStaysText() {
+        TestingAuthenticationToken alice = new TestingAuthenticationToken("alice", null);
+        ExtendedModelMap plain = new ExtendedModelMap();
+        pages.confirmation(ask().confirmationId(), alice, new MockHttpServletRequest(), plain);
+        assertThat(render("contexa/agent-confirmation", Locale.ENGLISH, plain)).doesNotContain("routedPath");
+
+        AgentConfirmation marked = service.request(new AgentConfirmationService.ConfirmationRequest(AGENT, "hash-2",
+                "POST", "/api/%3Cscript%3Ealert(1)%3C%2Fscript%3E", AgentConfirmation.DECISION_CHALLENGE, null, "req-1",
+                null)).orElseThrow();
+        ExtendedModelMap model = new ExtendedModelMap();
+        pages.confirmation(marked.confirmationId(), alice, new MockHttpServletRequest(), model);
+        assertThat(render("contexa/agent-confirmation", Locale.ENGLISH, model)).contains("&lt;script&gt;")
+                .doesNotContain("<script>alert");
+    }
+
     /** docs/agent F-2: the agent's own ask is bound in the request's tenant, as the gate binds the request. */
     @Test
     void anAgentsAskIsBoundInTheRequestsTenant() {
@@ -277,7 +430,8 @@ class AgentConfirmationPagesTest {
         fromAgent.setAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP, new AuthenticationStamp("alice", null,
                 null, true, null, null, null, null, null, null, List.of(), Map.of("tenantId", "tenant-a")));
 
-        AgentConfirmationApiController.ConfirmationStatus requested = api.ask(
+        AgentConfirmationApiController.ConfirmationStatus requested =
+                (AgentConfirmationApiController.ConfirmationStatus) api.ask(
                 new AgentConfirmationApiController.ConfirmationAsk("POST", "/api/exports?format=zip", null, null),
                 new TestingAuthenticationToken("alice", null), fromAgent).getBody();
 
@@ -288,10 +442,181 @@ class AgentConfirmationPagesTest {
         });
     }
 
+    /**
+     * Every ask of another request mails a person, so it counts as any call of the agent does: past the limit it is
+     * slowed down as the gate slows the agent down, nothing is kept and no one is told. Polling mails no one and is free.
+     */
+    @Test
+    void anAgentsAsksCountAgainstItsCallLimitAndPastItNoOneIsMailed() {
+        List<AgentNotice> mailed = new ArrayList<>();
+        AgentNotices notices = new AgentNotices(new InMemoryAgentNoticeStore(), notice -> {
+            mailed.add(notice);
+            return "MAIL";
+        });
+        AgentConfirmationService mailing = new AgentConfirmationService(store,
+                new SignedAgentConfirmationAuthorizer(HmacEvidenceSigner.of(Map.of("k1", Base64.getEncoder()
+                        .encodeToString("0123456789abcdef0123456789abcdef".getBytes())), "k1")), notices, null, null,
+                Duration.ofMinutes(15), null);
+        SecurityZeroTrustProperties.CallLimit limits = new SecurityZeroTrustProperties.CallLimit();
+        limits.setPerDelegationPerMinute(3);
+        AgentConfirmationApiController api = new AgentConfirmationApiController(mailing);
+        api.setCallGuard(new AgentCallGuard(limits, new SecurityZeroTrustProperties.DenialAlarm(), notices, null, null,
+                null));
+        TestingAuthenticationToken token = new TestingAuthenticationToken("alice", null);
+        MockHttpServletRequest fromAgent = agentRequest("alice", "report-agent");
+
+        List<HttpStatusCode> answers = new ArrayList<>();
+        ResponseEntity<?> last = null;
+        for (int target = 1; target <= 6; target++) {
+            last = api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", "/api/export/" + target, null,
+                    null), token, fromAgent);
+            answers.add(last.getStatusCode());
+        }
+
+        assertThat(answers).containsExactly(HttpStatus.ACCEPTED, HttpStatus.ACCEPTED, HttpStatus.ACCEPTED,
+                HttpStatus.TOO_MANY_REQUESTS, HttpStatus.TOO_MANY_REQUESTS, HttpStatus.TOO_MANY_REQUESTS);
+        // The first ask is mailed; the next ones came while it waited, so they reach the console only.
+        assertThat(mailed).hasSize(1);
+        assertThat(notices.store().forRecipient("alice", 10)).hasSize(3);
+        assertThat(store.forRecipient("alice", 10)).hasSize(3);
+        assertThat(last.getHeaders().getFirst("Retry-After")).isNotBlank();
+        assertThat(last.getBody()).asInstanceOf(InstanceOfAssertFactories.map(String.class, Object.class))
+                .containsEntry("error", "AGENT_CALL_LIMIT").containsEntry("scope", "DELEGATION")
+                .containsEntry("limit", 3).containsKey("retryAfterSeconds");
+
+        // Waiting for the confirmations it holds costs the agent nothing.
+        String waiting = store.forRecipient("alice", 1).get(0).confirmationId();
+        for (int poll = 0; poll < 5; poll++) {
+            assertThat(api.status(waiting, token, fromAgent).getStatusCode()).isEqualTo(HttpStatus.OK);
+        }
+    }
+
+    /** The report-only mode lets the ask on, as it does every other call past a limit. */
+    @Test
+    void inTheReportOnlyModeAnAskPastTheLimitGoesOn() {
+        SecurityZeroTrustProperties.CallLimit limits = new SecurityZeroTrustProperties.CallLimit();
+        limits.setPerDelegationPerMinute(1);
+        AgentCallGuard guard = new AgentCallGuard(limits, new SecurityZeroTrustProperties.DenialAlarm(), null, null,
+                null, null);
+        guard.setEnforcing(() -> false);
+        AgentConfirmationApiController api = new AgentConfirmationApiController(service);
+        api.setCallGuard(guard);
+        TestingAuthenticationToken token = new TestingAuthenticationToken("alice", null);
+        MockHttpServletRequest fromAgent = agentRequest("alice", "report-agent");
+
+        for (int target = 1; target <= 3; target++) {
+            assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk("POST", "/api/export/" + target,
+                    null, null), token, fromAgent).getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        }
+    }
+
+    private AgentConfirmationService mailing(List<AgentNotice> mailed) {
+        return new AgentConfirmationService(store, new SignedAgentConfirmationAuthorizer(HmacEvidenceSigner.of(
+                Map.of("k1", Base64.getEncoder().encodeToString("0123456789abcdef0123456789abcdef".getBytes())), "k1")),
+                new AgentNotices(new InMemoryAgentNoticeStore(), notice -> {
+                    mailed.add(notice);
+                    return "MAIL";
+                }), null, null, Duration.ofMinutes(15), null);
+    }
+
+    /** An ask that came to the application under a context path, from an agent that sent a host of its own. */
+    private static String askFromAnotherHost(AgentConfirmationApiController api) {
+        MockHttpServletRequest fromAgent = agentRequest("alice", "report-agent");
+        fromAgent.setContextPath("/ctx");
+        fromAgent.setServerName("attacker.test");
+        fromAgent.addHeader("Host", "attacker.test");
+        return ((AgentConfirmationApiController.ConfirmationStatus) api.ask(
+                new AgentConfirmationApiController.ConfirmationAsk("POST", "/api/exports", null, null),
+                new TestingAuthenticationToken("alice", null), fromAgent).getBody()).confirmationId();
+    }
+
+    /**
+     * The person sees whether the request has a body and how large it is, on the page and in the list; the body itself
+     * is never kept. A body an agent named by its hash only is one Contexa did not see.
+     */
+    @Test
+    void thePageShowsWhetherTheRequestHasABodyAndHowLarge() {
+        TestingAuthenticationToken alice = new TestingAuthenticationToken("alice", null);
+        AgentConfirmation sized = service.request(new AgentConfirmationService.ConfirmationRequest(AGENT, "hash-1",
+                "POST", "/api/exports", AgentConfirmation.DECISION_CHALLENGE, null, "req-1", null, 1234L)).orElseThrow();
+        AgentConfirmation none = service.request(new AgentConfirmationService.ConfirmationRequest(AGENT, "hash-2",
+                "GET", "/api/exports", AgentConfirmation.DECISION_CHALLENGE, null, "req-2", null, 0L)).orElseThrow();
+        AgentConfirmationApiController api = new AgentConfirmationApiController(service);
+        String unseen = ((AgentConfirmationApiController.ConfirmationStatus) api.ask(
+                new AgentConfirmationApiController.ConfirmationAsk("POST", "/api/imports", "ab".repeat(32), null),
+                alice, agentRequest("alice", "report-agent")).getBody()).confirmationId();
+        String bodiless = ((AgentConfirmationApiController.ConfirmationStatus) api.ask(
+                new AgentConfirmationApiController.ConfirmationAsk("DELETE", "/api/imports/7", null, null),
+                alice, agentRequest("alice", "report-agent")).getBody()).confirmationId();
+
+        assertThat(store.find(unseen)).map(AgentConfirmation::bodyBytes).contains(AgentConfirmation.BODY_NOT_SEEN);
+        assertThat(store.find(bodiless)).map(AgentConfirmation::bodyBytes).contains(0L);
+
+        assertThat(page(sized.confirmationId(), Locale.KOREAN)).contains("id=\"requestBody\"", "1,234바이트");
+        assertThat(page(sized.confirmationId(), Locale.ENGLISH)).contains("1,234 bytes")
+                .doesNotContain("{\"project\"");
+        assertThat(page(none.confirmationId(), Locale.ENGLISH)).contains("id=\"requestBody\"", "No body");
+        assertThat(page(unseen, Locale.ENGLISH)).contains("A body Contexa did not see");
+        ExtendedModelMap list = new ExtendedModelMap();
+        pages.list(alice, new MockHttpServletRequest(), list);
+        assertThat(render("contexa/agent-confirmations", Locale.ENGLISH, list)).contains("1,234 bytes", "No body",
+                "A body Contexa did not see");
+
+        // A confirmation kept before the size was recorded says so, and nothing else.
+        store.save(new AgentConfirmation("c-old", null, "DELEGATED_AGENT", "alice", "report-agent", null, "alice",
+                "hash-9", "POST", "/api/old", AgentConfirmation.DECISION_CHALLENGE, null, null,
+                AgentConfirmation.Status.PENDING, Instant.now(), Instant.now().plusSeconds(600), null, null, null, null,
+                null));
+        assertThat(page("c-old", Locale.ENGLISH)).contains("Not recorded");
+    }
+
+    private String page(String confirmationId, Locale locale) {
+        ExtendedModelMap model = new ExtendedModelMap();
+        pages.confirmation(confirmationId, new TestingAuthenticationToken("alice", null), new MockHttpServletRequest(),
+                model);
+        return render("contexa/agent-confirmation", locale, model);
+    }
+
+    /** What an agent asks for itself is kept as the gate keeps what it stopped: a value that opens something is masked. */
+    @Test
+    void anAgentsOwnAskKeepsNoSecretOfItsTarget() {
+        AgentConfirmationApiController api = new AgentConfirmationApiController(service);
+        MockHttpServletRequest fromAgent = agentRequest("alice", "report-agent");
+
+        AgentConfirmationApiController.ConfirmationStatus requested =
+                (AgentConfirmationApiController.ConfirmationStatus) api.ask(
+                        new AgentConfirmationApiController.ConfirmationAsk("GET",
+                                "/api/exports?token=s3cr3t-value&format=zip", null, null),
+                        new TestingAuthenticationToken("alice", null), fromAgent).getBody();
+
+        assertThat(store.find(requested.confirmationId())).map(AgentConfirmation::target)
+                .hasValueSatisfying(kept -> assertThat(kept).contains("format=zip").doesNotContain("s3cr3t-value"));
+    }
+
+    /** The limit holds for what is kept: a target that grows past it once masked is refused, not cut. */
+    @Test
+    void aTargetThatOutgrowsTheLimitOnceMaskedIsRefused() {
+        AgentConfirmationApiController api = new AgentConfirmationApiController(service);
+        String target = "/" + "a".repeat(AgentConfirmation.MAX_TARGET_LENGTH - 10) + "?token=a";
+
+        assertThat(target.length()).isLessThanOrEqualTo(AgentConfirmation.MAX_TARGET_LENGTH);
+        assertThat(api.ask(new AgentConfirmationApiController.ConfirmationAsk("GET", target, null, null),
+                new TestingAuthenticationToken("alice", null), agentRequest("alice", "report-agent")).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
     private AgentConfirmation ask() {
         return service.request(new AgentConfirmationService.ConfirmationRequest(AGENT, "hash-1", "POST",
                 "/api/exports?format=zip", AgentConfirmation.DECISION_CHALLENGE, "Unusual export", "req-1", null))
                 .orElseThrow();
+    }
+
+    private static MockHttpServletRequest agentRequest(String user, String agent, String delegationId) {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setAttribute(BridgeRequestAttributes.DELEGATION_STAMP, new DelegationStamp(user, agent, true, null,
+                null, null, List.of(), List.of(), null, null, null, null,
+                delegationId != null ? Map.of("delegationId", delegationId) : Map.of()));
+        return request;
     }
 
     private static MockHttpServletRequest agentRequest(String user, String agent) {

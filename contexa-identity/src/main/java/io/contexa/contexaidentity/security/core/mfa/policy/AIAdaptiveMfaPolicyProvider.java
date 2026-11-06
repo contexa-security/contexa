@@ -75,7 +75,7 @@ public class AIAdaptiveMfaPolicyProvider extends DefaultMfaPolicyProvider {
         Boolean blocked = (Boolean) ctx.getAttribute(FactorContextAttributes.StateControl.BLOCKED);
         if (Boolean.TRUE.equals(blocked)) {
             String blockReason = (String) ctx.getAttribute(FactorContextAttributes.MessageAndReason.BLOCK_REASON);
-            log.error("AI blocked authentication for user: {} - Reason: {}",
+            log.warn("AI blocked authentication for user: {} - Reason: {}",
                     ctx.getUsername(), blockReason != null ? blockReason : "UNKNOWN");
             return MfaDecision.blocked(blockReason != null ? blockReason : "AI blocked authentication");
         }

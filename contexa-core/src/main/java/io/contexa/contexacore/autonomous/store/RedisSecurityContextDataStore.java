@@ -17,8 +17,12 @@ package io.contexa.contexacore.autonomous.store;
 
 import java.time.Instant;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.store.ApplicationNamespace;
+import io.contexa.contexacommon.store.StoreFailures;
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
+import io.contexa.contexacore.util.ErrorLogThrottle;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.Cursor;
@@ -37,14 +41,19 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 @Slf4j
 @RequiredArgsConstructor
-public class RedisSecurityContextDataStore implements SecurityContextDataStore {
+public class RedisSecurityContextDataStore implements SecurityContextDataStore, AutoCloseable {
 
     private final RedisTemplate<String, Object> redisTemplate;
+    private volatile DefaultRedisScript<Long> verifyStoppedRequestsScript =
+            verifyStoppedRequestsScript(ZeroTrustAction.ALLOW.getDefaultTtl());
 
     private static final int MAX_SESSION_ACTIONS = 100;
     private static final int MAX_PREVIOUS_SESSION_IDS = 20;
@@ -61,13 +70,16 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     /** A request a filter stopped waits for the step-up while the challenge that stopped it is in force (N-LRN-3). */
     private static final Duration STOPPED_REQUEST_TTL = ZeroTrustAction.CHALLENGE.getDefaultTtl();
     /** A verified stopped request is sent again under the ALLOW the step-up writes (N-LRN-3). */
-    private static final Duration VERIFIED_STOPPED_REQUEST_TTL = ZeroTrustAction.ALLOW.getDefaultTtl();
     private static final int MAX_STOPPED_REQUESTS = 20;
     /** The member that marks a user's stopped requests verified; a request member is serialized text (N-LRN-3). */
     private static final String STOPPED_REQUESTS_VERIFIED = "@verified";
     private static final Duration WORK_PROFILE_TTL = Duration.ofDays(30);
     /** docs/agent A3-8: the scopes whose learning an operator quarantined. */
-    private static final String LEARNING_QUARANTINE_KEY = "security:autonomous:learning:quarantine";
+    private static final String LEARNING_QUARANTINE_NAME = "security:autonomous:learning:quarantine";
+
+    private static String learningQuarantineKey() {
+        return ApplicationNamespace.key(LEARNING_QUARANTINE_NAME);
+    }
     private static final Duration ROLE_SCOPE_TTL = Duration.ofDays(30);
     private static final Duration PERMISSION_CHANGE_TTL = Duration.ofDays(30);
     private static final Duration AUTHORIZATION_SCOPE_STATE_TTL = Duration.ofDays(30);
@@ -123,14 +135,17 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
      * Marks the user's stopped requests verified while the ALLOW the step-up writes is in force, leaving out ARGV[1]
      * when given (N-LRN-3); requests already verified stay as they are.
      */
-    private static final DefaultRedisScript<Long> VERIFY_STOPPED_REQUESTS_SCRIPT = new DefaultRedisScript<>(
-            "if redis.call('sismember', KEYS[1], '" + STOPPED_REQUESTS_VERIFIED + "') == 1 then return 0 end "
-                    + "if #ARGV > 0 then redis.call('srem', KEYS[1], ARGV[1]) end "
-                    + "if redis.call('scard', KEYS[1]) == 0 then return 0 end "
-                    + "redis.call('sadd', KEYS[1], '" + STOPPED_REQUESTS_VERIFIED + "') "
-                    + "redis.call('pexpire', KEYS[1], " + VERIFIED_STOPPED_REQUEST_TTL.toMillis() + ") "
-                    + "return 1",
-            Long.class);
+    private static DefaultRedisScript<Long> verifyStoppedRequestsScript(Duration verifiedTtl) {
+        return new DefaultRedisScript<>(
+                "if redis.call('sismember', KEYS[1], '" + STOPPED_REQUESTS_VERIFIED + "') == 1 then return 0 end "
+                        + "if #ARGV > 0 then redis.call('srem', KEYS[1], ARGV[1]) end "
+                        + "if redis.call('scard', KEYS[1]) == 0 then return 0 end "
+                        + "redis.call('sadd', KEYS[1], '" + STOPPED_REQUESTS_VERIFIED + "') "
+                        + "redis.call('pexpire', KEYS[1], " + verifiedTtl.toMillis() + ") "
+                        + "return 1",
+                Long.class);
+    }
+
     /** Takes the user's verified stopped requests when the request is one of them, once per verification (N-LRN-3). */
     private static final DefaultRedisScript<Long> TAKE_VERIFIED_STOPPED_REQUEST_SCRIPT = new DefaultRedisScript<>(
             "if redis.call('sismember', KEYS[1], '" + STOPPED_REQUESTS_VERIFIED + "') == 1 "
@@ -140,12 +155,72 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
             Long.class);
     private static final String PROCESS_NODE_ID = resolveProcessNodeId();
     private static final long PROCESS_PID = ProcessHandle.current().pid();
+    /**
+     * How often a process that holds event claims says it lives, and how many of those beats what it said lasts: a late
+     * beat costs it nothing, and a process that stops is seen gone within that time.
+     */
+    private static final Duration DEFAULT_ALIVE_BEAT = Duration.ofSeconds(5);
+    private static final int ALIVE_BEATS_IT_LASTS = 3;
+    private static final String ALIVE_THREAD = "contexa-process-alive";
+    private static final Duration ALIVE_FAILURE_LOG_INTERVAL = Duration.ofMinutes(1);
+    private static final int OWNER_TOKEN_PARTS = 4;
     private static final Duration SOAR_TTL = Duration.ofDays(7);
     private static final Duration USER_SESSIONS_TTL = Duration.ofDays(7);
     private static final Duration LOGIN_FAILURE_MINIMUM_RETENTION = Duration.ofMinutes(5);
     private static final Duration LOGIN_FAILURE_EXPIRY_MARGIN = Duration.ofMinutes(5);
+    /**
+     * Keeps a failed sign-in under KEYS[1] within the limits of every store: the failures of the retention (ARGV[3]), the
+     * latest of them, and a number of keys. KEYS[2] orders the keys by their last failure on this server's clock (ARGV[5]);
+     * past the bound the keys written the longest ago go, as from the in-memory store, and KEYS[3] then says for the
+     * retention that a name without a record may have lost it. 1 when a key went.
+     */
+    private static final DefaultRedisScript<Long> RECORD_LOGIN_FAILURE_SCRIPT = new DefaultRedisScript<>(
+            "local failedAt = tonumber(string.match(ARGV[1], '%-?%d+')) "
+                    + "local retention = tonumber(string.match(ARGV[3], '%d+')) "
+                    + "local expiry = tonumber(string.match(ARGV[4], '%d+')) "
+                    + "local now = tonumber(string.match(ARGV[5], '%d+')) "
+                    + "redis.call('zadd', KEYS[1], failedAt, ARGV[2]) "
+                    + "redis.call('zremrangebyscore', KEYS[1], 0, failedAt - retention) "
+                    + "local over = redis.call('zcard', KEYS[1]) - " + LoginFailureRecording.MAX_PER_KEY + " "
+                    + "if over > 0 then redis.call('zremrangebyrank', KEYS[1], 0, over - 1) end "
+                    + "redis.call('pexpire', KEYS[1], expiry) "
+                    + "redis.call('zadd', KEYS[2], now, KEYS[1]) "
+                    + "redis.call('zremrangebyscore', KEYS[2], 0, now - expiry) "
+                    + "redis.call('pexpire', KEYS[2], expiry) "
+                    + "local excess = redis.call('zcard', KEYS[2]) - " + LoginFailureRecording.MAX_KEYS + " "
+                    + "if excess <= 0 then return 0 end "
+                    + "for _, key in ipairs(redis.call('zrange', KEYS[2], 0, excess - 1)) do "
+                    + "redis.call('del', key) end "
+                    + "redis.call('zremrangebyrank', KEYS[2], 0, excess - 1) "
+                    + "redis.call('psetex', KEYS[3], retention, now) "
+                    + "return 1",
+            Long.class);
+    /** Removes the failures under KEYS[1] and their place in the order of the keys, KEYS[2]. */
+    private static final DefaultRedisScript<Long> FORGET_LOGIN_FAILURES_SCRIPT = new DefaultRedisScript<>(
+            "redis.call('zrem', KEYS[2], KEYS[1]) return redis.call('del', KEYS[1])", Long.class);
+    /**
+     * Adds the members of the quarantine kept under the earlier key (KEYS[1]) to the application's own (KEYS[2]), once: a
+     * mark (KEYS[3]) says it was done, so that a scope released afterwards is not added again. Nothing is marked while
+     * there is nothing earlier. The members are copied as they are stored. The number of scopes added.
+     */
+    private static final DefaultRedisScript<Long> CARRY_OVER_QUARANTINE_SCRIPT = new DefaultRedisScript<>(
+            "if redis.call('exists', KEYS[3]) == 1 then return 0 end "
+                    + "local members = redis.call('smembers', KEYS[1]) "
+                    + "if #members == 0 then return 0 end "
+                    + "local added = 0 "
+                    + "for _, member in ipairs(members) do added = added + redis.call('sadd', KEYS[2], member) end "
+                    + "redis.call('set', KEYS[3], '1') "
+                    + "return added",
+            Long.class);
+    private static final String CHALLENGE_VERIFIED_VALUE_SEPARATOR = ":";
     private static final Duration MFA_VERIFIED_TTL = Duration.ofHours(1);
     private final AtomicLong authenticationEventSequence = new AtomicLong();
+    /** This process among those of the store: a host name and a PID say nothing once containers restart as PID 1. */
+    private final String processInstance = UUID.randomUUID().toString();
+    private final ErrorLogThrottle aliveFailureLog = new ErrorLogThrottle(ALIVE_FAILURE_LOG_INTERVAL);
+    private volatile Duration aliveBeat = DEFAULT_ALIVE_BEAT;
+    private volatile ScheduledExecutorService aliveTimer;
+    private boolean closed;
     private volatile Duration loginFailureRetention = LOGIN_FAILURE_MINIMUM_RETENTION;
     /** BR-C14: how many work profile and role scope observations each scope keeps. */
     private volatile int observationCapacity = DEFAULT_OBSERVATION_CAPACITY;
@@ -623,8 +698,7 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     @Override
     public void recordLoginFailure(String userId, String clientIp, long currentTimeMs) {
         if (hasText(userId)) {
-            recordLoginFailureCounter(
-                    ZeroTrustRedisKeys.authenticationLoginFailuresByUser(userId.trim()), currentTimeMs);
+            recordLoginFailureCounter(loginFailureKey(userId), currentTimeMs);
         }
         if (hasText(clientIp)) {
             recordLoginFailureCounter(
@@ -636,10 +710,7 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     public int getRecentLoginFailureCount(
             String userId, String clientIp, long windowStartMs, long currentTimeMs) {
         int userCount = hasText(userId)
-                ? countLoginFailures(
-                        ZeroTrustRedisKeys.authenticationLoginFailuresByUser(userId.trim()),
-                        windowStartMs,
-                        currentTimeMs)
+                ? countLoginFailures(loginFailureKey(userId), windowStartMs, currentTimeMs)
                 : 0;
         int ipCount = hasText(clientIp)
                 ? countLoginFailures(
@@ -692,7 +763,47 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
                     ? Instant.ofEpochMilli(Long.parseLong(text))
                     : null;
         } catch (Exception e) {
-            log.error("[SecurityContextDataStore] Failed to read MFA verification time: userId={}", userId, e);
+            if (!StoreFailures.isReportedOutage(e)) {
+                log.error("[SecurityContextDataStore] Failed to read MFA verification time: userId={}", userId, e);
+            }
+            return null;
+        }
+    }
+
+    @Override
+    public void markChallengeVerified(String userId, String contextBindingHash, Instant verifiedAt) {
+        if (userId == null || contextBindingHash == null || contextBindingHash.isBlank()) {
+            return;
+        }
+        try {
+            String key = ZeroTrustRedisKeys.authenticationChallengeVerified(userId);
+            long now = System.currentTimeMillis();
+            // Each context ends on its own, as an in-memory entry does: the key lasts as long as the latest of them.
+            redisTemplate.opsForHash().put(key, contextBindingHash, (now + MFA_VERIFIED_TTL.toMillis())
+                    + CHALLENGE_VERIFIED_VALUE_SEPARATOR + (verifiedAt != null ? verifiedAt.toEpochMilli() : now));
+            redisTemplate.expire(key, MFA_VERIFIED_TTL);
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to keep a passed step-up: userId={}", userId, e);
+        }
+    }
+
+    @Override
+    public Instant getChallengeVerifiedAt(String userId, String contextBindingHash) {
+        if (userId == null || contextBindingHash == null || contextBindingHash.isBlank()) {
+            return null;
+        }
+        try {
+            Object value = redisTemplate.opsForHash()
+                    .get(ZeroTrustRedisKeys.authenticationChallengeVerified(userId), contextBindingHash);
+            if (value == null) {
+                return null;
+            }
+            String[] parts = value.toString().replace("\"", "").trim().split(CHALLENGE_VERIFIED_VALUE_SEPARATOR);
+            return parts.length == 2 && System.currentTimeMillis() < Long.parseLong(parts[0])
+                    ? Instant.ofEpochMilli(Long.parseLong(parts[1]))
+                    : null;
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to read a passed step-up: userId={}", userId, e);
             return null;
         }
     }
@@ -709,6 +820,7 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
             if (redisTemplate.opsForValue().get(processedKey) != null) {
                 return new EventProcessingLease(EventProcessingClaim.PROCESSED, null);
             }
+            keepSayingAlive();
             String ownerToken = newOwnerToken();
             String processingKey = ZeroTrustRedisKeys.eventProcessing(eventId);
             Boolean acquired = redisTemplate.opsForValue().setIfAbsent(
@@ -717,7 +829,7 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
                 return new EventProcessingLease(EventProcessingClaim.ACQUIRED, ownerToken);
             }
             Object existingOwner = redisTemplate.opsForValue().get(processingKey);
-            if (existingOwner != null && isLocalOrphanOwner(existingOwner.toString())) {
+            if (existingOwner != null && ownerIsGone(existingOwner.toString())) {
                 Long replaced = redisTemplate.execute(
                         TAKE_OVER_ORPHAN_PROCESSING_SCRIPT,
                         List.of(processingKey),
@@ -730,7 +842,9 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
             }
             return new EventProcessingLease(EventProcessingClaim.IN_FLIGHT, null);
         } catch (Exception e) {
-            log.error("[SecurityContextDataStore] Failed to claim event processing: eventId={}", eventId, e);
+            if (!StoreFailures.isReportedOutage(e)) {
+                log.error("[SecurityContextDataStore] Failed to claim event processing: eventId={}", eventId, e);
+            }
             return new EventProcessingLease(EventProcessingClaim.IN_FLIGHT, null);
         }
     }
@@ -810,27 +924,81 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
         }
     }
 
-    private String newOwnerToken() {
-        return PROCESS_NODE_ID + ":" + PROCESS_PID + ":" + UUID.randomUUID();
+    /** How often this process says it lives; set before its first claim. */
+    void setAliveBeat(Duration aliveBeat) {
+        this.aliveBeat = aliveBeat;
     }
 
-    private boolean isLocalOrphanOwner(String ownerToken) {
-        if (ownerToken == null || ownerToken.isBlank()) {
-            return false;
+    /** Stops saying this process lives: what it holds is the next process's at once. */
+    @Override
+    public void close() {
+        ScheduledExecutorService timer;
+        synchronized (this) {
+            closed = true;
+            timer = aliveTimer;
+            aliveTimer = null;
         }
-        String[] parts = ownerToken.split(":", 3);
-        if (parts.length != 3 || !PROCESS_NODE_ID.equals(parts[0])) {
-            return false;
+        if (timer == null) {
+            return;
         }
+        timer.shutdownNow();
         try {
-            long ownerPid = Long.parseLong(parts[1]);
-            if (ownerPid == PROCESS_PID) {
-                return false;
-            }
-            return ProcessHandle.of(ownerPid).map(processHandle -> !processHandle.isAlive()).orElse(true);
-        } catch (NumberFormatException exception) {
-            return false;
+            redisTemplate.delete(ZeroTrustRedisKeys.processAlive(processInstance));
+        } catch (RuntimeException failure) {
+            log.warn("[SecurityContextDataStore] The sign of life of a stopping process stays until it runs out: {}",
+                    failure.getMessage());
         }
+    }
+
+    private void keepSayingAlive() {
+        if (aliveTimer != null) {
+            return;
+        }
+        synchronized (this) {
+            if (aliveTimer != null || closed) {
+                return;
+            }
+            sayAlive();
+            ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(task -> {
+                Thread thread = new Thread(task, ALIVE_THREAD);
+                thread.setDaemon(true);
+                return thread;
+            });
+            long beatMs = aliveBeat.toMillis();
+            timer.scheduleWithFixedDelay(this::beat, beatMs, beatMs, TimeUnit.MILLISECONDS);
+            aliveTimer = timer;
+        }
+    }
+
+    private void sayAlive() {
+        redisTemplate.opsForValue().set(ZeroTrustRedisKeys.processAlive(processInstance), Boolean.TRUE.toString(),
+                aliveBeat.multipliedBy(ALIVE_BEATS_IT_LASTS));
+    }
+
+    private void beat() {
+        try {
+            sayAlive();
+        } catch (RuntimeException failure) {
+            long notLogged = aliveFailureLog.tryAcquire();
+            if (notLogged != ErrorLogThrottle.SUPPRESSED) {
+                log.error("[SecurityContextDataStore] This process could not say it lives: another may take over its "
+                        + "analyses, and its results are then discarded. Failures since the last report: {}", notLogged, failure);
+            }
+        }
+    }
+
+    private String newOwnerToken() {
+        return PROCESS_NODE_ID + ":" + PROCESS_PID + ":" + processInstance + ":" + UUID.randomUUID();
+    }
+
+    /**
+     * Whether the process of a claim stopped saying it lives. A claim without an instance was made by an older version,
+     * of which nothing can be said: it ends with its time.
+     */
+    private boolean ownerIsGone(String ownerToken) {
+        String[] parts = ownerToken.split(":", OWNER_TOKEN_PARTS);
+        return parts.length == OWNER_TOKEN_PARTS && !processInstance.equals(parts[2])
+                && Boolean.FALSE.equals(redisTemplate.hasKey(ZeroTrustRedisKeys.processAlive(parts[2])));
     }
 
     private static String resolveProcessNodeId() {
@@ -906,7 +1074,7 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
         }
         try {
             Object[] leftOut = learnedRequestSignature != null ? new Object[]{learnedRequestSignature} : new Object[0];
-            redisTemplate.execute(VERIFY_STOPPED_REQUESTS_SCRIPT, List.of(ZeroTrustRedisKeys.stoppedRequests(userId)),
+            redisTemplate.execute(verifyStoppedRequestsScript, List.of(ZeroTrustRedisKeys.stoppedRequests(userId)),
                     leftOut);
         } catch (Exception e) {
             log.error("[SecurityContextDataStore] Failed to verify the stopped requests: userId={}", userId, e);
@@ -1028,9 +1196,9 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
             return;
         }
         if (quarantined) {
-            redisTemplate.opsForSet().add(LEARNING_QUARANTINE_KEY, scope);
+            redisTemplate.opsForSet().add(learningQuarantineKey(), scope);
         } else {
-            redisTemplate.opsForSet().remove(LEARNING_QUARANTINE_KEY, scope);
+            redisTemplate.opsForSet().remove(learningQuarantineKey(), scope);
         }
     }
 
@@ -1039,16 +1207,36 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
         if (scope == null || scope.isBlank()) {
             return false;
         }
-        return Boolean.TRUE.equals(redisTemplate.opsForSet().isMember(LEARNING_QUARANTINE_KEY, scope));
+        return Boolean.TRUE.equals(redisTemplate.opsForSet().isMember(learningQuarantineKey(), scope));
     }
 
     @Override
     public Set<String> learningQuarantineScopes() {
-        Set<Object> scopes = redisTemplate.opsForSet().members(LEARNING_QUARANTINE_KEY);
+        Set<Object> scopes = redisTemplate.opsForSet().members(learningQuarantineKey());
         if (scopes == null) {
             return Set.of();
         }
         return scopes.stream().filter(Objects::nonNull).map(String::valueOf).collect(Collectors.toUnmodifiableSet());
+    }
+
+    /**
+     * A quarantine has no expiry, so the one kept under the key an application had before it was given a name is added to
+     * the application's own, once (see {@link #CARRY_OVER_QUARANTINE_SCRIPT}). An application without a name has no
+     * earlier key. A failure reaches the caller: a quarantine not carried is a learning read that an operator stopped.
+     */
+    @Override
+    public int carryOverLearningQuarantine() {
+        if (!ApplicationNamespace.isNamed()) {
+            return 0;
+        }
+        Long added = redisTemplate.execute(CARRY_OVER_QUARANTINE_SCRIPT, List.of(
+                ApplicationNamespace.withoutName(LEARNING_QUARANTINE_NAME), learningQuarantineKey(),
+                learningQuarantineCarriedKey()));
+        return added != null ? added.intValue() : 0;
+    }
+
+    private static String learningQuarantineCarriedKey() {
+        return ApplicationNamespace.key(LEARNING_QUARANTINE_NAME + ":carried");
     }
 
     @Override
@@ -1069,29 +1257,31 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
         if (userId == null || userId.isBlank()) {
             return;
         }
+        // What is learned and verified is kept under the user's key, the rest under the name as it came.
+        String userKey = ZeroTrustUserKey.person(userId);
         List<String> keys = new ArrayList<>(List.of(
                 ZeroTrustRedisKeys.verificationLearning(userId),
-                ZeroTrustRedisKeys.promotionLearning(userId),
+                ZeroTrustRedisKeys.promotionLearning(userKey),
                 ZeroTrustRedisKeys.stoppedRequests(userId),
                 ZeroTrustRedisKeys.userLastRequestTime(userId),
                 ZeroTrustRedisKeys.userPreviousPath(userId),
-                ZeroTrustRedisKeys.authenticationMfaVerified(userId),
-                ZeroTrustRedisKeys.authenticationLoginFailuresByUser(userId.trim()),
+                ZeroTrustRedisKeys.authenticationMfaVerified(userKey),
+                ZeroTrustRedisKeys.authenticationChallengeVerified(userKey),
                 ZeroTrustRedisKeys.userSessions(userId),
                 // QF-57: the session ids Zero Trust tracks for the user, which used to share the list above.
                 ZeroTrustRedisKeys.userSessionDeadlines(userId),
                 ZeroTrustRedisKeys.userUntimedSessions(userId),
-                ZeroTrustRedisKeys.userWorkProfileObservations(userId),
-                ZeroTrustRedisKeys.userPermissionChangeObservations(userId),
-                ZeroTrustRedisKeys.userAuthorizationScopeState(userId)));
-        String anyTenantScope = "*::" + ZeroTrustRedisKeys.globLiteral(userId);
-        keys.addAll(scanKeys(ZeroTrustRedisKeys.userWorkProfileObservations(anyTenantScope)));
-        keys.addAll(scanKeys(ZeroTrustRedisKeys.userPermissionChangeObservations(anyTenantScope)));
-        keys.addAll(scanKeys(ZeroTrustRedisKeys.userAuthorizationScopeState(anyTenantScope)));
+                ZeroTrustRedisKeys.userWorkProfileObservations(userKey),
+                ZeroTrustRedisKeys.userPermissionChangeObservations(userKey),
+                ZeroTrustRedisKeys.userAuthorizationScopeState(userKey)));
+        String anyTenantScope = "*::" + ZeroTrustRedisKeys.globLiteral(userKey);
+        keys.addAll(usersKeysOfTenants(ZeroTrustRedisKeys.userWorkProfileObservations(anyTenantScope), userKey));
+        keys.addAll(usersKeysOfTenants(ZeroTrustRedisKeys.userPermissionChangeObservations(anyTenantScope), userKey));
+        keys.addAll(usersKeysOfTenants(ZeroTrustRedisKeys.userAuthorizationScopeState(anyTenantScope), userKey));
         // QF-29: the user's held requests are kept within each tenant.
-        keys.addAll(scanKeys(ZeroTrustRedisKeys.promotionLearning(anyTenantScope)));
+        keys.addAll(usersKeysOfTenants(ZeroTrustRedisKeys.promotionLearning(anyTenantScope), userKey));
         // docs/agent A3-1: what the agents acting for the user learned, under their learning keys in every tenant.
-        String agentKeys = ZeroTrustRedisKeys.globLiteral(userId) + LearningSubject.AGENT_KEY + "*";
+        String agentKeys = ZeroTrustRedisKeys.globLiteral(userKey) + LearningSubject.AGENT_KEY + "*";
         keys.addAll(scanKeys(ZeroTrustRedisKeys.userWorkProfileObservations(agentKeys)));
         keys.addAll(scanKeys(ZeroTrustRedisKeys.userWorkProfileObservations("*::" + agentKeys)));
         keys.addAll(scanKeys(ZeroTrustRedisKeys.promotionLearning(agentKeys)));
@@ -1102,6 +1292,14 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
         keys.addAll(scanKeys(ZeroTrustRedisKeys.userAuthorizationScopeState(agentKeys)));
         keys.addAll(scanKeys(ZeroTrustRedisKeys.userAuthorizationScopeState("*::" + agentKeys)));
         redisTemplate.delete(keys);
+        redisTemplate.execute(FORGET_LOGIN_FAILURES_SCRIPT,
+                List.of(loginFailureKey(userKey), ZeroTrustRedisKeys.authenticationLoginFailureKeys()));
+    }
+
+    /** The user's keys in every tenant: an agent that bears the user's name ends the same way and is left alone. */
+    private List<String> usersKeysOfTenants(String pattern, String userKey) {
+        String agentOfThatName = LearningSubject.AGENT_KEY + userKey;
+        return scanKeys(pattern).stream().filter(key -> !key.endsWith(agentOfThatName)).toList();
     }
 
     private List<String> scanKeys(String pattern) {
@@ -1110,6 +1308,18 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
             cursor.forEachRemaining(keys::add);
         }
         return keys;
+    }
+
+    /** A failure reaches the caller: a version that cannot be read says nothing about the session. */
+    @Override
+    public long authoritiesVersion() {
+        Object version = redisTemplate.opsForValue().get(ZeroTrustRedisKeys.authoritiesVersion());
+        return version != null ? Long.parseLong(version.toString()) : 0L;
+    }
+
+    @Override
+    public void advanceAuthoritiesVersion() {
+        redisTemplate.opsForValue().increment(ZeroTrustRedisKeys.authoritiesVersion());
     }
 
     @Override
@@ -1170,6 +1380,11 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
      * Sets how long login failures stay countable: the longest window any reader queries, at least five minutes. Older
      * failures are trimmed when a new one arrives, and the key outlives the window by a margin.
      */
+    /** Q-28: a verified stopped request is sent again under the ALLOW the step-up writes, so it lasts as long. */
+    public void setAllowValidity(Duration allowValidity) {
+        this.verifyStoppedRequestsScript = verifyStoppedRequestsScript(ZeroTrustAction.allowValidity(allowValidity));
+    }
+
     public void setLoginFailureRetention(Duration retention) {
         if (retention != null && retention.compareTo(LOGIN_FAILURE_MINIMUM_RETENTION) > 0) {
             loginFailureRetention = retention;
@@ -1182,24 +1397,46 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
             return null;
         }
         try {
-            Long count = redisTemplate.opsForZSet().count(
-                    ZeroTrustRedisKeys.authenticationLoginFailuresByUser(userId.trim()), windowStartMs, currentTimeMs);
-            return count != null ? count.intValue() : null;
+            String key = loginFailureKey(userId);
+            Long count = redisTemplate.opsForZSet().count(key, windowStartMs, currentTimeMs);
+            if (count == null) {
+                return null;
+            }
+            boolean lost = count == 0
+                    && Boolean.TRUE.equals(redisTemplate.hasKey(ZeroTrustRedisKeys.authenticationLoginFailuresLost()))
+                    && !Boolean.TRUE.equals(redisTemplate.hasKey(key));
+            return lost ? null : count.intValue();
         } catch (Exception e) {
-            log.error("[SecurityContextDataStore] Failed to count login failures: userId={}", userId, e);
+            if (!StoreFailures.isReportedOutage(e)) {
+                log.error("[SecurityContextDataStore] Failed to count login failures: userId={}", userId, e);
+            }
             return null;
         }
+    }
+
+    private static String loginFailureKey(String userId) {
+        return ZeroTrustRedisKeys.authenticationLoginFailuresByUser(LoginFailureRecording.subject(userId));
     }
 
     private void recordLoginFailureCounter(String key, long currentTimeMs) {
         try {
             Duration retention = loginFailureRetention;
-            String member = currentTimeMs + ":" + authenticationEventSequence.incrementAndGet();
-            redisTemplate.opsForZSet().add(key, member, currentTimeMs);
-            redisTemplate.opsForZSet().removeRangeByScore(key, 0, currentTimeMs - retention.toMillis());
-            redisTemplate.expire(key, retention.plus(LOGIN_FAILURE_EXPIRY_MARGIN));
+            long now = System.currentTimeMillis();
+            Long lost = redisTemplate.execute(RECORD_LOGIN_FAILURE_SCRIPT,
+                    List.of(key, ZeroTrustRedisKeys.authenticationLoginFailureKeys(),
+                            ZeroTrustRedisKeys.authenticationLoginFailuresLost()),
+                    Long.toString(currentTimeMs),
+                    currentTimeMs + ":" + authenticationEventSequence.incrementAndGet(),
+                    Long.toString(retention.toMillis()),
+                    Long.toString(retention.plus(LOGIN_FAILURE_EXPIRY_MARGIN).toMillis()),
+                    Long.toString(now));
+            if (lost != null && lost == 1L) {
+                LoginFailureRecording.reportLoss(now, retention);
+            }
         } catch (Exception e) {
-            log.error("[SecurityContextDataStore] Failed to record login failure: key={}", key, e);
+            if (!StoreFailures.isReportedOutage(e)) {
+                log.error("[SecurityContextDataStore] Failed to record login failure: key={}", key, e);
+            }
         }
     }
 

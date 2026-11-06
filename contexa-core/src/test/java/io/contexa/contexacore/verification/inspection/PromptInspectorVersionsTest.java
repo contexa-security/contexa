@@ -98,8 +98,25 @@ class PromptInspectorVersionsTest {
     /** BR-C6: the learned field and the arguments field of a v21 past record line are compared from version 27. */
     @Test
     void theLearnedFieldOfAPastRecordLineIsComparedFromVersionTwentySeven() {
-        assertThat(PromptInspectorVersions.current().number()).isEqualTo(27);
-        assertThat(PromptInspectorVersions.current().reason()).contains("learned field").contains("(BR-C6)");
+        PromptInspectorVersions.Version twentySeven = PromptInspectorVersions.ALL.get(26);
+        assertThat(twentySeven.number()).isEqualTo(27);
+        assertThat(twentySeven.reason()).contains("learned field").contains("(BR-C6)");
+    }
+
+    /** Q-21: the seal check points at a missing signature and at a break in the chain from version 28. */
+    @Test
+    void aMissingSignatureAndABrokenLinkAreFoundFromVersionTwentyEight() {
+        PromptInspectorVersions.Version twentyEight = PromptInspectorVersions.ALL.get(27);
+        assertThat(twentyEight.number()).isEqualTo(28);
+        assertThat(twentyEight.reason()).contains("signature").contains("(Q-21)");
+    }
+
+    /** A key never held and a lowered package with any text as its signature are found from version 29. */
+    @Test
+    void aKeyNeverHeldIsFoundFromVersionTwentyNine() {
+        PromptInspectorVersions.Version twentyNine = PromptInspectorVersions.ALL.get(28);
+        assertThat(twentyNine.number()).isEqualTo(29);
+        assertThat(twentyNine.reason()).contains("never held").contains("as its signature");
     }
 
     /** N-OUT-3 lands in version 22 with N-INJ-4 (one build after P8), not in a version of its own. */

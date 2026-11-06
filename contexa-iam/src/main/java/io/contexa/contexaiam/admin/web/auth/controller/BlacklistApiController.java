@@ -23,7 +23,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -37,6 +39,9 @@ import java.util.List;
 @RequiredArgsConstructor
 @PreAuthorize("hasAuthority('ROLE_ADMIN')")
 public class BlacklistApiController {
+
+    /** What the administrator is told of a fault of the server; the exception is in the log. */
+    private static final String SERVER_FAULT_MESSAGE = "The action could not be completed. See the server log.";
 
     private final BlockedUserService blockedUserService;
     private final MessageSource messageSource;
@@ -91,10 +96,14 @@ public class BlacklistApiController {
             blockedUserService.resolveBlockById(id, adminId, request.getResolvedAction(),
                     request.getReason());
             return ResponseEntity.ok(BlacklistActionResponse.resolved(id, request.getResolvedAction()));
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(BlacklistActionResponse.failed(e.getMessage()));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return refusedByTheRecord(e);
         } catch (Exception e) {
             log.error("[BlacklistApi] Failed to resolve block: id={}", id, e);
             return ResponseEntity.internalServerError()
-                    .body(BlacklistActionResponse.failed(e.getMessage()));
+                    .body(BlacklistActionResponse.failed(SERVER_FAULT_MESSAGE));
         }
     }
 
@@ -102,13 +111,26 @@ public class BlacklistApiController {
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<BlacklistActionResponse> deleteBlockRecord(@PathVariable Long id) {
         try {
-            blockedUserService.deleteBlockRecord(id);
+            blockedUserService.deleteBlockRecord(id, extractCurrentUserId());
             return ResponseEntity.ok(BlacklistActionResponse.deleted(id));
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(BlacklistActionResponse.failed(e.getMessage()));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return refusedByTheRecord(e);
         } catch (Exception e) {
             log.error("[BlacklistApi] Failed to delete block record: id={}", id, e);
             return ResponseEntity.internalServerError()
-                    .body(BlacklistActionResponse.failed(e.getMessage()));
+                    .body(BlacklistActionResponse.failed(SERVER_FAULT_MESSAGE));
         }
+    }
+
+    /**
+     * The record refused the action as it stands: there is none of that id (404), or it is lifted already or still in
+     * force (409). That is the client's answer, not a fault of the server.
+     */
+    private static ResponseEntity<BlacklistActionResponse> refusedByTheRecord(RuntimeException refusal) {
+        HttpStatus status = refusal instanceof IllegalArgumentException ? HttpStatus.NOT_FOUND : HttpStatus.CONFLICT;
+        return ResponseEntity.status(status).body(BlacklistActionResponse.failed(refusal.getMessage()));
     }
 
     private String extractCurrentUserId() {

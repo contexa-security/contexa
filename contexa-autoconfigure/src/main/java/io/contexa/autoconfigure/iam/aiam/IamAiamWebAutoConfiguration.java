@@ -16,6 +16,7 @@
 package io.contexa.autoconfigure.iam.aiam;
 
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.autonomous.store.InMemoryBlockMfaStateStore;
@@ -28,6 +29,8 @@ import io.contexa.contexaiam.aiam.event.ZeroTrustSsePublisher;
 import io.contexa.contexaiam.aiam.web.*;
 import io.contexa.contexaiam.properties.SecurityStepUpProperties;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -66,8 +69,14 @@ public class IamAiamWebAutoConfiguration {
     @ConditionalOnMissingBean
     public ZeroTrustPageController zeroTrustPageController(BlockMfaStateStore blockMfaStateStore,
                                                             BlockedUserService contexaBlockedUserService,
-                                                            SecurityZeroTrustProperties securityZeroTrustProperties) {
-        return new ZeroTrustPageController(blockMfaStateStore, contexaBlockedUserService, securityZeroTrustProperties);
+                                                            SecurityZeroTrustProperties securityZeroTrustProperties,
+                                                            ObjectProvider<BridgeProperties> bridgeProperties) {
+        ZeroTrustPageController controller = new ZeroTrustPageController(blockMfaStateStore, contexaBlockedUserService,
+                securityZeroTrustProperties);
+        // Where the application owns sign-in the block list lies behind the console's own sign-in.
+        BridgeProperties bridge = bridgeProperties.getIfAvailable();
+        controller.setBlockListOffered(bridge == null || !bridge.ownershipBehaviour().enforcesFromServletFilters());
+        return controller;
     }
 
     @Bean(name = "contexaZeroTrustUnblockController")
@@ -86,8 +95,9 @@ public class IamAiamWebAutoConfiguration {
         @Bean(name = "contexaRedisBlockMfaStateStore")
         @ConditionalOnMissingBean(BlockMfaStateStore.class)
         public RedisBlockMfaStateStore redisBlockMfaStateStore(StringRedisTemplate stringRedisTemplate,
+                                                               @Qualifier("contexaStringRedisTemplate") ObjectProvider<StringRedisTemplate> contexaStrings,
                                                                ZeroTrustActionRepository actionRepository) {
-            return new RedisBlockMfaStateStore(stringRedisTemplate, actionRepository);
+            return new RedisBlockMfaStateStore(contexaStrings.getIfAvailable(() -> stringRedisTemplate), actionRepository);
         }
     }
 

@@ -18,6 +18,7 @@ package io.contexa.contexaiam.admin.web.center.service;
 import io.contexa.contexacommon.entity.*;
 import io.contexa.contexacommon.repository.*;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -57,6 +58,7 @@ class AccessCenterServiceTest {
     @Mock private RoleService roleService;
     @Mock private UserRolePermissionRepository userRolePermissionRepository;
     @Mock private GroupRolePermissionRepository groupRolePermissionRepository;
+    @Mock private LastAdministratorGuard lastAdministratorGuard;
 
     @InjectMocks
     private AccessCenterService service;
@@ -192,6 +194,29 @@ class AccessCenterServiceTest {
             assertThat(res.success()).isTrue();
             verify(userRepository).save(user);
             assertThat(user.getUserGroups()).hasSize(1);
+        }
+
+        @Test
+        @DisplayName("a group the user keeps stays the row it is: only the groups dropped and the new ones change")
+        void keptGroupsStayTheRowsTheyAre() {
+            Users user = Users.builder().id(1L).build();
+            user.setUserGroups(new HashSet<>());
+            UserGroup keptRow = UserGroup.builder().user(user).group(Group.builder().id(10L).build()).build();
+            user.getUserGroups().add(keptRow);
+            user.getUserGroups().add(UserGroup.builder().user(user).group(Group.builder().id(11L).build()).build());
+
+            when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+            when(groupRepository.findById(12L)).thenReturn(Optional.of(Group.builder().id(12L).build()));
+
+            UpdateUserGroupsRequest req = new UpdateUserGroupsRequest();
+            req.setGroupIds(List.of(10L, 12L, 12L));
+
+            assertThat(service.updateUserGroups(1L, req).success()).isTrue();
+
+            assertThat(user.getUserGroups()).hasSize(2).anySatisfy(row -> assertThat(row).isSameAs(keptRow));
+            assertThat(user.getUserGroups()).extracting(row -> row.getGroup().getId())
+                    .containsExactlyInAnyOrder(10L, 12L);
+            verify(groupRepository, never()).findById(10L);
         }
     }
 

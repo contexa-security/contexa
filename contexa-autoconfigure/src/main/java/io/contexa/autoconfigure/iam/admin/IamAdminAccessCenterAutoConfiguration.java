@@ -16,6 +16,7 @@
 package io.contexa.autoconfigure.iam.admin;
 
 import io.contexa.contexacommon.repository.*;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.center.AccessCenterController;
 import io.contexa.contexaiam.admin.web.center.service.AccessCenterService;
@@ -39,11 +40,12 @@ public class IamAdminAccessCenterAutoConfiguration {
             PermissionRepository permissionRepository,
             RoleService contexaRoleService,
             UserRolePermissionRepository userRolePermissionRepository,
-            GroupRolePermissionRepository groupRolePermissionRepository) {
+            GroupRolePermissionRepository groupRolePermissionRepository,
+            LastAdministratorGuard contexaLastAdministratorGuard) {
         return new AccessCenterService(
                 userRepository, userRoleRepository, groupRepository,
                 roleRepository, permissionRepository, contexaRoleService,
-                userRolePermissionRepository, groupRolePermissionRepository);
+                userRolePermissionRepository, groupRolePermissionRepository, contexaLastAdministratorGuard);
     }
 
     @Bean(name = "contexaAccessCenterController")

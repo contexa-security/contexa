@@ -310,6 +310,17 @@
                 </div>
             </form>
 
+            <form th:if="${user.id != null and user.accountLocked}" id="unlockForm"
+                  th:action="@{/contexa/admin/users/{id}/unlock(id=${user.id})}" method="post"
+                  class="flex flex-wrap items-center gap-2 mt-6 p-4 rounded-lg"
+                  style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3);">
+                <span class="text-sm" style="flex:1; min-width:12rem; color: #fca5a5;" th:text="#{admin.users.detail.locked.desc}">
+                    This account is locked after too many failed sign-ins. Unlocking it does not lift a limit on an address.</span>
+                <button type="submit" class="px-4 py-2 rounded-lg text-sm font-medium text-white"
+                        style="background: linear-gradient(135deg, #6366f1, #4f46e5);"
+                        th:text="#{admin.users.detail.unlock}">Unlock</button>
+            </form>
+
             <div class="mt-6 text-center">
                 <a th:href="@{/contexa/admin/users}" class="inline-flex items-center text-sm font-medium hover:underline transition-all duration-200" style="color: #818cf8;">
                     <i class="fas fa-arrow-left mr-2"></i>

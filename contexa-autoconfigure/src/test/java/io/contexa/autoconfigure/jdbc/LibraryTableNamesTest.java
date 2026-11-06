@@ -17,6 +17,7 @@ package io.contexa.autoconfigure.jdbc;
 
 import io.contexa.contexacommon.jdbc.LibraryTableNames;
 import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -32,6 +33,8 @@ import org.springframework.security.web.webauthn.management.JdbcUserCredentialRe
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.sql.ResultSet;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -130,5 +133,43 @@ class LibraryTableNamesTest {
         assertThat(service.consume(new OneTimeTokenAuthenticationToken("host-token")))
                 .as("a token of the application's table is not Contexa's to consume").isNull();
         assertThat(jdbc.queryForObject("select count(*) from one_time_tokens", Integer.class)).isEqualTo(1);
+    }
+
+    // PR-44: Spring's authorization service asks the database about its columns under the standard table name
+    @Test
+    void aLibraryThatAsksAboutItsTableIsAnsweredForContexasTableInEitherCase() {
+        JdbcTemplate jdbc = database("library-columns");
+        jdbc.execute("create table ctxa_oauth2_authorization (id varchar(100) primary key, attributes varchar(4000))");
+        jdbc.execute("create table oauth2_authorization (id varchar(100) primary key, attributes blob)");
+
+        JdbcOperations wrapped = LibraryTableNames.wrap(jdbc);
+
+        assertThat(columnType(wrapped, "OAUTH2_AUTHORIZATION", "ATTRIBUTES")).as("the application's table is not the one asked about")
+                .isEqualTo(Types.VARCHAR);
+        assertThat(columnType(wrapped, "oauth2_authorization", "attributes")).as("a database that keeps the name in lower case")
+                .isNull();
+        assertThat(columnType(jdbc, "OAUTH2_AUTHORIZATION", "ATTRIBUTES")).as("without the wrapper nothing changes").isEqualTo(Types.BLOB);
+    }
+
+    // PR-44: Spring reads a binary column as bytes only when it is told BLOB; a driver says BINARY for PostgreSQL's bytea
+    @Test
+    void aColumnKeptAsBytesIsReportedAsTheBlobTheLibraryReadsAsBytes() {
+        JdbcTemplate jdbc = database("library-binary-columns");
+        jdbc.execute("create table ctxa_oauth2_authorization (id varchar(100) primary key, access_token_value varbinary(4000))");
+
+        assertThat(columnType(jdbc, "CTXA_OAUTH2_AUTHORIZATION", "ACCESS_TOKEN_VALUE")).isEqualTo(Types.VARBINARY);
+        assertThat(columnType(LibraryTableNames.wrap(jdbc), "OAUTH2_AUTHORIZATION", "ACCESS_TOKEN_VALUE")).isEqualTo(Types.BLOB);
+    }
+
+    private static JdbcTemplate database(String name) {
+        return new JdbcTemplate(new DriverManagerDataSource("jdbc:h2:mem:" + name + ";DB_CLOSE_DELAY=-1", "sa", ""));
+    }
+
+    /** What Spring's authorization service does when it is built. */
+    private static Integer columnType(JdbcOperations jdbc, String table, String column) {
+        return jdbc.execute((ConnectionCallback<Integer>) connection -> {
+            ResultSet columns = connection.getMetaData().getColumns(null, null, table, column);
+            return columns.next() ? columns.getInt("DATA_TYPE") : null;
+        });
     }
 }

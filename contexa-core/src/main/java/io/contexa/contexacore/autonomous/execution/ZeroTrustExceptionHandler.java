@@ -38,11 +38,17 @@ import java.time.Instant;
  * own exceptions only, and an application's advice for {@code AccessDeniedException} (a subtype) would otherwise turn
  * every decision into the application's own 403 (finding F-7, ownership harness 2026-11-03). A browser is sent to the
  * screen of the decision, as the request filters send it; an API client gets the status and the JSON body.
+ * <p>
+ * An order cannot go ahead of an application's advice of the same order or of a handler inside a controller, so these
+ * answers are given through {@link ZeroTrustEnforcementExceptionResolver} wherever Spring MVC dispatches.
  */
 @ControllerAdvice
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @Slf4j
 public class ZeroTrustExceptionHandler implements Ordered {
+
+    /** A step-up the client can continue, as the request filters name it: the name the browser SDK follows. */
+    private static final String MFA_CHALLENGE_REQUIRED = "MFA_CHALLENGE_REQUIRED";
 
     private final ZeroTrustChallengeFlowStarter challengeFlowStarter;
 
@@ -89,6 +95,7 @@ public class ZeroTrustExceptionHandler implements Ordered {
 
         ZeroTrustErrorResponse response = ZeroTrustErrorResponse.builder()
             .status(ex.getHttpStatus())
+            .error(mfaUrl != null ? MFA_CHALLENGE_REQUIRED : ex.getErrorCode())
             .code(ex.getErrorCode())
             .message(ex.getReason())
             .action(ex.getAction())
@@ -97,6 +104,7 @@ public class ZeroTrustExceptionHandler implements Ordered {
             .analysisTimeout(ex.isAnalysisTimeout())
             .timestamp(Instant.now())
             .mfaUrl(mfaUrl)
+            .challengeNoticeUrl(mfaUrl != null && request != null ? ZeroTrustScreens.challengeRequired(request, mfaUrl) : null)
             .build();
 
         return ResponseEntity
@@ -113,6 +121,7 @@ public class ZeroTrustExceptionHandler implements Ordered {
 
         ZeroTrustErrorResponse response = ZeroTrustErrorResponse.builder()
             .status(403)
+            .error("ZERO_TRUST_ANOMALY_DETECTED")
             .code("ZERO_TRUST_ANOMALY_DETECTED")
             .message(ex.getMessage())
             .action(ZeroTrustAction.BLOCK.name())
@@ -138,6 +147,7 @@ public class ZeroTrustExceptionHandler implements Ordered {
 
         ZeroTrustErrorResponse response = ZeroTrustErrorResponse.builder()
             .status(ex.getHttpStatus())
+            .error(ex.getErrorCode())
             .code(ex.getErrorCode())
             .message(ex.getMessage())
             .action(ZeroTrustAction.CHALLENGE.name())
@@ -213,6 +223,10 @@ public class ZeroTrustExceptionHandler implements Ordered {
 
         private final int status;
 
+        /** What the request filters' answers name {@code error}: a client reads either answer by the same key. */
+        private final String error;
+
+        /** The decision, {@code ZERO_TRUST_<action>}, in every answer that carries one. */
         private final String code;
 
         private final String message;
@@ -230,5 +244,9 @@ public class ZeroTrustExceptionHandler implements Ordered {
         /** Where the user continues the step-up of a CHALLENGE decided in the request; absent otherwise. */
         @JsonInclude(JsonInclude.Include.NON_NULL)
         private final String mfaUrl;
+
+        /** The notice that leads to {@link #mfaUrl}, the page a CHALLENGE of the request filters shows first. */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        private final String challengeNoticeUrl;
     }
 }

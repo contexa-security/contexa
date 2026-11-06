@@ -22,8 +22,12 @@ import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import io.contexa.contexaidentity.security.utils.JsonAuthResponseWriter;
 import lombok.extern.slf4j.Slf4j;
+import com.nimbusds.jose.jwk.source.JWKSource;
+import com.nimbusds.jose.proc.SecurityContext;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationContext;
+import org.springframework.core.ResolvableType;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -168,18 +172,53 @@ public final class OAuth2StateAdapter implements StateAdapter {
                     appContext.getBean(OAuth2AuthorizationService.class));
             http.setSharedObject(RegisteredClientRepository.class,
                     appContext.getBean(RegisteredClientRepository.class));
-            http.setSharedObject(AuthorizationServerSettings.class,
-                    appContext.getBean(AuthorizationServerSettings.class));
-            // An application's own generator is used as it is; without one the authorization server builds Spring's,
-            // which adds Spring's default claims (act, cnf) before Contexa's token customizer (CF-06).
+            http.setSharedObject(AuthorizationServerSettings.class, chainSettings(appContext));
+            // An application's own generator issues the tokens, with Contexa's token checks in front of it; without one
+            // the authorization server builds Spring's, which adds Spring's default claims (act, cnf) before Contexa's
+            // token customizer.
             OAuth2TokenGenerator<?> applicationGenerator = appContext.getBeanProvider(OAuth2TokenGenerator.class).getIfUnique();
             if (applicationGenerator != null) {
-                http.setSharedObject(OAuth2TokenGenerator.class, applicationGenerator);
+                http.setSharedObject(OAuth2TokenGenerator.class,
+                        withContexasChecks(applicationGenerator, appContext));
             }
             http.setSharedObject(UserRepository.class, appContext.getBean(UserRepository.class));
         } catch (NoSuchBeanDefinitionException e) {
             throw new IllegalStateException("Authorization Server beans are required for AUTHORIZATION_SERVER mode", e);
         }
+    }
+
+    /**
+     * The authorization server asks a token customizer only from the generator it builds, so the generator an application
+     * declared issues its tokens without any of Contexa's checks. Contexa's checks go in front of it. Where there are none
+     * to put there (the application took the place of Contexa's token customizer by its bean name, or Contexa's token
+     * checks are not part of this application), the generator is used as it is, and the start says so.
+     */
+    private OAuth2TokenGenerator<?> withContexasChecks(OAuth2TokenGenerator<?> applicationGenerator,
+                                                       ApplicationContext appContext) {
+        ObjectProvider<ContexaTokenChecks> provider = appContext.getBeanProvider(ContexaTokenChecks.class);
+        ContexaTokenChecks checks = provider != null ? provider.getIfUnique() : null;
+        String generator = applicationGenerator.getClass().getSimpleName();
+        if (checks == null) {
+            log.warn("[OAuth2] The application declares its own token generator ({}) and Contexa's token checks are not "
+                    + "part of this application: nothing refuses the token of a suspended agent, checks the renewal of a "
+                    + "person's token or limits a token exchange. Remove the generator, or let Contexa's token customizer "
+                    + "stand in the bean named contexaTokenCustomizer.", generator);
+            return applicationGenerator;
+        }
+        log.info("[OAuth2] The application declares its own token generator ({}): Contexa's token checks (agent suspension, "
+                + "renewal, token exchange) run before it, and the claims they write are added to the tokens it issues.",
+                generator);
+        ObjectProvider<JWKSource<SecurityContext>> serverKeys = appContext.getBeanProvider(
+                ResolvableType.forClassWithGenerics(JWKSource.class, SecurityContext.class));
+        return new CheckedTokenGenerator(applicationGenerator, checks, appContext.getBean(JwtEncoder.class),
+                serverKeys.getObject());
+    }
+
+    /** What this chain issues under: the bean itself stays as it is, an authorization server of the application may use it. */
+    private AuthorizationServerSettings chainSettings(ApplicationContext appContext) {
+        AuthorizationServerSettings settings = appContext.getBean(AuthorizationServerSettings.class);
+        AuthContextProperties properties = appContext.getBean(AuthContextProperties.class);
+        return properties != null ? AuthorizationServerIssuer.applyTo(settings, properties.getOauth2()) : settings;
     }
 
     private void configureOptionalTokenService(HttpSecurity http, ApplicationContext appContext) {

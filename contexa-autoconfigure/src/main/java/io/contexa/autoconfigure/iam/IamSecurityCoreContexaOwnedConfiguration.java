@@ -46,6 +46,7 @@ public class IamSecurityCoreContexaOwnedConfiguration {
      * rather than inferred by Spring Boot's automatic Filter-bean detection. Wrapping the
      * filter in {@link FilterRegistrationBean} also prevents accidental double registration
      * (the wrapped filter is registered by this bean and skipped by the auto-detection path).
+     * It comes first: a failed sign-in ends inside the security chain and reaches no filter behind it.
      */
     @Bean(name = "contexaLoginAttemptCleanupFilterRegistration")
     @ConditionalOnMissingBean(name = "contexaLoginAttemptCleanupFilterRegistration")
@@ -53,7 +54,7 @@ public class IamSecurityCoreContexaOwnedConfiguration {
         FilterRegistrationBean<LoginAttemptCleanupFilter> registration =
                 new FilterRegistrationBean<>(new LoginAttemptCleanupFilter());
         registration.addUrlPatterns("/*");
-        registration.setOrder(Ordered.LOWEST_PRECEDENCE);
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
         registration.setName("contexaLoginAttemptCleanupFilter");
         return registration;
     }

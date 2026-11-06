@@ -45,6 +45,11 @@
                           th:text="#{'agent.confirmation.kind.' + *{subjectKind}}">for you</span></dd>
                 <dt style="color: #94a3b8;" th:text="#{agent.confirmation.target}">Request</dt>
                 <dd class="sm:col-span-2 font-mono break-all" th:text="*{method} + ' ' + *{target}"></dd>
+                <dt th:if="*{routedPath != null}" style="color: #fbbf24;" th:text="#{agent.confirmation.target.routed}">The application serves it as</dt>
+                <dd th:if="*{routedPath != null}" id="routedPath" class="sm:col-span-2 font-mono break-all" style="color: #fbbf24;" th:text="*{routedPath}"></dd>
+                <dt style="color: #94a3b8;" th:text="#{agent.confirmation.body}">Body</dt>
+                <dd id="requestBody" class="sm:col-span-2"
+                    th:text="(${confirmation.bodyBytes} == null) ? #{agent.confirmation.body.unknown} : ((${confirmation.bodyBytes} == 0) ? #{agent.confirmation.body.none} : ((${confirmation.bodyBytes} lt 0) ? #{agent.confirmation.body.unseen} : #{agent.confirmation.body.bytes(${#numbers.formatInteger(confirmation.bodyBytes, 1, 'COMMA')})}))">Not recorded</dd>
                 <dt style="color: #94a3b8;" th:text="#{agent.confirmation.asked.at}">Asked</dt>
                 <dd class="sm:col-span-2" th:text="${#temporals.format(confirmation.createdAt, 'yyyy-MM-dd HH:mm:ss')}"></dd>
                 <dt style="color: #94a3b8;" th:text="#{agent.confirmation.trigger}">Why it waits</dt>

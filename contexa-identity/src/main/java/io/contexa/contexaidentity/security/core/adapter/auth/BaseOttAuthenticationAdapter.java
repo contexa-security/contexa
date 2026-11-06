@@ -19,22 +19,31 @@ import io.contexa.contexacore.security.ContexaUserStore;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.core.dsl.option.OttOptions;
+import io.contexa.contexaidentity.security.filter.OneTimeTokenAddressRefusalFilter;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
 import io.contexa.contexaidentity.security.handler.login.LoginFactsAuthenticationProvider;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.ott.ContexaOneTimeTokens;
+import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.authentication.ott.OneTimeTokenAuthenticationProvider;
 import org.springframework.security.authentication.ott.OneTimeTokenService;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.web.authentication.ott.GenerateOneTimeTokenFilter;
 import org.springframework.security.web.authentication.ott.OneTimeTokenGenerationSuccessHandler;
-import org.springframework.security.authentication.ott.GenerateOneTimeTokenRequest;
-import io.contexa.contexaidentity.security.service.ott.EmailGenerateOneTimeTokenRequest;
+import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
+import io.contexa.contexaidentity.security.service.ott.FlowBoundOneTimeTokenRequestResolver;
 
 @Slf4j
 public abstract class BaseOttAuthenticationAdapter extends AbstractAuthenticationAdapter<OttOptions> {
+
+    /** The page that asks for the code of this kind of sign-in. */
+    protected String codeRequestPage(AuthUrlProvider urls) {
+        return urls.getSingleOttRequestEmail();
+    }
 
     @Override
     protected void configureHttpSecurity(HttpSecurity http, OttOptions options,
@@ -58,6 +67,9 @@ public abstract class BaseOttAuthenticationAdapter extends AbstractAuthenticatio
         UserDetailsService userDetailsService = ContexaUserStore.of(appContext);
         OneTimeTokenService oneTimeTokenService = appContext.getBean(ContexaOneTimeTokens.BEAN_NAME, ContexaOneTimeTokens.class).service();
 
+        http.addFilterBefore(new OneTimeTokenAddressRefusalFilter(appContext.getBean(AuthResponseWriter.class),
+                codeRequestPage(appContext.getBean(AuthUrlProvider.class))), GenerateOneTimeTokenFilter.class);
+
         http.oneTimeTokenLogin(ott -> {
             ott.defaultSubmitPageUrl(opts.getDefaultSubmitPageUrl())
                     .loginProcessingUrl(loginProcessingUrl)
@@ -66,19 +78,13 @@ public abstract class BaseOttAuthenticationAdapter extends AbstractAuthenticatio
                     .tokenService(opts.getOneTimeTokenService())
                     .tokenGenerationSuccessHandler(opts.getTokenGenerationSuccessHandler() == null ?
                             tokenGenerationSuccessHandler : opts.getTokenGenerationSuccessHandler())
-                    .generateRequestResolver(request -> {
-                        String username = request.getParameter("username");
-                        if (username == null || username.isBlank()) {
-                            return null;
-                        }
-                        String email = request.getParameter("email");
-                        if (email != null && !email.isBlank()) {
-                            return new EmailGenerateOneTimeTokenRequest(username, email);
-                        }
-                        return new GenerateOneTimeTokenRequest(username);
-                    })
-                    .authenticationProvider(new LoginFactsAuthenticationProvider(
-                            new OneTimeTokenAuthenticationProvider(oneTimeTokenService, userDetailsService)));
+                    .generateRequestResolver(new FlowBoundOneTimeTokenRequestResolver(request -> {
+                        MfaStateMachineIntegrator flows = appContext.getBeanProvider(MfaStateMachineIntegrator.class).getIfAvailable();
+                        return flows != null ? flows.loadFactorContextFromRequest(request) : null;
+                    }))
+                    // Spring's provider takes the account the code names as it is: the store refuses a locked or disabled one
+                    .authenticationProvider(new LoginFactsAuthenticationProvider(new OneTimeTokenAuthenticationProvider(
+                            oneTimeTokenService, new AccountStateCheckingUserDetailsService(userDetailsService))));
 
             if (successHandler != null) ott.successHandler(successHandler);
             else if (opts.getSuccessHandler() != null) ott.successHandler(opts.getSuccessHandler());

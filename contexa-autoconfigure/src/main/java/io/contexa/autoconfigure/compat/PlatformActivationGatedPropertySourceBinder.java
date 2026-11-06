@@ -21,7 +21,8 @@ import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.PropertySource;
 
 /**
- * Binds every {@link PlatformActivationGatedPropertySource} to the Environment of the application context.
+ * Binds every {@link PlatformActivationGatedPropertySource} and the {@link BootDefaultUserPropertySource} to the Environment
+ * of the application context.
  * It only updates the activation lookup target and never adds, removes or changes property values.
  */
 public class PlatformActivationGatedPropertySourceBinder
@@ -33,6 +34,8 @@ public class PlatformActivationGatedPropertySourceBinder
         for (PropertySource<?> propertySource : environment.getPropertySources()) {
             if (propertySource instanceof PlatformActivationGatedPropertySource gatedPropertySource) {
                 gatedPropertySource.bindTo(environment);
+            } else if (propertySource instanceof BootDefaultUserPropertySource bootDefaultUser) {
+                bootDefaultUser.bindTo(environment);
             }
         }
     }

@@ -22,6 +22,8 @@ import io.contexa.contexaidentity.security.statemachine.guard.*;
 import java.util.EnumSet;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -43,6 +45,9 @@ import org.springframework.statemachine.transition.TransitionConflictPolicy;
 // the bean is named for Contexa: Spring State Machine's default name, stateMachineFactory, is the application's to use
 @EnableStateMachineFactory(name = "contexaMfaStateMachineFactory")
 public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdapter<MfaState, MfaEvent> {
+
+    private static final String ANNOTATION_POST_PROCESSOR_CONFIGURATION =
+            "org.springframework.statemachine.config.configuration.StateMachineAnnotationPostProcessorConfiguration";
 
     private final InitializeMfaAction initializeMfaAction;
     private final SelectFactorAction selectFactorAction;
@@ -74,6 +79,20 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
         this.determineNextFactorAction = determineNextFactorAction;
         this.allFactorsCompletedGuard = allFactorsCompletedGuard;
         this.retryLimitGuard = retryLimitGuard;
+    }
+
+    /**
+     * The library declares its annotation post processor through a non-static method of a configuration of its own, so that
+     * configuration is made before every post processor is there, and Spring's checker said so in the start log of every
+     * application with Contexa on. It is infrastructure, which is what the checker asks to be told (PR-29).
+     */
+    @Bean(name = "contexaStateMachineInfrastructureRole")
+    static BeanFactoryPostProcessor contexaStateMachineInfrastructureRole() {
+        return beanFactory -> {
+            if (beanFactory.containsBeanDefinition(ANNOTATION_POST_PROCESSOR_CONFIGURATION)) {
+                beanFactory.getBeanDefinition(ANNOTATION_POST_PROCESSOR_CONFIGURATION).setRole(BeanDefinition.ROLE_INFRASTRUCTURE);
+            }
+        };
     }
 
     @Override

@@ -26,6 +26,8 @@ import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacommon.entity.RolePermission;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
+import io.contexa.contexacommon.security.authority.RoleAuthority;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.common.event.dto.RolePermissionsChangedEvent;
 import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
@@ -54,7 +56,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 @CacheConfig(cacheManager = "contexaCacheManager")
-public class RoleServiceImpl implements RoleService {
+public class RoleServiceImpl extends AccountAuthoritiesService implements RoleService {
 
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
@@ -64,6 +66,7 @@ public class RoleServiceImpl implements RoleService {
     private final PolicyRepository policyRepository;
     private final PolicySynchronizationService policySynchronizationService;
     private final MessageSource messageSource;
+    private final LastAdministratorGuard lastAdministratorGuard;
 
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
@@ -100,8 +103,13 @@ public class RoleServiceImpl implements RoleService {
     public Optional<AffectedPoliciesResponse> getAffectedPolicies(Long id) {
         return roleRepository.findById(id)
                 .map(role -> {
+                    // The authority the role gives its holders; a condition written before that was kept in step with it
+                    // asks for the name of the role itself.
+                    Set<String> names = new LinkedHashSet<>();
+                    names.add(RoleAuthority.authorityOf(role.getRoleName()));
+                    names.add(role.getRoleName());
                     List<AffectedPolicyResponse> policyList = policyRepository
-                            .findActivePoliciesReferencingExpression(role.getRoleName())
+                            .findActivePoliciesReferencing(names)
                             .stream()
                             .map(AffectedPolicyResponse::from)
                             .toList();
@@ -154,6 +162,10 @@ public class RoleServiceImpl implements RoleService {
             put = {@CachePut(value = "roles", key = "#result.id")}
     )
     public Role updateRole(Role role, List<Long> permissionIds) {
+        // First in the transaction: a change of who administers the console waits for the one before it.
+        lastAdministratorGuard.serializeChanges();
+        List<String> administrators = lastAdministratorGuard.administrators();
+        authoritiesChanged();
         Role existingRole = roleRepository.findByIdWithPermissions(role.getId())
                 .orElseThrow(() -> new IllegalArgumentException("Role not found with ID: " + role.getId()));
 
@@ -179,6 +191,7 @@ public class RoleServiceImpl implements RoleService {
         }
 
         Role savedRole = roleRepository.save(existingRole);
+        lastAdministratorGuard.refuseLosingEveryAdministrator(administrators);
         eventBus.publish(new RolePermissionsChangedEvent(savedRole.getId()));
         auditRoleChange(AuditEventCategory.ROLE_UPDATED, savedRole);
 
@@ -195,6 +208,9 @@ public class RoleServiceImpl implements RoleService {
             }
     )
     public void deleteRole(long id) {
+        lastAdministratorGuard.serializeChanges();
+        List<String> administrators = lastAdministratorGuard.administrators();
+        authoritiesChanged();
         // Check if role is referenced in any active hierarchy (exact token matching)
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Role not found with ID: " + id));
@@ -216,9 +232,18 @@ public class RoleServiceImpl implements RoleService {
             throw new IllegalStateException(msg("msg.role.delete.referenced",
                     role.getRoleName(), String.join(", ", referencedIn)));
         }
+        // Counted under the lock taken first and before anything is cleaned up, audited or deleted, so a refusal leaves
+        // nothing behind. The database refuses the deletion of a role an account holds, with a constraint nobody can read,
+        // and drops a role from the groups that hold it without a word.
+        long accounts = roleRepository.countAccountsHolding(id);
+        long groups = roleRepository.countGroupsHolding(id);
+        if (accounts > 0 || groups > 0) {
+            throw new IllegalStateException(msg("msg.role.delete.held", role.getRoleName(), accounts, groups));
+        }
         policySynchronizationService.cleanupAutoPolicy(role.getRoleName());
         auditRoleChange(AuditEventCategory.ROLE_DELETED, role);
         roleRepository.deleteById(id);
+        lastAdministratorGuard.refuseLosingEveryAdministrator(administrators);
     }
 
     private void auditRoleChange(AuditEventCategory category, Role role) {

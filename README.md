@@ -21,7 +21,7 @@ Contexa is an open-source Spring Boot library that closes this gap. For each req
 
 - **Added to an application you already have.** Your login and your roles stay as they are. Contexa adds one dependency, one annotation and `@Protectable` on the methods to protect.
 - **No policy rules to write for the decision.** The AI model chooses the action from the facts of the request; your authorization policies still apply.
-- **Not in the request path.** By default the model runs after the response has been sent, so the user does not wait for it; the decision applies from the user's next request. A method can ask for the decision inside the call (`@Protectable(sync = true)`).
+- **Out of the request path while nothing changes.** By default the model runs after the response has been sent, so the user does not wait for it; the decision applies from the user's next request. A person's request whose session, address or browser differs from the user's last decision waits for its verdict, as a method that asks for the decision inside the call does (`@Protectable(sync = true)`).
 - **Explainable.** Every decision is written to a hash-chained, signed audit record, and for a sample of the model's decisions the exact prompt it received is sealed as evidence for later review.
 - **Covers AI agents.** Requests from agents are told apart from people's requests and decided separately.
 
@@ -41,7 +41,7 @@ The scenario is illustrative: the decision always depends on the context that is
 
 | Decision | Meaning | HTTP status | Valid for |
 |---|---|---|---|
-| `ALLOW` | Continue as usual | 200 | 15 s, then back to pending analysis |
+| `ALLOW` | Continue as usual | 200 | 15 min (`contexa.security.zerotrust.allow-validity`), then back to pending analysis |
 | `CHALLENGE` | Step-up authentication (MFA) is required | 401 | 30 min, or until MFA is passed |
 | `ESCALATE` | Held for review while the analysis settles | 423 | 5 min |
 | `BLOCK` | Refused until an administrator releases it | 403 | Until released |
@@ -190,7 +190,7 @@ Three independent settings decide how Contexa runs:
 |---|---|---|
 | Sign-in ownership | `SANDBOX` (default) / `FULL` | Your application keeps sign-in, or Contexa provides sign-in, MFA and the admin console (`@EnableAISecurity(mode = SecurityMode.FULL)`) |
 | Enforcement, `contexa.security.zerotrust.mode` | `SHADOW` / `ENFORCE` (default) / `OBSERVE` / `DISABLED` | `SHADOW` analyzes and records only; `ENFORCE` stores and applies decisions |
-| Infrastructure, `contexa.infrastructure.mode` | `standalone` (default) / `distributed` | State in memory of one server, or shared through Redis and Kafka |
+| Infrastructure, `contexa.infrastructure.mode` | `standalone` (default) / `distributed` | State in memory of one server, or shared through Redis and Kafka. `distributed` needs a single Redis server or Sentinel: Redis Cluster is not supported in this release. `org.redisson:redisson` brings a JCache provider, so an application whose cache goes through JCache sets its cache, for example `spring.cache.type=caffeine` |
 
 **Start with `SHADOW`.** Watch the decisions for your own scenarios, then switch to `ENFORCE`. See [Start Safely with Enforcement Modes](https://docs.ctxa.ai/en/docs/install/shadow-mode.html).
 

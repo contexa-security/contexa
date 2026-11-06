@@ -21,6 +21,7 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
 import io.contexa.contexacore.autonomous.store.ExpiringStateStore;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
@@ -98,7 +99,7 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
             // docs/agent A5-1: an agent acting for the user reads its own decision. On a token chain the bridge has
             // stamped the request by now; a session's context loads before the bridge runs, so it reads the user's.
             ZeroTrustSubject subject = ZeroTrustSubject.of(userId, delegationStamp(request));
-            String decisionKey = subject != null ? subject.storageKey() : userId;
+            String decisionKey = ZeroTrustUserKey.of(subject != null ? subject.storageKey() : userId);
             CachedZeroTrustDecision cached = decisionCache.getIfPresent(decisionKey);
             if (cached != null && Objects.equals(cached.contextBindingHash, contextBindingHash)) {
                 action = cached.action;
@@ -107,7 +108,11 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
                 action = subject != null ? subject.currentAction(actionRepository, contextBindingHash)
                         : actionRepository.getCurrentAction(userId, contextBindingHash);
                 threatScore = threatScoreUtil.getThreatScore(userId);
-                decisionCache.put(decisionKey, new CachedZeroTrustDecision(action, threatScore, contextBindingHash));
+                // Only an ALLOW is remembered: a pending analysis or a restriction may end at any moment, and a request
+                // held to it after that would be refused for a decision that no longer stands.
+                if (action == ZeroTrustAction.ALLOW) {
+                    decisionCache.put(decisionKey, new CachedZeroTrustDecision(action, threatScore, contextBindingHash));
+                }
             }
 
             double trustScore = 1.0 - threatScore;
@@ -261,13 +266,13 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
         }
 
         try {
-            actionRepository.removeLogoutData(userId);
+            actionRepository.removeLogoutData(ZeroTrustUserKey.person(userId));
         } catch (Exception e) {
             log.error("[ZeroTrust] Failed to cleanup logout action data: userId={}", userId, e);
         }
 
         try {
-            decisionCache.invalidate(userId);
+            decisionCache.invalidate(ZeroTrustUserKey.of(ZeroTrustUserKey.person(userId)));
             if (sessionId != null) {
                 registeredSessions.remove(sessionId);
             }
@@ -280,7 +285,7 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
     @Override
     public void invalidateDecisionCache(String userId) {
         if (userId != null) {
-            decisionCache.invalidate(userId);
+            decisionCache.invalidate(ZeroTrustUserKey.of(ZeroTrustUserKey.person(userId)));
         }
     }
 

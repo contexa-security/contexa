@@ -60,6 +60,97 @@ class MethodResourceScannerTest {
         verify(context, never()).getBean("hostsLazyBean");
     }
 
+    /** PR-49: an application's methods were not listed until someone wrote its package into the console. */
+    @Test
+    void scansTheApplicationsOwnPackagesBesideTheConfiguredOnes() {
+        ApplicationContext context = mock(ApplicationContext.class);
+        SystemRuntimeSettingsService settings = mock(SystemRuntimeSettingsService.class);
+        when(context.getBeanDefinitionNames()).thenReturn(new String[]{"probe"});
+        when(context.getBean("probe")).thenReturn(new ProbeService());
+        when(settings.getResourceScannerBasePackages()).thenReturn(List.of("com.customer.other."));
+
+        MethodResourceScanner scanner = new MethodResourceScanner(context, new ObjectMapper(), settings,
+                List.of("io.contexa.contexaiam.resource.scanner"));
+
+        assertThat(scanner.scan()).singleElement()
+                .satisfies(resource -> assertThat(resource.getResourceIdentifier()).contains("protectedOperation(String)"));
+    }
+
+    @Test
+    void aPackageThatOnlyStartsLikeTheApplicationsIsNotScanned() {
+        ApplicationContext context = mock(ApplicationContext.class);
+        SystemRuntimeSettingsService settings = mock(SystemRuntimeSettingsService.class);
+        when(context.getBeanDefinitionNames()).thenReturn(new String[]{"probe"});
+        when(context.getBean("probe")).thenReturn(new ProbeService());
+        when(settings.getResourceScannerBasePackages()).thenReturn(List.of("com.customer.other."));
+
+        MethodResourceScanner scanner = new MethodResourceScanner(context, new ObjectMapper(), settings,
+                List.of("io.contexa.contexaiam.resource.scan"));
+
+        assertThat(scanner.scan()).isEmpty();
+    }
+
+    /** An application in the default package would otherwise turn the scan into a scan of every bean. */
+    @Test
+    void theDefaultPackageIsNoPackageToScan() {
+        ApplicationContext context = mock(ApplicationContext.class);
+        SystemRuntimeSettingsService settings = mock(SystemRuntimeSettingsService.class);
+        when(context.getBeanDefinitionNames()).thenReturn(new String[]{"probe"});
+        when(context.getBean("probe")).thenReturn(new ProbeService());
+        when(settings.getResourceScannerBasePackages()).thenReturn(List.of("com.customer.other."));
+
+        MethodResourceScanner scanner = new MethodResourceScanner(context, new ObjectMapper(), settings, List.of(""));
+
+        assertThat(scanner.scan()).isEmpty();
+    }
+
+    /** The application's packages are scanned now, and a refresh must still not make its lazy and prototype beans. */
+    @Test
+    void doesNotMakeTheApplicationsBeansInsideItsPackagesEither() {
+        ApplicationContext context = mock(ApplicationContext.class);
+        SystemRuntimeSettingsService settings = mock(SystemRuntimeSettingsService.class);
+        when(context.getBeanDefinitionNames()).thenReturn(new String[]{"hostsLazyBean"});
+        doReturn(ProbeService.class).when(context).getType("hostsLazyBean", false);
+        when(settings.getResourceScannerBasePackages()).thenReturn(List.of("com.customer.other."));
+
+        MethodResourceScanner scanner = new MethodResourceScanner(context, new ObjectMapper(), settings,
+                List.of("io.contexa.contexaiam.resource.scanner"));
+
+        assertThat(scanner.scan()).singleElement()
+                .satisfies(resource -> assertThat(resource.getResourceIdentifier()).contains("protectedOperation(String)"));
+        verify(context, never()).getBean("hostsLazyBean");
+    }
+
+    /** The runtime protects every public method of a class annotated as a whole, so the console lists them too. */
+    @Test
+    void listsThePublicMethodsOfAClassProtectedAsAWhole() {
+        ApplicationContext context = mock(ApplicationContext.class);
+        SystemRuntimeSettingsService settings = mock(SystemRuntimeSettingsService.class);
+        when(context.getBeanDefinitionNames()).thenReturn(new String[]{"whole"});
+        doReturn(ProtectedAsAWhole.class).when(context).getType("whole", false);
+        when(settings.getResourceScannerBasePackages()).thenReturn(List.of("io.contexa.contexaiam.resource.scanner."));
+
+        MethodResourceScanner scanner = new MethodResourceScanner(context, new ObjectMapper(), settings);
+
+        assertThat(scanner.scan()).singleElement()
+                .satisfies(resource -> assertThat(resource.getResourceIdentifier()).contains("readEverything()"));
+    }
+
+    @Protectable
+    static class ProtectedAsAWhole {
+        public String readEverything() {
+            return "everything";
+        }
+
+        public static String helper() {
+            return "helper";
+        }
+
+        String notPublic() {
+            return "not public";
+        }
+    }
+
     static class ProbeService {
         @Protectable
         public String protectedOperation(String value) {

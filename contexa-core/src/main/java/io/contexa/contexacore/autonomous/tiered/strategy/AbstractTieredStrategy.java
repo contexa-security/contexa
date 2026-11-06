@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
 import io.contexa.contexacore.infra.ContexaBackgroundExecution;
+import io.contexa.contexacore.autonomous.AnalysisTurn;
 import io.contexa.contexacore.autonomous.SecurityEventProcessor;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import io.contexa.contexacore.autonomous.context.support.PastRecordScope;
@@ -84,6 +85,7 @@ import io.contexa.contexacore.std.pipeline.PipelineFailurePolicy;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.pipeline.step.StructuredOutputExecutionException;
 import io.contexa.contexacore.std.pipeline.step.StructuredOutputPolicy;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.security.AuthorizedPromptContext;
@@ -269,7 +271,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             if (response != null && response.isValid()) {
                 return validateAndFixResponse(response);
             }
-            log.error("[{}] JSON parsing failed, returning default response", getLayerName());
+            log.warn("[{}] JSON parsing failed, returning default response", getLayerName());
             return createDefaultResponse();
         } catch (Exception e) {
             log.error("[{}] JSON response parsing failed", getLayerName(), e);
@@ -378,7 +380,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
      */
     protected <T> T awaitPipeline(Mono<T> pipeline, long limitMs, SecurityEvent event,
                                   LongFunction<RuntimeException> timeout) {
-        ModelCallTimer timer = ModelCallTimer.start(limitMs).withDeadline(processingDeadline(event));
+        ModelCallTimer timer = ModelCallTimer.start(limitMs).withDeadline(processingDeadline(event))
+                .firstInLine(event != null && event.getMetadata() != null
+                        && Boolean.TRUE.equals(event.getMetadata().get(AnalysisTurn.FIRST_DECISION)));
         Callable<T> work = pipeline::block;
         CompletableFuture<T> future = Mono.fromCallable(timer.bind(work))
                 .subscribeOn(ContexaBackgroundExecution.scheduler())
@@ -501,7 +505,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         if (zta == ZeroTrustAction.ESCALATE && action != null && !action.isBlank()) {
             String upper = action.trim().toUpperCase(Locale.ROOT);
             if (!ZeroTrustAction.ESCALATE.name().equals(upper) && !"E".equals(upper)) {
-                log.error("[{}] Unknown action '{}' from LLM, converting to ESCALATE",
+                log.warn("[{}] Unknown action '{}' from LLM, converting to ESCALATE",
                         getLayerName(), action);
             }
         }
@@ -1628,17 +1632,21 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         return List.of();
     }
 
-    /** The request's session id and the ids the session had, the ones whose records are not past records. */
+    /**
+     * The references of the request's session and of the ids it had, as the records keep them (Q-11): the ones whose
+     * records are not past records.
+     */
     private List<String> sessionIdsOf(SecurityEvent event) {
         String sessionId = event.getSessionId();
         if (!StringUtils.hasText(sessionId)) {
             return List.of();
         }
         List<String> ids = new ArrayList<>();
-        ids.add(sessionId);
+        ids.add(RequestFactRedaction.sessionReference(sessionId));
         List<String> previous = previousSessionIds(sessionId);
         if (previous != null) {
-            previous.stream().filter(StringUtils::hasText).filter(id -> !ids.contains(id)).forEach(ids::add);
+            previous.stream().filter(StringUtils::hasText).map(RequestFactRedaction::sessionReference)
+                    .filter(id -> !ids.contains(id)).forEach(ids::add);
         }
         return ids;
     }

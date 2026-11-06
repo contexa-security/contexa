@@ -27,6 +27,7 @@ import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 /** The notices kept in the {@code ctxa_agent_notice} table (docs/agent A5-3, A5-2). */
 public class JdbcAgentNoticeStore implements AgentNoticeStore {
@@ -62,6 +63,16 @@ public class JdbcAgentNoticeStore implements AgentNoticeStore {
     public List<AgentNotice> forRecipient(String recipientId, int limit) {
         return jdbc.query("select " + COLUMNS + " from ctxa_agent_notice where recipient_id = ? "
                 + "order by created_at desc limit ?", JdbcAgentNoticeStore::notice, recipientId, Math.max(0, limit));
+    }
+
+    @Override
+    public Optional<AgentNotice> find(String recipientId, String kind, String correlationId) {
+        if (recipientId == null || kind == null || correlationId == null) {
+            return Optional.empty();
+        }
+        return jdbc.query("select " + COLUMNS + " from ctxa_agent_notice where recipient_id = ? and kind = ? "
+                        + "and correlation_id = ? order by created_at desc limit 1", JdbcAgentNoticeStore::notice,
+                recipientId, kind, truncate(correlationId, 160)).stream().findFirst();
     }
 
     @Override

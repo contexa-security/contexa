@@ -15,14 +15,18 @@
  */
 package io.contexa.autoconfigure.identity;
 
+import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacore.security.ContexaUserStore;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.service.ott.ContexaOneTimeTokens;
 import io.contexa.contexaidentity.security.service.ott.EmailOneTimeTokenService;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
 import io.contexa.contexaidentity.security.service.ott.MagicLinkHandler;
+import io.contexa.contexaidentity.security.zerotrust.stepup.InMemoryStepUpOptionsStore;
+import io.contexa.contexaidentity.security.zerotrust.stepup.StepUpOptionsStore;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -72,13 +76,18 @@ public class IdentityServiceAutoConfiguration {
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
             // ctxa_one_time_tokens is JDBC-owned; the shared Contexa transaction manager keeps the boundary explicit.
             @Qualifier("contexaTransactionTemplate") TransactionTemplate transactionTemplate,
-            AuthContextProperties authContextProperties) {
-        return new ContexaOneTimeTokens(new EmailOneTimeTokenService(
+            AuthContextProperties authContextProperties,
+            ObjectProvider<StepUpOptionsStore> stepUpOptionsStore,
+            BeanFactory beanFactory) {
+        EmailOneTimeTokenService service = new EmailOneTimeTokenService(
                 contexaEmailService,
                 jdbcTemplate,
                 transactionTemplate,
                 authContextProperties,
-                authContextProperties.getOtt().isFailOnEmailError()));
+                authContextProperties.getOtt().isFailOnEmailError(),
+                stepUpOptionsStore.getIfAvailable(InMemoryStepUpOptionsStore::new));
+        service.setUserStore(() -> ContexaUserStore.of(beanFactory));
+        return new ContexaOneTimeTokens(service);
     }
 
     @Bean(name = "contexaMagicLinkHandler")

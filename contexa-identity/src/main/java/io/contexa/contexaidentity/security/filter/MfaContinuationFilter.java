@@ -34,12 +34,14 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
+import org.springframework.lang.Nullable;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -54,6 +56,7 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
 
     private volatile boolean initialized = false;
 
+    private final AuthContextProperties authContextProperties;
     private final AuthResponseWriter responseWriter;
     private final MfaRequestHandler requestHandler;
     private final MfaUrlMatcher urlMatcher;
@@ -71,6 +74,7 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
     public MfaContinuationFilter(AuthContextProperties authContextProperties,
                                  AuthResponseWriter responseWriter,
                                  ApplicationContext applicationContext) {
+        this.authContextProperties = authContextProperties;
         this.responseWriter = Objects.requireNonNull(responseWriter);
 
         this.authUrlProvider = applicationContext.getBean(AuthUrlProvider.class);
@@ -127,14 +131,22 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
         request.setAttribute(VALIDATION_RESULT_ATTR, validation);
 
         if (validation.hasErrors()) {
-            log.error("Invalid MFA context for request: {} - Errors: {}",
+            if (isVerificationRunning(ctx)) {
+                // Not a broken flow: a second click reached a flow whose first click is being verified. Ending the
+                // flow here would leave that first click with its code spent and nothing to finish in.
+                log.info("A request reached session {} during a verification ({}): told to retry",
+                        ctx.getMfaSessionId(), ctx.getCurrentState());
+                requestHandler.handleVerificationRunning(request, response);
+                return;
+            }
+            log.warn("Invalid MFA context for request: {} - Errors: {}",
                     request.getRequestURI(), validation.getErrors());
             handleInvalidContext(request, response, validation);
             return;
         }
 
         if (validation.hasWarnings()) {
-            log.error("MFA context warnings for request: {} - Warnings: {}",
+            log.warn("MFA context warnings for request: {} - Warnings: {}",
                     request.getRequestURI(), validation.getWarnings());
         }
 
@@ -149,6 +161,19 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
         } catch (Exception e) {
             requestHandler.handleGenericError(request, response, ctx, e);
         }
+    }
+
+    /**
+     * A verification lasts as long as its request. One that has not moved for the state machine timeout has no request
+     * left to finish it, and the flow is handled as invalid so that the user gets back to the sign-in.
+     */
+    private boolean isVerificationRunning(@Nullable FactorContext ctx) {
+        if (ctx == null || ctx.getCurrentState() == null || !ctx.getCurrentState().isVerificationRunning()) {
+            return false;
+        }
+        Instant lastActivity = ctx.getLastActivityTimestamp();
+        return lastActivity != null
+                && Instant.now().isBefore(lastActivity.plus(authContextProperties.getMfa().getStateMachineTimeout()));
     }
 
     private void handleInvalidContext(HttpServletRequest request, HttpServletResponse response,

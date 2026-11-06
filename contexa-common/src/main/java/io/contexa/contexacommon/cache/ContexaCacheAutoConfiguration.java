@@ -58,8 +58,10 @@ public class ContexaCacheAutoConfiguration {
         public RedisContexaCacheService contexaCacheService(
                 ContexaCacheProperties properties,
                 StringRedisTemplate redisTemplate,
+                @Qualifier("contexaStringRedisTemplate") ObjectProvider<StringRedisTemplate> contexaStrings,
                 @Qualifier("contexaObjectMapper") ObjectProvider<ObjectMapper> objectMapper) {
-            return new RedisContexaCacheService(properties, redisTemplate, objectMapper.getIfAvailable(ContexaCacheAutoConfiguration::ownObjectMapper));
+            return new RedisContexaCacheService(properties, contexaStrings.getIfAvailable(() -> redisTemplate),
+                    objectMapper.getIfAvailable(ContexaCacheAutoConfiguration::ownObjectMapper));
         }
 
         @Bean
@@ -83,7 +85,7 @@ public class ContexaCacheAutoConfiguration {
             container.setConnectionFactory(connectionFactory);
 
             if (properties.getPubsub().isEnabled()) {
-                ChannelTopic topic = new ChannelTopic(properties.getPubsub().getChannel());
+                ChannelTopic topic = new ChannelTopic(properties.getPubsub().qualifiedChannel());
                 container.addMessageListener(contexaCacheListenerAdapter, topic);
             }
 

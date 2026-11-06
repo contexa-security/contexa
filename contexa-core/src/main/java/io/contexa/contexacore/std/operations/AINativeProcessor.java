@@ -87,6 +87,7 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
                                     auditLogger.completeAudit(auditId, request, result);
                                 })
                                 .doOnError(error -> {
+                                    failAudit(auditId, request, error);
                                     handleStrategicFailure(id, request, error);
                                 })
                                 .doFinally(signalType -> {
@@ -120,8 +121,10 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
                     return distributedStrategyExecutor.executeDistributedStrategyStream(
                             request, (Class<R>) AIResponse.class, auditId
                     ).doOnError(error -> {
+                        failAudit(auditId, request, error);
                         handleStrategicFailure(strategyId, request, error);
                     }).doFinally(signalType -> {
+                        auditLogger.closeAudit(auditId);
                         releaseStrategicLock(lockKey, strategyId);
                     });
                 })
@@ -150,6 +153,12 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
         } catch (Exception e) {
             log.error("Failed to release strategic lock: {} - {}", strategyId, e.getMessage());
         }
+    }
+
+    /** PR-91: an operation that fails ends its audit: an audit left open stays in memory for the life of the JVM. */
+    private void failAudit(String auditId, AIRequest<T> request, Throwable error) {
+        auditLogger.failAudit(auditId, request,
+                error instanceof Exception exception ? exception : new AIOperationException(error.getMessage()));
     }
 
     private void handleStrategicFailure(String strategyId, AIRequest<T> request, Throwable error) {

@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.store;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.baseline.LearningSubject;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -34,7 +35,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
@@ -58,6 +59,8 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private static final int MAX_PROCESSED_EVENTS = 50_000;
     private static final int MAX_SOAR_EXECUTIONS = 10_000;
     private static final int MAX_SESSION_ENTRIES = 10_000;
+    /** What a record of a sequence takes beside its characters: the string, its array and its place in the list. */
+    private static final int SEQUENCE_RECORD_BYTES = 64;
     /** QF-42: the default budget of the held learning records is a tenth of the maximum heap, within these bounds. */
     private static final int DEFAULT_HELD_LEARNING_HEAP_SHARE_DIVISOR = 10;
     private static final long MIN_DEFAULT_HELD_LEARNING_BYTES = 16L * 1024 * 1024;
@@ -68,12 +71,13 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private static final Duration DEFAULT_EVENT_PROCESSED_TTL = Duration.ofHours(24);
     private static final Duration DEFAULT_SOAR_TTL = Duration.ofDays(7);
     private static final Duration DEFAULT_USER_SESSIONS_TTL = Duration.ofDays(7);
+    private static final char CHALLENGE_VERIFIED_KEY_SEPARATOR = '\0';
     private static final Duration MFA_VERIFIED_TTL = Duration.ofHours(1);
     private static final Duration LOGIN_FAILURE_MINIMUM_RETENTION = Duration.ofMinutes(5);
     /** A request a filter stopped waits for the step-up while the challenge that stopped it is in force (N-LRN-3). */
     private static final Duration STOPPED_REQUEST_TTL = ZeroTrustAction.CHALLENGE.getDefaultTtl();
     /** A verified stopped request is sent again under the ALLOW the step-up writes (N-LRN-3). */
-    private static final Duration VERIFIED_STOPPED_REQUEST_TTL = ZeroTrustAction.ALLOW.getDefaultTtl();
+    private volatile Duration verifiedStoppedRequestTtl = ZeroTrustAction.ALLOW.getDefaultTtl();
     /**
      * QF-42, Z-16: how long RedisSecurityContextDataStore keeps each kind of key after its last write, the same
      * values (the shared contract test holds both stores to them): a session's actions and decisions, a session's
@@ -95,6 +99,14 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private final Duration soarTtl;
     private final Duration userSessionsTtl;
     private final Clock clock;
+    /** What the histories of the sessions take, a session going whole. */
+    private final ExpiringKeyBudget sessionHistoryBudget = new ExpiringKeyBudget("session histories", this::evictSession);
+    /** What the work profile observations take, a user going whole. */
+    private final ExpiringKeyBudget workProfileBudget =
+            new ExpiringKeyBudget("work profile observations", this::evictWorkProfile);
+    /** What the role scope observations take, a scope going whole. */
+    private final ExpiringKeyBudget roleScopeBudget =
+            new ExpiringKeyBudget("role scope observations", this::evictRoleScope);
 
     public InMemorySecurityContextDataStore() {
         this(DEFAULT_EVENT_PROCESSED_TTL, DEFAULT_SOAR_TTL, DEFAULT_USER_SESSIONS_TTL, Clock.systemUTC());
@@ -114,11 +126,11 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         this.soarTtl = Objects.requireNonNull(soarTtl, "soarTtl");
         this.userSessionsTtl = Objects.requireNonNull(userSessionsTtl, "userSessionsTtl");
         this.clock = Objects.requireNonNull(clock, "clock");
-        this.sessionActions = sessionScopedSpace(SESSION_RECORDS_TTL);
-        this.sessionDecisions = sessionScopedSpace(SESSION_RECORDS_TTL);
-        this.sessionNarrativeActionFamilies = sessionScopedSpace(SESSION_ACTIVITY_TTL);
-        this.sessionProtectableAccesses = sessionScopedSpace(SESSION_ACTIVITY_TTL);
-        this.sessionRequestIntervals = sessionScopedSpace(SESSION_ACTIVITY_TTL);
+        this.sessionActions = sessionHistorySpace(SESSION_RECORDS_TTL);
+        this.sessionDecisions = sessionHistorySpace(SESSION_RECORDS_TTL);
+        this.sessionNarrativeActionFamilies = sessionHistorySpace(SESSION_ACTIVITY_TTL);
+        this.sessionProtectableAccesses = sessionHistorySpace(SESSION_ACTIVITY_TTL);
+        this.sessionRequestIntervals = sessionHistorySpace(SESSION_ACTIVITY_TTL);
         this.sessionStartedAt = sessionScopedSpace(SESSION_ACTIVITY_TTL);
         this.sessionLastRequestTimes = sessionScopedSpace(SESSION_ACTIVITY_TTL);
         this.sessionPreviousPaths = sessionScopedSpace(SESSION_ACTIVITY_TTL);
@@ -127,10 +139,10 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         this.sessionRisks = sessionScopedSpace(SESSION_RISK_TTL);
         this.lastRequestTimes = userActivitySpace();
         this.previousPaths = userActivitySpace();
-        this.workProfileObservations = learningSpace(value -> {
-        });
-        this.roleScopeObservations = learningSpace(value -> {
-        });
+        this.workProfileObservations = ExpiringKeySpace.<RecordSequence>builder(clock).ttl(LEARNING_TTL)
+                .bound(MAX_SESSION_ENTRIES).weighed(workProfileBudget, RecordSequence::bytes).build();
+        this.roleScopeObservations = ExpiringKeySpace.<RecordSequence>builder(clock).ttl(LEARNING_TTL)
+                .bound(MAX_SESSION_ENTRIES).weighed(roleScopeBudget, RecordSequence::bytes).build();
         this.permissionChangeObservations = learningSpace(value -> {
         });
         this.authorizationScopeStates = learningSpace(value -> {
@@ -138,7 +150,10 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         this.verificationLearning = learningSpace(this::releaseHeldRecords);
         this.promotionLearning = learningSpace(this::releaseHeldRecords);
         this.stoppedRequests = ExpiringKeySpace.<StoppedRequests>builder(clock).build();
+        this.loginFailures = ExpiringKeySpace.<ConcurrentSkipListSet<Long>>builder(clock)
+                .bound(LoginFailureRecording.MAX_KEYS).evictWith(this::evictLoginFailures).build();
         this.mfaVerifiedAt = ExpiringKeySpace.<Long>builder(clock).ttl(MFA_VERIFIED_TTL).build();
+        this.challengeVerifiedAt = ExpiringKeySpace.<Long>builder(clock).ttl(MFA_VERIFIED_TTL).build();
         this.accountDeletions = ExpiringKeySpace.<Instant>builder(clock).build();
         this.userSessions = ExpiringKeySpace.<Set<String>>builder(clock).ttl(userSessionsTtl)
                 .bound(MAX_SESSION_ENTRIES).build();
@@ -155,22 +170,22 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
                 sessionProtectableAccesses, sessionRequestIntervals, sessionStartedAt, sessionLastRequestTimes,
                 sessionPreviousPaths, sessionFirstClients, sessionPreviousIds, sessionRisks, lastRequestTimes,
                 previousPaths, workProfileObservations, roleScopeObservations, permissionChangeObservations,
-                authorizationScopeStates, verificationLearning, promotionLearning, stoppedRequests, mfaVerifiedAt,
-                accountDeletions, userSessions, processingEventOwners, processedEvents, soarExecutions,
+                authorizationScopeStates, verificationLearning, promotionLearning, stoppedRequests, loginFailures,
+                mfaVerifiedAt, challengeVerifiedAt, accountDeletions, userSessions, processingEventOwners, processedEvents, soarExecutions,
                 verificationOutcomes);
     }
 
-    private final ExpiringKeySpace<List<String>> sessionActions;
-    private final ExpiringKeySpace<List<String>> sessionNarrativeActionFamilies;
-    private final ExpiringKeySpace<List<String>> sessionDecisions;
-    private final ExpiringKeySpace<List<String>> sessionProtectableAccesses;
+    private final ExpiringKeySpace<RecordSequence> sessionActions;
+    private final ExpiringKeySpace<RecordSequence> sessionNarrativeActionFamilies;
+    private final ExpiringKeySpace<RecordSequence> sessionDecisions;
+    private final ExpiringKeySpace<RecordSequence> sessionProtectableAccesses;
     /** Each interval with the time of its request when known (N-SES-1). */
-    private final ExpiringKeySpace<List<String>> sessionRequestIntervals;
-    private final ExpiringKeySpace<List<String>> workProfileObservations;
+    private final ExpiringKeySpace<RecordSequence> sessionRequestIntervals;
+    private final ExpiringKeySpace<RecordSequence> workProfileObservations;
     /** docs/agent A3-8: the scopes whose learning an operator quarantined. */
     private final Set<String> quarantinedLearning = ConcurrentHashMap.newKeySet();
-    private final ExpiringKeySpace<List<String>> roleScopeObservations;
-    private final ExpiringKeySpace<List<String>> permissionChangeObservations;
+    private final ExpiringKeySpace<RecordSequence> roleScopeObservations;
+    private final ExpiringKeySpace<RecordSequence> permissionChangeObservations;
     private final ExpiringKeySpace<Double> sessionRisks;
     private final ExpiringKeySpace<Long> sessionStartedAt;
     private final ExpiringKeySpace<Long> sessionLastRequestTimes;
@@ -186,10 +201,15 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private final ExpiringKeySpace<String> authorizationScopeStates;
     private final ExpiringKeySpace<Long> lastRequestTimes;
     private final ExpiringKeySpace<String> previousPaths;
-    private final ConcurrentHashMap<String, ConcurrentSkipListMap<Long, String>> loginFailureCounters =
-            new ConcurrentHashMap<>();
+    /** The failed sign-ins of each name and address, within the bounds of {@link LoginFailureRecording}. */
+    /** Each failure is its time and a sequence, nothing else: what a key holds is as small as it can be. */
+    private final ExpiringKeySpace<ConcurrentSkipListSet<Long>> loginFailures;
+    /** Until when a name without a record of failures may have lost it to the bound. */
+    private volatile long loginFailuresLostUntilMs;
     /** When each user last completed MFA, on the request clock, while the mark lasts. */
     private final ExpiringKeySpace<Long> mfaVerifiedAt;
+    /** Q-16: when the user passed a step-up in a context, by user and context. */
+    private final ExpiringKeySpace<Long> challengeVerifiedAt;
     private volatile Duration loginFailureRetention = LOGIN_FAILURE_MINIMUM_RETENTION;
     /** BR-C14: how many work profile and role scope observations each scope keeps. */
     private volatile int observationCapacity = DEFAULT_OBSERVATION_CAPACITY;
@@ -208,6 +228,8 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     /** Taken by the releases over the budget and by the pass that drops stale entries from the order. */
     private final ReentrantLock heldLearningReleaseLock = new ReentrantLock();
     private final AtomicLong authenticationEventSequence = new AtomicLong();
+    /** Q-14: moves on each time what accounts may do changes. */
+    private final AtomicLong authoritiesVersion = new AtomicLong();
     /** Guards the moves of an event between its processing claim and its processed mark. */
     private final Object eventProcessingLock = new Object();
     /** The owner of each event in processing, for {@link #EVENT_PROCESSING_TTL} (Z-16 D-6). */
@@ -222,6 +244,57 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     /** The spaces keyed by session id; a session evicted for their bound leaves all of them together. */
     private final List<ExpiringKeySpace<?>> sessionScopedSpaces;
     private final List<ExpiringKeySpace<?>> spaces;
+
+    /** The records of one key, the oldest first, and what they are counted at. */
+    private static final class RecordSequence {
+
+        private final List<String> records = new ArrayList<>();
+        private long bytes;
+
+        private static long bytesOf(String record) {
+            return 2L * record.length() + SEQUENCE_RECORD_BYTES;
+        }
+
+        private synchronized void add(String record) {
+            records.add(record);
+            bytes += bytesOf(record);
+        }
+
+        private synchronized void addAll(RecordSequence other) {
+            for (String record : other.copy()) {
+                add(record);
+            }
+        }
+
+        /** Keeps the newest {@code maxSize}. */
+        private synchronized void keepNewest(int maxSize) {
+            int excess = records.size() - maxSize;
+            if (excess > 0) {
+                List<String> oldest = records.subList(0, excess);
+                for (String record : oldest) {
+                    bytes -= bytesOf(record);
+                }
+                oldest.clear();
+            }
+        }
+
+        private synchronized List<String> copy() {
+            return new ArrayList<>(records);
+        }
+
+        private synchronized List<String> recent(int count) {
+            int size = records.size();
+            return new ArrayList<>(records.subList(Math.min(size, Math.max(0, size - count)), size));
+        }
+
+        private synchronized boolean isEmpty() {
+            return records.isEmpty();
+        }
+
+        private synchronized long bytes() {
+            return bytes;
+        }
+    }
 
     /** A user's stopped requests, verified once the user passed the step-up (N-LRN-3). */
     private record StoppedRequests(Set<String> signatures, boolean verified) {
@@ -315,24 +388,18 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         return sessionId == null ? null : sessionFirstClients.getAndRefresh(sessionId);
     }
 
-    private static <T> void moveSequence(ExpiringKeySpace<List<T>> space, String fromKey, String toKey) {
-        List<T> moved = space.remove(fromKey);
+    private static void moveSequence(ExpiringKeySpace<RecordSequence> space, String fromKey, String toKey) {
+        RecordSequence moved = space.remove(fromKey);
         if (moved == null || moved.isEmpty()) {
             return;
         }
         space.compute(toKey, (key, current) -> {
-            List<T> merged = Collections.synchronizedList(new ArrayList<>());
-            synchronized (moved) {
-                merged.addAll(moved);
-            }
+            RecordSequence merged = new RecordSequence();
+            merged.addAll(moved);
             if (current != null) {
-                synchronized (current) {
-                    merged.addAll(current);
-                }
+                merged.addAll(current);
             }
-            while (merged.size() > MAX_SESSION_ACTIONS) {
-                merged.remove(0);
-            }
+            merged.keepNewest(MAX_SESSION_ACTIONS);
             return merged;
         });
     }
@@ -527,7 +594,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     @Override
     public void recordLoginFailure(String userId, String clientIp, long currentTimeMs) {
         if (hasText(userId)) {
-            recordLoginFailureCounter("user:" + userId.trim(), currentTimeMs);
+            recordLoginFailureCounter(loginFailureKey(userId), currentTimeMs);
         }
         if (hasText(clientIp)) {
             recordLoginFailureCounter("ip:" + clientIp.trim(), currentTimeMs);
@@ -538,12 +605,28 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     public int getRecentLoginFailureCount(
             String userId, String clientIp, long windowStartMs, long currentTimeMs) {
         int userCount = hasText(userId)
-                ? countLoginFailures("user:" + userId.trim(), windowStartMs, currentTimeMs)
+                ? countLoginFailures(loginFailureKey(userId), windowStartMs, currentTimeMs)
                 : 0;
         int ipCount = hasText(clientIp)
                 ? countLoginFailures("ip:" + clientIp.trim(), windowStartMs, currentTimeMs)
                 : 0;
         return Math.max(userCount, ipCount);
+    }
+
+    @Override
+    public Integer findRecentLoginFailures(String userId, long windowStartMs, long currentTimeMs) {
+        if (!hasText(userId)) {
+            return null;
+        }
+        String key = loginFailureKey(userId);
+        if (loginFailures.get(key) == null && clock.millis() < loginFailuresLostUntilMs) {
+            return null;
+        }
+        return countLoginFailures(key, windowStartMs, currentTimeMs);
+    }
+
+    private static String loginFailureKey(String userId) {
+        return "user:" + LoginFailureRecording.subject(userId);
     }
 
     @Override
@@ -565,6 +648,28 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     public Instant getLastMfaVerifiedAt(String userId) {
         Long verifiedAt = mfaVerifiedAt.get(userId);
         return verifiedAt == null ? null : Instant.ofEpochMilli(verifiedAt);
+    }
+
+    @Override
+    public void markChallengeVerified(String userId, String contextBindingHash, Instant verifiedAt) {
+        if (userId == null || contextBindingHash == null || contextBindingHash.isBlank()) {
+            return;
+        }
+        challengeVerifiedAt.put(challengeVerifiedKey(userId, contextBindingHash),
+                verifiedAt != null ? verifiedAt.toEpochMilli() : clock.millis());
+    }
+
+    @Override
+    public Instant getChallengeVerifiedAt(String userId, String contextBindingHash) {
+        if (userId == null || contextBindingHash == null || contextBindingHash.isBlank()) {
+            return null;
+        }
+        Long verifiedAt = challengeVerifiedAt.get(challengeVerifiedKey(userId, contextBindingHash));
+        return verifiedAt == null ? null : Instant.ofEpochMilli(verifiedAt);
+    }
+
+    private static String challengeVerifiedKey(String userId, String contextBindingHash) {
+        return userId + CHALLENGE_VERIFIED_KEY_SEPARATOR + contextBindingHash;
     }
 
     @Override
@@ -628,7 +733,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
             if (signatures.isEmpty()) {
                 slot.delete();
             } else {
-                slot.set(new StoppedRequests(signatures, true), VERIFIED_STOPPED_REQUEST_TTL);
+                slot.set(new StoppedRequests(signatures, true), verifiedStoppedRequestTtl);
             }
             return null;
         });
@@ -741,23 +846,38 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     }
 
     @Override
+    public long authoritiesVersion() {
+        return authoritiesVersion.get();
+    }
+
+    @Override
+    public void advanceAuthoritiesVersion() {
+        authoritiesVersion.incrementAndGet();
+    }
+
+    @Override
     public void deleteUserData(String userId) {
         if (userId == null) {
             return;
         }
+        // What is learned and verified is kept under the user's key, the rest under the name as it came.
+        String userKey = ZeroTrustUserKey.person(userId);
         releaseHeldRecords(verificationLearning.remove(userId));
-        releaseHeldRecords(promotionLearning.remove(userId));
+        releaseHeldRecords(promotionLearning.remove(userKey));
         stoppedRequests.remove(userId);
-        String tenantScopedSuffix = "::" + userId;
-        Predicate<String> usersKeys = key -> key.equals(userId) || key.endsWith(tenantScopedSuffix);
+        String tenantScopedSuffix = "::" + userKey;
+        // An agent that bears the user's name ends the same way; its learning is not the user's.
+        String agentOfThatName = LearningSubject.AGENT_KEY + userKey;
+        Predicate<String> tenantsKeys = key -> key.endsWith(tenantScopedSuffix) && !key.endsWith(agentOfThatName);
+        Predicate<String> usersKeys = key -> key.equals(userKey) || tenantsKeys.test(key);
         for (ExpiringKeySpace<?> perUser : List.of(
                 workProfileObservations, permissionChangeObservations, authorizationScopeStates)) {
             perUser.removeIf(usersKeys);
         }
         // QF-29: the user's held requests are kept within each tenant.
-        promotionLearning.removeIf(key -> key.endsWith(tenantScopedSuffix), this::releaseHeldRecords);
+        promotionLearning.removeIf(tenantsKeys, this::releaseHeldRecords);
         // docs/agent A3-1: what the agents acting for the user learned, under their learning keys in every tenant.
-        String agentKeys = userId + LearningSubject.AGENT_KEY;
+        String agentKeys = userKey + LearningSubject.AGENT_KEY;
         Predicate<String> agentsKeys = key -> key.startsWith(agentKeys) || key.contains("::" + agentKeys);
         promotionLearning.removeIf(agentsKeys, this::releaseHeldRecords);
         // docs/agent F-6 (CF-27): and the authorization state the agents' requests are compared with.
@@ -767,8 +887,9 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         }
         lastRequestTimes.remove(userId);
         previousPaths.remove(userId);
-        mfaVerifiedAt.remove(userId);
-        loginFailureCounters.remove("user:" + userId.trim());
+        mfaVerifiedAt.remove(userKey);
+        challengeVerifiedAt.removeIf(key -> key.startsWith(userKey + CHALLENGE_VERIFIED_KEY_SEPARATOR));
+        loginFailures.remove(loginFailureKey(userKey));
         userSessions.remove(userId);
     }
 
@@ -875,6 +996,11 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
      * Sets how long login failures stay countable: the longest window any reader queries, at least five minutes. Older
      * failures are trimmed whenever a new one arrives.
      */
+    /** Q-28: a verified stopped request is sent again under the ALLOW the step-up writes, so it lasts as long. */
+    public void setAllowValidity(Duration allowValidity) {
+        this.verifiedStoppedRequestTtl = ZeroTrustAction.allowValidity(allowValidity);
+    }
+
     public void setLoginFailureRetention(Duration retention) {
         if (retention != null && retention.compareTo(LOGIN_FAILURE_MINIMUM_RETENTION) > 0) {
             loginFailureRetention = retention;
@@ -906,6 +1032,48 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         releaseHeldLearningOverBudget();
     }
 
+    /** The bytes the session histories may take together; not positive, a share of the maximum heap. */
+    void setSessionHistoryBudgetBytes(long budgetBytes) {
+        sessionHistoryBudget.setLimitBytes(budgetBytes);
+    }
+
+    long sessionHistoryBudgetBytes() {
+        return sessionHistoryBudget.limitBytes();
+    }
+
+    /** The bytes the session histories take now, as counted against their limit. */
+    long sessionHistoryBytes() {
+        return sessionHistoryBudget.bytes();
+    }
+
+    /** The bytes the work profile observations may take together; not positive, a share of the maximum heap. */
+    void setWorkProfileBudgetBytes(long budgetBytes) {
+        workProfileBudget.setLimitBytes(budgetBytes);
+    }
+
+    long workProfileBudgetBytes() {
+        return workProfileBudget.limitBytes();
+    }
+
+    /** The bytes the work profile observations take now, as counted against their limit. */
+    long workProfileBytes() {
+        return workProfileBudget.bytes();
+    }
+
+    /** The bytes the role scope observations may take together; not positive, a share of the maximum heap. */
+    void setRoleScopeBudgetBytes(long budgetBytes) {
+        roleScopeBudget.setLimitBytes(budgetBytes);
+    }
+
+    long roleScopeBudgetBytes() {
+        return roleScopeBudget.limitBytes();
+    }
+
+    /** The bytes the role scope observations take now, as counted against their limit. */
+    long roleScopeBytes() {
+        return roleScopeBudget.bytes();
+    }
+
     /** The bytes the held learning records may take together (QF-42). */
     public long heldLearningBudgetBytes() {
         return heldLearningBudgetBytes;
@@ -934,13 +1102,11 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
 
     /**
      * Releases every record no read can return any more, as the Redis store's keys expire (Z-16: the reads already
-     * ignore them), keeps every bounded space within its bound for the writes that left it to the sweep, and releases
-     * the login failures past the longest queried window.
+     * ignore them) and keeps every bounded space within its bound for the writes that left it to the sweep.
      */
     @Override
     public void removeExpiredEntries() {
         spaces.forEach(ExpiringKeySpace::removeExpired);
-        removeExpiredLoginFailures(clock.millis());
         releaseHeldLearningOverBudget();
     }
 
@@ -1062,73 +1228,64 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
 
     /** RPUSH then EXPIRE, keeping the newest {@code maxSize}; a sequence that expired starts anew (Z-16 D-1). */
     private static void appendToStringSequence(
-            ExpiringKeySpace<List<String>> target,
+            ExpiringKeySpace<RecordSequence> target,
             String sequenceKey,
             String value,
             int maxSize) {
         target.compute(sequenceKey, (key, sequence) -> {
-            List<String> values = sequence != null ? sequence : Collections.synchronizedList(new ArrayList<>());
+            RecordSequence values = sequence != null ? sequence : new RecordSequence();
             values.add(value);
-            while (values.size() > maxSize) {
-                values.remove(0);
-            }
+            values.keepNewest(maxSize);
             return values;
         });
-    }
-
-    private void removeExpiredLoginFailures(long nowMs) {
-        long staleBefore = (nowMs - loginFailureRetention.toMillis()) * 1_000_000L;
-        for (String key : loginFailureCounters.keySet()) {
-            loginFailureCounters.computeIfPresent(key, (ignored, counter) ->
-                    counter.isEmpty() || counter.lastKey() < staleBefore ? null : counter);
-        }
     }
 
     private void recordLoginFailureCounter(String key, long currentTimeMs) {
-        loginFailureCounters.compute(key, (ignored, counter) -> {
-            ConcurrentSkipListMap<Long, String> values = counter != null
+        Duration retention = loginFailureRetention;
+        loginFailures.compute(key, (ignored, counter) -> {
+            ConcurrentSkipListSet<Long> values = counter != null
                     ? counter
-                    : new ConcurrentSkipListMap<>();
+                    : new ConcurrentSkipListSet<>();
             long sequence = authenticationEventSequence.incrementAndGet() % 1_000_000L;
-            values.put(currentTimeMs * 1_000_000L + sequence, Long.toString(currentTimeMs));
-            long cutoff = (currentTimeMs - loginFailureRetention.toMillis()) * 1_000_000L;
-            values.headMap(cutoff).clear();
+            values.add(currentTimeMs * 1_000_000L + sequence);
+            long cutoff = (currentTimeMs - retention.toMillis()) * 1_000_000L;
+            values.headSet(cutoff).clear();
+            while (values.size() > LoginFailureRecording.MAX_PER_KEY) {
+                values.pollFirst();
+            }
             return values;
-        });
+        }, retention);
+    }
+
+    /** The bound lets the key go: for as long as its failures would count, a name without a record may have lost it. */
+    private void evictLoginFailures(String key) {
+        loginFailures.evict(key);
+        long now = clock.millis();
+        Duration retention = loginFailureRetention;
+        loginFailuresLostUntilMs = now + retention.toMillis();
+        LoginFailureRecording.reportLoss(now, retention);
     }
 
     private int countLoginFailures(String key, long windowStartMs, long currentTimeMs) {
-        ConcurrentSkipListMap<Long, String> counter = loginFailureCounters.get(key);
+        ConcurrentSkipListSet<Long> counter = loginFailures.get(key);
         if (counter == null) {
             return 0;
         }
         long from = windowStartMs * 1_000_000L;
         long to = currentTimeMs * 1_000_000L + 999_999L;
-        return counter.subMap(from, true, to, true).size();
+        return counter.subSet(from, true, to, true).size();
     }
 
     private static boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
     }
 
-    private static List<String> copyOf(List<String> sequence) {
-        if (sequence == null) {
-            return Collections.emptyList();
-        }
-        synchronized (sequence) {
-            return new ArrayList<>(sequence);
-        }
+    private static List<String> copyOf(RecordSequence sequence) {
+        return sequence == null ? Collections.emptyList() : sequence.copy();
     }
 
-    private List<String> recentStringSequence(List<String> sequence, int count) {
-        if (sequence == null || sequence.isEmpty()) {
-            return Collections.emptyList();
-        }
-        synchronized (sequence) {
-            int size = sequence.size();
-            int fromIndex = Math.max(0, size - count);
-            return new ArrayList<>(sequence.subList(fromIndex, size));
-        }
+    private List<String> recentStringSequence(RecordSequence sequence, int count) {
+        return sequence == null ? Collections.emptyList() : sequence.recent(count);
     }
 
     /**
@@ -1138,6 +1295,12 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private <V> ExpiringKeySpace<V> sessionScopedSpace(Duration ttl) {
         return ExpiringKeySpace.<V>builder(clock).ttl(ttl).bound(MAX_SESSION_ENTRIES)
                 .evictWith(this::evictSession).build();
+    }
+
+    /** A session's history: a space of {@link #sessionScopedSpace} whose records count against their limit. */
+    private ExpiringKeySpace<RecordSequence> sessionHistorySpace(Duration ttl) {
+        return ExpiringKeySpace.<RecordSequence>builder(clock).ttl(ttl).bound(MAX_SESSION_ENTRIES)
+                .evictWith(this::evictSession).weighed(sessionHistoryBudget, RecordSequence::bytes).build();
     }
 
     /** A user's last request and path, each within the bound, go together. */
@@ -1154,6 +1317,14 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
 
     private void evictSession(String sessionId) {
         sessionScopedSpaces.forEach(space -> space.evict(sessionId));
+    }
+
+    private void evictWorkProfile(String key) {
+        workProfileObservations.evict(key);
+    }
+
+    private void evictRoleScope(String key) {
+        roleScopeObservations.evict(key);
     }
 
     private void evictUserActivity(String userId) {
@@ -1195,11 +1366,12 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         counts.put("verificationLearning", verificationLearning.size());
         counts.put("promotionLearning", promotionLearning.size());
         counts.put("userSessions", userSessions.size());
+        counts.put("loginFailures", loginFailures.size());
         return counts;
     }
 
     boolean holdsUserRecordsFor(String userId) {
         return mfaVerifiedAt.holds(userId) || userSessions.holds(userId)
-                || loginFailureCounters.containsKey("user:" + userId) || stoppedRequests.holds(userId);
+                || loginFailures.holds(loginFailureKey(userId)) || stoppedRequests.holds(userId);
     }
 }

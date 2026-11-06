@@ -16,6 +16,8 @@
 package io.contexa.contexaiam.admin.web.auth.service.impl;
 
 import io.contexa.contexacommon.annotation.Protectable;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorException;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexaiam.domain.entity.RoleHierarchyEntity;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
@@ -39,12 +41,13 @@ import java.util.stream.Collectors;
 @Slf4j
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 @CacheConfig(cacheManager = "contexaCacheManager")
-public class RoleHierarchyService {
+public class RoleHierarchyService extends AccountAuthoritiesService {
 
     private final RoleHierarchyRepository roleHierarchyRepository;
     private final RoleRepository roleRepository;
     private final RoleHierarchyImpl roleHierarchy;
     private final MessageSource messageSource;
+    private final LastAdministratorGuard lastAdministratorGuard;
 
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
@@ -90,6 +93,7 @@ public class RoleHierarchyService {
     @Transactional(transactionManager = "contexaTransactionManager")
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public RoleHierarchyEntity createRoleHierarchy(RoleHierarchyEntity roleHierarchyEntity) {
+        authoritiesChanged();
         try {
 
             if (roleHierarchyRepository.findByHierarchyString(roleHierarchyEntity.getHierarchyString()).isPresent()) {
@@ -123,6 +127,10 @@ public class RoleHierarchyService {
     @Transactional(transactionManager = "contexaTransactionManager")
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public RoleHierarchyEntity updateRoleHierarchy(RoleHierarchyEntity roleHierarchyEntity) {
+        // First in the transaction: a change of who administers the console waits for the one before it.
+        lastAdministratorGuard.serializeChanges();
+        List<String> administrators = lastAdministratorGuard.administrators();
+        authoritiesChanged();
         try {
 
             RoleHierarchyEntity existingEntity = roleHierarchyRepository.findById(roleHierarchyEntity.getId())
@@ -144,10 +152,14 @@ public class RoleHierarchyService {
                 validateMergedHierarchy(merged);
             }
 
+            // Read by the hierarchy the change leaves, before the console runs on it.
+            lastAdministratorGuard.refuseLosingEveryAdministrator(administrators, merged);
             reloadRoleHierarchyBean();
 
             return updatedEntity;
 
+        } catch (LastAdministratorException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Error updating role hierarchy: ", e);
             throw e;
@@ -157,13 +169,20 @@ public class RoleHierarchyService {
     @Transactional(transactionManager = "contexaTransactionManager")
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public void deleteRoleHierarchy(Long id) {
+        lastAdministratorGuard.serializeChanges();
+        List<String> administrators = lastAdministratorGuard.administrators();
+        authoritiesChanged();
         roleHierarchyRepository.deleteById(id);
+        lastAdministratorGuard.refuseLosingEveryAdministrator(administrators, getMergedActiveHierarchyString());
         reloadRoleHierarchyBean();
     }
 
     @Transactional(transactionManager = "contexaTransactionManager")
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public boolean activateRoleHierarchy(Long activeId) {
+        lastAdministratorGuard.serializeChanges();
+        List<String> administrators = lastAdministratorGuard.administrators();
+        authoritiesChanged();
         RoleHierarchyEntity target = roleHierarchyRepository.findById(activeId)
                 .orElseThrow(() -> new IllegalArgumentException(msg("msg.role.hierarchy.not.found.id", activeId)));
 
@@ -181,6 +200,7 @@ public class RoleHierarchyService {
 
         target.setIsActive(newState);
         roleHierarchyRepository.save(target);
+        lastAdministratorGuard.refuseLosingEveryAdministrator(administrators, getMergedActiveHierarchyString());
         reloadRoleHierarchyBean();
         return newState;
     }

@@ -34,6 +34,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -59,6 +60,8 @@ class ZeroTrustActionStorageReproductionTest {
     private static final String REDIS_PORT = "CONTEXA_BACKLOG_REDIS_PORT";
     private static final String SESSION_A = "context-hash-session-a";
     private static final String SESSION_B = "context-hash-session-b";
+    private static final int CALLS_AT_ONCE = 8;
+    private static final int ROUNDS_AT_ONCE = 50;
 
     private static LettuceConnectionFactory factory;
     private static StringRedisTemplate strings;
@@ -146,7 +149,8 @@ class ZeroTrustActionStorageReproductionTest {
 
     @Test
     void inMemoryAllowLapsesToPendingAfterAnalysisTtl() {
-        ZeroTrustActionRepository repository = new InMemoryZeroTrustActionRepository();
+        InMemoryZeroTrustActionRepository repository = new InMemoryZeroTrustActionRepository();
+        repository.setAllowValidity(Duration.ofSeconds(15));
         String user = user();
         assertThat(repository.saveFinalAction(user, ZeroTrustAction.ALLOW, fields(SESSION_A))).isTrue();
         assertThat(repository.getCurrentAction(user, SESSION_A)).isEqualTo(ZeroTrustAction.ALLOW);
@@ -160,7 +164,9 @@ class ZeroTrustActionStorageReproductionTest {
     @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
     void redisAllowLapsesToPendingAfterAnalysisTtl() {
         String user = user();
+        redis.setAllowValidity(Duration.ofSeconds(15));
         assertThat(redis.saveFinalAction(user, ZeroTrustAction.ALLOW, fields(SESSION_A))).isTrue();
+        redis.setAllowValidity(ZeroTrustAction.ALLOW.getDefaultTtl());
         assertThat(redis.getCurrentAction(user, SESSION_A)).isEqualTo(ZeroTrustAction.ALLOW);
         Awaitility.await().atMost(Duration.ofSeconds(20)).pollInterval(Duration.ofMillis(250)).untilAsserted(() -> {
             assertThat(redis.getAnalysisData(user).action()).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS.name());
@@ -241,7 +247,7 @@ class ZeroTrustActionStorageReproductionTest {
         assertThat(repository.saveFinalAction(user, ZeroTrustAction.ESCALATE, fields(SESSION_A))).isTrue();
         repository.approveOverrideAtomically(user, ZeroTrustAction.ALLOW);
 
-        clock.advance(ZeroTrustAction.ESCALATE.getDefaultTtl().plusSeconds(1));
+        clock.advance(ZeroTrustAction.ALLOW.getDefaultTtl().plusSeconds(1));
 
         assertThat(repository.getCurrentAction(user, SESSION_A)).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
     }
@@ -387,6 +393,113 @@ class ZeroTrustActionStorageReproductionTest {
     @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
     void redisAllowAfterAdministratorReleaseOfBlockIsApplied() {
         assertAllowAfterAdministratorReleaseIsApplied(redis);
+    }
+
+    /** PR-72: decisions of one user at one moment are each applied or kept out, as in the in-memory repository. */
+    @Test
+    void inMemoryDecisionsOfOneUserAtOnceNeverFail() throws Exception {
+        assertDecisionsAtOnceNeverFail(new InMemoryZeroTrustActionRepository());
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
+    void redisDecisionsOfOneUserAtOnceNeverFail() throws Exception {
+        assertDecisionsAtOnceNeverFail(redis);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"CHALLENGE", "ESCALATE", "BLOCK"})
+    void inMemoryARestrictionAmongDecisionsAtOnceIsTheOneInForce(String restriction) throws Exception {
+        assertRestrictionAmongDecisionsAtOnceIsInForce(new InMemoryZeroTrustActionRepository(),
+                ZeroTrustAction.valueOf(restriction));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"CHALLENGE", "ESCALATE", "BLOCK"})
+    @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
+    void redisARestrictionAmongDecisionsAtOnceIsTheOneInForce(String restriction) throws Exception {
+        assertRestrictionAmongDecisionsAtOnceIsInForce(redis, ZeroTrustAction.valueOf(restriction));
+    }
+
+    @Test
+    void inMemoryTheStrictestOfDecisionsAtOnceIsTheOneInForce() throws Exception {
+        assertStrictestOfDecisionsAtOnceIsInForce(new InMemoryZeroTrustActionRepository());
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
+    void redisTheStrictestOfDecisionsAtOnceIsTheOneInForce() throws Exception {
+        assertStrictestOfDecisionsAtOnceIsInForce(redis);
+    }
+
+    private static void assertDecisionsAtOnceNeverFail(ZeroTrustActionRepository repository) throws Exception {
+        for (int round = 0; round < ROUNDS_AT_ONCE; round++) {
+            String user = user();
+            List<ZeroTrustActionRepository.FinalActionWrite> writes = writeAtOnce(repository, user,
+                    Collections.nCopies(CALLS_AT_ONCE, ZeroTrustAction.ALLOW));
+
+            assertThat(writes).as("round %d", round).containsOnly(ZeroTrustActionRepository.FinalActionWrite.APPLIED);
+            assertThat(repository.getActionFromHash(user)).isEqualTo(ZeroTrustAction.ALLOW);
+            repository.removeAllUserData(user);
+        }
+    }
+
+    private static void assertRestrictionAmongDecisionsAtOnceIsInForce(ZeroTrustActionRepository repository,
+                                                                       ZeroTrustAction restriction) throws Exception {
+        List<ZeroTrustAction> decisions = new ArrayList<>(Collections.nCopies(CALLS_AT_ONCE - 1, ZeroTrustAction.ALLOW));
+        decisions.add(CALLS_AT_ONCE / 2, restriction);
+        for (int round = 0; round < ROUNDS_AT_ONCE; round++) {
+            String user = user();
+            List<ZeroTrustActionRepository.FinalActionWrite> writes = writeAtOnce(repository, user, decisions);
+
+            assertThat(writes).as("round %d", round).doesNotContain(ZeroTrustActionRepository.FinalActionWrite.FAILED);
+            assertThat(writes.get(CALLS_AT_ONCE / 2)).as("nothing keeps a restriction out")
+                    .isEqualTo(ZeroTrustActionRepository.FinalActionWrite.APPLIED);
+            assertThat(repository.getActionFromHash(user)).as("round %d", round).isEqualTo(restriction);
+            assertThat(repository.getLastVerifiedAction(user)).as("round %d", round).isEqualTo(restriction);
+            assertThat(repository.getCurrentAction(user)).as("round %d", round).isEqualTo(restriction);
+            repository.removeAllUserData(user);
+        }
+    }
+
+    private static void assertStrictestOfDecisionsAtOnceIsInForce(ZeroTrustActionRepository repository) throws Exception {
+        List<ZeroTrustAction> decisions = List.of(ZeroTrustAction.ALLOW, ZeroTrustAction.BLOCK, ZeroTrustAction.CHALLENGE,
+                ZeroTrustAction.ESCALATE, ZeroTrustAction.ALLOW, ZeroTrustAction.CHALLENGE, ZeroTrustAction.ESCALATE,
+                ZeroTrustAction.ALLOW);
+        for (int round = 0; round < ROUNDS_AT_ONCE; round++) {
+            String user = user();
+            List<ZeroTrustActionRepository.FinalActionWrite> writes = writeAtOnce(repository, user, decisions);
+
+            assertThat(writes).as("round %d", round).doesNotContain(ZeroTrustActionRepository.FinalActionWrite.FAILED);
+            assertThat(repository.getActionFromHash(user)).as("round %d", round).isEqualTo(ZeroTrustAction.BLOCK);
+            assertThat(repository.getLastVerifiedAction(user)).as("round %d", round).isEqualTo(ZeroTrustAction.BLOCK);
+            repository.removeAllUserData(user);
+        }
+    }
+
+    /** Each decision written by a thread of its own, all released at once; the outcomes in the decisions' order. */
+    private static List<ZeroTrustActionRepository.FinalActionWrite> writeAtOnce(
+            ZeroTrustActionRepository repository, String user, List<ZeroTrustAction> decisions) throws Exception {
+        ExecutorService pool = Executors.newFixedThreadPool(decisions.size());
+        try {
+            CyclicBarrier start = new CyclicBarrier(decisions.size());
+            List<Future<ZeroTrustActionRepository.FinalActionWrite>> writes = new ArrayList<>();
+            for (int writer = 0; writer < decisions.size(); writer++) {
+                ZeroTrustAction decision = decisions.get(writer);
+                String context = "context-hash-writer-" + writer;
+                writes.add(pool.submit(() -> {
+                    start.await();
+                    return repository.writeFinalAction(user, decision, fields(context));
+                }));
+            }
+            List<ZeroTrustActionRepository.FinalActionWrite> outcomes = new ArrayList<>();
+            for (Future<ZeroTrustActionRepository.FinalActionWrite> write : writes) {
+                outcomes.add(write.get(30, TimeUnit.SECONDS));
+            }
+            return outcomes;
+        } finally {
+            pool.shutdownNow();
+        }
     }
 
     private static void assertBlockWrittenAgainIsApplied(ZeroTrustActionRepository repository) {

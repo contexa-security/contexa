@@ -30,7 +30,9 @@ public enum SubjectKind {
     /** An agent acting on its own, for no person. */
     AUTONOMOUS_AGENT("AGENT_RUNTIME", "AUTONOMOUS_AGENT", "DIRECT"),
     /** A service or workload that is neither a person nor an agent, such as a client using its own token. */
-    SERVICE_CLIENT("SERVICE_CLIENT", "DIRECT_USER", "DIRECT");
+    SERVICE_CLIENT("SERVICE_CLIENT", "DIRECT_USER", "DIRECT"),
+    /** A person in Contexa's console, signed in apart from the application: its decisions are its own (Q-17). */
+    CONSOLE_ADMIN("HUMAN_USER", "DIRECT_USER", "DIRECT");
 
     private final String subjectType;
     private final String executionMode;

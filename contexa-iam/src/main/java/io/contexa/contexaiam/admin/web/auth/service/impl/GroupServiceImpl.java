@@ -17,6 +17,7 @@ package io.contexa.contexaiam.admin.web.auth.service.impl;
 
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexaiam.admin.web.auth.service.GroupService;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.GroupRole;
 import io.contexa.contexacommon.entity.Role;
@@ -42,11 +43,12 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 @CacheConfig(cacheManager = "contexaCacheManager")
-public class GroupServiceImpl implements GroupService {
+public class GroupServiceImpl extends AccountAuthoritiesService implements GroupService {
     private final GroupRepository groupRepository;
     private final RoleRepository roleRepository;
     private final RoleHierarchyRepository roleHierarchyRepository;
     private final MessageSource messageSource;
+    private final LastAdministratorGuard lastAdministratorGuard;
 
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
@@ -99,13 +101,24 @@ public class GroupServiceImpl implements GroupService {
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     @Protectable
     public void deleteGroup(Long id) {
+        // First in the transaction: a change of who administers the console waits for the one before it.
+        lastAdministratorGuard.serializeChanges();
+        List<String> administrators = lastAdministratorGuard.administrators();
+        authoritiesChanged();
+        // The group's memberships and roles go with it by the database's cascade; the permissions given with its roles
+        // reference it without one and go here, as the rows that reference an account go with the account.
+        groupRepository.deleteRolePermissionsOf(id);
         groupRepository.deleteById(id);
+        lastAdministratorGuard.refuseLosingEveryAdministrator(administrators);
     }
 
     @Transactional(transactionManager = "contexaTransactionManager")
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     @Protectable
     public Group updateGroup(Group group, List<Long> selectedRoleIds) {
+        lastAdministratorGuard.serializeChanges();
+        List<String> administrators = lastAdministratorGuard.administrators();
+        authoritiesChanged();
         Group existingGroup = groupRepository.findByIdWithRoles(group.getId())
                 .orElseThrow(() -> new IllegalArgumentException("Group not found."));
 
@@ -135,7 +148,9 @@ public class GroupServiceImpl implements GroupService {
             }
         }
 
-        return groupRepository.save(existingGroup);
+        Group saved = groupRepository.save(existingGroup);
+        lastAdministratorGuard.refuseLosingEveryAdministrator(administrators);
+        return saved;
     }
 
     @Override

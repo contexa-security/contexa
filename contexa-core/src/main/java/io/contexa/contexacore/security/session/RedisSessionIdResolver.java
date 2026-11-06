@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.security.session;
 
+import io.contexa.contexacommon.store.StoreFailures;
 import io.contexa.contexacore.properties.SecuritySessionProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -39,14 +40,22 @@ public class RedisSessionIdResolver extends AbstractSessionIdResolver {
     @Override
     protected boolean validateSession(String sessionId) {
         String redisKey = "spring:session:sessions:" + sessionId;
-        Boolean exists = redisTemplate.hasKey(redisKey);
+        try {
+            Boolean exists = redisTemplate.hasKey(redisKey);
 
-        if (Boolean.FALSE.equals(exists)) {
-            return false;
+            if (Boolean.FALSE.equals(exists)) {
+                return false;
+            }
+
+            Long ttl = redisTemplate.getExpire(redisKey, TimeUnit.SECONDS);
+            return ttl == null || ttl > 0;
+        } catch (RuntimeException unreadable) {
+            // D-19 (PR-84): what cannot be read says nothing against the session; the in-memory resolver takes it as valid.
+            if (!StoreFailures.isReportedOutage(unreadable)) {
+                log.error("Failed to validate a session in Redis; it is taken as valid: {}", sessionId, unreadable);
+            }
+            return true;
         }
-
-        Long ttl = redisTemplate.getExpire(redisKey, TimeUnit.SECONDS);
-        return ttl == null || ttl > 0;
     }
 
     @Override

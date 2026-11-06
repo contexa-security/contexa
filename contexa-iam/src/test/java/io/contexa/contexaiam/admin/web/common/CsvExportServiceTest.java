@@ -134,6 +134,43 @@ class CsvExportServiceTest {
         assertThat(lines[4].trim()).isEqualTo("");
     }
 
+    /** A user names their own session's browser and account: the administrator's spreadsheet must read those as text. */
+    @Test
+    @DisplayName("a value a spreadsheet would run stays text")
+    void aValueASpreadsheetWouldRunStaysText() throws IOException {
+        List<CsvColumn<TestItem>> columns = List.of(new CsvColumn<>("Header", TestItem::name));
+
+        csvExportService.export(response, "formula", columns, () -> Stream.of(
+                new TestItem("=1+1", 0), new TestItem("+1+1", 0), new TestItem("-1+1", 0), new TestItem("@SUM(A1)", 0),
+                new TestItem("\t=1+1", 0), new TestItem("=a,b", 0)));
+
+        String[] lines = written().split("\n");
+        assertThat(lines[1]).isEqualTo("'=1+1");
+        assertThat(lines[2]).isEqualTo("'+1+1");
+        assertThat(lines[3]).isEqualTo("'-1+1");
+        assertThat(lines[4]).isEqualTo("'@SUM(A1)");
+        assertThat(lines[5]).isEqualTo("'\t=1+1");
+        assertThat(lines[6]).isEqualTo("\"'=a,b\"");
+    }
+
+    /** A plain number is no formula, and a negative one keeps its value. */
+    @Test
+    @DisplayName("numbers and ordinary text stay as they are")
+    void numbersStayAsTheyAre() throws IOException {
+        List<CsvColumn<TestItem>> columns = List.of(new CsvColumn<>("Header", TestItem::name));
+
+        csvExportService.export(response, "numbers", columns, () -> Stream.of(
+                new TestItem("-1", 0), new TestItem("-0.5", 0), new TestItem("+12", 0), new TestItem("0.5", 0),
+                new TestItem("alice", 0), new TestItem("a=b", 0), new TestItem("alice@contexa.io", 0)));
+
+        String[] lines = written().split("\n");
+        assertThat(lines).containsSubsequence("-1", "-0.5", "+12", "0.5", "alice", "a=b", "alice@contexa.io");
+    }
+
+    private String written() {
+        return new String(outputStream.toByteArray(), StandardCharsets.UTF_8);
+    }
+
     @Test
     @DisplayName("export should propagate IOException if output stream fails")
     void exportIoException() throws IOException {

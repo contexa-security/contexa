@@ -137,8 +137,7 @@ public class ConditionClassificationController {
             log.error("Failed to regenerate condition templates", e);
 
             return ResponseEntity.internalServerError()
-                    .body(ConditionTemplateGenerationErrorResponse.from(
-                            e,
+                    .body(ConditionTemplateGenerationErrorResponse.failed(
                             "An error occurred while regenerating condition templates"));
         }
     }
@@ -157,8 +156,7 @@ public class ConditionClassificationController {
             log.error("Failed to generate ManagedResource-based condition templates", e);
 
             return ResponseEntity.internalServerError()
-                    .body(ConditionTemplateGenerationErrorResponse.from(
-                            e,
+                    .body(ConditionTemplateGenerationErrorResponse.failed(
                             "An error occurred while generating condition templates"));
         }
     }
@@ -177,8 +175,7 @@ public class ConditionClassificationController {
             log.error("Failed to generate Permission-based condition templates", e);
 
             return ResponseEntity.internalServerError()
-                    .body(ConditionTemplateGenerationErrorResponse.from(
-                            e,
+                    .body(ConditionTemplateGenerationErrorResponse.failed(
                             "An error occurred while generating condition templates"));
         }
     }

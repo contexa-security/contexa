@@ -20,6 +20,8 @@ import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.SecurityEventListener;
+import io.contexa.contexacore.autonomous.event.SecurityEventOrigin;
+import io.contexa.contexacore.autonomous.event.SecurityEventTopics;
 import io.contexa.contexacore.autonomous.event.support.ZeroTrustSecurityEventConverter;
 import io.contexa.contexacore.properties.SecurityKafkaProperties;
 import jakarta.annotation.PostConstruct;
@@ -27,7 +29,7 @@ import jakarta.annotation.PreDestroy;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.util.Comparator;
+import java.time.Instant;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -36,6 +38,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.common.header.Headers;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.Acknowledgment;
@@ -47,19 +51,32 @@ import org.springframework.messaging.handler.annotation.Payload;
 @Slf4j
 public class KafkaSecurityEventCollector implements SecurityEventCollector {
 
+    /** Q-26: on an event whose publication failed, so that it was analysed by the node that had it. */
+    public static final String ANALYSED_ON_THE_PUBLISHING_NODE = "analysedOnThePublishingNode";
+
+    private static final String RECORD_TOPIC = "kafka.topic";
+    private static final String RECORD_PARTITION = "kafka.partition";
+    private static final String RECORD_OFFSET = "kafka.offset";
+
     private final ObjectMapper objectMapper;
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final SecurityKafkaProperties securityKafkaProperties;
     private final List<SecurityEventListener> listeners;
-    private final Map<String, SecurityEvent> eventCache;
+    /**
+     * The recent events by id, with when they happened: only their number is read. PR-91: the events themselves are not
+     * kept, since an analysed event holds its whole context.
+     */
+    private final Map<String, Instant> eventCache;
     private final AtomicLong eventCount;
     private final AtomicLong ackCount;
     private final AtomicLong errorCount;
+    private final AtomicLong otherApplicationEventCount;
     private final AtomicLong redeliveryScheduledCount;
     private final AtomicLong dlqDispatchRequestedCount;
     private final AtomicLong dlqDispatchConfirmedCount;
     private final AtomicLong dlqDispatchFailedCount;
     private volatile boolean running;
+    private volatile DecidedRecordAcknowledger decidedRecords;
 
     public KafkaSecurityEventCollector(ObjectMapper objectMapper,
                                        KafkaTemplate<String, Object> kafkaTemplate,
@@ -72,11 +89,17 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
         this.eventCount = new AtomicLong(0);
         this.ackCount = new AtomicLong(0);
         this.errorCount = new AtomicLong(0);
+        this.otherApplicationEventCount = new AtomicLong(0);
         this.redeliveryScheduledCount = new AtomicLong(0);
         this.dlqDispatchRequestedCount = new AtomicLong(0);
         this.dlqDispatchConfirmedCount = new AtomicLong(0);
         this.dlqDispatchFailedCount = new AtomicLong(0);
         this.running = true;
+    }
+
+    /** Keeps each record unacknowledged until the analysis is done with it; without it, a record is acknowledged at once. */
+    public void setDecidedRecordAcknowledger(DecidedRecordAcknowledger decidedRecords) {
+        this.decidedRecords = decidedRecords;
     }
 
     @PostConstruct
@@ -89,9 +112,21 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
         running = false;
     }
 
+    /** A record that carries no name of an application, as every record of an application without a name does. */
+    public void consumeZeroTrustEvents(String message, String topic, int partition, long offset,
+                                       Acknowledgment acknowledgment) {
+        consumeZeroTrustEvents(message, topic, partition, offset, null, acknowledgment);
+    }
+
+    /**
+     * The group is the application's own ({@code security-plane-consumer.<name>} for an application with a name), so that
+     * the consumers of two applications on one cluster do not split the partitions between them; and a record is
+     * analysed only by the application whose name it carries (see {@link SecurityEventOrigin}).
+     */
     @KafkaListener(
-            topicPattern = "security\\.events\\..*",
-            groupId = "${security.plane.kafka.group-id:security-plane-consumer}",
+            topicPattern = SecurityEventTopics.PATTERN,
+            groupId = "#{T(io.contexa.contexacommon.store.ApplicationNamespace).consumerGroup("
+                    + "'${security.plane.kafka.group-id:security-plane-consumer}')}",
             containerFactory = "contexaKafkaListenerContainerFactory"
     )
     public void consumeZeroTrustEvents(
@@ -99,6 +134,7 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
             @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
             @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
             @Header(KafkaHeaders.OFFSET) long offset,
+            ConsumerRecord<?, ?> record,
             Acknowledgment acknowledgment) {
 
         if (!running) {
@@ -106,21 +142,36 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
             return;
         }
 
+        Headers headers = record != null ? record.headers() : null;
+        if (!SecurityEventOrigin.isOwn(headers)) {
+            skipEventOfAnotherApplication(topic, partition, offset, headers, acknowledgment);
+            return;
+        }
+
         try {
             ZeroTrustSpringEvent zeroTrustEvent = objectMapper.readValue(message, ZeroTrustSpringEvent.class);
             SecurityEvent event = ZeroTrustSecurityEventConverter.convert(zeroTrustEvent);
 
-            event.addMetadata("kafka.topic", topic);
-            event.addMetadata("kafka.partition", String.valueOf(partition));
-            event.addMetadata("kafka.offset", String.valueOf(offset));
+            event.addMetadata(RECORD_TOPIC, topic);
+            event.addMetadata(RECORD_PARTITION, String.valueOf(partition));
+            event.addMetadata(RECORD_OFFSET, String.valueOf(offset));
             event.addMetadata("zerotrust.category", zeroTrustEvent.getCategory().name());
             event.addMetadata("zerotrust.eventType", zeroTrustEvent.getEventType());
             event.addMetadata("ingestAt", System.currentTimeMillis());
 
-            processEvent(event);
+            DecidedRecordAcknowledger decided = acknowledgment != null ? decidedRecords : null;
+            if (decided != null) {
+                // Before the hand-over: the analysis may be done with the event before it returns.
+                decided.taken(topic, partition, offset, acknowledgment);
+            }
+            boolean settledLater = processEvent(event);
             eventCount.incrementAndGet();
 
-            if (acknowledgment != null) {
+            if (decided != null) {
+                if (!settledLater) {
+                    decided.settled(topic, partition, offset);
+                }
+            } else if (acknowledgment != null) {
                 event.addMetadata("ackAt", System.currentTimeMillis());
                 acknowledgment.acknowledge();
                 ackCount.incrementAndGet();
@@ -134,6 +185,59 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
             sendToDeadLetterQueueAsync(message, topic, partition, offset, e);
             throw new IllegalStateException("Kafka security event processing failed - redelivery scheduled", e);
         }
+    }
+
+    /**
+     * A record of another application is not analysed here, and the offset moves on all the same: it is taken and settled
+     * at once, so the commit goes past it in its place among the records of the partition, and a partition full of
+     * another application's events never holds this one back.
+     */
+    private void skipEventOfAnotherApplication(String topic, int partition, long offset, Headers headers,
+                                               Acknowledgment acknowledgment) {
+        otherApplicationEventCount.incrementAndGet();
+        if (log.isDebugEnabled()) {
+            log.debug("[KafkaCollector] Skipping an event of another application - application: '{}', topic: {}, "
+                    + "partition: {}, offset: {}", SecurityEventOrigin.nameIn(headers), topic, partition, offset);
+        }
+        DecidedRecordAcknowledger decided = acknowledgment != null ? decidedRecords : null;
+        if (decided != null) {
+            decided.taken(topic, partition, offset, acknowledgment);
+            decided.settled(topic, partition, offset);
+        } else if (acknowledgment != null) {
+            acknowledgment.acknowledge();
+            ackCount.incrementAndGet();
+        }
+    }
+
+    /** The record of the event may be committed; an event that came from no record of this consumer changes nothing. */
+    @Override
+    public void settled(SecurityEvent event) {
+        DecidedRecordAcknowledger decided = decidedRecords;
+        Map<String, Object> metadata = event != null ? event.getMetadata() : null;
+        if (decided == null || metadata == null || metadata.containsKey(ANALYSED_ON_THE_PUBLISHING_NODE)) {
+            return;
+        }
+        Object topic = metadata.get(RECORD_TOPIC);
+        Object partition = metadata.get(RECORD_PARTITION);
+        Object offset = metadata.get(RECORD_OFFSET);
+        if (topic != null && partition != null && offset != null) {
+            decided.settled(topic.toString(), Integer.parseInt(partition.toString()), Long.parseLong(offset.toString()));
+        }
+    }
+
+    /**
+     * Q-26: hands an event Kafka did not take to the listeners of this node, as a consumed event is handed to them. Its
+     * id is the one it was published under, so a copy that reached the broker after all is the same event to the
+     * analysis.
+     */
+    public void analyseHere(ZeroTrustSpringEvent zeroTrustEvent) {
+        SecurityEvent event = ZeroTrustSecurityEventConverter.convert(zeroTrustEvent);
+        event.addMetadata("zerotrust.category", zeroTrustEvent.getCategory().name());
+        event.addMetadata("zerotrust.eventType", zeroTrustEvent.getEventType());
+        event.addMetadata("ingestAt", System.currentTimeMillis());
+        event.addMetadata(ANALYSED_ON_THE_PUBLISHING_NODE, true);
+        processEvent(event);
+        eventCount.incrementAndGet();
     }
 
     @Override
@@ -150,34 +254,33 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
         }
     }
 
-    private void processEvent(SecurityEvent event) {
+    /** Hands the event to the listeners; true when one of them goes on with it and will say when it is done. */
+    private boolean processEvent(SecurityEvent event) {
         if (!running || event == null) {
-            return;
+            return false;
         }
 
         if (event.getEventId() == null) {
             event.setEventId(UUID.randomUUID().toString());
         }
 
-        eventCache.put(event.getEventId(), event);
+        eventCache.put(event.getEventId(), event.getTimestamp() != null ? event.getTimestamp() : Instant.EPOCH);
 
         if (eventCache.size() > 10_000) {
             eventCache.entrySet().stream()
-                    .sorted(Map.Entry.comparingByValue(Comparator.comparing(SecurityEvent::getTimestamp)))
+                    .sorted(Map.Entry.comparingByValue())
                     .limit(1_000)
                     .map(Map.Entry::getKey)
                     .forEach(eventCache::remove);
         }
 
-        if (listeners.isEmpty()) {
-            return;
-        }
-
+        boolean settledLater = false;
         RuntimeException listenerFailure = null;
         for (SecurityEventListener listener : listeners) {
             try {
                 if (listener.isActive()) {
                     listener.onSecurityEvent(event);
+                    settledLater |= listener.settlesItsEvents();
                 }
             } catch (Exception e) {
                 log.error("[KafkaCollector] Listener {} failed to process event {}: {}",
@@ -192,14 +295,19 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
         if (listenerFailure != null) {
             throw listenerFailure;
         }
+        return settledLater;
     }
 
     @Override
     public Map<String, Object> getStatistics() {
+        DecidedRecordAcknowledger decided = decidedRecords;
         Map<String, Object> stats = new HashMap<>();
         stats.put("total_events", eventCount.get());
-        stats.put("ack_count", ackCount.get());
+        stats.put("ack_count", ackCount.get() + (decided != null ? decided.acknowledgments() : 0L));
+        stats.put("undecided_records", decided != null ? decided.undecidedRecords() : 0L);
+        stats.put("commit_passed_undecided_count", decided != null ? decided.passedUndecided() : 0L);
         stats.put("error_count", errorCount.get());
+        stats.put("other_application_events_skipped", otherApplicationEventCount.get());
         stats.put("redelivery_scheduled_count", redeliveryScheduledCount.get());
         stats.put("dlq_dispatch_requested_count", dlqDispatchRequestedCount.get());
         stats.put("dlq_dispatch_confirmed_count", dlqDispatchConfirmedCount.get());
@@ -225,7 +333,7 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
             String dlqTopic = securityKafkaProperties.getTopic().getDlq();
             String dlqJson = objectMapper.writeValueAsString(dlqMessage);
             dlqDispatchRequestedCount.incrementAndGet();
-            kafkaTemplate.send(dlqTopic, dlqJson).whenComplete((result, dlqError) -> {
+            SecurityEventOrigin.send(kafkaTemplate, dlqTopic, null, dlqJson).whenComplete((result, dlqError) -> {
                 if (dlqError == null) {
                     dlqDispatchConfirmedCount.incrementAndGet();
                     log.warn("[KafkaCollector] DLQ dispatch confirmed - topic: {}, partition: {}, offset: {}",

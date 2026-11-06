@@ -22,6 +22,8 @@ import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import org.springframework.beans.factory.ObjectProvider;
 import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
+import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.controller.BlacklistApiController;
 import io.contexa.contexaiam.admin.web.auth.controller.BlacklistController;
 import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
@@ -47,11 +49,15 @@ public class IamAdminBlacklistAutoConfiguration {
             CentralAuditFacade contexaCentralAuditFacade,
             BlockingSignalBroadcaster contexaBlockingDecisionRegistry,
             MessageSource messageSource,
-            ObjectProvider<VerificationLearningService> verificationLearningService) {
+            ObjectProvider<VerificationLearningService> verificationLearningService,
+            ObjectProvider<BlockMfaStateStore> blockMfaStateStore,
+            ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustProperties) {
         BlockedUserService service = new BlockedUserService(
                 blockedUserJpaRepository, contexaAdminOverrideService, actionRedisRepository,
                 eventPublisher, contexaCentralAuditFacade, contexaBlockingDecisionRegistry, messageSource);
         service.setVerificationLearningService(verificationLearningService.getIfAvailable());
+        service.setBlockMfaStateStore(blockMfaStateStore.getIfAvailable());
+        securityZeroTrustProperties.ifAvailable(properties -> service.setEnforcing(properties::isEnforcementEnabled));
         return service;
     }
 

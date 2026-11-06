@@ -255,7 +255,10 @@ class ContexaCapabilityAutoConfigurationTest {
                                         "io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy");
                                 assertThat(String.join("\n", result.recommendations()))
                                         .contains("ChatModel and a VectorStore")
-                                        .contains("contexaJdbcTemplate");
+                                        .contains("contexaJdbcTemplate")
+                                        // PR-20: an application told to set contexa.autonomous.enabled=false no longer started
+                                        .contains("contexa.security.zerotrust.mode=DISABLED")
+                                        .doesNotContain("contexa.autonomous.enabled=false");
                             });
                 });
     }

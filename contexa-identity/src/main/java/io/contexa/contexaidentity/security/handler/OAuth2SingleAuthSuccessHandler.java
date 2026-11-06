@@ -17,11 +17,14 @@ package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
+import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
+import io.contexa.contexaidentity.security.handler.login.LoginFactsDetails;
 import io.contexa.contexaidentity.security.handler.login.LoginFactsRecorder;
 import io.contexa.contexaidentity.security.token.dto.TokenPair;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportResult;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
+import io.contexa.contexaidentity.security.zerotrust.SignInDecision;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +43,7 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
 
     private RedirectStrategy redirectStrategy = new DefaultRedirectStrategy();
     private final LoginPolicyHandler loginPolicyHandler;
+    private ZeroTrustEventPublisher zeroTrustEventPublisher;
 
     public OAuth2SingleAuthSuccessHandler(TokenService tokenService,
                                           AuthResponseWriter responseWriter,
@@ -47,6 +51,11 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
                                           @Nullable LoginPolicyHandler loginPolicyHandler) {
         super(tokenService, responseWriter, authContextProperties);
         this.loginPolicyHandler = loginPolicyHandler;
+    }
+
+    /** The engine the completed sign-in goes to; without it no sign-in is decided. */
+    public void setZeroTrustEventPublisher(@Nullable ZeroTrustEventPublisher zeroTrustEventPublisher) {
+        this.zeroTrustEventPublisher = zeroTrustEventPublisher;
     }
 
     @Override
@@ -79,6 +88,14 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
 
         LoginFactsRecorder.recordSingleFactor(authentication, request);
         TokenPair tokenPair = createTokenPair(authentication, null, request, response);
+        // Before the response leaves, so the next request meets what the sign-in brings.
+        // The client's next request is a bearer call, which is one session with the login its token carries.
+        Map<String, Object> signIn = new HashMap<>();
+        signIn.put("authenticationType", SignInDecision.SINGLE);
+        if (authentication.getDetails() instanceof LoginFactsDetails facts) {
+            signIn.put(ZeroTrustEventPublisher.TOKEN_SESSION_ID, facts.getSignInId());
+        }
+        SignInDecision.send(zeroTrustEventPublisher, authentication, request, signIn);
         TokenTransportResult transportResult = prepareTokenTransport(tokenPair.getAccessToken(), tokenPair.getRefreshToken());
         Map<String, Object> responseData = buildResponseData(transportResult, authentication, request, response);
 

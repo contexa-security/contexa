@@ -71,11 +71,18 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException ex) {
 
+        // What the services refuse with is told in its own words; the text the JDK makes of an enum lookup that fails
+        // names the enum's class, and the operators read it in the log.
+        boolean refusal = ConsoleFault.isRefusal(ex) && ex.getMessage() != null;
+        if (!refusal && ex.getMessage() != null) {
+            log.info("A request carried a value no constant of an enum has: {}", ex.getMessage());
+        }
+
         ErrorResponse errorResponse = new ErrorResponse(
             LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
             HttpStatus.BAD_REQUEST.value(),
             "INVALID_ARGUMENT",
-            ex.getMessage() != null ? ex.getMessage() : "Invalid request parameter",
+            refusal ? ex.getMessage() : "Invalid request parameter",
             null
         );
         return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);

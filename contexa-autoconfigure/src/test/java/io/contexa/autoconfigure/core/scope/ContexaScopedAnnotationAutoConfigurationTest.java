@@ -19,6 +19,7 @@ import com.legacyshop.scope.LegacyScopeApplication;
 import io.contexa.autoconfigure.core.ContexaProxyModeAutoConfiguration;
 import io.contexa.autoconfigure.core.scope.sample.ContexaSample;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.aop.AopAutoConfiguration;
 import org.springframework.boot.autoconfigure.cache.CacheAutoConfiguration;
@@ -44,6 +45,19 @@ class ContexaScopedAnnotationAutoConfigurationTest {
                 .withConfiguration(AutoConfigurations.of(AopAutoConfiguration.class, CacheAutoConfiguration.class,
                         TaskExecutionAutoConfiguration.class,
                         ContexaProxyModeAutoConfiguration.class, ContexaScopedAnnotationAutoConfiguration.class));
+    }
+
+    /**
+     * PR-29: the cache processor needs the manager early, and Spring's checker said so in the application's start log. The
+     * checker skips infrastructure beans. The role is read here because the logging of these tests keeps the checker quiet.
+     */
+    @Test
+    void theCacheManagerOfContexaIsInfrastructure() {
+        runner(LegacyScopeApplication.Dormant.class).run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context.getBeanFactory().getBeanDefinition("contexaCacheManager").getRole())
+                    .isEqualTo(BeanDefinition.ROLE_INFRASTRUCTURE);
+        });
     }
 
     @Test

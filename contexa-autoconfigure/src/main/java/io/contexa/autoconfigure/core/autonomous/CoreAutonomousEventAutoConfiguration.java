@@ -25,6 +25,7 @@ import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.blocking.InMemoryBlockingSignalBroadcaster;
 import io.contexa.contexacore.RiskAssessment;
 import io.contexa.contexacore.autonomous.event.*;
+import io.contexa.contexacore.autonomous.event.listener.DecidedRecordAcknowledger;
 import io.contexa.contexacore.autonomous.event.listener.InMemorySecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
@@ -41,6 +42,7 @@ import io.contexa.contexacore.autonomous.processor.PromptShadowRunner;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
+import io.contexa.contexacore.autonomous.service.NewContextDecisionLimit;
 import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
 import io.contexa.contexacore.autonomous.service.DeletedAccountWriteFence;
 import io.contexa.contexacore.autonomous.service.LearningPromotionService;
@@ -120,8 +122,12 @@ public class CoreAutonomousEventAutoConfiguration {
         public KafkaSecurityEventCollector kafkaSecurityEventCollector(
                 @Qualifier("contexaObjectMapper") ObjectMapper objectMapper,
                 @Qualifier("contexaKafkaTemplate") KafkaTemplate<String, Object> contexaKafkaTemplate,
-                SecurityKafkaProperties securityKafkaProperties) {
-            return new KafkaSecurityEventCollector(objectMapper, contexaKafkaTemplate, securityKafkaProperties);
+                SecurityKafkaProperties securityKafkaProperties,
+                @Qualifier("contexaDecidedRecordAcknowledger") ObjectProvider<DecidedRecordAcknowledger> decidedRecords) {
+            KafkaSecurityEventCollector collector =
+                    new KafkaSecurityEventCollector(objectMapper, contexaKafkaTemplate, securityKafkaProperties);
+            decidedRecords.ifAvailable(collector::setDecidedRecordAcknowledger);
+            return collector;
         }
 
         @Bean(name = "contexaKafkaSecurityEventPublisher")
@@ -129,8 +135,14 @@ public class CoreAutonomousEventAutoConfiguration {
         @ConditionalOnBean(name = "contexaKafkaTemplate")
         public KafkaSecurityEventPublisher kafkaSecurityEventPublisher(
                 @Qualifier("contexaKafkaTemplate") KafkaTemplate<String, Object> contexaKafkaTemplate,
-                SecurityKafkaProperties securityKafkaProperties) {
-            return new KafkaSecurityEventPublisher(contexaKafkaTemplate, securityKafkaProperties);
+                SecurityKafkaProperties securityKafkaProperties,
+                ObjectProvider<KafkaSecurityEventCollector> kafkaSecurityEventCollector) {
+            KafkaSecurityEventPublisher publisher =
+                    new KafkaSecurityEventPublisher(contexaKafkaTemplate, securityKafkaProperties);
+            // Q-26: what Kafka does not take is analysed on this node.
+            publisher.setLocalAnalysis(event -> kafkaSecurityEventCollector.ifAvailable(
+                    collector -> collector.analyseHere(event)));
+            return publisher;
         }
     }
 
@@ -177,16 +189,31 @@ public class CoreAutonomousEventAutoConfiguration {
     }
 
 
+    /**
+     * How many decisions of a new context a person may ask for in a short window on this server, sign-ins and calls from
+     * a changed context together: contexa.security.zerotrust.analysis.new-context-limit.*.
+     */
+    @Bean(name = "contexaNewContextDecisionLimit")
+    @ConditionalOnMissingBean
+    public NewContextDecisionLimit newContextDecisionLimit(SecurityZeroTrustProperties securityZeroTrustProperties,
+                                                           ObjectProvider<CentralAuditFacade> centralAuditFacade) {
+        return new NewContextDecisionLimit(securityZeroTrustProperties.getAnalysis().getNewContextLimit(),
+                centralAuditFacade.getIfAvailable(), null);
+    }
+
     @Bean(name = "contexaZeroTrustEventListener")
     @ConditionalOnMissingBean
     public ZeroTrustEventListener zeroTrustEventListener(
             SecurityEventPublisher securityEventPublisher,
             ZeroTrustActionRepository actionRepository,
             SecurityZeroTrustProperties securityZeroTrustProperties,
-            ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder) {
+            ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder,
+            ObjectProvider<NewContextDecisionLimit> newContextDecisionLimit) {
         ZeroTrustEventListener listener =
                 new ZeroTrustEventListener(securityEventPublisher, actionRepository, securityZeroTrustProperties);
         listener.setUnanalysedRequestRecorder(unanalysedRequestRecorder.getIfAvailable());
+        // A sign-in past the person's decisions of a new context goes on undecided; the next request is asked to verify.
+        listener.setNewContextDecisionLimit(newContextDecisionLimit.getIfAvailable());
         return listener;
     }
 
@@ -392,7 +419,8 @@ public class CoreAutonomousEventAutoConfiguration {
             ObjectProvider<DeletedAccountWriteFence> deletedAccountWriteFence,
             ObjectProvider<AgentContainmentService> agentContainment,
             ObjectProvider<AgentScopeService> agentScopes,
-            ObjectProvider<RiskSignalEmitter> riskSignalEmitters) {
+            ObjectProvider<RiskSignalEmitter> riskSignalEmitters,
+            TieredStrategyProperties tieredStrategyProperties) {
         SecurityDecisionEnforcementHandler handler = new SecurityDecisionEnforcementHandler(
                 actionRepository,
                 contexaSecurityLearningService,
@@ -412,6 +440,8 @@ public class CoreAutonomousEventAutoConfiguration {
         handler.setAgentScopes(agentScopes.getIfAvailable());
         // docs/agent A5-8: the host's emitters of risk level changes, none by default.
         handler.setRiskSignalEmitters(riskSignalEmitters.orderedStream().toList());
+        // What a result that names no final action ends as, the Layer2 terminal policy.
+        handler.setEscalateTerminalAction(tieredStrategyProperties.getLayer2().escalateTerminalAction());
         return handler;
     }
 

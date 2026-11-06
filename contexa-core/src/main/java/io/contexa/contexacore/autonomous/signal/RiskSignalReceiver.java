@@ -16,9 +16,12 @@
 package io.contexa.contexacore.autonomous.signal;
 
 import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacommon.store.StoreFailures;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.service.IForceLogoutService;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
@@ -37,7 +40,8 @@ import java.util.function.Function;
  * revocation; OpenID SSF, CAEP, RISC). For every event of a verified token, the subject's decision in force is
  * invalidated with its cache, so the subject's next request is decided again; a restriction in force (BLOCK,
  * ESCALATE, CHALLENGE) stays, since a signal never weakens a decision. An event that ends sessions (session revoked,
- * credential compromised, account disabled or purged) also signs the subject out. Every event is audited.
+ * credential compromised, account disabled or purged) also signs the subject out and ends its tokens. Every event is
+ * audited.
  */
 @Slf4j
 public class RiskSignalReceiver {
@@ -50,6 +54,7 @@ public class RiskSignalReceiver {
     private final ZeroTrustSecurityService zeroTrust;
     private final Function<Map<String, Object>, String> subjects;
     private final CentralAuditFacade audit;
+    private final IForceLogoutService forceLogout;
     /** The identifiers of the tokens acted on lately: a token pushed again is acknowledged and not acted on twice. */
     private final Map<String, Boolean> seen = Collections.synchronizedMap(new LinkedHashMap<>(256, 0.75f,
             false) {
@@ -66,19 +71,41 @@ public class RiskSignalReceiver {
      */
     public RiskSignalReceiver(ZeroTrustActionRepository actions, @Nullable ZeroTrustSecurityService zeroTrust,
                               Function<Map<String, Object>, String> subjects, @Nullable CentralAuditFacade audit) {
+        this(actions, zeroTrust, subjects, audit, null);
+    }
+
+    /** @param forceLogout what ends the subject's tokens along with its sessions, where tokens are issued here */
+    public RiskSignalReceiver(ZeroTrustActionRepository actions, @Nullable ZeroTrustSecurityService zeroTrust,
+                              Function<Map<String, Object>, String> subjects, @Nullable CentralAuditFacade audit,
+                              @Nullable IForceLogoutService forceLogout) {
         this.actions = Objects.requireNonNull(actions, "actions");
         this.zeroTrust = zeroTrust;
         this.subjects = Objects.requireNonNull(subjects, "subjects");
         this.audit = audit;
+        this.forceLogout = forceLogout;
     }
 
     /** Invalidates the decisions of the subjects the token's events name. */
     public Receipt receive(SecurityEventToken token) {
         List<String> invalidated = new ArrayList<>();
         List<String> types = new ArrayList<>();
-        if (seen.putIfAbsent(token.issuer() + "|" + token.jti(), Boolean.TRUE) != null) {
+        String seenKey = token.issuer() + "|" + token.jti();
+        if (seen.putIfAbsent(seenKey, Boolean.TRUE) != null) {
             return new Receipt(token.jti(), invalidated, types);
         }
+        try {
+            act(token, invalidated, types);
+        } catch (RuntimeException failure) {
+            if (StoreFailures.isStoreFailure(failure)) {
+                // The token was not acted on, and its transmitter sends a token again on an error.
+                seen.remove(seenKey);
+            }
+            throw failure;
+        }
+        return new Receipt(token.jti(), invalidated, types);
+    }
+
+    private void act(SecurityEventToken token, List<String> invalidated, List<String> types) {
         token.events().forEach((type, event) -> {
             Object eventSubject = event != null ? event.get("subject") : null;
             @SuppressWarnings("unchecked")
@@ -94,17 +121,42 @@ public class RiskSignalReceiver {
             invalidated.add(user);
             record(token, type, user, SecurityEventToken.endsSessions(type) ? "SIGNED_OUT" : "DECIDED_AGAIN");
         });
-        return new Receipt(token.jti(), invalidated, types);
     }
 
     private void invalidate(String user, String type) {
-        // A restriction in force stays; an ALLOW or a pending decision goes, so the next request is decided again.
-        actions.removeLogoutData(user);
-        if (zeroTrust != null) {
-            zeroTrust.invalidateDecisionCache(user);
-            if (SecurityEventToken.endsSessions(type)) {
-                zeroTrust.invalidateAllUserSessions(user, "Risk signal: " + type);
+        try {
+            // A restriction in force stays; an ALLOW or a pending decision goes, so the next request is decided again.
+            actions.removeLogoutData(ZeroTrustUserKey.person(user));
+        } finally {
+            // A store that is away keeps the subject's logout for when it is back.
+            if (zeroTrust != null) {
+                zeroTrust.invalidateDecisionCache(user);
             }
+            if (SecurityEventToken.endsSessions(type)) {
+                signOut(user, "Risk signal: " + type);
+            }
+        }
+    }
+
+    /**
+     * Ends the subject's sessions and tokens, as a new password does: a token left running would be renewed when it runs
+     * out, and the subject would go on. What the forced logout cannot end must not cost the audit of the event, but a
+     * store that is away goes back to the transmitter, which sends the token again.
+     */
+    private void signOut(String user, String reason) {
+        if (forceLogout == null) {
+            if (zeroTrust != null) {
+                zeroTrust.invalidateAllUserSessions(user, reason);
+            }
+            return;
+        }
+        try {
+            forceLogout.forceLogoutByUserId(user, reason);
+        } catch (RuntimeException e) {
+            if (StoreFailures.isStoreFailure(e)) {
+                throw e;
+            }
+            log.error("Risk signal could not end what the subject has open: user={}, reason={}", user, reason, e);
         }
     }
 

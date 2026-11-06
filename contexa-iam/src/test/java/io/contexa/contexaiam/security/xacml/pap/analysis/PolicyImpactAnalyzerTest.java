@@ -31,6 +31,7 @@ import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyImpactReport;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.SpelLiteral;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -47,7 +48,7 @@ import org.mockito.Mock;
 import org.mockito.quality.Strictness;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.core.GrantedAuthority;
-
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class PolicyImpactAnalyzerTest {
@@ -173,6 +174,23 @@ class PolicyImpactAnalyzerTest {
             assertThat(report.affectedUserCount()).isEqualTo(1);
             assertThat(report.affectedUsers().get(0).changeType()).isEqualTo("ACCESS_GAINED");
             assertThat(report.accessChangeSummary().gained()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("a user of a role without the ROLE_ prefix gains access from a policy that asks for the authority the role gives")
+        void aRoleWithoutThePrefixGainsAccessByItsAuthority() {
+            Policy byAuthority = buildPolicy(null, "allow-oneil", Policy.Effect.ALLOW,
+                    "/api/users", "GET", SpelLiteral.hasRoleAuthority("O'Neil"));
+            Policy byBareName = buildPolicy(null, "allow-oneil-bare", Policy.Effect.ALLOW,
+                    "/api/users", "GET", SpelLiteral.hasAuthority("O'Neil"));
+            Users user = buildUser(1L, "testuser", "O'Neil");
+
+            when(policyRepository.findAllWithDetails()).thenReturn(List.of());
+            when(userRepository.findAll()).thenReturn(List.of(user));
+
+            assertThat(analyzer.analyze(byAuthority).accessChangeSummary().gained()).isEqualTo(1);
+            assertThat(analyzer.analyze(byBareName).accessChangeSummary().gained())
+                    .as("nobody holds the bare name of the role").isZero();
         }
 
         @Test

@@ -835,7 +835,8 @@ create table if not exists ctxa_agent_confirmation
     decided_by       varchar(255),
     decision_note    text,
     authorization_id varchar(512),
-    used_at          timestamp(6)
+    used_at          timestamp(6),
+    body_bytes       bigint
 );
 
 create index if not exists ctxa_idx_agent_confirmation_request
@@ -846,6 +847,10 @@ create index if not exists ctxa_idx_agent_confirmation_recipient
 
 create index if not exists ctxa_idx_agent_confirmation_due
     on ctxa_agent_confirmation (status, expires_at);
+
+-- The size of the confirmed request's body (0 for none, -1 for a body Contexa did not see), shown to the person; the
+-- body itself is never kept. A database installed before it gains the column here at the next start.
+alter table ctxa_agent_confirmation add column if not exists body_bytes bigint;
 
 -- docs/agent A5-4: the narrowed scopes of agents' later requests (AgentScopeStore), one row per agent decision key;
 -- a narrowing only intersects the operations in force and ends at until_at.
@@ -1260,7 +1265,8 @@ create table ctxa_bridge_user_profile
     mfa_completed_from_customer boolean,
     session_id                  varchar(255),
     source_system               varchar(100),
-    updated_at                  timestamp(6)
+    updated_at                  timestamp(6),
+    pending_email               varchar(255)
 );
 
 
@@ -1439,6 +1445,9 @@ alter table ctxa_system_settings add column if not exists missing_method_policy_
 
 -- docs/agent A3-3 (R-01): the tenant of a blocked request, so that an administrator's release learns within it.
 alter table ctxa_blocked_user add column if not exists tenant_id varchar(255);
+-- Another address the application shows for a user whose copy holds a real one; it waits for the user's proof of
+-- the address on record. A database installed before it gains the column here at the next start.
+alter table ctxa_bridge_user_profile add column if not exists pending_email varchar(255);
 -- docs/agent A5-5: the decision record of an agent request (AG-8): who it acted as and for, the operation, the
 -- risk facts the decision cited, what was enforced and why, and the hash of the request context.
 alter table ctxa_audit_log

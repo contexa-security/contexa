@@ -40,6 +40,7 @@ public final class ModelCallTimer {
     private final long limitNanos;
     private final long startNanos = System.nanoTime();
     private volatile long deadline;
+    private volatile boolean firstInLine;
     private int waits;
     private long waitStartedNanos;
     private long excludedNanos;
@@ -70,6 +71,17 @@ public final class ModelCallTimer {
             deadline = epochMillis;
         }
         return this;
+    }
+
+    /** Q-23: marks the work as the first decision of a session, which goes before others at a model server's gate. */
+    public ModelCallTimer firstInLine(boolean firstInLine) {
+        this.firstInLine = firstInLine;
+        return this;
+    }
+
+    /** Q-23: whether this timer or a parent marks the work as the first decision of a session. */
+    public boolean firstInLine() {
+        return firstInLine || (parent != null && parent.firstInLine());
     }
 
     /** The earliest deadline of this timer and its parents (epoch milliseconds), or 0 when none has one. */

@@ -82,25 +82,59 @@ public class AgentConfirmationService {
         this.containment = containment;
     }
 
+    /**
+     * Where a confirmation link starts: the configured address, else the application's path only. The address of the
+     * agent's own request is never used, since the agent chooses its host header and the link goes to a person.
+     *
+     * @param configured  the configured address ({@code confirmation-link-base-url}), or null
+     * @param contextPath the application's context path
+     */
+    public static String linkBase(@Nullable String configured, @Nullable String contextPath) {
+        String base = StringUtils.hasText(configured) ? configured.trim().replaceAll("/+$", "") : "";
+        return base + (contextPath != null ? contextPath : "");
+    }
+
     /** How long a confirmation waits, and how long an approval may be used. */
     public Duration timeout() {
         return timeout;
     }
 
-    /** What the request of an agent asks of the person, as the gate states it. */
+    /**
+     * What the request of an agent asks of the person, as the gate states it.
+     *
+     * @param bodyBytes the size of the request's body ({@link AgentConfirmation#bodyBytes()}), or null when not known
+     */
     public record ConfirmationRequest(ZeroTrustSubject subject, String requestHash, String method, String target,
                                       String trigger, @Nullable String reason, @Nullable String correlationId,
-                                      @Nullable String linkBase) {
+                                      @Nullable String linkBase, @Nullable Long bodyBytes) {
+
+        /** A request whose body's size is not known. */
+        public ConfirmationRequest(ZeroTrustSubject subject, String requestHash, String method, String target,
+                                   String trigger, @Nullable String reason, @Nullable String correlationId,
+                                   @Nullable String linkBase) {
+            this(subject, requestHash, method, target, trigger, reason, correlationId, linkBase, null);
+        }
     }
 
     /**
-     * Asks the accountable person to confirm the request, or answers the confirmation already waiting for it.
+     * Asks the accountable person to confirm the request, or answers the confirmation already waiting for it. The person
+     * is mailed once per waiting agent: a request of the agent while another of its confirmations waits reaches the
+     * person on the console only, whichever way it came and also when the requests arrive together, so an agent cannot
+     * fill the person's mailbox.
      *
-     * @return empty when no person is accountable for the agent (an agent on its own without a sponsor)
+     * @return empty when no person is accountable for the agent (an agent on its own without a sponsor), or when a
+     *         confirmation cannot keep the agent's identifiers whole ({@link AgentConfirmation#keeps})
      */
     public Optional<AgentConfirmation> request(ConfirmationRequest request) {
         ZeroTrustSubject subject = request.subject();
         if (subject == null || subject.agentId() == null || !StringUtils.hasText(request.requestHash())) {
+            return Optional.empty();
+        }
+        if (!AgentConfirmation.keeps(subject)) {
+            record(AuditEventCategory.AGENT_CONFIRMATION_REQUESTED, "contexa", null, subject, "UNKEEPABLE",
+                    "The agent's identifiers are longer than a confirmation keeps; the request is refused",
+                    Map.of("target", truncate(request.method() + " " + request.target(), 2048),
+                            "trigger", request.trigger()));
             return Optional.empty();
         }
         String subjectKey = subject.storageKey();
@@ -117,21 +151,26 @@ public class AgentConfirmationService {
                     Map.of("target", request.method() + " " + request.target(), "trigger", request.trigger()));
             return Optional.empty();
         }
-        AgentConfirmation confirmation = store.save(new AgentConfirmation(UUID.randomUUID().toString(),
+        AgentConfirmation confirmation = new AgentConfirmation(UUID.randomUUID().toString(),
                 subject.tenantId(), subject.kind().name(), subject.userId(), subject.agentId(),
                 subject.delegationId(), recipient, request.requestHash(), request.method(),
-                truncate(request.target(), 2048), request.trigger(), request.reason(), request.correlationId(),
-                AgentConfirmation.Status.PENDING, now, now.plus(timeout), null, null, null, null, null));
+                request.target(), request.trigger(), request.reason(), request.correlationId(),
+                AgentConfirmation.Status.PENDING, now, now.plus(timeout), null, null, null, null, null,
+                request.bodyBytes());
+        boolean anotherWaits = saveNotingWaiting(confirmation, subjectKey, now);
         notify(confirmation, AgentNotice.CONFIRMATION_REQUESTED,
                 "The agent " + confirmation.agentId() + " asks you to confirm a request",
                 "The agent " + confirmation.agentId() + " is waiting for your confirmation before it runs "
-                        + confirmation.method() + " " + confirmation.target() + reasonText(confirmation)
+                        + asked(confirmation) + reasonText(confirmation)
                         + ". Approve, refuse or report it before " + confirmation.expiresAt()
-                        + "; without an answer it is refused.",
-                link(request.linkBase(), PAGE_PATH + confirmation.confirmationId()));
+                        + "; without an answer it is refused."
+                        + (anotherWaits ? " Another request of this agent already waits for you, so this one was "
+                        + "not mailed." : "") + agentWords(confirmation),
+                link(request.linkBase(), PAGE_PATH + confirmation.confirmationId()), !anotherWaits);
         record(AuditEventCategory.AGENT_CONFIRMATION_REQUESTED, "contexa", confirmation, subject, "PENDING",
                 confirmation.reason(), Map.of("target", confirmation.method() + " " + confirmation.target(),
-                        "trigger", confirmation.trigger(), "recipient", recipient));
+                        "trigger", confirmation.trigger(), "recipient", recipient,
+                        "notice", anotherWaits ? AgentNotice.CONSOLE : "DELIVERED"));
         return Optional.of(confirmation);
     }
 
@@ -310,11 +349,47 @@ public class AgentConfirmationService {
         if (undecided) {
             notify(expired, AgentNotice.CONFIRMATION_EXPIRED,
                     "A request of the agent " + expired.agentId() + " was refused without your answer",
-                    "The agent " + expired.agentId() + " waited for your confirmation of " + expired.method() + " "
-                            + expired.target() + " until " + expired.expiresAt() + ". It was not confirmed in time, "
-                            + "so the request was refused.", null);
+                    "The agent " + expired.agentId() + " waited for your confirmation of " + asked(expired)
+                            + " until " + expired.expiresAt() + ". It was not confirmed in time, "
+                            + "so the request was refused.", null, requestWasDelivered(expired));
         }
         return expired;
+    }
+
+    /**
+     * Saves the confirmation and tells whether another confirmation of the subject waited for the person when it was
+     * saved, in one step of the store, so that of the first requests of an agent that arrive together exactly one finds
+     * the agent alone. A store that cannot tell answers no: the person is then mailed, as before.
+     */
+    private boolean saveNotingWaiting(AgentConfirmation confirmation, String subjectKey, Instant now) {
+        try {
+            return store.saveNotingWaiting(confirmation, now);
+        } catch (RuntimeException e) {
+            log.error("Saving the confirmation with the waiting ones failed; the person is mailed: subjectKey={}",
+                    subjectKey, e);
+            // A save is kept or replaced by the confirmation's identifier, so saving it again leaves one.
+            store.save(confirmation);
+            return false;
+        }
+    }
+
+    /**
+     * Whether the person was told of the confirmation's request by a channel: its refusal is told the same way, so the
+     * requests told on the console only are refused on the console only, and a waiting agent mails the person once.
+     */
+    private boolean requestWasDelivered(AgentConfirmation confirmation) {
+        if (notices == null) {
+            return false;
+        }
+        try {
+            return notices.store().find(confirmation.recipientId(), AgentNotice.CONFIRMATION_REQUESTED,
+                    confirmation.confirmationId()).map(notice -> !AgentNotice.CONSOLE.equals(notice.deliveredBy()))
+                    .orElse(false);
+        } catch (RuntimeException e) {
+            log.error("Reading the notice of a confirmation failed; its refusal stays on the console: "
+                    + "confirmationId={}", confirmation.confirmationId(), e);
+            return false;
+        }
     }
 
     private AgentConfirmation decidable(String confirmationId, String personId) {
@@ -359,13 +434,13 @@ public class AgentConfirmationService {
     }
 
     private void notify(AgentConfirmation confirmation, String kind, String subject, String message,
-                        @Nullable String link) {
+                        @Nullable String link, boolean deliver) {
         if (notices == null) {
             return;
         }
         try {
             notices.notify(kind, confirmation.tenantId(), confirmation.recipientId(), confirmation.agentId(),
-                    confirmation.delegationId(), subject, message, link, confirmation.confirmationId());
+                    confirmation.delegationId(), subject, message, link, confirmation.confirmationId(), deliver);
         } catch (RuntimeException e) {
             log.error("Agent confirmation notice failed: confirmationId={}", confirmation.confirmationId(), e);
         }
@@ -420,8 +495,30 @@ public class AgentConfirmationService {
         return StringUtils.hasText(base) ? base.replaceAll("/+$", "") + path : path;
     }
 
+    /**
+     * The request as the person is told it: what the agent sent and, when the application serves another path than the
+     * one it spells, that path ({@link AgentConfirmation#routedPath}).
+     */
+    private static String asked(AgentConfirmation confirmation) {
+        String routed = confirmation.routedPath();
+        return confirmation.method() + " " + confirmation.target()
+                + (routed != null ? " (the application serves this as " + routed + ")" : "");
+    }
+
+    /** The reason of a decision or of an ended delegation: Contexa's own, said in Contexa's sentence. */
     private static String reasonText(AgentConfirmation confirmation) {
-        return StringUtils.hasText(confirmation.reason()) ? " (" + confirmation.reason() + ")" : "";
+        return StringUtils.hasText(confirmation.reason()) && !agentWrote(confirmation)
+                ? " (" + confirmation.reason() + ")" : "";
+    }
+
+    /** What the agent wrote when it asked: said after Contexa's words and as the agent's, as the page shows it. */
+    private static String agentWords(AgentConfirmation confirmation) {
+        return StringUtils.hasText(confirmation.reason()) && agentWrote(confirmation)
+                ? " Written by the agent, not checked by Contexa: " + confirmation.reason() : "";
+    }
+
+    private static boolean agentWrote(AgentConfirmation confirmation) {
+        return AgentConfirmation.REQUESTED.equals(confirmation.trigger());
     }
 
     @Nullable

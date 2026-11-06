@@ -24,7 +24,9 @@ import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
+import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexacore.verification.replay.SealedDecisionReplayService;
 import org.springframework.lang.Nullable;
@@ -71,8 +73,12 @@ public class SealedDecisionReplays {
                                 @Nullable JsonNode userBaseline, @Nullable JsonNode organizationBaseline) {
     }
 
-    /** What the replay answered, with the baselines it was drawn with. */
-    public record Replayed(SealedDecisionReplayService.Result result, Baselines baselines) {
+    /**
+     * What the replay answered, with the baselines it was drawn with and the state of the sealed package it was drawn
+     * from: an answer drawn from a package changed after its seal is no fact about the decision (PR-77).
+     */
+    public record Replayed(SealedDecisionReplayService.Result result, Baselines baselines,
+                           SealedEvidencePackageIntegrity.Status integrity) {
     }
 
     /** The replay cannot run: the engine's decision pipeline is not in this application. */
@@ -90,18 +96,21 @@ public class SealedDecisionReplays {
     @Nullable
     private final CentralAuditFacade audit;
     private final ObjectMapper json;
+    private final SealedEvidencePackageIntegrity integrity;
 
     /**
-     * @param service the replay service, or a supplier of null when the engine's decision pipeline is not here
+     * @param service   the replay service, or a supplier of null when the engine's decision pipeline is not here
+     * @param integrity what tells the state of a sealed package, with the store's signer
      */
     public SealedDecisionReplays(SealedEvidencePackageRepository packages, Supplier<SealedDecisionReplayService> service,
                                  @Nullable BaselineDataStore baselines, @Nullable CentralAuditFacade audit,
-                                 ObjectMapper objectMapper) {
+                                 ObjectMapper objectMapper, SealedEvidencePackageIntegrity integrity) {
         this.packages = Objects.requireNonNull(packages, "packages");
         this.service = Objects.requireNonNull(service, "service");
         this.baselines = baselines;
         this.audit = audit;
         this.json = objectMapper.copy().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        this.integrity = Objects.requireNonNull(integrity, "integrity");
     }
 
     /** The bundles this build runs, the versions a replay may name. */
@@ -144,7 +153,8 @@ public class SealedDecisionReplays {
         Baselines drawnWith = user != null || organization != null ? Baselines.GIVEN : Baselines.CURRENT;
         if (drawnWith == Baselines.CURRENT && baselines != null) {
             // Copies, so that naming the user below leaves the kept baselines as they are.
-            user = copy(baselines.getUserBaseline(BaselineDataStore.userKey(sealed.getTenantId(), sealed.getUserId())));
+            user = copy(baselines.getUserBaseline(BaselineDataStore.userKey(sealed.getTenantId(),
+                    ZeroTrustUserKey.person(sealed.getUserId()))));
             String organizationId = organizationOf(sealed);
             organization = organizationId != null ? copy(baselines.getOrganizationBaseline(organizationId)) : null;
         }
@@ -152,9 +162,10 @@ public class SealedDecisionReplays {
             // The analysis reads the person's baseline under the sealed decision's user, as it did then.
             user.setUserId(sealed.getUserId());
         }
+        SealedEvidencePackageIntegrity.Status state = integrity.evaluate(sealed);
         SealedDecisionReplayService.Result result = replays.replay(sealed, user, organization, bundle, TIMEOUT, models);
-        audit(actor, sealed, bundle, models, drawnWith, result);
-        return Optional.of(new Replayed(result, drawnWith));
+        audit(actor, sealed, bundle, models, drawnWith, state, result);
+        return Optional.of(new Replayed(result, drawnWith, state));
     }
 
     @Nullable
@@ -194,7 +205,8 @@ public class SealedDecisionReplays {
     }
 
     private void audit(String actor, SealedEvidencePackage sealed, String bundle, List<String> models,
-                       Baselines drawnWith, SealedDecisionReplayService.Result result) {
+                       Baselines drawnWith, SealedEvidencePackageIntegrity.Status state,
+                       SealedDecisionReplayService.Result result) {
         if (audit == null) {
             return;
         }
@@ -204,6 +216,7 @@ public class SealedDecisionReplays {
         details.put("bundleVersion", bundle);
         details.put("secondPassModels", models);
         details.put("baselines", drawnWith.name());
+        details.put("integrity", state.name());
         details.put("replayId", String.valueOf(result.replayId()));
         details.put("action", String.valueOf(result.action()));
         if (result.failure() != null) {

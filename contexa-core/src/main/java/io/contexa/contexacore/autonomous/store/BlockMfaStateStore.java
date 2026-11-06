@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.autonomous.store;
 
+import org.springframework.lang.Nullable;
+
 import java.time.Instant;
 
 public interface BlockMfaStateStore {
@@ -22,6 +24,23 @@ public interface BlockMfaStateStore {
     void setVerified(String userId);
 
     boolean isVerified(String userId);
+
+    /**
+     * Keeps the verification for the context that passed it, the one the client goes on in, as an ALLOW after a CHALLENGE
+     * is kept: it answers for that session and for no other of the account. The last context that passed takes the place
+     * of the one before.
+     */
+    default void setVerified(String userId, @Nullable String contextBindingHash) {
+        setVerified(userId);
+    }
+
+    /**
+     * Whether the given context passed the verification in force. A store that keeps no context answers false: the
+     * people of the block list stay shut, and the BLOCK stays with another administrator.
+     */
+    default boolean isVerified(String userId, @Nullable String contextBindingHash) {
+        return false;
+    }
 
     default Instant getVerifiedAt(String userId) {
         return null;

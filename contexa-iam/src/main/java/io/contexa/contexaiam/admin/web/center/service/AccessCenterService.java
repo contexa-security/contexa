@@ -33,6 +33,7 @@ import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.repository.UserRolePermissionRepository;
 import io.contexa.contexacommon.repository.UserRoleRepository;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos.AccessActionResponse;
 import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos.AccessCenterStats;
@@ -78,6 +79,7 @@ public class AccessCenterService {
     private final RoleService roleService;
     private final UserRolePermissionRepository userRolePermissionRepository;
     private final GroupRolePermissionRepository groupRolePermissionRepository;
+    private final LastAdministratorGuard lastAdministratorGuard;
 
     public AccessCenterStats getStats() {
         return new AccessCenterStats(
@@ -112,7 +114,7 @@ public class AccessCenterService {
     }
 
     public AccessUserDetailResponse getUserDetail(Long userId) {
-        log.error("[AccessCenterController] findByIdWithGroupsRolesAndPermissions userId={}", userId);
+        log.debug("[AccessCenterController] findByIdWithGroupsRolesAndPermissions userId={}", userId);
         Users user = userRepository.findByIdWithGroupsRolesAndPermissions(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
 
@@ -190,16 +192,24 @@ public class AccessCenterService {
 
     @Transactional(transactionManager = "contexaTransactionManager")
     public AccessActionResponse updateUserGroups(Long userId, UpdateUserGroupsRequest request) {
+        lastAdministratorGuard.serializeChanges();
         List<Long> groupIds = request.groupIdsOrEmpty();
         Users user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+        boolean wasActiveAdministrator = lastAdministratorGuard.activeAdministrator(user);
 
-        user.getUserGroups().clear();
-        groupIds.forEach(gid -> {
+        // A group the user keeps stays the row it is. Dropped and made again under the same key, it would meet itself in
+        // the session as soon as a query flushes, and the check of the last administrator below runs one.
+        Set<Long> desiredGroupIds = new HashSet<>(groupIds);
+        user.getUserGroups().removeIf(userGroup -> !desiredGroupIds.contains(userGroup.getGroup().getId()));
+        Set<Long> keptGroupIds = new HashSet<>();
+        user.getUserGroups().forEach(userGroup -> keptGroupIds.add(userGroup.getGroup().getId()));
+        desiredGroupIds.stream().filter(gid -> !keptGroupIds.contains(gid)).forEach(gid -> {
             Group group = groupRepository.findById(gid)
                     .orElseThrow(() -> new IllegalArgumentException("Group not found: " + gid));
             user.getUserGroups().add(UserGroup.builder().user(user).group(group).build());
         });
+        lastAdministratorGuard.refuseLosingTheLast(user, wasActiveAdministrator);
         userRepository.save(user);
 
         return new AccessActionResponse(true, "Groups updated successfully.");
@@ -207,9 +217,11 @@ public class AccessCenterService {
 
     @Transactional(transactionManager = "contexaTransactionManager")
     public AccessActionResponse updateUserDirectRoles(Long userId, AccessRoleAssignmentsRequest request) {
+        lastAdministratorGuard.serializeChanges();
         Users user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
         String principal = extractCurrentUsername();
+        boolean wasActiveAdministrator = lastAdministratorGuard.activeAdministrator(user);
 
         user.getUserRoles().clear();
         userRolePermissionRepository.deleteByUserId(userId);
@@ -271,6 +283,7 @@ public class AccessCenterService {
                 });
             }
         }
+        lastAdministratorGuard.refuseLosingTheLast(user, wasActiveAdministrator);
 
         userRepository.save(user);
         return new AccessActionResponse(true, "Direct roles updated successfully.");
@@ -310,6 +323,8 @@ public class AccessCenterService {
 
     @Transactional(transactionManager = "contexaTransactionManager")
     public AccessActionResponse updateGroupRoles(Long groupId, AccessRoleAssignmentsRequest request) {
+        lastAdministratorGuard.serializeChanges();
+        List<String> administrators = lastAdministratorGuard.administrators();
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new IllegalArgumentException("Group not found: " + groupId));
         String principal = extractCurrentUsername();
@@ -376,6 +391,7 @@ public class AccessCenterService {
         }
 
         groupRepository.save(group);
+        lastAdministratorGuard.refuseLosingEveryAdministrator(administrators);
         return new AccessActionResponse(true, "Group roles updated successfully.");
     }
 

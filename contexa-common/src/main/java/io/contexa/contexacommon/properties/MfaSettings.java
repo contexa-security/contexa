@@ -27,6 +27,9 @@ import org.springframework.boot.context.properties.NestedConfigurationProperty;
 @Setter
 public class MfaSettings {
 
+    /** The wait between two mails of a code to one address, and what a value of zero or less falls back to. */
+    public static final int DEFAULT_EMAIL_RESEND_INTERVAL_SECONDS = 120;
+
     
     
     @NestedConfigurationProperty
@@ -71,7 +74,7 @@ public class MfaSettings {
     private int smsResendIntervalSeconds = 60;
 
     
-    private int emailResendIntervalSeconds = 120;
+    private int emailResendIntervalSeconds = DEFAULT_EMAIL_RESEND_INTERVAL_SECONDS;
 
     
     

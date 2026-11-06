@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.security.xacml.pap.controller;
 
+import io.contexa.contexaiam.common.ConsoleFault;
 import io.contexa.contexaiam.domain.dto.ConditionDto;
 import io.contexa.contexaiam.domain.dto.PolicyDto;
 import io.contexa.contexaiam.domain.dto.RuleDto;
@@ -30,6 +31,7 @@ import org.springframework.context.MessageSource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -76,7 +78,7 @@ public class PolicyController {
     }
 
     @PostMapping
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public String createPolicy(@ModelAttribute PolicyDto policyDto, RedirectAttributes ra) {
         try {
             policyService.createPolicy(policyDto);
@@ -86,7 +88,7 @@ public class PolicyController {
             ra.addFlashAttribute("errorMessage", msg("msg.policy.name.duplicate"));
         } catch (Exception e) {
             log.error("Failed to create policy", e);
-            ra.addFlashAttribute("errorMessage", msg("msg.policy.create.error", e.getMessage()));
+            ra.addFlashAttribute("errorMessage", msg("msg.policy.create.error", ConsoleFault.textOf(e)));
         }
         return "redirect:/contexa/admin/policy-center?tab=list";
     }
@@ -104,7 +106,7 @@ public class PolicyController {
     }
 
     @PostMapping("/{id}/edit")
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public String updatePolicy(@PathVariable Long id, @ModelAttribute PolicyDto policyDto, RedirectAttributes ra) {
         try {
             policyDto.setId(id);
@@ -115,7 +117,7 @@ public class PolicyController {
             ra.addFlashAttribute("errorMessage", msg("msg.policy.name.duplicate"));
         } catch (Exception e) {
             log.error("Failed to update policy", e);
-            ra.addFlashAttribute("errorMessage", msg("msg.policy.create.error", e.getMessage()));
+            ra.addFlashAttribute("errorMessage", msg("msg.policy.create.error", ConsoleFault.textOf(e)));
         }
         return "redirect:/contexa/admin/policy-center?tab=list";
     }
@@ -166,7 +168,7 @@ public class PolicyController {
     }
 
     @PostMapping("/delete/{id}")
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public String deletePolicy(@PathVariable Long id,
                                 @RequestParam(required = false) String changeReason,
                                 RedirectAttributes ra) {
@@ -174,35 +176,35 @@ public class PolicyController {
             policyService.deletePolicy(id, changeReason);
             ra.addFlashAttribute("message", msg("msg.policy.deleted"));
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", msg("msg.policy.delete.error", e.getMessage()));
+            ra.addFlashAttribute("errorMessage", msg("msg.policy.delete.error", ConsoleFault.textOf(e)));
             log.error("Error deleting policy", e);
         }
         return "redirect:/contexa/admin/policy-center?tab=list";
     }
 
     @PostMapping("/{id}/approve")
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public String approvePolicy(@PathVariable Long id, RedirectAttributes ra) {
         try {
             String approver = extractCurrentUsername();
             policyService.approvePolicy(id, approver);
             ra.addFlashAttribute("message", msg("msg.policy.approved", id));
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", e.getMessage());
+            ra.addFlashAttribute("errorMessage", ConsoleFault.textOf(e));
             log.error("Error approving policy", e);
         }
         return "redirect:/contexa/admin/policy-center?tab=list";
     }
 
     @PostMapping("/{id}/reject")
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public String rejectPolicy(@PathVariable Long id, RedirectAttributes ra) {
         try {
             String rejector = extractCurrentUsername();
             policyService.rejectPolicy(id, rejector);
             ra.addFlashAttribute("message", msg("msg.policy.rejected", id));
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", e.getMessage());
+            ra.addFlashAttribute("errorMessage", ConsoleFault.textOf(e));
             log.error("Error rejecting policy", e);
         }
         return "redirect:/contexa/admin/policy-center?tab=list";

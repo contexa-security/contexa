@@ -41,6 +41,30 @@ The public RFC 9116 contact file is published at:
 - notice when the issue is fixed
 - release note credit unless anonymity is requested
 
+## Limits of Sealed Evidence
+
+Sealed decisions are hashed, signed with the keys of `contexa.security.evidence.signing` and linked to the package
+sealed before them. Someone who can write to the database but holds no key cannot change a package, or remove one from
+inside the chain, without the re-inspection failing. The seal alone cannot tell, as long as nothing about it is kept
+outside the database:
+
+- the newest package removed: no package names it yet
+- every package from one point up to the newest lowered to an unsigned schema together, or every package from the
+  oldest up to one point lowered and dated back together: both read as signing that began later
+- a package removed from the part of the chain the retention may already have reached: older than the shorter of
+  `contexa.pqa.oss.sealed-evidence.retention.period` and `clean-period`
+- a package whose signature names a key the installation does not hold reads as changed only from the time its active
+  key signs, and only with configured keys. Before that time, and with an ephemeral key or a signer that does not say it
+  keeps its keys, it reads as not verifiable, since a retired or an ephemeral key looks the same; the package sealed after
+  it still fails when its hash was computed again
+
+Decision records follow the same rule: once older sealed records are kept, a record without its hash or signature reads
+as changed, and once older records are signed with the active key, so does one that names a key never held. They share
+the limits above, and a record taken off the end of the chain does not show.
+
+Configure a persistent signing key: with the ephemeral key a start generates, packages read as not verifiable after a
+restart.
+
 ## Security Best Practices
 
 When using CONTEXA in production:

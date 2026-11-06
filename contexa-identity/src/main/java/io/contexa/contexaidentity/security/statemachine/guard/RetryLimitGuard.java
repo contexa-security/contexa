@@ -44,7 +44,7 @@ public class RetryLimitGuard extends AbstractMfaStateGuard {
             Integer factorRetryCount = getFactorRetryCount(factorContext, currentFactor);
 
             if (factorRetryCount >= maxRetries) {
-                log.error("Factor {} retry limit exceeded for session: {}",
+                log.warn("Factor {} retry limit exceeded for session: {}",
                         currentFactor, sessionId);
                 return false;
             }
@@ -53,7 +53,7 @@ public class RetryLimitGuard extends AbstractMfaStateGuard {
         boolean withinLimit = currentRetryCount < maxRetries;
 
         if (!withinLimit) {
-            log.error("Total retry limit exceeded for session: {}", sessionId);
+            log.warn("Total retry limit exceeded for session: {}", sessionId);
         }
 
         return withinLimit;

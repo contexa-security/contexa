@@ -34,6 +34,8 @@ import java.util.concurrent.locks.ReentrantLock;
  * <ul>
  *   <li>no more calls run at once than the server takes ({@code maxConcurrent}, 0 for no limit);</li>
  *   <li>calls go in in the order they came, embeddings before waiting chats, and a call that is in is never cut;</li>
+ *   <li>a chat that is the first decision of a session ({@link ModelCallTimer#firstInLine()}) goes before the chats of
+ *       sessions that have one, so filling the line with those keeps no one away from a first decision (Q-23);</li>
  *   <li>on a server that loads one model at a time ({@code oneModelAtATime}), a call for another model goes in when the
  *       calls of the loaded model are done, and the calls behind it wait, so that the switch is not starved;</li>
  *   <li>after a call met a rate limit or an overload ({@link Permit#overloaded()}) the server is closed for a while,
@@ -61,6 +63,7 @@ public final class ModelServerGate {
     private final ReentrantLock lock = new ReentrantLock();
     private final Condition changed = lock.newCondition();
     private final ArrayDeque<Waiter> embeddings = new ArrayDeque<>();
+    private final ArrayDeque<Waiter> firstChats = new ArrayDeque<>();
     private final ArrayDeque<Waiter> chats = new ArrayDeque<>();
     private final Map<String, Integer> runningByModel = new HashMap<>();
     private int running;
@@ -103,7 +106,8 @@ public final class ModelServerGate {
      */
     public Permit enter(CallKind kind, String model, long maxWaitMs, ModelCallTimer timer) throws InterruptedException {
         CallKind callKind = kind != null ? kind : CallKind.CHAT;
-        Waiter waiter = new Waiter(callKind, model != null && !model.isBlank() ? model.trim() : callKind.name());
+        Waiter waiter = new Waiter(callKind, model != null && !model.isBlank() ? model.trim() : callKind.name(),
+                timer != null && timer.firstInLine());
         if (SCOPES.get().containsKey(this)) {
             return new Permit(waiter.model, 0L, true);
         }
@@ -112,10 +116,10 @@ public final class ModelServerGate {
         boolean timerStopped = false;
         lock.lockInterruptibly();
         try {
-            if (embeddings.isEmpty() && chats.isEmpty() && canEnter(waiter, started)) {
+            if (head() == null && canEnter(waiter, started)) {
                 return admit(waiter, 0L);
             }
-            lineOf(callKind).addLast(waiter);
+            lineOf(waiter).addLast(waiter);
             if (timer != null) {
                 timer.waitStarted();
                 timerStopped = true;
@@ -123,14 +127,14 @@ public final class ModelServerGate {
             while (true) {
                 long now = System.nanoTime();
                 if (head() == waiter && canEnter(waiter, now)) {
-                    lineOf(callKind).remove(waiter);
+                    lineOf(waiter).remove(waiter);
                     Permit permit = admit(waiter, now - started);
                     changed.signalAll();
                     return permit;
                 }
                 long left = waitUntil - now;
                 if (left <= 0L) {
-                    lineOf(callKind).remove(waiter);
+                    lineOf(waiter).remove(waiter);
                     changed.signalAll();
                     throw busy(callKind, now - started);
                 }
@@ -140,7 +144,7 @@ public final class ModelServerGate {
                 try {
                     changed.awaitNanos(left);
                 } catch (InterruptedException interrupted) {
-                    lineOf(callKind).remove(waiter);
+                    lineOf(waiter).remove(waiter);
                     changed.signalAll();
                     throw interrupted;
                 }
@@ -168,7 +172,7 @@ public final class ModelServerGate {
     public int waiting() {
         lock.lock();
         try {
-            return embeddings.size() + chats.size();
+            return linedUp();
         } finally {
             lock.unlock();
         }
@@ -189,11 +193,22 @@ public final class ModelServerGate {
 
     private Waiter head() {
         Waiter embedding = embeddings.peekFirst();
-        return embedding != null ? embedding : chats.peekFirst();
+        if (embedding != null) {
+            return embedding;
+        }
+        Waiter firstChat = firstChats.peekFirst();
+        return firstChat != null ? firstChat : chats.peekFirst();
     }
 
-    private ArrayDeque<Waiter> lineOf(CallKind kind) {
-        return kind == CallKind.EMBEDDING ? embeddings : chats;
+    private ArrayDeque<Waiter> lineOf(Waiter waiter) {
+        if (waiter.kind == CallKind.EMBEDDING) {
+            return embeddings;
+        }
+        return waiter.firstInLine ? firstChats : chats;
+    }
+
+    private int linedUp() {
+        return embeddings.size() + firstChats.size() + chats.size();
     }
 
     private Permit admit(Waiter waiter, long waitedNanos) {
@@ -236,7 +251,7 @@ public final class ModelServerGate {
     }
 
     private ModelServerBusyException busy(CallKind kind, long waitedNanos) {
-        int waiting = embeddings.size() + chats.size();
+        int waiting = linedUp();
         return new ModelServerBusyException(server.key(), "No free slot at model server " + server.key()
                 + " for a " + kind.name().toLowerCase(Locale.ROOT) + " call within " + TimeUnit.NANOSECONDS.toMillis(waitedNanos)
                 + "ms (" + running + " running, " + waiting + " waiting)");
@@ -248,7 +263,7 @@ public final class ModelServerGate {
                 waitedMs);
     }
 
-    private record Waiter(CallKind kind, String model) {
+    private record Waiter(CallKind kind, String model, boolean firstInLine) {
     }
 
     /** A call that is in; closing it frees its slot. */

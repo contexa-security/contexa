@@ -39,6 +39,7 @@ public class ContexaDefaultPropertiesPostProcessor implements EnvironmentPostPro
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
         environment.getPropertySources().addLast(
                 new PlatformActivationGatedPropertySource(SOURCE_NAME, defaults(environment), environment));
+        environment.getPropertySources().addLast(new BootDefaultUserPropertySource(environment));
     }
  
     private Map<String, Object> defaults(ConfigurableEnvironment environment) {

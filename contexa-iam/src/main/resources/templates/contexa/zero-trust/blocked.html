@@ -57,6 +57,10 @@
                     style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);">
                 <span th:text="#{zerotrust.blocked.unblock.request}">Request Unblock</span>
             </button>
+            <a th:if="${blockListOpen}" th:href="@{/contexa/admin/blacklist}"
+               class="block w-full mt-3 py-3 px-6 rounded-lg text-sm font-semibold"
+               style="background: rgba(71, 85, 105, 0.2); color: #cbd5e1; border: 1px solid rgba(71, 85, 105, 0.4);"
+               th:text="#{zerotrust.blocked.blocklist.open}">Open the block list</a>
         </div>
 
         <div id="request-result" class="hidden">

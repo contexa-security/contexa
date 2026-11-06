@@ -15,10 +15,14 @@
  */
 package io.contexa.contexacore.security.zerotrust;
 
+import io.contexa.contexacommon.security.UserPasswordChangedEvent;
+import io.contexa.contexacore.autonomous.service.IForceLogoutService;
+import io.contexa.contexacore.autonomous.service.UserAccountChangeListener;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.testsupport.AdjustableClock;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -92,6 +96,30 @@ abstract class AbstractZeroTrustSessionServiceContractTest {
 
         assertThat(service.isSessionInvalidated(listed)).isTrue();
         assertThat(service.isSessionInvalidated(tracked)).isTrue();
+    }
+
+    @Test
+    void aNewPasswordEndsEverySessionOfTheUserAndOnlyThose() {
+        AbstractZeroTrustSecurityService service = createService(new SecurityZeroTrustProperties());
+        String user = id("user");
+        String listed = id("listed");
+        String tracked = id("tracked");
+        String another = id("another");
+        contextStore().trackUserSession(user, listed);
+        service.doRegisterSession(user, tracked, clock.instant().plus(Duration.ofHours(1)));
+        service.doRegisterSession(id("colleague"), another, clock.instant().plus(Duration.ofHours(1)));
+        long version = contextStore().authoritiesVersion();
+        StaticListableBeanFactory beans = new StaticListableBeanFactory();
+        beans.addBean("store", contextStore());
+        beans.addBean("forceLogout", (IForceLogoutService) service::invalidateAllUserSessions);
+
+        new UserAccountChangeListener(beans.getBeanProvider(SecurityContextDataStore.class),
+                beans.getBeanProvider(IForceLogoutService.class)).onPasswordChanged(new UserPasswordChangedEvent(user));
+
+        assertThat(service.isSessionInvalidated(listed)).isTrue();
+        assertThat(service.isSessionInvalidated(tracked)).isTrue();
+        assertThat(service.isSessionInvalidated(another)).isFalse();
+        assertThat(contextStore().authoritiesVersion()).isGreaterThan(version);
     }
 
     @Test

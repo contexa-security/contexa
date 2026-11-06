@@ -45,8 +45,13 @@ public final class HmacEvidenceSigner implements EvidenceSigner {
 
     private final Map<String, byte[]> keys;
     private final String activeKeyId;
+    private final boolean configured;
 
     public HmacEvidenceSigner(Map<String, byte[]> keys, String activeKeyId) {
+        this(keys, activeKeyId, true);
+    }
+
+    private HmacEvidenceSigner(Map<String, byte[]> keys, String activeKeyId, boolean configured) {
         if (keys == null || keys.isEmpty()) {
             throw new IllegalArgumentException("An evidence signer needs at least one key");
         }
@@ -65,6 +70,7 @@ public final class HmacEvidenceSigner implements EvidenceSigner {
         }
         this.keys = copy;
         this.activeKeyId = active;
+        this.configured = configured;
     }
 
     /**
@@ -76,10 +82,10 @@ public final class HmacEvidenceSigner implements EvidenceSigner {
             byte[] secret = new byte[MIN_KEY_BYTES];
             new SecureRandom().nextBytes(secret);
             String id = "ephemeral-" + HexFormat.of().formatHex(secret, 0, 4);
-            log.error("[EvidenceSigning] No evidence signing key configured (contexa.security.evidence.signing.keys) - "
+            log.warn("[EvidenceSigning] No evidence signing key configured (contexa.security.evidence.signing.keys) - "
                     + "using an ephemeral key {}. Decision records and sealed evidence signed now read as not "
                     + "verifiable after a restart; configure a persistent key.", id);
-            return new HmacEvidenceSigner(Map.of(id, secret), id);
+            return new HmacEvidenceSigner(Map.of(id, secret), id, false);
         }
         Map<String, byte[]> keys = new LinkedHashMap<>();
         base64Keys.forEach((id, value) -> {
@@ -95,6 +101,11 @@ public final class HmacEvidenceSigner implements EvidenceSigner {
     @Override
     public String activeKeyId() {
         return activeKeyId;
+    }
+
+    @Override
+    public boolean keepsItsKeys() {
+        return configured;
     }
 
     @Override

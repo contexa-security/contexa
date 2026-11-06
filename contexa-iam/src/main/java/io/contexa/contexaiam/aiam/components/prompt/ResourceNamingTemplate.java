@@ -256,7 +256,7 @@ public class ResourceNamingTemplate extends AbstractBasePromptTemplate {
         }
 
         if (resources.size() > MAX_BATCH_SIZE) {
-            log.error("ResourceNamingTemplate batch size {} exceeds recommended MAX_BATCH_SIZE={}. Prompt may breach the model token budget.",
+            log.warn("ResourceNamingTemplate batch size {} exceeds recommended MAX_BATCH_SIZE={}. Prompt may breach the model token budget.",
                     resources.size(), MAX_BATCH_SIZE);
         }
 

@@ -57,8 +57,16 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
@@ -71,6 +79,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 /**
  * docs/agent A5-2, A5-9, F-2: an agent's request a CHALLENGE (or an ended delegation) holds waits for its accountable
@@ -98,6 +109,30 @@ class AgentConfirmationGateTest {
     @AfterEach
     void clearContext() {
         SecurityContextHolder.clearContext();
+    }
+
+    /** The person reads the query, a secret in it excepted; the request confirmed stays the very request. */
+    @Test
+    void aSecretInTheQueryIsMaskedAndTheRequestStaysBound() throws Exception {
+        MockHttpServletRequest asked = request(BODY);
+        asked.setQueryString("format=zip&token=s3cr3t-value&project=HX-310");
+
+        send(asked, ZeroTrustAction.CHALLENGE);
+
+        String id = (String) writer.details.get("confirmationId");
+        assertThat(store.find(id).orElseThrow().target())
+                .isEqualTo("/api/exports?format=zip&token=[MASKED]&project=HX-310");
+        confirmations.approve(id, "alice", null);
+
+        MockHttpServletRequest another = request(BODY);
+        another.setQueryString("format=zip&token=another-value&project=HX-310");
+        another.addHeader(AgentConfirmationGate.CONFIRMATION_HEADER, id);
+        assertThat(send(another, ZeroTrustAction.CHALLENGE).went()).as("another value is another request").isFalse();
+
+        MockHttpServletRequest same = request(BODY);
+        same.setQueryString("format=zip&token=s3cr3t-value&project=HX-310");
+        same.addHeader(AgentConfirmationGate.CONFIRMATION_HEADER, id);
+        assertThat(send(same, ZeroTrustAction.CHALLENGE).went()).isTrue();
     }
 
     @Test
@@ -146,6 +181,35 @@ class AgentConfirmationGateTest {
         Recording again = send(request(BODY), ZeroTrustAction.CHALLENGE);
         assertThat(again.went()).isFalse();
         assertThat(writer.details.get("confirmationId")).isNotEqualTo(id);
+    }
+
+    /**
+     * The person is shown whether the request the gate stopped has a body and how large it is, a form's included; the
+     * body stays bound by its hash and is not kept.
+     */
+    @Test
+    void aStoppedRequestKeepsTheSizeOfItsBodyAndNotTheBody() throws Exception {
+        send(request(BODY), ZeroTrustAction.CHALLENGE);
+        AgentConfirmation withBody = store.find((String) writer.details.get("confirmationId")).orElseThrow();
+        assertThat(withBody.bodyBytes()).isEqualTo((long) BODY.getBytes(StandardCharsets.UTF_8).length);
+        assertThat(withBody.toString()).doesNotContain("documents");
+
+        MockHttpServletRequest bodiless = request("");
+        bodiless.setMethod("DELETE");
+        bodiless.setRequestURI("/api/exports/7");
+        send(bodiless, ZeroTrustAction.CHALLENGE);
+        assertThat(store.find((String) writer.details.get("confirmationId"))).map(AgentConfirmation::bodyBytes)
+                .contains(0L);
+
+        MockHttpServletRequest form = request("");
+        form.setRequestURI("/api/forms");
+        form.setContentType("application/x-www-form-urlencoded");
+        form.setContent("project=HX-310&documents=40".getBytes(StandardCharsets.UTF_8));
+        form.addParameter("project", "HX-310");
+        form.addParameter("documents", "40");
+        send(form, ZeroTrustAction.CHALLENGE);
+        assertThat(store.find((String) writer.details.get("confirmationId"))).map(AgentConfirmation::bodyBytes)
+                .contains(27L);
     }
 
     /** CF-22: a request with nothing to confirm is bound too (a CHALLENGE decided in it may ask), its body whole. */
@@ -298,13 +362,7 @@ class AgentConfirmationGateTest {
     /** docs/agent A5-4: outside the narrowed scope a request is refused, unless the person confirmed that one. */
     @Test
     void aRequestOutsideTheNarrowedScopeIsRefusedUnlessThePersonConfirmedIt() throws Exception {
-        AgentScopeService scopes = new AgentScopeService(new InMemoryAgentScopeStore(),
-                new ReadOnlyAgentScopeNarrower(Duration.ofHours(1), 0.7), null, clock);
-        SecurityEvent decided = SecurityEvent.builder().userId("alice").build();
-        decided.addMetadata("executionSubjectKind", "DELEGATED_AGENT");
-        decided.addMetadata("agentId", "report-agent");
-        scopes.onDecision(decided, ProcessingResult.builder().success(true).action("BLOCK").riskScore(0.9).build());
-        gate.setScopes(scopes);
+        narrowed();
 
         Recording refused = send(request(BODY), ZeroTrustAction.ALLOW);
         assertThat(refused.went()).isFalse();
@@ -326,6 +384,33 @@ class AgentConfirmationGateTest {
         assertThat(ran.went()).isTrue();
         assertThat(ran.confirmation()).isEqualTo(asked.confirmationId());
         assertThat(send(request(BODY), ZeroTrustAction.ALLOW).went()).isFalse();
+    }
+
+    /** A narrowed agent reaches no write and no export by the way its path is spelled, as the application routes it. */
+    @Test
+    void aNarrowedAgentReachesNoWriteAndNoExportByTheWayItsPathIsSpelled() throws Exception {
+        narrowed();
+        Routed application = new Routed();
+        MockMvc gated = MockMvcBuilders.standaloneSetup(application).addFilter(
+                (request, response, chain) -> gate.filter((HttpServletRequest) request,
+                        (HttpServletResponse) response, chain, subject, ZeroTrustAction.ALLOW)).build();
+
+        // Without the gate this reaches the export: the spelling is what routing reads.
+        MockMvcBuilders.standaloneSetup(application).build().perform(get(URI.create("/api/%65xport/x")));
+        assertThat(application.reached).containsExactly("export");
+        application.reached.clear();
+
+        gated.perform(get(URI.create("/api/%65xport/x")));
+        assertThat(writer.details).containsEntry("error", AgentConfirmationGate.SCOPE_NARROWED)
+                .containsEntry("operation", "EXPORT");
+        gated.perform(delete("/api/lists/7"));
+        assertThat(writer.details).containsEntry("operation", "DELETE");
+        gated.perform(post("/api/search/x"));
+        assertThat(writer.details).containsEntry("operation", "WRITE");
+        assertThat(application.reached).isEmpty();
+
+        gated.perform(get("/api/lists/7"));
+        assertThat(application.reached).containsExactly("list");
     }
 
     /** docs/agent A5-7: past its call limit an agent is slowed down; its refusals count toward the denial alarm. */
@@ -379,6 +464,107 @@ class AgentConfirmationGateTest {
         assertThat(store.list(null, 10)).isEmpty();
     }
 
+    /** The link starts at the configured address and the application's path; a host the agent sent reaches no one. */
+    @Test
+    void theConfirmationLinkStartsAtTheConfiguredAddressNeverAtTheHostTheAgentSent() throws Exception {
+        List<AgentNotice> mailed = new ArrayList<>();
+        InMemoryAgentNoticeStore kept = new InMemoryAgentNoticeStore();
+        AgentConfirmationService mailing = new AgentConfirmationService(store,
+                new SignedAgentConfirmationAuthorizer(HmacEvidenceSigner.of(Map.of("k1", Base64.getEncoder()
+                        .encodeToString("0123456789abcdef0123456789abcdef".getBytes())), "k1")),
+                new AgentNotices(kept, notice -> {
+                    mailed.add(notice);
+                    return "MAIL";
+                }), null, null, Duration.ofMinutes(15), clock);
+        AgentConfirmationGate configured = new AgentConfirmationGate(mailing, new InMemoryZeroTrustActionRepository(),
+                writer, 1024, " https://app.test/ ", clock);
+        AgentConfirmationGate unset = new AgentConfirmationGate(mailing, new InMemoryZeroTrustActionRepository(),
+                writer, 1024, null, clock);
+
+        configured.filter(fromAnotherHost("{\"n\":1}"), new MockHttpServletResponse(), new Recording(), subject,
+                ZeroTrustAction.CHALLENGE);
+        unset.filter(fromAnotherHost("{\"n\":2}"), new MockHttpServletResponse(), new Recording(), subject,
+                ZeroTrustAction.CHALLENGE);
+
+        // The second request came while the first waited, so it reached the console only; both links are kept.
+        assertThat(mailed).extracting(AgentNotice::link).singleElement().asString()
+                .startsWith("https://app.test/ctx/contexa/agent-confirmations/");
+        assertThat(kept.forRecipient("alice", 10)).extracting(AgentNotice::link).hasSize(2)
+                .anySatisfy(link -> assertThat(link).startsWith("https://app.test/ctx/contexa/agent-confirmations/"))
+                .anySatisfy(link -> assertThat(link).startsWith("/ctx/contexa/agent-confirmations/"));
+    }
+
+    private static MockHttpServletRequest fromAnotherHost(String body) {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/ctx/api/exports");
+        request.setContextPath("/ctx");
+        request.setServerName("attacker.test");
+        request.addHeader("Host", "attacker.test");
+        request.setContent(body.getBytes(StandardCharsets.UTF_8));
+        request.setContentType("application/json");
+        return request;
+    }
+
+    /**
+     * A person confirms what they can read whole: a target longer than a confirmation keeps asks no one and is refused
+     * as a body too large to bind is, decided in the request as well; one that fits is kept whole.
+     */
+    @Test
+    void aTargetLongerThanAConfirmationKeepsAsksNoOneAndIsRefused() throws Exception {
+        MockHttpServletRequest fits = request(BODY);
+        fits.setQueryString("q=" + "a".repeat(AgentConfirmation.MAX_TARGET_LENGTH - "/api/exports?q=".length()));
+        send(fits, ZeroTrustAction.CHALLENGE);
+        assertThat(writer.status).isEqualTo(403);
+        assertThat(store.find((String) writer.details.get("confirmationId"))).map(AgentConfirmation::target)
+                .contains("/api/exports?" + fits.getQueryString());
+
+        MockHttpServletRequest past = request(BODY);
+        past.setQueryString(fits.getQueryString() + "a");
+        Recording refused = send(past, ZeroTrustAction.CHALLENGE);
+
+        assertThat(refused.went()).isFalse();
+        assertThat(writer.status).isEqualTo(413);
+        assertThat(writer.details).containsEntry("error", AgentConfirmationGate.CONFIRMATION_UNBINDABLE);
+        assertThat(store.list(null, 10)).hasSize(1);
+
+        MockHttpServletRequest decidedPast = request(BODY);
+        decidedPast.setQueryString(past.getQueryString());
+        Recording decided = new Recording();
+        decided.answer = (request, response) -> assertThat(gate.answerDecidedChallenge(request, response, subject))
+                .isFalse();
+        gate.filter(decidedPast, new MockHttpServletResponse(), decided, subject, ZeroTrustAction.ALLOW);
+        assertThat(store.list(null, 10)).hasSize(1);
+    }
+
+    /**
+     * An identifier is never cut, since a cut one names another delegation, agent or person and a report would stop
+     * the wrong one: an agent whose identifiers a confirmation cannot keep whole asks no one and is refused.
+     */
+    @Test
+    void anAgentWhoseIdentifiersAConfirmationCannotKeepAsksNoOneAndIsRefused() throws Exception {
+        for (ZeroTrustSubject unkeepable : List.of(
+                new ZeroTrustSubject(null, "alice", SubjectKind.DELEGATED_AGENT, "report-agent", "d".repeat(65)),
+                new ZeroTrustSubject(null, "alice", SubjectKind.DELEGATED_AGENT, "a".repeat(256), null),
+                new ZeroTrustSubject(null, "u".repeat(256), SubjectKind.DELEGATED_AGENT, "report-agent", null),
+                new ZeroTrustSubject("t".repeat(256), "alice", SubjectKind.DELEGATED_AGENT, "report-agent", null))) {
+            Recording refused = send(request(BODY), ZeroTrustAction.CHALLENGE, unkeepable);
+
+            assertThat(refused.went()).isFalse();
+            assertThat(writer.status).isEqualTo(413);
+            assertThat(writer.details).containsEntry("error", AgentConfirmationGate.CONFIRMATION_UNBINDABLE);
+        }
+        assertThat(store.list(null, 10)).isEmpty();
+
+        send(request(BODY), ZeroTrustAction.CHALLENGE, new ZeroTrustSubject("t".repeat(255), "u".repeat(255),
+                SubjectKind.DELEGATED_AGENT, "a".repeat(255), "d".repeat(64)));
+        assertThat(writer.status).isEqualTo(403);
+        assertThat(store.list(null, 10)).singleElement().satisfies(kept -> {
+            assertThat(kept.delegationId()).hasSize(64);
+            assertThat(kept.agentId()).hasSize(255);
+            assertThat(kept.userId()).hasSize(255);
+            assertThat(kept.tenantId()).hasSize(255);
+        });
+    }
+
     @Test
     void aRequestTooLargeToBindIsRefusedWhenItNeedsAConfirmation() throws Exception {
         Recording refused = send(request("x".repeat(2048)), ZeroTrustAction.CHALLENGE);
@@ -390,6 +576,17 @@ class AgentConfirmationGateTest {
 
     private Recording send(MockHttpServletRequest request, ZeroTrustAction action) throws Exception {
         return send(request, action, subject);
+    }
+
+    /** A decision narrowed the agent to reading. */
+    private void narrowed() {
+        AgentScopeService scopes = new AgentScopeService(new InMemoryAgentScopeStore(),
+                new ReadOnlyAgentScopeNarrower(Duration.ofHours(1), 0.7), null, clock);
+        SecurityEvent decided = SecurityEvent.builder().userId("alice").build();
+        decided.addMetadata("executionSubjectKind", "DELEGATED_AGENT");
+        decided.addMetadata("agentId", "report-agent");
+        scopes.onDecision(decided, ProcessingResult.builder().success(true).action("BLOCK").riskScore(0.9).build());
+        gate.setScopes(scopes);
     }
 
     private Recording send(MockHttpServletRequest request, ZeroTrustAction action, ZeroTrustSubject from)
@@ -423,6 +620,28 @@ class AgentConfirmationGateTest {
         return new AgentDelegationRequest(tenantId, delegator, "report-agent", null, "REPORTING",
                 "Export this week's HX-310 design review packages", List.of("EXPORT"), List.of("HX-310"), null, null,
                 null, from, until, null, null);
+    }
+
+    /** An application with the routes an agent is after. */
+    @RestController
+    private static final class Routed {
+
+        private final List<String> reached = new ArrayList<>();
+
+        @GetMapping("/api/export/{id}")
+        void export(@PathVariable("id") String id) {
+            reached.add("export");
+        }
+
+        @RequestMapping("/api/lists/{id}")
+        void list(@PathVariable("id") String id) {
+            reached.add("list");
+        }
+
+        @PostMapping("/api/search/{id}")
+        void search(@PathVariable("id") String id) {
+            reached.add("search");
+        }
     }
 
     /** The application's answer to a request, written after the gate let it on. */

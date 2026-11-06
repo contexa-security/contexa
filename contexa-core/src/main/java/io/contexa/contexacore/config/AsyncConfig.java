@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.config;
 
+import io.contexa.contexacore.autonomous.AnalysisTurn;
 import io.contexa.contexacore.autonomous.LlmAnalysisBackpressureMonitor;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +27,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -159,12 +160,17 @@ public class AsyncConfig {
         }
     }
 
-    private static final class ScalingQueue extends LinkedBlockingQueue<Runnable> {
+    /** Q-23: a bounded line in the order of {@link AnalysisTurn}; the pool grows to its maximum before anyone waits. */
+    private static final class ScalingQueue extends PriorityBlockingQueue<Runnable> {
 
+        private static final int INITIAL_LINE_SIZE = 64;
+
+        private final int capacity;
         private transient ThreadPoolExecutor executor;
 
         private ScalingQueue(int capacity) {
-            super(capacity);
+            super(INITIAL_LINE_SIZE, AnalysisTurn.ORDER);
+            this.capacity = capacity;
         }
 
         private void setExecutor(ThreadPoolExecutor executor) {
@@ -174,14 +180,17 @@ public class AsyncConfig {
         @Override
         public boolean offer(Runnable runnable) {
             ThreadPoolExecutor currentExecutor = this.executor;
-            if (currentExecutor == null) {
-                return super.offer(runnable);
-            }
-            if (currentExecutor.getPoolSize() < currentExecutor.getMaximumPoolSize()
+            if (currentExecutor != null
+                    && currentExecutor.getPoolSize() < currentExecutor.getMaximumPoolSize()
                     && currentExecutor.getActiveCount() >= currentExecutor.getPoolSize()) {
                 return false;
             }
-            return super.offer(runnable);
+            return size() < capacity && super.offer(runnable);
+        }
+
+        @Override
+        public int remainingCapacity() {
+            return Math.max(0, capacity - size());
         }
     }
     @Bean(name = "contexaSaasForwardingExecutor", defaultCandidate = false)

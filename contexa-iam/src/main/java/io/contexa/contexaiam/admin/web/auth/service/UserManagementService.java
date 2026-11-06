@@ -31,4 +31,12 @@ public interface UserManagementService {
     UserDto getUser(Long id);
     void deleteUser(Long idx);
 
+    /**
+     * Ends the lock of an account ahead of its time. The limit on the address the failures came from stays.
+     *
+     * @return false when the account stands under no lock
+     * @throws IllegalArgumentException when there is no such account
+     */
+    boolean unlockUser(Long id);
+
 }

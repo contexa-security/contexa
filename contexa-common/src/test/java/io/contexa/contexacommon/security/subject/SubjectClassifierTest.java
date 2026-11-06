@@ -23,6 +23,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 class SubjectClassifierTest {
 
     @Test
+    void q17_aConsoleSessionIsTheConsolesWhateverElseIsStated() {
+        SubjectClassifier.Result result = SubjectClassifier.classify(SubjectClassifier.Facts.builder()
+                .consoleSession(true).actorType("HUMAN").build());
+
+        assertThat(result.kind()).isEqualTo(SubjectKind.CONSOLE_ADMIN);
+        assertThat(result.subjectType()).isEqualTo("HUMAN_USER");
+    }
+
+    @Test
     void aPersonWithoutAgentFactsIsAHumanUser() {
         SubjectClassifier.Result result = SubjectClassifier.classify(facts().build());
 

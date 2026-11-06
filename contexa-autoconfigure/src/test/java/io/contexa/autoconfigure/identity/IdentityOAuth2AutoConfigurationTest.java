@@ -40,15 +40,29 @@ import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.beans.factory.support.DefaultListableBeanFactory;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexaidentity.security.token.service.AccountTokenGuard;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.security.subject.AgentClientStatusUnavailableException;
+import io.contexa.contexacore.autonomous.agent.AgentRegistration;
+import java.util.concurrent.atomic.AtomicInteger;
 import io.contexa.contexacore.autonomous.agent.AgentDelegation;
 import io.contexa.contexacore.autonomous.agent.AgentDelegationRequest;
 import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
 import io.contexa.contexacore.autonomous.agent.InMemoryDelegationRegistry;
+import io.contexa.contexacore.autonomous.agent.AgentRegistrationRequest;
+import io.contexa.contexacore.autonomous.agent.InMemoryAgentRegistry;
+import io.contexa.contexacore.autonomous.agent.RegistryAgentClientDirectory;
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
@@ -204,7 +218,7 @@ class IdentityOAuth2AutoConfigurationTest {
     @DisplayName("The token customizer writes the login facts of the login grant, and a refreshed token keeps them")
     void tokenCustomizerWritesTheLoginFacts() {
         OAuth2TokenCustomizer<JwtEncodingContext> customizer =
-                configuration(new AuthContextProperties()).tokenCustomizer(none(), none());
+                configuration(new AuthContextProperties()).tokenCustomizer(none(), none(), none());
 
         JwtClaimsSet.Builder issuedClaims = JwtClaimsSet.builder().subject("alice");
         customizer.customize(JwtEncodingContext.with(JwsHeader.with(SignatureAlgorithm.RS256), issuedClaims)
@@ -250,7 +264,7 @@ class IdentityOAuth2AutoConfigurationTest {
     void accessTokenNamesTheClientItWasIssuedTo() throws Exception {
         IdentityOAuth2AutoConfiguration configuration = configuration(new AuthContextProperties());
         JwtGenerator generator = new JwtGenerator(new NimbusJwtEncoder(configuration.jwkSource()));
-        generator.setJwtCustomizer(configuration.tokenCustomizer(none(), none()));
+        generator.setJwtCustomizer(configuration.tokenCustomizer(none(), none(), none()));
         RegisteredClient client = RegisteredClient.withId("report-service")
                 .clientId("report-service")
                 .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
@@ -282,7 +296,7 @@ class IdentityOAuth2AutoConfigurationTest {
 
         // An ID token describes the person who signed in; it gets no client_id claim.
         JwtClaimsSet.Builder idTokenClaims = JwtClaimsSet.builder().subject("alice");
-        configuration.tokenCustomizer(none(), none()).customize(JwtEncodingContext.with(JwsHeader.with(SignatureAlgorithm.RS256), idTokenClaims)
+        configuration.tokenCustomizer(none(), none(), none()).customize(JwtEncodingContext.with(JwsHeader.with(SignatureAlgorithm.RS256), idTokenClaims)
                 .registeredClient(client)
                 .tokenType(new OAuth2TokenType("id_token"))
                 .build());
@@ -294,7 +308,7 @@ class IdentityOAuth2AutoConfigurationTest {
     void issuedTokenClaimsReadBackFromTheStoredAuthorization() throws Exception {
         IdentityOAuth2AutoConfiguration configuration = configuration(new AuthContextProperties());
         JwtGenerator generator = new JwtGenerator(new NimbusJwtEncoder(configuration.jwkSource()));
-        generator.setJwtCustomizer(configuration.tokenCustomizer(none(), none()));
+        generator.setJwtCustomizer(configuration.tokenCustomizer(none(), none(), none()));
         RegisteredClient client = RegisteredClient.withId("client-1")
                 .clientId("client-1")
                 .authorizationGrantType(AuthenticatedUserGrantAuthenticationToken.AUTHENTICATED_USER)
@@ -367,7 +381,7 @@ class IdentityOAuth2AutoConfigurationTest {
         ObjectProvider<AgentClientDirectory> agents = mock(ObjectProvider.class);
         when(agents.getIfAvailable()).thenReturn(directory);
         OAuth2TokenCustomizer<JwtEncodingContext> customizer =
-                configuration(new AuthContextProperties()).tokenCustomizer(none(), agents);
+                configuration(new AuthContextProperties()).tokenCustomizer(none(), agents, none());
 
         assertThatThrownBy(() -> customizer.customize(accessTokenContext("sync-client")))
                 .isInstanceOf(OAuth2AuthenticationException.class)
@@ -376,6 +390,293 @@ class IdentityOAuth2AutoConfigurationTest {
         JwtEncodingContext other = accessTokenContext("report-client");
         customizer.customize(other);
         assertThat(other.getClaims().build().getClaims()).containsEntry("client_id", "report-client");
+    }
+
+    /**
+     * A restriction is not lifted by a failure: when the directory cannot say whether the client is a suspended agent, the
+     * client gets no token for now, for itself or for a person. The answer tells the status could not be read and nothing of
+     * why. A person's own sign-in is not asked of the directory at all, so it goes on.
+     */
+    @Test
+    @DisplayName("a directory that cannot read the suspension stops the client's token for now; a person's sign-in never asks it")
+    @SuppressWarnings("unchecked")
+    void aDirectoryThatCannotReadTheSuspensionStopsTheClientsToken() {
+        UnreadableDirectory directory = new UnreadableDirectory("sync-client");
+        ObjectProvider<AgentClientDirectory> agents = mock(ObjectProvider.class);
+        when(agents.getIfAvailable()).thenReturn(directory);
+        OAuth2TokenCustomizer<JwtEncodingContext> customizer =
+                configuration(new AuthContextProperties()).tokenCustomizer(none(), agents, none());
+
+        for (JwtEncodingContext context : List.of(accessTokenContext("sync-client"), exchangeContext("alice", "sync-client"))) {
+            assertThatThrownBy(() -> customizer.customize(context))
+                    .isInstanceOfSatisfying(OAuth2AuthenticationException.class, refused -> {
+                        assertThat(refused.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.TEMPORARILY_UNAVAILABLE);
+                        assertThat(refused.getError().getDescription()).doesNotContain("secret-host");
+                    });
+        }
+        JwtEncodingContext other = accessTokenContext("report-client");
+        customizer.customize(other);
+        assertThat(other.getClaims().build().getClaims()).containsEntry("client_id", "report-client");
+
+        int askedForAgents = directory.asked.get();
+        JwtEncodingContext signIn = accessTokenContext("default-client");
+        customizer.customize(signIn);
+        customizer.customize(refreshContext(JwtClaimsSet.builder().subject("alice"), "default-client"));
+        assertThat(signIn.getClaims().build().getClaims()).containsEntry("client_id", "default-client");
+        assertThat(directory.asked.get()).as("the internal client is no agent: its tokens never ask the directory")
+                .isEqualTo(askedForAgents);
+    }
+
+    /** The same failure from Contexa's own directory: a registry that throws stops the agent's token, not a person's. */
+    @Test
+    @DisplayName("a failing agent registry stops the agent client's token and leaves the sign-in of a person alone")
+    @SuppressWarnings("unchecked")
+    void aFailingAgentRegistryStopsTheAgentClientsTokenAndNotAPersons() {
+        InMemoryAgentRegistry failing = new InMemoryAgentRegistry() {
+            @Override
+            public Optional<AgentRegistration> findByClientId(String tenantId, String clientId) {
+                throw new IllegalStateException("registry unavailable");
+            }
+
+            @Override
+            public List<AgentRegistration> findAllByClientId(String clientId) {
+                throw new IllegalStateException("registry unavailable");
+            }
+        };
+        ObjectProvider<AgentClientDirectory> agents = mock(ObjectProvider.class);
+        when(agents.getIfAvailable()).thenReturn(new RegistryAgentClientDirectory(failing));
+        OAuth2TokenCustomizer<JwtEncodingContext> customizer =
+                configuration(new AuthContextProperties()).tokenCustomizer(none(), agents, none());
+
+        assertThatThrownBy(() -> customizer.customize(accessTokenContext("sync-client")))
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, refused ->
+                        assertThat(refused.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.TEMPORARILY_UNAVAILABLE));
+        JwtEncodingContext signIn = accessTokenContext("default-client");
+        customizer.customize(signIn);
+        assertThat(signIn.getClaims().build().getClaims()).containsEntry("client_id", "default-client");
+    }
+
+    /**
+     * An exchange of an agent is held to the delegation a person revoked. When the registry cannot say which agent the
+     * client is, or which tenant it belongs to, the exchange waits: reading that failure as "no agent" would let it go on
+     * under a delegation that was revoked. The failures here come after the suspension was read, the gap in which an
+     * earlier read answered and a later one does not.
+     */
+    @Test
+    @DisplayName("an exchange waits when the registry cannot say which agent the client is, after the suspension was read")
+    void anExchangeWaitsWhenTheAgentOfTheClientCannotBeRead() {
+        FlappingRegistry registry = new FlappingRegistry();
+        registry.register(new AgentRegistrationRequest(null, "report-agent", "Reports", "AGENT", "report-client", "carol", true));
+        InMemoryDelegationRegistry delegations = revokedDelegation(null);
+        OAuth2TokenCustomizer<JwtEncodingContext> customizer = customizerOver(registry, delegations, new AuthContextProperties());
+
+        assertThatThrownBy(() -> customizer.customize(exchangeContext("alice")))
+                .as("healthy: the revoked delegation stops the exchange")
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, refused ->
+                        assertThat(refused.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.INVALID_GRANT));
+
+        registry.agentReadsFail = true;
+        assertThatThrownBy(() -> customizer.customize(exchangeContext("alice")))
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, refused -> {
+                    assertThat(refused.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.TEMPORARILY_UNAVAILABLE);
+                    assertThat(refused.getError().getDescription()).doesNotContain("unavailable-store");
+                });
+
+        registry.agentReadsFail = false;
+        assertThatThrownBy(() -> customizer.customize(exchangeContext("alice")))
+                .as("served as before once the registry answers")
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, refused ->
+                        assertThat(refused.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.INVALID_GRANT));
+    }
+
+    @Test
+    @DisplayName("an exchange waits when the registry cannot say which tenant the client belongs to, after the suspension was read")
+    void anExchangeWaitsWhenTheTenantOfTheClientCannotBeRead() {
+        FlappingRegistry registry = new FlappingRegistry();
+        registry.register(new AgentRegistrationRequest("tenant-a", "report-agent", "Reports", "AGENT", "report-client", "carol", true));
+        InMemoryDelegationRegistry delegations = revokedDelegation("tenant-a");
+        OAuth2TokenCustomizer<JwtEncodingContext> customizer = customizerOver(registry, delegations, new AuthContextProperties());
+
+        assertThatThrownBy(() -> customizer.customize(exchangeContext("alice")))
+                .as("healthy: the revoked delegation stops the exchange")
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, refused ->
+                        assertThat(refused.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.INVALID_GRANT));
+
+        // The suspension is read first and answers; the read of the client's tenant right after it does not.
+        registry.failAllReadsAfter(1);
+        assertThatThrownBy(() -> customizer.customize(exchangeContext("alice")))
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, refused ->
+                        assertThat(refused.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.TEMPORARILY_UNAVAILABLE));
+    }
+
+    /** The report-only mode lets a revoked delegation go on, as its operator chose; it does not let a registry that cannot be read through. */
+    @Test
+    @DisplayName("in the report-only mode an exchange still waits when the registry cannot be read")
+    @SuppressWarnings("unchecked")
+    void inTheReportOnlyModeAnExchangeStillWaitsWhenTheRegistryCannotBeRead() {
+        FlappingRegistry registry = new FlappingRegistry();
+        registry.register(new AgentRegistrationRequest(null, "report-agent", "Reports", "AGENT", "report-client", "carol", true));
+        ObjectProvider<AgentClientDirectory> agents = mock(ObjectProvider.class);
+        when(agents.getIfAvailable()).thenReturn(new RegistryAgentClientDirectory(registry));
+        ObjectProvider<DelegationRegistry> delegations = mock(ObjectProvider.class);
+        when(delegations.getIfAvailable()).thenReturn(revokedDelegation(null));
+        SecurityZeroTrustProperties shadow = new SecurityZeroTrustProperties();
+        shadow.setMode(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
+        ObjectProvider<SecurityZeroTrustProperties> zeroTrust = mock(ObjectProvider.class);
+        when(zeroTrust.getIfAvailable()).thenReturn(shadow);
+        // The claim that names the delegation is off, so that it is the check of the revocation that meets the failure.
+        AuthContextProperties withoutDelegationClaim = new AuthContextProperties();
+        withoutDelegationClaim.getOauth2().setDelegationClaimEnabled(false);
+        OAuth2TokenCustomizer<JwtEncodingContext> customizer = new IdentityOAuth2AutoConfiguration(
+                mock(TransactionTemplate.class), withoutDelegationClaim, null, zeroTrust)
+                .tokenCustomizer(delegations, agents, none());
+
+        customizer.customize(exchangeContext("alice"));
+        registry.agentReadsFail = true;
+        assertThatThrownBy(() -> customizer.customize(exchangeContext("alice")))
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, refused ->
+                        assertThat(refused.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.TEMPORARILY_UNAVAILABLE));
+    }
+
+    /** The claim that names the delegation is not left out for a failure either: the token waits. */
+    @Test
+    @DisplayName("an exchange is not issued without the delegation claim because the registry cannot be read")
+    void anExchangeIsNotIssuedWithoutTheDelegationClaimBecauseTheRegistryCannotBeRead() {
+        FlappingRegistry registry = new FlappingRegistry();
+        registry.register(new AgentRegistrationRequest(null, "report-agent", "Reports", "AGENT", "report-client", "carol", true));
+        InMemoryDelegationRegistry delegations = new InMemoryDelegationRegistry();
+        delegations.record(new AgentDelegationRequest(null, "alice", "report-agent", null, "REPORTING", "Weekly report",
+                List.of("READ"), List.of(), null, null, null, Instant.now().minusSeconds(3600),
+                Instant.now().plusSeconds(3600), null, null));
+        RegistryAgentClientDirectory directory = new RegistryAgentClientDirectory(registry);
+
+        JwtEncodingContext healthy = exchangeContext("alice");
+        IdentityOAuth2AutoConfiguration.delegationClaim(healthy, delegations, directory);
+        assertThat(healthy.getClaims().build().getClaims()).containsKey("delegation_id");
+
+        registry.agentReadsFail = true;
+        assertThatThrownBy(() -> IdentityOAuth2AutoConfiguration.delegationClaim(exchangeContext("alice"), delegations, directory))
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, refused ->
+                        assertThat(refused.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.TEMPORARILY_UNAVAILABLE));
+    }
+
+    /** A recorded delegation of alice to report-agent that alice revoked. */
+    private static InMemoryDelegationRegistry revokedDelegation(String tenantId) {
+        InMemoryDelegationRegistry delegations = new InMemoryDelegationRegistry();
+        AgentDelegation revoked = delegations.record(new AgentDelegationRequest(tenantId, "alice", "report-agent", null,
+                "REPORTING", "Weekly report", List.of("READ"), List.of(), null, null, null,
+                Instant.now().minusSeconds(3600), Instant.now().plusSeconds(3600), null, null));
+        delegations.revoke(revoked.delegationId(), "alice", "done");
+        return delegations;
+    }
+
+    @SuppressWarnings("unchecked")
+    private OAuth2TokenCustomizer<JwtEncodingContext> customizerOver(InMemoryAgentRegistry registry,
+                                                                       DelegationRegistry delegations,
+                                                                       AuthContextProperties properties) {
+        ObjectProvider<AgentClientDirectory> agents = mock(ObjectProvider.class);
+        when(agents.getIfAvailable()).thenReturn(new RegistryAgentClientDirectory(registry));
+        ObjectProvider<DelegationRegistry> delegationRegistry = mock(ObjectProvider.class);
+        when(delegationRegistry.getIfAvailable()).thenReturn(delegations);
+        return configuration(properties).tokenCustomizer(delegationRegistry, agents, none());
+    }
+
+    /**
+     * An agent registry whose reads fail on demand: the read of an agent by its client, or every read of a client's
+     * registrations after a number of them answered.
+     */
+    private static final class FlappingRegistry extends InMemoryAgentRegistry {
+
+        volatile boolean agentReadsFail;
+        private final AtomicInteger allReads = new AtomicInteger();
+        private volatile int allReadsThatAnswer = Integer.MAX_VALUE;
+
+        /** The registrations of a client answer this many times from now on, and fail after that. */
+        void failAllReadsAfter(int answers) {
+            allReads.set(0);
+            allReadsThatAnswer = answers;
+        }
+
+        @Override
+        public Optional<AgentRegistration> findByClientId(String tenantId, String clientId) {
+            if (agentReadsFail) {
+                throw new IllegalStateException("unavailable-store");
+            }
+            return super.findByClientId(tenantId, clientId);
+        }
+
+        @Override
+        public List<AgentRegistration> findAllByClientId(String clientId) {
+            if (allReads.incrementAndGet() > allReadsThatAnswer) {
+                throw new IllegalStateException("unavailable-store");
+            }
+            return super.findAllByClientId(clientId);
+        }
+    }
+
+    /** Names one client whose suspension cannot be read, and counts how often the directory is asked. */
+    private static final class UnreadableDirectory implements AgentClientDirectory {
+
+        final AtomicInteger asked = new AtomicInteger();
+        private final String unreadableClient;
+
+        UnreadableDirectory(String unreadableClient) {
+            this.unreadableClient = unreadableClient;
+        }
+
+        @Override
+        public Optional<String> activeAgentForClient(String tenantId, String clientId) {
+            return Optional.empty();
+        }
+
+        @Override
+        public boolean suspendedAgentClient(String tenantId, String clientId) {
+            asked.incrementAndGet();
+            if (unreadableClient.equals(clientId)) {
+                throw new AgentClientStatusUnavailableException(
+                        "cannot read jdbc:postgresql://secret-host/contexa");
+            }
+            return false;
+        }
+    }
+
+    /**
+     * The token engine knows no tenant of a client: an agent registered in a tenant is found by its client all the same,
+     * so its suspension and a revoked delegation of it stop its tokens as they stop those of an agent of no tenant.
+     */
+    @Test
+    @DisplayName("a suspended agent of a tenant gets no token, and an agent of a tenant gets no exchange under a revoked delegation")
+    @SuppressWarnings("unchecked")
+    void anAgentOfATenantIsStoppedAtTheTokenEndpoint() {
+        InMemoryAgentRegistry registry = new InMemoryAgentRegistry();
+        registry.register(new AgentRegistrationRequest("tenant-a", "tenant-bot", "Tenant bot", "AGENT", "sync-client",
+                "carol", true));
+        registry.register(new AgentRegistrationRequest("tenant-a", "report-agent", "Reports", "AGENT", "report-client",
+                "carol", true));
+        ObjectProvider<AgentClientDirectory> agents = mock(ObjectProvider.class);
+        when(agents.getIfAvailable()).thenReturn(new RegistryAgentClientDirectory(registry));
+        InMemoryDelegationRegistry delegations = new InMemoryDelegationRegistry();
+        ObjectProvider<DelegationRegistry> delegationRegistry = mock(ObjectProvider.class);
+        when(delegationRegistry.getIfAvailable()).thenReturn(delegations);
+        OAuth2TokenCustomizer<JwtEncodingContext> customizer =
+                configuration(new AuthContextProperties()).tokenCustomizer(delegationRegistry, agents, none());
+
+        customizer.customize(accessTokenContext("sync-client"));
+        registry.suspend("tenant-a", "tenant-bot", "stopped");
+
+        assertThatThrownBy(() -> customizer.customize(accessTokenContext("sync-client")))
+                .isInstanceOf(OAuth2AuthenticationException.class)
+                .satisfies(e -> assertThat(((OAuth2AuthenticationException) e).getError().getErrorCode())
+                        .isEqualTo(OAuth2ErrorCodes.UNAUTHORIZED_CLIENT));
+
+        AgentDelegation revoked = delegations.record(new AgentDelegationRequest("tenant-a", "alice", "report-agent",
+                null, "REPORTING", "Weekly report", List.of("READ"), List.of(), null, null, null,
+                Instant.now().minusSeconds(3600), Instant.now().plusSeconds(3600), null, null));
+        delegations.revoke(revoked.delegationId(), "alice", "done");
+        assertThatThrownBy(() -> customizer.customize(exchangeContext("alice")))
+                .isInstanceOf(OAuth2AuthenticationException.class)
+                .satisfies(e -> assertThat(((OAuth2AuthenticationException) e).getError().getErrorCode())
+                        .isEqualTo(OAuth2ErrorCodes.INVALID_GRANT));
     }
 
     @Test
@@ -390,7 +691,7 @@ class IdentityOAuth2AutoConfigurationTest {
         ObjectProvider<DelegationRegistry> delegations = mock(ObjectProvider.class);
         when(delegations.getIfAvailable()).thenReturn(registry);
         OAuth2TokenCustomizer<JwtEncodingContext> customizer =
-                configuration(new AuthContextProperties()).tokenCustomizer(delegations, agents);
+                configuration(new AuthContextProperties()).tokenCustomizer(delegations, agents, none());
 
         // No delegation recorded: the exchange goes on (OC-1).
         customizer.customize(exchangeContext("alice"));
@@ -414,7 +715,7 @@ class IdentityOAuth2AutoConfigurationTest {
                 Instant.now().minusSeconds(3600), null, null));
         ObjectProvider<DelegationRegistry> expired = mock(ObjectProvider.class);
         when(expired.getIfAvailable()).thenReturn(earlier);
-        configuration(new AuthContextProperties()).tokenCustomizer(expired, agents)
+        configuration(new AuthContextProperties()).tokenCustomizer(expired, agents, none())
                 .customize(exchangeContext("carol"));
     }
 
@@ -439,16 +740,169 @@ class IdentityOAuth2AutoConfigurationTest {
         IdentityOAuth2AutoConfiguration configuration = new IdentityOAuth2AutoConfiguration(
                 mock(TransactionTemplate.class), new AuthContextProperties(), null, zeroTrust);
 
-        configuration.tokenCustomizer(delegations, agents).customize(exchangeContext("alice"));
+        configuration.tokenCustomizer(delegations, agents, none()).customize(exchangeContext("alice"));
     }
 
+    @Test
+    @DisplayName("A refreshed token holds what the account holds now, not what the sign-in stored")
+    void aRefreshedTokenHoldsTheAccountAsItIsNow() {
+        JwtClaimsSet.Builder claims = JwtClaimsSet.builder().subject("alice");
+
+        customizerFor(User.withUsername("alice").password("{noop}x").authorities("ROLE_USER", "ORDER_READ").build())
+                .customize(refreshContext(claims));
+
+        assertThat(claims.build().getClaims().get("roles")).isEqualTo(List.of("USER", "SCOPE_read"));
+    }
+
+    @Test
+    @DisplayName("A refreshed token of an account left without roles names its scopes, as a new sign-in does")
+    void aRefreshedTokenOfAnAccountWithoutRoles() {
+        JwtClaimsSet.Builder claims = JwtClaimsSet.builder().subject("alice");
+
+        customizerFor(User.withUsername("alice").password("{noop}x").authorities(List.of()).build())
+                .customize(refreshContext(claims));
+
+        assertThat(claims.build().getClaims().get("roles")).isEqualTo(List.of("SCOPE_read"));
+    }
+
+    @Test
+    @DisplayName("A token of any other grant still names what its grant established")
+    void anIssuedTokenNamesItsPrincipal() {
+        JwtClaimsSet.Builder claims = JwtClaimsSet.builder().subject("alice");
+        RegisteredClient client = RegisteredClient.withId("client-1").clientId("client-1")
+                .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS).build();
+
+        customizerFor(User.withUsername("alice").password("{noop}x").authorities(List.of()).build())
+                .customize(JwtEncodingContext.with(JwsHeader.with(SignatureAlgorithm.RS256), claims)
+                        .registeredClient(client)
+                        .principal(signedIn("ROLE_ADMIN"))
+                        .tokenType(OAuth2TokenType.ACCESS_TOKEN)
+                        .authorizationGrantType(AuthenticatedUserGrantAuthenticationToken.AUTHENTICATED_USER)
+                        .build());
+
+        assertThat(claims.build().getClaims().get("roles")).isEqualTo(List.of("ADMIN"));
+    }
+
+    @Test
+    @DisplayName("The token endpoint renews nothing for a disabled, locked or deleted account")
+    void theTokenEndpointRenewsNothingForAnAccountOutOfStanding() {
+        assertInvalidGrant(customizerFor(User.withUsername("alice").password("{noop}x").roles("USER").disabled(true).build()));
+        assertInvalidGrant(customizerFor(User.withUsername("alice").password("{noop}x").roles("USER").accountLocked(true).build()));
+        assertInvalidGrant(customizerFor(User.withUsername("bob").password("{noop}x").roles("USER").build()));
+    }
+
+    @Test
+    @DisplayName("The token endpoint renews nothing under a stored BLOCK, whose refresh entry point refused it alone before")
+    @SuppressWarnings("unchecked")
+    void theTokenEndpointRenewsNothingUnderAStoredBlock() {
+        ObjectProvider<ZeroTrustActionRepository> actions = blocked();
+        OAuth2TokenCustomizer<JwtEncodingContext> customizer = configuration(new AuthContextProperties())
+                .tokenCustomizer(none(), none(), guardProvider(configuration(new AuthContextProperties())
+                        .accountTokenGuard(store(User.withUsername("alice").password("{noop}x").roles("USER").build()), actions)));
+
+        assertThatThrownBy(() -> customizer.customize(refreshContext(JwtClaimsSet.builder().subject("alice"))))
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, refused ->
+                        assertThat(refused.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.ACCESS_DENIED));
+    }
+
+    @Test
+    @DisplayName("In the report-only mode a stored BLOCK refuses no renewal, as it refuses nothing else")
+    @SuppressWarnings("unchecked")
+    void inTheReportOnlyModeAStoredBlockRefusesNoRenewal() {
+        SecurityZeroTrustProperties shadow = new SecurityZeroTrustProperties();
+        shadow.setMode(SecurityZeroTrustProperties.EnforcementMode.SHADOW);
+        ObjectProvider<SecurityZeroTrustProperties> zeroTrust = mock(ObjectProvider.class);
+        when(zeroTrust.getIfAvailable()).thenReturn(shadow);
+        IdentityOAuth2AutoConfiguration configuration = new IdentityOAuth2AutoConfiguration(
+                mock(TransactionTemplate.class), new AuthContextProperties(), null, zeroTrust);
+        JwtClaimsSet.Builder claims = JwtClaimsSet.builder().subject("alice");
+
+        configuration.tokenCustomizer(none(), none(), guardProvider(configuration.accountTokenGuard(
+                        store(User.withUsername("alice").password("{noop}x").roles("USER").build()), blocked())))
+                .customize(refreshContext(claims));
+
+        assertThat(claims.build().getClaims().get("roles")).isEqualTo(List.of("USER", "SCOPE_read"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ObjectProvider<ZeroTrustActionRepository> blocked() {
+        ZeroTrustActionRepository repository = mock(ZeroTrustActionRepository.class);
+        when(repository.getCurrentAction("alice")).thenReturn(ZeroTrustAction.BLOCK);
+        ObjectProvider<ZeroTrustActionRepository> actions = mock(ObjectProvider.class);
+        when(actions.getIfAvailable()).thenReturn(repository);
+        return actions;
+    }
+
+    private static void assertInvalidGrant(OAuth2TokenCustomizer<JwtEncodingContext> customizer) {
+        assertThatThrownBy(() -> customizer.customize(refreshContext(JwtClaimsSet.builder().subject("alice"))))
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, refused ->
+                        assertThat(refused.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.INVALID_GRANT));
+    }
+
+    private OAuth2TokenCustomizer<JwtEncodingContext> customizerFor(UserDetails account) {
+        IdentityOAuth2AutoConfiguration configuration = configuration(new AuthContextProperties());
+        return configuration.tokenCustomizer(none(), none(),
+                guardProvider(configuration.accountTokenGuard(store(account), none())));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ObjectProvider<AccountTokenGuard> guardProvider(AccountTokenGuard guard) {
+        ObjectProvider<AccountTokenGuard> provider = mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(guard);
+        return provider;
+    }
+
+    private static DefaultListableBeanFactory store(UserDetails account) {
+        DefaultListableBeanFactory beans = new DefaultListableBeanFactory();
+        beans.registerSingleton("store", new InMemoryUserDetailsManager(account));
+        return beans;
+    }
+
+    private static Authentication signedIn(String... authorities) {
+        return UsernamePasswordAuthenticationToken.authenticated("alice", null,
+                AuthorityUtils.createAuthorityList(authorities));
+    }
+
+    /** What Spring's refresh provider hands the customizer: the principal the sign-in stored, here an administrator. */
+    private static JwtEncodingContext refreshContext(JwtClaimsSet.Builder claims) {
+        return refreshContext(claims, "client-1");
+    }
+
+    private static JwtEncodingContext refreshContext(JwtClaimsSet.Builder claims, String clientId) {
+        RegisteredClient client = RegisteredClient.withId(clientId).clientId(clientId)
+                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN).build();
+        return JwtEncodingContext.with(JwsHeader.with(SignatureAlgorithm.RS256), claims)
+                .registeredClient(client)
+                .principal(signedIn("ROLE_ADMIN", "SCOPE_read"))
+                .authorization(OAuth2Authorization.withRegisteredClient(client).principalName("alice")
+                        .authorizationGrantType(AuthenticatedUserGrantAuthenticationToken.AUTHENTICATED_USER).build())
+                .authorizedScopes(Set.of("read"))
+                .tokenType(OAuth2TokenType.ACCESS_TOKEN)
+                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                .build();
+    }
+
+    /** An exchange of the person's sign-in token, as Spring's exchange provider hands it to the customizer. */
     private static JwtEncodingContext exchangeContext(String person) {
-        RegisteredClient client = RegisteredClient.withId("report-client")
-                .clientId("report-client")
+        return exchangeContext(person, "report-client");
+    }
+
+    private static JwtEncodingContext exchangeContext(String person, String clientId) {
+        RegisteredClient client = RegisteredClient.withId(clientId)
+                .clientId(clientId)
                 .authorizationGrantType(AuthorizationGrantType.TOKEN_EXCHANGE)
+                .build();
+        RegisteredClient internal = RegisteredClient.withId("internal")
+                .clientId("default-client")
+                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                .build();
+        OAuth2Authorization signIn = OAuth2Authorization.withRegisteredClient(internal)
+                .principalName(person)
+                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
                 .build();
         return JwtEncodingContext.with(JwsHeader.with(SignatureAlgorithm.RS256), JwtClaimsSet.builder().subject(person))
                 .registeredClient(client)
+                .authorization(signIn)
                 .principal(new UsernamePasswordAuthenticationToken(person, null, List.of()))
                 .tokenType(OAuth2TokenType.ACCESS_TOKEN)
                 .authorizationGrantType(AuthorizationGrantType.TOKEN_EXCHANGE)

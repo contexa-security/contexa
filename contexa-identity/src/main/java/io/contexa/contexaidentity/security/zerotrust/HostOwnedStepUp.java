@@ -30,6 +30,12 @@ public interface HostOwnedStepUp {
     /** Where the step-up continues; the pages under it are Contexa's own. */
     String STEP_UP_PATH = "/contexa/step-up";
 
+    /**
+     * Where a console session verifies itself: inside the block list, the one place of the console that stays
+     * open to it. The console's chain takes it, so the user is the console's administrator.
+     */
+    String CONSOLE_STEP_UP_PATH = "/contexa/admin/blacklist/step-up";
+
     /** The step-up page for this request, context path included. */
     default String stepUpUrl(HttpServletRequest request) {
         return request.getContextPath() + STEP_UP_PATH;
@@ -37,7 +43,8 @@ public interface HostOwnedStepUp {
 
     /**
      * Whether the application re-authenticated the user with more than one factor after the CHALLENGE in force; when
-     * it did, the CHALLENGE is resolved here as a completed step-up and the request goes on.
+     * it did, the CHALLENGE is resolved here as a completed step-up and the request goes on. Only an application that
+     * named where it re-authenticates is asked.
      *
      * @param decisionKey the key the CHALLENGE is stored under
      */

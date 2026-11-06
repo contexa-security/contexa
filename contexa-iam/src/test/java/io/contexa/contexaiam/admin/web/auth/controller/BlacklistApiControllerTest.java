@@ -18,6 +18,10 @@ package io.contexa.contexaiam.admin.web.auth.controller;
 import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -26,9 +30,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.support.StaticMessageSource;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -191,14 +197,111 @@ class BlacklistApiControllerTest {
                 .andExpect(jsonPath("$.id").value(7))
                 .andExpect(jsonPath("$.error").doesNotExist());
 
-        doThrow(new RuntimeException("Cannot delete active block"))
-                .when(blockedUserService).deleteBlockRecord(8L);
+        doThrow(new RuntimeException("could not execute statement [ERROR: deadlock detected]"))
+                .when(blockedUserService).deleteBlockRecord(8L, "admin");
 
         mockMvc.perform(delete("/contexa/admin/api/blacklist/8"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.error").value("Cannot delete active block"))
+                .andExpect(jsonPath("$.error").value("The action could not be completed. See the server log."))
                 .andExpect(jsonPath("$.id").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("an own release refused is a 403 that says why, not a server error")
+    void anOwnReleaseIsForbidden() throws Exception {
+        doThrow(new AccessDeniedException("Another administrator lifts it"))
+                .when(blockedUserService).resolveBlockById(7L, "admin", "ALLOW", "it was me");
+
+        mockMvc.perform(post("/contexa/admin/api/blacklist/7/resolve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"resolvedAction\":\"ALLOW\",\"reason\":\"it was me\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error").value("Another administrator lifts it"));
+    }
+
+    @Test
+    @DisplayName("deleting an own record refused is a 403 too")
+    void deletingAnOwnRecordIsForbidden() throws Exception {
+        doThrow(new AccessDeniedException("Another administrator lifts it"))
+                .when(blockedUserService).deleteBlockRecord(7L, "admin");
+
+        mockMvc.perform(delete("/contexa/admin/api/blacklist/7"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("Another administrator lifts it"));
+    }
+
+    /** An ordinary refusal of the record's state is the client's answer, not a fault of the server. */
+    @Nested
+    @DisplayName("a record whose state refuses the action")
+    class TheStateOfTheRecord {
+
+        private final Logger logger = (Logger) LoggerFactory.getLogger(BlacklistApiController.class);
+        private final ListAppender<ILoggingEvent> lines = new ListAppender<>();
+
+        @BeforeEach
+        void listen() {
+            lines.start();
+            logger.addAppender(lines);
+        }
+
+        @AfterEach
+        void stopListening() {
+            logger.detachAppender(lines);
+        }
+
+        private void assertNoErrorLine() {
+            assertThat(lines.list).noneMatch(line -> line.getLevel() == Level.ERROR);
+        }
+
+        @Test
+        @DisplayName("lifting a record already lifted is a 409 that says so, without an ERROR")
+        void alreadyResolved() throws Exception {
+            doThrow(new IllegalStateException("Already resolved: id=7"))
+                    .when(blockedUserService).resolveBlockById(7L, "admin", "ALLOW", "again");
+
+            mockMvc.perform(post("/contexa/admin/api/blacklist/7/resolve")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"resolvedAction\":\"ALLOW\",\"reason\":\"again\"}"))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.error").value("Already resolved: id=7"));
+
+            assertNoErrorLine();
+        }
+
+        @Test
+        @DisplayName("deleting a block in force is a 409 too")
+        void deletingABlockInForce() throws Exception {
+            doThrow(new IllegalStateException("Cannot delete active block. Resolve first: id=7"))
+                    .when(blockedUserService).deleteBlockRecord(7L, "admin");
+
+            mockMvc.perform(delete("/contexa/admin/api/blacklist/7"))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.error").value("Cannot delete active block. Resolve first: id=7"));
+
+            assertNoErrorLine();
+        }
+
+        @Test
+        @DisplayName("a record that does not exist is a 404, on either way")
+        void noSuchRecord() throws Exception {
+            doThrow(new IllegalArgumentException("Blocked user not found: id=9"))
+                    .when(blockedUserService).resolveBlockById(9L, "admin", "ALLOW", "r");
+            doThrow(new IllegalArgumentException("Blocked user not found: id=9"))
+                    .when(blockedUserService).deleteBlockRecord(9L, "admin");
+
+            mockMvc.perform(post("/contexa/admin/api/blacklist/9/resolve")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"resolvedAction\":\"ALLOW\",\"reason\":\"r\"}"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.error").value("Blocked user not found: id=9"));
+            mockMvc.perform(delete("/contexa/admin/api/blacklist/9"))
+                    .andExpect(status().isNotFound());
+
+            assertNoErrorLine();
+        }
     }
 
     private BlockedUser sampleBlockedUser() {

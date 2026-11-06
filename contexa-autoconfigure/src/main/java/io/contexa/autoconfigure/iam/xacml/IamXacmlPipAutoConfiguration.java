@@ -21,12 +21,18 @@ import io.contexa.contexacommon.repository.BusinessResourceActionRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexaiam.security.xacml.pip.attribute.DatabaseAttributePIP;
 import io.contexa.contexaiam.security.xacml.pip.context.DefaultContextHandler;
+import io.contexa.contexaiam.security.xacml.pip.context.SubjectCache;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Bean;
 
 
+@Slf4j
 @AutoConfiguration
 public class IamXacmlPipAutoConfiguration {
 
@@ -46,6 +52,28 @@ public class IamXacmlPipAutoConfiguration {
             UserRepository userRepository,
             ContexaCacheService cacheService) {
         return new DefaultContextHandler(userRepository, cacheService);
+    }
+
+    /**
+     * Takes the users' cached copies out of the store once the context is ready, on a background thread so that the start
+     * does not wait for it: a copy an earlier version wrote holds the password hash (PR-87). Every start does it, so the
+     * last node of a rolling upgrade also takes out what the old nodes wrote until then. A store that cannot be reached
+     * leaves them to their TTL.
+     */
+    @Bean(name = "contexaSubjectCacheClearOnStart")
+    public ApplicationListener<ApplicationReadyEvent> subjectCacheClearOnStart(
+            ObjectProvider<ContexaCacheService> cacheService) {
+        return event -> cacheService.ifAvailable(cache -> {
+            Thread clear = new Thread(() -> {
+                try {
+                    SubjectCache.clear(cache);
+                } catch (RuntimeException e) {
+                    log.error("The users' cached copies could not be cleared; they end with their TTL", e);
+                }
+            }, "Subject-Cache-Clear");
+            clear.setDaemon(true);
+            clear.start();
+        });
     }
 }
 

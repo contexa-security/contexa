@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.center.service;
 
+import io.contexa.contexaiam.common.ConsoleFault;
 import java.util.Locale;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
@@ -50,8 +51,10 @@ import io.contexa.contexaiam.security.xacml.pap.service.PolicyEnrichmentService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyVersionService;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionValidator;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.SpelLiteral;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexacore.infra.redis.PolicyReloadBroadcaster;
+import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -61,6 +64,8 @@ import org.springframework.context.event.EventListener;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.NoTransactionException;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
@@ -73,16 +78,27 @@ import java.util.regex.Pattern;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
+import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @RequiredArgsConstructor
 @Slf4j
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 public class PolicyCenterCommandService {
 
+    private static final Pattern AUTHORITY = Pattern.compile("hasAuthority\\(" + SpelLiteral.PATTERN + "\\)");
+
     private final ResourceRegistryService resourceRegistryService;
     /** Tells the other nodes to reload in the distributed mode (CF-02); null on a single node. */
     @Setter
     private PolicyReloadBroadcaster policyReloadBroadcaster;
+    /**
+     * Where one item of a batch is written, in a transaction of its own, so that an item that fails takes no other item
+     * with it; without it the item is written as the caller's transaction, if there is one, has it.
+     */
+    @Setter
+    private TransactionOperations itemTransactions;
     private final PolicyService policyService;
     private final PolicyRepository policyRepository;
     private final RoleService roleService;
@@ -111,7 +127,7 @@ public class PolicyCenterCommandService {
         synchronizeResourcePolicyStatus();
     }
 
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public PolicyActionResponse createPolicyFromCenter(PolicyCenterPolicyRequest request) {
         try {
             policyService.createPolicy(request.toPolicyDto());
@@ -121,11 +137,11 @@ public class PolicyCenterCommandService {
             return new PolicyActionResponse(false, msg("msg.policy.name.duplicate"), null);
         } catch (Exception e) {
             log.error("Failed to create policy", e);
-            return new PolicyActionResponse(false, msg("msg.policy.create.error", e.getMessage()), null);
+            return new PolicyActionResponse(false, msg("msg.policy.create.error", ConsoleFault.textOf(e)), null);
         }
     }
 
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public PolicyQuickCreateResponse quickCreatePolicy(QuickPolicyRequest request) {
         try {
             BusinessPolicyDto dto = new BusinessPolicyDto();
@@ -171,11 +187,11 @@ public class PolicyCenterCommandService {
             return new PolicyQuickCreateResponse(false, null, msg("msg.policy.name.duplicate"), null);
         } catch (Exception e) {
             log.error("Failed to create quick policy", e);
-            return new PolicyQuickCreateResponse(false, null, msg("msg.policy.create.error", e.getMessage()), null);
+            return new PolicyQuickCreateResponse(false, null, msg("msg.policy.create.error", ConsoleFault.textOf(e)), null);
         }
     }
 
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public PolicyActionResponse resetPolicyStatus(List<Long> resourceIds) {
         if (resourceIds == null || resourceIds.isEmpty()) {
             return new PolicyActionResponse(false, msg("msg.policy.validation.target.required"), null);
@@ -183,24 +199,27 @@ public class PolicyCenterCommandService {
         int updated = 0;
         for (Long id : resourceIds) {
             try {
-                AtomicBoolean changed = new AtomicBoolean(false);
-                managedResourceRepository.findById(id).ifPresent(resource -> {
-                    if (resource.getStatus() != ManagedResource.Status.PERMISSION_CREATED) {
-                        return;
-                    }
-                    Permission perm = resource.getPermission();
-                    if (perm != null) {
-                        resource.setPermission(null);
+                boolean changed = inItsOwnTransaction(() -> {
+                    AtomicBoolean reset = new AtomicBoolean(false);
+                    managedResourceRepository.findById(id).ifPresent(resource -> {
+                        if (resource.getStatus() != ManagedResource.Status.PERMISSION_CREATED) {
+                            return;
+                        }
+                        Permission perm = resource.getPermission();
+                        if (perm != null) {
+                            resource.setPermission(null);
+                            managedResourceRepository.save(resource);
+                            managedResourceRepository.flush();
+                            permissionRepository.deleteById(perm.getId());
+                            permissionRepository.flush();
+                        }
+                        resource.setStatus(ManagedResource.Status.NEEDS_DEFINITION);
                         managedResourceRepository.save(resource);
-                        managedResourceRepository.flush();
-                        permissionRepository.deleteById(perm.getId());
-                        permissionRepository.flush();
-                    }
-                    resource.setStatus(ManagedResource.Status.NEEDS_DEFINITION);
-                    managedResourceRepository.save(resource);
-                    changed.set(true);
+                        reset.set(true);
+                    });
+                    return reset.get();
                 });
-                if (changed.get()) {
+                if (changed) {
                     updated++;
                 }
             } catch (Exception e) {
@@ -210,7 +229,7 @@ public class PolicyCenterCommandService {
         return new PolicyActionResponse(true, null, updated);
     }
 
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public PolicyBatchCreateResponse batchCreatePolicies(BatchCreateRequest request) {
         try {
             if (request.getItems() == null || request.getItems().isEmpty()) {
@@ -233,7 +252,7 @@ public class PolicyCenterCommandService {
             }
 
             String roleCondition = roles.stream()
-                    .map(r -> String.format("hasAuthority('%s')", r.getRoleName()))
+                    .map(r -> SpelLiteral.hasRoleAuthority(r.getRoleName()))
                     .collect(Collectors.joining(" or "));
             String allRoleNames = roles.stream()
                     .map(Role::getRoleName)
@@ -256,7 +275,7 @@ public class PolicyCenterCommandService {
                     }
 
                     String crudCondition = new TreeSet<>(item.getCrudPermissions()).stream()
-                            .map(c -> String.format("hasAuthority('%s')", c))
+                            .map(SpelLiteral::hasAuthority)
                             .collect(Collectors.joining(" or "));
                     String spelExpr = "(" + roleCondition + ") and (" + crudCondition + ")";
                     PolicyExpressionValidator.validate(spelExpr);
@@ -314,20 +333,23 @@ public class PolicyCenterCommandService {
                         continue;
                     }
 
-                    policyEnrichmentService.enrichPolicyWithFriendlyDescription(candidate);
-                    Policy saved = policyRepository.save(candidate);
-                    policyVersionService.createVersion(saved, PolicyVersion.ChangeType.CREATED, null);
+                    Policy saved = inItsOwnTransaction(() -> {
+                        policyEnrichmentService.enrichPolicyWithFriendlyDescription(candidate);
+                        Policy written = policyRepository.save(candidate);
+                        policyVersionService.createVersion(written, PolicyVersion.ChangeType.CREATED, null);
 
-                    if (item.getPermissionId() != null) {
-                        permissionRepository.findById(item.getPermissionId()).ifPresent(perm -> {
-                            ManagedResource resource = perm.getManagedResource();
-                            if (resource != null
-                                    && resource.getStatus() == ManagedResource.Status.PERMISSION_CREATED) {
-                                resource.setStatus(ManagedResource.Status.POLICY_CONNECTED);
-                                managedResourceRepository.save(resource);
-                            }
-                        });
-                    }
+                        if (item.getPermissionId() != null) {
+                            permissionRepository.findById(item.getPermissionId()).ifPresent(perm -> {
+                                ManagedResource resource = perm.getManagedResource();
+                                if (resource != null
+                                        && resource.getStatus() == ManagedResource.Status.PERMISSION_CREATED) {
+                                    resource.setStatus(ManagedResource.Status.POLICY_CONNECTED);
+                                    managedResourceRepository.save(resource);
+                                }
+                            });
+                        }
+                        return written;
+                    });
 
                     batchCreated.add(saved);
                     results.add(new PolicyBatchItemResponse(
@@ -348,7 +370,7 @@ public class PolicyCenterCommandService {
                     results.add(new PolicyBatchItemResponse(
                             resourceIdentifierOrUnknown(item),
                             "ERROR",
-                            msg("msg.policy.create.error", e.getMessage()),
+                            msg("msg.policy.create.error", ConsoleFault.textOf(e)),
                             null,
                             null));
                 }
@@ -366,7 +388,7 @@ public class PolicyCenterCommandService {
         } catch (Exception e) {
             log.error("Batch policy creation failed", e);
             return new PolicyBatchCreateResponse(false, null, null, null,
-                    msg("msg.policy.create.error", e.getMessage()));
+                    msg("msg.policy.create.error", ConsoleFault.textOf(e)));
         }
     }
 
@@ -376,10 +398,11 @@ public class PolicyCenterCommandService {
         try {
             int migrated = executePolicyMigration();
             if (migrated > 0) {
-                log.error("[migration] Auto-migrated {} policy expressions from URL_/METHOD_ to CRUD", migrated);
+                log.info("[migration] Auto-migrated {} policy expressions from URL_/METHOD_ to CRUD", migrated);
             }
         } catch (Exception e) {
             log.error("[migration] Auto-migration failed", e);
+            rollBackWhatFailed();
         }
     }
 
@@ -390,7 +413,8 @@ public class PolicyCenterCommandService {
             return new PolicyMigrationResponse(true, migrated, null);
         } catch (Exception e) {
             log.error("Failed to migrate policy expressions", e);
-            return new PolicyMigrationResponse(false, null, e.getMessage());
+            rollBackWhatFailed();
+            return new PolicyMigrationResponse(false, null, ConsoleFault.textOf(e));
         }
     }
 
@@ -421,11 +445,12 @@ public class PolicyCenterCommandService {
             return new PolicyCleanupResponse(true, deletedIds.size(), null);
         } catch (Exception e) {
             log.error("Failed to cleanup old permissions", e);
-            return new PolicyCleanupResponse(false, null, e.getMessage());
+            rollBackWhatFailed();
+            return new PolicyCleanupResponse(false, null, ConsoleFault.textOf(e));
         }
     }
 
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public PolicyActionResponse rollbackPolicy(
             Long policyId,
             int versionNumber,
@@ -436,7 +461,7 @@ public class PolicyCenterCommandService {
             return new PolicyActionResponse(true, msg("msg.policy.rollback.success"), null);
         } catch (Exception e) {
             log.error("Failed to rollback policy {} to version {}", policyId, versionNumber, e);
-            return new PolicyActionResponse(false, e.getMessage(), null);
+            return new PolicyActionResponse(false, ConsoleFault.textOf(e), null);
         }
     }
 
@@ -499,13 +524,15 @@ public class PolicyCenterCommandService {
     }
 
     private String migrateExpressionToCrud(String expression) {
-        Pattern pattern = Pattern.compile("hasAuthority\\('(URL_|METHOD_)([^']*)'\\)");
-        Matcher matcher = pattern.matcher(expression);
+        Matcher matcher = AUTHORITY.matcher(expression);
         StringBuilder sb = new StringBuilder();
         while (matcher.find()) {
-            String permName = matcher.group(1) + matcher.group(2);
-            String crud = resolvePermissionToCrud(permName);
-            matcher.appendReplacement(sb, "hasAuthority('" + crud + "')");
+            String authority = SpelLiteral.unquote(matcher.group(1));
+            String replacement = authority.startsWith("URL_") || authority.startsWith("METHOD_")
+                    ? SpelLiteral.hasAuthority(resolvePermissionToCrud(authority))
+                    : matcher.group();
+            // A $ or \ of a name is text, not a group reference or an escape.
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
         }
         matcher.appendTail(sb);
         return sb.toString();
@@ -564,6 +591,27 @@ public class PolicyCenterCommandService {
                     .build());
         } catch (Exception ae) {
             log.error("Failed to audit batch policy creation", ae);
+        }
+    }
+
+    /** Runs one item of a batch in a transaction of its own, when the service has the means; otherwise as it stands. */
+    private <T> T inItsOwnTransaction(Supplier<T> work) {
+        return itemTransactions != null ? itemTransactions.execute(status -> work.get()) : work.get();
+    }
+
+    /**
+     * Ends the transaction of a method that answers a failure with a rollback. A callee that joined the transaction
+     * and failed has marked it for rollback before the method caught what it threw, and a commit of such a
+     * transaction ends in an exception the caller never expected; marked by the method itself, the transaction is rolled
+     * back and the answer reaches the caller.
+     */
+    private static void rollBackWhatFailed() {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            try {
+                TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+            } catch (NoTransactionException notManagedHere) {
+                // The transaction is not one of a method of this service: whoever opened it ends it.
+            }
         }
     }
 

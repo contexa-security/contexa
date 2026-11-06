@@ -41,6 +41,17 @@ public final class ZeroTrustScreens {
     /** The folders of the scripts, styles and images the screens of a decision load. */
     private static final List<String> SCREEN_RESOURCE_FOLDERS = List.of("/contexa/js/", "/contexa/css/", "/contexa/img/");
 
+    /**
+     * The documents under {@code /.well-known} that Contexa publishes or a browser reads for its sign-in. The rest of
+     * that folder is the application's, and a decision applies to it as to any other path.
+     */
+    private static final List<String> DISCOVERY_DOCUMENTS = List.of(
+            "/.well-known/authzen-configuration",
+            "/.well-known/oauth-authorization-server",
+            "/.well-known/oauth-protected-resource",
+            "/.well-known/openid-configuration",
+            "/.well-known/webauthn");
+
     private ZeroTrustScreens() {
     }
 
@@ -52,8 +63,7 @@ public final class ZeroTrustScreens {
     public static boolean isScreenResource(String path) {
         // A way out of the folder (a dot segment, an encoded character, a path parameter) is never a screen file: the
         // skip would let a stopped request reach what the decision stops.
-        if (path == null || path.contains("..") || path.contains("//") || path.indexOf('%') >= 0
-                || path.indexOf(';') >= 0 || path.indexOf('\\') >= 0) {
+        if (!RequestPaths.isPlain(path)) {
             return false;
         }
         for (String folder : SCREEN_RESOURCE_FOLDERS) {
@@ -62,6 +72,11 @@ public final class ZeroTrustScreens {
             }
         }
         return false;
+    }
+
+    /** Whether the path (without the context path) is a metadata document of Contexa's sign-in or decisions. */
+    public static boolean isDiscoveryDocument(String path) {
+        return DISCOVERY_DOCUMENTS.stream().anyMatch(document -> RequestPaths.isWithin(path, document));
     }
 
     /**

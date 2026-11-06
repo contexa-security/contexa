@@ -16,19 +16,26 @@
 package io.contexa.contexaiam.admin.web.agent.controller;
 
 import io.contexa.contexaiam.admin.web.agent.service.AgentContainmentAdminService;
+import io.contexa.contexaiam.admin.web.auth.service.UnderOwnBlockException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.nio.charset.StandardCharsets;
 import java.util.function.Supplier;
 
 /**
@@ -60,6 +67,8 @@ public class AgentStopController {
         model.addAttribute("narrowedAgents", stops.narrowedAgents());
         model.addAttribute("history", stops.history());
         model.addAttribute("notices", stops.notices());
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        model.addAttribute("underOwnBlock", authentication != null && stops.underOwnBlock(authentication.getName()));
         return "contexa/admin/agent-stops";
     }
 
@@ -111,6 +120,8 @@ public class AgentStopController {
         }
         try {
             redirectAttributes.addFlashAttribute("message", action.get());
+        } catch (UnderOwnBlockException e) {
+            throw e;
         } catch (IllegalArgumentException | IllegalStateException e) {
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
         } catch (RuntimeException e) {
@@ -118,6 +129,13 @@ public class AgentStopController {
             redirectAttributes.addFlashAttribute("errorMessage", message("admin.agent.stops.failed"));
         }
         return REDIRECT;
+    }
+
+    /** Answered here, ahead of any advice of the application: the refusal is a 403 whatever else the application does. */
+    @ExceptionHandler(UnderOwnBlockException.class)
+    public ResponseEntity<String> underOwnBlock(UnderOwnBlockException refusal) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).contentType(new MediaType(MediaType.TEXT_PLAIN, StandardCharsets.UTF_8))
+                .body(refusal.getMessage());
     }
 
     private String message(String key, Object... arguments) {

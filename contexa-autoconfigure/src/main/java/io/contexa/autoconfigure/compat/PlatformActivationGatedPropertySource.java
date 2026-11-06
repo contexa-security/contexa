@@ -32,8 +32,8 @@ import java.util.Map;
  * visible while {@link ContexaPlatformActivation#isActive(Environment)} holds, which keeps dependency-only
  * applications free of Contexa defaults.</p>
  *
- * <p>Names outside this source's own key set return {@code null} without consulting the Environment, so the
- * activation lookup (which iterates all property sources, including this one) cannot recurse.</p>
+ * <p>Names outside this source's own key set return {@code null} without consulting the Environment, and the
+ * activation lookup reads no property, so a lookup cannot recurse.</p>
  *
  * <p>Spring Boot may replace the Environment instance after the post-processors ran (for example when
  * {@code spring.main.web-application-type} changes the environment type). The property source instances are

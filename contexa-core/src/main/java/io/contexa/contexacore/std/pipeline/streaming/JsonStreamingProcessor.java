@@ -248,7 +248,7 @@ public class JsonStreamingProcessor implements ChunkProcessor {
 
         repaired = fixBracketBalance(repaired);
         if (!repaired.equals(json.trim())) {
-            log.error("JSON repaired: original length={}, repaired length={}", json.length(), repaired.length());
+            log.warn("JSON repaired: original length={}, repaired length={}", json.length(), repaired.length());
         }
 
         return repaired;

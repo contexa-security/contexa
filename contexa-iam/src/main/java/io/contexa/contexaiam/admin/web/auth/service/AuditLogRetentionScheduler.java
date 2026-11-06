@@ -46,7 +46,7 @@ public class AuditLogRetentionScheduler {
         LocalDateTime cutoff = LocalDateTime.now().minusDays(retentionDays);
         int deleted = auditLogRepository.deleteByTimestampBefore(cutoff);
         if (deleted > 0) {
-            log.error("Audit log retention: deleted {} records older than {} days (before {})",
+            log.info("Audit log retention: deleted {} records older than {} days (before {})",
                     deleted, retentionDays, cutoff);
         }
     }

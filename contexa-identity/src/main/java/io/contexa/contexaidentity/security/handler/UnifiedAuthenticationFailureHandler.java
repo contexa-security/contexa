@@ -23,12 +23,13 @@ import io.contexa.contexacommon.security.ContexaConsolePaths;
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.properties.MfaSettings;
-import io.contexa.contexacommon.security.LoginPolicyHandler;
+import io.contexa.contexacommon.security.LocalCredentialsVerifier;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
@@ -57,13 +58,15 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
     private static final int MAX_BLOCK_MFA_ATTEMPTS = 2;
     private static final String UNKNOWN_USER = "UnknownUser";
 
+    /** What a person is told of a failure of the MFA flow; the exception's own text stays in the log and the audit. */
+    static final String MFA_FAILURE_MESSAGE = "An error occurred during MFA processing. Please sign in again.";
+
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSessionRepository sessionRepository;
     private final ZeroTrustActionRepository actionRedisRepository;
     private final MfaSettings mfaSettings;
     private final IBlockedUserRecorder blockedUserRecorder;
     private final CentralAuditFacade centralAuditFacade;
-    private final LoginPolicyHandler loginPolicyService;
     private final SecurityContextDataStore securityContextDataStore;
 
     public UnifiedAuthenticationFailureHandler(AuthResponseWriter responseWriter,
@@ -73,7 +76,6 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                                                MfaSettings mfaSettings,
                                                IBlockedUserRecorder blockedUserRecorder,
                                                CentralAuditFacade centralAuditFacade,
-                                               @Nullable LoginPolicyHandler loginPolicyService,
                                                @Nullable SecurityContextDataStore securityContextDataStore) {
         super(responseWriter);
         this.stateMachineIntegrator = stateMachineIntegrator;
@@ -82,7 +84,6 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         this.mfaSettings = mfaSettings;
         this.blockedUserRecorder = blockedUserRecorder;
         this.centralAuditFacade = centralAuditFacade;
-        this.loginPolicyService = loginPolicyService;
         this.securityContextDataStore = securityContextDataStore;
     }
 
@@ -123,7 +124,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                                         AuthType currentProcessingFactor, String usernameForLog,
                                         String sessionIdForLog) throws IOException {
 
-        log.error("MFA Factor Failure using {} repository: Factor '{}' for user '{}' (session ID: '{}') failed. Reason: {}",
+        log.warn("MFA Factor Failure using {} repository: Factor '{}' for user '{}' (session ID: '{}') failed. Reason: {}",
                 sessionRepository.getRepositoryType(), currentProcessingFactor, usernameForLog, sessionIdForLog, exception.getMessage());
 
         if (!sessionRepository.existsSession(factorContext.getMfaSessionId())) {
@@ -173,13 +174,9 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         log.warn("Primary Authentication or Global MFA Failure using {} repository for user '{}' (MFA Session ID: '{}'). Reason: {}",
                 sessionRepository.getRepositoryType(), usernameForLog, sessionIdForLog, exception.getMessage());
 
-        if (loginPolicyService != null && isKnownUsername(usernameForLog)) {
-            try {
-                loginPolicyService.onLoginFailure(usernameForLog);
-            } catch (Exception e) {
-                log.error("Failed to record login failure for user: {}", usernameForLog, e);
-            }
-        }
+        // The account's count is kept by the failure event of the sign-in, which names who was tried. What reaches this
+        // handler without one, an MFA submission whose session is gone, is no guess at a password and counts against no
+        // account: counting it would lock the user who only came back late.
 
         if (factorContext != null && StringUtils.hasText(factorContext.getMfaSessionId())) {
             try {
@@ -198,12 +195,14 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         }
 
         String errorCode = "PRIMARY_AUTH_FAILED";
-        String errorMessage = "Invalid username or password.";
+        String errorMessage = LocalCredentialsVerifier.SIGN_IN_REFUSED;
         FailureType failureType = FailureType.PRIMARY_AUTH_FAILED;
 
         if (exception.getMessage() != null && exception.getMessage().contains("MFA")) {
             errorCode = "MFA_GLOBAL_FAILURE";
-            errorMessage = "An error occurred during MFA processing: " + exception.getMessage();
+            // The exception's text names what failed inside (a store, a key, a state): it is the operators', in the
+            // log line above and the audit, and the person is told what to do.
+            errorMessage = MFA_FAILURE_MESSAGE;
             failureType = FailureType.MFA_GLOBAL_FAILURE;
         }
 
@@ -279,17 +278,17 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
     private void handleBlockMfaFailure(HttpServletRequest request,
                                         HttpServletResponse response,
                                         FactorContext factorContext) throws IOException {
-        String userId = factorContext.getUsername();
+        String userId = ZeroTrustUserKey.person(factorContext.getUsername());
         long failCount = actionRedisRepository.incrementBlockMfaFailCount(userId);
 
         if (failCount >= MAX_BLOCK_MFA_ATTEMPTS) {
-            log.error("[UnifiedAuthFailure] BLOCK MFA max attempts reached, triggering SOAR: userId={}", userId);
+            log.warn("[UnifiedAuthFailure] BLOCK MFA max attempts reached, triggering SOAR: userId={}", userId);
             if (blockedUserRecorder != null) {
                 blockedUserRecorder.markMfaFailed(userId);
             }
             actionRedisRepository.clearBlockMfaPending(userId);
         } else {
-            log.error("[UnifiedAuthFailure] BLOCK MFA failed, attempt {}/{}: userId={}", failCount, MAX_BLOCK_MFA_ATTEMPTS, userId);
+            log.warn("[UnifiedAuthFailure] BLOCK MFA failed, attempt {}/{}: userId={}", failCount, MAX_BLOCK_MFA_ATTEMPTS, userId);
         }
 
         String redirectUrl = request.getContextPath() + "/contexa/zero-trust/blocked";

@@ -16,7 +16,10 @@
 package io.contexa.contexacore.autonomous.utils;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.bridge.AgentSessionKey;
+import io.contexa.contexacommon.security.bridge.OAuth2AuthenticationSupport;
+import io.contexa.contexacommon.security.network.ClientIpResolver;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -107,6 +110,7 @@ public class SessionFingerprintUtil {
         }
     }
 
+    private static final String CONSOLE_CONTEXT = "console:";
     private static final String CONTEXT_BINDING_HASH_ATTR = "contexa.contextBindingHash";
     /** Set while the binding reads the request's security context (see {@link #currentAuthentication}). */
     private static final String READING_CONTEXT_ATTR = "contexa.contextBindingHash.readingContext";
@@ -157,6 +161,25 @@ public class SessionFingerprintUtil {
      * id within the current request (session fixation protection), so the current session id wins over the
      * requested one. Without a session the requested id is kept, as in {@link #generateContextBindingHash(HttpServletRequest)}.
      */
+    /**
+     * Context binding hash the client presents on its next request after a sign-in of a token state. That request is a
+     * bearer call, which is one session with the login its token carries ({@code sid}), whether or not it carries the
+     * servlet session a step of the login may have created, so the sign-in is bound to that login and not to the
+     * servlet session of the login request. Without a token session this is
+     * {@link #generateNextRequestContextBindingHash(HttpServletRequest)}.
+     *
+     * @param tokenSessionId the login the token states as its {@code sid}, null in a session state
+     */
+    public static String generateNextRequestContextBindingHash(HttpServletRequest request, @Nullable String tokenSessionId) {
+        if (request == null) {
+            return null;
+        }
+        if (tokenSessionId == null || tokenSessionId.isBlank()) {
+            return generateNextRequestContextBindingHash(request);
+        }
+        return generateContextBindingHash(tokenSessionId.trim(), extractClientIp(request), request.getHeader("User-Agent"));
+    }
+
     public static String generateNextRequestContextBindingHash(HttpServletRequest request) {
         if (request == null) {
             return null;
@@ -169,12 +192,18 @@ public class SessionFingerprintUtil {
 
     /**
      * The session the binding names: an agent's or a client's own token request is bound to the agent's session
-     * (A1-11), so agents on one network and one user agent do not share a binding; any other request to the given
-     * servlet session.
+     * (A1-11), so agents on one network and one user agent do not share a binding; a person's token request to the login
+     * its token carries, as {@link RequestIdentity#sessionId} names it, whether or not the request also holds a servlet
+     * session; any other request to the given servlet session.
      */
     private static String sessionOf(@Nullable Authentication authentication, String servletSession) {
         String agentSession = AgentSessionKey.of(authentication);
-        return agentSession != null ? agentSession : servletSession;
+        if (agentSession != null) {
+            return agentSession;
+        }
+        String tokenSession = OAuth2AuthenticationSupport.tokenAttribute(
+                authentication, OAuth2AuthenticationSupport.SESSION_ID_CLAIM);
+        return tokenSession != null ? tokenSession : servletSession;
     }
 
     /**
@@ -226,6 +255,39 @@ public class SessionFingerprintUtil {
      */
     public static String extractClientIp(HttpServletRequest request) {
         return RequestInfoExtractor.extractClientIp(request, clientIpSecurity());
+    }
+
+    /**
+     * Q-24: whether the request came through a proxy Contexa was not told about. It carries X-Forwarded-For while no
+     * proxy is trusted, so the peer may well be that proxy and every user behind it has this one address. With proxies
+     * named, a peer outside them is a client and its header proves nothing; with the validation off the header is
+     * believed anyway. Neither leaves the address in doubt.
+     * <p>
+     * The header alone proves nothing, as anyone can send it. Only a peer on a private network, a link-local address or the
+     * machine itself can be such a proxy here: nobody on the internet connects from those addresses, and the socket's
+     * address cannot be forged. A public peer that sends the header is taken for what it is, a client. A peer this answers
+     * true for may still be a client on that network, so the answer may ease a limit of the address and never lift one.
+     */
+    public static boolean forwardedWithoutTrustedProxy(@Nullable HttpServletRequest request) {
+        if (request == null || request.getHeader("X-Forwarded-For") == null) {
+            return false;
+        }
+        TieredStrategyProperties.Security security = clientIpSecurity();
+        return security.isTrustedProxyValidationEnabled()
+                && (security.getTrustedProxies() == null || security.getTrustedProxies().isEmpty())
+                && ClientIpResolver.isPrivateOrLoopback(request.getRemoteAddr());
+    }
+
+    /**
+     * The context a passed verification of a BLOCK is kept for. A console session shares its HTTP session, address and
+     * client with the application's user of that browser, and that user may be named like the console's key, so the
+     * console's context stands apart: what the application's chain verified answers nothing in the console.
+     */
+    @Nullable
+    public static String verificationContext(HttpServletRequest request) {
+        String contextBindingHash = generateContextBindingHash(request);
+        return contextBindingHash != null && ConsoleSession.of(request) ? CONSOLE_CONTEXT + contextBindingHash
+                : contextBindingHash;
     }
 
     private static TieredStrategyProperties.Security clientIpSecurity() {

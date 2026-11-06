@@ -54,6 +54,13 @@ class PromptInspectionPageControllerTest {
     }
 
     @Test
+    void aWordThatClosesAScriptElementStaysInsideIt() throws Exception {
+        messages.addMessage("promptInspection.verdict.FAIL", Locale.GERMAN, "Sales </script> Ops");
+
+        assertThat(scriptMessages(Locale.GERMAN)).containsEntry("promptInspection.verdict.FAIL", "Sales </script> Ops");
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void theScreensTakeTheirListsAndDefaultsFromOnePlace() throws Exception {
         MvcResult result = mvc.perform(get("/contexa/admin/prompt-inspection/packages")).andReturn();

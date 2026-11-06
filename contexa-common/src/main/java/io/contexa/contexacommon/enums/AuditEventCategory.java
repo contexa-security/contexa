@@ -31,6 +31,7 @@ public enum AuditEventCategory {
     AUTHORIZATION_DENIED("Authorization denied"),
 
     SECURITY_DECISION("AI security decision"),
+    DECISION_LIMIT_REACHED("A person's sign-ins or changed contexts passed the decisions allowed in a short window"),
     SECURITY_ERROR("Security processing error"),
     ADMIN_OVERRIDE("Admin override action"),
     AGENT_LEARNING_CONTROLLED("Agent learning quarantined, released or removed by an administrator"),

@@ -27,6 +27,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
@@ -39,6 +40,8 @@ public class CsvExportService {
 
     private static final byte[] UTF8_BOM = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
     private static final DateTimeFormatter FILENAME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd_HHmmss");
+    private static final String FORMULA_STARTS = "=+-@\t\r";
+    private static final Pattern PLAIN_NUMBER = Pattern.compile("[-+]?\\d+(\\.\\d+)?");
 
     /**
      * Export data as CSV with streaming response.
@@ -96,9 +99,21 @@ public class CsvExportService {
 
     private String escapeCsv(String value) {
         if (value == null) return "";
-        if (value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains("\r")) {
-            return "\"" + value.replace("\"", "\"\"") + "\"";
+        String text = asText(value);
+        if (text.contains(",") || text.contains("\"") || text.contains("\n") || text.contains("\r")) {
+            return "\"" + text.replace("\"", "\"\"") + "\"";
         }
-        return value;
+        return text;
+    }
+
+    /**
+     * Users write these values (a browser's name, an account's name) and an administrator opens the file in a
+     * spreadsheet, which runs a cell that starts like a formula. The leading quote makes such a cell text.
+     */
+    private static String asText(String value) {
+        if (value.isEmpty() || FORMULA_STARTS.indexOf(value.charAt(0)) < 0 || PLAIN_NUMBER.matcher(value).matches()) {
+            return value;
+        }
+        return "'" + value;
     }
 }

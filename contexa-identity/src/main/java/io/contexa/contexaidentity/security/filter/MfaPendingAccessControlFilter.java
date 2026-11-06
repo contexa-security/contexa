@@ -15,12 +15,17 @@
  */
 package io.contexa.contexaidentity.security.filter;
 
+import io.contexa.contexacommon.security.RequestPaths;
+import io.contexa.contexacommon.security.ZeroTrustScreens;
+import io.contexa.contexacore.autonomous.execution.ZeroTrustChallengeFlowStarter;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaPasskeyRegistrationIntent;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaPendingSessionMarker;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import io.contexa.contexaidentity.security.utils.WebUtil;
+import io.contexa.contexaidentity.security.zerotrust.PasskeyRegistrationGate;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,6 +34,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationTrustResolver;
 import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
@@ -70,11 +78,20 @@ public class MfaPendingAccessControlFilter extends OncePerRequestFilter {
 
     public static final String PASSKEY_REGISTRATION_ERROR_CODE = "PASSKEY_REGISTRATION_REQUIRES_MFA";
 
+    /** A signed-in session that has to verify before it registers a passkey (Q-13). */
+    public static final String PASSKEY_VERIFICATION_ERROR_CODE = "PASSKEY_REGISTRATION_REQUIRES_VERIFICATION";
+
+    /** A session a decision keeps from registering a passkey (Q-13). */
+    public static final String PASSKEY_REFUSED_ERROR_CODE = "PASSKEY_REGISTRATION_REFUSED";
+
     private static final String ERROR_MESSAGE = "Multi-factor authentication must be completed to access this resource";
     private static final String PASSKEY_REGISTRATION_ERROR_MESSAGE =
             "A passkey can be registered only after multi-factor authentication is completed. "
                     + "Verify your identity in the MFA flow first, for example with an email verification code; "
                     + "passkey registration becomes available once sign-in is complete.";
+    private static final String PASSKEY_VERIFICATION_ERROR_MESSAGE =
+            "Verify your identity before you register a passkey.";
+    private static final String PASSKEY_REFUSED_ERROR_MESSAGE = "A passkey cannot be registered now.";
     private static final String CONTEXA_SCRIPT_PREFIX = "/js/contexa-";
     private static final String SCRIPT_SUFFIX = ".js";
     private static final String FAVICON_PATH = "/favicon.ico";
@@ -82,8 +99,7 @@ public class MfaPendingAccessControlFilter extends OncePerRequestFilter {
             "/contexa/zero-trust/",
             "/contexa/css/",
             "/contexa/js/",
-            "/contexa/img/",
-            "/.well-known/");
+            "/contexa/img/");
 
     private final AuthUrlProvider authUrlProvider;
     private final MfaFlowUrlRegistry mfaFlowUrlRegistry;
@@ -93,6 +109,8 @@ public class MfaPendingAccessControlFilter extends OncePerRequestFilter {
     private final SecurityContextHolderStrategy securityContextHolderStrategy =
             SecurityContextHolder.getContextHolderStrategy();
     private final AuthenticationTrustResolver trustResolver = new AuthenticationTrustResolverImpl();
+    private PasskeyRegistrationGate passkeyRegistrationGate;
+    private Supplier<ZeroTrustChallengeFlowStarter> verificationStarter = () -> null;
 
     public MfaPendingAccessControlFilter(AuthUrlProvider authUrlProvider,
                                          MfaFlowUrlRegistry mfaFlowUrlRegistry,
@@ -110,12 +128,27 @@ public class MfaPendingAccessControlFilter extends OncePerRequestFilter {
         this.errorPath = errorPath;
     }
 
+    /**
+     * Q-13: holds the passkey registration of a session whose MFA is not pending to the gate. This filter stands before
+     * the WebAuthn filters in every chain, and it is where the registration paths are told apart.
+     *
+     * @param verificationStarter what starts the verification a session is asked for
+     */
+    public void setPasskeyRegistrationGate(PasskeyRegistrationGate gate,
+                                           Supplier<ZeroTrustChallengeFlowStarter> verificationStarter) {
+        this.passkeyRegistrationGate = gate;
+        this.verificationStarter = verificationStarter != null ? verificationStarter : () -> null;
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
         String pendingFlowTypeName = MfaPendingSessionMarker.getPendingFlowTypeName(request);
+        if (pendingFlowTypeName == null && stopsPasskeyRegistration(request, response)) {
+            return;
+        }
         if (pendingFlowTypeName == null || isMfaProgressRequest(request)) {
             filterChain.doFilter(request, response);
             return;
@@ -135,6 +168,50 @@ public class MfaPendingAccessControlFilter extends OncePerRequestFilter {
         denyAccess(request, response, pendingFlowTypeName);
     }
 
+    /** Answers a request to register a passkey the gate does not let on, and says whether it did. */
+    private boolean stopsPasskeyRegistration(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        if (passkeyRegistrationGate == null || !isPasskeyManagementRequest(request)) {
+            return false;
+        }
+        Authentication authentication = securityContextHolderStrategy.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || trustResolver.isAnonymous(authentication)) {
+            return false;
+        }
+        PasskeyRegistrationGate.Verdict verdict = passkeyRegistrationGate.verdict(request, authentication);
+        if (verdict == PasskeyRegistrationGate.Verdict.OPEN) {
+            return false;
+        }
+        Optional<String> verification = verdict == PasskeyRegistrationGate.Verdict.VERIFY
+                ? startVerification(request, response) : Optional.empty();
+        if (verification.isEmpty()) {
+            responseWriter.writeErrorResponse(response, HttpServletResponse.SC_FORBIDDEN, PASSKEY_REFUSED_ERROR_CODE,
+                    PASSKEY_REFUSED_ERROR_MESSAGE, request.getRequestURI(),
+                    Map.of("error", PASSKEY_REFUSED_ERROR_CODE, "message", PASSKEY_REFUSED_ERROR_MESSAGE));
+            return true;
+        }
+        String next = verification.get();
+        if (!WebUtil.isApiOrAjaxRequest(request)) {
+            response.sendRedirect(next);
+            return true;
+        }
+        responseWriter.writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, PASSKEY_VERIFICATION_ERROR_CODE,
+                PASSKEY_VERIFICATION_ERROR_MESSAGE, request.getRequestURI(),
+                Map.of("error", PASSKEY_VERIFICATION_ERROR_CODE, "message", PASSKEY_VERIFICATION_ERROR_MESSAGE,
+                        "mfaUrl", next, "nextStepUrl", next));
+        return true;
+    }
+
+    /** Starts the verification and records that the user comes back to the registration after it. */
+    private Optional<String> startVerification(HttpServletRequest request, HttpServletResponse response) {
+        ZeroTrustChallengeFlowStarter starter = verificationStarter.get();
+        if (starter == null) {
+            return Optional.empty();
+        }
+        Optional<String> next = starter.start(request, response);
+        next.ifPresent(url -> MfaPasskeyRegistrationIntent.record(request, sessionRepository.getSessionId(request)));
+        return next;
+    }
+
     /**
      * Returns whether the request is required to progress or leave the MFA flow and may therefore
      * pass while MFA is pending. Subclasses may extend the permitted requests, for example with
@@ -143,6 +220,12 @@ public class MfaPendingAccessControlFilter extends OncePerRequestFilter {
     protected boolean isMfaProgressRequest(HttpServletRequest request) {
         String path = resolvePath(request);
         if (path.equals(FAVICON_PATH) || (StringUtils.hasText(errorPath) && path.equals(errorPath))) {
+            return true;
+        }
+        if (!RequestPaths.isPlain(path)) {
+            return false;
+        }
+        if (ZeroTrustScreens.isDiscoveryDocument(path)) {
             return true;
         }
         if (path.startsWith(CONTEXA_SCRIPT_PREFIX) && path.endsWith(SCRIPT_SUFFIX)) {
@@ -234,6 +317,14 @@ public class MfaPendingAccessControlFilter extends OncePerRequestFilter {
         String path = resolvePath(request);
         return authUrlProvider.getPasskeyRegistrationUrls().contains(path)
                 || mfaFlowUrlRegistry.getAllPasskeyRegistrationUrls().contains(path);
+    }
+
+    /** The registration paths and what lies under them: a passkey is removed at its own path below them. */
+    private boolean isPasskeyManagementRequest(HttpServletRequest request) {
+        String path = resolvePath(request);
+        return Stream.concat(authUrlProvider.getPasskeyRegistrationUrls().stream(),
+                        mfaFlowUrlRegistry.getAllPasskeyRegistrationUrls().stream())
+                .anyMatch(url -> RequestPaths.isWithin(path, url));
     }
 
     private boolean isMfaSessionActive(HttpServletRequest request) {

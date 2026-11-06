@@ -71,6 +71,7 @@ public class JdbcPromptInspectionQueries {
     public record PackageFilter(Instant from, Instant to, String verdict, String checkCode, String block, String entry) {
     }
 
+    /** The request's facts are read from the sealed column, which the package hash covers: the jsonb copy is not. */
     public record PackageRow(String packageId, Instant capturedAt, String userId, String httpMethod, String requestPath,
                              String resourceId, String verdict, Integer mismatchCount, Integer unverifiableCount,
                              String inspectorVersion, Instant inspectedAt) {
@@ -120,9 +121,9 @@ public class JdbcPromptInspectionQueries {
         pageArguments.add((long) safePage * safeSize);
         List<PackageRow> rows = jdbc.query(LATEST + """
                 select p.package_id, p.captured_at, p.user_id,
-                       p.request_facts_jsonb ->> 'httpMethod' as http_method,
-                       p.request_facts_jsonb ->> 'requestPath' as request_path,
-                       p.request_facts_jsonb ->> 'resourceId' as resource_id,
+                       contexa_safe_jsonb(p.request_facts_json) ->> 'httpMethod' as http_method,
+                       contexa_safe_jsonb(p.request_facts_json) ->> 'requestPath' as request_path,
+                       contexa_safe_jsonb(p.request_facts_json) ->> 'resourceId' as resource_id,
                        l.verdict, l.mismatch_count, l.unverifiable_count, l.inspector_version, l.inspected_at
                   from ctxa_sealed_evidence_package p
                   left join latest l on l.package_id = p.package_id
@@ -168,14 +169,14 @@ public class JdbcPromptInspectionQueries {
                 (rs, rowNum) -> new EntryCount(rs.getString("block_name"), rs.getString("entry_name"),
                         rs.getLong("mismatch"), rs.getLong("unverifiable")), period);
         List<ResourceCount> resources = jdbc.query(LATEST + """
-                select p.request_facts_jsonb ->> 'resourceId' as resource_id,
+                select contexa_safe_jsonb(p.request_facts_json) ->> 'resourceId' as resource_id,
                        count(distinct p.package_id) as packages,
                        coalesce(sum(f.lines) filter (where f.outcome = 'MISMATCH'), 0) as mismatch
                   from ctxa_sealed_evidence_package p
                   left join latest l on l.package_id = p.package_id
                   left join finding_lines f on f.result_id = l.id
                  where p.captured_at between ? and ?
-                   and p.request_facts_jsonb ->> 'resourceId' is not null
+                   and contexa_safe_jsonb(p.request_facts_json) ->> 'resourceId' is not null
                  group by 1
                  order by mismatch desc, packages desc, 1
                  limit\s""" + RANKING_LIMIT,
@@ -210,7 +211,8 @@ public class JdbcPromptInspectionQueries {
     /**
      * W7-14: the sealed decisions of a capture period per bundle version, stage and action, with the verdicts of their
      * latest inspection result; the behaviour difference of the version comparison. The two stage words are
-     * {@link #DECISION_STAGE} and {@link #SHADOW_STAGE}.
+     * {@link #DECISION_STAGE} and {@link #SHADOW_STAGE}. The decision is read from the sealed column, which the package
+     * hash covers: the jsonb copy beside it is outside the hash (Q-21).
      */
     private static final String BUNDLE_OUTCOMES = """
             with latest as (
@@ -224,9 +226,9 @@ public class JdbcPromptInspectionQueries {
                 select p.package_id,
                        contexa_safe_jsonb(p.prompt_execution_metadata_json) #>> '{%s,promptBundleVersion}'
                            as bundle_version,
-                       case when p.decision_jsonb ->> 'decisionAppliedStage' = 'SHADOW' then 'SHADOW'
+                       case when contexa_safe_jsonb(p.decision_json) ->> 'decisionAppliedStage' = 'SHADOW' then 'SHADOW'
                             else 'DECISION' end as stage,
-                       coalesce(p.decision_jsonb ->> 'action', '') as action
+                       coalesce(contexa_safe_jsonb(p.decision_json) ->> 'action', '') as action
                   from ctxa_sealed_evidence_package p
                  where p.captured_at between ? and ?
             )
@@ -275,13 +277,13 @@ public class JdbcPromptInspectionQueries {
     private static final String SHADOW_PAIRS = """
             with shadow_seals as (
                 select p.package_id, p.captured_at,
-                       p.decision_jsonb ->> '%2$s' as original_request_id,
+                       contexa_safe_jsonb(p.decision_json) ->> '%2$s' as original_request_id,
                        contexa_safe_jsonb(p.prompt_execution_metadata_json) #>> '{%1$s,promptBundleVersion}'
                            as bundle_version,
-                       coalesce(p.decision_jsonb ->> 'action', '') as action
+                       coalesce(contexa_safe_jsonb(p.decision_json) ->> 'action', '') as action
                   from ctxa_sealed_evidence_package p
                  where p.captured_at between ? and ?
-                   and p.decision_jsonb ->> 'decisionAppliedStage' = 'SHADOW'
+                   and contexa_safe_jsonb(p.decision_json) ->> 'decisionAppliedStage' = 'SHADOW'
             ),
             shadows as (
                 select * from shadow_seals where bundle_version in (%3$s)
@@ -290,10 +292,10 @@ public class JdbcPromptInspectionQueries {
                 select distinct on (d.correlation_id) d.package_id, d.correlation_id,
                        contexa_safe_jsonb(d.prompt_execution_metadata_json) #>> '{%1$s,promptBundleVersion}'
                            as bundle_version,
-                       coalesce(d.decision_jsonb ->> 'action', '') as action
+                       coalesce(contexa_safe_jsonb(d.decision_json) ->> 'action', '') as action
                   from ctxa_sealed_evidence_package d
                  where d.correlation_id in (select original_request_id from shadows)
-                   and coalesce(d.decision_jsonb ->> 'decisionAppliedStage', '') <> 'SHADOW'
+                   and coalesce(contexa_safe_jsonb(d.decision_json) ->> 'decisionAppliedStage', '') <> 'SHADOW'
                  order by d.correlation_id, d.captured_at desc, d.id desc
             )
             select s.original_request_id, s.captured_at, s.package_id as shadow_package_id,

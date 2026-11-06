@@ -16,7 +16,9 @@
 package io.contexa.contexaidentity.security.zerotrust;
 
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.HostOwnedIdentityNotice;
+import io.contexa.contexacommon.security.RequestPaths;
 import io.contexa.contexacommon.security.ZeroTrustScreens;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
@@ -71,6 +73,14 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
     private static final Duration DEFAULT_LOCK_WAIT_TIME = Duration.ZERO;
     private static final Duration DEFAULT_LOCK_LEASE_TIME = Duration.ofSeconds(30);
     private static final int DEFAULT_BUSY_RETRY_AFTER_SECONDS = 3;
+    private static final String LOGOUT_PATH = "/logout";
+    /** The decision's name in the answer, as a synchronous decision gives it. */
+    private static final String CHALLENGE_CODE = "ZERO_TRUST_CHALLENGE";
+    private static final String ADMIN_MFA_API = "/contexa/admin/api/mfa";
+    private static final String DECISION_SCREENS = "/contexa/zero-trust";
+    private static final String AGENT_CONFIRMATION_API = "/contexa/api/agent-confirmations";
+    /** The script Spring Security serves for the sign-in page of a passkey. */
+    private static final String PASSKEY_SCRIPT = "/login/webauthn.js";
 
     private final ChallengeMfaInitializer challengeMfaInitializer;
     private final AuthResponseWriter responseWriter;
@@ -149,59 +159,57 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
         this.challengeProcedureAvailable = challengeProcedureAvailable;
     }
 
+    /** Whether the host has an MFA flow in which a user can step up. */
+    public boolean challengeProcedureAvailable() {
+        return challengeProcedureAvailable;
+    }
+
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String requestUri = request.getRequestURI();
-        String contextPath = request.getContextPath();
-        if (StringUtils.hasText(contextPath)) {
-            requestUri = requestUri.substring(contextPath.length());
-        }
+        String path = RequestPaths.of(request);
 
-        if (requestUri.startsWith("/logout")) {
+        if (RequestPaths.isExactly(path, LOGOUT_PATH) || ConsoleSession.onReleasePath(request)) {
             return true;
         }
 
-        if (hostOwnedStepUp == null && isContexaSignInPath(requestUri)) {
+        if (hostOwnedStepUp == null && isContexaSignInPath(path)) {
             return true;
         }
 
-        if (requestUri.startsWith("/contexa/admin/api/mfa/")) {
+        if (RequestPaths.isWithin(path, ADMIN_MFA_API)) {
             return true;
         }
 
-        if (requestUri.startsWith("/contexa/zero-trust") || requestUri.startsWith(HostOwnedStepUp.STEP_UP_PATH)) {
+        if (RequestPaths.isWithin(path, DECISION_SCREENS) || RequestPaths.isWithin(path, HostOwnedStepUp.STEP_UP_PATH)) {
             return true;
         }
 
         // The scripts and styles of the screens of a decision (a request for them would be answered with the screen).
-        if (ZeroTrustScreens.isScreenResource(requestUri)) {
+        if (ZeroTrustScreens.isScreenResource(path)) {
             return true;
         }
 
         // docs/agent A5-2: the agent polls its confirmation while its request waits for it.
-        if (requestUri.startsWith("/contexa/api/agent-confirmations")) {
+        if (RequestPaths.isWithin(path, AGENT_CONFIRMATION_API)) {
             return true;
         }
 
-        if (requestUri.startsWith("/.well-known/")) {
-            return true;
-        }
-
-        return false;
+        return ZeroTrustScreens.isDiscoveryDocument(path);
     }
 
     /**
      * The paths of Contexa's own sign-in, which runs only where Contexa owns it. Under HOST_OWNED nothing of Contexa
      * answers there (its step-up lives under {@link HostOwnedStepUp#STEP_UP_PATH}): they are the application's paths, and
-     * a stored decision applies to them as to any other.
+     * a stored decision applies to them as to any other. They are the paths the running flows name: the folders those
+     * paths usually sit in are shared with the application.
      */
-    private boolean isContexaSignInPath(String requestUri) {
-        return (authUrlProvider != null && matchesAnyMfaUrl(requestUri, authUrlProvider.getAllMfaRelatedUrls()))
-                || (mfaFlowUrlRegistry != null && matchesAnyMfaUrl(requestUri, mfaFlowUrlRegistry.getAllMfaRelatedUrls()))
-                || requestUri.startsWith("/mfa/challenge/")
-                || requestUri.startsWith("/api/mfa/")
-                || requestUri.startsWith("/webauthn/")
-                || requestUri.startsWith("/login/webauthn");
+    private boolean isContexaSignInPath(String path) {
+        return (authUrlProvider != null && (matchesAnyMfaUrl(path, authUrlProvider.getAllMfaRelatedUrls())
+                        || RequestPaths.isExactly(path, authUrlProvider.getPrimaryRestLoginProcessing())
+                        || RequestPaths.isExactly(path, authUrlProvider.getSinglePasskeyLoginPage())
+                        || RequestPaths.isExactly(path, authUrlProvider.getSinglePasskeyLoginProcessing())))
+                || (mfaFlowUrlRegistry != null && matchesAnyMfaUrl(path, mfaFlowUrlRegistry.getAllMfaRelatedUrls()))
+                || RequestPaths.isExactly(path, PASSKEY_SCRIPT);
     }
 
     private boolean matchesAnyMfaUrl(String requestUri, Set<String> mfaUrls) {
@@ -209,7 +217,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
             if (!StringUtils.hasText(mfaUrl) || "/".equals(mfaUrl)) {
                 continue;
             }
-            if (requestUri.equals(mfaUrl) || requestUri.startsWith(mfaUrl + "/")) {
+            if (RequestPaths.isWithin(requestUri, mfaUrl)) {
                 return true;
             }
         }
@@ -400,10 +408,16 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
             String lockOwner,
             Duration lockLeaseTime,
             Duration lockWaitTime) {
-        if (lockWaitTime == null || lockWaitTime.isZero() || lockWaitTime.isNegative()) {
-            return lockService.tryLock(lockKey, lockOwner, lockLeaseTime);
+        try {
+            if (lockWaitTime == null || lockWaitTime.isZero() || lockWaitTime.isNegative()) {
+                return lockService.tryLock(lockKey, lockOwner, lockLeaseTime);
+            }
+            return lockService.tryLockWithWait(lockKey, lockOwner, lockLeaseTime, lockWaitTime);
+        } catch (DistributedLockService.LockAcquisitionException unavailable) {
+            // D-19: no flow can start while the store of the locks is away; the user stays stopped and is told to retry.
+            log.error("The lock of a challenge could not be taken: lockKey={}", lockKey, unavailable);
+            return false;
         }
-        return lockService.tryLockWithWait(lockKey, lockOwner, lockLeaseTime, lockWaitTime);
     }
 
     private Duration resolveLockWaitTime() {
@@ -554,6 +568,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
         }
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("error", "MFA_CHALLENGE_REQUIRED");
+        responseBody.put("code", CHALLENGE_CODE);
         responseBody.put("message", "MFA verification required");
         responseBody.put("mfaUrl", stepUpUrl);
         responseBody.put("challengeNoticeUrl", challengeNoticeUrl);
@@ -571,12 +586,13 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
     private void writeChallengeWithoutProcedure(HttpServletResponse response, HttpServletRequest request)
             throws IOException {
         Map<String, Object> responseBody = new HashMap<>();
-        responseBody.put("error", "ZERO_TRUST_CHALLENGE");
+        responseBody.put("error", CHALLENGE_CODE);
+        responseBody.put("code", CHALLENGE_CODE);
         responseBody.put("message", "Additional verification is required and this application offers no MFA flow");
         responseWriter.writeErrorResponse(
                 response,
                 HttpServletResponse.SC_UNAUTHORIZED,
-                "ZERO_TRUST_CHALLENGE",
+                CHALLENGE_CODE,
                 "Additional verification is required and this application offers no MFA flow",
                 request.getRequestURI(),
                 responseBody
@@ -595,6 +611,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
                                            String challengeNoticeUrl) throws IOException {
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("error", "MFA_CHALLENGE_REQUIRED");
+        responseBody.put("code", CHALLENGE_CODE);
         responseBody.put("message", "MFA verification required");
         responseBody.put("mfaUrl", mfaPageUrl);
         responseBody.put("challengeNoticeUrl", challengeNoticeUrl);

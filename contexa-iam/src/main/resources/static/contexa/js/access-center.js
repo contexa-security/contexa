@@ -21,11 +21,11 @@ const AccessCenter = {
         return document.querySelector('meta[name="_csrf_header"]')?.content || 'X-CSRF-TOKEN';
     },
 
+    // Escapes both quotes as well, since the result also fills attributes such as title and value.
     escapeHtml(str) {
         if (!str) return '';
-        const div = document.createElement('div');
-        div.textContent = str;
-        return div.innerHTML;
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
     },
 
     toggleClearBtn(input) {
@@ -132,8 +132,7 @@ const AccessCenter = {
 
             listEl.innerHTML = users.map(u =>
                 '<div class="ac-list-item' + (String(this.selectedUserId) === String(u.id) ? ' selected' : '') + '" ' +
-                'data-user-id="' + AccessCenter.escapeHtml(u.id) + '" ' +
-                'onclick="AccessCenter.Users.selectUser(\'' + AccessCenter.escapeHtml(u.id) + '\')">' +
+                'data-user-id="' + AccessCenter.escapeHtml(u.id) + '">' +
                 '<div class="ac-list-item-icon user-icon"><i class="fas fa-user"></i></div>' +
                 '<div class="ac-list-item-info">' +
                 '<div class="ac-list-item-name">' + AccessCenter.escapeHtml(u.name || u.username) + '</div>' +
@@ -142,6 +141,9 @@ const AccessCenter = {
                 '</div>' +
                 '</div>'
             ).join('');
+            listEl.querySelectorAll('.ac-list-item').forEach(item => {
+                item.addEventListener('click', () => this.selectUser(item.dataset.userId));
+            });
             console.log('[AccessCenter.Users.renderUserList] rendered count=', users.length,
                 'selectedUserId=', this.selectedUserId,
                 'ids=', users.map(u => u.id));
@@ -620,8 +622,7 @@ const AccessCenter = {
             const selectedKey = this.selectedGroupId != null ? String(this.selectedGroupId) : null;
             listEl.innerHTML = groups.map(g =>
                 '<div class="ac-list-item' + (selectedKey !== null && selectedKey === String(g.id) ? ' selected' : '') + '" ' +
-                'data-group-id="' + AccessCenter.escapeHtml(g.id) + '" ' +
-                'onclick="AccessCenter.Groups.selectGroup(\'' + AccessCenter.escapeHtml(g.id) + '\')">' +
+                'data-group-id="' + AccessCenter.escapeHtml(g.id) + '">' +
                 '<div class="ac-list-item-icon group-icon"><i class="fas fa-layer-group"></i></div>' +
                 '<div class="ac-list-item-info">' +
                 '<div class="ac-list-item-name">' + AccessCenter.escapeHtml(g.name) + '</div>' +
@@ -630,6 +631,9 @@ const AccessCenter = {
                 (g.memberCount != null ? '<span class="ac-list-item-badge">' + g.memberCount + ' ' + AccessCenter._i18n('memberSuffix', 'members') + '</span>' : '') +
                 '</div>'
             ).join('');
+            listEl.querySelectorAll('.ac-list-item').forEach(item => {
+                item.addEventListener('click', () => this.selectGroup(item.dataset.groupId));
+            });
             console.log('[AccessCenter.Groups.filterAndRender] rendered count=', groups.length,
                 'selectedGroupId=', this.selectedGroupId,
                 'ids=', groups.map(g => g.id));
@@ -946,8 +950,7 @@ const AccessCenter = {
             const selectedKey = this.selectedRoleId != null ? String(this.selectedRoleId) : null;
             listEl.innerHTML = roles.map(r =>
                 '<div class="ac-list-item' + (selectedKey !== null && selectedKey === String(r.id) ? ' selected' : '') + '" ' +
-                'data-role-id="' + AccessCenter.escapeHtml(r.id) + '" ' +
-                'onclick="AccessCenter.Roles.selectRole(\'' + AccessCenter.escapeHtml(r.id) + '\')">' +
+                'data-role-id="' + AccessCenter.escapeHtml(r.id) + '">' +
                 '<div class="ac-list-item-icon role-icon"><i class="fas fa-user-shield"></i></div>' +
                 '<div class="ac-list-item-info">' +
                 '<div class="ac-list-item-name">' + AccessCenter.escapeHtml(r.name) + '</div>' +
@@ -956,6 +959,9 @@ const AccessCenter = {
                 (r.permCount != null ? '<span class="ac-list-item-badge">' + r.permCount + ' ' + AccessCenter._i18n('permCountSuffix', 'permissions') + '</span>' : '') +
                 '</div>'
             ).join('');
+            listEl.querySelectorAll('.ac-list-item').forEach(item => {
+                item.addEventListener('click', () => this.selectRole(item.dataset.roleId));
+            });
             console.log('[AccessCenter.Roles.filterAndRender] rendered count=', roles.length,
                 'selectedRoleId=', this.selectedRoleId,
                 'ids=', roles.map(r => r.id));

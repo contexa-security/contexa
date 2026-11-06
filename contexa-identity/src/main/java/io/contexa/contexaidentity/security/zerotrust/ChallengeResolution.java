@@ -27,6 +27,7 @@ import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
@@ -36,10 +37,11 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 /**
- * What a completed step-up changes in the decision store: a CHALLENGE becomes ALLOW and the challenged request is
- * learned as normal behaviour, the user is marked as verified, a BLOCK an administrator let the user release by MFA is
- * released. It is the same under both ownerships: Contexa's MFA completion (CONTEXA_OWNED) and the verification-only
- * step-up (HOST_OWNED) call it, and only CONTEXA_OWNED also stores a new authentication for the user.
+ * What a completed step-up changes in the decision store: a CHALLENGE becomes ALLOW for the session that answered it and
+ * stays in force for the user's other sessions (Q-12), the challenged request is learned as normal behaviour, the user
+ * is marked as verified, a BLOCK an administrator let the user release by MFA is released. It is the same under both
+ * ownerships: Contexa's MFA completion (CONTEXA_OWNED) and the verification-only step-up (HOST_OWNED) call it, and only
+ * CONTEXA_OWNED also stores a new authentication for the user.
  */
 @Slf4j
 public class ChallengeResolution {
@@ -81,10 +83,12 @@ public class ChallengeResolution {
     }
 
     /**
-     * Releases the CHALLENGE in force for the decision key: it becomes ALLOW, bound to the given context, and the
-     * request it stopped is learned as normal behaviour. An ESCALATE waits for a review and is not lifted by a
-     * verification of the user (Q-87, N-P3-1); nothing changes then and false is returned. Otherwise the unblock signal
-     * goes out and true is returned.
+     * Releases the CHALLENGE in force for the decision key in the given context, and no other: it becomes ALLOW bound to
+     * that context, the user's other sessions keep it until they answer it themselves (Q-12), and the request it stopped
+     * is learned as normal behaviour. A session a CHALLENGE answered elsewhere still holds is released the same way, with
+     * nothing to learn: its request was learned when the CHALLENGE was first answered. An ESCALATE waits for a review and
+     * is not lifted by a verification of the user (Q-87, N-P3-1); nothing changes then and false is returned. Otherwise
+     * the unblock signal goes out and true is returned. An answer that cannot be kept to its session releases no one.
      *
      * @param contextBindingHash the context the ALLOW is bound to: the one the client uses next
      * @param originalIp         the address the challenged sign-in came from, when known
@@ -102,9 +106,14 @@ public class ChallengeResolution {
             if (currentAction == ZeroTrustAction.CHALLENGE) {
                 // The request the challenge stopped, read before the ALLOW replaces the decision that names it (W5-2).
                 String challengedRequestId = challengedRequestId(userId);
+                actionRepository.holdChallengeForOtherSessions(userId, contextBindingHash);
                 actionRepository.saveActionWithPrevious(userId, ZeroTrustAction.ALLOW, contextBindingHash);
                 learnStepUp(userId, request, originalIp, challengedRequestId);
+            } else if (actionRepository.getCurrentAction(userId, contextBindingHash) == ZeroTrustAction.CHALLENGE) {
+                actionRepository.holdChallengeForOtherSessions(userId, contextBindingHash);
+                actionRepository.saveActionWithPrevious(userId, ZeroTrustAction.ALLOW, contextBindingHash);
             }
+            keepAsAFactOfTheContext(userId, contextBindingHash, request);
             if (blockingSignalBroadcaster != null) {
                 blockingSignalBroadcaster.registerUnblock(userId);
             }
@@ -115,14 +124,41 @@ public class ChallengeResolution {
         }
     }
 
+    /**
+     * Q-16: the decisions after the step-up are told of it. It is kept for the context the client goes on in, so that
+     * the session that passed it reads as verified and another session of the user does not.
+     */
+    private void keepAsAFactOfTheContext(String userId, String contextBindingHash, HttpServletRequest request) {
+        try {
+            SecurityContextDataStore dataStore = securityContextDataStore.get();
+            if (dataStore != null) {
+                Instant observedAt = RequestInfoExtractor.extractObservedAt(request);
+                dataStore.markChallengeVerified(userId, contextBindingHash,
+                        observedAt != null ? observedAt : Instant.now());
+            }
+        } catch (Exception e) {
+            log.error("[MFA] Failed to keep the passed step-up as a fact of its context: userId={}", userId, e);
+        }
+    }
+
     /** Releases a BLOCK an administrator let the user release by MFA. */
     public void releaseBlockByMfa(String userId) {
+        releaseBlockByMfa(userId, null);
+    }
+
+    /**
+     * Releases a BLOCK an administrator let the user release by MFA, and keeps the verification for the context that
+     * passed it: an administrator lifts their own BLOCK in that session and in no other of the account.
+     *
+     * @param contextBindingHash the context the client goes on in, or null to name none
+     */
+    public void releaseBlockByMfa(String userId, @Nullable String contextBindingHash) {
         try {
             if (blockedUserRecorder != null) {
                 blockedUserRecorder.markMfaVerified(userId);
             }
             if (blockMfaStateStore != null) {
-                blockMfaStateStore.setVerified(userId);
+                blockMfaStateStore.setVerified(userId, contextBindingHash);
                 blockMfaStateStore.clearPending(userId);
             }
             if (blockingSignalBroadcaster != null) {
@@ -150,6 +186,11 @@ public class ChallengeResolution {
      */
     private void learnStepUp(String userId, HttpServletRequest request, @Nullable String originalIp,
                              @Nullable String challengedRequestId) {
+        // Only a key that is the name itself names the person to learn for: a console session's key, or a moved name's,
+        // would be learned as a name of that spelling, another person's.
+        if (!userId.equals(ZeroTrustUserKey.person(userId))) {
+            return;
+        }
         VerificationLearningService verificationLearning = verificationLearningService.get();
         if (verificationLearning != null && verificationLearning.learnStepUp(userId, challengedRequestId)) {
             return;

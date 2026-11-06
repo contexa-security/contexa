@@ -37,6 +37,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.orm.jpa.JpaTransactionManager;
+import io.contexa.contexacommon.store.ContexaStores;
+import io.contexa.contexacommon.store.RequestBoundDataSource;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -85,11 +87,18 @@ public class CoreDataAutoConfiguration implements EnvironmentAware {
     public CoreDataAutoConfiguration() {
     }
 
+    /** The stores Contexa's requests read, and the record of the calls that went on without a decision (Q-7). */
+    @Bean(name = "contexaStores")
+    @ConditionalOnMissingBean
+    public ContexaStores contexaStores() {
+        return new ContexaStores();
+    }
+
     @Bean(name = "contexaDataSource", defaultCandidate = false)
     @ConditionalOnMissingBean(name = "contexaDataSource")
-    public DataSource contexaDataSource(ContexaDataSourceProperties properties) {
+    public DataSource contexaDataSource(ContexaDataSourceProperties properties, ContexaStores contexaStores) {
         ContexaDataSourceIsolation.validate(properties, environment);
-        return properties.initializeDataSource();
+        return new RequestBoundDataSource(properties.initializeDataSource(), contexaStores.database());
     }
 
     @Bean(name = "contexaEntityManagerFactory", defaultCandidate = false)

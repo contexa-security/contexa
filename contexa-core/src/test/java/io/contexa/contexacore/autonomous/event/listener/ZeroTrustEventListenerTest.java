@@ -26,6 +26,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -61,7 +63,7 @@ class ZeroTrustEventListenerTest {
     void setUp() {
         listener = new ZeroTrustEventListener(
                 securityEventPublisher, actionRepository, securityZeroTrustProperties);
-        when(securityZeroTrustProperties.isEnabled()).thenReturn(true);
+        when(securityZeroTrustProperties.allowsLlmAnalysis()).thenReturn(true);
     }
 
     @Test
@@ -288,7 +290,7 @@ class ZeroTrustEventListenerTest {
     @DisplayName("Disabled zero trust should ignore events")
     void disabled_shouldIgnoreEvents() {
         // given
-        when(securityZeroTrustProperties.isEnabled()).thenReturn(false);
+        when(securityZeroTrustProperties.allowsLlmAnalysis()).thenReturn(false);
 
         ZeroTrustSpringEvent event = ZeroTrustSpringEvent.builder("test")
                 .category(ZeroTrustEventCategory.AUTHENTICATION)
@@ -301,6 +303,60 @@ class ZeroTrustEventListenerTest {
 
         // then
         verify(securityEventPublisher, never()).publishGenericSecurityEvent(any());
+    }
+
+    @Test
+    @DisplayName("Zero trust switched off sends nothing, whatever the mode says")
+    void switchedOff_shouldIgnoreEventsWhateverTheMode() {
+        SecurityZeroTrustProperties properties = new SecurityZeroTrustProperties();
+        properties.setEnabled(false);
+        properties.setMode(SecurityZeroTrustProperties.EnforcementMode.ENFORCE);
+
+        new ZeroTrustEventListener(securityEventPublisher, actionRepository, properties)
+                .handleZeroTrustEvent(ZeroTrustSpringEvent.builder("test")
+                        .category(ZeroTrustEventCategory.AUTHENTICATION)
+                        .eventType("SUCCESS")
+                        .userId("user-5")
+                        .build());
+
+        verify(securityEventPublisher, never()).publishGenericSecurityEvent(any());
+    }
+
+    /** PR-21: a mode that allows no analysis stopped the method interceptor only; a sign-in still reached the model. */
+    @ParameterizedTest
+    @EnumSource(value = SecurityZeroTrustProperties.EnforcementMode.class, names = {"DISABLED", "OBSERVE"})
+    void aModeWithoutAnalysisSendsNothingToTheAnalysis(SecurityZeroTrustProperties.EnforcementMode mode) {
+        SecurityZeroTrustProperties properties = new SecurityZeroTrustProperties();
+        properties.setMode(mode);
+        ZeroTrustEventListener withoutAnalysis = new ZeroTrustEventListener(securityEventPublisher, actionRepository, properties);
+
+        for (ZeroTrustEventCategory category : ZeroTrustEventCategory.values()) {
+            withoutAnalysis.handleZeroTrustEvent(ZeroTrustSpringEvent.builder("test")
+                    .category(category)
+                    .eventType("SUCCESS")
+                    .userId("user-6")
+                    .sessionId("session-6")
+                    .clientIp("10.0.0.6")
+                    .build());
+        }
+
+        verify(securityEventPublisher, never()).publishGenericSecurityEvent(any());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = SecurityZeroTrustProperties.EnforcementMode.class, names = {"SHADOW", "ENFORCE"})
+    void aModeWithAnalysisStillSendsTheSignInToIt(SecurityZeroTrustProperties.EnforcementMode mode) {
+        SecurityZeroTrustProperties properties = new SecurityZeroTrustProperties();
+        properties.setMode(mode);
+        ZeroTrustEventListener withAnalysis = new ZeroTrustEventListener(securityEventPublisher, actionRepository, properties);
+
+        withAnalysis.handleZeroTrustEvent(ZeroTrustSpringEvent.builder("test")
+                .category(ZeroTrustEventCategory.AUTHENTICATION)
+                .eventType("SUCCESS")
+                .userId("user-7")
+                .build());
+
+        verify(securityEventPublisher).publishGenericSecurityEvent(any());
     }
 
     @Test

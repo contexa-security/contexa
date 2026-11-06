@@ -24,6 +24,7 @@ import io.contexa.contexaiam.admin.web.metadata.dto.ResourceAdminDtos.ResourceSe
 import io.contexa.contexaiam.admin.web.metadata.dto.ResourceAdminDtos.ResourceStatusResponse;
 import io.contexa.contexaiam.admin.web.metadata.dto.ResourceAdminDtos.ResourceWorkbenchPageModel;
 import io.contexa.contexaiam.admin.web.metadata.service.ResourceAdminService;
+import io.contexa.contexaiam.common.ConsoleFault;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
@@ -74,7 +75,8 @@ public class ResourceAdminController {
             resourceAdminService.refreshResources();
             ra.addFlashAttribute("message", resourceAdminService.message("msg.resource.refreshed"));
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", resourceAdminService.message("msg.resource.refresh.error", e.getMessage()));
+            ra.addFlashAttribute("errorMessage", resourceAdminService.message("msg.resource.refresh.error",
+                    ConsoleFault.textOf(e, log, "refresh the resources")));
         }
         return "redirect:/contexa/admin/workbench/resources";
     }
@@ -88,7 +90,7 @@ public class ResourceAdminController {
             return ResponseEntity.ok(resourceAdminService.defineResourceAsPermission(id, metadataForm));
         } catch (Exception e) {
             log.error("Permission definition API failed for resource ID: {}", id, e);
-            return ResponseEntity.badRequest().body(ResourceDefineResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(ResourceDefineResponse.error(ConsoleFault.textOf(e)));
         }
     }
 
@@ -110,7 +112,7 @@ public class ResourceAdminController {
             return ResponseEntity.ok(resourceAdminService.restoreResource(id));
         } catch (Exception e) {
             log.error("Resource restore failed for ID: {}", id, e);
-            return ResponseEntity.badRequest().body(ResourceStatusResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(ResourceStatusResponse.error(ConsoleFault.textOf(e)));
         }
     }
 
@@ -121,7 +123,7 @@ public class ResourceAdminController {
             return ResponseEntity.ok(resourceAdminService.excludeResource(id));
         } catch (Exception e) {
             log.error("Resource exclude failed for ID: {}", id, e);
-            return ResponseEntity.badRequest().body(ResourceStatusResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(ResourceStatusResponse.error(ConsoleFault.textOf(e)));
         }
     }
 
@@ -134,7 +136,8 @@ public class ResourceAdminController {
             resourceAdminService.updateManagementStatus(id, managementForm);
             ra.addFlashAttribute("message", resourceAdminService.message("msg.resource.status.changed", id));
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", resourceAdminService.message("msg.resource.status.change.error", e.getMessage()));
+            ra.addFlashAttribute("errorMessage", resourceAdminService.message("msg.resource.status.change.error",
+                    ConsoleFault.textOf(e, log, "change the management status of resource " + id)));
         }
         return "redirect:/contexa/admin/workbench/resources";
     }

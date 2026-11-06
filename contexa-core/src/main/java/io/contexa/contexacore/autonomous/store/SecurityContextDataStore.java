@@ -29,6 +29,18 @@ public interface SecurityContextDataStore {
     int DEFAULT_OBSERVATION_CAPACITY = 5_000;
 
     /**
+     * Q-14: moves on each time what accounts may do changes, across the nodes that share this store. A session behind
+     * it reads its account again. A store of the application's own that keeps no version leaves sessions as they are.
+     */
+    default long authoritiesVersion() {
+        return 0L;
+    }
+
+    /** Q-14: tells open sessions that accounts changed. */
+    default void advanceAuthoritiesVersion() {
+    }
+
+    /**
      * BR-C14: how many work profile or role scope observations each scope keeps, the oldest leaving first; the
      * collectors read the usual behaviour from up to this many.
      */
@@ -273,7 +285,8 @@ public interface SecurityContextDataStore {
 
     /**
      * The user's own failed sign-ins in the window: failures of other users from the same address are not counted.
-     * Null when the user is unknown or the store cannot tell.
+     * Null when the user is unknown or the store cannot tell, as for a name without a record while the store has just let
+     * go of others to keep within {@link LoginFailureRecording#MAX_KEYS}.
      */
     default Integer findRecentLoginFailures(String userId, long windowStartMs, long currentTimeMs) {
         if (userId == null || userId.isBlank()) {
@@ -299,6 +312,19 @@ public interface SecurityContextDataStore {
      * user, not of the session a request belongs to.
      */
     default Instant getLastMfaVerifiedAt(String userId) {
+        return null;
+    }
+
+    /**
+     * Q-16: keeps that the user passed the step-up of a CHALLENGE in this context (the session, its address and its
+     * client), at the given time on the request clock, for as long as the user's MFA mark lasts. Unlike that mark it is
+     * a fact of the context: only a request of the same context is told it passed.
+     */
+    default void markChallengeVerified(String userId, String contextBindingHash, Instant verifiedAt) {
+    }
+
+    /** Q-16: when the user passed a step-up in this context, while that lasts; null when unknown. */
+    default Instant getChallengeVerifiedAt(String userId, String contextBindingHash) {
         return null;
     }
 
@@ -331,6 +357,20 @@ public interface SecurityContextDataStore {
     /** docs/agent A3-8: the scopes whose learning is quarantined; a store that keeps none has none. */
     default Set<String> learningQuarantineScopes() {
         return Set.of();
+    }
+
+    /**
+     * A quarantine has no expiry, so one an operator made before the application was given a name must not end with the
+     * keys it had before: the scopes quarantined under the earlier key are added to those of the application, once. The
+     * earlier key is left as it is, and a scope the operator releases afterwards stays released. A quarantine only keeps
+     * learning from being read or written, so a scope added from the earlier key can make a decision more careful and
+     * never less.
+     *
+     * @return the number of scopes added; 0 when nothing earlier is there, when it was done before, and for a store that
+     *         has no earlier key
+     */
+    default int carryOverLearningQuarantine() {
+        return 0;
     }
 
     /**

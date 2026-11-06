@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -32,6 +33,7 @@ public class MethodResourceScanner implements ResourceScanner {
     private final ObjectMapper objectMapper;
     @Nullable
     private final SystemRuntimeSettingsService runtimeSettingsService;
+    private final List<String> applicationPackages;
 
     public MethodResourceScanner(ApplicationContext applicationContext, ObjectMapper objectMapper) {
         this(applicationContext, objectMapper, null);
@@ -39,9 +41,15 @@ public class MethodResourceScanner implements ResourceScanner {
 
     public MethodResourceScanner(ApplicationContext applicationContext, ObjectMapper objectMapper,
             @Nullable SystemRuntimeSettingsService runtimeSettingsService) {
+        this(applicationContext, objectMapper, runtimeSettingsService, List.of());
+    }
+
+    public MethodResourceScanner(ApplicationContext applicationContext, ObjectMapper objectMapper,
+            @Nullable SystemRuntimeSettingsService runtimeSettingsService, List<String> applicationPackages) {
         this.applicationContext = applicationContext;
         this.objectMapper = objectMapper;
         this.runtimeSettingsService = runtimeSettingsService;
+        this.applicationPackages = applicationPackages;
     }
 
     @Override
@@ -58,18 +66,12 @@ public class MethodResourceScanner implements ResourceScanner {
                 continue;
             }
             // a definition whose type is not known without making the bean is judged after it is made, as before
-            if (declaredType != null
+            boolean knownType = declaredType != null && !Proxy.isProxyClass(declaredType);
+            if (knownType
                     && basePackages.stream().noneMatch(prefix -> matchesPackage(ClassUtils.getUserClass(declaredType).getPackageName(), prefix))) {
                 continue;
             }
-            Object bean;
-            try {
-                bean = applicationContext.getBean(beanName);
-            } catch (Exception ignored) {
-                continue;
-            }
-
-            Class<?> targetClass = AopUtils.getTargetClass(bean);
+            Class<?> targetClass = knownType ? ClassUtils.getUserClass(declaredType) : targetClassOfTheBean(beanName);
             if (targetClass == null
                     || basePackages.stream().noneMatch(prefix -> matchesPackage(targetClass.getPackageName(), prefix))) {
                 continue;
@@ -80,9 +82,9 @@ public class MethodResourceScanner implements ResourceScanner {
             }
 
             try {
+                boolean protectedAsAWhole = AnnotationUtils.findAnnotation(targetClass, Protectable.class) != null;
                 for (Method method : targetClass.getDeclaredMethods()) {
-                    if (!Modifier.isPublic(method.getModifiers())
-                            || AnnotationUtils.findAnnotation(method, Protectable.class) == null) {
+                    if (!isProtected(method, protectedAsAWhole)) {
                         continue;
                     }
                     String parameterTypesJson = "[]";
@@ -115,10 +117,31 @@ public class MethodResourceScanner implements ResourceScanner {
         return resources;
     }
 
+    /** A public method annotated itself, or a public instance method of a class protected as a whole. */
+    private boolean isProtected(Method method, boolean protectedAsAWhole) {
+        int modifiers = method.getModifiers();
+        if (!Modifier.isPublic(modifiers) || method.isSynthetic()) {
+            return false;
+        }
+        return AnnotationUtils.findAnnotation(method, Protectable.class) != null
+                || protectedAsAWhole && !Modifier.isStatic(modifiers);
+    }
+
+    /** The class behind a bean only its instance can tell: an interface proxy of a singleton, or a type not known yet. */
+    @Nullable
+    private Class<?> targetClassOfTheBean(String beanName) {
+        try {
+            return AopUtils.getTargetClass(applicationContext.getBean(beanName));
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
     private List<String> scannerBasePackages() {
-        return runtimeSettingsService == null
+        List<String> configured = runtimeSettingsService == null
                 ? SystemRuntimeSettingsService.normalizePackagePrefixes(null)
                 : runtimeSettingsService.getResourceScannerBasePackages();
+        return SystemRuntimeSettingsService.withApplicationPackages(configured, applicationPackages);
     }
 
     private boolean matchesPackage(String packageName, String prefix) {

@@ -16,9 +16,9 @@
 package io.contexa.contexaiam.security.core;
 
 import io.contexa.contexacommon.security.LocalAccountStatusChecker;
+import io.contexa.contexacommon.security.LocalCredentialsVerifier;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
-import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.*;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
@@ -26,12 +26,16 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-@RequiredArgsConstructor
 public class CustomAuthenticationProvider implements AuthenticationProvider {
 
-    private final UserDetailsService userDetailsService;
-    private final PasswordEncoder passwordEncoder;
+    private final LocalCredentialsVerifier credentials;
     private final LoginPolicyHandler loginPolicyService;
+
+    public CustomAuthenticationProvider(UserDetailsService userDetailsService, PasswordEncoder passwordEncoder,
+                                        LoginPolicyHandler loginPolicyService) {
+        this.credentials = new LocalCredentialsVerifier(userDetailsService, passwordEncoder);
+        this.loginPolicyService = loginPolicyService;
+    }
 
     @Override
     public Authentication authenticate(Authentication authentication) throws AuthenticationException {
@@ -39,13 +43,10 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
         String loginId = authentication.getName();
         String password = (String) authentication.getCredentials();
 
-        UserDetails userDetails = userDetailsService.loadUserByUsername(loginId);
+        loginPolicyService.checkSignInAddress(loginId);
 
-        LocalAccountStatusChecker.checkBeforeCredentials(userDetails);
+        UserDetails userDetails = credentials.verify(loginId, password);
 
-        if (!passwordEncoder.matches(password, userDetails.getPassword())) {
-            throw new BadCredentialsException("Invalid password");
-        }
 
         LocalAccountStatusChecker.checkAfterCredentials(
                 userDetails,

@@ -78,7 +78,7 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
 
         context.setExecutionMode(SoarExecutionMode.valueOf(securityPlaneProperties.getAgent().getExecutionMode()));
 
-        logger.error("Created SOAR context from {} events: incidentId={}, severity={}, mode={}",
+        logger.debug("Created SOAR context from {} events: incidentId={}, severity={}, mode={}",
                 events.size(), incidentId, severity, context.getExecutionMode());
 
         return context;
@@ -104,13 +104,13 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
         if (additionalInfo.containsKey("severity")) {
             String newSeverity = additionalInfo.get("severity").toString();
             context.setSeverity(newSeverity);
-            logger.error("Updated context severity to: {}", newSeverity);
+            logger.debug("Updated context severity to: {}", newSeverity);
         }
 
         if (additionalInfo.containsKey("executionMode")) {
             String mode = additionalInfo.get("executionMode").toString();
             context.setExecutionMode(SoarExecutionMode.valueOf(mode));
-            logger.error("Updated context execution mode to: {}", mode);
+            logger.debug("Updated context execution mode to: {}", mode);
         }
 
         if (additionalInfo.containsKey("affectedSystems")) {
@@ -132,7 +132,7 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
             }
         }
 
-        logger.error("Enriched SOAR context with {} additional fields", additionalInfo.size());
+        logger.debug("Enriched SOAR context with {} additional fields", additionalInfo.size());
 
         return context;
     }
@@ -155,7 +155,7 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
 
         context.setExecutionMode(SoarExecutionMode.ASYNC);
 
-        logger.error("Created default SOAR context: {}", incidentId);
+        logger.debug("Created default SOAR context: {}", incidentId);
 
         return context;
     }
@@ -218,7 +218,7 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
 
     @Override
     public SoarContext createEmergencyContext(String incidentId, String description) {
-        logger.error("Creating emergency SOAR context for incident: {}", incidentId);
+        logger.debug("Creating emergency SOAR context for incident: {}", incidentId);
 
         SoarContext context = new SoarContext(
                 incidentId,
@@ -268,7 +268,7 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
             .anyMatch(indicator -> indicator.getSeverity() == ThreatIndicator.Severity.CRITICAL &&
                                    hasHighConfidence(indicator.getConfidence())));
 
-        logger.error("Created SOAR context from {} threat indicators: {}", threatIndicators.size(), incidentId);
+        logger.debug("Created SOAR context from {} threat indicators: {}", threatIndicators.size(), incidentId);
 
         return context;
     }

@@ -15,22 +15,58 @@
  */
 package io.contexa.contexacore.config;
 
+import io.contexa.contexacore.autonomous.event.SecurityEventTopics;
+import io.contexa.contexacore.infra.kafka.ContexaKafkaTopics;
+import io.contexa.contexacore.infra.kafka.KafkaConfiguration;
+import io.contexa.contexacore.properties.SecurityKafkaProperties;
+import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.common.config.TopicConfig;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.kafka.KafkaConnectionDetails;
+import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
+import org.springframework.boot.ssl.SslBundles;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.TopicBuilder;
-import org.springframework.kafka.core.KafkaAdmin;
-import org.springframework.kafka.core.KafkaTemplate;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Configuration
 @ConditionalOnClass(name = "org.springframework.kafka.core.KafkaTemplate")
 public class KafkaTopicConfiguration {
 
-    @Bean(name = "contexaAllSecurityTopics")
-    public KafkaAdmin.NewTopics allSecurityTopics() {
-        return new KafkaAdmin.NewTopics(
-            
+    @Bean(name = "contexaKafkaTopics", defaultCandidate = false)
+    public ContexaKafkaTopics contexaKafkaTopics(KafkaProperties kafkaProperties, ObjectProvider<SslBundles> sslBundles,
+                                                 ObjectProvider<SecurityKafkaProperties> securityKafkaProperties,
+                                                 ObjectProvider<KafkaConnectionDetails> connectionDetails) {
+        String deadLetterTopic = securityKafkaProperties.getIfAvailable(SecurityKafkaProperties::new).getTopic().getDlq();
+        Set<String> needed = new HashSet<>(SecurityEventTopics.DECLARED);
+        needed.add(deadLetterTopic);
+        return new ContexaKafkaTopics(() -> Admin.create(adminConfig(kafkaProperties, sslBundles, connectionDetails)),
+                allSecurityTopics(deadLetterTopic), needed, kafkaProperties.getAdmin().isAutoCreate());
+    }
+
+    /** The application's admin settings, with waits that a start can afford. */
+    private Map<String, Object> adminConfig(KafkaProperties kafkaProperties, ObjectProvider<SslBundles> sslBundles,
+                                            ObjectProvider<KafkaConnectionDetails> connectionDetails) {
+        Map<String, Object> config = kafkaProperties.buildAdminProperties(sslBundles.getIfAvailable());
+        KafkaConnectionDetails details = connectionDetails.getIfAvailable();
+        KafkaConfiguration.applyConnection(config, details != null ? details.getAdmin() : null);
+        int limit = (int) ContexaKafkaTopics.ANSWER_LIMIT.toMillis();
+        config.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, limit);
+        config.put(AdminClientConfig.DEFAULT_API_TIMEOUT_MS_CONFIG, limit);
+        return config;
+    }
+
+    private List<NewTopic> allSecurityTopics(String deadLetterTopic) {
+        List<NewTopic> topics = new ArrayList<>(List.of(
             authEventsCriticalTopic().build(),
             authEventsContextualTopic().build(),
             authEventsGeneralTopic().build(),
@@ -43,10 +79,19 @@ public class KafkaTopicConfiguration {
             threatIndicatorsTopic().build(),
             networkEventsTopic().build(),
 
-            deadLetterQueueTopic().build(),
+            deadLetterQueueTopic(deadLetterTopic).build(),
 
             soarActionEventsTopic().build()
-        );
+        ));
+        SecurityEventTopics.DECLARED.forEach(topic -> topics.add(eventTopic(topic).build()));
+        return topics;
+    }
+
+    /** The replicas are the broker's: one replica would fail every send under a broker's min.insync.replicas of two. */
+    private TopicBuilder eventTopic(String name) {
+        return TopicBuilder.name(name)
+            .partitions(3)
+            .config(TopicConfig.RETENTION_MS_CONFIG, "604800000");
     }
 
     private TopicBuilder authEventsCriticalTopic() {
@@ -121,8 +166,8 @@ public class KafkaTopicConfiguration {
             .config(TopicConfig.RETENTION_MS_CONFIG, "604800000");
     }
 
-    private TopicBuilder deadLetterQueueTopic() {
-        return TopicBuilder.name("security-events-dlq")
+    private TopicBuilder deadLetterQueueTopic(String name) {
+        return TopicBuilder.name(name)
             .partitions(1)  
             .replicas(1)
             .config(TopicConfig.RETENTION_MS_CONFIG, "2592000000");  

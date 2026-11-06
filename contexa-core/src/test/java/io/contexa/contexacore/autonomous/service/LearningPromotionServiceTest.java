@@ -342,6 +342,19 @@ class LearningPromotionServiceTest {
         assertThat(store.promotionLearning("tenant-b::alice")).containsOnlyKeys("b-1");
     }
 
+    /** A verification names a person: a person named as an agent's key vouches for nothing the agent holds. */
+    @Test
+    void aVerificationOfAPersonNamedAsAnAgentsKeyLeavesTheAgentsHeldRequests() {
+        SecurityEvent ofTheAgent = event("a-1", "2026-09-29T06:00:00Z", "CRITICAL", device(DEVICE));
+        ofTheAgent.addMetadata("executionSubjectKind", "DELEGATED_AGENT");
+        ofTheAgent.addMetadata("agentId", "report-agent");
+        service.hold(ofTheAgent);
+
+        service.promoteVerified("alice::agent::report-agent", List.of("DEVICE=" + DEVICE));
+
+        assertThat(store.promotionLearning("alice::agent::report-agent")).containsOnlyKeys("a-1");
+    }
+
     /**
      * QF-28: with a lock service the promotion runs under the user's promotion lock; a lock not taken in time leaves the
      * requests held for the next promotion, and nothing is learned meanwhile.

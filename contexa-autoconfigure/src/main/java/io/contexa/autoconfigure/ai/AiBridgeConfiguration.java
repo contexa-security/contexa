@@ -26,13 +26,17 @@ import io.contexa.contexacommon.security.bridge.handoff.DefaultContexaAuthBridge
 import io.contexa.contexacommon.security.bridge.resolver.*;
 import io.contexa.contexacommon.security.bridge.runtime.BridgeRuntimeSupport;
 import io.contexa.contexacommon.security.bridge.runtime.RequestPathDatabaseGuard;
+import io.contexa.contexacommon.store.ContexaStores;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextCollector;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncService;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
 import io.contexa.contexacommon.security.network.ClientIpResolutionPolicy;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.DisposableBean;
+import io.contexa.autoconfigure.iam.IamSecurityCoreAutoConfiguration;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.security.SecurityProperties;
@@ -47,6 +51,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnClass(SecurityFilterChain.class)
 @EnableConfigurationProperties(BridgeProperties.class)
@@ -123,7 +128,12 @@ public class AiBridgeConfiguration {
     @Bean(name = "contexaSecurityOffSessionAuthorizationStampResolver")
     @Order(5)
     @ConditionalOnMissingBean(SessionAuthorizationStampResolver.class)
-    public AuthorizationStampResolver securityOffSessionAuthorizationStampResolver() {
+    public AuthorizationStampResolver securityOffSessionAuthorizationStampResolver(BridgeProperties properties) {
+        if (properties.getAuthorization().getSession().isEnabled() && properties.getAuthorization().getSession().isAutoDiscover()) {
+            log.info("[Bridge] contexa.bridge.authorization.session.auto-discover=true: any session attribute that names "
+                    + "roles, authorities, a privilege or a verdict is read as the user's authorization, and the decisions "
+                    + "read it as such.");
+        }
         return new SessionAuthorizationStampResolver();
     }
 
@@ -156,7 +166,11 @@ public class AiBridgeConfiguration {
     @Bean(name = "contexaSecurityOffSessionDelegationStampResolver")
     @Order(5)
     @ConditionalOnMissingBean(SessionDelegationStampResolver.class)
-    public DelegationStampResolver securityOffSessionDelegationStampResolver() {
+    public DelegationStampResolver securityOffSessionDelegationStampResolver(BridgeProperties properties) {
+        if (properties.getDelegation().getSession().isEnabled() && properties.getDelegation().getSession().isAutoDiscover()) {
+            log.info("[Bridge] contexa.bridge.delegation.session.auto-discover=true: any session attribute that names an "
+                    + "agent is read as a delegation, and a request of a session holding one is decided as that agent's.");
+        }
         return new SessionDelegationStampResolver();
     }
 
@@ -206,8 +220,9 @@ public class AiBridgeConfiguration {
     /** An outage of Contexa's database must not hold the application's request threads. */
     @Bean(name = "contexaRequestPathDatabaseGuard")
     @ConditionalOnMissingBean
-    public RequestPathDatabaseGuard requestPathDatabaseGuard() {
-        return new RequestPathDatabaseGuard();
+    public RequestPathDatabaseGuard requestPathDatabaseGuard(ObjectProvider<ContexaStores> contexaStores) {
+        ContexaStores stores = contexaStores.getIfAvailable();
+        return new RequestPathDatabaseGuard(stores != null ? stores.database() : null);
     }
 
     @Bean
@@ -217,6 +232,7 @@ public class AiBridgeConfiguration {
             RequestContextCollector contexaRequestContextCollector,
             BridgeCoverageEvaluator contexaBridgeCoverageEvaluator,
             BridgeRuntimeSupport contexaBridgeRuntimeSupport,
+            @Qualifier(IamSecurityCoreAutoConfiguration.SESSION_CONTEXT_REPOSITORY)
             ObjectProvider<AISessionSecurityContextRepository> aiSessionSecurityContextRepository) {
         return new DefaultContexaAuthBridgeHandler(
                 properties,

@@ -82,7 +82,12 @@ class BridgeResolutionFilterTest {
 
     @Test
     void shouldResolveAuthenticationAuthorizationAndDelegationFromSessionOnly() throws Exception {
-        BridgeResolutionFilter filter = createExternalContextFilter();
+        BridgeProperties properties = new BridgeProperties();
+        enableTrustedHeaders(properties);
+        // The session's authorization and delegation are read from the attribute the application names.
+        properties.getAuthorization().getSession().setAttribute("LOGIN_USER");
+        properties.getDelegation().getSession().setAttribute("LOGIN_USER");
+        BridgeResolutionFilter filter = createExternalContextFilter(properties);
         Authentication hostAuthentication = authenticateHost("host-user", "ROLE_HOST");
 
         MockHttpSession session = new MockHttpSession();
@@ -171,7 +176,9 @@ class BridgeResolutionFilterTest {
     /** A1-1: a token that names no agent leaves the delegation to the session object, as before. */
     @Test
     void shouldLeaveTheDelegationToTheSessionWhenTheTokenNamesNoAgent() throws Exception {
-        BridgeResolutionFilter filter = createTokenFirstFilter(new BridgeProperties());
+        BridgeProperties properties = new BridgeProperties();
+        properties.getDelegation().getSession().setAttribute("LOGIN_USER");
+        BridgeResolutionFilter filter = createTokenFirstFilter(properties);
         SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(
                 Jwt.withTokenValue("header.payload.signature")
                         .header("alg", "RS256")
@@ -263,6 +270,7 @@ class BridgeResolutionFilterTest {
     @Test
     void shouldPreferExplicitSessionDenyOverSecurityContextUnknown() throws Exception {
         BridgeProperties properties = new BridgeProperties();
+        properties.getAuthorization().getSession().setAttribute("LOGIN_USER");
         BridgeResolutionFilter filter = createSecurityContextAndSessionFilter(properties);
         Authentication hostAuthentication = authenticateHost("alice", "ROLE_HOST");
         SessionUser user = sessionUser("alice", List.of("REPORT_EXPORT"));
@@ -287,6 +295,7 @@ class BridgeResolutionFilterTest {
     @Test
     void shouldFailSafeToDenyWhenExplicitAuthorizationEffectsConflict() throws Exception {
         BridgeProperties properties = new BridgeProperties();
+        properties.getAuthorization().getSession().setAttribute("LOGIN_USER");
         BridgeResolutionFilter filter = createSecurityContextAndSessionFilter(properties);
         Authentication hostAuthentication = authenticateHost("alice", "ROLE_HOST");
         ((UsernamePasswordAuthenticationToken) hostAuthentication).setDetails(Map.of(

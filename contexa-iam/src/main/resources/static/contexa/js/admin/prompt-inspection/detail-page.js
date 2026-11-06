@@ -148,6 +148,7 @@ function replayRows(answer) {
     const codes = (result.reasonCodes || []).map((code) => [code.code, (code.factIds || []).join(',')]
         .filter(Boolean).join(' ')).join('; ');
     const rows = [
+        [t('promptInspection.replay.integrity'), t(`promptInspection.replay.integrity.${answer.integrity}`)],
         [t('promptInspection.replay.action'), result.action],
         [t('promptInspection.replay.reason'), result.reason],
         [t('promptInspection.replay.codes'), codes],

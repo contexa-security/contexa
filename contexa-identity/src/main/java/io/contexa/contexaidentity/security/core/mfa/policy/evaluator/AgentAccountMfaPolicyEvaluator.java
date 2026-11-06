@@ -18,6 +18,7 @@ package io.contexa.contexaidentity.security.core.mfa.policy.evaluator;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import lombok.extern.slf4j.Slf4j;
@@ -76,7 +77,8 @@ public class AgentAccountMfaPolicyEvaluator implements MfaPolicyEvaluator {
         String agentId = agentOf(account).orElse(account);
         ZeroTrustAction action;
         try {
-            ZeroTrustActionRepository.ZeroTrustAnalysisData analysis = actionRepository.getAnalysisData(account);
+            ZeroTrustActionRepository.ZeroTrustAnalysisData analysis = actionRepository.getAnalysisData(
+                    ZeroTrustUserKey.person(account));
             action = ZeroTrustAction.fromString(analysis != null ? analysis.action() : null);
         } catch (RuntimeException readFailed) {
             log.error("The zero trust action of agent account {} could not be read; its sign-in is refused", account,

@@ -15,47 +15,30 @@
  */
 package io.contexa.contexacore.infra.session.impl;
 
+import io.contexa.contexacommon.store.ApplicationNamespace;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.infra.session.generator.RedisSessionIdGenerator;
 import io.contexa.contexacore.testsupport.RedisTestTemplates;
+import io.contexa.contexacore.testsupport.TestStores;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
-import java.net.InetSocketAddress;
-import java.net.Socket;
 import java.time.Duration;
 
-@EnabledIf("io.contexa.contexacore.infra.session.impl.RedisMfaRepositoryContractTest#isLocalRedisAvailable")
 class RedisMfaRepositoryContractTest extends AbstractMfaSessionRepositoryContractTest {
-
-    private static final String REDIS_HOST =
-            System.getProperty("contexa.test.redis.host",
-                    System.getenv().getOrDefault("CONTEXA_TEST_REDIS_HOST", "localhost"));
-    private static final int REDIS_PORT = Integer.parseInt(
-            System.getProperty("contexa.test.redis.port",
-                    System.getenv().getOrDefault("CONTEXA_TEST_REDIS_PORT", "6379")));
 
     private static LettuceConnectionFactory connectionFactory;
     private static StringRedisTemplate strings;
 
-    static boolean isLocalRedisAvailable() {
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(REDIS_HOST, REDIS_PORT), 500);
-            return true;
-        } catch (Exception ex) {
-            return false;
-        }
-    }
-
     @BeforeAll
     static void connect() {
-        connectionFactory = new LettuceConnectionFactory(new RedisStandaloneConfiguration(REDIS_HOST, REDIS_PORT));
+        TestStores.Redis server = TestStores.redis();
+        connectionFactory = new LettuceConnectionFactory(new RedisStandaloneConfiguration(server.host(), server.port()));
         connectionFactory.afterPropertiesSet();
         strings = RedisTestTemplates.newStringRedisTemplate(connectionFactory);
     }
@@ -69,7 +52,7 @@ class RedisMfaRepositoryContractTest extends AbstractMfaSessionRepositoryContrac
 
     @AfterEach
     void removeStoredSessions() {
-        storedIds.forEach(id -> strings.delete("mfa:session:v2:" + id));
+        storedIds.forEach(id -> strings.delete(ApplicationNamespace.key("mfa:session:v2:" + id)));
     }
 
     @Override

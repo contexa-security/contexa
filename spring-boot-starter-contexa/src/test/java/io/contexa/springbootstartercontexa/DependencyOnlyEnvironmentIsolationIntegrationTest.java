@@ -135,9 +135,10 @@ class DependencyOnlyEnvironmentIsolationIntegrationTest {
     private Map<String, Boolean> filter(String[] candidates, Map<String, Object> hostProperties) {
         StandardEnvironment environment = new StandardEnvironment();
         Map<String, Object> properties = new LinkedHashMap<>(hostProperties);
-        properties.put("contexa.ai.security.mode", "SANDBOX");
         properties.put("contexa.infrastructure.mode", "standalone");
         environment.getPropertySources().addFirst(new MapPropertySource("hostApplication", properties));
+        environment.getPropertySources().addFirst(new MapPropertySource(
+                "contexaAiSecurityAnnotation", Map.of("contexa.ai.security.mode", "SANDBOX")));
         ConfigurationPropertySources.attach(environment);
 
         StandaloneAutoConfigurationFilter filter = new StandaloneAutoConfigurationFilter();

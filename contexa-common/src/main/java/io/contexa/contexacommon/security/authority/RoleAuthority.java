@@ -37,9 +37,20 @@ public class RoleAuthority implements GrantedAuthority, Serializable {
         Assert.notNull(role.getId(), "Role ID cannot be null");
         Assert.hasText(role.getRoleName(), "Role name cannot be empty");
 
-        this.authority = role.getRoleName().startsWith("ROLE_") ? role.getRoleName() : ROLE_PREFIX + role.getRoleName().toUpperCase(Locale.ROOT);
+        this.authority = authorityOf(role.getRoleName());
         this.roleId = role.getId();
         this.roleName = role.getRoleName();
+    }
+
+    /**
+     * The authority a role gives to the people who hold it: the name of the role when that starts with {@code ROLE_},
+     * otherwise {@code ROLE_} and the name in upper case. This is the one place the rule is written. A policy
+     * condition that asks for a role, and anything that reads such a condition back, must use this name: the name of a
+     * role without the prefix is not an authority of anybody.
+     */
+    public static String authorityOf(String roleName) {
+        Assert.hasText(roleName, "Role name cannot be empty");
+        return roleName.startsWith(ROLE_PREFIX) ? roleName : ROLE_PREFIX + roleName.toUpperCase(Locale.ROOT);
     }
 
     @Override

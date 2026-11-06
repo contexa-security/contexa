@@ -59,7 +59,7 @@ public abstract class SessionBasedSuccessHandler implements PlatformAuthenticati
                 localRequestCache.removeRequest(request, response);
                 return redirectUrl;
             } else {
-                log.error("Invalid saved redirect URL ignored: {}", redirectUrl);
+                log.warn("Invalid saved redirect URL ignored: {}", redirectUrl);
             }
         }
 

@@ -51,7 +51,7 @@ public class ProtectableRapidReentryGuard {
     public void check(Authentication authentication, MethodInvocation methodInvocation) {
         if (!tryAcquire(authentication, methodInvocation)) {
             String scopeKey = buildRequestScopeKey(resolveCurrentRequest(), methodInvocation, "UNSPECIFIED");
-            log.error("[ProtectableRapidReentryGuard] Rapid protected re-entry denied: userId={}, scope={}",
+            log.warn("[ProtectableRapidReentryGuard] Rapid protected re-entry denied: userId={}, scope={}",
                     authentication != null ? authentication.getName() : null,
                     scopeKey);
             throw new RapidProtectableReentryDeniedException(scopeKey, Math.max(0L, window.toSeconds()));

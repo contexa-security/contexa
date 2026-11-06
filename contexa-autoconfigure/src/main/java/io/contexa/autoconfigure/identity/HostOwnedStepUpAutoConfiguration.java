@@ -22,6 +22,7 @@ import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.properties.PasskeyUrls;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
+import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncService;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
@@ -36,27 +37,23 @@ import io.contexa.contexaidentity.security.webauthn.codec.PasskeyCreationOptions
 import io.contexa.autoconfigure.ai.HostOwnedEnforcementOrder;
 import io.contexa.contexaidentity.security.zerotrust.ChallengeResolution;
 import io.contexa.contexaidentity.security.zerotrust.HostOwnedUserPathGuard;
+import io.contexa.contexaidentity.security.zerotrust.HostOwnedSignInFailureListener;
 import io.contexa.contexaidentity.security.zerotrust.HostOwnedSignInListener;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
+import io.contexa.contexacore.autonomous.event.support.HostSignInEvents;
 import io.contexa.contexaidentity.security.zerotrust.stepup.HostOwnedStepUpController;
 import io.contexa.contexaidentity.security.zerotrust.stepup.HostOwnedStepUpService;
-import io.contexa.contexaidentity.security.zerotrust.stepup.InMemoryStepUpOptionsStore;
-import io.contexa.contexaidentity.security.zerotrust.stepup.RedisStepUpOptionsStore;
 import io.contexa.contexaidentity.security.zerotrust.stepup.StepUpOptionsStore;
 import io.contexa.contexacommon.jdbc.LibraryTableNames;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.security.SecurityProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.ott.JdbcOneTimeTokenService;
@@ -72,9 +69,9 @@ import java.util.stream.Collectors;
 
 /**
  * The verification-only step-up when the application owns sign-in (HOST_OWNED, ownership design S-2): the service the
- * enforcement filters send a CHALLENGE to, its pages under {@code /contexa/step-up}, and the store that keeps what a
- * step-up hands out under the user's decision key (in memory, or in Redis in a distributed deployment). Under
- * CONTEXA_OWNED Contexa's own MFA answers a CHALLENGE and none of this is created.
+ * enforcement filters send a CHALLENGE to and its pages under {@code /contexa/step-up}. What a step-up hands out is kept
+ * in the store of {@link StepUpOptionsStoreAutoConfiguration}. Under CONTEXA_OWNED Contexa's own MFA answers a CHALLENGE
+ * and none of this is created.
  */
 @AutoConfiguration
 @AutoConfigureAfter({IdentitySecurityCoreAutoConfiguration.class, IdentityWebAuthnAutoConfiguration.class,
@@ -82,26 +79,6 @@ import java.util.stream.Collectors;
 @ConditionalOnBean(PlatformConfig.class)
 @ConditionalOnOwnership(SecurityOwnershipMode.HOST_OWNED)
 public class HostOwnedStepUpAutoConfiguration {
-
-    /** A distributed deployment shares the step-up options, so the answer may reach another instance. */
-    @Configuration(proxyBeanMethods = false)
-    @ConditionalOnClass(name = "org.springframework.data.redis.core.StringRedisTemplate")
-    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
-    static class DistributedStepUpOptions {
-
-        @Bean(name = "contexaStepUpOptionsStore")
-        @ConditionalOnMissingBean(StepUpOptionsStore.class)
-        @ConditionalOnBean(StringRedisTemplate.class)
-        public StepUpOptionsStore stepUpOptionsStore(StringRedisTemplate redis) {
-            return new RedisStepUpOptionsStore(redis);
-        }
-    }
-
-    @Bean(name = "contexaInMemoryStepUpOptionsStore")
-    @ConditionalOnMissingBean(StepUpOptionsStore.class)
-    public StepUpOptionsStore inMemoryStepUpOptionsStore() {
-        return new InMemoryStepUpOptionsStore();
-    }
 
     @Bean(name = "contexaHostOwnedStepUpService")
     @ConditionalOnMissingBean
@@ -123,7 +100,8 @@ public class HostOwnedStepUpAutoConfiguration {
             ObjectProvider<ContexaPasskeyStores> contexaPasskeyStores,
             ObjectProvider<PublicKeyCredentialUserEntityRepository> userEntities,
             ObjectProvider<UserCredentialRepository> userCredentials,
-            ObjectProvider<PasskeyCreationOptionsCodec> passkeyCreationOptionsCodec) {
+            ObjectProvider<PasskeyCreationOptionsCodec> passkeyCreationOptionsCodec,
+            ObjectProvider<BridgeUserMirrorSyncService> userMirror) {
         ChallengeResolution resolution = new ChallengeResolution(actionRepository,
                 securityLearningService.getIfAvailable(), verificationLearningService::getIfAvailable,
                 securityContextDataStore::getIfAvailable, blockingSignalBroadcaster.getIfAvailable(),
@@ -139,11 +117,15 @@ public class HostOwnedStepUpAutoConfiguration {
         Webauthn4JRelyingPartyOperations relyingParty = entities != null && credentials != null
                 ? relyingParty(entities, credentials, authContextProperties, environment) : null;
 
-        return new HostOwnedStepUpService(actionRepository, resolution, userRepository,
+        HostOwnedStepUpService service = new HostOwnedStepUpService(actionRepository, resolution, userRepository,
                 bridgeProperties.getSync().getSyntheticEmailDomain(), contexaStepUpOptionsStore,
                 stepUpCodes, emailService.getIfAvailable(), relyingParty, entities,
                 credentials, passkeyCreationOptionsCodec.getIfAvailable(DefaultPasskeyCreationOptionsCodec::new),
-                bridgeProperties.getStepUp().getReauthenticationUrl());
+                bridgeProperties.getStepUp().getReauthenticationUrl(),
+                authContextProperties.getMfa().getMaxRetryAttempts());
+        // An address the application showed for a copy that has one waits for the user's proof of the address on record.
+        service.setUserMirror(userMirror.getIfAvailable());
+        return service;
     }
 
     @Bean(name = "contexaHostOwnedStepUpController")
@@ -158,6 +140,23 @@ public class HostOwnedStepUpAutoConfiguration {
     @ConditionalOnBean(ZeroTrustEventPublisher.class)
     public HostOwnedSignInListener hostOwnedSignInListener(ZeroTrustEventPublisher contexaZeroTrustEventPublisher) {
         return new HostOwnedSignInListener(contexaZeroTrustEventPublisher);
+    }
+
+    /** Whether the application's sign-ins reach Contexa: what a count of no failed sign-ins is worth. */
+    @Bean(name = "contexaHostSignInEvents")
+    @ConditionalOnMissingBean
+    public HostSignInEvents hostSignInEvents() {
+        return new HostSignInEvents();
+    }
+
+    /** The application's failed sign-ins, for the decisions to read; no lock or address limit counts them. */
+    @Bean(name = "contexaHostOwnedSignInFailureListener")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(ZeroTrustEventPublisher.class)
+    public HostOwnedSignInFailureListener hostOwnedSignInFailureListener(
+            ObjectProvider<SecurityContextDataStore> securityContextDataStore,
+            HostSignInEvents contexaHostSignInEvents) {
+        return new HostOwnedSignInFailureListener(securityContextDataStore::getIfAvailable, contexaHostSignInEvents);
     }
 
     /** Contexa's pages for the signed-in user answer only a signed-in user (ownership design S-3). */

@@ -18,11 +18,11 @@ package io.contexa.contexaiam.security.core;
 import io.contexa.contexacore.autonomous.store.LoginFailureRecording;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
-import java.time.Instant;
-import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacommon.entity.PasswordPolicy;
 import io.contexa.contexacommon.repository.LoginAttemptIpRepository;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.security.LoginAddressBlockedException;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
@@ -31,9 +31,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Login policy enforcement with atomic, race-free counters.
@@ -60,11 +62,18 @@ public class LoginPolicyService implements LoginPolicyHandler {
     private static final ThreadLocal<Set<String>> HANDLED_KEYS =
             ThreadLocal.withInitial(HashSet::new);
 
+    /** How often an unnamed proxy is reported: every sign-in behind it would repeat the same line. */
+    private static final long UNNAMED_PROXY_REPORT_INTERVAL_MS = Duration.ofHours(1).toMillis();
+
+    /** How many times the policy's address limit a peer gets that may be a proxy nobody named. */
+    private static final int UNNAMED_PROXY_LIMIT_FACTOR = 10;
+
     private final UserRepository userRepository;
     private final LoginAttemptIpRepository loginAttemptIpRepository;
     private final PasswordPolicyService passwordPolicyService;
     private final LoginAttemptIpUpserter loginAttemptIpUpserter;
     private final ObjectProvider<SecurityContextDataStore> securityContextDataStoreProvider;
+    private final AtomicLong nextUnnamedProxyReportAt = new AtomicLong();
 
     // ---------------------------------------------------------------------
     // Public API — legacy signatures delegate to the extended ones
@@ -89,13 +98,10 @@ public class LoginPolicyService implements LoginPolicyHandler {
         try {
             int rows = userRepository.resetOnSuccess(username, LocalDateTime.now(), ip);
             if (rows == 0) {
-                log.error("[login-policy] success reset skipped — unknown user {} (sourceTag={})", username, sourceTag);
+                log.debug("[login-policy] success reset skipped — unknown user {} (sourceTag={})", username, sourceTag);
             }
-            if (ip != null && !ip.isBlank()) {
-                loginAttemptIpRepository.findByIpAddress(ip).ifPresent(row ->
-                        loginAttemptIpRepository.resetWindow(ip, LocalDateTime.now(),
-                                LocalDateTime.now(), username));
-            }
+            // The address keeps its count: it stands for the failures of every account tried from there, and an account
+            // of one's own would wipe the guesses at the others. Its window ends them.
         } catch (Exception e) {
             log.error("[login-policy] onLoginSuccess failed for {}", username, e);
         }
@@ -137,24 +143,13 @@ public class LoginPolicyService implements LoginPolicyHandler {
         }
     }
 
-    /** The current request's observed time, the clock failures are counted on; the server time without one. */
-    private static long currentRequestTimeMillis() {
-        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
-            Instant observedAt = RequestInfoExtractor.extractObservedAt(attributes.getRequest());
-            if (observedAt != null) {
-                return observedAt.toEpochMilli();
-            }
-        }
-        return System.currentTimeMillis();
-    }
-
     private void recordLoginFailureContext(String username, String ip) {
         try {
             SecurityContextDataStore dataStore = securityContextDataStoreProvider == null
                     ? null
                     : securityContextDataStoreProvider.getIfAvailable();
             if (dataStore != null) {
-                LoginFailureRecording.recordOnce(dataStore, username, ip, currentRequestTimeMillis());
+                LoginFailureRecording.recordOnce(dataStore, username, ip);
             }
         } catch (Exception e) {
             log.warn("[login-policy] authentication failure context recording failed username={} ip={}",
@@ -191,6 +186,46 @@ public class LoginPolicyService implements LoginPolicyHandler {
                 .orElse(false);
     }
 
+    /**
+     * The address of the current request, by the rule of every other decision of Contexa: a forwarded header counts only
+     * from a trusted proxy ({@code contexa.security.tiered.security.trusted-proxies}). Anything else a client could set
+     * itself, and a new address on every attempt would keep the count at zero. Null outside a request.
+     */
+    public static String currentAddress() {
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
+            return SessionFingerprintUtil.extractClientIp(attributes.getRequest());
+        }
+        return null;
+    }
+
+    @Override
+    public void checkSignInAddress(String username) {
+        if (!isCurrentAddressBlocked()) {
+            return;
+        }
+        // Marks the failure this request is about to report as handled: a refused attempt says nothing about the
+        // account it names, and counting it would let a blocked address lock anyone's account.
+        if (username != null) {
+            firstHandle("F:" + username);
+        }
+        throw new LoginAddressBlockedException("Sign-in from this address is blocked for a while");
+    }
+
+    /** The throttle lives in Contexa's database: when it cannot be read the sign-in is not refused for it. */
+    private boolean isCurrentAddressBlocked() {
+        try {
+            String address = currentAddress();
+            // Every sign-in comes by here, so the first one names the setting, not the first failure.
+            if (behindUnnamedProxy(address)) {
+                reportUnnamedProxy(address);
+            }
+            return isIpBlocked(address);
+        } catch (RuntimeException e) {
+            log.warn("[login-policy] the address throttle could not be read; the sign-in goes on: {}", e.toString());
+            return false;
+        }
+    }
+
     // ---------------------------------------------------------------------
     // Internal helpers
     // ---------------------------------------------------------------------
@@ -225,9 +260,10 @@ public class LoginPolicyService implements LoginPolicyHandler {
      */
     private void applyUserLock(String username, int lockoutMinutes, int attempts, String failureType) {
         LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(Math.max(1, lockoutMinutes));
-        userRepository.lockAccount(username, expiresAt);
-        log.warn("[login-policy] account locked username={} attempts={} until={} failureType={}",
-                username, attempts, expiresAt, failureType);
+        if (userRepository.lockAccount(username, expiresAt) > 0) {
+            log.warn("[login-policy] account locked username={} attempts={} until={} failureType={}",
+                    username, attempts, expiresAt, failureType);
+        }
     }
 
     /** IP-dimension throttling: rolling window + threshold lock. */
@@ -236,12 +272,18 @@ public class LoginPolicyService implements LoginPolicyHandler {
         PasswordPolicy policy = passwordPolicyService.getCurrentPolicy();
         if (policy.getIpMaxFailedAttempts() <= 0) return;
 
+        long limit = addressLimit(ip, policy);
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime windowStart = now.minusMinutes(Math.max(1, policy.getIpWindowMinutes()));
         String tag = username == null ? "" : username;
 
         // Self-heal: clear an expired IP block before counting (mirrors per-user logic)
         loginAttemptIpRepository.clearExpiredBlock(ip, now);
+
+        // A blocked address is not counted again: whoever keeps trying would keep extending the block of all behind it.
+        if (isIpBlocked(ip)) {
+            return;
+        }
 
         int updated = loginAttemptIpRepository.incrementFailedAttempts(ip, now, tag);
         if (updated == 0) {
@@ -259,12 +301,62 @@ public class LoginPolicyService implements LoginPolicyHandler {
                 loginAttemptIpRepository.resetWindow(ip, now, now, tag);
                 return;
             }
-            if (row.getFailedAttempts() >= policy.getIpMaxFailedAttempts()) {
+            if (row.getFailedAttempts() >= limit) {
                 LocalDateTime blockUntil = now.plusMinutes(Math.max(1, policy.getIpWindowMinutes()));
                 loginAttemptIpRepository.blockIp(ip, blockUntil);
-                log.error("[login-policy] ip blocked ip={} attempts={} until={} username={} failureType={}",
+                log.warn("[login-policy] ip blocked ip={} attempts={} until={} username={} failureType={}",
                         ip, row.getFailedAttempts(), blockUntil, tag, failureType);
+                reportUnlistedProxy(ip);
             }
         });
+    }
+
+    /**
+     * The failures the address may reach in the window. A failure always counts against the address the request connected
+     * from, and one count stands for that address. Behind a proxy Contexa was not told about everyone arrives from it, so
+     * such a peer gets ten times the policy's limit: a few mistyped passwords do not stop all its users, and the limit
+     * stays. The limit is the one of the request at hand and is compared only when a failure is counted, so a request
+     * without the header meets the plain limit on the count the others raised: sending the header now and then gets no
+     * further than sending it always. A sign-in is refused by the block alone. The lock of each account is not touched.
+     */
+    private long addressLimit(String ip, PasswordPolicy policy) {
+        long limit = policy.getIpMaxFailedAttempts();
+        if (!behindUnnamedProxy(ip)) {
+            return limit;
+        }
+        reportUnnamedProxy(ip);
+        return limit * UNNAMED_PROXY_LIMIT_FACTOR;
+    }
+
+    /**
+     * Whether the address may be a proxy Contexa was not told about. Nothing proves it: anyone on that network can send the
+     * header, so the answer eases the limit of the address and never lifts it.
+     */
+    private static boolean behindUnnamedProxy(String ip) {
+        return RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes
+                && SessionFingerprintUtil.forwardedWithoutTrustedProxy(attributes.getRequest())
+                && attributes.getRequest().getRemoteAddr().equals(ip);
+    }
+
+    private void reportUnnamedProxy(String peer) {
+        long now = System.currentTimeMillis();
+        long due = nextUnnamedProxyReportAt.get();
+        if (now >= due && nextUnnamedProxyReportAt.compareAndSet(due, now + UNNAMED_PROXY_REPORT_INTERVAL_MS)) {
+            log.error("[login-policy] {} sends X-Forwarded-For and no proxy is trusted, so everyone behind it counts as this "
+                    + "one address, at {} times the address limit of sign-ins (the lock of each account stays as it is). Set "
+                    + "contexa.security.tiered.security.trusted-proxies to your proxies to count each client on its own",
+                    peer, UNNAMED_PROXY_LIMIT_FACTOR);
+        }
+    }
+
+    /** Behind a proxy that is not listed all users arrive from its address, and one block stops them all. */
+    private static void reportUnlistedProxy(String ip) {
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes
+                && attributes.getRequest().getHeader("X-Forwarded-For") != null
+                && ip.equals(attributes.getRequest().getRemoteAddr())) {
+            log.error("[login-policy] the blocked address {} sends X-Forwarded-For and is not a trusted proxy. If it is "
+                    + "your proxy, all users behind it share this block: list it in "
+                    + "contexa.security.tiered.security.trusted-proxies", ip);
+        }
     }
 }

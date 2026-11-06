@@ -106,6 +106,7 @@ public class PromptInspectionAutoConfiguration {
             ObjectProvider<CanonicalSecurityContextSerializer> serializers,
             ObjectProvider<BaselineDataStore> baselineDataStore,
             ObjectProvider<CentralAuditFacade> auditFacade,
+            ObjectProvider<SealedEvidencePackageIntegrity> integrity,
             @Qualifier("contexaObjectMapper") ObjectMapper objectMapper) {
         ObjectMapper tolerant = objectMapper.copy().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         Supplier<SealedDecisionReplayService> service = () -> {
@@ -124,7 +125,7 @@ public class PromptInspectionAutoConfiguration {
                     serializers.getIfAvailable(() -> new CanonicalSecurityContextSerializer(tolerant)), tolerant);
         };
         return new SealedDecisionReplays(sealedEvidencePackageRepository, service, baselineDataStore.getIfAvailable(),
-                auditFacade.getIfAvailable(), objectMapper);
+                auditFacade.getIfAvailable(), objectMapper, integrity.getIfAvailable(SealedEvidencePackageIntegrity::new));
     }
 
     @Bean(name = "contexaSealedDecisionReplayApiController")

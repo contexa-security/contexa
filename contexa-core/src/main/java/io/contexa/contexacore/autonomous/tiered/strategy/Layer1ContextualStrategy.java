@@ -41,6 +41,7 @@ import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptShadowRun;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.std.llm.gate.ModelServerSignals;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
@@ -988,7 +989,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                                            long postProcessMs) {
 
         Map<String, Object> sessionData = new HashMap<>();
-        sessionData.put("sessionId", sessionContext.getSessionId());
+        sessionData.put("sessionId", RequestFactRedaction.sessionReference(sessionContext.getSessionId()));
         sessionData.put("userId", sessionContext.getUserId());
         sessionData.put("sessionDuration", sessionContext.getSessionDuration());
         sessionData.put("accessFrequency", sessionContext.getAccessFrequency());

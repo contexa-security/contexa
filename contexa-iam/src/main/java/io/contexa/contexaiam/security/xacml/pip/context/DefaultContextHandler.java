@@ -23,6 +23,7 @@ import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import io.contexa.contexacommon.entity.UserGroup;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.store.StoreFailures;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,7 +46,6 @@ public class DefaultContextHandler implements ContextHandler {
     private final UserRepository userRepository;
     private final ContexaCacheService cacheService;
 
-    private static final String CACHE_DOMAIN = "users";
     private static final TypeReference<Users> USERS_TYPE = new TypeReference<>() {};
 
     @Override
@@ -110,7 +110,22 @@ public class DefaultContextHandler implements ContextHandler {
         return AopUtils.getMostSpecificMethod(method, targetClass);
     }
 
+    /**
+     * The policies decide on the authentication when the subject's record cannot be read: a store that does not answer
+     * must not cost a policy that can still be evaluated, a DENY among them (Q-7).
+     */
     private Users getSubjectEntity(Authentication authentication, HttpServletRequest request) {
+        try {
+            return readSubjectEntity(authentication, request);
+        } catch (RuntimeException unreadable) {
+            if (!StoreFailures.isStoreFailure(unreadable)) {
+                throw unreadable;
+            }
+            return null;
+        }
+    }
+
+    private Users readSubjectEntity(Authentication authentication, HttpServletRequest request) {
         Users bridgeSubject = getBridgeSubjectEntity(request);
         if (bridgeSubject != null) {
             return bridgeSubject;
@@ -128,17 +143,15 @@ public class DefaultContextHandler implements ContextHandler {
         if (principal instanceof UnifiedCustomUserDetails userDetails) {
             Long userId = userDetails.getAccount().getId();
             if (userId != null) {
-                String cacheKey = "user_details:" + userId;
-                return cacheService.get(cacheKey,
+                return cacheService.get(SubjectCache.byId(userId),
                         () -> userRepository.findByIdWithGroupsRolesAndPermissions(userId).orElse(null),
-                        USERS_TYPE, CACHE_DOMAIN);
+                        USERS_TYPE, SubjectCache.DOMAIN);
             }
             String username = userDetails.getUsername();
             if (username != null) {
-                String cacheKey = "user_details_name:" + username;
-                return cacheService.get(cacheKey,
+                return cacheService.get(SubjectCache.byName(username),
                         () -> userRepository.findByUsernameWithGroupsRolesAndPermissions(username).orElse(null),
-                        USERS_TYPE, CACHE_DOMAIN);
+                        USERS_TYPE, SubjectCache.DOMAIN);
             }
             return null;
         }
@@ -156,10 +169,9 @@ public class DefaultContextHandler implements ContextHandler {
             return null;
         }
         Long userId = syncResult.internalUserId();
-        String cacheKey = "user_details:" + userId;
-        return cacheService.get(cacheKey,
+        return cacheService.get(SubjectCache.byId(userId),
                 () -> userRepository.findByIdWithGroupsRolesAndPermissions(userId).orElse(null),
-                USERS_TYPE, CACHE_DOMAIN);
+                USERS_TYPE, SubjectCache.DOMAIN);
     }
 
     private HttpServletRequest currentRequest() {

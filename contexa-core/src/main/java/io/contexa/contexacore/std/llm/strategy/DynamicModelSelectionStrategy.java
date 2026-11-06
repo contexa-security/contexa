@@ -77,7 +77,7 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
                 }
                 fallbackUsed = true;
                 recordFailure(metadata, candidates, "Requested model not available: " + explicitRequest.modelId());
-                log.warn("Requested model {} not available - RequestId: {}", explicitRequest.modelId(), context.getRequestId());
+                log.debug("Requested model {} not available - RequestId: {}", explicitRequest.modelId(), context.getRequestId());
             }
 
             TierModelCandidate tierCandidate = resolveTierCandidate(context);
@@ -109,7 +109,7 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
 
             String failure = "No model available";
             recordFailure(metadata, candidates, failure);
-            log.error("{} - RequestId: {}", failure, context.getRequestId());
+            log.error("{} - RequestId: {}, tried: {}", failure, context.getRequestId(), candidates);
             return null;
 
         } catch (Exception e) {
@@ -128,7 +128,8 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
         try {
             return modelRegistry.getModel(normalizedModelId);
         } catch (Exception e) {
-            log.warn("Model {} unavailable during dynamic selection", normalizedModelId);
+            // the next candidate takes over; selectModel reports it when none is left
+            log.debug("Model {} unavailable during dynamic selection: {}", normalizedModelId, e.toString());
             return null;
         }
     }

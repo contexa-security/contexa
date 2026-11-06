@@ -111,6 +111,8 @@ class BridgeExampleLegacyBridgeIntegrationTest {
 
     private BridgeResolutionFilter createBridgeResolutionFilter() {
         BridgeProperties properties = new BridgeProperties();
+        // The session's authorization is read from the attribute the application names.
+        properties.getAuthorization().getSession().setAttribute(LegacyAuthFilter.SESSION_USER_KEY);
         return new BridgeResolutionFilter(
                 properties,
                 new RequestContextCollector(),

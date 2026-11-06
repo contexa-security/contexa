@@ -18,6 +18,10 @@ package io.contexa.contexaiam.admin.web.auth.controller;
 import io.contexa.contexaiam.admin.web.auth.service.SessionManagementService;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
 import io.contexa.contexaiam.domain.entity.ActiveSession;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
+import io.contexa.contexaiam.admin.web.common.CsvColumn;
+import org.mockito.ArgumentCaptor;
+import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -169,6 +173,23 @@ class SessionManagementControllerTest {
                     .andExpect(status().isOk());
 
             verify(csvExportService).export(any(), eq("active-sessions"), any(), any());
+        }
+
+        @Test
+        @DisplayName("writes the session's reference, never the value its cookie carries")
+        @SuppressWarnings("unchecked")
+        void writesTheReference() throws Exception {
+            mockMvc.perform(get("/contexa/admin/session-management/export")).andExpect(status().isOk());
+
+            ArgumentCaptor<List<CsvColumn<ActiveSession>>> columns = ArgumentCaptor.forClass(List.class);
+            verify(csvExportService).export(any(), eq("active-sessions"), columns.capture(), any());
+            // A row kept before the references, under the raw value, is written by its reference too.
+            ActiveSession legacy = ActiveSession.builder().sessionId("RAW-COOKIE-VALUE").userId("u").username("u")
+                    .build();
+            List<String> written = columns.getValue().stream().map(column -> column.extractor().apply(legacy))
+                    .toList();
+            assertThat(written).doesNotContain("RAW-COOKIE-VALUE")
+                    .contains(RequestFactRedaction.sessionReference("RAW-COOKIE-VALUE"));
         }
     }
 }

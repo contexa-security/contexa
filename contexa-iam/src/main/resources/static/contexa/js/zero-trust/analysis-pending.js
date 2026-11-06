@@ -44,7 +44,7 @@
         updateStep('step-decision', 'complete');
 
         if (action === 'ALLOW') {
-            window.location.href = decodeURIComponent(returnUrl);
+            window.location.href = returnUrl;
         } else if (action === 'BLOCK') {
             window.location.href = '/contexa/zero-trust/blocked';
         } else if (action === 'CHALLENGE') {

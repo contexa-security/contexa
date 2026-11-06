@@ -17,12 +17,15 @@ package io.contexa.contexaiam.security.xacml.pap.analysis;
 
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.repository.RoleRepository;
+import io.contexa.contexacommon.security.authority.RoleAuthority;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
 import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyMatrixReport;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.AuthorityProbe;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.SpelLiteral;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -81,6 +84,63 @@ class PolicyMatrixServiceTest {
     @Nested
     @DisplayName("기본 매트릭스 생성")
     class BasicMatrix {
+
+        @Test
+        @DisplayName("a role whose name has a quote is read from the literal that holds it")
+        void aRoleWithAQuoteIsReadFromItsLiteral() {
+            Policy policy = buildPolicy(1L, "allow-oneil", Policy.Effect.ALLOW,
+                    "/api/users", "hasAuthority(" + SpelLiteral.quote("ROLE_O'NEIL") + ")");
+            when(policyRepository.findAllWithDetails()).thenReturn(List.of(policy));
+            when(roleRepository.findAll()).thenReturn(List.of(buildRole(1L, "O'Neil"), buildRole(2L, "O")));
+
+            PolicyMatrixReport report = service.generateMatrix(null, null);
+
+            assertThat(report.roles()).containsExactly("O'Neil", "O");
+            assertThat(report.cells().get(0).get(0).access()).isEqualTo("ALLOW");
+            var other = report.cells().get(0).get(1);
+            assertThat(other == null || !"ALLOW".equals(other.access())).as("a role named O is not O'Neil").isTrue();
+        }
+
+        @Test
+        @DisplayName("a condition that asks for the bare name of a role without the prefix lets nobody through, and the matrix says so")
+        void aBareNameOfARoleWithoutThePrefixIsNotAnAllow() {
+            Policy policy = buildPolicy(1L, "allow-oneil", Policy.Effect.ALLOW,
+                    "/api/users", "hasAuthority(" + SpelLiteral.quote("O'Neil") + ")");
+            when(policyRepository.findAllWithDetails()).thenReturn(List.of(policy));
+            when(roleRepository.findAll()).thenReturn(List.of(buildRole(1L, "O'Neil")));
+
+            var cell = service.generateMatrix(null, null).cells().get(0).get(0);
+
+            assertThat(cell == null || !"ALLOW".equals(cell.access())).isTrue();
+        }
+
+        @Test
+        @DisplayName("the matrix tells what a request of a person who holds the role's authority is told")
+        void theMatrixAgreesWithTheRequest() {
+            for (String roleName : List.of("O'Neil", "O", "sales", "R&D", "ROLE_SALES", "ROLE_O'Neil", "ROLE_sales")) {
+                String authority = new RoleAuthority(Role.builder().id(1L).roleName(roleName).build()).getAuthority();
+                for (String condition : List.of(
+                        SpelLiteral.hasAuthority(authority),
+                        SpelLiteral.hasAuthority(roleName),
+                        "hasAnyAuthority(" + SpelLiteral.quote(authority) + "," + SpelLiteral.quote("X") + ")",
+                        "hasAnyAuthority(" + SpelLiteral.quote(roleName) + ")",
+                        "hasRole(" + SpelLiteral.quote(roleName) + ")",
+                        "(" + SpelLiteral.hasAuthority(authority) + ") and (" + SpelLiteral.hasAuthority("READ") + ")",
+                        "(" + SpelLiteral.hasAuthority(roleName) + ") and (" + SpelLiteral.hasAuthority("READ") + ")")) {
+                    Policy policy = buildPolicy(1L, "p", Policy.Effect.ALLOW, "/api/users", condition);
+                    when(policyRepository.findAllWithDetails()).thenReturn(List.of(policy));
+                    when(roleRepository.findAll()).thenReturn(List.of(buildRole(1L, roleName)));
+
+                    var cell = service.generateMatrix(null, null).cells().get(0).get(0);
+
+                    boolean matrixAllows = cell != null && "ALLOW".equals(cell.access());
+                    boolean requestAllowed = AuthorityProbe.evaluate(condition, authority, "READ").granted();
+                    assertThat(matrixAllows)
+                            .as("role " + roleName + " (authority " + authority + ") against " + condition)
+                            .isEqualTo(requestAllowed);
+                }
+            }
+        }
 
         @Test
         @DisplayName("정책과 역할이 있으면 매트릭스 셀이 생성됨")

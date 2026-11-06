@@ -25,16 +25,20 @@ import io.contexa.contexaiam.domain.dto.TargetDto;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
 import io.contexa.contexaiam.repository.PolicyRepository;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.SpelLiteral;
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.repository.RoleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -45,9 +49,14 @@ public class PolicySynchronizationService {
     private final RoleRepository roleRepository;
     private final PolicyService policyService;
 
+    /**
+     * Runs once the transaction that changed the role has committed: run earlier, on another thread, it would not see
+     * a new role at all ("Role not found") and would read the old permissions of a changed one. A rolled-back change
+     * makes no policy. Its own work runs in a transaction of its own.
+     */
     @Async("contexaTaskExecutor")
-    @EventListener
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void handleRolePermissionsChange(RolePermissionsChangedEvent event) {
 
         Role role = roleRepository.findByIdWithPermissionsAndResources(event.getRoleId())
@@ -75,18 +84,25 @@ public class PolicySynchronizationService {
                         .targetIdentifier(mr.getResourceIdentifier())
                         .httpMethod(mr.getHttpMethod() != null ? mr.getHttpMethod().name() : "ANY")
                         .build())
-                .distinct() 
+                .distinct()
                 .toList();
+
+        Optional<Policy> existingPolicy = policyRepository.findByName(policyName);
+        if (targetDtos.isEmpty() && existingPolicy.isEmpty()) {
+            // A policy needs a target, and the target is the resource a permission guards: with none, there is nothing
+            // for an automatic policy to say. A policy that exists is still brought up to date below.
+            log.info("Role '{}' holds no permission that guards a resource, so it has no automatic policy to make",
+                    role.getRoleName());
+            return;
+        }
 
         String permissionsExpression = role.getRolePermissions().stream()
                 .map(rp -> rp.getPermission().getName())
-                .map(permissionName -> String.format("hasAuthority('%s')", permissionName))
+                .map(SpelLiteral::hasAuthority)
                 .collect(Collectors.joining(" or "));
 
-        String finalCondition = String.format("hasAuthority('%s') and (%s)",
-                role.getRoleName(),
-                StringUtils.hasText(permissionsExpression) ? permissionsExpression : "false" 
-        );
+        String finalCondition = SpelLiteral.hasRoleAuthority(role.getRoleName())
+                + " and (" + (StringUtils.hasText(permissionsExpression) ? permissionsExpression : "false") + ")";
 
         ConditionDto conditionDto = ConditionDto.builder()
                 .expression(finalCondition)
@@ -103,15 +119,12 @@ public class PolicySynchronizationService {
                 .rules(List.of(ruleDto))
                 .build();
 
-        policyRepository.findByName(policyName)
-                .ifPresentOrElse(
-                        existingPolicy -> {
-                            policyDto.setId(existingPolicy.getId());
-                            policyService.updatePolicy(policyDto);
-                                                    },
-                        () -> {
-                            policyService.createPolicy(policyDto);
-                                                    }
-                );
+        existingPolicy.ifPresentOrElse(
+                existing -> {
+                    policyDto.setId(existing.getId());
+                    policyService.updatePolicy(policyDto);
+                },
+                () -> policyService.createPolicy(policyDto)
+        );
     }
 }

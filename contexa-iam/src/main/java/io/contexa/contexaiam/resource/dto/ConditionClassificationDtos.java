@@ -230,8 +230,10 @@ public final class ConditionClassificationDtos {
             String error,
             String message
     ) implements ConditionTemplateGenerationResponse {
-        public static ConditionTemplateGenerationErrorResponse from(Exception exception, String message) {
-            return new ConditionTemplateGenerationErrorResponse(false, exception.getMessage(), message);
+        /** The exception is in the server's log, not in the answer: it names what failed inside. */
+        public static ConditionTemplateGenerationErrorResponse failed(String message) {
+            return new ConditionTemplateGenerationErrorResponse(false,
+                    "The action could not be completed. See the server log.", message);
         }
     }
 

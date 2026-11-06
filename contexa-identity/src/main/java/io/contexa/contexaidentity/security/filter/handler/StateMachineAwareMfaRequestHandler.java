@@ -55,6 +55,14 @@ import org.springframework.lang.Nullable;
 public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
     private static final int HTTP_STATUS_TOO_MANY_REQUESTS = 429;
+    /** What the client is told of an error that reached the filter; the exception is in the log. */
+    private static final String GENERIC_ERROR_MESSAGE = "A system error occurred during MFA processing.";
+    /** What the client is told of a request that failed while it was processed; the exception is in the log. */
+    private static final String PROCESSING_ERROR_MESSAGE = "An error occurred while processing the request.";
+    /** What the client is told of a flow found in a terminal state that has no answer; the state is in the log. */
+    private static final String UNKNOWN_STATE_MESSAGE = "The authentication flow ended in a state that cannot be answered.";
+    /** What the client is told of a request the flow has no step for; the kind is in the log. */
+    private static final String UNSUPPORTED_REQUEST_MESSAGE = "Unsupported request type";
 
     private final AuthContextProperties authContextProperties;
     private final AuthResponseWriter responseWriter;
@@ -169,8 +177,10 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
                         "SYSTEM_ERROR", "System error", requestUri, responseBody);
             }
             default -> {
+                log.error("A flow was found in terminal state {} that has no answer: session {}", state,
+                        responseBody.get("mfaSessionId"));
                 responseBody.put("status", "UNKNOWN_TERMINAL_STATE");
-                responseBody.put("message", "Unknown terminal state: " + state);
+                responseBody.put("message", UNKNOWN_STATE_MESSAGE);
                 responseWriter.writeErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                         "UNKNOWN_STATE", "Unknown state", requestUri, responseBody);
             }
@@ -193,7 +203,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("error", "MFA_PROCESSING_ERROR");
-        errorResponse.put("message", "A system error occurred during MFA processing.");
+        errorResponse.put("message", GENERIC_ERROR_MESSAGE);
         errorResponse.put("timestamp", System.currentTimeMillis());
 
         if (context != null) {
@@ -202,7 +212,13 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         }
 
         responseWriter.writeErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                "MFA_PROCESSING_ERROR", error.getMessage(), request.getRequestURI(), errorResponse);
+                "MFA_PROCESSING_ERROR", GENERIC_ERROR_MESSAGE, request.getRequestURI(), errorResponse);
+    }
+
+    @Override
+    public void handleVerificationRunning(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        request.setAttribute(MfaStateMachineIntegrator.MFA_BUSY_RETRY_REASON_ATTRIBUTE, "VERIFICATION_RUNNING");
+        writeBusyRetryResponse(request, response);
     }
 
     private void processRequestByType(MfaRequestType requestType, HttpServletRequest request,
@@ -236,8 +252,10 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
                 break;
 
             default:
+                log.error("A request of kind {} has no step in the flow: session {}", requestType,
+                        context.getMfaSessionId());
                 Map<String, Object> errorResponse = createErrorResponse(context, "UNSUPPORTED_REQUEST",
-                        "Unsupported request type: " + requestType.getDescription());
+                        UNSUPPORTED_REQUEST_MESSAGE);
                 errorResponse.put("requestType", requestType.name());
                 responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
                         "UNSUPPORTED_REQUEST", "Unsupported request type", request.getRequestURI(), errorResponse);
@@ -526,13 +544,12 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
     private void handleProcessingError(HttpServletRequest request, HttpServletResponse response,
                                        FactorContext context, Exception error) throws IOException {
+        // The exception's type and text name what failed inside: they are the operators', in the log of the caller.
         Map<String, Object> errorResponse = createErrorResponse(context, "REQUEST_PROCESSING_ERROR",
-                "An error occurred while processing the request.");
-        errorResponse.put("errorType", error.getClass().getSimpleName());
-        errorResponse.put("errorMessage", error.getMessage());
+                PROCESSING_ERROR_MESSAGE);
 
         responseWriter.writeErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                "REQUEST_PROCESSING_ERROR", error.getMessage(), request.getRequestURI(), errorResponse);
+                "REQUEST_PROCESSING_ERROR", PROCESSING_ERROR_MESSAGE, request.getRequestURI(), errorResponse);
     }
 
     private Map<String, Object> createBaseResponse(FactorContext context) {

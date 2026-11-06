@@ -18,6 +18,7 @@ package io.contexa.contexaidentity.security.filter;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.properties.MfaSettings;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.validator.MfaContextValidator;
@@ -34,9 +35,12 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.lang.reflect.Field;
+import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.Mock;
@@ -164,6 +168,46 @@ class MfaContinuationFilterTest {
                 eq("MFA_SESSION_INVALID"), anyString(), eq("/mfa/select"), anyMap());
     }
 
+    @ParameterizedTest
+    @EnumSource(value = MfaState.class, names = {"FACTOR_VERIFICATION_PENDING", "FACTOR_VERIFICATION_COMPLETED", "ALL_FACTORS_COMPLETED"})
+    void aRequestDuringAVerificationLeavesTheFlowAlone(MfaState running) throws Exception {
+        filterWithSettings();
+        givenAFlowIn(running, Instant.now());
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        verify(requestHandler).handleVerificationRunning(request, response);
+        verify(stateMachineIntegrator, never()).releaseStateMachine(anyString());
+        verify(sessionRepository, never()).removeSession(anyString(), any(), any());
+        verifyNoInteractions(filterChain);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = MfaState.class, names = {"FACTOR_VERIFICATION_PENDING", "FACTOR_VERIFICATION_COMPLETED", "ALL_FACTORS_COMPLETED"})
+    void aVerificationWithNoRequestLeftEndsTheFlow(MfaState running) throws Exception {
+        filterWithSettings();
+        givenAFlowIn(running, Instant.now().minus(new MfaSettings().getStateMachineTimeout()).minusSeconds(1));
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        verify(requestHandler, never()).handleVerificationRunning(any(), any());
+        verify(stateMachineIntegrator).releaseStateMachine("session-1");
+        verify(sessionRepository).removeSession("session-1", request, response);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = MfaState.class, names = {"NONE", "MFA_FAILED_TERMINAL", "MFA_RETRY_LIMIT_EXCEEDED", "MFA_SESSION_EXPIRED", "MFA_SYSTEM_ERROR", "MFA_CANCELLED"})
+    void aFlowThatEndedOrNeverStartedIsStillRemovedAtOnce(MfaState ended) throws Exception {
+        filterWithSettings();
+        givenAFlowIn(ended, Instant.now());
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        verify(requestHandler, never()).handleVerificationRunning(any(), any());
+        verify(stateMachineIntegrator).releaseStateMachine("session-1");
+        verify(sessionRepository).removeSession("session-1", request, response);
+    }
+
     @Test
     void doFilterInternal_shouldDelegateToRequestHandler_whenContextIsTerminal() throws Exception {
         markInitialized();
@@ -229,6 +273,26 @@ class MfaContinuationFilterTest {
     }
 
     // -- helper methods --
+
+    private void filterWithSettings() throws Exception {
+        when(authContextProperties.getMfa()).thenReturn(new MfaSettings());
+        markInitialized();
+    }
+
+    private void givenAFlowIn(MfaState state, Instant lastActivity) {
+        when(urlMatcher.isMfaRequest(request)).thenReturn(true);
+        when(stateMachineIntegrator.loadFactorContextFromRequest(request)).thenReturn(factorContext);
+        when(factorContext.getMfaSessionId()).thenReturn("session-1");
+        when(factorContext.getUsername()).thenReturn("alice");
+        when(factorContext.getCurrentState()).thenReturn(state);
+        when(factorContext.getLastActivityTimestamp()).thenReturn(lastActivity);
+        when(request.getRequestURI()).thenReturn("/login/mfa-ott");
+        when(request.getContextPath()).thenReturn("");
+        when(request.getAttribute(MfaContinuationFilter.FACTOR_CONTEXT_ATTR)).thenReturn(factorContext);
+        when(authUrlProvider.getPrimaryLoginPage()).thenReturn("/login");
+        when(sessionRepository.existsSession("session-1")).thenReturn(true);
+        when(sessionRepository.getRepositoryType()).thenReturn("redis");
+    }
 
     private void markInitialized() throws Exception {
         setField(filter, "initialized", true);

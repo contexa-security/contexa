@@ -19,6 +19,7 @@ import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.repository.PermissionRepository;
+import io.contexa.contexacommon.security.authority.RoleAuthority;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.center.dto.BatchCreateRequest;
@@ -31,6 +32,8 @@ import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.resource.service.ResourceRegistryService;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyValidationReport;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.AuthorityProbe;
+import org.mockito.ArgumentCaptor;
 import io.contexa.contexaiam.security.xacml.pap.service.BusinessPolicyService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyEnrichmentService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
@@ -267,26 +270,75 @@ class PolicyCenterCommandServiceTest {
         }
 
         @Test
-        @DisplayName("should reject a CRUD permission that injects SpEL and never save the policy")
-        void rejectsInjectedPermission() {
+        @DisplayName("a CRUD permission that carries SpEL stays one name: the policy asks for it as it is and runs nothing")
+        void aCrudPermissionThatCarriesSpelStaysOneName() {
+            String injected = "READ') or T(java.lang.Runtime).getRuntime().exec('calc') != null or hasAuthority('X";
+
+            String expression = batchCreatedExpression("ROLE_USER", injected);
+
+            AuthorityProbe.Outcome holder = AuthorityProbe.evaluate(expression, "ROLE_USER", "READ", "X");
+            assertThat(holder.granted()).isFalse();
+            assertThat(holder.asked()).containsExactly("ROLE_USER", injected);
+        }
+
+        @Test
+        @DisplayName("a role named to end its literal is asked for as the authority it gives, never always true")
+        void aRoleNamedToEndItsLiteralIsAskedForAsItIs() {
+            String expression = batchCreatedExpression(AuthorityProbe.ALWAYS_TRUE_NAME, "READ");
+            String given = RoleAuthority.authorityOf(AuthorityProbe.ALWAYS_TRUE_NAME);
+
+            AuthorityProbe.Outcome nobody = AuthorityProbe.evaluate(expression, "R&D", "Ops", "READ");
+            assertThat(nobody.granted()).isFalse();
+            assertThat(nobody.asked()).containsExactly(given);
+            assertThat(AuthorityProbe.evaluate(expression, given, "READ").granted()).isTrue();
+        }
+
+        @Test
+        @DisplayName("a role that does not start with ROLE_ is asked for as the authority it gives its users")
+        void aRoleWithoutThePrefixIsAskedForAsTheAuthorityItGives() {
+            for (String roleName : List.of("O'Neil", "USER", "sales team")) {
+                String given = new RoleAuthority(Role.builder().id(10L).roleName(roleName).build()).getAuthority();
+                String expression = batchCreatedExpression(roleName, "READ");
+
+                AuthorityProbe.Outcome holder = AuthorityProbe.evaluate(expression, given, "READ");
+                assertThat(holder.granted()).as("a user who holds " + given).isTrue();
+                assertThat(holder.asked()).containsExactly(given, "READ");
+                assertThat(AuthorityProbe.evaluate(expression, "ROLE_OTHER", "READ").granted())
+                        .as("a user without the role").isFalse();
+            }
+        }
+
+        @Test
+        @DisplayName("a role that starts with ROLE_ is asked for by its name, as before")
+        void aRoleWithThePrefixIsAskedForByItsName() {
+            String expression = batchCreatedExpression("ROLE_O'Neil", "READ");
+
+            assertThat(AuthorityProbe.evaluate(expression, "ROLE_O'Neil", "READ").granted()).isTrue();
+            assertThat(AuthorityProbe.evaluate(expression, "ROLE_O'NEIL", "READ").granted()).isFalse();
+        }
+
+        private String batchCreatedExpression(String roleName, String crud) {
+            clearInvocations(policyRepository);
             BatchCreateRequest.BatchItem item = new BatchCreateRequest.BatchItem();
             item.setResourceIdentifier("/api/test");
-            item.setCrudPermissions(Set.of("READ') or T(java.lang.Runtime).getRuntime().exec('calc') != null or hasAuthority('X"));
-
+            item.setCrudPermissions(Set.of(crud));
             BatchCreateRequest request = new BatchCreateRequest();
             request.setItems(List.of(item));
             request.setRoleIds(Set.of(10L));
             request.setEffect(Policy.Effect.ALLOW);
-
-            when(roleService.getRole(10L)).thenReturn(Role.builder().id(10L).roleName("USER").build());
+            when(roleService.getRole(10L)).thenReturn(Role.builder().id(10L).roleName(roleName).build());
             when(policyRepository.findAllWithDetails()).thenReturn(new ArrayList<>());
+            PolicyValidationReport report = mock(PolicyValidationReport.class);
+            when(report.canCreate()).thenReturn(true);
+            when(policyValidationService.validate(any(), any())).thenReturn(report);
+            when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
             PolicyBatchCreateResponse res = service.batchCreatePolicies(request);
 
-            assertThat(res.created()).isZero();
-            assertThat(res.results()).hasSize(1);
-            assertThat(res.results().get(0).status()).isEqualTo("ERROR");
-            verify(policyRepository, never()).save(any());
+            assertThat(res.results()).extracting(PolicyBatchItemResponse::status).containsExactly("CREATED");
+            ArgumentCaptor<Policy> saved = ArgumentCaptor.forClass(Policy.class);
+            verify(policyRepository).save(saved.capture());
+            return saved.getValue().getRules().iterator().next().getConditions().iterator().next().getExpression();
         }
     }
 

@@ -15,13 +15,15 @@
  */
 package io.contexa.contexaiam.domain.entity;
 
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
 
 /**
- * Tracks active HTTP sessions for admin monitoring and forced invalidation.
+ * Tracks active HTTP sessions for admin monitoring and forced invalidation. {@code sessionId} holds the session's
+ * reference ({@code sid-} and 24 hexadecimal digits of its SHA-256), never the value its cookie carries.
  */
 @Entity
 @Table(name = "ctxa_active_sessions", indexes = {
@@ -60,4 +62,10 @@ public class ActiveSession {
     @Column(nullable = false)
     @Builder.Default
     private boolean expired = false;
+
+    /** The session's reference, as the console shows it and the audit names it, also for a row kept raw before. */
+    @Transient
+    public String getSessionReference() {
+        return RequestFactRedaction.sessionReference(sessionId);
+    }
 }

@@ -18,6 +18,8 @@ package io.contexa.autoconfigure.identity;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.service.ott.ContexaOneTimeTokens;
+import io.contexa.contexaidentity.security.service.ott.EmailOneTimeTokenService;
+import io.contexa.contexaidentity.security.service.ott.EmailService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -25,13 +27,22 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.authentication.ott.GenerateOneTimeTokenRequest;
 import org.springframework.security.authentication.ott.InMemoryOneTimeTokenService;
 import org.springframework.security.authentication.ott.OneTimeTokenService;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Spring Security's one-time token login takes the application's {@link OneTimeTokenService} by type
@@ -92,6 +103,26 @@ class OneTimeTokenServiceHostCoexistenceTest {
             assertThat(context.getBeanProvider(OneTimeTokenService.class).getIfAvailable())
                     .as("what an injection point of the application finds by type").isNull();
         });
+    }
+
+    @Test
+    @DisplayName("a code goes to a name of the store the sign-in reads, and to no name that store does not know")
+    void theStoreOfTheSignInDecidesWhoIsMailed() {
+        EmailService mail = mock(EmailService.class);
+        when(mail.isMailSenderConfigured()).thenReturn(true);
+        contexts.withBean("contexaEmailService", EmailService.class, () -> mail)
+                .withBean(UserDetailsService.class, () -> new InMemoryUserDetailsManager(
+                        User.withUsername("alice@app.example").password("{noop}x").build()))
+                .run(context -> {
+                    EmailOneTimeTokenService service = context.getBean(ContexaOneTimeTokens.BEAN_NAME,
+                            ContexaOneTimeTokens.class).service();
+
+                    service.generate(new GenerateOneTimeTokenRequest("alice@app.example"));
+                    service.generate(new GenerateOneTimeTokenRequest("victim@example.test"));
+
+                    verify(mail).sendHtmlMessage(eq("alice@app.example"), anyString(), anyString());
+                    verify(mail, never()).sendHtmlMessage(eq("victim@example.test"), anyString(), anyString());
+                });
     }
 
     @Test

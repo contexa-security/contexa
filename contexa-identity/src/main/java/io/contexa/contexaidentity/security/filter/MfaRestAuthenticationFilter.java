@@ -195,7 +195,7 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         securityContextHolderStrategy.clearContext();
         stateMachineIntegrator.cleanupSession(request, response);
 
-        log.error("Authentication failed for user: {} from IP: {} using repository: {}",
+        log.warn("Authentication failed for user: {} from IP: {} using repository: {}",
                 failed.getAuthenticationRequest() != null ?
                         failed.getAuthenticationRequest().getName() : "unknown",
                 getClientIpAddress(request),

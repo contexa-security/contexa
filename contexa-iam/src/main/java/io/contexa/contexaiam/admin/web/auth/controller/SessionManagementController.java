@@ -18,6 +18,7 @@ package io.contexa.contexaiam.admin.web.auth.controller;
 import io.contexa.contexaiam.admin.web.auth.service.SessionManagementService;
 import io.contexa.contexaiam.admin.web.common.CsvColumn;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
+import io.contexa.contexaiam.common.ConsoleFault;
 import io.contexa.contexaiam.domain.entity.ActiveSession;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -38,7 +39,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
- * Admin controller for session monitoring and forced invalidation.
+ * Admin controller for session monitoring and forced invalidation. A session is shown, exported and invalidated by its
+ * reference, never by the value its cookie carries.
  */
 @Slf4j
 @Controller
@@ -63,6 +65,8 @@ public class SessionManagementController {
                        @RequestParam(required = false) String keyword,
                        Model model) {
         model.addAttribute("activePage", "session-management");
+        // What a node not yet on references wrote since the last read is turned into references before it is listed.
+        sessionManagementService.referenceRawSessions();
 
         PageRequest pageable = PageRequest.of(page, PAGE_SIZE, Sort.by(Sort.Direction.DESC, "lastAccessedAt"));
         Page<ActiveSession> sessionPage = sessionManagementService.searchActiveSessions(keyword, pageable);
@@ -78,11 +82,13 @@ public class SessionManagementController {
     @PostMapping("/{sessionId}/invalidate")
     public String invalidateSession(@PathVariable String sessionId, RedirectAttributes ra) {
         try {
+            // The session is named by its reference: a row a node not yet on references wrote must be one before it is ended.
+            sessionManagementService.referenceRawSessions();
             sessionManagementService.invalidateSession(sessionId);
             ra.addFlashAttribute("message", msg("admin.session.invalidated"));
         } catch (Exception e) {
             log.error("[SessionManagement] Failed to invalidate session: {}", sessionId, e);
-            ra.addFlashAttribute("errorMessage", msg("msg.session.invalidate.error", e.getMessage()));
+            ra.addFlashAttribute("errorMessage", msg("msg.session.invalidate.error", ConsoleFault.textOf(e)));
         }
         return "redirect:/contexa/admin/session-management";
     }
@@ -94,15 +100,16 @@ public class SessionManagementController {
             ra.addFlashAttribute("message", msg("admin.session.all.invalidated"));
         } catch (Exception e) {
             log.error("[SessionManagement] Failed to invalidate all sessions for user: {}", userId, e);
-            ra.addFlashAttribute("errorMessage", msg("msg.session.invalidate.all.error", e.getMessage()));
+            ra.addFlashAttribute("errorMessage", msg("msg.session.invalidate.all.error", ConsoleFault.textOf(e)));
         }
         return "redirect:/contexa/admin/session-management";
     }
 
     @GetMapping("/export")
     public void export(HttpServletResponse response) throws IOException {
+        sessionManagementService.referenceRawSessions();
         List<CsvColumn<ActiveSession>> columns = List.of(
-                new CsvColumn<>("Session ID", s -> s.getSessionId() != null ? s.getSessionId() : ""),
+                new CsvColumn<>("Session Reference", s -> s.getSessionReference() != null ? s.getSessionReference() : ""),
                 new CsvColumn<>("Username", s -> s.getUsername() != null ? s.getUsername() : ""),
                 new CsvColumn<>("User ID", s -> s.getUserId() != null ? s.getUserId() : ""),
                 new CsvColumn<>("IP Address", s -> s.getClientIp() != null ? s.getClientIp() : ""),

@@ -50,11 +50,14 @@ class SessionAuthorizationStampResolverTest {
 
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/reports/export");
         request.setSession(session);
+        // The session's authorization is read from the attribute the application names.
+        BridgeProperties properties = new BridgeProperties();
+        properties.getAuthorization().getSession().setAttribute("LOGIN_USER");
 
         AuthorizationStamp stamp = resolver.resolve(
                 request,
                 new RequestContextSnapshot("/reports/export", "POST", "10.0.0.10", "JUnit", "session-1", "request-1", "/reports/export", null, false, Instant.now()),
-                new BridgeProperties()
+                properties
         ).orElseThrow();
 
         assertThat(stamp.subjectId()).isEqualTo("alice");

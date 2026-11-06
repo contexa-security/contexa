@@ -17,6 +17,8 @@ package io.contexa.contexacore.infra.session.impl;
 
 import java.util.Locale;
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.store.ApplicationNamespace;
+import io.contexa.contexacommon.store.StoreFailures;
 import io.contexa.contexacore.infra.ContexaBackgroundExecution;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.infra.session.SessionIdGenerationException;
@@ -24,6 +26,7 @@ import io.contexa.contexacore.infra.session.generator.SessionIdGenerator;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -54,8 +57,19 @@ public class RedisMfaRepository implements MfaSessionRepository {
     private static final String SESSION_PREFIX = "mfa:session:v2:";
     private static final String COLLISION_COUNTER_KEY_PREFIX = "mfa:collision:counter:";
     private static final String SESSION_STATS_KEY = "mfa:stats:v2";
+
+    /** The key of a session, behind the name of the application when it has one. */
+    private static String sessionKey(String sessionId) {
+        return ApplicationNamespace.key(SESSION_PREFIX + sessionId);
+    }
+
+    private static String statsKey() {
+        return ApplicationNamespace.key(SESSION_STATS_KEY);
+    }
     private static final String COOKIE_NAME = "MFA_SID";
     private static final String TEMP_SESSION_ATTR = "_tempMfaSessionId_";
+    /** The MFA session in the HTTP session that started it, as HttpSessionMfaRepository keeps it (PR-89). */
+    private static final String MFA_SESSION_ID_ATTRIBUTE = "MFA_SESSION_ID";
     private static final int MAX_COLLISION_RETRIES = 10;
 
     private Duration sessionTimeout;
@@ -86,7 +100,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
             throw new IllegalArgumentException("Invalid session ID format: " + sessionId);
         }
 
-        String redisKey = SESSION_PREFIX + sessionId;
+        String redisKey = sessionKey(sessionId);
         String sessionValue = createSessionValue(sessionId, request);
 
         DefaultRedisScript<Long> script = new DefaultRedisScript<>(CREATE_SESSION_IF_NOT_EXISTS_SCRIPT, Long.class);
@@ -103,6 +117,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
                 setSessionCookie(response, sessionId, request.isSecure());
             }
             request.setAttribute(TEMP_SESSION_ATTR, sessionId);
+            request.getSession(true).setAttribute(MFA_SESSION_ID_ATTRIBUTE, sessionId);
         } else {
 
             log.error("Failed to store session ID {} in Redis. It might already exist or script failed. Result: {}", sessionId, result);
@@ -112,7 +127,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
 
     @Override
     public String generateUniqueSessionId(@Nullable String baseId, HttpServletRequest request) {
-        String repositoryTypeCollisionCounterKey = COLLISION_COUNTER_KEY_PREFIX + getRepositoryType();
+        String repositoryTypeCollisionCounterKey = ApplicationNamespace.key(COLLISION_COUNTER_KEY_PREFIX + getRepositoryType());
         for (int attempt = 0; attempt < MAX_COLLISION_RETRIES; attempt++) {
             String sessionId = sessionIdGenerator.generate(baseId, request);
 
@@ -153,8 +168,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
             return null;
         }
 
-        String redisKey = SESSION_PREFIX + sessionIdFromCookie;
-        if (redisTemplate.hasKey(redisKey)) {
+        if (existsSession(sessionIdFromCookie)) {
             request.setAttribute(TEMP_SESSION_ATTR, sessionIdFromCookie);
             return sessionIdFromCookie;
         }
@@ -165,7 +179,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
     @Override
     public boolean isSessionIdUnique(String sessionId) {
         if (!StringUtils.hasText(sessionId)) return false;
-        String redisKey = SESSION_PREFIX + sessionId;
+        String redisKey = sessionKey(sessionId);
         return !redisTemplate.hasKey(redisKey);
     }
 
@@ -196,18 +210,36 @@ public class RedisMfaRepository implements MfaSessionRepository {
     @Override
     public void removeSession(String sessionId, HttpServletRequest request, @Nullable HttpServletResponse response) {
         if (!StringUtils.hasText(sessionId)) return;
-        String redisKey = SESSION_PREFIX + sessionId;
+        String redisKey = sessionKey(sessionId);
         redisTemplate.delete(redisKey);
         request.removeAttribute(TEMP_SESSION_ATTR);
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            session.removeAttribute(MFA_SESSION_ID_ATTRIBUTE);
+        }
         if (response != null) {
             invalidateSessionCookie(response, request.isSecure());
+        }
+    }
+
+    /** PR-89: the cookie alone outlives the session, so the session names the flow it started. */
+    @Override
+    @Nullable
+    public String sessionIdOf(HttpSession session) {
+        return session == null ? null : (String) session.getAttribute(MFA_SESSION_ID_ATTRIBUTE);
+    }
+
+    @Override
+    public void forgetSession(String sessionId) {
+        if (StringUtils.hasText(sessionId)) {
+            redisTemplate.delete(sessionKey(sessionId));
         }
     }
 
     @Override
     public void refreshSession(String sessionId) {
         if (!StringUtils.hasText(sessionId)) return;
-        String redisKey = SESSION_PREFIX + sessionId;
+        String redisKey = sessionKey(sessionId);
         Boolean refreshed = redisTemplate.expire(redisKey, sessionTimeout);
         if (!Boolean.TRUE.equals(refreshed)) {
         }
@@ -218,8 +250,17 @@ public class RedisMfaRepository implements MfaSessionRepository {
         if (!StringUtils.hasText(sessionId)) {
             return false;
         }
-        String redisKey = SESSION_PREFIX + sessionId;
-        return redisTemplate.hasKey(redisKey);
+        String redisKey = sessionKey(sessionId);
+        try {
+            return redisTemplate.hasKey(redisKey);
+        } catch (RuntimeException unreadable) {
+            // D-19 (PR-84): an MFA flow that cannot be read is one this request does not have, as the other repositories
+            // answer; the screen starts over instead of ending in a server error.
+            if (!StoreFailures.isReportedOutage(unreadable)) {
+                log.error("Failed to read an MFA session; it is taken as absent: {}", sessionId, unreadable);
+            }
+            return false;
+        }
     }
 
     @Override
@@ -297,10 +338,10 @@ public class RedisMfaRepository implements MfaSessionRepository {
     private void updateSessionStatsAsync() {
         CompletableFuture.runAsync(() -> {
             try {
-                redisTemplate.opsForHash().increment(SESSION_STATS_KEY, "totalCreated", 1);
-                redisTemplate.opsForHash().increment(SESSION_STATS_KEY, "collisionsResolved", sessionCollisionsResolved.get());
-                redisTemplate.opsForHash().put(SESSION_STATS_KEY, "lastUpdate", String.valueOf(Instant.now().toEpochMilli()));
-                redisTemplate.expire(SESSION_STATS_KEY, 7, TimeUnit.DAYS);
+                redisTemplate.opsForHash().increment(statsKey(), "totalCreated", 1);
+                redisTemplate.opsForHash().increment(statsKey(), "collisionsResolved", sessionCollisionsResolved.get());
+                redisTemplate.opsForHash().put(statsKey(), "lastUpdate", String.valueOf(Instant.now().toEpochMilli()));
+                redisTemplate.expire(statsKey(), 7, TimeUnit.DAYS);
             } catch (Exception e) {
                 log.error("Failed to update session stats in Redis asynchronously", e);
             }

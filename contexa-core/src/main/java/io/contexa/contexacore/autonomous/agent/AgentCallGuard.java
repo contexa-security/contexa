@@ -51,6 +51,9 @@ import java.util.function.Function;
 @Slf4j
 public class AgentCallGuard {
 
+    /** The answer to a request past a limit. */
+    public static final String CALL_LIMIT = "AGENT_CALL_LIMIT";
+
     /** What a request of an agent may do under the limits. */
     public record Admission(boolean admitted, @Nullable String scope, int calls, int limit, long retryAfterSeconds) {
 

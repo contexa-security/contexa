@@ -19,15 +19,20 @@ import java.time.Instant;
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.soar.event.SecurityActionEvent;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
+import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
@@ -36,13 +41,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.function.BooleanSupplier;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -56,10 +65,132 @@ public class BlockedUserService implements IBlockedUserRecorder {
     private final BlockingSignalBroadcaster blockingDecisionRegistry;
     private final MessageSource messageSource;
     private VerificationLearningService verificationLearningService;
+    private BlockMfaStateStore blockMfaStateStore;
+    private BooleanSupplier enforcing = () -> true;
 
     /** Learns, after an administrator's ALLOW, the blocked request from its own facts (W5-2). */
     public void setVerificationLearningService(VerificationLearningService verificationLearningService) {
         this.verificationLearningService = verificationLearningService;
+    }
+
+    /** Where a verification of the acting administrator is read; without one nobody releases themselves. */
+    public void setBlockMfaStateStore(BlockMfaStateStore blockMfaStateStore) {
+        this.blockMfaStateStore = blockMfaStateStore;
+    }
+
+    /** Whether decisions are enforced: under SHADOW, OBSERVE or DISABLED a stored BLOCK stops nothing, here as anywhere. */
+    public void setEnforcing(BooleanSupplier enforcing) {
+        this.enforcing = enforcing != null ? enforcing : () -> true;
+    }
+
+    /**
+     * Whether a console session stands under a restriction of its own that a verification in this session answers: a
+     * BLOCK it has not verified, or a CHALLENGE (the console's step-up answers it in this session).
+     */
+    public boolean ownBlockAwaitsVerification(String adminId) {
+        String ownKey = ownKey(adminId);
+        if (!ConsoleSession.current() || ownKey == null) {
+            return false;
+        }
+        ZeroTrustAction own = actionRedisRepository.getCurrentAction(ownKey);
+        return own == ZeroTrustAction.BLOCK && !verifiedHere(ownKey) || own == ZeroTrustAction.CHALLENGE;
+    }
+
+    /**
+     * Whether the acting administrator stands under a restriction of their own that this session has not answered, in
+     * the console or in the application: a BLOCK, a CHALLENGE or an ESCALATE in force for this session. The decision is
+     * read for the session's own context, so a CHALLENGE the session answered with its step-up reads ALLOW here while it
+     * still holds for the sessions that did not. Such a session reads the block list and changes nothing: the release
+     * path stands behind no access or CHALLENGE filter, and a stolen session must not lift someone else's restriction
+     * or stop the agents from there.
+     */
+    public boolean underOwnBlock(String adminId) {
+        return ownRestriction(adminId) != null;
+    }
+
+    /** The restriction of the acting administrator's own in force for this session, or null. */
+    private ZeroTrustAction ownRestriction(String adminId) {
+        String ownKey = ownKey(adminId);
+        if (ownKey == null || !enforcing.getAsBoolean()) {
+            return null;
+        }
+        ZeroTrustAction own = actionRedisRepository.getCurrentAction(ownKey);
+        return own == ZeroTrustAction.BLOCK || own == ZeroTrustAction.CHALLENGE || own == ZeroTrustAction.ESCALATE
+                ? own : null;
+    }
+
+    /** Whether the acting administrator may lift what stands against the subject: what {@link #refuseRelease} lets pass. */
+    public boolean mayLift(String subjectKey, String adminId) {
+        String ownKey = ownKey(adminId);
+        return isOwn(ownKey, subjectKey) ? verifiedHere(ownKey) : !underOwnBlock(adminId);
+    }
+
+    /**
+     * A session under a restriction of its own reaches the block list, the one place of the console left open to it, so
+     * a stolen session could stop the agents or lift the BLOCK of an accomplice from there. It reads the list and changes
+     * nothing until the restriction is answered: under a BLOCK whatever it verified, as a verification answers its own
+     * BLOCK and once that is lifted the session stands under none; under a CHALLENGE until it passes the step-up in this
+     * session; under an ESCALATE until the decision it waits for is made.
+     *
+     * @param action   what was asked for, as the audit names it
+     * @param resource what it was asked for
+     */
+    public void refuseUnderOwnBlock(String adminId, String action, String resource) {
+        ZeroTrustAction own = ownRestriction(adminId);
+        if (own != null) {
+            auditRefusal(adminId, resource, action, "A change from a session under its own " + own.name(), own);
+            throw new UnderOwnBlockException(msg("msg.blacklist.read.only"));
+        }
+    }
+
+    /**
+     * A session's own record and decision take another administrator, or a verification passed in this session, and
+     * someone else's stay out of reach of a session under a BLOCK ({@link #refuseUnderOwnBlock}). Both sides are compared
+     * as the decisions are enforced, so no spelling of the name, in the record, in the typed name or in the sign-in, makes
+     * the key someone else's. Under HOST_OWNED the application's user of the name is someone else.
+     */
+    private void refuseRelease(String subjectKey, String adminId, String action) {
+        String ownKey = ownKey(adminId);
+        if (!isOwn(ownKey, subjectKey)) {
+            refuseUnderOwnBlock(adminId, action, subjectKey);
+        } else if (!verifiedHere(ownKey)) {
+            auditRefusal(adminId, subjectKey, action, "An administrator's own release without a verification in this session",
+                    ZeroTrustAction.BLOCK);
+            throw new AccessDeniedException(msg("msg.blacklist.self.release"));
+        }
+    }
+
+    private static boolean isOwn(String ownKey, String subjectKey) {
+        return ownKey != null && Objects.equals(ZeroTrustUserKey.of(ownKey), ZeroTrustUserKey.of(subjectKey));
+    }
+
+    private void auditRefusal(String adminId, String resource, String action, String reason, ZeroTrustAction own) {
+        try {
+            centralAuditFacade.recordAsync(AuditRecord.builder()
+                    .eventCategory(AuditEventCategory.ADMIN_OVERRIDE)
+                    .principalName(adminId)
+                    .eventSource("IAM")
+                    .resourceIdentifier(resource)
+                    .action(action)
+                    .decision(own.name())
+                    .outcome("REFUSED")
+                    .reason(reason)
+                    .build());
+        } catch (RuntimeException e) {
+            log.error("[BlockedUserService] Failed to audit a refused change: adminId={}", adminId, e);
+        }
+    }
+
+    /** The key the acting administrator's decisions are stored under, in the console or in the application. */
+    private static String ownKey(String adminId) {
+        ZeroTrustSubject acting = ZeroTrustSubject.of(adminId, null);
+        return acting != null ? acting.storageKey() : null;
+    }
+
+    private boolean verifiedHere(String ownKey) {
+        return blockMfaStateStore != null
+                && RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes
+                && blockMfaStateStore.isVerified(ownKey, SessionFingerprintUtil.verificationContext(attributes.getRequest()));
     }
 
     private String msg(String key, Object... args) {
@@ -144,6 +275,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
         }
 
         BlockedUser blocked = blockedOpt.get();
+        refuseRelease(blocked.getUserId(), adminId, "RESOLVE_BLOCK");
         applyResolution(blocked, adminId, resolvedAction, reason);
     }
 
@@ -152,6 +284,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
         BlockedUser blocked = blockedUserJpaRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException(msg("msg.blocked.user.not.found.id", id)));
 
+        refuseRelease(blocked.getUserId(), adminId, "RESOLVE_BLOCK");
         if (blocked.getStatus() == BlockedUserStatus.RESOLVED) {
             throw new IllegalStateException(msg("msg.blocked.user.already.resolved", id));
         }
@@ -258,7 +391,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
                     b.setStatus(BlockedUserStatus.MFA_FAILED);
                     blockedUserJpaRepository.save(b);
 
-                    log.error("[BlockedUserService] MFA failed - auto response triggered: userId={}", userId);
+                    log.warn("[BlockedUserService] MFA failed - auto response triggered: userId={}", userId);
 
                     centralAuditFacade.recordAsync(AuditRecord.builder()
                             .eventCategory(AuditEventCategory.MFA_VERIFICATION_FAILED)
@@ -297,6 +430,52 @@ public class BlockedUserService implements IBlockedUserRecorder {
     }
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    /**
+     * Q-1: an administrator lifts a CHALLENGE, for a user who has no way to answer it, in every session of the user. It
+     * says nothing about the request that was stopped, so nothing is learned from it. The administrator names a person;
+     * a console session's CHALLENGE, kept apart from the person of that name, is named by its key.
+     *
+     * @return false when no CHALLENGE stands
+     */
+    public boolean releaseChallenge(String userId, String adminId, String reason) {
+        if (userId == null || userId.isBlank() || reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("A user and a reason are required");
+        }
+        String typed = userId.trim();
+        String person = ZeroTrustUserKey.person(typed);
+        String user = underChallenge(person) ? person : !person.equals(typed) && underChallenge(typed) ? typed : null;
+        refuseRelease(user != null ? user : person, adminId, "RELEASE_CHALLENGE");
+        if (user == null) {
+            return false;
+        }
+        actionRedisRepository.approveOverrideAtomically(user, ZeroTrustAction.ALLOW);
+        if (blockingDecisionRegistry != null) {
+            blockingDecisionRegistry.registerUnblock(user);
+        }
+        try {
+            centralAuditFacade.recordAsync(AuditRecord.builder()
+                    .eventCategory(AuditEventCategory.ADMIN_OVERRIDE)
+                    .principalName(adminId)
+                    .eventSource("IAM")
+                    .resourceIdentifier(user)
+                    .action("RELEASE_CHALLENGE")
+                    .decision(ZeroTrustAction.ALLOW.name())
+                    .outcome("APPROVED")
+                    .reason(reason)
+                    .build());
+        } catch (RuntimeException e) {
+            log.error("[BlockedUserService] Failed to audit a released challenge: userId={}", user, e);
+        }
+        return true;
+    }
+
+    /** A hold outlives the CHALLENGE it came from, so a BLOCK decided since is looked for first: it has its own way out. */
+    private boolean underChallenge(String key) {
+        ZeroTrustAction stored = actionRedisRepository.getActionFromHash(key);
+        return stored != ZeroTrustAction.BLOCK
+                && (stored == ZeroTrustAction.CHALLENGE || actionRedisRepository.challengeHeldSince(key) != null);
+    }
+
     @Protectable(verificationRequired = false)
     public List<BlockedUser> findBlockedUsers(String filter, String keyword) {
         String safeFilter = filter != null ? filter : "all";
@@ -322,6 +501,34 @@ public class BlockedUserService implements IBlockedUserRecorder {
                     .toList();
             default -> getAllBlockHistory();
         };
+    }
+
+    /** Every status but RESOLVED keeps the user blocked: a request to unblock and a timed-out block are answered by no one yet. */
+    @Override
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    public boolean isBlockInForce(String userId) {
+        if (!StringUtils.hasText(userId)) {
+            return false;
+        }
+        return blockedUserJpaRepository.findFirstByUserIdOrderByBlockedAtDesc(userId)
+                .map(blockedUser -> blockedUser.getStatus() != BlockedUserStatus.RESOLVED)
+                .orElse(false);
+    }
+
+    /**
+     * The users {@link #isBlockInForce} answers true for, under the id each block was recorded with: a user with a record
+     * that is not resolved is looked at, and listed when the latest record of the user is not. The question is the one
+     * {@code isBlockInForce} asks, so the list can never differ from it.
+     */
+    @Override
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    public List<String> blocksInForce() {
+        return blockedUserJpaRepository.findByStatusNot(BlockedUserStatus.RESOLVED).stream()
+                .map(BlockedUser::getUserId)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .filter(this::isBlockInForce)
+                .toList();
     }
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
@@ -354,10 +561,12 @@ public class BlockedUserService implements IBlockedUserRecorder {
     }
 
     @Transactional(transactionManager = "contexaTransactionManager")
-    public void deleteBlockRecord(Long id) {
+    public void deleteBlockRecord(Long id, String adminId) {
         BlockedUser blocked = blockedUserJpaRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException(msg("msg.blocked.user.not.found.id", id)));
 
+        // Without its record a block no longer reads as in force, and whoever it stopped leaves no trace of it.
+        refuseRelease(blocked.getUserId(), adminId, "DELETE_BLOCK_RECORD");
         if (blocked.getStatus() == BlockedUserStatus.BLOCKED) {
             throw new IllegalStateException(msg("msg.blocked.user.delete.active", id));
         }

@@ -22,13 +22,18 @@ public final class ZeroTrustActionMfaMapper {
 
     private ZeroTrustActionMfaMapper() {}
 
+    /**
+     * What a stored decision means for the second step of a new sign-in. The decision was reached for another request and
+     * the store keeps it by user, without the session, address and browser of this sign-in, so an ALLOW in it waives
+     * nothing: a stolen password would meet no second step while the victim's ALLOW lasts. A restriction holds for the
+     * user wherever the sign-in comes from.
+     */
     public static MfaDecision.DecisionType toDecisionType(ZeroTrustAction action) {
         if (action == null) {
             return MfaDecision.DecisionType.CHALLENGED;
         }
         return switch (action) {
-            case ALLOW -> MfaDecision.DecisionType.NO_MFA_REQUIRED;
-            case CHALLENGE, PENDING_ANALYSIS -> MfaDecision.DecisionType.CHALLENGED;
+            case ALLOW, CHALLENGE, PENDING_ANALYSIS -> MfaDecision.DecisionType.CHALLENGED;
             case BLOCK -> MfaDecision.DecisionType.BLOCKED;
             case ESCALATE -> MfaDecision.DecisionType.ESCALATED;
         };

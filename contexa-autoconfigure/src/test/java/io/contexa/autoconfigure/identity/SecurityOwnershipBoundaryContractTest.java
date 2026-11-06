@@ -13,9 +13,11 @@ import io.contexa.contexacommon.operating.ConditionalOnOwnership;
 import io.contexa.autoconfigure.iam.IamSecurityAutoConfiguration;
 import io.contexa.autoconfigure.iam.IamWebSocketAutoConfiguration;
 import io.contexa.autoconfigure.iam.admin.IamAdminIpAutoConfiguration;
+import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexaidentity.security.zerotrust.HostOwnedSignInFailureListener;
 import io.contexa.contexaiam.admin.web.auth.service.IpAccessRuleService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -23,6 +25,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 
@@ -43,6 +46,16 @@ class SecurityOwnershipBoundaryContractTest {
         assertInContexaOwnedPlane(IamAdminSessionContexaOwnedConfiguration.class, "sessionTrackingFilter");
         assertContexaOwnedOnly(IdentityOAuth2AutoConfiguration.class
                 .getAnnotation(ConditionalOnOwnership.class));
+    }
+
+    @Test
+    void theApplicationsFailedSignInsNeverReachTheLoginPolicy() {
+        Method bean = findMethod(HostOwnedStepUpAutoConfiguration.class, "hostOwnedSignInFailureListener");
+
+        assertThat(bean).isNotNull();
+        assertThat(bean.getParameterTypes()).doesNotContain(LoginPolicyHandler.class);
+        assertThat(Arrays.stream(HostOwnedSignInFailureListener.class.getDeclaredFields()).map(Field::getType).toList())
+                .doesNotContain(LoginPolicyHandler.class);
     }
 
     @Test

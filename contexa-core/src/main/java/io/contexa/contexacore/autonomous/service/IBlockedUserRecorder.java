@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.autonomous.service;
 
+import java.util.List;
+
 /**
  * Interface for recording blocked users to persistent storage.
  * Implemented in contexa-iam module to avoid reverse dependency from contexa-core.
@@ -37,6 +39,24 @@ public interface IBlockedUserRecorder {
     }
 
     void resolveBlock(String userId, String adminId, String resolvedAction, String reason);
+
+    /**
+     * Whether the record holds a block in force for the user: the second copy of a BLOCK, read while the decision store
+     * does not answer. A recorder that keeps no record knows of none.
+     */
+    default boolean isBlockInForce(String userId) {
+        return false;
+    }
+
+    /**
+     * The users whose block the record holds in force, by the same definition as {@link #isBlockInForce}: every user
+     * for whom that method answers true, under the id the block was recorded with. An application that is given a name
+     * writes these blocks again under the keys of its name, as the keys it had before it had one are no longer read. A
+     * recorder that keeps no record knows of none.
+     */
+    default List<String> blocksInForce() {
+        return List.of();
+    }
 
     default void markMfaVerified(String userId) {}
 

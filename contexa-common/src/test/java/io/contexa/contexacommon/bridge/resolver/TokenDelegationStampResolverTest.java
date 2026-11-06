@@ -19,6 +19,7 @@ import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.BridgeSemanticBoundaryPolicy;
 import io.contexa.contexacommon.security.bridge.resolver.TokenDelegationStampResolver;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
+import io.contexa.contexacommon.security.subject.AgentClientStatusUnavailableException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.bind.Binder;
@@ -287,6 +288,24 @@ class TokenDelegationStampResolverTest {
 
         assertThat(withDirectory.resolve(null, null, new BridgeProperties())).isEmpty();
         assertThat(lookups).containsExactly("acme|svc");
+    }
+
+    /**
+     * The stamp of a request that already passed is read for the record and refuses nothing: a directory that cannot
+     * answer leaves the client unnamed here and does not fail the reading. The places that issue and accept tokens are the
+     * ones that refuse a client they cannot read about.
+     */
+    @Test
+    void aDirectoryThatCannotAnswerDoesNotFailTheReadingOfTheStamp() {
+        TokenDelegationStampResolver withDirectory = new TokenDelegationStampResolver((tenantId, clientId) -> {
+            throw new AgentClientStatusUnavailableException("cannot read the registry");
+        });
+        authenticate(jwt(Map.of("sub", "alice", "client_id", "report-client")));
+
+        assertThat(withDirectory.resolve(null, null, new BridgeProperties())).isEmpty();
+        authenticate(jwt(Map.of("sub", "alice", "client_id", "report-client", "act", Map.of("sub", "report-client"))));
+        assertThat(withDirectory.resolve(null, null, new BridgeProperties()).orElseThrow().agentId())
+                .isEqualTo("report-client");
     }
 
     @Test

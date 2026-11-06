@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.store;
 
 import java.time.Instant;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -37,6 +38,8 @@ abstract class AbstractSecurityContextDataStoreContractTest {
 
     protected abstract SecurityContextDataStore createStoreWithLoginFailureRetention(Duration retention);
 
+    protected abstract SecurityContextDataStore createStoreWithAllowValidity(Duration validity);
+
     /** BR-C14: a store keeping the given number of observations in each scope. */
     protected abstract SecurityContextDataStore createStoreWithObservationCapacity(int capacity);
 
@@ -48,6 +51,22 @@ abstract class AbstractSecurityContextDataStoreContractTest {
 
     /** Z-16 D-8: whether {@link #store} still holds a risk score for the session (no read of it is offered). */
     protected abstract boolean holdsSessionRisk(String sessionId);
+
+    /** The process of {@link #store} is gone and another took its place: what the store of the new process sees. */
+    protected abstract SecurityContextDataStore storeOfTheNextProcess();
+
+    /** How many keys of failed sign-ins {@link #store} holds, the order they are kept in included. */
+    protected abstract long heldLoginFailureKeys();
+
+    @Test
+    void q14_theVersionOfAccountsMovesOnWithEachChange() {
+        SecurityContextDataStore store = createStore();
+        long before = store.authoritiesVersion();
+
+        store.advanceAuthoritiesVersion();
+
+        assertThat(store.authoritiesVersion()).isGreaterThan(before);
+    }
 
     @BeforeEach
     void setUpStore() {
@@ -96,6 +115,15 @@ abstract class AbstractSecurityContextDataStoreContractTest {
                 .untilAsserted(() -> assertThat(ttlStore.claimEventProcessing("event-ttl"))
                         .as("processed event must become claimable again after TTL")
                         .isEqualTo(SecurityContextDataStore.EventProcessingClaim.ACQUIRED));
+    }
+
+    @Test
+    @DisplayName("a claim does not outlive the process that made it")
+    void claimEventProcessing_aClaimOfADeadProcessLeavesTheEventToTheNextOne() {
+        store.claimEventProcessing("event-of-the-dead");
+
+        assertThat(storeOfTheNextProcess().claimEventProcessing("event-of-the-dead"))
+                .isEqualTo(SecurityContextDataStore.EventProcessingClaim.ACQUIRED);
     }
 
     @Test
@@ -255,6 +283,26 @@ abstract class AbstractSecurityContextDataStoreContractTest {
         store.holdVerificationLearning("user-held", "request-3", "{}");
         store.deleteUserData("user-held");
         assertThat(store.takeVerificationLearning("user-held", "request-3")).isNull();
+    }
+
+    @Test
+    @DisplayName("a verified stopped request lasts as long as the ALLOW the step-up writes, the one left out too (Q-28)")
+    void stoppedRequests_lastAsLongAsTheAllow() {
+        SecurityContextDataStore store = createStoreWithAllowValidity(Duration.ofSeconds(40));
+        store.holdStoppedRequest("user-window", "POST /api/a");
+        store.holdStoppedRequest("user-window", "POST /api/b");
+        store.holdStoppedRequest("user-window-late", "POST /api/a");
+
+        store.verifyStoppedRequests("user-window", "POST /api/a");
+        store.verifyStoppedRequests("user-window-late", null);
+        passTime(Duration.ofSeconds(35));
+
+        assertThat(store.takeVerifiedStoppedRequest("user-window", "POST /api/a")).as("left out").isFalse();
+        assertThat(store.takeVerifiedStoppedRequest("user-window", "POST /api/b")).as("within the time").isTrue();
+
+        passTime(Duration.ofSeconds(6));
+
+        assertThat(store.takeVerifiedStoppedRequest("user-window-late", "POST /api/a")).as("past the time").isFalse();
     }
 
     @Test
@@ -429,6 +477,112 @@ abstract class AbstractSecurityContextDataStoreContractTest {
     }
 
     @Test
+    @DisplayName("sign-ins under names nobody has do not make the store grow")
+    void loginFailures_aFloodOfNamesStaysWithinTheBound() {
+        long now = System.currentTimeMillis();
+
+        floodWithNames(now);
+
+        assertThat(heldLoginFailureKeys()).isLessThanOrEqualTo(LoginFailureRecording.MAX_KEYS);
+    }
+
+    @Test
+    @DisplayName("a name the flood pushed out reads as not known, never as no failures")
+    void loginFailures_aNamePushedOutIsNotKnown() {
+        long now = System.currentTimeMillis();
+        store.recordLoginFailure("victim", null, now);
+        store.recordLoginFailure("victim", null, now);
+        store.recordLoginFailure("victim", null, now);
+        passTime(Duration.ofSeconds(1));
+
+        floodWithNames(now);
+
+        assertThat(store.findRecentLoginFailures("victim", now - 60_000, now + 1_000)).isNull();
+        assertThat(store.findRecentLoginFailures("never-seen", now - 60_000, now + 1_000)).isNull();
+    }
+
+    @Test
+    @DisplayName("a failure after the flood is counted: the latest failures stay")
+    void loginFailures_theLatestFailuresStay() {
+        long now = System.currentTimeMillis();
+        floodWithNames(now);
+        passTime(Duration.ofSeconds(1));
+
+        store.recordLoginFailure("victim", null, now + 1);
+
+        assertThat(store.findRecentLoginFailures("victim", now - 60_000, now + 1_000)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("once a window has passed since a name was pushed out, no record means no failures again")
+    void loginFailures_theWindowEndsWhatTheFloodMadeUnknown() {
+        long now = System.currentTimeMillis();
+        floodWithNames(now);
+
+        passTime(Duration.ofMinutes(11));
+
+        assertThat(store.findRecentLoginFailures("never-seen", now, now + 1_000)).isZero();
+    }
+
+    @Test
+    @DisplayName("the failures of a name keep to their bound, the latest ones staying")
+    void loginFailures_oneNameKeepsToItsBound() {
+        long now = System.currentTimeMillis();
+        for (int failure = 0; failure < LoginFailureRecording.MAX_PER_KEY + 25; failure++) {
+            store.recordLoginFailure("hammered", null, now + failure);
+        }
+
+        assertThat(store.findRecentLoginFailures("hammered", now, now + 2 * LoginFailureRecording.MAX_PER_KEY))
+                .isEqualTo(LoginFailureRecording.MAX_PER_KEY);
+        assertThat(store.findRecentLoginFailures("hammered", now, now + 24)).isZero();
+    }
+
+    @Test
+    @DisplayName("a failed sign-in leaves with its window, its key and the order of the keys alike")
+    void loginFailures_expireWithTheirWindow() {
+        store.recordLoginFailure("passing", "203.0.113.20", System.currentTimeMillis());
+        assertThat(heldLoginFailureKeys()).isPositive();
+
+        passTime(Duration.ofMinutes(11));
+
+        assertThat(heldLoginFailureKeys()).isZero();
+    }
+
+    @Test
+    @DisplayName("every spelling of a name counts as one person, as a decision of the name reaches them all")
+    void loginFailures_everySpellingIsOneName() {
+        long now = System.currentTimeMillis();
+        store.recordLoginFailure("Alice", null, now);
+        store.recordLoginFailure("ALICE ", null, now);
+        store.recordLoginFailure("alice", null, now);
+
+        assertThat(store.findRecentLoginFailures("aLiCe", now - 60_000, now + 1_000)).isEqualTo(3);
+        assertThat(store.getRecentLoginFailureCount("ALICE", null, now - 60_000, now + 1_000)).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("deleting a user removes the failures of the user's name, whatever its spelling or form")
+    void deleteUserData_removesTheFailuresOfTheName() {
+        long now = System.currentTimeMillis();
+        store.recordLoginFailure("Carol", null, now);
+        String moved = ZeroTrustUserKey.person("console::mallory");
+        store.recordLoginFailure(moved, null, now);
+
+        store.deleteUserData("carol");
+        store.deleteUserData("console::mallory");
+
+        assertThat(store.findRecentLoginFailures("Carol", now - 60_000, now + 1_000)).isZero();
+        assertThat(store.findRecentLoginFailures(moved, now - 60_000, now + 1_000)).isZero();
+        assertThat(heldLoginFailureKeys()).isZero();
+    }
+
+    private void floodWithNames(long now) {
+        for (int name = 0; name < LoginFailureRecording.MAX_KEYS + 50; name++) {
+            store.recordLoginFailure("nobody-" + name, null, now);
+        }
+    }
+
+    @Test
     @DisplayName("deleting a user removes its records in every tenant and keeps other users and shared scopes")
     void deleteUserData_removesOnlyThatUser() {
         long now = System.currentTimeMillis();
@@ -474,6 +628,52 @@ abstract class AbstractSecurityContextDataStoreContractTest {
     }
 
     @Test
+    @DisplayName("deleting a user leaves what an agent that bears the user's name learned")
+    void deleteUserData_leavesTheAgentOfThatName() {
+        store.addWorkProfileObservation("tenant-a", "ivy", "{\"path\":\"/documents\"}");
+        store.addWorkProfileObservation(null, "erin::agent::ivy", "{\"path\":\"/documents\"}");
+        store.addWorkProfileObservation("tenant-a", "erin::agent::ivy", "{\"path\":\"/exports\"}");
+        store.addPermissionChangeObservation("tenant-a", "erin::agent::ivy", "{\"role\":\"SCOPE_READ\"}");
+        store.setAuthorizationScopeState("tenant-a", "erin::agent::ivy", "{\"scope\":\"read\"}");
+        store.holdPromotionLearning("tenant-a::ivy", "request-1", "{}");
+        store.holdPromotionLearning("tenant-a::erin::agent::ivy", "request-2", "{}");
+
+        store.deleteUserData("ivy");
+
+        assertThat(store.getRecentWorkProfileObservations("tenant-a", "ivy", 10)).isEmpty();
+        assertThat(store.promotionLearning("tenant-a::ivy")).isEmpty();
+        assertThat(store.getRecentWorkProfileObservations(null, "erin::agent::ivy", 10)).hasSize(1);
+        assertThat(store.getRecentWorkProfileObservations("tenant-a", "erin::agent::ivy", 10)).hasSize(1);
+        assertThat(store.getRecentPermissionChangeObservations("tenant-a", "erin::agent::ivy", 10)).hasSize(1);
+        assertThat(store.getAuthorizationScopeState("tenant-a", "erin::agent::ivy")).isNotNull();
+        assertThat(store.promotionLearning("tenant-a::erin::agent::ivy")).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("deleting a user named as an agent's key takes what the user left and leaves what the agent learned")
+    void deleteUserData_ofAUserNamedAsAnAgentsKeyLeavesTheAgent() {
+        String name = "erin::agent::agt-1";
+        String own = ZeroTrustUserKey.person(name);
+        store.addWorkProfileObservation("tenant-a", name, "{\"path\":\"/documents\"}");
+        store.setAuthorizationScopeState("tenant-a", name, "{\"scope\":\"read\"}");
+        store.holdPromotionLearning(name, "request-1", "{}");
+        store.addWorkProfileObservation("tenant-a", own, "{\"path\":\"/exports\"}");
+        store.setAuthorizationScopeState("tenant-a", own, "{\"scope\":\"write\"}");
+        store.holdPromotionLearning(own, "request-2", "{}");
+        store.setLastRequestTime(name, 1_000L);
+
+        store.deleteUserData(name);
+
+        assertThat(store.getRecentWorkProfileObservations("tenant-a", own, 10)).isEmpty();
+        assertThat(store.getAuthorizationScopeState("tenant-a", own)).isNull();
+        assertThat(store.promotionLearning(own)).isEmpty();
+        assertThat(store.getLastRequestTime(name)).as("what is kept under the name goes with the user").isNull();
+        assertThat(store.getRecentWorkProfileObservations("tenant-a", name, 10)).hasSize(1);
+        assertThat(store.getAuthorizationScopeState("tenant-a", name)).isNotNull();
+        assertThat(store.promotionLearning(name)).hasSize(1);
+    }
+
+    @Test
     @DisplayName("docs/agent F-6 (CF-27): deleting a user removes the authorization state of the agents acting for it")
     void deleteUserData_removesTheAuthorizationStateOfTheAgentsActingForTheUser() {
         store.addPermissionChangeObservation(null, "erin::agent::agt-1", "{\"role\":\"SCOPE_READ\"}");
@@ -503,6 +703,17 @@ abstract class AbstractSecurityContextDataStoreContractTest {
 
         assertThat(store.learningQuarantined("agent:agt-1")).isFalse();
         assertThat(store.learningQuarantineScopes()).containsExactly("delegation:dlg-1");
+    }
+
+    @Test
+    @DisplayName("a store with no earlier key to carry a quarantine from adds nothing and keeps what it has")
+    void carryOverLearningQuarantine_withoutAnEarlierKeyAddsNothing() {
+        store.setLearningQuarantined("agent:agt-1", true);
+
+        assertThat(store.carryOverLearningQuarantine()).isZero();
+        assertThat(store.carryOverLearningQuarantine()).isZero();
+
+        assertThat(store.learningQuarantineScopes()).containsExactly("agent:agt-1");
     }
 
     @Test

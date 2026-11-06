@@ -94,7 +94,7 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
 
         ValidationResult validation = MfaContextValidator.validateFactorProcessingContext(ctx);
         if (validation.hasErrors()) {
-            log.error("Invalid context for MFA factor processing using {} repository. URI: {}, Errors: {}",
+            log.warn("Invalid context for MFA factor processing using {} repository. URI: {}, Errors: {}",
                     sessionRepository.getRepositoryType(), request.getRequestURI(), validation.getErrors());
 
             ensureMinimumDelay(startTime);
@@ -113,10 +113,10 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
         }
 
         if (validation.hasWarnings()) {
-            log.error("MFA factor processing warnings: {}", validation.getWarnings());
+            log.warn("MFA factor processing warnings: {}", validation.getWarnings());
         }
         if (isSessionExpired(ctx)) {
-            log.error("MFA session expired for session: {}", ctx.getMfaSessionId());
+            log.warn("MFA session expired for session: {}", ctx.getMfaSessionId());
             stateMachineIntegrator.sendEvent(MfaEvent.SESSION_TIMEOUT, ctx, request);
             ensureMinimumDelay(startTime);
 
@@ -127,7 +127,7 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
         }
 
         if (isRetryLimitExceeded(ctx)) {
-            log.error("Retry limit exceeded for session: {}", ctx.getMfaSessionId());
+            log.warn("Retry limit exceeded for session: {}", ctx.getMfaSessionId());
             stateMachineIntegrator.sendEvent(MfaEvent.RETRY_LIMIT_EXCEEDED, ctx, request);
             ensureMinimumDelay(startTime);
 
@@ -140,13 +140,17 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
 
         boolean accepted = stateMachineIntegrator.sendEvent(MfaEvent.SUBMIT_FACTOR_CREDENTIAL, ctx, request);
         if (!accepted) {
-            log.error("State Machine rejected SUBMIT_FACTOR_CREDENTIAL event for session: {} in state: {}",
-                    ctx.getMfaSessionId(), ctx.getCurrentState());
+            // A second click meeting the first one is told to retry; the integrator has said so. No fault of the flow.
+            boolean busyRetry = stateMachineIntegrator.isBusyRetry(request);
+            if (!busyRetry) {
+                log.error("State Machine rejected SUBMIT_FACTOR_CREDENTIAL event for session: {} in state: {}",
+                        ctx.getMfaSessionId(), ctx.getCurrentState());
+            }
 
             ensureMinimumDelay(startTime);
 
             if (!response.isCommitted()) {
-                if (stateMachineIntegrator.isBusyRetry(request)) {
+                if (busyRetry) {
                     writeBusyRetryResponse(request, response);
                     return;
                 }

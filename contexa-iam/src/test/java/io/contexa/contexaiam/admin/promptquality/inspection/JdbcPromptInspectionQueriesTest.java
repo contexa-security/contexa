@@ -66,7 +66,9 @@ class JdbcPromptInspectionQueriesTest {
 
     @AfterEach
     void tearDown() {
-        database.close();
+        if (database != null) {
+            database.close();
+        }
     }
 
     @Test
@@ -90,6 +92,38 @@ class JdbcPromptInspectionQueriesTest {
         assertThat(p1.requestPath()).isEqualTo("/api/projects/GB-500/exports");
         assertThat(p1.resourceId()).isEqualTo("exportDocuments");
         assertThat(p1.capturedAt()).isEqualTo(T0);
+    }
+
+    /** A copy changed with the database's own rights tells nothing: the list and the counts read what is sealed. */
+    @Test
+    void theListAndTheCountsReadTheSealedFactsAndNotTheirCopy() {
+        String forged = "{\"httpMethod\":\"DELETE\",\"requestPath\":\"/forged\",\"resourceId\":\"forgedResource\"}";
+        jdbc.update("update ctxa_sealed_evidence_package set request_facts_jsonb = ?::jsonb where package_id = 'p1'", forged);
+
+        JdbcPromptInspectionQueries.PackageRow p1 = queries.packages(filter(null, null, null, null), 0, 20).rows().stream()
+                .filter(row -> row.packageId().equals("p1")).findFirst().orElseThrow();
+        assertThat(p1.httpMethod()).isEqualTo("POST");
+        assertThat(p1.requestPath()).isEqualTo("/api/projects/GB-500/exports");
+        assertThat(p1.resourceId()).isEqualTo("exportDocuments");
+
+        assertThat(queries.overview(FROM, TO).resources())
+                .extracting(JdbcPromptInspectionQueries.ResourceCount::resourceId)
+                .contains("exportDocuments").doesNotContain("forgedResource");
+    }
+
+    /** A copy emptied, or a sealed text that is no JSON, leaves the row in the list and takes nothing else away. */
+    @Test
+    void aCopyEmptiedOrFactsThatDoNotReadLeaveTheRow() {
+        jdbc.update("update ctxa_sealed_evidence_package set request_facts_jsonb = null where package_id = 'p1'");
+        jdbc.update("update ctxa_sealed_evidence_package set request_facts_json = 'not json' where package_id = 'p2'");
+
+        List<JdbcPromptInspectionQueries.PackageRow> rows = queries.packages(filter(null, null, null, null), 0, 20).rows();
+
+        assertThat(rows).extracting(JdbcPromptInspectionQueries.PackageRow::packageId).containsExactly("p3", "p2", "p1");
+        assertThat(rows.get(2).resourceId()).as("the emptied copy").isEqualTo("exportDocuments");
+        assertThat(rows.get(1).resourceId()).as("facts that do not read").isNull();
+        assertThat(queries.overview(FROM, TO).resources())
+                .extracting(JdbcPromptInspectionQueries.ResourceCount::resourceId).doesNotContainNull();
     }
 
     @Test

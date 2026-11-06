@@ -61,6 +61,8 @@ import org.springframework.security.web.webauthn.api.ImmutablePublicKeyCredentia
 public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenticationSuccessHandler {
 
     private static final int HTTP_STATUS_TOO_MANY_REQUESTS = 429;
+    /** What the client is told of a verified factor the flow cannot go on from; the state is in the log. */
+    private static final String GENERIC_ERROR_MESSAGE = "A system error occurred during MFA processing.";
 
     private final AuthResponseWriter responseWriter;
     private final MfaStateMachineIntegrator stateMachineIntegrator;
@@ -225,8 +227,9 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                         factorContext.getUsername());
             }
         } else {
-            log.error("Unexpected state {} after factor verification", currentState);
-            handleGenericError(response, request, factorContext, "Unexpected state: " + currentState);
+            log.error("Unexpected state {} after factor verification of user {}, MFA session {}",
+                    currentState, factorContext.getUsername(), factorContext.getMfaSessionId());
+            handleGenericError(response, request, factorContext);
         }
     }
 
@@ -357,12 +360,13 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
     }
 
     private void handleGenericError(HttpServletResponse response, HttpServletRequest request,
-                                    FactorContext ctx, String message) throws IOException {
+                                    FactorContext ctx) throws IOException {
 
-        log.error("Generic error during MFA factor processing for user {}: {}", ctx.getUsername(), message);
+        // What the flow was left in is the operators', in the log of the caller; the client is told no more than this.
+        log.error("Generic error during MFA factor processing for user {}", ctx.getUsername());
         if (!response.isCommitted()) {
             responseWriter.writeErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                    "MFA_PROCESSING_ERROR", message, request.getRequestURI());
+                    "MFA_PROCESSING_ERROR", GENERIC_ERROR_MESSAGE, request.getRequestURI());
         } else {
             log.error("Response already committed, cannot write MFA_PROCESSING_ERROR for user: {}", ctx.getUsername());
         }

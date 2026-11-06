@@ -16,6 +16,8 @@
 package io.contexa.contexaiam.admin.web.monitoring.controller;
 
 import io.contexa.contexacommon.entity.AuditLog;
+import io.contexa.contexacore.autonomous.audit.DecisionRecordSeal;
+import io.contexa.contexacore.verification.evidence.HmacEvidenceSigner;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
 import io.contexa.contexaiam.admin.web.monitoring.dto.SecurityMonitorDtos.IpGroupView;
@@ -39,6 +41,8 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Base64;
+import java.util.Map;
 import java.util.Optional;
 import io.contexa.contexacore.autonomous.agent.AgentDelegation;
 import io.contexa.contexacore.autonomous.agent.AgentDelegationRequest;
@@ -226,6 +230,68 @@ class SecurityMonitorControllerTest {
             when(auditLogRepository.countByEventCategoryAndTimestampAfter(eq("USER_BLOCKED"), any(LocalDateTime.class))).thenReturn(5L);
             when(auditLogRepository.countByEventCategoryAndTimestampAfter(eq("MFA_VERIFICATION_SUCCESS"), any(LocalDateTime.class))).thenReturn(20L);
             when(auditLogRepository.countAdminOverridesSince(any(LocalDateTime.class))).thenReturn(3L);
+        }
+    }
+
+    @Nested
+    @DisplayName("the integrity of a decision record")
+    class DecisionRecordIntegrity {
+
+        private final HmacEvidenceSigner signer = HmacEvidenceSigner.of(Map.of("k1", Base64.getEncoder()
+                .encodeToString("k1-0123456789abcdef0123456789abcd".getBytes())), null);
+
+        private AuditLog sealedRecord() {
+            AuditLog record = AuditLog.builder().id(7L).eventCategory("SECURITY_DECISION").principalName("alice")
+                    .decision("BLOCK").timestamp(LocalDateTime.now()).build();
+            DecisionRecordSeal.seal(record, null, signer);
+            return record;
+        }
+
+        private Object integrityOf(AuditLog record) {
+            controller.setEvidenceSigner(signer);
+            when(auditLogRepository.findById(7L)).thenReturn(Optional.of(record));
+            Model model = new ConcurrentModel();
+            controller.detail(7L, model, new RedirectAttributesModelMap());
+            return model.getAttribute("integrity");
+        }
+
+        @Test
+        @DisplayName("a record without its signature, once older sealed records are kept, is shown as changed")
+        void anUnsignedRecordInsideTheChain() {
+            AuditLog record = sealedRecord();
+            record.setRecordSignature(null);
+            when(auditLogRepository.existsByEventCategoryAndRecordHashIsNotNullAndIdLessThan("SECURITY_DECISION", 7L))
+                    .thenReturn(true);
+
+            assertThat(integrityOf(record)).isEqualTo("MISMATCH");
+        }
+
+        @Test
+        @DisplayName("a record from before sealing began stays not verifiable")
+        void aRecordFromBeforeSealing() {
+            AuditLog record = AuditLog.builder().id(7L).eventCategory("SECURITY_DECISION").principalName("alice").build();
+
+            assertThat(integrityOf(record)).isEqualTo("UNVERIFIABLE");
+        }
+
+        @Test
+        @DisplayName("a record naming a key never held, in the time of the active key, is shown as changed")
+        void aKeyNeverHeld() {
+            AuditLog record = sealedRecord();
+            record.setSignatureKeyId("forged-key");
+            when(auditLogRepository.existsByEventCategoryAndSignatureKeyIdAndIdLessThan("SECURITY_DECISION", "k1", 7L))
+                    .thenReturn(true);
+
+            assertThat(integrityOf(record)).isEqualTo("MISMATCH");
+        }
+
+        @Test
+        @DisplayName("a record naming a key from before the active key came into use stays not verifiable")
+        void aKeyFromBeforeTheActiveOne() {
+            AuditLog record = sealedRecord();
+            record.setSignatureKeyId("ephemeral-1a2b3c4d");
+
+            assertThat(integrityOf(record)).isEqualTo("UNVERIFIABLE");
         }
     }
 

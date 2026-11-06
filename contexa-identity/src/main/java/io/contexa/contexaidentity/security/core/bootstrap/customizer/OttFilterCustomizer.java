@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.core.bootstrap.customizer;
 
+import io.contexa.contexaidentity.security.filter.OneTimeTokenAddressRefusalFilter;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import jakarta.servlet.Filter;
 import org.springframework.security.web.DefaultSecurityFilterChain;
@@ -41,6 +42,10 @@ public class OttFilterCustomizer extends AbstractFilterCustomizer {
 
             if (filter instanceof GenerateOneTimeTokenFilter genFilter && StringUtils.hasText(tokenGeneratingUrl)) {
                 genFilter.setRequestMatcher(createPostMatcher(tokenGeneratingUrl));
+            }
+
+            if (filter instanceof OneTimeTokenAddressRefusalFilter refusalFilter) {
+                refusalFilter.setRequestPage(flowUrlProvider.getOttRequestCodeUi());
             }
         }
     }

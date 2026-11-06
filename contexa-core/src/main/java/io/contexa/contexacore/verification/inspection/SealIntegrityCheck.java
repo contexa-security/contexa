@@ -217,16 +217,38 @@ public final class SealIntegrityCheck implements PromptInspectionCheck {
     }
 
     private void packageHash(PromptInspectionTally tally, SealedEvidencePackage sealed) {
-        SealedEvidencePackageIntegrity.Status status = integrity.evaluate(sealed);
-        switch (status) {
+        SealedEvidencePackageIntegrity.Evaluation evaluation = integrity.examine(sealed);
+        switch (evaluation.status()) {
             case VERIFIED -> tally.matched();
-            case MISMATCH -> tally.mismatch(tally.mismatchFinding().entry("packageHash").sourceRef(PACKAGE + "packageHash")
-                    .expected(sealed.getPackageHash()).actual(integrity.computeHash(sealed))
-                    .reason("the sealed package changed after it was sealed").build());
+            case MISMATCH -> tally.mismatch(mismatch(tally, sealed, evaluation.cause()));
             case UNVERIFIABLE -> tally.unverifiable(tally.unverifiableFinding().entry("packageHash")
-                    .sourceRef(PACKAGE + "packageHash")
-                    .reason("the package carries no package hash, or a sealed prompt has no hash").build());
+                    .sourceRef(PACKAGE + "packageHash").reason(switch (evaluation.cause()) {
+                        case KEY_NOT_HELD -> "the package names a signing key this installation does not hold";
+                        case STORE_NOT_READ -> "the store could not say what is kept around the package";
+                        default -> "the package carries no package hash, or a sealed prompt has no hash";
+                    }).build());
         }
+    }
+
+    /** Q-21: what failed, by the field that shows it. */
+    private PromptInspectionFinding mismatch(PromptInspectionTally tally, SealedEvidencePackage sealed,
+                                             SealedEvidencePackageIntegrity.Cause cause) {
+        return switch (cause) {
+            case UNSIGNED -> tally.mismatchFinding().entry("packageSignature").sourceRef(PACKAGE + "packageSignature")
+                    .expected("a signature").actual("missing")
+                    .reason("the package carries no signature although this installation signs the packages it seals")
+                    .build();
+            case LINK_BROKEN -> tally.mismatchFinding().entry("previousPackageHash")
+                    .sourceRef(PACKAGE + "previousPackageHash").expected(sealed.getPreviousPackageHash())
+                    .actual("missing")
+                    .reason("the package sealed before this one is gone: the chain of packages is broken here").build();
+            case KEY_NOT_KNOWN -> tally.mismatchFinding().entry("signatureKeyId").sourceRef(PACKAGE + "signatureKeyId")
+                    .expected("a key this installation holds").actual(sealed.getSignatureKeyId())
+                    .reason("the package names a signing key this installation never held").build();
+            default -> tally.mismatchFinding().entry("packageHash").sourceRef(PACKAGE + "packageHash")
+                    .expected(sealed.getPackageHash()).actual(integrity.computeHash(sealed))
+                    .reason("the sealed package changed after it was sealed").build();
+        };
     }
 
     private static void hash(PromptInspectionTally tally, String name, String declared, String recomputed) {

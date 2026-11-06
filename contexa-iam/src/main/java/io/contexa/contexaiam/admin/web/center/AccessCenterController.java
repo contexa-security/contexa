@@ -29,11 +29,14 @@ import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos.AccessUserDet
 import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos.AccessUserSummaryResponse;
 import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos.UpdateRolePermissionsRequest;
 import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos.UpdateUserGroupsRequest;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorException;
 import io.contexa.contexaiam.admin.web.center.service.AccessCenterService;
+import io.contexa.contexaiam.common.ConsoleFault;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -99,9 +102,11 @@ public class AccessCenterController {
             @RequestBody UpdateUserGroupsRequest request) {
         try {
             return ResponseEntity.ok(accessCenterService.updateUserGroups(userId, request));
+        } catch (LastAdministratorException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(new AccessActionResponse(false, e.getMessage()));
         } catch (Exception e) {
             log.error("Failed to update user groups", e);
-            return ResponseEntity.badRequest().body(new AccessActionResponse(false, e.getMessage()));
+            return ResponseEntity.badRequest().body(new AccessActionResponse(false, ConsoleFault.textOf(e)));
         }
     }
 
@@ -112,9 +117,11 @@ public class AccessCenterController {
             @RequestBody AccessRoleAssignmentsRequest request) {
         try {
             return ResponseEntity.ok(accessCenterService.updateUserDirectRoles(userId, request));
+        } catch (LastAdministratorException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(new AccessActionResponse(false, e.getMessage()));
         } catch (Exception e) {
             log.error("Failed to update user direct roles", e);
-            return ResponseEntity.badRequest().body(new AccessActionResponse(false, e.getMessage()));
+            return ResponseEntity.badRequest().body(new AccessActionResponse(false, ConsoleFault.textOf(e)));
         }
     }
 
@@ -142,9 +149,11 @@ public class AccessCenterController {
             @RequestBody AccessRoleAssignmentsRequest request) {
         try {
             return ResponseEntity.ok(accessCenterService.updateGroupRoles(groupId, request));
+        } catch (LastAdministratorException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(new AccessActionResponse(false, e.getMessage()));
         } catch (Exception e) {
             log.error("Failed to update group roles", e);
-            return ResponseEntity.badRequest().body(new AccessActionResponse(false, e.getMessage()));
+            return ResponseEntity.badRequest().body(new AccessActionResponse(false, ConsoleFault.textOf(e)));
         }
     }
 
@@ -174,7 +183,7 @@ public class AccessCenterController {
             return ResponseEntity.ok(accessCenterService.updateRolePermissions(roleId, request));
         } catch (Exception e) {
             log.error("Failed to update role permissions", e);
-            return ResponseEntity.badRequest().body(new AccessActionResponse(false, e.getMessage()));
+            return ResponseEntity.badRequest().body(new AccessActionResponse(false, ConsoleFault.textOf(e)));
         }
     }
 

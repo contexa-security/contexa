@@ -25,6 +25,7 @@ import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.util.CollectionUtils;
@@ -67,7 +68,7 @@ public class ZeroTrustPolicyEvaluator extends AbstractMfaPolicyEvaluator {
         context.setAttribute(FactorContextAttributes.Policy.ZERO_TRUST_ACTION, action.name());
 
         return switch (action) {
-            case ALLOW -> createAllowDecision(analysis);
+            case ALLOW -> createStoredAllowDecision(context, analysis);
             case CHALLENGE -> createChallengeDecision(context, analysis);
             case BLOCK -> createBlockDecision(analysis);
             case ESCALATE -> createEscalateDecision(analysis);
@@ -75,16 +76,14 @@ public class ZeroTrustPolicyEvaluator extends AbstractMfaPolicyEvaluator {
         };
     }
 
-    private MfaDecision createAllowDecision(ZeroTrustAnalysisData analysis) {
-        Map<String, Object> metadata = buildAuditMetadata(ZeroTrustAction.ALLOW.name(), analysis);
-
-        return MfaDecision.builder()
-                .required(false)
-                .factorCount(0)
-                .type(MfaDecision.DecisionType.NO_MFA_REQUIRED)
-                .reason("Zero Trust ALLOW action - no MFA required")
-                .metadata(metadata)
-                .build();
+    /**
+     * A stored ALLOW was reached for another request, and it answers the requests of that context only. Read here it comes
+     * by user, without this sign-in's session, address or browser, so it says nothing of who holds the password now: a
+     * stolen one would meet no second step while the victim's ALLOW lasts.
+     */
+    private MfaDecision createStoredAllowDecision(FactorContext context, ZeroTrustAnalysisData analysis) {
+        return withChallengeReason(createChallengeDecision(context, analysis),
+                "Zero Trust ALLOW answers its own context, not a new sign-in - MFA required");
     }
 
     private MfaDecision createChallengeDecision(FactorContext context, ZeroTrustAnalysisData analysis) {
@@ -167,21 +166,8 @@ public class ZeroTrustPolicyEvaluator extends AbstractMfaPolicyEvaluator {
     }
 
     private MfaDecision createPendingAnalysisDecision(FactorContext context, ZeroTrustAnalysisData analysis) {
+        // Kept for the audit only: the last verified action has no context either, and it lasts a day.
         ZeroTrustAction lastAction = getLastVerifiedAction(context.getUsername());
-
-        if (lastAction == ZeroTrustAction.ALLOW) {
-            Map<String, Object> metadata = buildAuditMetadata(ZeroTrustAction.PENDING_ANALYSIS.name(), analysis);
-            metadata.put("pendingAnalysis", true);
-            metadata.put("lastVerifiedAction", ZeroTrustAction.ALLOW.name());
-
-            return MfaDecision.builder()
-                    .required(false)
-                    .factorCount(0)
-                    .type(MfaDecision.DecisionType.NO_MFA_REQUIRED)
-                    .reason("Zero Trust PENDING_ANALYSIS - last verified action was ALLOW")
-                    .metadata(metadata)
-                    .build();
-        }
 
         MfaDecision challengeDecision = createChallengeDecision(context, analysis);
 
@@ -192,10 +178,13 @@ public class ZeroTrustPolicyEvaluator extends AbstractMfaPolicyEvaluator {
         enrichedMetadata.put("pendingAnalysis", true);
         enrichedMetadata.put("lastVerifiedAction", lastAction != null ? lastAction.name() : "NONE");
 
-        return challengeDecision.toBuilder()
-                .reason("Zero Trust PENDING_ANALYSIS - MFA required (no prior ALLOW)")
-                .metadata(enrichedMetadata)
-                .build();
+        return withChallengeReason(challengeDecision.toBuilder().metadata(enrichedMetadata).build(),
+                "Zero Trust PENDING_ANALYSIS - MFA required");
+    }
+
+    /** The reason of a decision that asks for the second step; a refusal keeps the reason it was refused for. */
+    private static MfaDecision withChallengeReason(MfaDecision decision, String reason) {
+        return decision.isChallenged() ? decision.toBuilder().reason(reason).build() : decision;
     }
 
     private ZeroTrustAnalysisData getZeroTrustAnalysis(FactorContext context) {
@@ -210,12 +199,13 @@ public class ZeroTrustPolicyEvaluator extends AbstractMfaPolicyEvaluator {
         }
 
         try {
-            ZeroTrustAnalysisData data = actionRedisRepository.getAnalysisData(userId);
+            ZeroTrustAnalysisData data = actionRedisRepository.getAnalysisData(ZeroTrustUserKey.person(userId));
             if (data.action() == null) {
                 return challengeAnalysis(data, "Zero Trust analysis unavailable - action missing");
             }
 
-            if (isStaleAnalysis(data.updatedAt())) {
+            // Age lowers no restriction: a BLOCK has no expiry and ends by a release, whenever it was reached.
+            if (isStaleAnalysis(data.updatedAt()) && !ZeroTrustAction.fromString(data.action()).isBlocking()) {
                 return challengeAnalysis(data, "Zero Trust analysis stale or timestamp invalid");
             }
 
@@ -232,7 +222,7 @@ public class ZeroTrustPolicyEvaluator extends AbstractMfaPolicyEvaluator {
         }
 
         try {
-            return actionRedisRepository.getLastVerifiedAction(userId);
+            return actionRedisRepository.getLastVerifiedAction(ZeroTrustUserKey.person(userId));
         } catch (Exception e) {
             log.error("Failed to get last verified action for user: {}", userId, e);
             return null;

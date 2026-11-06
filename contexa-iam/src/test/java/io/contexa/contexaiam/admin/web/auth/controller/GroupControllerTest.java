@@ -203,7 +203,7 @@ class GroupControllerTest {
             String view = controller.createGroup(groupDto, null, ra);
 
             assertThat(view).isEqualTo("redirect:/contexa/admin/groups");
-            assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("DB error");
+            assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("The action could not be completed. See the server log.").doesNotContain("DB error");
         }
     }
 
@@ -319,7 +319,7 @@ class GroupControllerTest {
             String view = controller.updateGroup(1L, groupDto, null, ra);
 
             assertThat(view).isEqualTo("redirect:/contexa/admin/groups");
-            assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("DB error");
+            assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("The action could not be completed. See the server log.").doesNotContain("DB error");
         }
     }
 
@@ -348,7 +348,7 @@ class GroupControllerTest {
             String view = controller.deleteGroup(1L, ra);
 
             assertThat(view).isEqualTo("redirect:/contexa/admin/groups");
-            assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("Constraint violation");
+            assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("The action could not be completed. See the server log.").doesNotContain("Constraint violation");
         }
     }
 }

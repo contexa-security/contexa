@@ -28,6 +28,7 @@ import io.contexa.contexaiam.security.xacml.pap.dto.PolicyImpactReport;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyImpactReport.AccessChangeSummary;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyImpactReport.AffectedResource;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyImpactReport.AffectedUser;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.SpelLiteral;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
@@ -35,6 +36,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.util.AntPathMatcher;
 
 import java.util.*;
+import java.util.regex.MatchResult;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -52,11 +54,14 @@ public class PolicyImpactAnalyzer {
     private final AuthorityResolver authorityResolver;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
-    // Support both single quotes and double quotes
-    private static final Pattern HAS_AUTHORITY_PATTERN =
-            Pattern.compile("hasAuthority\\(['\"]([^'\"]*)['\"]\\)");
-    private static final Pattern HAS_ROLE_PATTERN =
-            Pattern.compile("hasRole\\(['\"]([^'\"]*)['\"]\\)");
+    /** The argument is a single-quoted literal (group 1, quotes doubled) or a double-quoted one (group 2). */
+    private static final String ARGUMENT = "\\((?:" + SpelLiteral.PATTERN + "|\"([^\"]*)\")\\)";
+    private static final Pattern HAS_AUTHORITY_PATTERN = Pattern.compile("hasAuthority" + ARGUMENT);
+    private static final Pattern HAS_ROLE_PATTERN = Pattern.compile("hasRole" + ARGUMENT);
+
+    private static String argument(MatchResult matcher) {
+        return matcher.group(1) != null ? SpelLiteral.unquote(matcher.group(1)) : matcher.group(2);
+    }
 
     /**
      * Analyze which users and resources are affected by the candidate policy.
@@ -243,11 +248,11 @@ public class PolicyImpactAnalyzer {
     private boolean evaluateSimpleCondition(String expression, Set<String> authorities) {
         var matcher = HAS_AUTHORITY_PATTERN.matcher(expression);
         while (matcher.find()) {
-            if (authorities.contains(matcher.group(1))) return true;
+            if (authorities.contains(argument(matcher))) return true;
         }
         var roleMatcher = HAS_ROLE_PATTERN.matcher(expression);
         while (roleMatcher.find()) {
-            String role = roleMatcher.group(1);
+            String role = argument(roleMatcher);
             String fullRole = role.startsWith("ROLE_") ? role : "ROLE_" + role;
             if (authorities.contains(fullRole)) return true;
         }

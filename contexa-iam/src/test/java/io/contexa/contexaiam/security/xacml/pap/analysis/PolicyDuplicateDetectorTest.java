@@ -24,6 +24,7 @@ import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.security.xacml.pap.dto.DuplicatePolicyDto;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.SpelLiteral;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -38,7 +39,7 @@ import org.mockito.Mock;
 import org.mockito.quality.Strictness;
 import org.springframework.context.MessageSource;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
-
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class PolicyDuplicateDetectorTest {
@@ -156,6 +157,41 @@ class PolicyDuplicateDetectorTest {
 
             assertThat(dups).hasSize(1);
             assertThat(dups.get(0).reason()).contains("Semantic duplicate");
+        }
+
+        @Test
+        @DisplayName("a role with a quote, a dollar or a backslash is the same role in hasRole and hasAuthority")
+        void aRoleWithAQuoteDollarOrBackslashIsTheSameRole() {
+            for (String role : List.of("O'Neil", "A$1\\B", "$0")) {
+                Policy existing = buildPolicyWithCondition(1L, "existing", Policy.Effect.ALLOW,
+                        "/api/users", "GET", SpelLiteral.hasAuthority("ROLE_" + role));
+                stubExisting(existing);
+                Policy candidate = buildPolicyWithCondition(null, "candidate", Policy.Effect.ALLOW,
+                        "/api/users", "GET", "hasRole(" + SpelLiteral.quote(role) + ")");
+
+                List<DuplicatePolicyDto> dups = detector.detect(candidate);
+
+                assertThat(dups).as(role).hasSize(1);
+                assertThat(dups.get(0).reason()).as(role).contains("Semantic duplicate");
+            }
+        }
+
+        @Test
+        @DisplayName("a policy written for a role without the ROLE_ prefix is the same policy when it is written again, or with hasRole")
+        void aPolicyForARoleWithoutThePrefixIsFoundAgain() {
+            Policy existing = buildPolicyWithCondition(1L, "existing", Policy.Effect.ALLOW,
+                    "/api/users", "GET", SpelLiteral.hasRoleAuthority("O'Neil"));
+            stubExisting(existing);
+
+            Policy again = buildPolicyWithCondition(null, "again", Policy.Effect.ALLOW,
+                    "/api/users", "GET", SpelLiteral.hasRoleAuthority("O'Neil"));
+            Policy withHasRole = buildPolicyWithCondition(null, "with-has-role", Policy.Effect.ALLOW,
+                    "/api/users", "GET", "hasRole(" + SpelLiteral.quote("O'NEIL") + ")");
+
+            assertThat(detector.detect(again)).hasSize(1);
+            assertThat(detector.detect(again).get(0).reason()).contains("Exact duplicate");
+            assertThat(detector.detect(withHasRole)).hasSize(1);
+            assertThat(detector.detect(withHasRole).get(0).reason()).contains("Semantic duplicate");
         }
 
         @Test

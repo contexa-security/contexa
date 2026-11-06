@@ -303,6 +303,108 @@ class AdminMenuControllerTest {
         }
 
         @Test
+        @DisplayName("create refuses an icon that opens with a tag and is no plain drawing, without saving")
+        void createMenuRefusesMarkupIcon() throws Exception {
+            mockMvc.perform(post("/contexa/admin/menu-management/api/create")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "name":"Custom",
+                                      "icon":"<b>Sales & Ops</b>"
+                                    }
+                                    """))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.error").value("Menu icon must be a CSS class or a plain SVG drawing"));
+
+            verify(adminMenuService, never()).saveMenu(any());
+        }
+
+        @Test
+        @DisplayName("update refuses an icon that opens with a tag and is no plain drawing, without saving")
+        void updateMenuRefusesMarkupIcon() throws Exception {
+            AdminMenu menu = menu(1L, "Old", "/old", 9L, 1, true);
+            when(adminMenuService.getMenuById(1L)).thenReturn(Optional.of(menu));
+
+            mockMvc.perform(put("/contexa/admin/menu-management/api/1")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "icon":"<b>Sales & Ops</b>"
+                                    }
+                                    """))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.error").value("Menu icon must be a CSS class or a plain SVG drawing"));
+
+            verify(adminMenuService, never()).saveMenu(any());
+        }
+
+        @Test
+        @DisplayName("create refuses an address that is no path inside the application, without saving")
+        void createMenuRefusesAnAddressOutsideTheApplication() throws Exception {
+            mockMvc.perform(post("/contexa/admin/menu-management/api/create")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "name":"Custom",
+                                      "url":"javascript:alert(document.cookie)"
+                                    }
+                                    """))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.error").value("Menu URL must be a path inside this application, starting with a single /"));
+
+            verify(adminMenuService, never()).saveMenu(any());
+        }
+
+        @Test
+        @DisplayName("update refuses an address that leads to another site, without saving")
+        void updateMenuRefusesAnAddressOfAnotherSite() throws Exception {
+            AdminMenu menu = menu(1L, "Old", "/old", 9L, 1, true);
+            when(adminMenuService.getMenuById(1L)).thenReturn(Optional.of(menu));
+
+            mockMvc.perform(put("/contexa/admin/menu-management/api/1")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "url":"//evil.example/login"
+                                    }
+                                    """))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.error").value("Menu URL must be a path inside this application, starting with a single /"));
+
+            verify(adminMenuService, never()).saveMenu(any());
+            assertThat(menu.getUrl()).isEqualTo("/old");
+        }
+
+        @Test
+        @DisplayName("update changes only the fields it is sent, and keeps the parent of a menu sent no parent")
+        void updateChangesOnlyTheFieldsItIsSent() throws Exception {
+            AdminMenu menu = menu(1L, "Old", "/old", 9L, 4, true);
+            when(adminMenuService.getMenuById(1L)).thenReturn(Optional.of(menu));
+
+            mockMvc.perform(put("/contexa/admin/menu-management/api/1")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "icon":""
+                                    }
+                                    """))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true));
+
+            verify(adminMenuService).saveMenu(menu);
+            assertThat(menu.getIcon()).isEmpty();
+            assertThat(menu.getParentId()).isEqualTo(9L);
+            assertThat(menu.getName()).isEqualTo("Old");
+            assertThat(menu.getUrl()).isEqualTo("/old");
+            assertThat(menu.getMenuOrder()).isEqualTo(4);
+            assertThat(menu.isEnabled()).isTrue();
+        }
+
+        @Test
         @DisplayName("update keeps partial string request contract")
         void updateMenu() throws Exception {
             AdminMenu menu = menu(1L, "Old", "/old", 9L, 1, true);

@@ -15,7 +15,13 @@
  */
 package io.contexa.contexaidentity.security.core.adapter.state.oauth2;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nimbusds.jose.jwk.source.JWKSource;
+import com.nimbusds.jose.proc.SecurityContext;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.token.service.OAuth2TokenService;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
@@ -28,10 +34,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
+import org.slf4j.LoggerFactory;
 import org.mockito.quality.Strictness;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationContext;
+import org.springframework.core.ResolvableType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.LogoutConfigurer;
@@ -47,11 +55,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isA;
 
@@ -220,5 +230,78 @@ class OAuth2StateAdapterTest {
 
         verify(httpSecurity).with(any(OAuth2StateConfigurer.class), any(Customizer.class));
         verify(mockLogoutConfigurer).invalidateHttpSession(true);
+    }
+
+    /**
+     * The authorization server asks a token customizer only from the generator it builds, so the generator an application
+     * declared would issue without Contexa's checks. The chain gets that generator with Contexa's checks in front of it.
+     */
+    @Test
+    @DisplayName("an application's token generator is given to the chain with Contexa's token checks in front of it")
+    void theApplicationsTokenGeneratorGetsContexasChecksInFrontOfIt() throws Exception {
+        ContexaTokenChecks checks = context -> { };
+        stubAuthorizationServerBeans(checks);
+
+        adapter.apply(httpSecurity, platformContext);
+
+        verify(httpSecurity).setSharedObject(eq(OAuth2TokenGenerator.class), argThat(given ->
+                given instanceof CheckedTokenGenerator checked && checked.application() == tokenGenerator));
+    }
+
+    @Test
+    @DisplayName("without Contexa's token checks the application's generator is used as it is, and the start says that nothing checks its tokens")
+    void withoutContexasChecksTheApplicationsGeneratorIsUsedAsItIsAndTheStartSaysSo() throws Exception {
+        stubAuthorizationServerBeans(null);
+        ListAppender<ILoggingEvent> logged = new ListAppender<>();
+        Logger logger = (Logger) LoggerFactory.getLogger(OAuth2StateAdapter.class);
+        logged.start();
+        logger.addAppender(logged);
+        try {
+            adapter.apply(httpSecurity, platformContext);
+        } finally {
+            logger.detachAppender(logged);
+        }
+
+        verify(httpSecurity).setSharedObject(OAuth2TokenGenerator.class, tokenGenerator);
+        assertThat(logged.list).filteredOn(event -> event.getLevel() == Level.WARN)
+                .singleElement().satisfies(event -> assertThat(event.getFormattedMessage())
+                        .contains("token generator", "Contexa's token checks are not part of this application"));
+    }
+
+    /** What an authorization server chain needs from the application context, with the application's own token generator. */
+    @SuppressWarnings("unchecked")
+    private void stubAuthorizationServerBeans(ContexaTokenChecks checks) throws Exception {
+        when(applicationContext.getBean("contexaObjectMapper", ObjectMapper.class)).thenReturn(objectMapper);
+        when(applicationContext.getBean(JsonAuthResponseWriter.class)).thenReturn(jsonAuthResponseWriter);
+        when(applicationContext.getBean(OAuth2StateAdapter.CONTEXA_JWT_DECODER, JwtDecoder.class)).thenReturn(jwtDecoder);
+        when(applicationContext.getBean(JwtEncoder.class)).thenReturn(jwtEncoder);
+        when(applicationContext.getBean(OAuth2AuthorizationService.class)).thenReturn(authorizationService);
+        when(applicationContext.getBean(RegisteredClientRepository.class)).thenReturn(registeredClientRepository);
+        when(applicationContext.getBean(AuthorizationServerSettings.class)).thenReturn(authorizationServerSettings);
+        ObjectProvider<OAuth2TokenGenerator> applicationGenerators = mock(ObjectProvider.class);
+        when(applicationGenerators.getIfUnique()).thenReturn(tokenGenerator);
+        when(applicationContext.getBeanProvider(OAuth2TokenGenerator.class)).thenReturn(applicationGenerators);
+        ObjectProvider<JWKSource<SecurityContext>> serverKeys = mock(ObjectProvider.class);
+        when(serverKeys.getObject()).thenReturn(mock(JWKSource.class));
+        doReturn(serverKeys).when(applicationContext).getBeanProvider(any(ResolvableType.class));
+        ObjectProvider<ContexaTokenChecks> contexasChecks = mock(ObjectProvider.class);
+        when(contexasChecks.getIfUnique()).thenReturn(checks);
+        when(applicationContext.getBeanProvider(ContexaTokenChecks.class)).thenReturn(contexasChecks);
+        when(applicationContext.getBean(UserRepository.class)).thenReturn(userRepository);
+        when(applicationContext.getBean(OAuth2TokenService.class)).thenReturn(tokenService);
+        when(applicationContext.getBean("contexaCompositeLogoutHandler", LogoutHandler.class)).thenReturn(logoutHandler);
+        when(applicationContext.getBean(AuthResponseWriter.class)).thenReturn(responseWriter);
+
+        LogoutConfigurer<HttpSecurity> mockLogoutConfigurer = mock(LogoutConfigurer.class);
+        when(mockLogoutConfigurer.logoutRequestMatcher(any())).thenReturn(mockLogoutConfigurer);
+        when(mockLogoutConfigurer.addLogoutHandler(any())).thenReturn(mockLogoutConfigurer);
+        when(mockLogoutConfigurer.logoutSuccessHandler(any())).thenReturn(mockLogoutConfigurer);
+        when(mockLogoutConfigurer.invalidateHttpSession(any(Boolean.class))).thenReturn(mockLogoutConfigurer);
+        when(mockLogoutConfigurer.clearAuthentication(any(Boolean.class))).thenReturn(mockLogoutConfigurer);
+        doAnswer(invocation -> {
+            Customizer<LogoutConfigurer<HttpSecurity>> customizer = invocation.getArgument(0);
+            customizer.customize(mockLogoutConfigurer);
+            return httpSecurity;
+        }).when(httpSecurity).logout(any(Customizer.class));
     }
 }

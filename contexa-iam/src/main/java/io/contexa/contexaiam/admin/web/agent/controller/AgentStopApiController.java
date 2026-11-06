@@ -20,6 +20,7 @@ import io.contexa.contexacore.autonomous.agent.AgentRegistration;
 import io.contexa.contexaiam.admin.web.agent.service.AgentContainmentAdminService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -82,6 +83,9 @@ public class AgentStopApiController {
         String reason = request.reason().trim();
         try {
             return perform(request, admin, reason);
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new StopResult(false, request.action(), List.of(),
+                    e.getMessage()));
         } catch (IllegalArgumentException | IllegalStateException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(new StopResult(false, request.action(), List.of(),
                     e.getMessage()));

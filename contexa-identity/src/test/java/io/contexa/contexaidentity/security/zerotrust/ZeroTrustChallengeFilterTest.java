@@ -51,6 +51,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.Test;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -136,7 +138,8 @@ class ZeroTrustChallengeFilterTest {
     @Test
     @DisplayName("MFA API 경로는 challenge filter를 건너뛴다")
     void mfa() throws Exception {
-        when(request.getRequestURI()).thenReturn("/api/mfa/verify");
+        when(authUrlProvider.getAllMfaRelatedUrls()).thenReturn(Set.of("/api/mfa/config"));
+        when(request.getRequestURI()).thenReturn("/api/mfa/config");
 
         filter.doFilter(request, response, filterChain);
 
@@ -218,6 +221,24 @@ class ZeroTrustChallengeFilterTest {
                 eq("/dashboard"),
                 any()
         );
+        verify(filterChain, never()).doFilter(any(), any());
+    }
+
+    /** D-19: Redis away, a user under a CHALLENGE stays stopped and is told to retry, not given a server error. */
+    @Test
+    @DisplayName("a lock Redis cannot give answers as a lock someone holds")
+    void aLockRedisCannotGive() throws Exception {
+        when(request.getRequestURI()).thenReturn("/dashboard");
+        setUpChallengeAuthentication();
+        when(sessionRepository.getSessionId(request)).thenReturn(null);
+        when(actionRepository.getCurrentAction(eq("testUser"), any())).thenReturn(ZeroTrustAction.CHALLENGE);
+        when(lockService.tryLock(anyString(), anyString(), any()))
+                .thenThrow(new DistributedLockService.LockAcquisitionException("Redis is unavailable"));
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(responseWriter).writeErrorResponse(eq(response), eq(HttpServletResponse.SC_SERVICE_UNAVAILABLE),
+                eq("MFA_BUSY_RETRY"), any(), eq("/dashboard"), any());
         verify(filterChain, never()).doFilter(any(), any());
     }
 
@@ -376,8 +397,12 @@ class ZeroTrustChallengeFilterTest {
 
         filter.doFilter(request, response, filterChain);
 
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> body = ArgumentCaptor.forClass(Map.class);
         verify(responseWriter).writeErrorResponse(eq(response), eq(401), eq("ZERO_TRUST_CHALLENGE"),
-                anyString(), any(), any());
+                anyString(), any(), body.capture());
+        assertThat(body.getValue()).containsEntry("error", "ZERO_TRUST_CHALLENGE")
+                .containsEntry("code", "ZERO_TRUST_CHALLENGE");
         verify(challengeMfaInitializer, never()).initializeChallengeFlow(any(), any(), any());
         verify(filterChain, never()).doFilter(request, response);
         assertThat(filter.start(request, response)).isEmpty();
@@ -400,11 +425,11 @@ class ZeroTrustChallengeFilterTest {
 
     /** These prefixes let a signed-in user under a CHALLENGE through to the application's own paths of the same name. */
     @Test
-    @DisplayName("HOST_OWNED: an application's path that only looks like Contexa's sign-in meets the decision")
-    void hostOwnedApplicationPathsMeetTheDecision() {
+    @DisplayName("an application's path that only looks like Contexa's sign-in meets the decision, under both ownerships")
+    void applicationPathsMeetTheDecision() {
         for (String path : List.of("/api/mfa/transfer", "/webauthn/devices", "/mfa/challenge/1", "/login/webauthn-help")) {
             when(request.getRequestURI()).thenReturn(path);
-            assertThat(filter.shouldNotFilter(request)).as("CONTEXA_OWNED, %s", path).isTrue();
+            assertThat(filter.shouldNotFilter(request)).as("CONTEXA_OWNED, %s", path).isFalse();
         }
 
         filter.setHostOwnedStepUp((req, auth, key) -> false);
@@ -417,6 +442,62 @@ class ZeroTrustChallengeFilterTest {
             when(request.getRequestURI()).thenReturn(path);
             assertThat(filter.shouldNotFilter(request)).as("HOST_OWNED, %s", path).isTrue();
         }
+    }
+
+    /** PR-65: a path that only starts like one of Contexa's is the application's, and the decision reaches it. */
+    @ParameterizedTest
+    @ValueSource(strings = {"/logout-report", "/logoutreport", "/logout/report", "/contexa/zero-trust-export",
+            "/contexa/step-up-history", "/contexa/api/agent-confirmations-export", "/.well-known/customer-export",
+            "/contexa/admin/api/mfa-audit"})
+    void anApplicationPathThatOnlyStartsLikeContexasMeetsTheChallenge(String path) {
+        when(request.getRequestURI()).thenReturn(path);
+
+        assertThat(filter.shouldNotFilter(request)).isFalse();
+    }
+
+    /** PR-65: what the container resolves to another path never counts as Contexa's, whatever it starts with. */
+    @ParameterizedTest
+    @ValueSource(strings = {"/logout;x=1", "/logout/..;/owners/1", "/logout/%2e%2e/owners/1",
+            "/contexa/zero-trust/..;/..;/owners/1", "/contexa/step-up/../../owners/1",
+            "/contexa/api/agent-confirmations/..;/..;/..;/owners/1", "/contexa/admin/api/mfa/..;/..;/..;/..;/owners/1",
+            "/.well-known/webauthn/..;/..;/owners/1", "/mfa/select-factor/..;/..;/owners/1",
+            "/mfa/select-factor/%2e%2e/%2e%2e/owners/1", "/login/webauthn/..;/..;/owners/1"})
+    void aWayOutOfContexasPathsMeetsTheChallenge(String path) {
+        when(authUrlProvider.getAllMfaRelatedUrls()).thenReturn(Set.of("/mfa/select-factor"));
+        when(authUrlProvider.getSinglePasskeyLoginPage()).thenReturn("/login/webauthn");
+        when(request.getRequestURI()).thenReturn(path);
+
+        assertThat(filter.shouldNotFilter(request)).isFalse();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/logout", "/logout/", "/contexa/zero-trust", "/contexa/zero-trust/blocked", "/contexa/step-up",
+            "/contexa/step-up/passkey/options", "/contexa/api/agent-confirmations", "/contexa/api/agent-confirmations/c-1",
+            "/contexa/admin/api/mfa/config", "/.well-known/authzen-configuration", "/.well-known/webauthn",
+            "/mfa/select-factor", "/webauthn/register", "/webauthn/register/credential-id", "/api/mfa/config",
+            "/api/mfa/login", "/login/webauthn", "/login/webauthn.js"})
+    void contexasOwnPathsStayOutOfTheChallenge(String path) {
+        when(authUrlProvider.getAllMfaRelatedUrls()).thenReturn(
+                Set.of("/mfa/select-factor", "/webauthn/register", "/api/mfa/config"));
+        when(authUrlProvider.getPrimaryRestLoginProcessing()).thenReturn("/api/mfa/login");
+        when(authUrlProvider.getSinglePasskeyLoginPage()).thenReturn("/login/webauthn");
+        when(authUrlProvider.getSinglePasskeyLoginProcessing()).thenReturn("/login/webauthn");
+        when(request.getRequestURI()).thenReturn(path);
+
+        assertThat(filter.shouldNotFilter(request)).isTrue();
+    }
+
+    /** A flow with a URL prefix runs its sign-in under the prefix: the registry names those paths. */
+    @Test
+    @DisplayName("the sign-in of a flow with a URL prefix is Contexa's, the application's path beside it is not")
+    void theSignInOfAPrefixedFlow() {
+        when(mfaFlowUrlRegistry.getAllMfaRelatedUrls()).thenReturn(Set.of("/agent/mfa/select-factor"));
+
+        when(request.getRequestURI()).thenReturn("/agent/mfa/select-factor");
+        assertThat(filter.shouldNotFilter(request)).isTrue();
+
+        when(request.getRequestURI()).thenReturn("/agent/mfa/select-factor-audit");
+        assertThat(filter.shouldNotFilter(request)).isFalse();
     }
 
     @Test
@@ -450,8 +531,34 @@ class ZeroTrustChallengeFilterTest {
                 anyString(), any(), body.capture());
         assertThat(body.getValue()).containsEntry("mfaUrl", "/contexa/step-up")
                 .containsEntry("challengeNoticeUrl",
-                        "/contexa/zero-trust/challenge-required?mfaUrl=%2Fcontexa%2Fstep-up");
+                        "/contexa/zero-trust/challenge-required?mfaUrl=%2Fcontexa%2Fstep-up")
+                .containsEntry("error", "MFA_CHALLENGE_REQUIRED")
+                .containsEntry("code", "ZERO_TRUST_CHALLENGE");
         verifyNoInteractions(challengeMfaInitializer, sessionRepository, lockService);
+    }
+
+    @Test
+    @DisplayName("An API client of the MFA flow gets 401 with error and code, as a synchronous decision answers")
+    void anApiClientOfTheMfaFlowGetsBothNames() throws Exception {
+        when(request.getRequestURI()).thenReturn("/api/reports/export");
+        setUpChallengeAuthentication();
+        when(sessionRepository.getSessionId(request)).thenReturn(null);
+        when(actionRepository.getCurrentAction(eq("testUser"), any())).thenReturn(ZeroTrustAction.CHALLENGE);
+        when(lockService.tryLock(anyString(), anyString(), any())).thenReturn(true);
+        FactorContext factorContext = mock(FactorContext.class);
+        when(factorContext.getCurrentState()).thenReturn(MfaState.AWAITING_FACTOR_SELECTION);
+        when(factorContext.getMfaSessionId()).thenReturn("session-123");
+        when(challengeMfaInitializer.initializeChallengeFlow(any(), any(), any())).thenReturn(factorContext);
+        when(authUrlProvider.getMfaSelectFactor()).thenReturn("/mfa/select-factor");
+
+        filter.doFilter(request, response, filterChain);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> body = ArgumentCaptor.forClass(Map.class);
+        verify(responseWriter).writeErrorResponse(eq(response), eq(401), eq("MFA_CHALLENGE_REQUIRED"),
+                anyString(), any(), body.capture());
+        assertThat(body.getValue()).containsEntry("error", "MFA_CHALLENGE_REQUIRED")
+                .containsEntry("code", "ZERO_TRUST_CHALLENGE");
     }
 
     @Test

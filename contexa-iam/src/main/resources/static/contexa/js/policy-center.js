@@ -421,7 +421,7 @@ const PolicyCenter = {
         const defineBtn = row.querySelector('[onclick="PolicyCenter.defineAndSetupPolicy(this)"]');
         if (defineBtn) defineBtn.closest('div').style.display = 'none';
         const actionDiv = button.closest('div');
-        actionDiv.innerHTML = '<button type="button" class="action-badge-restore w-full text-center" data-resource-id="' + resourceId + '" onclick="PolicyCenter.restoreResource(this)"><i class="fas fa-undo"></i> <span>' + PolicyCenter._i18n('btnRestore', 'Restore') + '</span></button>';
+        actionDiv.innerHTML = '<button type="button" class="action-badge-restore w-full text-center" data-resource-id="' + PolicyCenter.escapeHtml(resourceId) + '" onclick="PolicyCenter.restoreResource(this)"><i class="fas fa-undo"></i> <span>' + PolicyCenter._i18n('btnRestore', 'Restore') + '</span></button>';
         const cb = row.querySelector('.res-cb');
         if (cb) { cb.checked = false; cb.disabled = true; cb.style.display = 'none'; }
         const id = parseInt(row.dataset.resId);
@@ -447,7 +447,7 @@ const PolicyCenter = {
             defineBtn.classList.remove('opacity-40', 'cursor-not-allowed');
         }
         const actionDiv = button.closest('div');
-        actionDiv.innerHTML = '<button type="button" class="action-badge-secondary w-full text-center" data-resource-id="' + resourceId + '" onclick="PolicyCenter.excludeResource(this)"><i class="fas fa-ban"></i> <span>' + PolicyCenter._i18n('btnExclude', 'Exclude') + '</span></button>';
+        actionDiv.innerHTML = '<button type="button" class="action-badge-secondary w-full text-center" data-resource-id="' + PolicyCenter.escapeHtml(resourceId) + '" onclick="PolicyCenter.excludeResource(this)"><i class="fas fa-ban"></i> <span>' + PolicyCenter._i18n('btnExclude', 'Exclude') + '</span></button>';
         var cb = row.querySelector('.res-cb');
         if (cb) {
             cb.disabled = false;
@@ -662,11 +662,11 @@ const PolicyCenter = {
                     var method = (ctx.httpMethod || 'ANY').toUpperCase();
                     var mColor = methodColors[method] || '#94a3b8';
 
-                    return '<div class="qp-res-crud-card" data-res-id="' + ctx.resourceId + '" style="padding:0.75rem;border-radius:0.625rem;' +
+                    return '<div class="qp-res-crud-card" data-res-id="' + PolicyCenter.escapeHtml(ctx.resourceId) + '" style="padding:0.75rem;border-radius:0.625rem;' +
                         'background:rgba(15,23,42,0.6);border:1px solid rgba(71,85,105,0.3);margin-bottom:0.5rem;">' +
                         '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">' +
                         '<span style="font-size:0.6875rem;padding:0.125rem 0.5rem;border-radius:0.25rem;font-weight:700;' +
-                        'background:' + mColor + '20;color:' + mColor + ';border:1px solid ' + mColor + '40;">' + method + '</span>' +
+                        'background:' + mColor + '20;color:' + mColor + ';border:1px solid ' + mColor + '40;">' + PolicyCenter.escapeHtml(method) + '</span>' +
                         '<span style="font-family:monospace;font-size:0.8125rem;color:#e2e8f0;word-break:break-all;">' +
                         PolicyCenter.escapeHtml(ctx.resourceIdentifier || '') + '</span></div>' +
                         '<div style="display:flex;gap:0.375rem;flex-wrap:wrap;">' +
@@ -674,7 +674,7 @@ const PolicyCenter = {
                             var isRec = c === rec;
                             return '<label style="display:inline-flex;align-items:center;gap:0.375rem;padding:0.25rem 0.625rem;border-radius:0.375rem;cursor:pointer;' +
                                 'background:' + (isRec ? crudColors[c] + '15' : 'rgba(30,41,59,0.4)') + ';border:1px solid ' + (isRec ? crudColors[c] + '40' : 'rgba(71,85,105,0.2)') + ';">' +
-                                '<input type="checkbox" class="qp-res-crud-cb" data-res-id="' + ctx.resourceId + '" value="' + c + '"' + (isRec ? ' checked' : '') +
+                                '<input type="checkbox" class="qp-res-crud-cb" data-res-id="' + PolicyCenter.escapeHtml(ctx.resourceId) + '" value="' + c + '"' + (isRec ? ' checked' : '') +
                                 ' onchange="PolicyCenter.QuickPanel._onMultiCrudChange()" style="accent-color:' + crudColors[c] + ';width:0.875rem;height:0.875rem;">' +
                                 '<span style="font-size:0.75rem;font-weight:600;color:' + (isRec ? crudColors[c] : '#64748b') + ';">' + crudNames[c] + '</span></label>';
                         }).join('') +
@@ -844,13 +844,19 @@ const PolicyCenter = {
                 const sel = this.selectedRoles.has(rid);
                 const color = sel ? this.getRoleColor(rid) : '';
                 const colorDot = sel ? '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + color + ';margin-right:6px;flex-shrink:0;"></span>' : '';
-                const safeName = this.escapeHtml(r.roleName).replace(/'/g, "\\'");
-                return '<div class="qp-item' + (sel ? ' selected' : '') + '" onclick="PolicyCenter.QuickPanel.toggleRole(' + rid + ',\'' + safeName + '\')"' +
-                    ' onmouseenter="PolicyCenter.QuickPanel.showRoleTooltip(event,' + rid + ')" onmouseleave="PolicyCenter.QuickPanel.hideRoleTooltip()">' +
-                    '<input type="checkbox" ' + (sel ? 'checked' : '') + ' onclick="PolicyCenter.QuickPanel.toggleRole(' + rid + ',\'' + safeName + '\');event.stopPropagation();">' +
+                return '<div class="qp-item' + (sel ? ' selected' : '') + '" data-role-id="' + rid + '" data-role-name="' + this.escapeHtml(r.roleName) + '">' +
+                    '<input type="checkbox" ' + (sel ? 'checked' : '') + '>' +
                     '<div class="qp-item-info"><div class="qp-item-name">' + colorDot + this.escapeHtml(r.roleName) + '</div>' +
                     '<div class="qp-item-desc">' + this.escapeHtml(r.roleDesc || '') + '</div></div></div>';
             }).join('');
+            // The name travels in a data attribute: the browser decodes it there, never as script.
+            // A click on the box bubbles to the row, so the row alone toggles, once.
+            list.querySelectorAll('.qp-item').forEach(item => {
+                const rid = Number(item.dataset.roleId);
+                item.addEventListener('click', () => this.toggleRole(rid, item.dataset.roleName));
+                item.addEventListener('mouseenter', event => this.showRoleTooltip(event, rid));
+                item.addEventListener('mouseleave', () => this.hideRoleTooltip());
+            });
         },
 
         toggleRole(id, name) {
@@ -949,23 +955,33 @@ const PolicyCenter = {
             list.innerHTML = perms.map(p => {
                 const pid = Number(p.id);
                 const sel = this.selectedPerms.has(pid);
-                const safeName = this.escapeHtml(p.name || p.friendlyName || '').replace(/'/g, "\\'");
                 const displayName = this.escapeHtml(p.friendlyName || p.name);
                 const roles = permRoleMap[pid] || [];
                 const rolesToggle = (sel && roles.length > 0)
-                    ? '<span class="qp-roles-toggle" onclick="event.stopPropagation();PolicyCenter.QuickPanel.togglePermRoles(' + pid + ')"><i class="fas fa-users"></i> ' + roles.length + '</span>'
+                    ? '<span class="qp-roles-toggle"><i class="fas fa-users"></i> ' + roles.length + '</span>'
                     : '';
                 const rolesDiv = (sel && roles.length > 0)
                     ? '<div class="qp-perm-roles" id="qp-perm-roles-' + pid + '" style="display:none;">' +
-                      roles.map(r => '<span class="qp-perm-role-badge" style="--role-color:' + r.color + ';">' + this.escapeHtml(r.name) + '</span>').join('') + '</div>'
+                      roles.map(r => '<span class="qp-perm-role-badge" style="--role-color:' + this.escapeHtml(r.color) + ';">' + this.escapeHtml(r.name) + '</span>').join('') + '</div>'
                     : '';
 
-                return '<div class="qp-item' + (sel ? ' selected' : '') + '" onclick="PolicyCenter.QuickPanel.togglePerm(' + pid + ',\'' + safeName + '\')">' +
-                    '<input type="checkbox" ' + (sel ? 'checked' : '') + ' onclick="PolicyCenter.QuickPanel.togglePerm(' + pid + ',\'' + safeName + '\');event.stopPropagation();">' +
+                return '<div class="qp-item' + (sel ? ' selected' : '') + '" data-perm-id="' + pid + '" data-perm-name="' + this.escapeHtml(p.name || p.friendlyName || '') + '">' +
+                    '<input type="checkbox" ' + (sel ? 'checked' : '') + '>' +
                     '<div class="qp-item-info"><div class="qp-item-name">' + displayName + rolesToggle + '</div>' +
                     '<div class="qp-item-desc">' + this.escapeHtml(p.description || '') + '</div>' +
                     rolesDiv + '</div></div>';
             }).join('');
+            list.querySelectorAll('.qp-item').forEach(item => {
+                const pid = Number(item.dataset.permId);
+                item.addEventListener('click', () => this.togglePerm(pid, item.dataset.permName));
+                const rolesToggle = item.querySelector('.qp-roles-toggle');
+                if (rolesToggle) {
+                    rolesToggle.addEventListener('click', event => {
+                        event.stopPropagation();
+                        this.togglePermRoles(pid);
+                    });
+                }
+            });
         },
 
         togglePermRoles(pid) {
@@ -1021,14 +1037,17 @@ const PolicyCenter = {
             list.innerHTML = spels.map(s => {
                 const sid = Number(s.id);
                 const sel = this.selectedSpel && this.selectedSpel.id === sid;
-                const safeName = this.escapeHtml(s.name).replace(/'/g, "\\'");
-                return '<div class="qp-item' + (sel ? ' selected' : '') + '" onclick="PolicyCenter.QuickPanel.toggleSpel(' + sid + ',\'' + safeName + '\')">' +
-                    '<input type="checkbox" ' + (sel ? 'checked' : '') + ' onclick="PolicyCenter.QuickPanel.toggleSpel(' + sid + ',\'' + safeName + '\');event.stopPropagation();">' +
+                return '<div class="qp-item' + (sel ? ' selected' : '') + '" data-spel-id="' + sid + '" data-spel-name="' + this.escapeHtml(s.name) + '">' +
+                    '<input type="checkbox" ' + (sel ? 'checked' : '') + '>' +
                     '<div class="qp-item-info"><div class="qp-item-name">' + this.escapeHtml(s.name) + '</div>' +
                     '<div class="qp-item-desc" style="font-family:monospace;color:#a78bfa;">' + this.escapeHtml(s.expression) + '</div>' +
                     (s.description ? '<div class="qp-item-desc">' + this.escapeHtml(s.description) + '</div>' : '') +
                     '</div></div>';
             }).join('');
+            list.querySelectorAll('.qp-item').forEach(item => {
+                const sid = Number(item.dataset.spelId);
+                item.addEventListener('click', () => this.toggleSpel(sid, item.dataset.spelName));
+            });
         },
 
         toggleSpel(id, name) {
@@ -1734,7 +1753,7 @@ const PolicyCenter = {
                 var color = crudColors[item.name] || '#94a3b8';
                 return '<span style="display:inline-flex;align-items:center;gap:0.375rem;padding:0.25rem 0.75rem;border-radius:0.375rem;' +
                     'background:' + color + '15;border:1px solid ' + color + '40;color:' + color + ';font-weight:600;font-size:0.8125rem;">' +
-                    item.name + '</span>';
+                    PolicyCenter.escapeHtml(item.name) + '</span>';
             }).join(' ');
         },
 
@@ -1747,10 +1766,14 @@ const PolicyCenter = {
             container.innerHTML = items.map(item =>
                 '<span class="ai-card-chip">' +
                 this.escapeHtml(item.name) +
-                ' <span class="chip-id">#' + item.id + '</span>' +
-                ' <span class="chip-remove" onclick="PolicyCenter.AI.removeChip(\'' + type + '\', ' + item.id + ')">&times;</span>' +
+                ' <span class="chip-id">#' + this.escapeHtml(String(item.id)) + '</span>' +
+                ' <span class="chip-remove">&times;</span>' +
                 '</span>'
             ).join('');
+            // The id may come from the model's answer; it stays a value of the listener, never script text.
+            container.querySelectorAll('.chip-remove').forEach((remove, index) => {
+                remove.addEventListener('click', () => this.removeChip(type, items[index].id));
+            });
         },
 
         removeChip(type, id) {
@@ -1832,11 +1855,14 @@ const PolicyCenter = {
                 list.innerHTML = available.map(item => {
                     const checked = this._pickerSelection.has(item.id) ? 'checked' : '';
                     const selClass = this._pickerSelection.has(item.id) ? ' selected' : '';
-                    return '<div class="wizard-item' + selClass + '" onclick="PolicyCenter.AI.togglePickerItem(' + item.id + ', \'' + this.escapeHtml(item.name).replace(/'/g, "\\'") + '\')">' +
+                    return '<div class="wizard-item' + selClass + '" data-item-id="' + this.escapeHtml(String(item.id)) + '" data-item-name="' + this.escapeHtml(item.name) + '">' +
                         '<input type="checkbox" ' + checked + ' onclick="event.stopPropagation()">' +
                         '<div class="wizard-item-info"><div class="wizard-item-name">' + this.escapeHtml(item.name) + '</div>' +
                         '<div class="wizard-item-desc">' + this.escapeHtml(item.desc) + '</div></div></div>';
                 }).join('');
+                list.querySelectorAll('.wizard-item').forEach(row => {
+                    row.addEventListener('click', () => this.togglePickerItem(Number(row.dataset.itemId), row.dataset.itemName));
+                });
             } catch (e) {
                 console.error('Failed to load picker items', e);
                 list.innerHTML = '<div class="pc-empty"><p>' + PolicyCenter._i18n('loadFailed', 'Loading failed') + '</p></div>';
@@ -1851,8 +1877,7 @@ const PolicyCenter = {
                 const cb = item.querySelector('input[type="checkbox"]');
                 const itemName = item.querySelector('.wizard-item-name');
                 if (!itemName) return;
-                const onclick = item.getAttribute('onclick') || '';
-                if (onclick.includes('(' + id + ',')) {
+                if (item.dataset.itemId === String(id)) {
                     const selected = this._pickerSelection.has(id);
                     if (cb) cb.checked = selected;
                     if (selected) item.classList.add('selected');
@@ -1927,7 +1952,7 @@ const PolicyCenter = {
                 panel.classList.remove('hidden');
                 listEl.innerHTML = conflicts.map(c =>
                     '<div class="ai-conflict-item">' +
-                    '<span class="ai-conflict-severity ' + c.severity + '">' + c.severity.toUpperCase() + '</span>' +
+                    '<span class="ai-conflict-severity ' + this.escapeHtml(c.severity) + '">' + this.escapeHtml(c.severity.toUpperCase()) + '</span>' +
                     '<span class="ai-conflict-message">' + this.escapeHtml(c.message) + '</span>' +
                     '</div>'
                 ).join('');
@@ -2023,7 +2048,7 @@ const PolicyCenter = {
 
             document.getElementById('ai-confirm-summary').innerHTML =
                 '<div class="ai-confirm-row"><div class="ai-confirm-label">' + PolicyCenter._i18n('confirmPolicyName', 'Policy Name') + '</div><div class="ai-confirm-value">' + this.escapeHtml(data.policyName) + '</div></div>' +
-                '<div class="ai-confirm-row"><div class="ai-confirm-label">' + PolicyCenter._i18n('confirmEffect', 'Effect') + '</div><div class="ai-confirm-value">' + data.effect + '</div></div>' +
+                '<div class="ai-confirm-row"><div class="ai-confirm-label">' + PolicyCenter._i18n('confirmEffect', 'Effect') + '</div><div class="ai-confirm-value">' + this.escapeHtml(data.effect) + '</div></div>' +
                 '<div class="ai-confirm-row"><div class="ai-confirm-label">' + PolicyCenter._i18n('confirmRoles', 'Roles') + ' (' + (data.roleIds || []).length + ')</div><div class="ai-confirm-value">' + this.escapeHtml(roleNames) + '</div></div>' +
                 '<div class="ai-confirm-row"><div class="ai-confirm-label">' + PolicyCenter._i18n('confirmPermissions', 'Permissions') + ' (' + (data.permissionIds || []).length + ')</div><div class="ai-confirm-value">' + this.escapeHtml(permNames) + '</div></div>';
 
@@ -2316,7 +2341,7 @@ PolicyCenter.MultiSelect = {
                 var actionDiv = row.querySelector('.space-y-2');
                 if (actionDiv && !actionDiv.querySelector('[onclick*="excludeResource"]')) {
                     var excludeDiv = document.createElement('div');
-                    excludeDiv.innerHTML = '<button type="button" class="action-badge-secondary w-full text-center" data-resource-id="' + id + '" onclick="PolicyCenter.excludeResource(this)"><i class="fas fa-ban"></i> <span>' + PolicyCenter._i18n('btnExclude', 'Exclude') + '</span></button>';
+                    excludeDiv.innerHTML = '<button type="button" class="action-badge-secondary w-full text-center" data-resource-id="' + PolicyCenter.escapeHtml(String(id)) + '" onclick="PolicyCenter.excludeResource(this)"><i class="fas fa-ban"></i> <span>' + PolicyCenter._i18n('btnExclude', 'Exclude') + '</span></button>';
                     actionDiv.appendChild(excludeDiv);
                 }
 
@@ -2434,7 +2459,7 @@ PolicyCenter.Validation = {
                     c.severity === 'MEDIUM' ? '#fbbf24' : '#94a3b8';
                 html += '<div class="flex items-center gap-2 py-1 text-xs" style="color:#cbd5e1;">' +
                     '<span class="status-badge" style="background:' + severityColor + '20;color:' + severityColor +
-                    ';border-color:' + severityColor + '50;font-size:0.65rem;">' + c.severity + '</span>' +
+                    ';border-color:' + severityColor + '50;font-size:0.65rem;">' + PolicyCenter.escapeHtml(c.severity) + '</span>' +
                     '<span>' + PolicyCenter.escapeHtml(c.conflictDescription) + '</span>' +
                     '</div>';
             });
@@ -2711,11 +2736,17 @@ PolicyCenter.SimulatorUI = {
                 users.forEach(function(u) {
                     html += '<div class="sim-dropdown-item p-2 cursor-pointer text-sm" style="color:#e2e8f0;" '
                         + 'onmouseover="this.style.background=\'rgba(99,102,241,0.2)\'" onmouseout="if(this!==document.querySelector(\'.sim-dropdown-item:nth-child(\'+(PolicyCenter.SimulatorUI._activeIndex+1)+\')\'))this.style.background=\'transparent\'" '
-                        + 'onclick="PolicyCenter.SimulatorUI.selectUser(this,' + u.id + ',\'' + PolicyCenter.escapeHtml(u.username || u.name || String(u.id)) + '\')">'
-                        + '<span class="font-mono text-xs" style="color:#94a3b8;">ID:' + u.id + '</span> '
+                        + 'data-user-id="' + PolicyCenter.escapeHtml(String(u.id)) + '" '
+                        + 'data-user-name="' + PolicyCenter.escapeHtml(u.username || u.name || String(u.id)) + '">'
+                        + '<span class="font-mono text-xs" style="color:#94a3b8;">ID:' + PolicyCenter.escapeHtml(String(u.id)) + '</span> '
                         + '<span>' + PolicyCenter.escapeHtml(u.username || u.name || '') + '</span></div>';
                 });
                 dropdown.innerHTML = html;
+                dropdown.querySelectorAll('.sim-dropdown-item').forEach(function(item) {
+                    item.addEventListener('click', function() {
+                        self.selectUser(item, item.dataset.userId, item.dataset.userName);
+                    });
+                });
                 dropdown.classList.remove('hidden');
             })
             .catch(function() { dropdown.classList.add('hidden'); });
@@ -2797,8 +2828,8 @@ PolicyCenter.SimulatorUI = {
             html += '<tr style="border-color:rgba(71,85,105,0.3);' + bgStyle + '">'
                 + '<td class="py-3 px-4" style="color:#e2e8f0;">' + PolicyCenter.escapeHtml(r.username || String(r.testCase.userId)) + '</td>'
                 + '<td class="py-3 px-4 font-mono text-xs" style="color:#cbd5e1;">' + PolicyCenter.escapeHtml(r.testCase.path) + '</td>'
-                + '<td class="py-3 px-4"><span class="status-badge ' + (r.testCase.httpMethod ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'bg-purple-500/20 text-purple-400 border-purple-500/30') + ' text-xs">' + (r.testCase.httpMethod || 'METHOD') + '</span></td>'
-                + '<td class="py-3 px-4"><span style="color:' + decColor + ';font-weight:600;">' + dec + '</span>'
+                + '<td class="py-3 px-4"><span class="status-badge ' + (r.testCase.httpMethod ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'bg-purple-500/20 text-purple-400 border-purple-500/30') + ' text-xs">' + PolicyCenter.escapeHtml(r.testCase.httpMethod || 'METHOD') + '</span></td>'
+                + '<td class="py-3 px-4"><span style="color:' + decColor + ';font-weight:600;">' + PolicyCenter.escapeHtml(dec) + '</span>'
                 + (r.currentResult.noPolicyDecisionApplied ? ' <span class="text-xs" style="color:#94a3b8;">(' + PolicyCenter.escapeHtml(PolicyCenter._i18n('simDefaultApplied', 'DEFAULT')) + ')</span>' : '')
                 + '</td>'
                 + '<td class="py-3 px-4 text-xs" style="color:#c4b5fd;">' + PolicyCenter.escapeHtml(matchedPolicy) + '</td>'
@@ -2840,7 +2871,7 @@ PolicyCenter.MatrixUI = {
             var isMethod = res.httpMethod === 'METHOD';
             var badgeClass = isMethod ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30';
             html += '<td class="py-3 px-4 font-mono text-xs" style="color:#cbd5e1;">'
-                + '<span class="status-badge ' + badgeClass + ' text-xs mr-1">' + res.httpMethod + '</span>'
+                + '<span class="status-badge ' + badgeClass + ' text-xs mr-1">' + PolicyCenter.escapeHtml(res.httpMethod) + '</span>'
                 + PolicyCenter.escapeHtml(res.identifier) + '</td>';
 
             report.cells[rowIdx].forEach(function(cell, colIdx) {
@@ -2853,9 +2884,9 @@ PolicyCenter.MatrixUI = {
                     var color = cell.access === 'ALLOW' ? '#4ade80' : '#f87171';
                     var style = 'background:' + bg + ';color:' + color + ';' + borderStyle;
                     var label = cell.access + (cell.inherited ? ' *' : '');
-                    var clickHandler = cell.policyId ? ' onclick="window.location.href=\'/contexa/admin/policies/' + cell.policyId + '\'"' : '';
-                    html += '<td class="py-3 px-3 text-center cursor-pointer" style="' + style + '" title="' + PolicyCenter.escapeHtml(cell.policyName || '') + '"' + clickHandler + '>'
-                        + '<span class="text-xs font-bold">' + label + '</span></td>';
+                    var policyLink = cell.policyId ? ' data-policy-id="' + PolicyCenter.escapeHtml(String(cell.policyId)) + '"' : '';
+                    html += '<td class="py-3 px-3 text-center cursor-pointer" style="' + style + '" title="' + PolicyCenter.escapeHtml(cell.policyName || '') + '"' + policyLink + '>'
+                        + '<span class="text-xs font-bold">' + PolicyCenter.escapeHtml(label) + '</span></td>';
                 }
             });
             html += '</tr>';
@@ -2867,6 +2898,11 @@ PolicyCenter.MatrixUI = {
             + (report.totalRoles > report.roles.length ? ' (total ' + report.totalRoles + ' roles)' : '')
             + '</div>';
         container.innerHTML = html;
+        container.querySelectorAll('td[data-policy-id]').forEach(function(cell) {
+            cell.addEventListener('click', function() {
+                window.location.href = '/contexa/admin/policies/' + encodeURIComponent(cell.dataset.policyId);
+            });
+        });
     }
 };
 
@@ -2956,7 +2992,7 @@ PolicyCenter.ValidationModal = {
                 validation.conflicts.forEach(function(c) {
                     var severityColor = c.severity === 'CRITICAL' ? '#f87171' : c.severity === 'HIGH' ? '#fb923c' : '#fbbf24';
                     html += '<div class="flex items-start gap-3 p-3 rounded-lg" style="background:rgba(30,41,59,0.6);border:1px solid rgba(71,85,105,0.3);">'
-                        + '<span class="status-badge text-xs" style="background:' + severityColor + '20;color:' + severityColor + ';border-color:' + severityColor + '50;">' + c.severity + '</span>'
+                        + '<span class="status-badge text-xs" style="background:' + severityColor + '20;color:' + severityColor + ';border-color:' + severityColor + '50;">' + PolicyCenter.escapeHtml(c.severity) + '</span>'
                         + '<div><div class="text-sm" style="color:#e2e8f0;">' + PolicyCenter.escapeHtml(c.conflictDescription) + '</div>'
                         + '<div class="text-xs mt-1" style="color:#94a3b8;">' + PolicyCenter.escapeHtml(c.existingPolicyName || '') + '</div></div></div>';
                 });
@@ -3027,13 +3063,13 @@ PolicyCenter.ConflictDetailModal = {
         conflicts.forEach(function(c) {
             var severityColor = c.severity === 'CRITICAL' ? '#f87171' : c.severity === 'HIGH' ? '#fb923c' : '#fbbf24';
             html += '<div class="flex items-start gap-3 p-3 rounded-lg" style="background:rgba(30,41,59,0.6);border:1px solid rgba(71,85,105,0.3);">'
-                + '<span class="status-badge text-xs" style="background:' + severityColor + '20;color:' + severityColor + ';border-color:' + severityColor + '50;">' + c.severity + '</span>'
+                + '<span class="status-badge text-xs" style="background:' + severityColor + '20;color:' + severityColor + ';border-color:' + severityColor + '50;">' + PolicyCenter.escapeHtml(c.severity) + '</span>'
                 + '<div><div class="text-sm" style="color:#e2e8f0;">' + PolicyCenter.escapeHtml(c.conflictDescription) + '</div>'
                 + '<div class="text-xs mt-1" style="color:#94a3b8;">' + PolicyCenter.escapeHtml((c.newPolicyName || '') + ' vs ' + (c.existingPolicyName || '')) + '</div></div></div>';
         });
         duplicates.forEach(function(d) {
             html += '<div class="p-3 rounded-lg" style="background:rgba(30,41,59,0.6);border:1px solid rgba(168,85,247,0.3);">'
-                + '<span class="status-badge text-xs" style="background:rgba(168,85,247,0.2);color:#c084fc;border-color:rgba(168,85,247,0.3);">' + (d.type || 'DUP') + '</span> '
+                + '<span class="status-badge text-xs" style="background:rgba(168,85,247,0.2);color:#c084fc;border-color:rgba(168,85,247,0.3);">' + PolicyCenter.escapeHtml(d.type || 'DUP') + '</span> '
                 + '<span class="text-sm" style="color:#e2e8f0;">' + PolicyCenter.escapeHtml(d.reason) + '</span></div>';
         });
         if (!html) html = '<p class="text-sm" style="color:#64748b;">No details available.</p>';
@@ -3114,7 +3150,7 @@ PolicyCenter.ResourceViewModal = {
             var mColor = methodColors[method] || '#94a3b8';
             html += '<tr style="border-bottom:1px solid rgba(71,85,105,0.15);">';
             html += '<td style="padding:0.5rem;"><span style="font-size:0.7rem;padding:0.125rem 0.4rem;border-radius:0.25rem;background:rgba(99,102,241,0.15);color:#818cf8;">' + PolicyCenter.escapeHtml(ctx.resourceType || 'URL') + '</span></td>';
-            html += '<td style="padding:0.5rem;"><span style="font-size:0.7rem;padding:0.125rem 0.4rem;border-radius:0.25rem;font-weight:700;background:' + mColor + '20;color:' + mColor + ';">' + method + '</span></td>';
+            html += '<td style="padding:0.5rem;"><span style="font-size:0.7rem;padding:0.125rem 0.4rem;border-radius:0.25rem;font-weight:700;background:' + mColor + '20;color:' + mColor + ';">' + PolicyCenter.escapeHtml(method) + '</span></td>';
             html += '<td style="padding:0.5rem;color:#e2e8f0;font-family:monospace;font-size:0.8125rem;">' + PolicyCenter.escapeHtml(ctx.resourceIdentifier || '') + '</td>';
             html += '</tr>';
         });

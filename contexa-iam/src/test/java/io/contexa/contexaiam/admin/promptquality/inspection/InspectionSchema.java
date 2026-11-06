@@ -64,6 +64,33 @@ final class InspectionSchema {
         return wanted;
     }
 
+    /** Q-21: the sealed package table as {@link #sealedShadowStatements()} gives it, with the columns that link it. */
+    static List<String> sealedLinkedStatements() {
+        List<String> wanted = new ArrayList<>(sealedShadowStatements());
+        for (String statement : split(read())) {
+            String text = statement.replaceAll("(?m)^\\s*--.*$", "").trim();
+            String lower = text.toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
+            if (lower.startsWith("alter table ctxa_sealed_evidence_package add column if not exists previous_package_hash")) {
+                wanted.add(1, text);
+            }
+        }
+        return wanted;
+    }
+
+    /** The decision observation table as the OSS schema declares it, for what a request leaves there. */
+    static List<String> decisionObservationStatements() {
+        List<String> wanted = new ArrayList<>();
+        for (String statement : split(read())) {
+            String text = statement.replaceAll("(?m)^\\s*--.*$", "").trim();
+            String lower = text.toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
+            if (lower.startsWith("create table if not exists ctxa_ai_security_decision_observation ")
+                    || lower.startsWith("alter table ctxa_ai_security_decision_observation ")) {
+                wanted.add(text);
+            }
+        }
+        return wanted;
+    }
+
     private static String read() {
         try (InputStream input = InspectionSchema.class.getClassLoader().getResourceAsStream("META-INF/contexa/db/schema.sql")) {
             if (input == null) {

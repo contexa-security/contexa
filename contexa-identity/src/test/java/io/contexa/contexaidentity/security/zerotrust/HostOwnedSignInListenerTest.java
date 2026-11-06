@@ -30,8 +30,10 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -50,18 +52,27 @@ class HostOwnedSignInListenerTest {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/login");
         request.addHeader("User-Agent", "browser/1.0");
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        TestingAuthenticationToken signedIn = new TestingAuthenticationToken("customer", null, "ROLE_USER");
 
         new HostOwnedSignInListener(publisher).onApplicationEvent(new InteractiveAuthenticationSuccessEvent(
-                new TestingAuthenticationToken("customer", null, "ROLE_USER"),
-                UsernamePasswordAuthenticationFilter.class));
+                signedIn, UsernamePasswordAuthenticationFilter.class));
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> payload = ArgumentCaptor.forClass(Map.class);
-        verify(publisher).publishAuthenticationSuccess(eq("customer"), any(), any(), eq("browser/1.0"),
-                payload.capture());
+        verify(publisher).publishAuthenticationSuccess(eq(signedIn), eq(request), payload.capture());
         assertThat(payload.getValue()).containsEntry("authenticationType", "HOST_SIGN_IN")
-                .containsEntry("signedInBy", "UsernamePasswordAuthenticationFilter")
-                .containsEntry("requestPath", "/login");
-        assertThat(request.getSession(false)).as("the application's session is not created").isNull();
+                .containsEntry("signedInBy", "UsernamePasswordAuthenticationFilter");
+    }
+
+    @Test
+    @DisplayName("a sign-in that cannot be sent is the application's sign-in all the same")
+    void aSignInThatCannotBeSentStaysTheApplications() {
+        ZeroTrustEventPublisher publisher = mock(ZeroTrustEventPublisher.class);
+        doThrow(new IllegalStateException("no engine")).when(publisher).publishAuthenticationSuccess(any(), any(), any());
+
+        assertThatCode(() -> new HostOwnedSignInListener(publisher).onApplicationEvent(
+                new InteractiveAuthenticationSuccessEvent(new TestingAuthenticationToken("customer", null, "ROLE_USER"),
+                        UsernamePasswordAuthenticationFilter.class)))
+                .doesNotThrowAnyException();
     }
 }

@@ -32,6 +32,10 @@ import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.repository.UserRolePermissionRepository;
 import io.contexa.contexacommon.security.UserAccountDeletedEvent;
+import io.contexa.contexacommon.security.UserAccountDisabledEvent;
+import io.contexa.contexacommon.security.UserAuthoritiesChangedEvent;
+import io.contexa.contexacommon.security.UserPasswordChangedEvent;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
 import lombok.RequiredArgsConstructor;
@@ -73,6 +77,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     private final UserRolePermissionRepository userRolePermissionRepository;
     private final BridgeUserProfileRepository bridgeUserProfileRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final LastAdministratorGuard lastAdministratorGuard;
 
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
@@ -164,9 +169,18 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Override
 //    @Protectable
     public void modifyUser(@ModelAttribute UserDto userDto) {
-        log.error("[UserManagementService.modifyUser] findByIdWithGroupsRolesAndPermissions id={}", userDto.getId());
+        // First in the transaction: a change of who administers the console waits for the one before it.
+        lastAdministratorGuard.serializeChanges();
+        log.debug("[UserManagementService.modifyUser] findByIdWithGroupsRolesAndPermissions id={}", userDto.getId());
         Users users = userRepository.findByIdWithGroupsRolesAndPermissions(userDto.getId())
                 .orElseThrow(() -> new IllegalArgumentException(msg("msg.user.not.found.id", userDto.getId())));
+
+        boolean disabled = users.isEnabled() && !userDto.isEnabled();
+        boolean passwordChanged = StringUtils.hasText(userDto.getPassword());
+        boolean wasActiveAdministrator = lastAdministratorGuard.activeAdministrator(users);
+        Set<Long> previousGroupIds = users.getUserGroups().stream()
+                .map(userGroup -> userGroup.getGroup().getId())
+                .collect(Collectors.toSet());
 
         users.setName(userDto.getName());
         users.setEmail(userDto.getEmail());
@@ -178,21 +192,30 @@ public class UserManagementServiceImpl implements UserManagementService {
         users.setPreferredMfaFactor(userDto.getPreferredMfaFactor());
         users.setLocale(userDto.getLocale());
         users.setTimezone(userDto.getTimezone());
-        if (StringUtils.hasText(userDto.getPassword())) {
+        if (passwordChanged) {
             List<String> violations = passwordPolicyService.validatePassword(userDto.getPassword());
             if (!violations.isEmpty()) {
                 throw new IllegalArgumentException(msg("msg.user.password.policy.violation", String.join(", ", violations)));
             }
             users.setPassword(passwordEncoder.encode(userDto.getPassword()));
+            users.setPasswordChangedAt(LocalDateTime.now());
         }
 
         Set<Long> desiredGroupIds = userDto.getSelectedGroupIds() != null
                 ? new HashSet<>(userDto.getSelectedGroupIds())
                 : new HashSet<>();
 
-        users.getUserGroups().clear();
+        // A group the user keeps stays the row it is. Dropped and made again under the same key, it would meet itself in
+        // the session as soon as a query flushes, and the check of the last administrator below runs one.
+        users.getUserGroups().removeIf(userGroup -> !desiredGroupIds.contains(userGroup.getGroup().getId()));
+        Set<Long> keptGroupIds = users.getUserGroups().stream()
+                .map(userGroup -> userGroup.getGroup().getId())
+                .collect(Collectors.toSet());
 
         for (Long groupId : desiredGroupIds) {
+            if (keptGroupIds.contains(groupId)) {
+                continue;
+            }
             Group group = groupRepository.findById(groupId)
                     .orElseThrow(() -> new IllegalArgumentException(msg("msg.group.not.found.id", groupId)));
             UserGroup userGroup = UserGroup.builder()
@@ -201,8 +224,19 @@ public class UserManagementServiceImpl implements UserManagementService {
                     .build();
             users.getUserGroups().add(userGroup);
         }
+        lastAdministratorGuard.refuseLosingTheLast(users, wasActiveAdministrator);
 
         userRepository.save(users);
+
+        // The listeners run after the commit, so a change that rolls back reaches no session (Q-14).
+        if (passwordChanged) {
+            eventPublisher.publishEvent(new UserPasswordChangedEvent(users.getUsername()));
+        }
+        if (disabled) {
+            eventPublisher.publishEvent(new UserAccountDisabledEvent(users.getUsername()));
+        } else if (!previousGroupIds.equals(desiredGroupIds)) {
+            eventPublisher.publishEvent(new UserAuthoritiesChangedEvent());
+        }
 
         try {
             String admin = "SYSTEM";
@@ -220,7 +254,7 @@ public class UserManagementServiceImpl implements UserManagementService {
                     .details(Map.of(
                             "userId", users.getId() != null ? users.getId() : 0L,
                             "username", users.getUsername() != null ? users.getUsername() : "",
-                            "passwordChanged", StringUtils.hasText(userDto.getPassword())))
+                            "passwordChanged", passwordChanged))
                     .build());
         } catch (Exception e) {
             log.error("Failed to audit user modification: {}", users.getUsername(), e);
@@ -230,7 +264,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
 //    @Protectable
     public UserDto getUser(Long id) {
-        log.error("[UserManagementService.getUser] findByIdWithGroupsRolesAndPermissions id={}", id);
+        log.debug("[UserManagementService.getUser] findByIdWithGroupsRolesAndPermissions id={}", id);
         Users users = userRepository.findByIdWithGroupsRolesAndPermissions(id)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + id));
         UserDto userDto = modelMapper.map(users, UserDto.class);
@@ -269,8 +303,39 @@ public class UserManagementServiceImpl implements UserManagementService {
         return users.map(this::toUserListDto);
     }
 
+    @Override
+    @Transactional(transactionManager = "contexaTransactionManager")
+    @Protectable(verificationRequired = false)
+    public boolean unlockUser(Long id) {
+        Users user = userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException(msg("msg.user.not.found.id", id)));
+        if (userRepository.clearLock(id) == 0) {
+            return false;
+        }
+        try {
+            var auth = SecurityContextHolder.getContext().getAuthentication();
+            centralAuditFacade.recordAsync(AuditRecord.builder()
+                    .eventCategory(AuditEventCategory.USER_MODIFIED)
+                    .principalName(auth != null && auth.getName() != null ? auth.getName() : "SYSTEM")
+                    .resourceIdentifier(user.getUsername() != null ? user.getUsername() : "")
+                    .eventSource("IAM")
+                    .action("USER_UNLOCKED")
+                    .decision("SUCCESS")
+                    .outcome("SUCCESS")
+                    .details(Map.of("userId", id, "username", user.getUsername() != null ? user.getUsername() : ""))
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to audit the release of a lock: {}", user.getUsername(), e);
+        }
+        return true;
+    }
+
     private UserListDto toUserListDto(Users user) {
         UserListDto dto = modelMapper.map(user, UserListDto.class);
+        // PR-27: a copy of an application's user is named by a hash; the application's name for the user is what reads.
+        if (user.isBridgeManaged() && StringUtils.hasText(user.getExternalSubjectId())) {
+            dto.setUsername(user.getExternalSubjectId());
+        }
         dto.setGroupCount(user.getUserGroups() != null ? user.getUserGroups().size() : 0);
         long roleCount = user.getRoleNames().stream().distinct().count();
         dto.setRoleCount((int) roleCount);
@@ -280,7 +345,9 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Transactional(transactionManager = "contexaTransactionManager")
     @Protectable(verificationRequired = false)
     public void deleteUser(Long id) {
+        lastAdministratorGuard.serializeChanges();
         Optional<Users> target = userRepository.findById(id);
+        target.ifPresent(lastAdministratorGuard::refuseDeletingTheLast);
         try {
             String admin = "SYSTEM";
             var auth = SecurityContextHolder.getContext().getAuthentication();

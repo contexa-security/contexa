@@ -23,12 +23,19 @@ import java.lang.annotation.Target;
 /**
  * Declares a resource as protected by the Contexa zero-trust framework.
  * <p>
- * At application startup {@code ProtectableResourceCatalogService} auto-scans
- * annotated beans and registers matching methods into
- * {@code ctxa_protectable_resource_registry}. Registered resources can be evaluated
- * by the prompt quality inspection flow before they are used for LLM
- * zero-trust operation. Enterprise deployments may add certificate and
- * promotion gates on top of that inspection result.
+ * At application startup {@code ProtectableResourceContextScanner} reads the
+ * annotated methods of the application's beans, so that a request to one of them
+ * carries what the annotation declares into the decision. The console lists them
+ * in {@code ctxa_managed_resource} when an administrator refreshes the resources.
+ * A method of a controller is left out of that list: the console lists a controller
+ * by its URL. Enterprise deployments may add a registry, inspection, certificate and
+ * promotion gates on top of this.
+ * <p>
+ * A call on a thread that holds neither a user nor a request, such as a
+ * scheduled job or an asynchronous method whose executor does not carry the
+ * security context, has no one to decide for: it runs and the run is recorded.
+ * A call that carries its user is decided on any thread, and a request with no
+ * user is refused.
  */
 @Target({ElementType.METHOD, ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
@@ -67,7 +74,9 @@ public @interface Protectable {
      * response.
      * <p>
      * {@code false} (default): the event is published and the decision runs
-     * asynchronously, favoring response latency.
+     * asynchronously, favoring response latency. A person's call whose session,
+     * address or browser changed since the user's last decision still waits for
+     * its decision.
      * <p>
      * Owner: architect and performance team, jointly. Recommended only for
      * resources whose response can be delivered within the 3-second SLA.

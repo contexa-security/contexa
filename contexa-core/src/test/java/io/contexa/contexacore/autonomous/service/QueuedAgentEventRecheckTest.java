@@ -20,6 +20,7 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.agent.AgentAllowReuse;
 import io.contexa.contexacore.autonomous.context.support.ActionFamily;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
@@ -95,6 +96,21 @@ class QueuedAgentEventRecheckTest {
         verify(recorder).recordQueued(event, ZeroTrustAction.ALLOW);
     }
 
+    /** The ALLOW of a sensitive record named in the query answers that record's event and leaves another's to analysis. */
+    @Test
+    void anAllowOfASensitiveRecordAnswersOnlyTheEventOfThatRecord() {
+        when(repository.getCurrentAction(SUBJECT, CONTEXT)).thenReturn(ZeroTrustAction.ALLOW);
+        SecurityEvent record = event("DELEGATED_AGENT", "/api/customers", "SENSITIVE");
+        record.addMetadata(RequestFactRedaction.QUERY_REFERENCE, "qry-1");
+        SecurityEvent another = event("DELEGATED_AGENT", "/api/customers", "SENSITIVE");
+        another.addMetadata(RequestFactRedaction.QUERY_REFERENCE, "qry-2");
+        reuse.decided(SUBJECT, CONTEXT, ActionFamily.READ,
+                AgentAllowReuse.resource(record.getMetadata(), "/api/customers"), true);
+
+        assertThat(recheck.answeredWithoutAnalysis(record)).isTrue();
+        assertThat(recheck.answeredWithoutAnalysis(another)).isFalse();
+    }
+
     // QD-03
     @Test
     void anEventNothingAnswersIsAnalysed() {
@@ -115,13 +131,72 @@ class QueuedAgentEventRecheckTest {
         verify(recorder, never()).recordQueued(any(SecurityEvent.class), any(ZeroTrustAction.class));
     }
 
-    @Test
-    void aPersonsEventIsNeverAnsweredHere() {
-        when(repository.getCurrentAction(any(), any())).thenReturn(ZeroTrustAction.BLOCK);
+    private static SecurityEvent personsRequest() {
+        SecurityEvent event = event("HUMAN_USER", "/api/docs/1", null);
+        event.addMetadata("zerotrust.category", "AUTHORIZATION");
+        return event;
+    }
 
-        assertThat(recheck.answeredWithoutAnalysis(event("HUMAN_USER", "/api/docs/1", null))).isFalse();
+    // PR-82: a person's calls that waited their turn cost one decision, not one each.
+    @Test
+    void aDecisionInForceAnswersAPersonsRequestThatWaitedItsTurn() {
+        for (ZeroTrustAction decision : new ZeroTrustAction[] {ZeroTrustAction.BLOCK, ZeroTrustAction.CHALLENGE,
+                ZeroTrustAction.ESCALATE, ZeroTrustAction.ALLOW}) {
+            when(repository.getCurrentAction(SUBJECT, CONTEXT)).thenReturn(decision);
+            SecurityEvent event = personsRequest();
+
+            assertThat(recheck.answeredWithoutAnalysis(event)).as(decision.name()).isTrue();
+
+            verify(recorder).recordQueued(event, decision);
+        }
+    }
+
+    @Test
+    void aPersonsRequestNothingAnswersIsAnalysed() {
+        when(repository.getCurrentAction(SUBJECT, CONTEXT)).thenReturn(ZeroTrustAction.PENDING_ANALYSIS);
+
+        assertThat(recheck.answeredWithoutAnalysis(personsRequest())).isFalse();
+    }
+
+    /** Q-5: only the model ends a CHALLENGE no model decided, so the next analysis is what the user waits for. */
+    @Test
+    void aChallengeNoModelDecidedAnswersNoPersonsRequest() {
+        when(repository.getCurrentAction(SUBJECT, CONTEXT)).thenReturn(ZeroTrustAction.CHALLENGE);
+        when(repository.isTechnicalChallenge(SUBJECT)).thenReturn(true);
+
+        assertThat(recheck.answeredWithoutAnalysis(personsRequest())).isFalse();
+    }
+
+    /** A sign-in is what it is whatever is in force: it is analysed, as it always was. */
+    @Test
+    void aPersonsSignInIsAnalysedWhateverIsInForce() {
+        when(repository.getCurrentAction(any(), any())).thenReturn(ZeroTrustAction.BLOCK);
+        SecurityEvent signIn = event("HUMAN_USER", "/login", null);
+        signIn.addMetadata("zerotrust.category", "AUTHENTICATION");
+
+        assertThat(recheck.answeredWithoutAnalysis(signIn)).isFalse();
 
         verify(repository, never()).getCurrentAction(eq(SUBJECT), any());
+    }
+
+    /** A person's request left out of the user's share ran without a verdict: it stays a fact of the session. */
+    @Test
+    void aRequestLeftOutOfTheUsersShareIsKeptInItsSession() {
+        SecurityEvent event = personsRequest();
+
+        recheck.leftOut(event);
+
+        verify(recorder).recordPassed(event);
+    }
+
+    @Test
+    void aRefusedRequestLeftOutIsNotKeptAsPassed() {
+        SecurityEvent event = personsRequest();
+        event.addMetadata("methodExecutionOutcome", "NOT_RUN");
+
+        recheck.leftOut(event);
+
+        verify(recorder, never()).recordPassed(event);
     }
 
     @Test

@@ -42,6 +42,7 @@ import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import org.springframework.beans.factory.ObjectProvider;
 import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
@@ -58,6 +59,7 @@ import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportResult;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import io.contexa.contexaidentity.security.zerotrust.ChallengeResolution;
+import io.contexa.contexaidentity.security.zerotrust.SignInDecision;
 import io.contexa.contexaidentity.security.zerotrust.ZeroTrustAccessControlFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -174,11 +176,11 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 request.setAttribute("mfaSessionReleased", true);
             }
 
-            String userId = finalAuthentication.getName();
+            String userId = ZeroTrustUserKey.person(finalAuthentication.getName());
             if (factorContext != null && factorContext.isCompleted()) {
                 Boolean blockMfaFlow = (Boolean) factorContext.getAttribute(ZeroTrustAccessControlFilter.BLOCK_MFA_FLOW_ATTRIBUTE);
                 if (Boolean.TRUE.equals(blockMfaFlow)) {
-                    handleBlockMfaSuccess(userId, request, response);
+                    handleBlockMfaSuccess(userId, request, response, stateType, finalAuthentication);
                     return;
                 }
                 boolean challengeFlow = isChallengeFlow(factorContext);
@@ -188,10 +190,18 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                     // A login MFA, in this or another session, does not answer a Zero Trust challenge; only the
                     // step-up the challenge started releases it and is learned as normal behaviour.
                     successStage = "resetActionOnMfaSuccess";
-                    resetActionOnMfaSuccess(userId, request, factorContext);
+                    resetActionOnMfaSuccess(userId, request, factorContext, stateType, finalAuthentication);
                 }
                 successStage = "recordMfaCompletionInSession";
                 recordMfaCompletionInSession(request, factorContext, challengeFlow, stateType, finalAuthentication);
+            }
+
+            if (!isChallengeFlow(factorContext)) {
+                // A completed sign-in is decided as the application's own is where it owns the sign-in, and sent before
+                // the response leaves so the next request meets what it brings. A step-up that answers a CHALLENGE or
+                // releases a BLOCK is no sign-in.
+                successStage = "sendSignIn";
+                sendSignIn(request, finalAuthentication, factorContext, stateType);
             }
 
             successStage = "resolvePasskeyRegistrationIntent";
@@ -243,30 +253,24 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             return;
         }
 
-        safeLogError("MFA post-success pipeline failed at stage {} for user {}",
+        safeLogError("MFA post-success pipeline failed at stage {} for user {} (MFA session {}, state {})",
                 throwable,
                 failedStage,
-                finalAuthentication.getName());
+                finalAuthentication.getName(),
+                factorContext != null ? factorContext.getMfaSessionId() : null,
+                factorContext != null ? factorContext.getCurrentState() : null);
 
+        // The client learns that the sign-in could not be completed and no more: the person, the failing step, the
+        // exception and the MFA session are the operators', in the log above.
         Map<String, Object> errorDetails = new LinkedHashMap<>();
         errorDetails.put("status", "MFA_POST_SUCCESS_PIPELINE_FAILED");
-        errorDetails.put("failedStage", failedStage);
-        errorDetails.put("userId", finalAuthentication.getName());
-        errorDetails.put("causeType", throwable.getClass().getName());
-        errorDetails.put("causeMessage", throwable.getMessage());
-        if (factorContext != null) {
-            errorDetails.put("mfaSessionId", factorContext.getMfaSessionId());
-            errorDetails.put("mfaState", factorContext.getCurrentState() != null
-                    ? factorContext.getCurrentState().name()
-                    : null);
-        }
 
         if (isApiRequest(request)) {
             responseWriter.writeErrorResponse(
                     response,
                     HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                     "MFA_POST_SUCCESS_PIPELINE_FAILED",
-                    "MFA post-success pipeline failed at stage: " + failedStage,
+                    "The sign-in could not be completed. Please try again, or contact the administrator if it keeps failing.",
                     request.getRequestURI(),
                     errorDetails);
             return;
@@ -534,45 +538,27 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         return responseData;
     }
 
-    private void publishAuthenticationSuccessEvent(HttpServletRequest request,
-                                                   Authentication authentication,
-                                                   @Nullable FactorContext factorContext,
-                                                   TokenTransportResult transportResult) {
-        try {
-            if (zeroTrustEventPublisher == null) {
-                return;
+    /** The sign-in this success completed, with what the flow knows of it, to the engine. */
+    private void sendSignIn(HttpServletRequest request, Authentication authentication,
+                            @Nullable FactorContext factorContext, StateType stateType) {
+        Map<String, Object> signIn = new HashMap<>();
+        putIfPresent(signIn, ZeroTrustEventPublisher.TOKEN_SESSION_ID, tokenSessionOf(stateType, authentication));
+        boolean mfaCompleted = factorContext != null && factorContext.isCompleted();
+        signIn.put("authenticationType", mfaCompleted ? "MFA" : "PRIMARY");
+        if (factorContext != null) {
+            signIn.put("mfaCompleted", mfaCompleted);
+            putIfPresent(signIn, "deviceId", factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.DEVICE_ID));
+            if (factorContext.getCurrentProcessingFactor() != null) {
+                signIn.put("mfaMethod", factorContext.getCurrentProcessingFactor().toString());
             }
+            putIfPresent(signIn, "signInFlow", factorContext.getFlowTypeName());
+        }
+        SignInDecision.send(zeroTrustEventPublisher, authentication, request, signIn);
+    }
 
-            String userName = authentication.getName();
-
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("requestPath", request.getRequestURI());
-            payload.put("httpMethod", request.getMethod());
-            payload.put("authenticationType", factorContext != null && factorContext.isCompleted() ? "MFA" : "PRIMARY");
-
-            if (factorContext != null) {
-                payload.put("mfaCompleted", factorContext.isCompleted());
-                payload.put("deviceId", factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.DEVICE_ID));
-                payload.put("mfaMethod", factorContext.getCurrentProcessingFactor() != null ?
-                        factorContext.getCurrentProcessingFactor().toString() : null);
-            }
-
-            if (transportResult != null && transportResult.getBody() != null) {
-                payload.put("authenticationResult", transportResult.getBody().get("status"));
-            }
-
-            payload.put("action", ZeroTrustAction.ALLOW.name());
-
-            zeroTrustEventPublisher.publishAuthenticationSuccess(
-                    userName,
-                    request.getSession(false) != null ? request.getSession().getId() : null,
-                    extractClientIp(request),
-                    extractUserAgent(request),
-                    payload
-            );
-
-        } catch (Exception e) {
-            safeLogError("Failed to publish authentication success event", e);
+    private static void putIfPresent(Map<String, Object> target, String key, @Nullable Object value) {
+        if (value != null) {
+            target.put(key, value);
         }
     }
 
@@ -611,10 +597,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         } catch (Exception e) {
             safeLogError("Failed to audit authentication success", e);
         }
-    }
-
-    private String extractUserAgent(HttpServletRequest request) {
-        return request.getHeader("User-Agent");
     }
 
     private AuthUrlProvider resolveProvider(HttpServletRequest request, @Nullable FactorContext factorContext) {
@@ -706,8 +688,11 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     }
 
     private void handleBlockMfaSuccess(String userId, HttpServletRequest request,
-                                         HttpServletResponse response) throws IOException {
-        challengeResolution().releaseBlockByMfa(userId);
+                                         HttpServletResponse response, StateType stateType,
+                                         Authentication finalAuthentication) throws IOException {
+        // Bound to the session the client uses next, as an answered CHALLENGE is: MFA success may have rotated its id.
+        challengeResolution().releaseBlockByMfa(userId, SessionFingerprintUtil.generateNextRequestContextBindingHash(
+                request, tokenSessionOf(stateType, finalAuthentication)));
 
         String redirectUrl = request.getContextPath() + "/contexa/zero-trust/blocked";
 
@@ -740,14 +725,16 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     }
 
     private void resetActionOnMfaSuccess(String userId, HttpServletRequest request,
-                                         @Nullable FactorContext factorContext) {
+                                         @Nullable FactorContext factorContext, StateType stateType,
+                                         Authentication finalAuthentication) {
         if (userId == null || userId.isBlank() || actionRedisRepository == null) {
             return;
         }
         String originalIp = factorContext != null
                 ? (String) factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.CLIENT_IP) : null;
         // Bind to the session the client uses next: MFA success has already rotated the session id.
-        String contextBindingHash = SessionFingerprintUtil.generateNextRequestContextBindingHash(request);
+        String contextBindingHash = SessionFingerprintUtil.generateNextRequestContextBindingHash(
+                request, tokenSessionOf(stateType, finalAuthentication));
         // Q-87 (N-P3-1): an ESCALATE waits for a review (an approved override, or BLOCK when it lapses); a
         // verification of the user neither lifts it nor releases the user.
         if (challengeResolution().releaseChallenge(userId, contextBindingHash, request, originalIp)) {
@@ -803,10 +790,21 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     @Nullable
     private static String engineSessionId(HttpServletRequest request, StateType stateType,
                                           Authentication finalAuthentication) {
-        if (stateType == StateType.OAUTH2 && finalAuthentication.getDetails() instanceof LoginFactsDetails facts) {
-            return facts.getSignInId();
+        String tokenSession = tokenSessionOf(stateType, finalAuthentication);
+        if (tokenSession != null) {
+            return tokenSession;
         }
         return request.getSession(false) != null ? request.getSession(false).getId() : null;
+    }
+
+    /**
+     * The login the issued token carries as its {@code sid} claim on the OAuth2 state, which is the session of the
+     * client's next requests (bearer calls); null on the session state, whose next requests belong to the HTTP session.
+     */
+    @Nullable
+    private static String tokenSessionOf(StateType stateType, Authentication finalAuthentication) {
+        return stateType == StateType.OAUTH2 && finalAuthentication.getDetails() instanceof LoginFactsDetails facts
+                ? facts.getSignInId() : null;
     }
 
     @Nullable

@@ -20,6 +20,7 @@ import io.contexa.contexacommon.entity.GroupRole;
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexaiam.domain.entity.RoleHierarchyEntity;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import io.contexa.contexaiam.testsupport.I18nTestSupport;
@@ -27,6 +28,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
@@ -57,6 +59,9 @@ class GroupServiceImplTest {
 
     @Spy
     private MessageSource messageSource = I18nTestSupport.englishMessageSource();
+
+    @Mock
+    private LastAdministratorGuard lastAdministratorGuard;
 
     @InjectMocks
     private GroupServiceImpl service;
@@ -266,6 +271,18 @@ class GroupServiceImplTest {
             service.deleteGroup(1L);
 
             verify(groupRepository).deleteById(1L);
+        }
+
+        @Test
+        @DisplayName("the permissions given to the group with its roles are deleted first, and the lock stays the first thing")
+        void shouldDeleteTheRolePermissionsFirst() {
+            service.deleteGroup(1L);
+
+            InOrder order = inOrder(lastAdministratorGuard, groupRepository);
+            order.verify(lastAdministratorGuard).serializeChanges();
+            order.verify(groupRepository).deleteRolePermissionsOf(1L);
+            order.verify(groupRepository).deleteById(1L);
+            order.verify(lastAdministratorGuard).refuseLosingEveryAdministrator(any());
         }
     }
 

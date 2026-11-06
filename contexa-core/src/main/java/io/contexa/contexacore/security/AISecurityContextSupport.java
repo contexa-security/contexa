@@ -99,7 +99,7 @@ public class AISecurityContextSupport {
             return;
         }
         try {
-            log.error("[ZeroTrust] Invalidating all sessions for user: {} - Reason: {}", userId, reason);
+            log.warn("[ZeroTrust] Invalidating all sessions for user: {} - Reason: {}", userId, reason);
             zeroTrustSecurityService.invalidateAllUserSessions(userId, reason);
         } catch (Exception e) {
             log.error("[ZeroTrust] Error invalidating all sessions for user: {}", userId, e);

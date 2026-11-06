@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.execution;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.contexa.contexacore.autonomous.execution.ZeroTrustExceptionHandler.ZeroTrustErrorResponse;
@@ -62,6 +63,49 @@ class ZeroTrustExceptionHandlerTest {
         assertThat(answer.getStatusCode().value()).isEqualTo(401);
         assertThat(answer.getBody().getCode()).isEqualTo("ZERO_TRUST_CHALLENGE");
         assertThat(answer.getBody().getMfaUrl()).isEqualTo("/mfa/select-factor");
+    }
+
+    private JsonNode answerOf(RuntimeException decision, ZeroTrustExceptionHandler handler) throws Exception {
+        new ZeroTrustEnforcementExceptionResolver(handler).resolveException(request, response, null, decision);
+        return new ObjectMapper().readTree(response.getContentAsString());
+    }
+
+    /** The browser SDK follows a 401 whose error names the challenge and a way on: it read nothing here before. */
+    @Test
+    @DisplayName("a CHALLENGE decided in the request reads as the filters' does, and keeps its code")
+    void aChallengeDecidedInTheRequestReadsAsTheFilters() throws Exception {
+        JsonNode body = answerOf(ZeroTrustAccessDeniedException.challengeRequired("PaymentService.process"),
+                new ZeroTrustExceptionHandler(starter(Optional.of("/mfa/select-factor"))));
+
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(body.path("error").asText()).isEqualTo("MFA_CHALLENGE_REQUIRED");
+        assertThat(body.path("code").asText()).isEqualTo("ZERO_TRUST_CHALLENGE");
+        assertThat(body.path("mfaUrl").asText()).isEqualTo("/mfa/select-factor");
+        assertThat(body.path("challengeNoticeUrl").asText())
+                .isEqualTo("/contexa/zero-trust/challenge-required?mfaUrl=%2Fmfa%2Fselect-factor");
+    }
+
+    @Test
+    @DisplayName("a CHALLENGE no step-up was started for says so in both names, as the filter does without an MFA flow")
+    void aChallengeWithoutAStepUp() throws Exception {
+        JsonNode body = answerOf(ZeroTrustAccessDeniedException.challengeRequired("PaymentService.process"),
+                new ZeroTrustExceptionHandler(starter(Optional.empty())));
+
+        assertThat(body.path("error").asText()).isEqualTo("ZERO_TRUST_CHALLENGE");
+        assertThat(body.path("code").asText()).isEqualTo("ZERO_TRUST_CHALLENGE");
+        assertThat(body.has("mfaUrl")).isFalse();
+        assertThat(body.has("challengeNoticeUrl")).isFalse();
+    }
+
+    @Test
+    @DisplayName("every other answer carries both names too")
+    void everyOtherAnswerCarriesBothNames() throws Exception {
+        JsonNode body = answerOf(ZeroTrustAccessDeniedException.blocked("PaymentService.process"),
+                new ZeroTrustExceptionHandler(starter(Optional.of("/mfa/select-factor"))));
+
+        assertThat(body.path("error").asText()).isEqualTo("ZERO_TRUST_BLOCK");
+        assertThat(body.path("code").asText()).isEqualTo("ZERO_TRUST_BLOCK");
+        assertThat(body.has("challengeNoticeUrl")).isFalse();
     }
 
     @Test

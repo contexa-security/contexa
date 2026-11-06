@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.baseline.store;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacommon.security.baseline.BaselineVector;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -302,6 +303,40 @@ abstract class AbstractBaselineDataStoreContractTest {
         assertThat(store.getUserBaseline("mia::agent::agt-1")).isNull();
         assertThat(store.getUserBaseline("tenant-a::mia::agent::agt-2")).isNull();
         assertThat(store.getUserBaseline("noah::agent::agt-1")).isNotNull();
+    }
+
+    @Test
+    @DisplayName("deleting a user leaves the baselines of an agent that bears the user's name")
+    void deleteUserBaseline_leavesTheAgentOfThatName() {
+        store.saveUserBaseline("ivy", userBaseline("ivy"));
+        store.saveUserBaseline("tenant-a::ivy", userBaseline("ivy"));
+        store.saveUserBaseline("mia::agent::ivy", userBaseline("mia"));
+        store.saveUserBaseline("tenant-a::mia::agent::ivy", userBaseline("mia"));
+
+        store.deleteUserBaseline("ivy");
+
+        assertThat(store.getUserBaseline("ivy")).isNull();
+        assertThat(store.getUserBaseline("tenant-a::ivy")).isNull();
+        assertThat(store.getUserBaseline("mia::agent::ivy")).isNotNull();
+        assertThat(store.getUserBaseline("tenant-a::mia::agent::ivy")).isNotNull();
+    }
+
+    @Test
+    @DisplayName("deleting a user named as an agent's key takes the user's baselines and leaves the agent's")
+    void deleteUserBaseline_ofAUserNamedAsAnAgentsKeyLeavesTheAgent() {
+        String name = "mia::agent::agt-1";
+        String own = ZeroTrustUserKey.person(name);
+        store.saveUserBaseline(name, userBaseline("mia"));
+        store.saveUserBaseline("tenant-a::" + name, userBaseline("mia"));
+        store.saveUserBaseline(own, userBaseline("odd"));
+        store.saveUserBaseline("tenant-a::" + own, userBaseline("odd"));
+
+        store.deleteUserBaseline(name);
+
+        assertThat(store.getUserBaseline(own)).isNull();
+        assertThat(store.getUserBaseline("tenant-a::" + own)).isNull();
+        assertThat(store.getUserBaseline(name)).isNotNull();
+        assertThat(store.getUserBaseline("tenant-a::" + name)).isNotNull();
     }
 
     @Test

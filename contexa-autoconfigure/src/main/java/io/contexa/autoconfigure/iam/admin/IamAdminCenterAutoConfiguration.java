@@ -40,12 +40,16 @@ import io.contexa.contexaiam.security.xacml.pap.service.PolicyVersionService;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @AutoConfiguration
 @AutoConfigureAfter({
@@ -105,7 +109,8 @@ public class IamAdminCenterAutoConfiguration {
             CustomDynamicAuthorizationManager authorizationManager,
             CentralAuditFacade contexaCentralAuditFacade,
             MessageSource messageSource,
-            ObjectProvider<PolicyReloadBroadcaster> policyReloadBroadcasterProvider) {
+            ObjectProvider<PolicyReloadBroadcaster> policyReloadBroadcasterProvider,
+            @Qualifier("contexaTransactionManager") ObjectProvider<PlatformTransactionManager> transactionManagerProvider) {
         PolicyCenterCommandService service = new PolicyCenterCommandService(
                 contexaResourceRegistryService,
                 contexaPolicyService,
@@ -121,6 +126,11 @@ public class IamAdminCenterAutoConfiguration {
                 contexaCentralAuditFacade,
                 messageSource);
         policyReloadBroadcasterProvider.ifAvailable(service::setPolicyReloadBroadcaster);
+        transactionManagerProvider.ifAvailable(manager -> {
+            TransactionTemplate item = new TransactionTemplate(manager);
+            item.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+            service.setItemTransactions(item);
+        });
         return service;
     }
 

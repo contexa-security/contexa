@@ -16,6 +16,9 @@
 package io.contexa.contexaiam.admin.web.auth.filter;
 
 import lombok.extern.slf4j.Slf4j;
+import io.contexa.contexacommon.security.RequestPaths;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
+import io.contexa.contexacommon.security.ZeroTrustScreens;
 import io.contexa.contexaiam.admin.web.auth.service.SessionManagementService;
 import io.contexa.contexaiam.domain.entity.ActiveSession;
 import io.contexa.contexaiam.repository.ActiveSessionRepository;
@@ -37,10 +40,16 @@ import java.io.IOException;
  * On each authenticated request:
  * 1. Checks if session is marked as expired in DB -> forces HTTP session invalidation
  * 2. Tracks session activity for monitoring
+ * The session is found and tracked by its reference, never by the value its cookie carries.
  */
 @RequiredArgsConstructor
 @Slf4j
 public class SessionTrackingFilter extends OncePerRequestFilter {
+
+    private static final String FAVICON_PATH = "/favicon.ico";
+    private static final String WEBJARS = "/webjars";
+    private static final String GUIDED_PAGE = "/contexa/admin/test/guided";
+    private static final String GUIDED_API = "/contexa/admin/api/guided";
 
     private final SessionManagementService sessionManagementService;
     private final ActiveSessionRepository activeSessionRepository;
@@ -59,7 +68,8 @@ public class SessionTrackingFilter extends OncePerRequestFilter {
                 session.setAttribute("_sessionExpireCheck", now);
                 ActiveSession tracked = null;
                 try {
-                    tracked = activeSessionRepository.findById(session.getId()).orElse(null);
+                    tracked = activeSessionRepository.findById(RequestFactRedaction.sessionReference(session.getId()))
+                            .orElse(null);
                 } catch (RuntimeException e) {
                     // the tracked sessions live in Contexa's database: when it cannot be read the session is not forced out for it
                     log.warn("Tracked sessions could not be read; the request goes on: {}", e.toString());
@@ -85,7 +95,7 @@ public class SessionTrackingFilter extends OncePerRequestFilter {
                     session.setAttribute("_sessionTrackTime", nowTrack);
                     try {
                         sessionManagementService.trackSession(
-                                session.getId(),
+                                RequestFactRedaction.sessionReference(session.getId()),
                                 auth.getName(),
                                 auth.getName(),
                                 request.getRemoteAddr(),
@@ -100,15 +110,12 @@ public class SessionTrackingFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String uri = request.getRequestURI();
-        return uri.startsWith("/contexa/css/")
-                || uri.startsWith("/contexa/js/")
-                || uri.startsWith("/contexa/img/")
-                || uri.startsWith("/favicon")
-                || uri.startsWith("/webjars/")
-                || uri.startsWith("/actuator/")
-                || uri.startsWith("/demo/")
-                || uri.equals("/contexa/admin/test/guided")
-                || uri.startsWith("/contexa/admin/api/guided/");
+        // Only files and Contexa's own paths: a session forced out must not reach a path of the application.
+        String path = RequestPaths.of(request);
+        return FAVICON_PATH.equals(path)
+                || ZeroTrustScreens.isScreenResource(path)
+                || RequestPaths.isWithin(path, WEBJARS)
+                || GUIDED_PAGE.equals(path)
+                || RequestPaths.isWithin(path, GUIDED_API);
     }
 }

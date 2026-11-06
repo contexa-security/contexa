@@ -240,7 +240,7 @@ public final class PromptQualityOfficialConsoleViewAssembler {
         summary.put("userPromptHash", pkg.getUserPromptHash());
         summary.put("sealed", pkg.isSealed());
         summary.put("sealState", pkg.getSealState());
-        summary.put("integrityValid", pkg.isSealed() && StringUtils.hasText(pkg.getPackageHash()));
+        summary.put("integrityValid", pkg.isSealed() && evidenceLookupService.verifyIntegrity(pkg));
         summary.put("decisionAction", firstJsonText(decision, "action", "decision", "verdict"));
         summary.put("decisionConfidence", firstJsonText(decision, "confidence", "confidenceScore"));
         return summary;

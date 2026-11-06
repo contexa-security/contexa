@@ -16,7 +16,11 @@
 package io.contexa.contexaidentity.security.zerotrust;
 
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexacommon.security.ConsoleSession;
+import io.contexa.contexacommon.security.RequestPaths;
+import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import io.contexa.contexacommon.security.ZeroTrustScreens;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
@@ -28,6 +32,7 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
+import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
@@ -45,6 +50,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -55,6 +61,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -72,6 +79,17 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     private static final Duration ESCALATE_RETRY_TTL = Duration.ofMinutes(5);
     private static final Duration BLOCK_MFA_VERIFIED_TTL = Duration.ofHours(1);
     private static final int RETRY_AFTER_SECONDS = 30;
+    private static final String LOGOUT_PATH = "/logout";
+    private static final String ADMIN_MFA_API = "/contexa/admin/api/mfa";
+
+    /** The folders of Contexa's own decision screens and of the release of a decision. */
+    private static final List<String> DECISION_FOLDERS = List.of(
+            "/contexa/zero-trust",
+            HostOwnedStepUp.STEP_UP_PATH,
+            "/contexa/api/aiam/sse/zero-trust",
+            "/contexa/api/aiam/zero-trust",
+            "/contexa/admin/api/aiam/sse/zero-trust",
+            "/contexa/admin/api/aiam/zero-trust");
 
     private final ZeroTrustActionRepository actionRedisRepository;
     private final AuthResponseWriter responseWriter;
@@ -84,7 +102,9 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     private UnanalysedRequestRecorder unanalysedRequestRecorder;
     private BooleanSupplier enforcing = () -> true;
     private HostOwnedStepUp hostOwnedStepUp;
+    private BlockMfaStateStore blockMfaStateStore;
     private boolean monitoringHeaders = true;
+    private ZeroTrustAction escalateTerminalAction;
 
     public ZeroTrustAccessControlFilter(
             ZeroTrustActionRepository actionRedisRepository,
@@ -142,23 +162,27 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         this.hostOwnedStepUp = hostOwnedStepUp;
     }
 
+    /** Where the verification of an administrator under a BLOCK is read; null keeps the block list shut. */
+    public void setBlockMfaStateStore(BlockMfaStateStore blockMfaStateStore) {
+        this.blockMfaStateStore = blockMfaStateStore;
+    }
+
+    /**
+     * What an ESCALATE ends as, null while allow-escalate-final-action keeps it. A built-in repository ends a stored
+     * ESCALATE when it is read; this filter ends one a repository of the application's own still answers with.
+     */
+    public void setEscalateTerminalAction(ZeroTrustAction escalateTerminalAction) {
+        this.escalateTerminalAction = escalateTerminalAction;
+    }
+
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String requestUri = request.getRequestURI();
-        String contextPath = request.getContextPath();
-        if (StringUtils.hasText(contextPath)) {
-            requestUri = requestUri.substring(contextPath.length());
-        }
-
-        return requestUri.startsWith("/logout")
-                || ZeroTrustScreens.isScreenResource(requestUri)
-                || requestUri.startsWith("/contexa/zero-trust")
-                || requestUri.startsWith(HostOwnedStepUp.STEP_UP_PATH)
-                || requestUri.startsWith("/contexa/api/aiam/sse/zero-trust")
-                || requestUri.startsWith("/contexa/api/aiam/zero-trust")
-                || requestUri.startsWith("/contexa/admin/api/aiam/sse/zero-trust")
-                || requestUri.startsWith("/contexa/admin/api/aiam/zero-trust")
-                || requestUri.startsWith("/.well-known/");
+        String path = RequestPaths.of(request);
+        return RequestPaths.isExactly(path, LOGOUT_PATH)
+                || ConsoleSession.onReleasePath(request)
+                || ZeroTrustScreens.isScreenResource(path)
+                || ZeroTrustScreens.isDiscoveryDocument(path)
+                || DECISION_FOLDERS.stream().anyMatch(folder -> RequestPaths.isWithin(path, folder));
     }
 
     @Override
@@ -190,11 +214,11 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         if (currentAction != ZeroTrustAction.BLOCK
                 && currentAction != ZeroTrustAction.ESCALATE
                 && currentAction != ZeroTrustAction.PENDING_ANALYSIS) {
-            filterChain.doFilter(request, response);
+            passUntilBlocked(request, response, filterChain, userId, responseStartNanos);
             return;
         }
 
-        String requestUri = resolveRequestUri(request);
+        String requestUri = RequestPaths.of(request);
 
         switch (currentAction) {
             case BLOCK -> {
@@ -210,7 +234,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                 recordStopped(auth, ZeroTrustAction.ESCALATE);
                 handleEscalate(request, response, userId, subject);
             }
-            case PENDING_ANALYSIS -> handlePendingAnalysis(request, response, filterChain, userId, responseStartNanos);
+            case PENDING_ANALYSIS -> passUntilBlocked(request, response, filterChain, userId, responseStartNanos);
             default -> filterChain.doFilter(request, response);
         }
     }
@@ -222,10 +246,16 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                                     String userId,
                                     String requestUri) throws IOException, ServletException {
 
+        if (blockListOpenedByMfa(request, auth, userId, requestUri)) {
+            ConsoleSession.openBlockList(request);
+            continueAsTheAdministrator(request, response, filterChain, auth);
+            return;
+        }
+
         if (isBlockMfaPending(userId)) {
             long failCount = actionRedisRepository.getBlockMfaFailCount(userId);
             if (failCount >= maxBlockMfaAttempts) {
-                log.error("[ZeroTrustAccessControlFilter] BLOCK MFA attempts exhausted, denying MFA: userId={}", userId);
+                log.warn("[ZeroTrustAccessControlFilter] BLOCK MFA attempts exhausted, denying MFA: userId={}", userId);
                 recordStopped(auth, ZeroTrustAction.BLOCK);
                 handleBlocked(request, response, userId);
                 return;
@@ -253,6 +283,45 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         handleBlocked(request, response, userId);
     }
 
+    /**
+     * Where the console and the application share one account, the only administrator under a BLOCK has nobody to lift
+     * it. An administrator who passed MFA in this very session reaches the people of the block list, and no other page of
+     * the console or the application. Where the application owns sign-in the console has a chain of its own.
+     */
+    private boolean blockListOpenedByMfa(HttpServletRequest request, Authentication auth, String userId, String requestUri) {
+        return hostOwnedStepUp == null && blockMfaStateStore != null && ConsoleSession.isBlockList(requestUri)
+                && ConsoleSession.administrator(auth)
+                && blockMfaStateStore.isVerified(userId, SessionFingerprintUtil.verificationContext(request));
+    }
+
+    /**
+     * The block list asks for the administrator's authority, and the BLOCK left the session's authentication its own alone.
+     * The request runs on a context of its own with the account's authorities: the context the session holds stays as it
+     * is, so they end with this request and the next one is read under the BLOCK again.
+     */
+    private void continueAsTheAdministrator(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain,
+                                            Authentication auth) throws IOException, ServletException {
+        SecurityContext session = SecurityContextHolder.getContext();
+        SecurityContext ofThisRequest = SecurityContextHolder.createEmptyContext();
+        ofThisRequest.setAuthentication(withItsOwnAuthorities(auth));
+        SecurityContextHolder.setContext(ofThisRequest);
+        try {
+            filterChain.doFilter(request, response);
+        } finally {
+            SecurityContextHolder.setContext(session);
+        }
+    }
+
+    private static Authentication withItsOwnAuthorities(Authentication auth) {
+        if (!(auth.getPrincipal() instanceof UnifiedCustomUserDetails account)) {
+            return auth;
+        }
+        UsernamePasswordAuthenticationToken own = UsernamePasswordAuthenticationToken.authenticated(account,
+                auth.getCredentials(), account.getOriginalAuthorities());
+        own.setDetails(auth.getDetails());
+        return own;
+    }
+
     /** A request stopped under the decision in force is kept in its session (N-SES-1). */
     private void recordStopped(Authentication auth, ZeroTrustAction action) {
         if (unanalysedRequestRecorder != null) {
@@ -264,8 +333,12 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         return actionRedisRepository.isBlockMfaPending(userId);
     }
 
+    /**
+     * The sign-in a user under a BLOCK needs to release it, by the paths the running flows name: the folders those paths
+     * usually sit in are shared with the application, and any path of the application stays stopped.
+     */
     private boolean isMfaRelatedPath(String requestUri) {
-        if (requestUri.startsWith("/contexa/admin/api/mfa/")) {
+        if (RequestPaths.isWithin(requestUri, ADMIN_MFA_API)) {
             return true;
         }
         // Under HOST_OWNED Contexa's sign-in does not run and the release goes through the step-up: the paths below are
@@ -273,19 +346,15 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         if (hostOwnedStepUp != null) {
             return false;
         }
-        if (requestUri.startsWith("/mfa/")
-                || requestUri.startsWith("/api/mfa/")
-                || requestUri.startsWith("/webauthn/")
-                || requestUri.startsWith("/login/mfa-")) {
-            return true;
-        }
         if (mfaFlowUrlRegistry != null) {
-            if (matchesAnyMfaUrl(requestUri, mfaFlowUrlRegistry.getAllMfaRelatedUrls())) {
+            if (matchesAnyMfaUrl(requestUri, mfaFlowUrlRegistry.getAllMfaRelatedUrls())
+                    || mfaFlowUrlRegistry.getAllMfaInProgressUrls().contains(requestUri)) {
                 return true;
             }
         }
         if (authUrlProvider != null) {
-            if (matchesAnyMfaUrl(requestUri, authUrlProvider.getAllMfaRelatedUrls())) {
+            if (matchesAnyMfaUrl(requestUri, authUrlProvider.getAllMfaRelatedUrls())
+                    || authUrlProvider.getMfaInProgressUrls().contains(requestUri)) {
                 return true;
             }
         }
@@ -297,7 +366,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
             if (!StringUtils.hasText(mfaUrl) || "/".equals(mfaUrl)) {
                 continue;
             }
-            if (requestUri.equals(mfaUrl) || requestUri.startsWith(mfaUrl + "/")) {
+            if (RequestPaths.isWithin(requestUri, mfaUrl)) {
                 return true;
             }
         }
@@ -390,7 +459,9 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                                HttpServletResponse response,
                                String userId) throws IOException {
 
-        String redirectUrl = request.getContextPath() + "/contexa/zero-trust/blocked";
+        // The screens of a decision answer the application's user; a console session goes where a block is lifted.
+        String redirectUrl = request.getContextPath()
+                + (ConsoleSession.of(request) ? "/contexa/admin/blacklist" : "/contexa/zero-trust/blocked");
 
         Map<String, Object> body = new HashMap<>();
         body.put("error", "ACCOUNT_BLOCKED");
@@ -415,6 +486,15 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                                 HttpServletResponse response,
                                 String userId,
                                 ZeroTrustSubject subject) throws IOException {
+
+        // A repository of the application's own may still answer ESCALATE. It ends here, never as a promotion; the
+        // challenge filter has run by now, so this request is told to retry and the retry meets the action stored.
+        // A terminal BLOCK goes on below: the promotion writes its flag and its record.
+        if (escalateTerminalAction != null && escalateTerminalAction != ZeroTrustAction.BLOCK) {
+            actionRedisRepository.saveAction(userId, escalateTerminalAction, Map.of());
+            respondWithReviewInProgress(request, response);
+            return;
+        }
 
         ZeroTrustAction hashAction = actionRedisRepository.getActionFromHash(userId);
 
@@ -507,7 +587,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                 }
             }
 
-            log.error("[ZeroTrustAccessControlFilter] ESCALATE promoted to BLOCK: userId={}", userId);
+            log.warn("[ZeroTrustAccessControlFilter] ESCALATE promoted to BLOCK: userId={}", userId);
         } catch (Exception e) {
             log.error("[ZeroTrustAccessControlFilter] Failed to promote ESCALATE to BLOCK: userId={}", userId, e);
         }
@@ -559,11 +639,15 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                 ? stamp : null;
     }
 
-    private void handlePendingAnalysis(HttpServletRequest request,
-                                        HttpServletResponse response,
-                                        FilterChain filterChain,
-                                        String userId,
-                                        long responseStartNanos) throws ServletException, IOException {
+    /**
+     * Lets the request go on with a response a BLOCK received after its start cuts. An ALLOW says nothing of what follows
+     * it: a stream started in the seconds an ALLOW lasts runs far past it, and only a response that is wrapped can stop.
+     */
+    private void passUntilBlocked(HttpServletRequest request,
+                                  HttpServletResponse response,
+                                  FilterChain filterChain,
+                                  String userId,
+                                  long responseStartNanos) throws ServletException, IOException {
         if (blockingDecisionRegistry == null) {
             filterChain.doFilter(request, response);
             return;
@@ -607,15 +691,6 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
             }
         }
         return "/contexa/zero-trust/blocked";
-    }
-
-    private String resolveRequestUri(HttpServletRequest request) {
-        String requestUri = request.getRequestURI();
-        String contextPath = request.getContextPath();
-        if (StringUtils.hasText(contextPath)) {
-            requestUri = requestUri.substring(contextPath.length());
-        }
-        return requestUri;
     }
 
     private String extractUserId(Authentication auth) {

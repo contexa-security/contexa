@@ -19,6 +19,7 @@ import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
 import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionValidator;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.SpelLiteral;
 
 import java.util.List;
 import java.util.Set;
@@ -69,7 +70,7 @@ public class PolicyExpressionConverter {
 
             if (allAreSimpleAuthorities) {
                 finalExpression = "hasAnyAuthority(" +
-                        conditionExpressions.stream().map(auth -> "'" + auth + "'")
+                        conditionExpressions.stream().map(SpelLiteral::quote)
                                 .collect(Collectors.joining(",")) + ")";
             } else {
                 finalExpression = conditionExpressions.stream()
@@ -126,7 +127,7 @@ public class PolicyExpressionConverter {
         }
 
         if (AUTHORITY_PATTERN.matcher(trimmed).matches()) {
-            return "hasAuthority('" + trimmed + "')";
+            return SpelLiteral.hasAuthority(trimmed);
         }
 
         return wrapBareAuthorities(trimmed);
@@ -153,7 +154,7 @@ public class PolicyExpressionConverter {
                 }
                 String word = expression.substring(index, end);
                 if (isBareAuthority(expression, index, end, word)) {
-                    normalized.append("hasAuthority('").append(word).append("')");
+                    normalized.append(SpelLiteral.hasAuthority(word));
                 } else {
                     normalized.append(word);
                 }

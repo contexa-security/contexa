@@ -30,6 +30,7 @@ import io.contexa.contexacore.autonomous.agent.AgentScopeService;
 import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.security.zerotrust.ConfirmedAgentAuthentication;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
@@ -68,14 +69,19 @@ public class AgentConfirmationGate {
     public static final String CONFIRMATION_HEADER = "Contexa-Agent-Confirmation";
     /** The answer to a request under a revoked delegation. */
     public static final String DELEGATION_REVOKED = "DELEGATION_REVOKED";
-    /** The answer to a request too large to bind a confirmation to. */
+    /**
+     * The answer to a request too large to bind a confirmation to or to show a person whole, or of an agent whose
+     * identifiers a confirmation cannot keep whole.
+     */
     public static final String CONFIRMATION_UNBINDABLE = "AGENT_CONFIRMATION_UNBINDABLE";
     /** The answer to a request outside the agent's narrowed scope (A5-4). */
     public static final String SCOPE_NARROWED = "AGENT_SCOPE_NARROWED";
     /** The answer to a request past the agent's call limit (A5-7). */
-    public static final String CALL_LIMIT = "AGENT_CALL_LIMIT";
+    public static final String CALL_LIMIT = AgentCallGuard.CALL_LIMIT;
     /** The request's binding, kept for a CHALLENGE decided in the request (A5-2). */
     private static final String BOUND_REQUEST = AgentConfirmationGate.class.getName() + ".boundRequest";
+    /** The size of the bound request's body, kept with its binding. */
+    private static final String BOUND_BODY_BYTES = AgentConfirmationGate.class.getName() + ".boundBodyBytes";
     /** Set when a CHALLENGE decided in the request asked for the request's confirmation. */
     private static final String ASKED_IN_REQUEST = AgentConfirmationGate.class.getName() + ".askedInRequest";
 
@@ -224,7 +230,8 @@ public class AgentConfirmationGate {
         }
         Optional<AgentConfirmation> asked = confirmations.request(new AgentConfirmationService.ConfirmationRequest(
                 subject, bound.hash(), request.getMethod(), target(request), trigger,
-                reason(subject, trigger, ended.orElse(null), at), correlationId(request), linkBase(request)));
+                reason(subject, trigger, ended.orElse(null), at), correlationId(request), linkBase(request),
+                bound.bodyBytes()));
         writeConfirmationRequired(response, request, asked.orElse(null), trigger);
         return asked.isPresent() ? Outcome.WAITS : Outcome.REFUSED;
     }
@@ -233,7 +240,8 @@ public class AgentConfirmationGate {
      * docs/agent A5-2: answers an agent's request a CHALLENGE decided in the request itself stopped (a synchronous
      * operation, or an agent's request decided in place, F-1): its accountable person is asked to confirm that very
      * request, as for a CHALLENGE in force, and the agent gets the same answer. A request the gate could not bind
-     * (a body over the bound size) is left to the plain CHALLENGE answer.
+     * (a body over the bound size, a target longer than a confirmation keeps, an agent whose identifiers it cannot keep)
+     * is left to the plain CHALLENGE answer.
      *
      * @return whether the answer was written
      */
@@ -246,7 +254,8 @@ public class AgentConfirmationGate {
         String trigger = AgentConfirmation.DECISION_CHALLENGE;
         Optional<AgentConfirmation> asked = confirmations.request(new AgentConfirmationService.ConfirmationRequest(
                 subject, hash, request.getMethod(), target(request), trigger,
-                reason(subject, trigger, null, clock.instant()), correlationId(request), linkBase(request)));
+                reason(subject, trigger, null, clock.instant()), correlationId(request), linkBase(request),
+                request.getAttribute(BOUND_BODY_BYTES) instanceof Long bodyBytes ? bodyBytes : null));
         writeConfirmationRequired(response, request, asked.orElse(null), trigger);
         request.setAttribute(ASKED_IN_REQUEST, asked.isPresent());
         return true;
@@ -257,6 +266,7 @@ public class AgentConfirmationGate {
             throws IOException, ServletException {
         if (bound.hash() != null) {
             bound.request().setAttribute(BOUND_REQUEST, bound.hash());
+            bound.request().setAttribute(BOUND_BODY_BYTES, bound.bodyBytes());
         }
         chain.doFilter(bound.request(), response);
         return Boolean.TRUE.equals(bound.request().getAttribute(ASKED_IN_REQUEST)) ? Outcome.WAITS : Outcome.WENT;
@@ -312,21 +322,30 @@ public class AgentConfirmationGate {
         }
     }
 
-    /** The request with its body kept, and its binding; no binding for a body over the bound size. */
+    /**
+     * The request with its body kept, and its binding. Nothing binds a body over the bound size, nor a request a person
+     * could not read whole: its target longer than a confirmation keeps. Nor does a request of an agent whose
+     * identifiers a confirmation cannot keep whole ({@link AgentConfirmation#keeps}). No confirmation is then asked.
+     */
     private Bound bind(HttpServletRequest request, ZeroTrustSubject subject) throws IOException {
+        boolean confirmable = target(request).length() <= AgentConfirmation.MAX_TARGET_LENGTH
+                && AgentConfirmation.keeps(subject);
         String path = path(request);
         if (formPost(request)) {
-            return new Bound(request, AgentRequestBinding.hash(subject.tenantId(), subject.userId(),
-                    subject.agentId(), request.getMethod(), path, null, null, request.getParameterMap()));
+            // A form's body is read by its parameters; its size is what the request declared, when it did.
+            long declared = request.getContentLengthLong();
+            return new Bound(request, confirmable ? AgentRequestBinding.hash(subject.tenantId(), subject.userId(),
+                    subject.agentId(), request.getMethod(), path, null, null, request.getParameterMap()) : null,
+                    declared >= 0 ? declared : AgentConfirmation.BODY_NOT_SEEN);
         }
         CachedBodyRequest cached = CachedBodyRequest.of(request, maxBodyBytes);
-        if (!cached.bound()) {
-            return new Bound(cached, null);
+        if (!cached.bound() || !confirmable) {
+            return new Bound(cached, null, null);
         }
         byte[] body = cached.body();
         return new Bound(cached, AgentRequestBinding.hash(subject.tenantId(), subject.userId(), subject.agentId(),
                 request.getMethod(), path, request.getQueryString(),
-                body.length > 0 ? AgentRequestBinding.sha256Hex(body) : null, null));
+                body.length > 0 ? AgentRequestBinding.sha256Hex(body) : null, null), (long) body.length);
     }
 
     /**
@@ -401,12 +420,9 @@ public class AgentConfirmationGate {
         responseWriter.writeErrorResponse(response, status, error, message, request.getRequestURI(), body);
     }
 
-    /**
-     * Where the confirmation link starts: the configured address, else the application's path only. The address of
-     * the agent's own request is not used, since the agent chooses its host header and the link goes to a person.
-     */
+    /** Where the confirmation link starts ({@link AgentConfirmationService#linkBase}). */
     private String linkBase(HttpServletRequest request) {
-        return (linkBaseUrl != null ? linkBaseUrl.replaceAll("/+$", "") : "") + request.getContextPath();
+        return AgentConfirmationService.linkBase(linkBaseUrl, request.getContextPath());
     }
 
     @Nullable
@@ -426,10 +442,13 @@ public class AgentConfirmationGate {
         return StringUtils.hasText(context) && uri.startsWith(context) ? uri.substring(context.length()) : uri;
     }
 
+    /** What the person reads: the values stay, as they are what is confirmed, but for what opens something. */
     private static String target(HttpServletRequest request) {
-        return path(request) + (StringUtils.hasText(request.getQueryString()) ? "?" + request.getQueryString() : "");
+        return RequestFactRedaction.readableTarget(
+                path(request) + (StringUtils.hasText(request.getQueryString()) ? "?" + request.getQueryString() : ""));
     }
 
-    private record Bound(HttpServletRequest request, @Nullable String hash) {
+    /** The request with its body kept, its binding and its body's size; the body itself goes no further than here. */
+    private record Bound(HttpServletRequest request, @Nullable String hash, @Nullable Long bodyBytes) {
     }
 }

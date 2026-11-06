@@ -41,6 +41,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class RequestInfoExtractorTest {
 
+    /** Q-11 (PR-64): a request's facts keep the names of its query, not the values. */
+    @Test
+    void aQueryIsCarriedByItsNames() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/rc/pin");
+        request.setQueryString("pin=RCSECRET1&newPwd=RCSECRET2&ssn=RCSECRET3&token=RCSECRET4");
+
+        assertThat(RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity()).getQueryString())
+                .isEqualTo("pin&newPwd&ssn&token");
+    }
+
     @Test
     void sessionCreationTimeIsCarriedOnlyOnTheServerClock() {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/summary");

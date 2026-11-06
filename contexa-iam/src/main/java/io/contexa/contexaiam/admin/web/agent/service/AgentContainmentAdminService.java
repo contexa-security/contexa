@@ -27,6 +27,7 @@ import io.contexa.contexacore.autonomous.agent.AgentRegistry;
 import io.contexa.contexacore.autonomous.agent.AgentScopeRestriction;
 import io.contexa.contexacore.autonomous.agent.AgentScopeService;
 import io.contexa.contexacore.autonomous.agent.AgentStatus;
+import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
 import org.springframework.lang.Nullable;
 import org.springframework.util.StringUtils;
 
@@ -48,6 +49,7 @@ public class AgentContainmentAdminService {
     static final int LIST_LIMIT = 500;
     private static final ObjectMapper JSON = new ObjectMapper();
     static final List<String> STOP_CATEGORIES = List.of("AGENT_STOPPED", "AGENT_RELEASED", "AGENT_KILL_SWITCH");
+    private static final String ALL_AGENTS = "*";
 
     private final AgentContainmentService containment;
     private final AgentRegistry registry;
@@ -67,6 +69,21 @@ public class AgentContainmentAdminService {
     /** docs/agent A5-4: the narrowed scopes, shown with the stops. */
     public void setScopes(@Nullable AgentScopeService scopes) {
         this.scopes = scopes;
+    }
+
+    private BlockedUserService blockedUsers;
+
+    /** Tells a session under a restriction of its own, which reads the stops and acts on none of them. */
+    public void setBlockedUsers(@Nullable BlockedUserService blockedUsers) {
+        this.blockedUsers = blockedUsers;
+    }
+
+    /**
+     * Whether the acting administrator stands under a restriction of their own this session has not answered (a BLOCK,
+     * a CHALLENGE or an ESCALATE), as the block list judges it ({@link BlockedUserService#underOwnBlock}).
+     */
+    public boolean underOwnBlock(String adminId) {
+        return blockedUsers != null && blockedUsers.underOwnBlock(adminId);
     }
 
     /** docs/agent A5-4: the agents whose scope a decision narrowed and that are still narrowed. */
@@ -134,21 +151,31 @@ public class AgentContainmentAdminService {
     }
 
     public void releaseDelegatedAgent(String userId, String agentId, String adminId, String reason) {
+        refuseUnderOwnBlock(adminId, "RELEASE_DELEGATION", agentId);
         requireAvailable().releaseDelegatedAgent(userId, agentId, adminId, reason);
     }
 
     public boolean releaseAgent(@Nullable String tenantId, String agentId, String adminId, String reason) {
+        refuseUnderOwnBlock(adminId, "RELEASE_AGENT", agentId);
         return requireAvailable().releaseAgent(tenantId, agentId, adminId, reason);
     }
 
     public List<String> killSwitch(@Nullable String tenantId, @Nullable String agentType, String adminId,
                                    String reason) {
+        refuseUnderOwnBlock(adminId, "KILL_SWITCH", StringUtils.hasText(agentType) ? agentType : ALL_AGENTS);
         return requireAvailable().killSwitch(blankToNull(tenantId), blankToNull(agentType), adminId, reason);
     }
 
     public List<String> releaseKillSwitch(@Nullable String tenantId, @Nullable String agentType, String adminId,
                                           String reason) {
+        refuseUnderOwnBlock(adminId, "KILL_SWITCH_RELEASE", StringUtils.hasText(agentType) ? agentType : ALL_AGENTS);
         return requireAvailable().releaseKillSwitch(blankToNull(tenantId), blankToNull(agentType), adminId, reason);
+    }
+
+    private void refuseUnderOwnBlock(String adminId, String action, String target) {
+        if (blockedUsers != null) {
+            blockedUsers.refuseUnderOwnBlock(adminId, action, target);
+        }
     }
 
     private AgentContainmentService requireAvailable() {

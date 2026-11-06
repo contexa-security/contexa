@@ -17,6 +17,7 @@ package io.contexa.contexacore.monitoring.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import org.junit.jupiter.api.DisplayName;
@@ -63,6 +64,93 @@ class AiSecurityDecisionObservationWriterTest {
 
         assertThat(firstInsertArgs(jdbcOperations).get("metadata_json")).asString()
                 .contains("\"finalDecisionReasonCodes\":[{\"code\":\"DEVIATION_TIME\",\"fact\":\"F1\"}]");
+    }
+
+    /** Q-11 (PR-59): an observation names the session by its reference, in its column and in its metadata. */
+    @Test
+    void recordDecision_keepsNoLiveSessionId() {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        AiSecurityDecisionObservationWriter writer = new AiSecurityDecisionObservationWriter(
+                () -> jdbcOperations, new ObjectMapper(), "openai", "gpt-6-luna");
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-session")
+                .userId("user-1")
+                .sessionId("LIVE-SESSION-1")
+                .metadata(Map.of("protectableDeclared", true, "requestId", "request-session",
+                        "sessionId", "LIVE-SESSION-1"))
+                .build();
+
+        writer.recordDecision(event, null, ZeroTrustAction.PENDING_ANALYSIS);
+
+        Map<String, Object> args = firstInsertArgs(jdbcOperations);
+        assertThat(args.get("session_id")).isEqualTo(RequestFactRedaction.sessionReference("LIVE-SESSION-1"));
+        assertThat(String.valueOf(args)).doesNotContain("LIVE-SESSION-1");
+    }
+
+    /**
+     * Q-22 (PR-78): a decision that never reached a model (it timed out in the queue) names no model. It named the
+     * configured one, as if that model had been asked.
+     */
+    @Test
+    void recordDecision_noModelCalled_namesNoModel() {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        AiSecurityDecisionObservationWriter writer = new AiSecurityDecisionObservationWriter(
+                () -> jdbcOperations, new ObjectMapper(), "anthropic", "claude-haiku-5-5");
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-queue")
+                .userId("user-1")
+                .metadata(Map.of("protectableDeclared", true, "requestId", "request-queue",
+                        "decisionFailureCategory", "QUEUE_TIMEOUT"))
+                .build();
+
+        writer.recordDecision(event, null, ZeroTrustAction.PENDING_ANALYSIS);
+
+        Map<String, Object> args = firstInsertArgs(jdbcOperations);
+        assertThat(args.get("failure_type")).isEqualTo("QUEUE_TIMEOUT");
+        assertThat(args.get("model_id")).isNull();
+        assertThat(args.get("model_provider")).isNull();
+    }
+
+    /** Q-22 (PR-78): a model that was asked and did not answer stays named: the selection says which one it was. */
+    @Test
+    void recordDecision_modelAskedWithoutAnAnswer_namesTheSelectedModel() {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        AiSecurityDecisionObservationWriter writer = new AiSecurityDecisionObservationWriter(
+                () -> jdbcOperations, new ObjectMapper(), "anthropic", "claude-haiku-5-5");
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-asked")
+                .userId("user-1")
+                .metadata(Map.of("protectableDeclared", true, "requestId", "request-asked",
+                        "selectedModelId", "claude-sonnet-5-5", "selectedModelProvider", "anthropic",
+                        "rawExecutionSucceeded", false))
+                .build();
+
+        writer.recordDecision(event, null, ZeroTrustAction.PENDING_ANALYSIS);
+
+        assertThat(firstInsertArgs(jdbcOperations).get("model_id")).isEqualTo("claude-sonnet-5-5");
+    }
+
+    /** Q-22 (PR-78): the record names the model that answered, which is the model the provider says it ran. */
+    @Test
+    void recordDecision_modelAnswered_namesTheModelThatAnswered() {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        AiSecurityDecisionObservationWriter writer = new AiSecurityDecisionObservationWriter(
+                () -> jdbcOperations, new ObjectMapper(), "anthropic", "claude-haiku-5-5");
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-answered")
+                .userId("user-1")
+                .metadata(Map.of("protectableDeclared", true, "requestId", "request-answered",
+                        "selectedModelId", "claude-sonnet-5-5", "providerResponseModel", "claude-sonnet-5-5-20261014"))
+                .build();
+        ProcessingResult result = ProcessingResult.builder()
+                .success(true)
+                .action(ZeroTrustAction.ALLOW.name())
+                .llmDecisionPresent(true)
+                .build();
+
+        writer.recordDecision(event, result, ZeroTrustAction.ALLOW);
+
+        assertThat(firstInsertArgs(jdbcOperations).get("model_id")).isEqualTo("claude-sonnet-5-5-20261014");
     }
 
     @Test

@@ -17,6 +17,7 @@ package io.contexa.contexaiam.admin.web.auth.service.impl;
 
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.repository.RoleRepository;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexaiam.domain.entity.RoleHierarchyEntity;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import io.contexa.contexaiam.testsupport.I18nTestSupport;
@@ -59,6 +60,9 @@ class RoleHierarchyServiceTest {
 
     @Spy
     private MessageSource messageSource = I18nTestSupport.englishMessageSource();
+
+    @Mock
+    private LastAdministratorGuard lastAdministratorGuard;
 
     @InjectMocks
     private RoleHierarchyService service;

@@ -19,6 +19,7 @@ import io.contexa.contexacommon.entity.Group;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -55,4 +56,12 @@ public interface GroupRepository extends JpaRepository<Group, Long> {
 
     @Query("SELECT DISTINCT g FROM Group g LEFT JOIN FETCH g.groupRoles gr LEFT JOIN FETCH gr.role r LEFT JOIN FETCH r.rolePermissions rp LEFT JOIN FETCH rp.permission")
     List<Group> findAllWithRelations();
+
+    /**
+     * The permissions given to the group with its roles. They reference the group without a cascade, so the group cannot
+     * be deleted while they are there.
+     */
+    @Modifying
+    @Query("DELETE FROM GroupRolePermission grp WHERE grp.group.id = :groupId")
+    void deleteRolePermissionsOf(@Param("groupId") Long groupId);
 }

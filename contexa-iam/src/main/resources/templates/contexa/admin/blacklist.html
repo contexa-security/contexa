@@ -16,6 +16,30 @@
                 <p class="text-dark-muted mt-1" th:text="#{admin.blacklist.subtitle}">AI Native Zero Trust blocked user management</p>
             </div>
 
+            <div th:if="${ownBlockAwaitsVerification}" class="flex flex-wrap items-center gap-2 mb-6 p-4 rounded-lg"
+                 style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3);">
+                <span class="text-sm" style="flex:1; min-width:12rem; color: #fca5a5;" th:text="#{admin.blacklist.self.desc}">
+                    This console session is blocked. Another administrator can lift it, or verify it is you to lift it here.</span>
+                <a th:href="@{/contexa/admin/blacklist/step-up}" class="px-4 py-2 rounded-lg text-sm font-medium filter-active"
+                   th:text="#{admin.blacklist.self.verify}">Verify it is you</a>
+            </div>
+
+            <div th:if="${underOwnBlock}" id="readOnlyNotice" class="mb-6 p-4 rounded-lg text-sm"
+                 style="background: rgba(251, 191, 36, 0.12); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3);"
+                 th:text="#{admin.blacklist.read.only}">This session is blocked: it reads these lists and changes nothing until its block is lifted.</div>
+
+            <form th:unless="${underOwnBlock}" th:action="@{/contexa/admin/blacklist/challenge-release}" method="post"
+                  class="flex flex-wrap items-center gap-2 mb-6 p-4 rounded-lg" style="background: rgba(30, 41, 59, 0.5); margin-top:0;">
+                <span class="text-sm text-dark-muted" style="flex-basis:100%;" th:text="#{admin.blacklist.challenge.desc}">
+                    A user with no way to verify stays under a CHALLENGE. Release it here.</span>
+                <input type="text" name="userId" required class="px-3 py-2 rounded-lg text-sm"
+                       th:placeholder="#{admin.blacklist.challenge.user}" placeholder="User">
+                <input type="text" name="reason" required class="px-3 py-2 rounded-lg text-sm" style="flex:1; min-width:12rem;"
+                       th:placeholder="#{admin.blacklist.challenge.reason}" placeholder="Reason">
+                <button type="submit" class="px-4 py-2 rounded-lg text-sm font-medium filter-active"
+                        th:text="#{admin.blacklist.challenge.release}">Release the CHALLENGE</button>
+            </form>
+
             <div class="flex flex-wrap gap-2 mb-6 items-center" id="blacklistTabs">
                 <a th:href="@{/contexa/admin/blacklist}" class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 filter-active"
                    th:text="#{admin.blacklist.tab.people}">People</a>
@@ -112,7 +136,7 @@
                             <a th:href="@{/contexa/admin/blacklist/{id}(id=${b.id})}"
                                class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 inline-block mr-2"
                                style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);" th:text="#{common.detail}">Detail</a>
-                            <form th:if="${b.status.name() == 'RESOLVED' or b.status.name() == 'TIMEOUT_RESPONDED'}"
+                            <form th:if="${(b.status.name() == 'RESOLVED' or b.status.name() == 'TIMEOUT_RESPONDED') and underOwnBlock != true}"
                                   th:action="@{/contexa/admin/blacklist/{id}/delete(id=${b.id})}" method="post"
                                   class="inline-block"
                                   th:data-confirm-msg="#{common.confirm.delete.record}" onsubmit="return confirm(this.getAttribute('data-confirm-msg'));">

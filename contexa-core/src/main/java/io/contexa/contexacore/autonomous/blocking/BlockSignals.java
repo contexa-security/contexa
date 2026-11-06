@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.blocking;
 
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -62,7 +63,7 @@ final class BlockSignals {
     /** Records a received BLOCK; a signal already in force keeps its first receipt (an echo does not move it). */
     void put(String userId, String action) {
         long now = now();
-        signals.compute(userId, (key, current) -> current != null && !expired(current, now)
+        signals.compute(ZeroTrustUserKey.of(userId), (key, current) -> current != null && !expired(current, now)
                 ? new Signal(action, current.receivedNanos())
                 : new Signal(action, now));
         if (signals.size() > SWEEP_ABOVE) {
@@ -71,7 +72,7 @@ final class BlockSignals {
     }
 
     void remove(String userId) {
-        signals.remove(userId);
+        signals.remove(ZeroTrustUserKey.of(userId));
     }
 
     boolean contains(String userId) {
@@ -96,12 +97,13 @@ final class BlockSignals {
             return false;
         }
         long now = now();
-        Long last = probedAt.get(userId);
+        String key = ZeroTrustUserKey.of(userId);
+        Long last = probedAt.get(key);
         long since = last != null && last - responseStartNanos > 0 ? last : responseStartNanos;
         if (now - since < probeIntervalNanos) {
             return false;
         }
-        probedAt.put(userId, now);
+        probedAt.put(key, now);
         forgetOldProbes(now);
         boolean blocked;
         try {
@@ -117,9 +119,10 @@ final class BlockSignals {
     }
 
     private Signal current(String userId) {
-        Signal signal = signals.get(userId);
+        String key = ZeroTrustUserKey.of(userId);
+        Signal signal = signals.get(key);
         if (signal != null && expired(signal, now())) {
-            signals.remove(userId, signal);
+            signals.remove(key, signal);
             return null;
         }
         return signal;

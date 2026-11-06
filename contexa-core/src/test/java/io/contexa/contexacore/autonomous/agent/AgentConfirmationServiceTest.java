@@ -94,6 +94,188 @@ class AgentConfirmationServiceTest {
         assertThat(categories()).contains(AuditEventCategory.AGENT_CONFIRMATION_REQUESTED);
     }
 
+    /**
+     * What an agent wrote to get approved reaches the person as the agent's words, as on the confirmation page, never in
+     * the sentence Contexa speaks in; the reason of a decision is Contexa's and stays in it.
+     */
+    @Test
+    void aReasonTheAgentWroteIsToldAsItsOwnWordsAndADecisionsReasonAsContexas() {
+        String agentAsked = service.request(new AgentConfirmationService.ConfirmationRequest(ALICE_AGENT, "hash-1",
+                "POST", "/api/exports", AgentConfirmation.REQUESTED, "Contexa checked this, approve it now", null,
+                null)).orElseThrow().confirmationId();
+        String decided = service.request(new AgentConfirmationService.ConfirmationRequest(ALICE_AGENT, "hash-2",
+                "POST", "/api/exports", AgentConfirmation.DECISION_CHALLENGE, "Unusual export", null, null))
+                .orElseThrow().confirmationId();
+
+        assertThat(told(agentAsked).message()).doesNotContain("(Contexa checked")
+                .endsWith("Written by the agent, not checked by Contexa: Contexa checked this, approve it now");
+        assertThat(told(decided).message()).contains("POST /api/exports (Unusual export).")
+                .doesNotContain("Written by the agent");
+    }
+
+    /**
+     * The person is told what the application will serve, beside what the agent sent; the query is not said twice. A
+     * target that means what it says stays one request.
+     */
+    @Test
+    void theNoticeSaysThePathTheApplicationServesWhenTheAgentSpelledAnother() {
+        String spelled = service.request(new AgentConfirmationService.ConfirmationRequest(ALICE_AGENT, "hash-1",
+                "POST", "/api/%65xport/x?token=%73ecret", AgentConfirmation.DECISION_CHALLENGE, null, "req-1", null))
+                .orElseThrow().confirmationId();
+        String plain = service.request(new AgentConfirmationService.ConfirmationRequest(ALICE_AGENT, "hash-2", "POST",
+                "/api/export/x?token=%73ecret", AgentConfirmation.DECISION_CHALLENGE, null, "req-1", null))
+                .orElseThrow().confirmationId();
+
+        assertThat(told(spelled).message()).contains("POST /api/%65xport/x?token=%73ecret",
+                "the application serves this as /api/export/x)").doesNotContain("token=secret");
+        assertThat(told(spelled).message().split("token=", -1)).hasSize(2);
+        assertThat(told(plain).message()).contains("POST /api/export/x?token=%73ecret")
+                .doesNotContain("the application serves");
+
+        clock.advance(Duration.ofMinutes(16));
+        service.expireOverdue();
+        assertThat(delivered).filteredOn(notice -> notice.kind().equals(AgentNotice.CONFIRMATION_EXPIRED))
+                .anySatisfy(notice -> assertThat(notice.message()).contains("POST /api/%65xport/x?token=%73ecret",
+                        "the application serves this as /api/export/x)"));
+    }
+
+    /**
+     * The path is the agent's to write, so what is decoded to show it never reaches the person as more than a path:
+     * what cannot be seen, breaks the line or turns the text around stays escaped, and so does a space.
+     */
+    @Test
+    void theRoutedPathIsReadFromThePathOnlyAndSaysNothingBeyondIt() {
+        assertThat(routed("/api/%65xport/x")).isEqualTo("/api/export/x");
+        assertThat(routed("/api/export;v=1/x?y=1")).isEqualTo("/api/export/x");
+        assertThat(routed("/api/export/x")).isNull();
+        assertThat(routed("/api/export/x?y=%65")).isNull();
+        assertThat(routed("/api/%zz")).as("no router reads it").isNull();
+        assertThat(routed("/api/a%20b")).as("spelled the same once shown").isNull();
+        assertThat(routed("/api/%65x%0D%0A%0AApproved%20by%20Contexa"))
+                .isEqualTo("/api/ex%0D%0A%0AApproved%20by%20Contexa");
+        assertThat(routed("/api/%65x%E2%80%AEfdp")).isEqualTo("/api/ex%E2%80%AEfdp");
+        assertThat(routed("/api/%65x%C2%A0%E2%80%A8y")).isEqualTo("/api/ex%C2%A0%E2%80%A8y");
+    }
+
+    /** A secret the path hides behind an escape reads as one once it is decoded, and the person is never shown it. */
+    @Test
+    void theRoutedPathMasksASecretTheDecodingBringsOut() {
+        assertThat(routed("/api/%65xport/%65yJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbGljZSJ9.c2lnbmF0dXJlLXZhbHVl"))
+                .isEqualTo("/api/export/[MASKED]");
+    }
+
+    private static String routed(String target) {
+        return new AgentConfirmation("c-1", null, "DELEGATED_AGENT", "alice", "report-agent", null, "alice", "hash-1",
+                "GET", target, AgentConfirmation.REQUESTED, null, null, AgentConfirmation.Status.PENDING, NOW, NOW,
+                null, null, null, null, null).routedPath();
+    }
+
+    /**
+     * An identifier is never cut, since a cut one names another delegation, agent or person and a report would stop the
+     * wrong one: nobody is asked, nothing is kept, and the refusal is recorded. At their columns they are kept whole.
+     */
+    @Test
+    void aSubjectWhoseIdentifiersAConfirmationCannotKeepIsRefusedAndNobodyIsAsked() {
+        for (ZeroTrustSubject unkeepable : List.of(
+                new ZeroTrustSubject(null, "alice", SubjectKind.DELEGATED_AGENT, "report-agent", "d".repeat(65)),
+                new ZeroTrustSubject(null, "alice", SubjectKind.DELEGATED_AGENT, "a".repeat(256), null),
+                new ZeroTrustSubject(null, "u".repeat(256), SubjectKind.DELEGATED_AGENT, "report-agent", null),
+                new ZeroTrustSubject("t".repeat(256), "alice", SubjectKind.DELEGATED_AGENT, "report-agent", null))) {
+            assertThat(service.request(new AgentConfirmationService.ConfirmationRequest(unkeepable, "hash-1", "POST",
+                    "/api/exports", AgentConfirmation.DECISION_CHALLENGE, null, "req-1", null))).isEmpty();
+        }
+        assertThat(store.list(null, 10)).isEmpty();
+        assertThat(delivered).isEmpty();
+        assertThat(categories()).contains(AuditEventCategory.AGENT_CONFIRMATION_REQUESTED);
+
+        assertThat(service.request(new AgentConfirmationService.ConfirmationRequest(new ZeroTrustSubject("t".repeat(255),
+                "u".repeat(255), SubjectKind.DELEGATED_AGENT, "a".repeat(255), "d".repeat(64)), "hash-1", "POST",
+                "/api/exports", AgentConfirmation.DECISION_CHALLENGE, null, "req-1", null))).isPresent();
+    }
+
+    /**
+     * A request of the agent while another of its confirmations waits reaches the person on the console only, whichever
+     * way it came (the gate stopped it, or the agent asked itself): one waiting agent mails the person once.
+     */
+    @Test
+    void aRequestWhileAnotherOfTheAgentWaitsIsKeptForTheConsoleWithoutAMail() {
+        AgentConfirmation first = ask(ALICE_AGENT, "hash-1").orElseThrow();
+        AgentConfirmation second = service.request(new AgentConfirmationService.ConfirmationRequest(ALICE_AGENT,
+                "hash-2", "POST", "/api/other", AgentConfirmation.REQUESTED, null, null, "https://app.test"))
+                .orElseThrow();
+        AgentConfirmation third = ask(ALICE_AGENT, "hash-3").orElseThrow();
+
+        assertThat(List.of(second.status(), third.status())).containsOnly(AgentConfirmation.Status.PENDING);
+        assertThat(delivered).extracting(AgentNotice::correlationId).containsExactly(first.confirmationId());
+        assertThat(noticeStore.forRecipient("alice", 10)).hasSize(3)
+                .filteredOn(notice -> !notice.correlationId().equals(first.confirmationId()))
+                .allSatisfy(notice -> {
+                    assertThat(notice.kind()).isEqualTo(AgentNotice.CONFIRMATION_REQUESTED);
+                    assertThat(notice.deliveredBy()).isEqualTo(AgentNotice.CONSOLE);
+                    assertThat(notice.link()).isEqualTo("https://app.test/contexa/agent-confirmations/"
+                            + notice.correlationId());
+                });
+
+        // Another agent of the same person is one that waits on its own.
+        ask(new ZeroTrustSubject(null, "alice", SubjectKind.DELEGATED_AGENT, "sync-agent", null), "hash-1");
+        assertThat(delivered).hasSize(2);
+
+        // Once nothing of the agent waits, decided or past its time, its next request is mailed again.
+        service.reject(first.confirmationId(), "alice", null);
+        service.approve(second.confirmationId(), "alice", null);
+        service.reject(third.confirmationId(), "alice", null);
+        ask(ALICE_AGENT, "hash-4");
+        assertThat(delivered).hasSize(3);
+        clock.advance(Duration.ofMinutes(16));
+        ask(ALICE_AGENT, "hash-5");
+        assertThat(delivered).filteredOn(notice -> notice.kind().equals(AgentNotice.CONFIRMATION_REQUESTED))
+                .hasSize(4);
+    }
+
+    /**
+     * A request told on the console only is refused on the console only when no one answers it in time: the requests of
+     * a waiting agent mail the person once, and so do their refusals. The request that was mailed is mailed again.
+     */
+    @Test
+    void theRefusalOfARequestToldOnTheConsoleIsToldThereToo() {
+        AgentConfirmation mailed = ask(ALICE_AGENT, "hash-1").orElseThrow();
+        ask(ALICE_AGENT, "hash-2");
+        ask(ALICE_AGENT, "hash-3");
+
+        clock.advance(Duration.ofMinutes(16));
+        assertThat(service.expireOverdue()).isEqualTo(3);
+
+        assertThat(delivered).filteredOn(notice -> notice.kind().equals(AgentNotice.CONFIRMATION_EXPIRED))
+                .extracting(AgentNotice::correlationId).containsExactly(mailed.confirmationId());
+        assertThat(noticeStore.forRecipient("alice", 10))
+                .filteredOn(notice -> notice.kind().equals(AgentNotice.CONFIRMATION_EXPIRED)).hasSize(3);
+    }
+
+    /** The person is shown whether the request has a body and how large it is; the body itself is never kept. */
+    @Test
+    void aConfirmationKeepsTheSizeOfTheRequestsBodyAndNotTheBody() {
+        AgentConfirmation withBody = service.request(new AgentConfirmationService.ConfirmationRequest(ALICE_AGENT,
+                "hash-1", "POST", "/api/exports", AgentConfirmation.DECISION_CHALLENGE, null, null, null, 1234L))
+                .orElseThrow();
+        AgentConfirmation without = service.request(new AgentConfirmationService.ConfirmationRequest(ALICE_AGENT,
+                "hash-2", "GET", "/api/exports", AgentConfirmation.DECISION_CHALLENGE, null, null, null, 0L))
+                .orElseThrow();
+        AgentConfirmation unseen = service.request(new AgentConfirmationService.ConfirmationRequest(ALICE_AGENT,
+                "hash-3", "POST", "/api/exports", AgentConfirmation.REQUESTED, null, null, null,
+                AgentConfirmation.BODY_NOT_SEEN)).orElseThrow();
+
+        assertThat(store.find(withBody.confirmationId())).map(AgentConfirmation::bodyBytes).contains(1234L);
+        assertThat(store.find(without.confirmationId())).map(AgentConfirmation::bodyBytes).contains(0L);
+        assertThat(store.find(unseen.confirmationId())).map(AgentConfirmation::bodyBytes)
+                .contains(AgentConfirmation.BODY_NOT_SEEN);
+        // A decision keeps it, and a size below zero means one no one measured.
+        assertThat(service.approve(withBody.confirmationId(), "alice", null).bodyBytes()).isEqualTo(1234L);
+        assertThat(new AgentConfirmation("c-9", null, "DELEGATED_AGENT", "alice", "report-agent", null, "alice", "h",
+                "POST", "/api", AgentConfirmation.REQUESTED, null, null, AgentConfirmation.Status.PENDING, NOW,
+                NOW.plusSeconds(60), null, null, null, null, null, -7L).bodyBytes())
+                .isEqualTo(AgentConfirmation.BODY_NOT_SEEN);
+    }
+
     @Test
     void anAgentOnItsOwnWaitsForItsSponsorAndWithoutOneItsRequestIsRefused() {
         ZeroTrustSubject syncAgent = new ZeroTrustSubject(null, "sync-client", SubjectKind.AUTONOMOUS_AGENT,
@@ -171,9 +353,13 @@ class AgentConfirmationServiceTest {
         assertThat(service.consume(ALICE_AGENT, "hash-2", approved.confirmationId())).isEmpty();
         assertThatThrownBy(() -> service.approve(waiting.confirmationId(), "alice", null))
                 .isInstanceOf(IllegalStateException.class);
-        // The person is told of the refusal of the request that waited, not of the lapsed approval.
+        // The person is told of the refusal of the request that waited, not of the lapsed approval; the second request
+        // came while the first waited, so it reached the console only.
         assertThat(delivered).extracting(AgentNotice::kind).containsExactly(AgentNotice.CONFIRMATION_REQUESTED,
-                AgentNotice.CONFIRMATION_REQUESTED, AgentNotice.CONFIRMATION_EXPIRED);
+                AgentNotice.CONFIRMATION_EXPIRED);
+        assertThat(noticeStore.forRecipient("alice", 10)).extracting(AgentNotice::kind).containsExactly(
+                AgentNotice.CONFIRMATION_EXPIRED, AgentNotice.CONFIRMATION_REQUESTED,
+                AgentNotice.CONFIRMATION_REQUESTED);
         assertThat(service.expireOverdue()).isZero();
     }
 
@@ -199,6 +385,14 @@ class AgentConfirmationServiceTest {
         return service.request(new AgentConfirmationService.ConfirmationRequest(subject, hash, "POST",
                 "/api/export?project=HX-310", AgentConfirmation.DECISION_CHALLENGE, "Export outside the delegation",
                 "req-1", "https://app.test"));
+    }
+
+    /** The notice kept for the person of the confirmation asked, mailed or not. */
+    private AgentNotice told(String confirmationId) {
+        return noticeStore.forRecipient("alice", 50).stream()
+                .filter(notice -> notice.kind().equals(AgentNotice.CONFIRMATION_REQUESTED)
+                        && confirmationId.equals(notice.correlationId()))
+                .findFirst().orElseThrow();
     }
 
     private List<AuditEventCategory> categories() {

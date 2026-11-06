@@ -191,7 +191,7 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
         if (totalMs < 1_000L) {
             return;
         }
-        log.error(
+        log.warn(
                 "[PQA-OFFICIAL-DETAIL-SLOW] packageId={} aggregateRunId={} totalMs={} evidenceMs={} ledgerMs={} runtimeFallbackMs={} runCount={}",
                 packageId,
                 valueOrEmpty(aggregateRunId),

@@ -20,11 +20,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.List;
+import java.util.regex.Pattern;
 
 public final class ClientIpResolver {
 
     private static final Logger log = LoggerFactory.getLogger(ClientIpResolver.class);
+    private static final String FORWARDED_FOR = "X-Forwarded-For";
+    private static final Pattern IPV4_ADDRESS = Pattern.compile("\\d{1,3}(\\.\\d{1,3}){3}");
+    private static final Pattern IPV6_ADDRESS = Pattern.compile("[0-9a-fA-F.]*:[0-9a-fA-F:.]*");
     private static final List<String> LEGACY_FORWARDED_HEADERS = List.of(
             "X-Forwarded-For",
             "X-Real-IP",
@@ -58,8 +65,8 @@ public final class ClientIpResolver {
             return remoteAddr;
         }
 
-        String forwardedFor = firstHeaderValue(request.getHeader("X-Forwarded-For"));
-        if (hasUsableText(forwardedFor)) {
+        String forwardedFor = clientBehindProxies(request, trustedProxies);
+        if (forwardedFor != null) {
             return forwardedFor;
         }
 
@@ -78,6 +85,84 @@ public final class ClientIpResolver {
             }
         }
         return request.getRemoteAddr();
+    }
+
+    /**
+     * Whether the address is one nobody on the internet connects from: loopback, a private range (10/8, 172.16/12,
+     * 192.168/16, fc00::/7) or link-local (169.254/16, fe80::/10). An IPv4 address mapped into IPv6 counts as the address
+     * it is. Whatever is no plain address counts as public, and no name is ever looked up.
+     */
+    public static boolean isPrivateOrLoopback(String address) {
+        byte[] bytes = addressBytes(address);
+        if (bytes == null) {
+            return false;
+        }
+        return bytes.length == 4 ? isPrivateIpv4(bytes) : isPrivateIpv6(bytes);
+    }
+
+    private static boolean isPrivateIpv4(byte[] bytes) {
+        int first = bytes[0] & 0xFF;
+        int second = bytes[1] & 0xFF;
+        return first == 127 || first == 10 || (first == 172 && second >= 16 && second <= 31)
+                || (first == 192 && second == 168) || (first == 169 && second == 254);
+    }
+
+    private static boolean isPrivateIpv6(byte[] bytes) {
+        int first = bytes[0] & 0xFF;
+        int second = bytes[1] & 0xFF;
+        return (first & 0xFE) == 0xFC || (first == 0xFE && (second & 0xC0) == 0x80) || isIpv6Loopback(bytes);
+    }
+
+    private static boolean isIpv6Loopback(byte[] bytes) {
+        for (int index = 0; index < bytes.length - 1; index++) {
+            if (bytes[index] != 0) {
+                return false;
+            }
+        }
+        return bytes[bytes.length - 1] == 1;
+    }
+
+    /** The bytes of a plain address, or null. An IPv6 address reaches the parser only in a shape it never resolves. */
+    private static byte[] addressBytes(String address) {
+        if (address == null) {
+            return null;
+        }
+        String literal = address.trim();
+        if (IPV4_ADDRESS.matcher(literal).matches()) {
+            return ipv4Bytes(literal);
+        }
+        if (literal.startsWith("[") && literal.endsWith("]")) {
+            literal = literal.substring(1, literal.length() - 1);
+            if (!literal.contains(":")) {
+                return null;
+            }
+        }
+        int zone = literal.indexOf('%');
+        if (zone >= 0 && literal.contains(":")) {
+            literal = literal.substring(0, zone);
+        }
+        if (literal.startsWith(".") || !IPV6_ADDRESS.matcher(literal).matches()) {
+            return null;
+        }
+        try {
+            return InetAddress.getByName(literal).getAddress();
+        } catch (UnknownHostException e) {
+            return null;
+        }
+    }
+
+    /** The four decimal numbers of an address; a leading zero reads as octal elsewhere, so it is no plain address. */
+    private static byte[] ipv4Bytes(String literal) {
+        String[] parts = literal.split("\\.");
+        byte[] bytes = new byte[parts.length];
+        for (int index = 0; index < parts.length; index++) {
+            int value = Integer.parseInt(parts[index]);
+            if (value > 255 || (parts[index].length() > 1 && parts[index].charAt(0) == '0')) {
+                return null;
+            }
+            bytes[index] = (byte) value;
+        }
+        return bytes;
     }
 
     public static boolean isTrustedProxy(String ip, List<String> trustedProxies) {
@@ -104,6 +189,58 @@ public final class ClientIpResolver {
         }
 
         return false;
+    }
+
+    /**
+     * The client a chain of proxies names. Each proxy adds the address it saw to the end of the list, so what a client
+     * wrote itself stays on the left: the list is read from its end, past the trusted proxies, up to the first address
+     * that is not one. What stands before that address proves nothing.
+     */
+    private static String clientBehindProxies(HttpServletRequest request, List<String> trustedProxies) {
+        List<String> hops = forwardedHops(request);
+        String client = null;
+        for (int index = hops.size() - 1; index >= 0; index--) {
+            String address = addressOf(hops.get(index));
+            if (address == null) {
+                break;
+            }
+            client = address;
+            if (!isTrustedProxy(address, trustedProxies)) {
+                break;
+            }
+        }
+        return client;
+    }
+
+    /** Every line of the header in order: a proxy may add a line of its own instead of joining the client's. */
+    private static List<String> forwardedHops(HttpServletRequest request) {
+        List<String> lines = new ArrayList<>();
+        Enumeration<String> values = request.getHeaders(FORWARDED_FOR);
+        if (values != null) {
+            while (values.hasMoreElements()) {
+                lines.add(values.nextElement());
+            }
+        } else if (request.getHeader(FORWARDED_FOR) != null) {
+            lines.add(request.getHeader(FORWARDED_FOR));
+        }
+        List<String> hops = new ArrayList<>();
+        for (String line : lines) {
+            for (String hop : line.split(",")) {
+                hops.add(hop.trim());
+            }
+        }
+        return hops;
+    }
+
+    /** The address of a hop without its port, or null when it is no address: a name would send the check to the DNS. */
+    private static String addressOf(String hop) {
+        String address = hop;
+        if (address.startsWith("[") && address.indexOf(']') > 0) {
+            address = address.substring(1, address.indexOf(']'));
+        } else if (address.indexOf(':') > 0 && address.indexOf(':') == address.lastIndexOf(':')) {
+            address = address.substring(0, address.indexOf(':'));
+        }
+        return IPV4_ADDRESS.matcher(address).matches() || IPV6_ADDRESS.matcher(address).matches() ? address : null;
     }
 
     private static String firstHeaderValue(String value) {

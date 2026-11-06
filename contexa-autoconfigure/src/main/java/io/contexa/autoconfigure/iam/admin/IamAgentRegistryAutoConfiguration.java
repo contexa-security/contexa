@@ -92,12 +92,14 @@ import io.contexa.contexacore.autonomous.agent.AgentContainmentService;
 import io.contexa.contexaiam.admin.web.agent.controller.AgentStopApiController;
 import io.contexa.contexaiam.admin.web.agent.controller.AgentStopController;
 import io.contexa.contexaiam.admin.web.agent.service.AgentContainmentAdminService;
+import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
 import io.contexa.contexaidentity.security.agent.MailAgentNoticeChannel;
 import io.contexa.contexaidentity.security.agent.OAuth2AgentTokenRevoker;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.DeviceAwareOAuth2AuthorizationService;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.service.IForceLogoutService;
 import io.contexa.contexacore.autonomous.signal.RiskSignalReceiver;
 import io.contexa.contexacore.autonomous.signal.SecurityEventTokenVerifier;
 import io.contexa.contexacore.autonomous.service.UserEngineStatePurger;
@@ -344,12 +346,13 @@ public class IamAgentRegistryAutoConfiguration {
         RiskSignalReceiver riskSignalReceiver(ZeroTrustActionRepository actionRepository,
                                               ObjectProvider<ZeroTrustSecurityService> zeroTrustSecurityService,
                                               ObjectProvider<UserRepository> userRepository,
-                                              ObjectProvider<CentralAuditFacade> auditFacade) {
+                                              ObjectProvider<CentralAuditFacade> auditFacade,
+                                              ObjectProvider<IForceLogoutService> forceLogoutService) {
             UserRepository users = userRepository.getIfAvailable();
             return new RiskSignalReceiver(actionRepository, zeroTrustSecurityService.getIfAvailable(),
                     subjectId -> RiskSignalReceiver.userOf(subjectId, email -> users == null ? null
                             : users.findFirstByEmailIgnoreCase(email).map(Users::getUsername).orElse(null)),
-                    auditFacade.getIfAvailable());
+                    auditFacade.getIfAvailable(), forceLogoutService.getIfAvailable());
         }
 
         @Bean(name = "contexaRiskSignalReceiverController")
@@ -457,11 +460,12 @@ public class IamAgentRegistryAutoConfiguration {
     public AgentContainmentAdminService agentContainmentAdminService(
             ObjectProvider<AgentContainmentService> containment, AgentRegistry contexaAgentRegistry,
             ObjectProvider<AuditLogRepository> auditLogRepository, AgentNoticeStore contexaAgentNoticeStore,
-            ObjectProvider<AgentScopeService> scopes) {
+            ObjectProvider<AgentScopeService> scopes, ObjectProvider<BlockedUserService> blockedUsers) {
         AgentContainmentAdminService service = new AgentContainmentAdminService(containment.getIfAvailable(),
                 contexaAgentRegistry, auditLogRepository.getIfAvailable(), contexaAgentNoticeStore);
         // docs/agent A5-4: the agents still narrowed, shown with the stops.
         service.setScopes(scopes.getIfAvailable());
+        service.setBlockedUsers(blockedUsers.getIfAvailable());
         return service;
     }
 
@@ -503,7 +507,14 @@ public class IamAgentRegistryAutoConfiguration {
     @Bean(name = "contexaAgentConfirmationApiController")
     @ConditionalOnMissingBean
     public AgentConfirmationApiController agentConfirmationApiController(
-            AgentConfirmationService contexaAgentConfirmationService) {
-        return new AgentConfirmationApiController(contexaAgentConfirmationService);
+            AgentConfirmationService contexaAgentConfirmationService, ObjectProvider<AgentCallGuard> agentCallGuard,
+            ObjectProvider<SecurityZeroTrustProperties> properties) {
+        AgentConfirmationApiController controller = new AgentConfirmationApiController(contexaAgentConfirmationService);
+        // docs/agent A5-7: an agent's asks count against its call limits, as its other calls do at the gate.
+        controller.setCallGuard(agentCallGuard.getIfAvailable());
+        // docs/agent A5-2: the mail of an agent's own ask links where the gate's mails link.
+        controller.setLinkBaseUrl(properties.getIfAvailable(SecurityZeroTrustProperties::new).getAgent()
+                .getConfirmationLinkBaseUrl());
+        return controller;
     }
 }

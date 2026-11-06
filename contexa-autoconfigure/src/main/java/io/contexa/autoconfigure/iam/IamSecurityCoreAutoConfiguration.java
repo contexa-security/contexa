@@ -23,6 +23,7 @@ import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.security.AISecurityContextSupport;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
 import io.contexa.contexacore.security.AIOAuth2SecurityContextRepository;
+import io.contexa.contexacore.security.SessionAccountRefresher;
 import io.contexa.contexacore.security.async.AsyncSecurityContextProvider;
 import io.contexa.contexacore.security.session.InMemorySessionIdResolver;
 import io.contexa.contexacore.security.session.RedisSessionIdResolver;
@@ -50,7 +51,10 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import io.contexa.contexacommon.store.ContexaStores;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.data.redis.core.RedisTemplate;
 
 import java.time.Clock;
@@ -63,6 +67,12 @@ import java.time.Clock;
 @EnableConfigurationProperties({ SecurityZeroTrustProperties.class, SecuritySessionProperties.class })
 @Import(IamSecurityCoreContexaOwnedConfiguration.class)
 public class IamSecurityCoreAutoConfiguration {
+
+    /**
+     * The session repository is no default candidate, so that an application asking for a SecurityContextRepository by
+     * type never meets it: Contexa's own chains take it by this name, or they get nothing and no session is checked.
+     */
+    public static final String SESSION_CONTEXT_REPOSITORY = "contexaAiSessionSecurityContextRepository";
 
     @Bean(name = "contexaLoginAttemptIpUpserter")
     @ConditionalOnMissingBean
@@ -90,16 +100,22 @@ public class IamSecurityCoreAutoConfiguration {
         return new AISecurityContextSupport(securityZeroTrustProperties, contexaZeroTrustSecurityService, sessionIdResolver);
     }
 
-    @Bean(name = "contexaAiSessionSecurityContextRepository", defaultCandidate = false)
+    @Bean(name = SESSION_CONTEXT_REPOSITORY, defaultCandidate = false)
     @ConditionalOnMissingBean
     public AISessionSecurityContextRepository aiSessionSecurityContextRepository(
             AISecurityContextSupport contexaAiSecurityContextSupport,
             @Nullable SecurityContextDataStore securityContextDataStore,
-            @Nullable AsyncSecurityContextProvider contexaAsyncSecurityContextProvider) {
-        return new AISessionSecurityContextRepository(
+            @Nullable AsyncSecurityContextProvider contexaAsyncSecurityContextProvider,
+            @Qualifier("contexaUnifiedUserDetailsService") ObjectProvider<UserDetailsService> contexaAccounts) {
+        AISessionSecurityContextRepository repository = new AISessionSecurityContextRepository(
                 contexaAiSecurityContextSupport,
                 securityContextDataStore,
                 contexaAsyncSecurityContextProvider);
+        UserDetailsService accounts = contexaAccounts.getIfAvailable();
+        if (securityContextDataStore != null && accounts != null) {
+            repository.setAccountRefresher(new SessionAccountRefresher(securityContextDataStore, accounts));
+        }
+        return repository;
     }
 
     @Bean(name = "contexaAiOAuth2SecurityContextRepository")
@@ -121,9 +137,14 @@ public class IamSecurityCoreAutoConfiguration {
                 @Qualifier("contexaGeneralRedisTemplate") RedisTemplate<String, Object> redisTemplate,
                 ThreatScoreUtil threatScoreUtil,
                 SecurityZeroTrustProperties securityZeroTrustProperties,
-                ZeroTrustActionRepository actionRedisRepository) {
-            return new RedisZeroTrustSecurityService(redisTemplate,
+                ZeroTrustActionRepository actionRedisRepository,
+                ObjectProvider<ContexaStores> contexaStores,
+                ObjectProvider<CentralAuditFacade> centralAuditFacade) {
+            RedisZeroTrustSecurityService service = new RedisZeroTrustSecurityService(redisTemplate,
                     threatScoreUtil, securityZeroTrustProperties, actionRedisRepository);
+            contexaStores.ifAvailable(service::setContexaStores);
+            service.setAudit(centralAuditFacade::getIfAvailable);
+            return service;
         }
 
         @Bean(name = "contexaRedisSessionIdResolver")

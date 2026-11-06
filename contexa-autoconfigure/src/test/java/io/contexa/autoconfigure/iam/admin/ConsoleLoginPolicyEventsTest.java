@@ -81,6 +81,20 @@ class ConsoleLoginPolicyEventsTest {
         verify(handler).onLoginFailure("admin", "203.0.113.7", "BadCredentialsException", "CONSOLE");
     }
 
+    /** PR-69: the console's count is no better than its address. */
+    @Test
+    @DisplayName("a forged forwarded header does not change the address a failed console sign-in counts against")
+    void aForgedHeaderDoesNotChangeTheAddress() {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/contexa/admin/login");
+        request.setRemoteAddr("203.0.113.7");
+        request.addHeader("X-Forwarded-For", "198.51.100.77");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        events(handler).publishAuthenticationFailure(new BadCredentialsException("bad"), attempt);
+
+        verify(handler).onLoginFailure("admin", "203.0.113.7", "BadCredentialsException", "CONSOLE");
+    }
+
     @Test
     @DisplayName("a locked account's attempt is counted too, and a success resets the account")
     void lockedAttemptsCountAndSuccessResets() {

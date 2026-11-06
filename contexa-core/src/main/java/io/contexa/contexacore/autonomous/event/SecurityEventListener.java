@@ -33,6 +33,15 @@ public interface SecurityEventListener {
 
     void onSecurityEvent(SecurityEvent event);
 
+    /**
+     * Whether the work on an event goes on after {@link #onSecurityEvent} returns, its end being told through
+     * {@link SecurityEventCollector#settled}. The collector keeps its hold on the event until then; a listener that is
+     * done when it returns leaves nothing to wait for.
+     */
+    default boolean settlesItsEvents() {
+        return false;
+    }
+
     default void onBatchEvents(List<SecurityEvent> events) {
                 for (SecurityEvent event : events) {
             onSecurityEvent(event);

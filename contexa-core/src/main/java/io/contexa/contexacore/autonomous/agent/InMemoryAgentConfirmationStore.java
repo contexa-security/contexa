@@ -58,6 +58,20 @@ public class InMemoryAgentConfirmationStore implements AgentConfirmationStore {
     }
 
     @Override
+    public synchronized boolean waiting(String subjectKey, Instant now) {
+        return confirmations.values().stream().anyMatch(confirmation ->
+                confirmation.status() == AgentConfirmation.Status.PENDING
+                        && confirmation.subjectKey().equals(subjectKey) && confirmation.expiresAt().isAfter(now));
+    }
+
+    @Override
+    public synchronized boolean saveNotingWaiting(AgentConfirmation confirmation, Instant now) {
+        boolean waited = waiting(confirmation.subjectKey(), now);
+        save(confirmation);
+        return waited;
+    }
+
+    @Override
     public synchronized boolean transition(AgentConfirmation next, AgentConfirmation.Status expected) {
         AgentConfirmation current = confirmations.get(next.confirmationId());
         if (current == null || current.status() != expected) {

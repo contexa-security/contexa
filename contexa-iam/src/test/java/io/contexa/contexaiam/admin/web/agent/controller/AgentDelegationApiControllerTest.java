@@ -16,6 +16,11 @@
 package io.contexa.contexaiam.admin.web.agent.controller;
 
 import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacommon.security.bridge.BridgeProperties;
+import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.resolver.TokenDelegationStampResolver;
+import io.contexa.contexacore.autonomous.agent.AgentDelegation;
+import io.contexa.contexacore.autonomous.agent.AgentDelegationRequest;
 import io.contexa.contexacore.autonomous.agent.InMemoryDelegationRegistry;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
@@ -31,6 +36,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
@@ -114,6 +120,44 @@ class AgentDelegationApiControllerTest {
                 new MockHttpServletRequest()).getStatusCode()).isEqualTo(HttpStatus.CREATED);
     }
 
+    /**
+     * A token in the person's name that an agent holds, read as the bridge reads it: an exchange without an actor token
+     * leaves only the client it was issued to, another authorization server may name the agent in a claim of its own.
+     * The agent writes, reads and revokes nothing in the person's name, as the confirmation pages refuse it.
+     */
+    @Test
+    void anAgentHoldingATokenInThePersonsNameTouchesNoDelegationOfThePerson() {
+        AgentDelegation alices = registry.record(new AgentDelegationRequest(null, "alice", "agent-7", null, "REPORTING",
+                "Weekly HX-310 report", List.of("READ"), List.of("HX-310"), false, null, null, NOW.minusSeconds(60),
+                NOW.plusSeconds(3600), "alice", null));
+        List<Authentication> tokens = List.of(
+                jwt("alice", Map.of("client_id", "report-bot-client")),
+                jwt("alice", Map.of("azp", "report-bot-client")),
+                jwt("alice", Map.of("agent_id", "report-bot")),
+                jwt("alice", Map.of("execution_mode", "DELEGATED_AGENT", "client_id", "report-bot-client")));
+
+        for (Authentication agent : tokens) {
+            MockHttpServletRequest fromAgent = stamped(agent);
+            assertThat(fromAgent.getAttribute(BridgeRequestAttributes.DELEGATION_STAMP)).as("the bridge reads an agent")
+                    .isNotNull();
+
+            assertThat(api.record(body(null, "report-bot"), agent, fromAgent).getStatusCode())
+                    .isEqualTo(HttpStatus.FORBIDDEN);
+            assertThat(api.own(agent, fromAgent).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+            assertThat(api.revoke(alices.delegationId(), new RevokeBody("taken back"), agent, fromAgent)
+                    .getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        }
+
+        assertThat(registry.list(null, "alice", null, 10)).extracting(AgentDelegation::agentId)
+                .containsExactly("agent-7");
+        assertThat(registry.find(alices.delegationId()).orElseThrow().revokedAt()).isNull();
+        verify(audit, never()).recordAsync(any());
+        // The person's token through an ordinary client names no agent, and records as before.
+        Authentication portal = jwt("alice", Map.of("client_id", "portal"));
+        assertThat(api.record(body(null, "report-bot"), portal, stamped(portal)).getStatusCode())
+                .isEqualTo(HttpStatus.CREATED);
+    }
+
     @Test
     void anIncompleteDelegationIsRefused() {
         DelegationBody noEnd = new DelegationBody(null, null, "agent-7", null, null, null, null, null, null, null,
@@ -126,22 +170,24 @@ class AgentDelegationApiControllerTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void anAdministratorRecordsForAPersonAsTheRecordsStateItAndRevokesWithAReason() {
         DelegationBody imported = new DelegationBody("t-1", "alice", "agent-7", "OBJ-1", "REPORTING",
                 "Weekly report", List.of("READ"), List.of("HX-310"), false, null, null, NOW.minusSeconds(3600),
                 NOW.plusSeconds(3600), "hr-system", NOW.minusSeconds(7200));
 
-        DelegationView view = (DelegationView) admin.record(imported, person("admin-1")).getBody();
+        DelegationView view = (DelegationView) admin.record(imported, person("admin-1"),
+                new MockHttpServletRequest()).getBody();
 
         assertThat(view.delegatorId()).isEqualTo("alice");
         assertThat(view.recordedBy()).isEqualTo("hr-system");
         assertThat(view.recordedAt()).isEqualTo(NOW.minusSeconds(7200));
-        assertThat(admin.list("t-1", null, "agent-7", 50)).extracting(DelegationView::delegationId)
-                .containsExactly(view.delegationId());
-        assertThat(admin.revoke(view.delegationId(), new RevokeBody(" "), person("admin-1")).getStatusCode())
-                .isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat((List<DelegationView>) admin.list("t-1", null, "agent-7", 50, new MockHttpServletRequest())
+                .getBody()).extracting(DelegationView::delegationId).containsExactly(view.delegationId());
+        assertThat(admin.revoke(view.delegationId(), new RevokeBody(" "), person("admin-1"),
+                new MockHttpServletRequest()).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(((DelegationView) admin.revoke(view.delegationId(), new RevokeBody("hijacked"),
-                person("admin-1")).getBody()).revokedBy()).isEqualTo("admin-1");
+                person("admin-1"), new MockHttpServletRequest()).getBody()).revokedBy()).isEqualTo("admin-1");
     }
 
     /** RL-6: a delegation states its quantity limits in the body, and the view returns them. */
@@ -151,14 +197,60 @@ class AgentDelegationApiControllerTest {
                 List.of("READ", "EXPORT"), List.of("HX-310"), false, null, null, NOW.minusSeconds(3600),
                 NOW.plusSeconds(3600), "hr-system", NOW.minusSeconds(7200), 40, 1200);
 
-        DelegationView view = (DelegationView) admin.record(limited, person("admin-1")).getBody();
+        DelegationView view = (DelegationView) admin.record(limited, person("admin-1"),
+                new MockHttpServletRequest()).getBody();
 
         assertThat(view.maxItemsPerRequest()).isEqualTo(40);
         assertThat(view.maxItemsTotal()).isEqualTo(1200);
         // A limit below one is refused like any other incomplete delegation.
         assertThat(admin.record(new DelegationBody("t-1", "alice", "agent-8", null, "REPORTING", null, List.of("READ"),
                 List.of("HX-310"), false, null, null, NOW.minusSeconds(60), NOW.plusSeconds(3600), null, null, 0, null),
-                person("admin-1")).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+                person("admin-1"), new MockHttpServletRequest()).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    /**
+     * An agent holding an administrator's token in the administrator's name, read as the bridge reads it. A delegation
+     * is a person's word, so the admin API writes and takes back none for it, as the person's API refuses it.
+     */
+    @Test
+    void anAgentHoldingAnAdministratorsTokenRecordsAndRevokesNoDelegation() {
+        AgentDelegation alices = alicesDelegation();
+
+        for (Authentication agent : adminTokensAnAgentHolds()) {
+            MockHttpServletRequest fromAgent = stamped(agent);
+            assertThat(fromAgent.getAttribute(BridgeRequestAttributes.DELEGATION_STAMP)).as("the bridge reads an agent")
+                    .isNotNull();
+
+            assertThat(admin.record(body("alice", "report-bot"), agent, fromAgent).getStatusCode())
+                    .isEqualTo(HttpStatus.FORBIDDEN);
+            assertThat(admin.revoke(alices.delegationId(), new RevokeBody("taken back"), agent, fromAgent)
+                    .getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        }
+
+        assertThat(registry.list(null, "alice", null, 10)).extracting(AgentDelegation::agentId)
+                .containsExactly("agent-7");
+        assertThat(registry.find(alices.delegationId()).orElseThrow().revokedAt()).isNull();
+        verify(audit, never()).recordAsync(any());
+        // The administrator's token through an ordinary client names no agent, and works as before.
+        Authentication portal = jwt("admin-1", Map.of("client_id", "portal"));
+        assertThat(admin.record(body("alice", "report-bot"), portal, stamped(portal)).getStatusCode())
+                .isEqualTo(HttpStatus.CREATED);
+        assertThat(admin.revoke(alices.delegationId(), new RevokeBody("taken back"), portal, stamped(portal))
+                .getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    /** What the person's API keeps from an agent, one person's delegations, the admin API keeps too, everyone's. */
+    @Test
+    void anAgentHoldingAnAdministratorsTokenReadsNoDelegation() {
+        alicesDelegation();
+
+        for (Authentication agent : adminTokensAnAgentHolds()) {
+            assertThat(admin.list(null, null, null, 50, stamped(agent)).getStatusCode())
+                    .isEqualTo(HttpStatus.FORBIDDEN);
+        }
+
+        Authentication portal = jwt("admin-1", Map.of("client_id", "portal"));
+        assertThat(admin.list(null, null, null, 50, stamped(portal)).getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
     @Test
@@ -169,10 +261,40 @@ class AgentDelegationApiControllerTest {
                 .isEqualTo("hasAuthority('ROLE_ADMIN')");
     }
 
+    private AgentDelegation alicesDelegation() {
+        return registry.record(new AgentDelegationRequest(null, "alice", "agent-7", null, "REPORTING",
+                "Weekly HX-310 report", List.of("READ"), List.of("HX-310"), false, null, null, NOW.minusSeconds(60),
+                NOW.plusSeconds(3600), "alice", null));
+    }
+
+    private static List<Authentication> adminTokensAnAgentHolds() {
+        return List.of(
+                jwt("admin-1", Map.of("client_id", "report-bot-client")),
+                jwt("admin-1", Map.of("azp", "report-bot-client")),
+                jwt("admin-1", Map.of("agent_id", "report-bot")),
+                jwt("admin-1", Map.of("execution_mode", "DELEGATED_AGENT", "client_id", "report-bot-client")),
+                jwt("admin-1", Map.of("act", Map.of("sub", "report-bot-client"), "client_id", "report-bot-client")));
+    }
+
     private static DelegationBody body(String delegator, String agent) {
         return new DelegationBody("ignored-tenant", delegator, agent, null, "REPORTING", "Weekly HX-310 report",
                 List.of("read"), List.of("HX-310"), false, null, null, NOW.minusSeconds(60), NOW.plusSeconds(3600),
                 "forged-writer", NOW.minus(Duration.ofDays(400)));
+    }
+
+    /** The request as the bridge leaves it, with the delegation stamp the token's claims give. */
+    private static MockHttpServletRequest stamped(Authentication token) {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        SecurityContextHolder.getContext().setAuthentication(token);
+        try {
+            new TokenDelegationStampResolver((tenantId, client) -> "report-bot-client".equals(client)
+                    ? Optional.of("report-bot") : Optional.empty())
+                    .resolve(request, null, new BridgeProperties())
+                    .ifPresent(stamp -> request.setAttribute(BridgeRequestAttributes.DELEGATION_STAMP, stamp));
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+        return request;
     }
 
     private static Authentication person(String name) {

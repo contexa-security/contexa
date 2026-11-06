@@ -28,6 +28,8 @@ import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuDtos.AdminMenuRolesRequ
 import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuDtos.AdminMenuSaveRequest;
 import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuDtos.AdminMenuView;
 import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuDtos.AdminRoleOptionView;
+import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuIcon;
+import io.contexa.contexaiam.admin.web.menu.dto.AdminMenuUrl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
@@ -99,10 +101,13 @@ public class AdminMenuManagementService {
 
     @Transactional(transactionManager = "contexaTransactionManager")
     public AdminMenuActionResponse createMenu(AdminMenuSaveRequest request) {
+        String icon = request.valueOrDefault("icon", "");
+        requireAllowedIcon(icon);
+        requireAllowedUrl(request.getUrl());
         AdminMenu menu = new AdminMenu();
         menu.setName(request.valueOrDefault("name", ""));
         menu.setUrl(request.getUrl());
-        menu.setIcon(request.valueOrDefault("icon", ""));
+        menu.setIcon(icon);
         menu.setDataPage(request.getDataPage());
         menu.setMenuType(request.valueOrDefault("menuType", "CORE"));
         menu.setParentId(request.parentIdAsLong());
@@ -121,6 +126,12 @@ public class AdminMenuManagementService {
             return AdminMenuActionResponse.error(msg("msg.menu.not.found"));
         }
 
+        if (request.has("icon")) {
+            requireAllowedIcon(request.getIcon());
+        }
+        if (request.has("url")) {
+            requireAllowedUrl(request.getUrl());
+        }
         AdminMenu menu = existingMenu.get();
         if (request.has("name")) menu.setName(request.getName());
         if (request.has("url")) menu.setUrl(request.getUrl());
@@ -129,9 +140,24 @@ public class AdminMenuManagementService {
         if (request.has("menuType")) menu.setMenuType(request.getMenuType());
         if (request.has("menuOrder")) menu.setMenuOrder(request.menuOrderAsInt());
         if (request.has("enabled")) menu.setEnabled(Boolean.parseBoolean(request.getEnabled()));
-        menu.setParentId(request.parentIdAsLong());
+        // A request that names no parent keeps the parent; one that sends an empty or null parent makes a top menu.
+        if (request.has("parentId")) menu.setParentId(request.parentIdAsLong());
         adminMenuService.saveMenu(menu);
         return AdminMenuActionResponse.ok();
+    }
+
+    /** An icon that opens with a tag reaches every administrator's page as markup, so only a plain drawing is kept. */
+    private void requireAllowedIcon(String icon) {
+        if (!AdminMenuIcon.isAllowed(icon)) {
+            throw new IllegalArgumentException(msg("msg.menu.icon.invalid"));
+        }
+    }
+
+    /** The address becomes the link of every administrator's side menu, so only a path inside this application is kept. */
+    private void requireAllowedUrl(String url) {
+        if (!AdminMenuUrl.isAllowed(url)) {
+            throw new IllegalArgumentException(msg("msg.menu.url.invalid"));
+        }
     }
 
     private record AdminMenuOrderUpdate(Long menuId, int menuOrder) {

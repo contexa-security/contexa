@@ -17,8 +17,10 @@ package io.contexa.contexaiam.admin.web.auth.controller;
 
 import io.contexa.contexaiam.admin.web.auth.dto.RoleHierarchyDtos.ActiveHierarchyView;
 import io.contexa.contexaiam.admin.web.auth.service.GroupService;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorException;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.auth.service.impl.RoleHierarchyService;
+import io.contexa.contexaiam.common.ConsoleFault;
 import io.contexa.contexaiam.domain.dto.RoleDetailDto;
 import io.contexa.contexaiam.domain.dto.GroupWithRolesDto;
 import io.contexa.contexaiam.domain.dto.RoleHierarchyDto;
@@ -35,11 +37,15 @@ import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.ui.ConcurrentModel;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.ArrayList;
@@ -95,7 +101,7 @@ public class RoleHierarchyController {
     }
 
     @PostMapping
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public String createRoleHierarchy(@ModelAttribute("hierarchy") RoleHierarchyDto hierarchyDto, RedirectAttributes ra) {
         try {
             RoleHierarchyEntity entity = modelMapper.map(hierarchyDto, RoleHierarchyEntity.class);
@@ -155,7 +161,7 @@ public class RoleHierarchyController {
     }
 
     @PostMapping("/{id}/edit")
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public String updateRoleHierarchy(@PathVariable Long id, @ModelAttribute("hierarchy") RoleHierarchyDto hierarchyDto, RedirectAttributes ra) {
         try {
             hierarchyDto.setId(id);
@@ -170,20 +176,36 @@ public class RoleHierarchyController {
     }
 
     @PostMapping("/delete/{id}")
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public String deleteRoleHierarchy(@PathVariable Long id, RedirectAttributes ra) {
         try {
             roleHierarchyService.deleteRoleHierarchy(id);
             ra.addFlashAttribute("message", msg("msg.hierarchy.deleted", id));
+        } catch (LastAdministratorException e) {
+            throw e;
         } catch (Exception e) {
-            ra.addFlashAttribute("error", e.getMessage());
+            ra.addFlashAttribute("error", ConsoleFault.textOf(e));
             log.error("Error deleting role hierarchy ID: {}", id, e);
         }
         return "redirect:/contexa/admin/role-hierarchies";
     }
 
+    /**
+     * A change of the role hierarchy that would take the console's last active administrator is refused with a 409:
+     * nothing of it was kept (the refusal rolls the transaction back), and the list of hierarchies says why.
+     */
+    @ExceptionHandler(LastAdministratorException.class)
+    public ModelAndView lastAdministrator(LastAdministratorException refusal) {
+        Model model = new ConcurrentModel();
+        String view = getRoleHierarchies(null, 0, model);
+        ModelAndView page = new ModelAndView(view, model.asMap());
+        page.setStatus(HttpStatus.CONFLICT);
+        page.addObject("error", refusal.getMessage());
+        return page;
+    }
+
     @PostMapping("/{id}/activate")
-    @Transactional(transactionManager = "contexaTransactionManager")
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.NOT_SUPPORTED)
     public String activateRoleHierarchy(@PathVariable Long id, RedirectAttributes ra) {
         try {
             boolean newState = roleHierarchyService.activateRoleHierarchy(id);

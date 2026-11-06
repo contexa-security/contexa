@@ -51,6 +51,7 @@ import io.contexa.contexaiam.agent.web.AgentConfirmationApiController;
 import io.contexa.contexaiam.agent.web.AgentConfirmationController;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmationAuthorizer;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmationExpiry;
+import io.contexa.contexacore.autonomous.agent.AgentCallGuard;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmationService;
 import io.contexa.contexacore.autonomous.agent.AgentConfirmationStore;
 import io.contexa.contexacore.autonomous.agent.AgentNotices;
@@ -72,6 +73,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -150,6 +152,7 @@ class AgentRegistryWiringTest {
         ObjectProvider<SecurityZeroTrustProperties> properties = mock(ObjectProvider.class);
         SecurityZeroTrustProperties settings = new SecurityZeroTrustProperties();
         settings.getAgent().setConfirmationTimeout(Duration.ofMinutes(5));
+        settings.getAgent().setConfirmationLinkBaseUrl("https://app.test");
         when(properties.getIfAvailable(any())).thenReturn(settings);
         ObjectProvider<AgentConfirmationAuthorizer> noAuthorizer = mock(ObjectProvider.class);
         when(noAuthorizer.getIfAvailable(any())).thenAnswer(invocation ->
@@ -167,8 +170,15 @@ class AgentRegistryWiringTest {
                 mock(ObjectProvider.class), mock(ObjectProvider.class), new InMemoryAgentNoticeStore(),
                 mock(ObjectProvider.class)))
                 .isInstanceOf(AgentConfirmationController.class);
-        assertThat(configuration.agentConfirmationApiController(service))
-                .isInstanceOf(AgentConfirmationApiController.class);
+        ObjectProvider<AgentCallGuard> callGuards = mock(ObjectProvider.class);
+        AgentCallGuard callGuard = new AgentCallGuard(null, null, null, null, null, null);
+        when(callGuards.getIfAvailable()).thenReturn(callGuard);
+        // An agent's asks count against its call limits, which is why the API holds the guard of the gate.
+        AgentConfirmationApiController api = configuration.agentConfirmationApiController(service, callGuards,
+                properties);
+        assertThat(ReflectionTestUtils.getField(api, "callGuard")).isSameAs(callGuard);
+        // An agent's own ask is mailed with the address the gate's links start at.
+        assertThat(ReflectionTestUtils.getField(api, "linkBaseUrl")).isEqualTo("https://app.test");
     }
 
     @Test

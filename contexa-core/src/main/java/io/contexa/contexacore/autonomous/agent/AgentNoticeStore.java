@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.agent;
 import org.springframework.lang.Nullable;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * The notices kept for the people accountable for agents (docs/agent A5-3, A5-2). The Contexa database keeps them
@@ -32,6 +33,22 @@ public interface AgentNoticeStore {
 
     /** Every notice of the tenant (every tenant's for {@code null}), latest first, at most {@code limit}. */
     List<AgentNotice> list(@Nullable String tenantId, int limit);
+
+    /**
+     * The person's latest notice of the kind about what the correlation names (a confirmation, a request), or empty.
+     * This default reads the person's latest {@value #FIND_SCAN} notices.
+     */
+    default Optional<AgentNotice> find(String recipientId, String kind, String correlationId) {
+        if (recipientId == null || kind == null || correlationId == null) {
+            return Optional.empty();
+        }
+        return forRecipient(recipientId, FIND_SCAN).stream()
+                .filter(notice -> kind.equals(notice.kind()) && correlationId.equals(notice.correlationId()))
+                .findFirst();
+    }
+
+    /** How many of the person's latest notices the default {@link #find} reads. */
+    int FIND_SCAN = 1000;
 
     /** Marks the person's notice read; false when the person has no such notice. */
     boolean markRead(String noticeId, String recipientId);

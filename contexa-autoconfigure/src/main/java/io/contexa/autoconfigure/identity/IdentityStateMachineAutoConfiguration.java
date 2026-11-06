@@ -24,6 +24,7 @@ import io.contexa.contexaidentity.security.statemachine.action.*;
 import io.contexa.contexaidentity.security.statemachine.config.MfaStateMachineConfiguration;
 import io.contexa.contexaidentity.security.statemachine.config.StateMachineProperties;
 import io.contexa.contexaidentity.security.statemachine.config.kyro.MfaKryoStateMachineSerialisationService;
+import io.contexa.contexaidentity.security.statemachine.core.persist.ApplicationStateMachineKeyspaces;
 import io.contexa.contexaidentity.security.statemachine.core.persist.ExpiringRedisRepositoryStateMachinePersist;
 import io.contexa.contexaidentity.security.statemachine.core.persist.InMemoryStateMachinePersist;
 import io.contexa.contexaidentity.security.statemachine.core.service.MfaStateMachineService;
@@ -175,7 +176,8 @@ public class IdentityStateMachineAutoConfiguration {
     })
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     @ConditionalOnBean(type = "org.redisson.api.RedissonClient")
-    @EnableRedisRepositories(basePackages = "org.springframework.statemachine.data.redis")
+    @EnableRedisRepositories(basePackages = "org.springframework.statemachine.data.redis",
+            keyspaceConfiguration = ApplicationStateMachineKeyspaces.class)
     static class DistributedStateMachineConfig {
 
         @Bean(name = "contexaMfaStateMachineService")

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.properties;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.context.decision.LearningPromotionPolicy;
 import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
 import io.contexa.contexacore.autonomous.execution.ObjectiveResourceCompatibilityCatalog;
@@ -32,7 +33,7 @@ import java.util.Map;
 @ConfigurationProperties(prefix = "contexa.security.zerotrust")
 public class SecurityZeroTrustProperties {
 
-    /** Whether a signed-in user's responses carry X-Contexa-Monitored and X-Contexa-Blocked-Redirect, which Contexa's browser SDK reads. */
+    /** Whether a signed-in user's responses carry X-Contexa-Monitored, which Contexa's browser SDK reads, and X-Contexa-Blocked-Redirect. */
     private boolean monitoringHeaders = true;
 
     private boolean enabled = true;
@@ -40,6 +41,19 @@ public class SecurityZeroTrustProperties {
     private EnforcementMode mode = EnforcementMode.ENFORCE;
 
     private int maxBlockMfaAttempts = 2;
+
+    /**
+     * Whether every spelling of a name (capitals, full-width letters) reads one decision, so that a BLOCK of
+     * {@code plain-k9} also stops {@code PLAIN-K9}. Turn it off when names of the application differ by case alone.
+     */
+    private boolean normalizeUserKeys = true;
+
+    /**
+     * How long an ALLOW answers the asynchronous requests of the same session, address and browser without a new
+     * analysis (Q-28). A change of any of the three is analysed at once, and a synchronous {@code @Protectable} call
+     * every time. Production belongs between 10 and 20 minutes; a test lowers it to watch decisions follow each other.
+     */
+    private Duration allowValidity = ZeroTrustAction.ALLOW.getDefaultTtl();
 
     public enum EnforcementMode {
         DISABLED,
@@ -186,6 +200,31 @@ public class SecurityZeroTrustProperties {
          * could not be written to the decision observation store.
          */
         private long auditFailureCooldownMs = 30_000L;
+
+        /**
+         * How many decisions of a new context one person may ask the model for in a short window: a sign-in, and a
+         * call from another session, address or browser than the person's decision was reached for. Past it the
+         * model is not asked: such a call is refused with a CHALLENGE for itself alone, and a sign-in goes on
+         * undecided while the person's next request is asked to verify.
+         */
+        @NestedConfigurationProperty
+        private NewContextLimit newContextLimit = new NewContextLimit();
+    }
+
+    /**
+     * The decisions of a new context one person may ask for within {@code window}, counted on each server: sign-ins and
+     * calls from another session, address or browser together. Each asks the model, so without a limit whoever holds a
+     * password or a session buys a model call with every sign-in or every new browser string. A person changes context
+     * a few times an hour; a sign-in and its first call take two, and moving between two devices one at each move.
+     */
+    @Data
+    public static class NewContextLimit {
+
+        /** The decisions of a new context a person may ask for within the window; 0 or less sets no limit. */
+        private int decisions = 6;
+
+        /** The window the decisions are counted in, sliding; a time that is not positive reads as one minute. */
+        private Duration window = Duration.ofMinutes(1);
     }
 
     @Data
@@ -301,7 +340,8 @@ public class SecurityZeroTrustProperties {
         /**
          * How an agent's request to an asynchronous {@code @Protectable} method with no decision on record is handled.
          * By default it is decided in the request, so an agent is not let through without a decision (OWASP ASI02,
-         * ASI05); a person's request keeps proceeding while it is analysed.
+         * ASI05); a person's request keeps proceeding while it is analysed, unless its session, address or browser
+         * changed since the user's last decision.
          */
         private UnrecordedAgentRequest unrecordedAgentRequest = UnrecordedAgentRequest.DECIDE_IN_PLACE;
     }
@@ -337,7 +377,9 @@ public class SecurityZeroTrustProperties {
 
         /**
          * docs/agent A5-2: the absolute address the confirmation link in a notice starts with (for example
-         * {@code https://app.example.com}); empty takes the address of the agent's request.
+         * {@code https://app.example.com}), for a request Contexa stopped and an agent's own ask alike. Empty leaves the
+         * link the application's path only: the address of the agent's request is the agent's to choose, and the link
+         * goes to a person, so a mail needs this set to open.
          */
         private String confirmationLinkBaseUrl;
 
@@ -362,7 +404,8 @@ public class SecurityZeroTrustProperties {
         /**
          * docs/agent RL-12: what the engine does when one agent's requests come in numbers: the same question is
          * analysed once, the analyses one agent has running at once are limited, and a restriction stored while requests
-         * wait answers them. Off by default.
+         * wait answers them. Off by default. Its {@code wait} applies on or off, and to a person's synchronous request as
+         * well: see {@link Flight#wait}.
          */
         private Flight flight = new Flight();
 
@@ -392,6 +435,10 @@ public class SecurityZeroTrustProperties {
      * docs/agent RL-12. Requests that the engine cannot take in within {@code queueCapacity} and {@code wait} are
      * refused with HTTP 429; no request is let through for lack of a verdict, except the few reads of a resource the host
      * declared non-sensitive that {@code passBudget} allows while the first one is being decided.
+     * <p>
+     * {@code wait} is the one setting here that is not only an agent's. Every synchronous request, a person's
+     * included, waits for its verdict at most this long, with the flights on or off. No setting of its own was added for
+     * that, so raising it for agents raises it for people too.
      */
     @Data
     public static class Flight {
@@ -399,13 +446,20 @@ public class SecurityZeroTrustProperties {
         private boolean enabled = false;
         /** The analyses one agent may have running at once, whatever the contexts it works in. */
         private int maxInFlightAnalyses = 3;
-        /** The requests of one agent that may wait for a place to be analysed. */
+        /**
+         * The requests of one agent that may wait for a place to be analysed. As many of a person's requests wait for
+         * the verdict of their changed session, address or browser; past that they are told to come back.
+         */
         private int queueCapacity = 20;
         /**
          * The longest a request waits for a place, or for the verdict it follows. It covers one whole analysis: the
          * first layer takes 4 to 10 seconds, and a case it passes to the second layer took 22 seconds on the showcase
          * engine (the second layer's own limit is 30 seconds). A wait shorter than that refused requests whose
-         * verdict was a few seconds away (RL-12, I-25).
+         * verdict was a few seconds away (RL-12, I-25). It is also the longest any synchronous request, a person's
+         * too, holds the application's thread for its verdict, whether the flights are on or not (PR-54): past it the
+         * request is refused and the analysis goes on. A person's request from a changed session, address or browser
+         * waits as long: past it a sensitive resource is refused and a general one goes on. An application on a model
+         * slower than this raises it.
          */
         private Duration wait = Duration.ofSeconds(40);
         /** The requests that may pass before the first verdict is in; 0 for none. */

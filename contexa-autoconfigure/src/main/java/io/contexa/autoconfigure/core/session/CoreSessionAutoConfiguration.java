@@ -23,6 +23,8 @@ import io.contexa.contexacore.infra.session.generator.SessionIdGenerator;
 import io.contexa.contexacore.infra.session.impl.HttpSessionMfaRepository;
 import io.contexa.contexacore.infra.session.impl.RedisMfaRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.AnyNestedCondition;
@@ -61,10 +63,12 @@ public class CoreSessionAutoConfiguration {
         @ConditionalOnMissingBean(MfaSessionRepository.class)
         public MfaSessionRepository mfaSessionRepository(
                 StringRedisTemplate redisTemplate,
+                @Qualifier("contexaStringRedisTemplate") ObjectProvider<StringRedisTemplate> contexaStrings,
                 AuthContextProperties properties) {
+            StringRedisTemplate strings = contexaStrings.getIfAvailable(() -> redisTemplate);
             RedisMfaRepository repository = new RedisMfaRepository(
-                    redisTemplate,
-                    new RedisSessionIdGenerator(redisTemplate),
+                    strings,
+                    new RedisSessionIdGenerator(strings),
                     properties);
             repository.setSessionTimeout(properties.getMfa().getSessionTimeout());
             return repository;

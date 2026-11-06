@@ -171,7 +171,7 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
 
             boolean isOwner = currentUsername.equals(ownerValue.toString());
             if (!isOwner) {
-                log.error("Ownership verification failed - user: {}, owner: {}", currentUsername, ownerValue);
+                log.warn("Ownership verification failed - user: {}, owner: {}", currentUsername, ownerValue);
             }
 
             return isOwner;

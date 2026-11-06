@@ -64,8 +64,21 @@ public final class ZeroTrustSecurityEventConverter {
             });
         }
 
+        // PR-24: a sign-in is no protected call and carries no request id: what is kept of it is found by its event id.
+        Object requestId = event.getMetadata().get("requestId");
+        Object correlationId = event.getMetadata().get("correlationId");
+        if (requestId == null) {
+            event.addMetadata("requestId", correlationId != null ? correlationId : eventId);
+        }
+        if (correlationId == null) {
+            event.addMetadata("correlationId", requestId != null ? requestId : eventId);
+        }
         if (zeroTrustEvent.getResource() != null) {
             event.addMetadata("requestPath", zeroTrustEvent.getResource());
+        }
+        // Q-23: a queued sign-in is analysed whatever is in force; a queued call to a resource need not be.
+        if (zeroTrustEvent.getCategory() != null) {
+            event.addMetadata("zerotrust.category", zeroTrustEvent.getCategory().name());
         }
 
         return event;

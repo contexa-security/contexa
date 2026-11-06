@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.infra.redis;
 
+import io.contexa.contexacommon.store.ApplicationNamespace;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
@@ -36,7 +37,7 @@ public class PolicyReloadBroadcaster {
     private final String instanceId = UUID.randomUUID().toString();
 
     public PolicyReloadBroadcaster(RedissonClient redissonClient, Runnable reloadCallback) {
-        this.topic = redissonClient.getTopic(TOPIC_NAME);
+        this.topic = redissonClient.getTopic(ApplicationNamespace.key(TOPIC_NAME));
 
         this.topic.addListener(String.class, (channel, message) -> {
             if (message != null && message.startsWith(MESSAGE_PREFIX)) {

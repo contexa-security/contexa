@@ -83,9 +83,11 @@ public class ContexaScopedAnnotationAutoConfiguration {
     /**
      * The cache manager of Contexa's own cached methods. Every cache annotation of Contexa names it ({@code @CacheConfig}), so that
      * Contexa's caches never share a store with the application's caches of the same name, whoever applies the annotations. It is not a
-     * candidate for injection by type: an application that has no cache manager of its own keeps having none.
+     * candidate for injection by type: an application that has no cache manager of its own keeps having none. The processor
+     * below needs it before every post processor is there, which is what the infrastructure role says.
      */
     @Bean(name = "contexaCacheManager", autowireCandidate = false)
+    @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
     static CacheManager contexaCacheManager() {
         CaffeineCacheManager manager = new CaffeineCacheManager();
         manager.setCaffeine(Caffeine.newBuilder()

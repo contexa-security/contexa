@@ -17,6 +17,7 @@ package io.contexa.contexaidentity.security.core.mfa.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import io.contexa.contexacommon.security.MfaPendingSession;
 import jakarta.servlet.http.HttpSession;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -70,6 +71,24 @@ class MfaPendingSessionMarkerTest {
         invalidated.getSession(false).invalidate();
         assertThatCode(() -> MfaPendingSessionMarker.clear(invalidated)).doesNotThrowAnyException();
         assertThat(MfaPendingSessionMarker.getPendingFlowTypeName(invalidated)).isNull();
+    }
+
+    @Test
+    @DisplayName("what the marker sets is what a module without the MFA flow reads, until the flow completes")
+    void theModulesReadOneMark() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        assertThat(MfaPendingSession.of(request)).isFalse();
+
+        MfaPendingSessionMarker.mark(request, "mfa");
+        assertThat(MfaPendingSession.of(request)).isTrue();
+
+        MfaPendingSessionMarker.clear(request);
+        assertThat(MfaPendingSession.of(request)).isFalse();
+
+        MfaPendingSessionMarker.mark(request, "mfa");
+        HttpSession session = request.getSession(false);
+        session.invalidate();
+        assertThat(MfaPendingSession.of(request)).isFalse();
     }
 
     @Test

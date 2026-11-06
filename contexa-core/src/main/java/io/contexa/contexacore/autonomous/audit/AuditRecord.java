@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.audit;
 
 import io.contexa.contexacommon.entity.AuditLog;
 import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -84,7 +85,7 @@ public class AuditRecord {
                 .outcome(outcome)
                 .resourceUri(resourceUri)
                 .clientIp(clientIp)
-                .sessionId(sessionId)
+                .sessionId(RequestFactRedaction.sessionReference(sessionId))
                 .details(detailsJson)
                 .eventCategory(eventCategory != null ? eventCategory.name() : null)
                 .userAgent(truncate(userAgent, 512))

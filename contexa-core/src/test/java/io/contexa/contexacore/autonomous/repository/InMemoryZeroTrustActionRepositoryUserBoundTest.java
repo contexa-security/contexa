@@ -37,7 +37,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class InMemoryZeroTrustActionRepositoryUserBoundTest {
 
-    /** Longer than an ALLOW's 15 s TTL, so the user written before is no longer decided within it. */
+    private static final Duration ALLOW_VALIDITY = Duration.ofSeconds(15);
+
+    /** Longer than the ALLOW's TTL here, so the user written before is no longer decided within it. */
     private static final Duration PAST_ALLOW_TTL = Duration.ofSeconds(20);
 
     private final AdjustableClock clock = new AdjustableClock();
@@ -190,6 +192,8 @@ class InMemoryZeroTrustActionRepositoryUserBoundTest {
     }
 
     private InMemoryZeroTrustActionRepository bounded(int maxUsers) {
-        return new InMemoryZeroTrustActionRepository(Duration.ofHours(24), clock, maxUsers);
+        InMemoryZeroTrustActionRepository repository = new InMemoryZeroTrustActionRepository(Duration.ofHours(24), clock, maxUsers);
+        repository.setAllowValidity(ALLOW_VALIDITY);
+        return repository;
     }
 }

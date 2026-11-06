@@ -15,8 +15,12 @@
  */
 package io.contexa.contexaidentity.security.zerotrust.stepup;
 
+import io.contexa.contexacommon.store.ApplicationNamespace;
+import io.contexa.contexacommon.store.StoreFailures;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.lang.Nullable;
 
 import java.io.ByteArrayInputStream;
@@ -28,6 +32,7 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.List;
 
 /**
  * The step-up options shared by every instance of a distributed deployment, so the answer may reach another instance
@@ -38,7 +43,23 @@ import java.util.Base64;
 public class RedisStepUpOptionsStore implements StepUpOptionsStore {
 
     private static final String PREFIX = "contexa:step-up:options:";
+
+    /** Where this application keeps its options: behind its name when it has one. */
+    private static String prefix() {
+        return ApplicationNamespace.key(PREFIX);
+    }
+
     private static final String CLAIM = "claim:";
+    private static final String COUNT = "count:";
+
+    /** One step, so that no count stands without its time whatever happens between the two commands. */
+    private static final RedisScript<Long> INCREMENT = new DefaultRedisScript<>("""
+            local count = redis.call('INCR', KEYS[1])
+            if redis.call('PTTL', KEYS[1]) < 0 then
+                redis.call('PEXPIRE', KEYS[1], ARGV[1])
+            end
+            return count
+            """, Long.class);
 
     private static final ObjectInputFilter ALLOWED = ObjectInputFilter.Config.createFilter(
             "java.lang.*;java.util.*;java.time.*;"
@@ -52,30 +73,83 @@ public class RedisStepUpOptionsStore implements StepUpOptionsStore {
         this.redis = redis;
     }
 
+    /** D-19: an option Redis does not take is an option the answer will not find, and the step-up starts again. */
     @Override
     public void put(String key, Serializable value) {
-        redis.opsForValue().set(PREFIX + key, encode(value), TIME_TO_LIVE);
+        String encoded = encode(value);
+        try {
+            redis.opsForValue().set(prefix() + key, encoded, TIME_TO_LIVE);
+        } catch (RuntimeException unavailable) {
+            report("keep a step-up option", unavailable);
+        }
     }
 
+    /** A claim Redis cannot give is not given: what it guards does not happen, and the user stays stopped. */
     @Override
     public boolean claim(String key, Duration holdFor) {
-        return Boolean.TRUE.equals(redis.opsForValue().setIfAbsent(PREFIX + CLAIM + key, "1", holdFor));
+        try {
+            return Boolean.TRUE.equals(redis.opsForValue().setIfAbsent(prefix() + CLAIM + key, "1", holdFor));
+        } catch (RuntimeException unavailable) {
+            report("claim a step-up option", unavailable);
+            return false;
+        }
     }
 
     @Override
     public void release(String key) {
-        redis.delete(PREFIX + CLAIM + key);
+        try {
+            redis.delete(prefix() + CLAIM + key);
+        } catch (RuntimeException unavailable) {
+            report("release a step-up claim", unavailable);
+        }
+    }
+
+    @Override
+    public long increment(String key, Duration holdFor) {
+        try {
+            Long count = redis.execute(INCREMENT, List.of(prefix() + COUNT + key), String.valueOf(holdFor.toMillis()));
+            return count != null ? count : Long.MAX_VALUE;
+        } catch (RuntimeException unavailable) {
+            report("keep a step-up count", unavailable);
+            return Long.MAX_VALUE;
+        }
+    }
+
+    @Override
+    public void clearCount(String key) {
+        try {
+            redis.delete(prefix() + COUNT + key);
+        } catch (RuntimeException unavailable) {
+            report("clear a step-up count", unavailable);
+        }
+    }
+
+    @Override
+    public boolean holds(String key) {
+        return Boolean.TRUE.equals(redis.hasKey(prefix() + key));
     }
 
     @Override
     @Nullable
     public <T extends Serializable> T take(String key, Class<T> type) {
-        String stored = redis.opsForValue().getAndDelete(PREFIX + key);
+        String stored;
+        try {
+            stored = redis.opsForValue().getAndDelete(prefix() + key);
+        } catch (RuntimeException unavailable) {
+            report("read a step-up option", unavailable);
+            return null;
+        }
         if (stored == null) {
             return null;
         }
         Object value = decode(stored);
         return type.isInstance(value) ? type.cast(value) : null;
+    }
+
+    private static void report(String what, RuntimeException failure) {
+        if (!StoreFailures.isReportedOutage(failure)) {
+            log.error("[StepUp] Redis did not {}", what, failure);
+        }
     }
 
     private static String encode(Serializable value) {

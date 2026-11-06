@@ -20,18 +20,24 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.service.IForceLogoutService;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.QueryTimeoutException;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -49,6 +55,35 @@ class RiskSignalReceiverTest {
     private final RiskSignalReceiver receiver = new RiskSignalReceiver(actions, zeroTrust,
             subjectId -> RiskSignalReceiver.userOf(subjectId,
                     email -> "carol@example.test".equals(email) ? "carol" : null), audit);
+
+    @Test
+    void aTokenAStoreDidNotLetBeActedOnAsksForTheLogoutAndIsActedOnWhenSentAgain() {
+        ZeroTrustActionRepository failing = mock(ZeroTrustActionRepository.class);
+        doThrow(new QueryTimeoutException("no answer")).doNothing().when(failing).removeLogoutData("alice");
+        RiskSignalReceiver acting = new RiskSignalReceiver(failing, zeroTrust,
+                subjectId -> RiskSignalReceiver.userOf(subjectId, email -> null), audit);
+        SecurityEventToken revoked = token("jti-outage", Map.of(
+                SecurityEventToken.SESSION_REVOKED, Map.of("subject", issSub("alice"))));
+
+        assertThatThrownBy(() -> acting.receive(revoked)).isInstanceOf(QueryTimeoutException.class);
+        verify(zeroTrust).invalidateAllUserSessions(eq("alice"), anyString());
+
+        assertThat(acting.receive(revoked).subjects()).containsExactly("alice");
+    }
+
+    @Test
+    void aFailureThatIsNoOutageKeepsTheTokenAsSeen() {
+        ZeroTrustActionRepository failing = mock(ZeroTrustActionRepository.class);
+        doThrow(new IllegalStateException("a bug")).when(failing).removeLogoutData("alice");
+        RiskSignalReceiver acting = new RiskSignalReceiver(failing, zeroTrust,
+                subjectId -> RiskSignalReceiver.userOf(subjectId, email -> null), audit);
+        SecurityEventToken revoked = token("jti-bug", Map.of(
+                SecurityEventToken.SESSION_REVOKED, Map.of("subject", issSub("alice"))));
+
+        assertThatThrownBy(() -> acting.receive(revoked)).isInstanceOf(IllegalStateException.class);
+
+        assertThat(acting.receive(revoked).subjects()).isEmpty();
+    }
 
     @Test
     void aRiskSignalHasTheSubjectDecidedAgainAndARestrictionStays() {
@@ -79,6 +114,43 @@ class RiskSignalReceiverTest {
         verify(zeroTrust).invalidateAllUserSessions(eq("carol"), anyString());
     }
 
+    private RiskSignalReceiver receiverWith(IForceLogoutService forceLogout) {
+        return new RiskSignalReceiver(actions, zeroTrust, subjectId -> RiskSignalReceiver.userOf(subjectId, null), audit,
+                forceLogout);
+    }
+
+    @Test
+    void anEventThatEndsSessionsEndsWhatTheForcedLogoutReaches() {
+        IForceLogoutService forceLogout = mock(IForceLogoutService.class);
+
+        receiverWith(forceLogout).receive(token("jti-6", Map.of(
+                SecurityEventToken.CREDENTIAL_COMPROMISE, Map.of("subject", issSub("alice")))));
+
+        verify(forceLogout).forceLogoutByUserId(eq("alice"), anyString());
+    }
+
+    @Test
+    void anEventThatOnlyDecidesAgainEndsNothing() {
+        IForceLogoutService forceLogout = mock(IForceLogoutService.class);
+
+        receiverWith(forceLogout).receive(token("jti-7", Map.of(
+                SecurityEventToken.RISK_LEVEL_CHANGE, Map.of("subject", issSub("alice")))));
+
+        verify(forceLogout, never()).forceLogoutByUserId(anyString(), anyString());
+    }
+
+    @Test
+    void aForcedLogoutThatFailsCostsNeitherTheAnswerNorTheAudit() {
+        IForceLogoutService forceLogout = mock(IForceLogoutService.class);
+        doThrow(new IllegalStateException("store down")).when(forceLogout).forceLogoutByUserId(anyString(), anyString());
+
+        RiskSignalReceiver.Receipt receipt = receiverWith(forceLogout).receive(token("jti-8", Map.of(
+                SecurityEventToken.ACCOUNT_DISABLED, Map.of("subject", issSub("alice")))));
+
+        assertThat(receipt.subjects()).containsExactly("alice");
+        assertThat(categories()).containsOnly(AuditEventCategory.RISK_SIGNAL_RECEIVED);
+    }
+
     @Test
     void aSubjectThatNamesNoUserIsRecordedAndNothingIsInvalidated() {
         actions.saveAction("alice", ZeroTrustAction.ALLOW, Map.of());
@@ -95,6 +167,19 @@ class RiskSignalReceiverTest {
         assertThat(RiskSignalReceiver.userOf(Map.of("format", "complex", "user", issSub("dave")), null))
                 .isEqualTo("dave");
         assertThat(RiskSignalReceiver.userOf(Map.of("format", "opaque", "id", "erin"), null)).isEqualTo("erin");
+    }
+
+    @Test
+    void aSignalNamingAPersonInTheFormOfAnInternalKeyStaysOffThatKey() {
+        String own = ZeroTrustUserKey.person("console::admin");
+        actions.saveAction("console::admin", ZeroTrustAction.ALLOW, Map.of());
+        actions.saveAction(own, ZeroTrustAction.ALLOW, Map.of());
+
+        receiver.receive(token("jti-5", Map.of(
+                SecurityEventToken.TOKEN_CLAIMS_CHANGE, Map.of("subject", issSub("console::admin")))));
+
+        assertThat(actions.getCurrentAction("console::admin")).isEqualTo(ZeroTrustAction.ALLOW);
+        assertThat(actions.getCurrentAction(own)).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
     }
 
     @Test

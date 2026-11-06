@@ -16,7 +16,10 @@
 package io.contexa.contexacommon.repository;
 
 import io.contexa.contexacommon.entity.Role;
+import io.contexa.contexacommon.security.authority.RoleAuthority;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -41,6 +44,38 @@ public interface RoleRepository extends JpaRepository<Role, Long> {
     Page<Role> findByRoleNameContainingIgnoreCaseOrRoleDescContainingIgnoreCase(String roleName, String roleDesc, Pageable pageable);
 
     Optional<Role> findByRoleName(String name);
+
+    /**
+     * Every role, each row locked for the rest of the transaction. The console takes it first when it changes who may
+     * administer it, so that two such changes follow one another instead of both reading the other's state as it was.
+     * The rows are taken in the order of their identifiers, so two of them never wait on each other.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from Role r order by r.id")
+    List<Role> findAllForUpdate();
+
+    /** How many accounts hold the role directly. */
+    @Query("select count(ur) from UserRole ur where ur.role.id = :roleId")
+    long countAccountsHolding(@Param("roleId") Long roleId);
+
+    /** How many groups hold the role. */
+    @Query("select count(gr) from GroupRole gr where gr.role.id = :roleId")
+    long countGroupsHolding(@Param("roleId") Long roleId);
+
+    /**
+     * The roles that give their holders the authority, by the rule of {@link RoleAuthority#authorityOf}: a role named
+     * {@code ROLE_SALES} and a role named {@code sales} both give {@code ROLE_SALES}. The authority of every role starts
+     * with {@code ROLE_}, so any other name gives an empty list.
+     */
+    default List<Role> findAllGrantingAuthority(String authority) {
+        if (authority == null || !authority.startsWith("ROLE_")) {
+            return List.of();
+        }
+        return findAll().stream()
+                .filter(role -> role.getRoleName() != null && !role.getRoleName().isEmpty()
+                        && RoleAuthority.authorityOf(role.getRoleName()).equals(authority))
+                .toList();
+    }
 
     @Override
     void delete(Role role);

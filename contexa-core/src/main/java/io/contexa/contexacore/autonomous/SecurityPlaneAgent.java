@@ -16,7 +16,10 @@
 package io.contexa.contexacore.autonomous;
 
 import io.contexa.contexacommon.enums.AuditEventCategory;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.security.subject.SubjectKind;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacommon.domain.SecurityEvent;
@@ -24,14 +27,17 @@ import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.handler.handler.SecurityDecisionEnforcementHandler;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.telemetry.SecurityEventTelemetryContext;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -39,6 +45,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.CompletableFuture;
@@ -47,8 +54,11 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.TimeUnit;
 import java.util.HashMap;
@@ -56,6 +66,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Set;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
@@ -104,6 +115,40 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     public static final String PROCESSING_STRATEGY_UNAVAILABLE = "processingStrategyUnavailable";
 
     /**
+     * Q-23: the analyses one user may hold at a time, whatever its sessions. A decision answers the requests behind it,
+     * so more of them buy the user nothing and take a turn from another user.
+     */
+    static final int USER_SHARE = 8;
+    /** Q-23: how many sessions are remembered as decided, and for how long; a forgotten one is first in line again. */
+    private static final int MAX_DECIDED_SESSIONS = 100_000;
+    private static final Duration DECIDED_SESSION_TTL = Duration.ofHours(1);
+
+    private static final int INITIAL_LINE_SIZE = 64;
+
+    /**
+     * The analyses accepted and not finished are kept within a twentieth of the maximum heap, an event being taken
+     * at 16 KiB, at most what the monitoring queue holds and at least {@link #MIN_ANALYSIS_LINE}.
+     */
+    private static final int ANALYSIS_LINE_HEAP_SHARE_DIVISOR = 20;
+    private static final long ANALYSIS_LINE_EVENT_BYTES = 16L * 1024;
+    private static final int MIN_ANALYSIS_LINE = 1_000;
+    private static final int DEFAULT_MONITOR_QUEUE = new SecurityPlaneProperties.MonitorSettings().getQueueSize();
+    private static final long LINE_FULL_REPORT_INTERVAL_MS = Duration.ofMinutes(1).toMillis();
+
+    /** Q-5: how many times the model is asked again about a request whose analysis failed. */
+    static final int JUDGE_AGAIN_TIMES = 3;
+    /**
+     * Q-5: the pace of those questions. All of them fit in the 60 seconds of a CHALLENGE no model decided, so a model
+     * that is back within that time frees the user before it is over.
+     */
+    private static final Duration DEFAULT_JUDGE_AGAIN_INTERVAL = Duration.ofSeconds(10);
+    /** Q-5: the requests kept to be asked again; past it their users wait for the CHALLENGE to end by itself. */
+    private static final int MAX_WAITING_TO_JUDGE_AGAIN = 1024;
+    private static final String JUDGED_AGAIN_TIMES = "judgedAgainTimes";
+    private static final String JUDGED_AGAIN_EVENT = "judgedAgainEvent";
+    private static final String EVENT_PROCESSING_IN_FLIGHT = "event_processing_in_flight";
+
+    /**
      * docs/agent RL-12 (QD): asked when a queued event's turn comes, before it is analysed. An event the stored decisions
      * now answer is recorded by the check and is not analysed.
      */
@@ -112,6 +157,10 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
         /** True when the stored decisions answer the event; the check has then recorded it. */
         boolean answeredWithoutAnalysis(SecurityEvent event);
+
+        /** Q-23: the event is past what its user may hold of the analysis and is not analysed. */
+        default void leftOut(SecurityEvent event) {
+        }
     }
 
     /**
@@ -132,6 +181,19 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     }
 
     private volatile QueuedEventRecheck queuedEventRecheck;
+    private final Cache<String, Boolean> decidedSessions = Caffeine.newBuilder()
+            .maximumSize(MAX_DECIDED_SESSIONS)
+            .expireAfterWrite(DECIDED_SESSION_TTL)
+            .build();
+    private final ConcurrentMap<String, Integer> analysesOfUsers = new ConcurrentHashMap<>();
+    private final AtomicInteger analysesInProgress = new AtomicInteger();
+    private volatile int analysisLineBound = Integer.MAX_VALUE;
+    private final AtomicLong analysesLeftOut = new AtomicLong();
+    private final AtomicLong lineFullReportedAt = new AtomicLong();
+    private volatile Duration judgeAgainInterval = DEFAULT_JUDGE_AGAIN_INTERVAL;
+    private final Set<String> waitingToJudgeAgain = ConcurrentHashMap.newKeySet();
+    private final AtomicInteger waitingForAnOwner = new AtomicInteger();
+    private ScheduledExecutorService judgeAgainTimer;
 
     public void setQueuedEventRecheck(QueuedEventRecheck queuedEventRecheck) {
         this.queuedEventRecheck = queuedEventRecheck;
@@ -148,6 +210,69 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         this.zeroTrustActionRepository = zeroTrustActionRepository;
     }
 
+    /** Q-5: how long the model is left alone before a request whose analysis failed is asked again. */
+    void setJudgeAgainInterval(Duration judgeAgainInterval) {
+        this.judgeAgainInterval = judgeAgainInterval;
+    }
+
+    /** How many analyses may be accepted and not finished. */
+    void setAnalysisLineBound(int analysisLineBound) {
+        this.analysisLineBound = analysisLineBound;
+    }
+
+    int analysisLineBound() {
+        return analysisLineBound;
+    }
+
+    /** How many events found the line full, kept in their sessions and not analysed, since the start. */
+    long analysesLeftOut() {
+        return analysesLeftOut.get();
+    }
+
+    /**
+     * The default limit of the analyses in line for a maximum heap of {@code maxHeapBytes} and a monitoring queue of
+     * {@code monitorQueueSize}. A 384 MiB heap gives 1,228 events, 2 GiB 6,553, and from about 3.1 GiB the monitoring
+     * queue's size, by default 10,000.
+     */
+    static int defaultAnalysisLineBound(long maxHeapBytes, int monitorQueueSize) {
+        long heapShare = maxHeapBytes / ANALYSIS_LINE_HEAP_SHARE_DIVISOR / ANALYSIS_LINE_EVENT_BYTES;
+        return (int) Math.max(MIN_ANALYSIS_LINE, Math.min(monitorQueueSize, heapShare));
+    }
+
+    /**
+     * PR-54: analyses the event on the analysis threads and tells the result through the future, so that the caller
+     * decides how long it waits. An analysis the caller stopped waiting for goes on and stores its decision; one there
+     * is no room for, past the user's share or on full threads, fails the future with a
+     * {@link RejectedExecutionException}.
+     */
+    public CompletableFuture<SecurityEventContext> processSecurityEventOffThread(SecurityEvent event) {
+        CompletableFuture<SecurityEventContext> decided = new CompletableFuture<>();
+        String analysisKey = resolveAnalysisKey(event);
+        boolean firstDecision = markFirstDecision(event, analysisKey);
+        String share = shareOf(event);
+        if (!takeAPlace(share)) {
+            decided.completeExceptionally(new RejectedExecutionException("The user's share of the analysis is taken"));
+            return decided;
+        }
+        try {
+            llmAnalysisExecutor.execute(AnalysisTurn.of(() -> {
+                try (SecurityEventTelemetryContext.Scope ignored = SecurityEventTelemetryContext.open(event)) {
+                    SecurityEventContext context = processSecurityEvent(event);
+                    rememberDecided(analysisKey, context);
+                    decided.complete(context);
+                } catch (Throwable failure) {
+                    decided.completeExceptionally(failure);
+                } finally {
+                    leaveThePlace(share);
+                }
+            }, firstDecision));
+        } catch (RejectedExecutionException noRoom) {
+            leaveThePlace(share);
+            decided.completeExceptionally(noRoom);
+        }
+        return decided;
+    }
+
     public void setDecisionEnforcementHandlerSupplier(
             Supplier<SecurityDecisionEnforcementHandler> decisionEnforcementHandlerSupplier) {
         this.decisionEnforcementHandlerSupplier = decisionEnforcementHandlerSupplier != null
@@ -159,6 +284,17 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         currentState = AgentState.INITIALIZING;
         securityMonitor.setBatchProcessor(this::processBatch);
         initializeStripedExecutors();
+        SecurityPlaneProperties.MonitorSettings monitor = securityPlaneProperties.getMonitor();
+        analysisLineBound = defaultAnalysisLineBound(Runtime.getRuntime().maxMemory(),
+                monitor != null ? monitor.getQueueSize() : DEFAULT_MONITOR_QUEUE);
+        judgeAgainTimer = Executors.newSingleThreadScheduledExecutor(task -> {
+            Thread thread = new Thread(task, "SecurityPlane-JudgeAgain");
+            thread.setDaemon(true);
+            return thread;
+        });
+        // PR-32: here and not only in the runner, which comes after the web server and the Kafka listeners have opened: an
+        // event of that moment was refused three times within milliseconds and dropped.
+        startOnItsOwn();
     }
 
     private void processBatch(List<SecurityEvent> events) {
@@ -173,21 +309,36 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         for (SecurityEvent event : events) {
             String analysisKey = resolveAnalysisKey(event);
             int stripeId = resolveStripeId(analysisKey);
-            event.addMetadata("analysisKey", analysisKey);
+            event.addMetadata("analysisKey", recordedAnalysisKey(event));
             event.addMetadata("stripeId", stripeId);
             event.addMetadata("analysisQueuedAt", System.currentTimeMillis());
+            boolean firstDecision = markFirstDecision(event, analysisKey);
+            String share = shareOf(event);
+            if (!takeAPlace(share)) {
+                event.addMetadata("analysisSkipped", "PAST_THE_USERS_SHARE");
+                leftOut(event);
+                continue;
+            }
+            if (analysesInProgress.get() > analysisLineBound) {
+                leaveThePlace(share);
+                lineIsFull(event);
+                continue;
+            }
 
-            actorSerialExecutor.execute(analysisKey, () -> {
+            Runnable analysis = AnalysisTurn.of(() -> {
+                boolean over = false;
                 try {
                     event.addMetadata("analysisStartedAt", System.currentTimeMillis());
                     if (answeredWhileQueued(event)) {
                         event.addMetadata("analysisSkipped", "ANSWERED_BY_DECISION_IN_FORCE");
                         event.addMetadata("analysisFinishedAt", System.currentTimeMillis());
+                        over = true;
                         return;
                     }
-                    processSecurityEventWithinBudget(event);
+                    rememberDecided(analysisKey, processSecurityEventWithinBudget(event));
                     processedEvents.incrementAndGet();
                     event.addMetadata("analysisFinishedAt", System.currentTimeMillis());
+                    over = true;
                 } catch (Exception e) {
                     event.addMetadata("analysisFinishedAt", System.currentTimeMillis());
                     if (!isProcessingStrategyUnavailable(event)
@@ -196,6 +347,8 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                                 event.getEventId(), e.getMessage());
                         return;
                     }
+                    // What stopped the analysis with an Error may stop the node: the event stays to be delivered again.
+                    over = !hasCause(e, Error.class);
                     if (!isProcessingFailureReported(event)) {
                         log.error("[SecurityPlaneAgent] Error processing event: {}", event.getEventId(), e);
                     }
@@ -204,12 +357,125 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                                 "eventId", event.getEventId(),
                                 "userId", event.getUserId() != null ? event.getUserId() : "unknown",
                                 "phase", "async_batch_processing",
-                                "analysisKey", analysisKey,
+                                "analysisKey", recordedAnalysisKey(event),
                                 "stripeId", stripeId
                         ));
                     }
+                } finally {
+                    leaveThePlace(share);
+                    if (over) {
+                        analysisIsOver(event);
+                    }
                 }
+            }, firstDecision);
+            try {
+                actorSerialExecutor.execute(analysisKey, analysis);
+            } catch (RuntimeException notTaken) {
+                leaveThePlace(share);
+                throw notTaken;
+            }
+        }
+    }
+
+    /** Q-23: whether the event's session has no decision of the model yet, as the event then says. */
+    private boolean markFirstDecision(SecurityEvent event, String analysisKey) {
+        boolean firstDecision = decidedSessions.getIfPresent(analysisKey) == null;
+        event.addMetadata(AnalysisTurn.FIRST_DECISION, firstDecision);
+        return firstDecision;
+    }
+
+    /** Q-23: a decision of the model ends the session's first turn; a failed analysis leaves it the turn. */
+    private void rememberDecided(String analysisKey, SecurityEventContext context) {
+        Object result = context != null && context.getMetadata() != null
+                ? context.getMetadata().get("processingResult") : null;
+        if (result instanceof ProcessingResult processed && processed.isSuccess()
+                && !Boolean.FALSE.equals(processed.getLlmDecisionPresent())) {
+            decidedSessions.put(analysisKey, Boolean.TRUE);
+        }
+    }
+
+    /**
+     * Q-23: the user whose share the event counts against, or null. Only a person's call to a resource counts: a sign-in
+     * is analysed whatever came before it, and an agent's analyses are limited by the flights, which wait for the
+     * verdict of the event they let pass.
+     */
+    private static String shareOf(SecurityEvent event) {
+        Map<String, Object> metadata = event.getMetadata();
+        boolean personsCall = metadata != null && event.getUserId() != null && !event.getUserId().isBlank()
+                && "AUTHORIZATION".equals(metadata.get("zerotrust.category")) && !agentEvent(metadata);
+        return personsCall ? event.getUserId() : null;
+    }
+
+    /** Q-23: takes a place in the analysis, false when the user's share is taken. */
+    private boolean takeAPlace(String share) {
+        boolean[] taken = {true};
+        if (share != null) {
+            analysesOfUsers.compute(share, (user, held) -> {
+                int analyses = held != null ? held : 0;
+                taken[0] = analyses < USER_SHARE;
+                return taken[0] ? Integer.valueOf(analyses + 1) : held;
             });
+        }
+        if (taken[0]) {
+            analysesInProgress.incrementAndGet();
+        }
+        return taken[0];
+    }
+
+    private void leaveThePlace(String share) {
+        analysesInProgress.decrementAndGet();
+        if (share != null) {
+            analysesOfUsers.computeIfPresent(share, (user, held) -> held > 1 ? held - 1 : null);
+        }
+    }
+
+    private static boolean agentEvent(Map<String, Object> metadata) {
+        Object kind = metadata.get("executionSubjectKind");
+        if (kind == null) {
+            return false;
+        }
+        try {
+            return SubjectKind.valueOf(kind.toString().trim()).agent();
+        } catch (IllegalArgumentException unknownKind) {
+            return false;
+        }
+    }
+
+    /**
+     * The line of analyses is at its limit, so the event is not queued: it stays a fact of its session and is
+     * counted, and the batch goes on, so nothing upstream waits for room. The request it came from was answered when it
+     * was made; its user's next request is analysed once there is room.
+     */
+    private void lineIsFull(SecurityEvent event) {
+        event.addMetadata("analysisSkipped", "PAST_THE_ANALYSIS_LINE");
+        long leftOutSoFar = analysesLeftOut.incrementAndGet();
+        long now = System.currentTimeMillis();
+        long reportedAt = lineFullReportedAt.get();
+        if (now - reportedAt >= LINE_FULL_REPORT_INTERVAL_MS && lineFullReportedAt.compareAndSet(reportedAt, now)) {
+            log.error("[SecurityPlaneAgent] The line of analyses is full at {} events: {} events since the start were "
+                    + "not analysed and are kept only in their sessions.", analysisLineBound, leftOutSoFar);
+        }
+        leftOut(event);
+    }
+
+    /** The event is not analysed: it ends here, whatever became of it, and holds nothing back. */
+    private void leftOut(SecurityEvent event) {
+        QueuedEventRecheck recheck = queuedEventRecheck;
+        try {
+            if (recheck != null) {
+                recheck.leftOut(event);
+            }
+        } catch (RuntimeException failure) {
+            log.error("[SecurityPlaneAgent] A request past the user's share could not be kept: eventId={}",
+                    event.getEventId(), failure);
+        }
+        analysisIsOver(event);
+    }
+
+    /** What took the event in may let it go. An event asked about again came from no record of its own. */
+    private void analysisIsOver(SecurityEvent event) {
+        if (event.getMetadata() == null || !event.getMetadata().containsKey(JUDGED_AGAIN_EVENT)) {
+            securityMonitor.settled(event);
         }
     }
 
@@ -234,7 +500,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             return "event_processing_timeout";
         }
         if (hasCause(exception, EventProcessingInFlightException.class)) {
-            return "event_processing_in_flight";
+            return EVENT_PROCESSING_IN_FLIGHT;
         }
         if (hasCause(exception, RejectedExecutionException.class)) {
             return "llm_executor_rejected";
@@ -253,8 +519,13 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         return false;
     }
 
+    /** The runner makes the agent of an application with lazy initialization, where nothing else may ask for it. */
     @Override
     public void run(String... args) {
+        startOnItsOwn();
+    }
+
+    private void startOnItsOwn() {
         if (securityPlaneProperties.getAgent().isAutoStart()) {
             start();
         }
@@ -266,7 +537,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         if (running.compareAndSet(false, true)) {
             currentState = AgentState.RUNNING;
         } else {
-            log.error("Agent {} is already running", agentName);
+            log.debug("Agent {} is already running", agentName);
         }
     }
 
@@ -280,6 +551,10 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     @PreDestroy
     public void shutdown() {
         stop();
+        ScheduledExecutorService timer = judgeAgainTimer;
+        if (timer != null) {
+            timer.shutdownNow();
+        }
         shutdownStripedExecutors();
     }
 
@@ -289,6 +564,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             return processSecurityEventAttempt(attempt);
         } finally {
             copyAttemptOutcome(event, attempt);
+            judgeAgainLater(event);
         }
     }
 
@@ -297,7 +573,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         ClaimedProcessing claimed = claimEventProcessing(event);
         SecurityContextDataStore.EventProcessingClaim claim = claimed.claim();
         if (claim == SecurityContextDataStore.EventProcessingClaim.PROCESSED) {
-            log.error("[SecurityPlaneAgent] Event {} already processed, skipping duplicate", event.getEventId());
+            log.debug("[SecurityPlaneAgent] Event {} already processed, skipping duplicate", event.getEventId());
             SecurityEventContext skippedContext = SecurityEventContext.builder()
                     .securityEvent(event)
                     .processingStatus(SecurityEventContext.ProcessingStatus.SKIPPED)
@@ -310,7 +586,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                     .securityEvent(event)
                     .processingStatus(SecurityEventContext.ProcessingStatus.SKIPPED)
                     .build();
-            skippedContext.addMetadata("skipReason", "event_processing_in_flight");
+            skippedContext.addMetadata("skipReason", EVENT_PROCESSING_IN_FLIGHT);
             return skippedContext;
         }
         SecurityEventContext reconciledContext = reconcilePersistedFinalDecision(event, claimed);
@@ -527,16 +803,28 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private void initializeStripedExecutors() {
         int workerCount = Math.max(1, securityPlaneProperties.getAgent().getAnalysisStripes());
         actorSerialExecutor = new KeyedSerialExecutor(
-                Executors.newFixedThreadPool(workerCount, new ActorSerialThreadFactory()),
+                new ThreadPoolExecutor(workerCount, workerCount, 0L, TimeUnit.MILLISECONDS,
+                        new PriorityBlockingQueue<>(INITIAL_LINE_SIZE, AnalysisTurn.ORDER), new ActorSerialThreadFactory()),
                 workerCount);
     }
 
     private String resolveAnalysisKey(SecurityEvent event) {
+        return analysisKey(event, event != null ? event.getSessionId() : null);
+    }
+
+    /**
+     * The analysis key as a record keeps it (Q-11): what goes in the event's metadata reaches the canonical context, so
+     * the seal and the observation, and it names the session by its reference. The key itself stays in this class.
+     */
+    private String recordedAnalysisKey(SecurityEvent event) {
+        return analysisKey(event, event != null ? RequestFactRedaction.sessionReference(event.getSessionId()) : null);
+    }
+
+    private String analysisKey(SecurityEvent event, String sessionId) {
         if (event == null) {
             return "unknown";
         }
         String userId = event.getUserId();
-        String sessionId = event.getSessionId();
         if (userId != null && !userId.isBlank() && sessionId != null && !sessionId.isBlank()) {
             return userId + "|" + sessionId;
         }
@@ -576,7 +864,61 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             return processAttemptWithinBudget(attempt);
         } finally {
             copyAttemptOutcome(event, attempt);
+            judgeAgainLater(event);
         }
+    }
+
+    /**
+     * Q-5: the analysis failed and left a CHALLENGE no model decided in force, so the model is asked about the request
+     * again in a while: a model that is back frees the user, or stops the user on its own decision, and no person has
+     * to do anything. It stays a few questions, one at a time for a session; past them, or for a session past the
+     * bound, the CHALLENGE ends with its time and the next request is analysed.
+     */
+    private void judgeAgainLater(SecurityEvent event) {
+        ScheduledExecutorService timer = judgeAgainTimer;
+        if (timer == null || event.getMetadata() == null
+                || !Boolean.TRUE.equals(event.getMetadata().get(SecurityDecisionEnforcementHandler.JUDGE_AGAIN))) {
+            return;
+        }
+        int times = getIntegerMetadata(event, JUDGED_AGAIN_TIMES);
+        String firstEvent = firstText(metadataText(event.getMetadata(), JUDGED_AGAIN_EVENT), event.getEventId());
+        String analysisKey = resolveAnalysisKey(event);
+        if (times >= JUDGE_AGAIN_TIMES || firstEvent == null
+                || waitingToJudgeAgain.size() >= MAX_WAITING_TO_JUDGE_AGAIN || !waitingToJudgeAgain.add(analysisKey)) {
+            return;
+        }
+        SecurityEvent again = newProcessingAttempt(event);
+        // Under its own id: a processed event is not analysed twice, and the decision on record would answer it.
+        again.setEventId(firstEvent + "-again-" + (times + 1));
+        again.addMetadata(JUDGED_AGAIN_EVENT, firstEvent);
+        again.addMetadata(JUDGED_AGAIN_TIMES, times + 1);
+        again.getMetadata().remove("deferredCount");
+        try {
+            timer.schedule(() -> {
+                waitingToJudgeAgain.remove(analysisKey);
+                judgeAgain(again);
+            }, judgeAgainInterval.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (RejectedExecutionException stopped) {
+            waitingToJudgeAgain.remove(analysisKey);
+        }
+    }
+
+    private void judgeAgain(SecurityEvent again) {
+        try {
+            if (running.get() && zeroTrustActionRepository != null
+                    && zeroTrustActionRepository.isTechnicalChallenge(decisionKey(again))) {
+                securityMonitor.deferEvent(again, "technical_challenge");
+            }
+        } catch (RuntimeException failure) {
+            log.error("[SecurityPlaneAgent] A request whose analysis failed could not be asked again: eventId={}",
+                    again.getEventId(), failure);
+        }
+    }
+
+    /** The key the event's decision is stored under, as the enforcement stored it. */
+    private static String decisionKey(SecurityEvent event) {
+        ZeroTrustSubject subject = ZeroTrustSubject.of(event);
+        return subject != null ? subject.storageKey() : event.getUserId();
     }
 
     private SecurityEvent newProcessingAttempt(SecurityEvent event) {
@@ -598,7 +940,8 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 "llmExecutorRejected", "llmExecutorRejectedAt", "analysisSubmittedAt",
                 "analysisExecutionStartedAt", "analysisExecutionFinishedAt", "analysisCompletedAt",
                 "executorQueueWaitMs", "staleProcessingResultDiscarded", "staleProcessingResultDiscardedAt",
-                PROCESSING_FAILURE_REPORTED, PROCESSING_STRATEGY_UNAVAILABLE)) {
+                PROCESSING_FAILURE_REPORTED, PROCESSING_STRATEGY_UNAVAILABLE,
+                SecurityDecisionEnforcementHandler.JUDGE_AGAIN)) {
             metadata.remove(key);
         }
         return SecurityEvent.builder()
@@ -622,7 +965,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         ClaimedProcessing claimed = claimEventProcessing(event);
         SecurityContextDataStore.EventProcessingClaim claim = claimed.claim();
         if (claim == SecurityContextDataStore.EventProcessingClaim.PROCESSED) {
-            log.error("[SecurityPlaneAgent] Event {} already processed, skipping duplicate", event.getEventId());
+            log.debug("[SecurityPlaneAgent] Event {} already processed, skipping duplicate", event.getEventId());
             SecurityEventContext skippedContext = SecurityEventContext.builder()
                     .securityEvent(event)
                     .processingStatus(SecurityEventContext.ProcessingStatus.SKIPPED)
@@ -646,7 +989,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         event.addMetadata(SecurityEventProcessor.PROCESSING_DEADLINE_AT, deadlineAt);
 
         try {
-            llmAnalysisExecutor.execute(() -> {
+            llmAnalysisExecutor.execute(AnalysisTurn.of(() -> {
             try (SecurityEventTelemetryContext.Scope ignored = SecurityEventTelemetryContext.open(event)) {
                 long executionStartedAt = System.currentTimeMillis();
                 event.addMetadata("analysisExecutionStartedAt", executionStartedAt);
@@ -673,7 +1016,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             } finally {
                 event.addMetadata("analysisExecutionFinishedAt", System.currentTimeMillis());
             }
-        });
+        }, Boolean.TRUE.equals(event.getMetadata().get(AnalysisTurn.FIRST_DECISION))));
         } catch (RejectedExecutionException rejectedExecutionException) {
             event.addMetadata("llmExecutorRejected", true);
             event.addMetadata("llmExecutorRejectedAt", System.currentTimeMillis());
@@ -689,7 +1032,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             event.addMetadata(SecurityEventProcessor.PROCESSING_TIMED_OUT, false);
             if (context != null
                     && context.getProcessingStatus() == SecurityEventContext.ProcessingStatus.SKIPPED
-                    && "event_processing_in_flight".equals(context.getMetadata().get("skipReason"))) {
+                    && EVENT_PROCESSING_IN_FLIGHT.equals(context.getMetadata().get("skipReason"))) {
                 throw new EventProcessingInFlightException(event.getEventId());
             }
             return context;
@@ -783,8 +1126,40 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             event.addMetadata("deferErrorClass", exception.getClass().getName());
             event.addMetadata("deferErrorMessage", exception.getMessage());
         }
-        securityMonitor.deferEvent(event, reason);
+        defer(event, reason, deferredCount);
         return true;
+    }
+
+    /**
+     * An event another owner holds is looked at again at once and then further and further apart: the owner may have
+     * finished it, or be gone, which takes the time its signs of life need to run out. Tries spent at once would all be
+     * over before that, and an event that came back after a crash would be dropped.
+     */
+    private void defer(SecurityEvent event, String reason, int deferredCount) {
+        ScheduledExecutorService timer = judgeAgainTimer;
+        long waitMs = EVENT_PROCESSING_IN_FLIGHT.equals(reason) ? judgeAgainInterval.toMillis() * deferredCount : 0L;
+        if (waitMs > 0L && timer != null && waitingForAnOwner.get() < MAX_WAITING_TO_JUDGE_AGAIN) {
+            waitingForAnOwner.incrementAndGet();
+            try {
+                timer.schedule(() -> {
+                    waitingForAnOwner.decrementAndGet();
+                    lookAgain(event, reason);
+                }, waitMs, TimeUnit.MILLISECONDS);
+                return;
+            } catch (RejectedExecutionException stopped) {
+                waitingForAnOwner.decrementAndGet();
+            }
+        }
+        securityMonitor.deferEvent(event, reason);
+    }
+
+    private void lookAgain(SecurityEvent event, String reason) {
+        try {
+            securityMonitor.deferEvent(event, reason);
+        } catch (RuntimeException failure) {
+            log.error("[SecurityPlaneAgent] An event another owner held could not be looked at again: eventId={}",
+                    event.getEventId(), failure);
+        }
     }
 
     private boolean isProcessingFailureReported(SecurityEvent event) {
@@ -810,6 +1185,22 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             }
         }
         return 0;
+    }
+
+    /** Q-23: the analyses accepted and not finished, on this node, the ones waiting for their turn among them. */
+    public int analysesInProgress() {
+        return analysesInProgress.get();
+    }
+
+    /**
+     * Q-23: whether the analysis is behind the requests: as many analyses are in progress as the backpressure threshold
+     * of the LLM executor names, counting what waits before the executor's queue and at a model server's gate as well. A
+     * full line is behind whatever the threshold says.
+     */
+    public boolean isBehind() {
+        SecurityPlaneProperties.LlmExecutorSettings settings = securityPlaneProperties.getLlmExecutor();
+        return settings.isBackpressureEnabled() && analysesInProgress.get()
+                >= Math.min(analysisLineBound, Math.max(1, settings.getBackpressureQueueThreshold()));
     }
 
     private final class ActorSerialThreadFactory implements ThreadFactory {
@@ -877,7 +1268,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                     }
                 }
                 if (shouldSchedule) {
-                    workerPool.execute(this);
+                    workerPool.execute(AnalysisTurn.of(this, AnalysisTurn.isFirstDecision(task)));
                 }
             }
 

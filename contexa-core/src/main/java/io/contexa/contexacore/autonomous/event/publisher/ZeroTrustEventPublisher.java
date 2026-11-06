@@ -18,8 +18,10 @@ package io.contexa.contexacore.autonomous.event.publisher;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.AgentConfirmationFacts;
 import io.contexa.contexacommon.security.bridge.ArgumentOrigins;
+import io.contexa.contexacommon.security.ConsoleSession;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.CredentialFacts;
+import io.contexa.contexacore.autonomous.event.support.HostSignInEvents;
 import io.contexa.contexacore.autonomous.event.support.InvocationArguments;
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.annotation.ResourceImportance;
@@ -30,6 +32,7 @@ import io.contexa.contexacommon.security.bridge.coverage.MissingBridgeContext;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
+import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import io.contexa.contexacommon.security.subject.SubjectKind;
 import io.contexa.contexacore.autonomous.agent.AgentRegistration;
@@ -40,6 +43,7 @@ import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacore.autonomous.utils.RequestIdentity;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor.RequestInfo;
@@ -47,14 +51,18 @@ import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustUserKey;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.aop.framework.AopProxyUtils;
 import org.springframework.aop.support.AopUtils;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.annotation.AnnotationUtils;
+import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -82,6 +90,9 @@ public class ZeroTrustEventPublisher {
     /** CQ-1: the payload key of the argument origins a host gives a protected method ({@link ArgumentOrigins}). */
     public static final String ARGUMENT_ORIGINS = ArgumentOrigins.KEY;
 
+    /** The request attribute that says the request's sign-in went to the engine: one sign-in is one decision. */
+    public static final String SIGN_IN_PUBLISHED = ZeroTrustEventPublisher.class.getName() + ".SIGN_IN_PUBLISHED";
+
     private final ApplicationEventPublisher eventPublisher;
     private final TieredStrategyProperties properties;
     private final SecurityContextDataStore securityContextDataStore;
@@ -104,6 +115,21 @@ public class ZeroTrustEventPublisher {
     @Autowired(required = false)
     private BridgeProperties bridgeProperties;
 
+    /** Whether the application's sign-ins reach Contexa; absent when Contexa owns the sign-in. */
+    @Autowired(required = false)
+    private HostSignInEvents hostSignInEvents;
+
+    /** Reads the stamps of a sign-in; asked for when one comes, the bridge being a servlet filter built apart. */
+    @Autowired(required = false)
+    private ObjectProvider<BridgeResolutionFilter> bridgeResolution;
+
+    /**
+     * The fact of a sign-in in a token state naming the login its token carries as {@code sid}: the client's next request
+     * is a bearer call, which is one session with that login, so the sign-in is decided for the context of that session
+     * and not for the servlet session of the login request. It steers the context and is not kept as a fact of the sign-in.
+     */
+    public static final String TOKEN_SESSION_ID = "tokenSessionId";
+
     public ZeroTrustEventPublisher(
             ApplicationEventPublisher eventPublisher,
             TieredStrategyProperties properties) {
@@ -123,25 +149,71 @@ public class ZeroTrustEventPublisher {
                 : new SecurityPlaneProperties();
     }
 
-    public void publishAuthenticationSuccess(
-            String userId,
-            String sessionId,
-            String clientIp,
-            String userAgent,
-            Map<String, Object> payload) {
-
-        publish(
+    /**
+     * A person signed in. The engine decides a sign-in from what a protected call of the same request carries: what the
+     * application stated on the request, the bridge's stamps, the authorities of the authentication and the failures on
+     * record, so that a guessed password is not a sign-in like any other. What {@code signIn} states of the sign-in stands
+     * over them. Without a request only that is known.
+     * <p>
+     * A request signs in once: a sign-in two parts of a login report (the event of Spring Security's filter and the
+     * success of the login's own handler) goes to the engine the first time only, so it is decided once and counted
+     * once against the person's decisions of a new context.
+     *
+     * @param request the request of the sign-in, null outside one
+     * @param signIn  the facts of the sign-in itself
+     */
+    public void publishAuthenticationSuccess(Authentication authentication, @Nullable HttpServletRequest request,
+                                             Map<String, Object> signIn) {
+        if (request != null) {
+            if (request.getAttribute(SIGN_IN_PUBLISHED) != null) {
+                log.debug("[ZeroTrust] The sign-in of this request went to the engine already: userId={}",
+                        authentication != null ? authentication.getName() : null);
+                return;
+            }
+            request.setAttribute(SIGN_IN_PUBLISHED, Boolean.TRUE);
+        }
+        resolveBridgeOfSignIn(request, authentication);
+        RequestInfo requestInfo = requestInfoOf(request);
+        Map<String, Object> payload = new HashMap<>();
+        if (requestInfo != null) {
+            populateRequestFacts(requestInfo, payload);
+            // A sign-in can go on to a call in the same request (remember-me), and the engine drops a second event of
+            // one id as a repeat: the ids of the request are the call's, and the sign-in gets its own.
+            REQUEST_IDS.forEach(payload::remove);
+        }
+        Map<String, Object> facts = new HashMap<>(signIn);
+        Object tokenSession = facts.remove(TOKEN_SESSION_ID);
+        payload.putAll(facts);
+        // The session id may have changed with the sign-in: its decision belongs to the session the client presents next,
+        // which in a token state is the login its token carries.
+        putIfPresent(payload, "contextBindingHash", SessionFingerprintUtil.generateNextRequestContextBindingHash(request,
+                tokenSession != null ? tokenSession.toString() : null));
+        populateAuthenticationFallback(authentication, payload);
+        String userId = authentication.getName();
+        populateStoredSecurityContext(userId, requestInfo, payload);
+        putIfAbsent(payload, "decisionBoundaryMode", securityZeroTrustMode());
+        eventPublisher.publishEvent(build(
                 ZeroTrustEventCategory.AUTHENTICATION,
                 ZeroTrustSpringEvent.TYPE_AUTHENTICATION_SUCCESS,
                 userId,
-                sessionId,
-                clientIp,
-                userAgent,
+                requestInfo != null ? requestInfo.getSessionId() : null,
+                requestInfo != null ? requestInfo.getClientIp() : null,
+                requestInfo != null ? requestInfo.getUserAgent() : null,
                 null,
-                payload
-        );
-
+                payload,
+                requestInfo != null ? requestInfo.getObservedAt() : null
+        ));
     }
+
+    /** The bridge met the request before the authentication existed, and a sign-in usually ends the request there. */
+    private void resolveBridgeOfSignIn(@Nullable HttpServletRequest request, Authentication authentication) {
+        BridgeResolutionFilter bridge = bridgeResolution != null ? bridgeResolution.getIfAvailable() : null;
+        if (bridge != null && request != null) {
+            bridge.resolveSignIn(request, authentication);
+        }
+    }
+
+    private static final List<String> REQUEST_IDS = List.of("eventId", "requestId", "correlationId");
 
     /** The method has not run: the event describes the authorization check before execution. */
     public static final String METHOD_NOT_RUN = "NOT_RUN";
@@ -149,6 +221,8 @@ public class ZeroTrustEventPublisher {
     public static final String METHOD_COMPLETED = "COMPLETED";
     /** The method ran and threw: a business failure, not an authorization result. */
     public static final String METHOD_FAILED = "FAILED";
+    /** What is known of a check that did not finish. */
+    private static final String EFFECT_UNKNOWN = "UNKNOWN";
 
     public void publishMethodAuthorization(
             MethodInvocation methodInvocation,
@@ -179,6 +253,25 @@ public class ZeroTrustEventPublisher {
                 executionFailure
         );
         eventPublisher.publishEvent(event);
+    }
+
+    /**
+     * The event of a call whose authorization check did not finish (PR-55, PR-84). A store that did not answer, or a check
+     * that failed, says nothing about the user: it was recorded as a DENY, and a DENY requires a BLOCK whatever the model
+     * answers, so an outage ended in a permanent BLOCK of normal users. What the check would have said is not known.
+     *
+     * @param checkFailure     the type of the failure that ended the check
+     * @param executionOutcome {@link #METHOD_COMPLETED} or {@link #METHOD_FAILED} after the method ran, null if it did not
+     * @param executionFailure the failure's type when the method threw
+     */
+    public void publishUncheckedMethodAuthorization(
+            MethodInvocation methodInvocation,
+            Authentication authentication,
+            String checkFailure,
+            String executionOutcome,
+            String executionFailure) {
+        eventPublisher.publishEvent(buildMethodAuthorizationEvent(methodInvocation, authentication, null, null,
+                executionOutcome, executionFailure, checkFailure));
     }
 
     /** The event of an authorization check made before the method runs (a synchronous decision). */
@@ -222,6 +315,19 @@ public class ZeroTrustEventPublisher {
             String denialReason,
             String executionOutcome,
             String executionFailure) {
+        return buildMethodAuthorizationEvent(methodInvocation, authentication, Boolean.valueOf(granted), denialReason,
+                executionOutcome, executionFailure, null);
+    }
+
+    /** {@code granted} is null, and {@code checkFailure} set, when the check did not finish. */
+    private ZeroTrustSpringEvent buildMethodAuthorizationEvent(
+            MethodInvocation methodInvocation,
+            Authentication authentication,
+            Boolean granted,
+            String denialReason,
+            String executionOutcome,
+            String executionFailure,
+            String checkFailure) {
 
         RequestInfo requestInfo = extractRequestInfoFromContext();
         String effectiveUserId = resolveEffectiveUserId(authentication);
@@ -233,7 +339,7 @@ public class ZeroTrustEventPublisher {
                 : methodResource;
 
         Map<String, Object> payload = new HashMap<>();
-        payload.put("granted", granted);
+        payload.put("granted", granted != null ? granted : EFFECT_UNKNOWN);
         payload.put("denialReason", denialReason != null ? denialReason : "");
         if (executionOutcome != null) {
             payload.put("methodExecutionOutcome", executionOutcome);
@@ -278,141 +384,23 @@ public class ZeroTrustEventPublisher {
         }
 
         if (requestInfo != null) {
-            payload.put("httpUri", requestInfo.getRequestUri());
-            payload.put("requestPath", requestInfo.getRequestUri());
-            payload.put("requestUri", requestInfo.getRequestUri());
-            payload.put("httpMethod", requestInfo.getMethod());
-            payload.put("eventId", requestInfo.getRequestId());
-            payload.put("requestId", requestInfo.getRequestId());
-            payload.put("correlationId", requestInfo.getRequestId());
-            if (requestInfo.getClientRequestId() != null) {
-                // The caller's own request id, kept for log correlation only; never an identifier of the processing.
-                payload.put("clientRequestId", requestInfo.getClientRequestId());
-            }
-            payload.put("contextBindingHash", requestInfo.getContextBindingHash());
-            payload.put("clientIp", requestInfo.getClientIp());
-            payload.put("userAgent", requestInfo.getUserAgent());
-            if (requestInfo.getUntrustedAnomalySignalClaim() != null) {
-                payload.put("untrustedAnomalySignalClaim", requestInfo.getUntrustedAnomalySignalClaim());
-            }
-            if (requestInfo.getDecisionBoundaryMode() != null) {
-                payload.put("decisionBoundaryMode", requestInfo.getDecisionBoundaryMode());
-            }
-            if (requestInfo.getRequestedModelId() != null) {
-                payload.put("requestedModelId", requestInfo.getRequestedModelId());
-                payload.put("preferredModel", requestInfo.getRequestedModelId());
-            }
-            if (requestInfo.getRuntimeTemperature() != null) {
-                payload.put("temperature", requestInfo.getRuntimeTemperature());
-            }
-            if (requestInfo.getRuntimeTopP() != null) {
-                payload.put("topP", requestInfo.getRuntimeTopP());
-            }
-            if (requestInfo.getRuntimeSeed() != null) {
-                payload.put("seed", requestInfo.getRuntimeSeed());
-            }
-            if (requestInfo.getRuntimeMaxTokens() != null) {
-                payload.put("maxTokens", requestInfo.getRuntimeMaxTokens());
-            }
-            if (requestInfo.getRuntimeDisableRetries() != null) {
-                payload.put("disableRetries", requestInfo.getRuntimeDisableRetries());
-            }
-            if (requestInfo.getRuntimeDisableOllamaThinking() != null) {
-                payload.put("disableOllamaThinking", requestInfo.getRuntimeDisableOllamaThinking());
-            }
-            if (requestInfo.getSimulatedUserAgentLabel() != null) {
-                payload.put("simulatedUserAgentLabel", requestInfo.getSimulatedUserAgentLabel());
-            }
-            payload.put("isNewSession", requestInfo.getIsNewSession());
-            if (requestInfo.getSessionCreatedAt() != null) {
-                payload.put("sessionCreatedAt", requestInfo.getSessionCreatedAt().toString());
-            }
-            payload.put("isNewUser", requestInfo.getIsNewUser());
-            payload.put("isNewDevice", requestInfo.getIsNewDevice());
-            payload.put("recentRequestCount", requestInfo.getRecentRequestCount());
-            payload.put("failedLoginAttempts", requestInfo.getFailedLoginAttempts());
-            payload.put("baselineConfidence", requestInfo.getBaselineConfidence());
-            payload.put("isSensitiveResource", requestInfo.getIsSensitiveResource());
-            if (requestInfo.getAuthMethod() != null) {
-                payload.put("authMethod", requestInfo.getAuthMethod());
-            }
-            if (requestInfo.getResourceSensitivity() != null) {
-                payload.put("resourceSensitivity", requestInfo.getResourceSensitivity());
-            }
-            if (requestInfo.getResourceBusinessLabel() != null) {
-                payload.put("resourceLabel", requestInfo.getResourceBusinessLabel());
-            }
-            if (requestInfo.getResourceAuthorText() != null) {
-                payload.put("resourceAuthorText", requestInfo.getResourceAuthorText());
-            }
-            if (requestInfo.getResourceScope() != null) {
-                payload.put("resourceScope", requestInfo.getResourceScope());
-            }
-            if (requestInfo.getClaimedRecord() != null) {
-                payload.put("claimedRecord", requestInfo.getClaimedRecord());
-            }
-            if (requestInfo.getRequestItems() != null) {
-                payload.put("requestItems", requestInfo.getRequestItems());
-            }
-            if (requestInfo.getResourceId() != null) {
-                payload.put("resourceId", requestInfo.getResourceId());
-            }
-            if (requestInfo.getTenantId() != null) {
-                payload.put("tenantId", requestInfo.getTenantId());
-            }
-            if (requestInfo.getOrganizationId() != null) {
-                payload.put("organizationId", requestInfo.getOrganizationId());
-            }
-            payload.put("mfaVerified", requestInfo.getMfaVerified());
-            if (requestInfo.getPreviousPath() != null) {
-                payload.put("previousPath", requestInfo.getPreviousPath());
-            }
-            if (requestInfo.getLastRequestIntervalMs() != null) {
-                payload.put("lastRequestIntervalMs", requestInfo.getLastRequestIntervalMs());
-            }
-            payload.put("userRoles", requestInfo.getUserRoles());
-            if (requestInfo.getServletPath() != null) {
-                payload.put("servletPath", requestInfo.getServletPath());
-            }
-            if (requestInfo.getQueryString() != null) {
-                payload.put("queryString", requestInfo.getQueryString());
-            }
-            populateBridgePayload(requestInfo, payload);
-            populateRequestContextHints(requestInfo, payload);
-            populateTestRunMarker(payload);
-
-            if (requestInfo.getGeoCountry() != null) {
-                payload.put("geoCountry", requestInfo.getGeoCountry());
-            }
-            if (requestInfo.getGeoCity() != null) {
-                payload.put("geoCity", requestInfo.getGeoCity());
-            }
-            if (requestInfo.getGeoLatitude() != null) {
-                payload.put("geoLatitude", requestInfo.getGeoLatitude());
-            }
-            if (requestInfo.getGeoLongitude() != null) {
-                payload.put("geoLongitude", requestInfo.getGeoLongitude());
-            }
-            if (Boolean.TRUE.equals(requestInfo.getImpossibleTravel())) {
-                payload.put("impossibleTravel", true);
-            }
-            // The move facts travel whether or not the host also calls the move impossible (W2-13).
-            putIfAbsent(payload, "travelDistanceKm", requestInfo.getTravelDistanceKm());
-            putIfAbsent(payload, "travelElapsedMinutes", requestInfo.getTravelElapsedMinutes());
-            putIfAbsent(payload, "previousLocation", requestInfo.getPreviousLocation());
-            promoteOfficialContextFields(requestInfo, payload);
+            populateRequestFacts(requestInfo, payload);
         }
         promoteProtectableDescriptor(payload);
 
         populateAuthenticationFallback(authentication, payload);
         populateStoredSecurityContext(effectiveUserId, requestInfo, payload);
-        reconcileAuthorizationDecision(granted, payload);
+        if (granted != null) {
+            reconcileAuthorizationDecision(granted, payload);
+        } else {
+            recordUnfinishedCheck(checkFailure, payload);
+        }
         putIfAbsent(payload, "decisionBoundaryMode", securityZeroTrustMode());
 
         if (actionRedisRepository != null && authentication != null) {
             // docs/agent A5-1: the decision in force for the request's subject, classified as the event records it.
             ZeroTrustSubject subject = ZeroTrustSubject.ofFacts(effectiveUserId,
-                    CanonicalExecutionEventMetadataSupport.enrich(payload));
+                    CanonicalExecutionEventMetadataSupport.enrich(consoleFact(payload)));
             ZeroTrustAction currentAction = subject != null ? subject.currentAction(actionRedisRepository)
                     : actionRedisRepository.getCurrentAction(effectiveUserId);
             if (currentAction != null) {
@@ -431,6 +419,136 @@ public class ZeroTrustEventPublisher {
                 payload,
                 requestInfo != null ? requestInfo.getObservedAt() : null
         );
+    }
+
+    /** What the request says of itself, the bridge's stamps and what the application stated on it. */
+    private void populateRequestFacts(RequestInfo requestInfo, Map<String, Object> payload) {
+        payload.put("httpUri", requestInfo.getRequestUri());
+        payload.put("requestPath", requestInfo.getRequestUri());
+        payload.put("requestUri", requestInfo.getRequestUri());
+        payload.put("httpMethod", requestInfo.getMethod());
+        payload.put("eventId", requestInfo.getRequestId());
+        payload.put("requestId", requestInfo.getRequestId());
+        payload.put("correlationId", requestInfo.getRequestId());
+        if (requestInfo.getClientRequestId() != null) {
+            // The caller's own request id, kept for log correlation only; never an identifier of the processing.
+            payload.put("clientRequestId", requestInfo.getClientRequestId());
+        }
+        if (requestInfo.getQueryReference() != null) {
+            payload.put(RequestFactRedaction.QUERY_REFERENCE, requestInfo.getQueryReference());
+        }
+        payload.put("contextBindingHash", requestInfo.getContextBindingHash());
+        payload.put("clientIp", requestInfo.getClientIp());
+        payload.put("userAgent", requestInfo.getUserAgent());
+        if (requestInfo.getUntrustedAnomalySignalClaim() != null) {
+            payload.put("untrustedAnomalySignalClaim", requestInfo.getUntrustedAnomalySignalClaim());
+        }
+        if (requestInfo.getDecisionBoundaryMode() != null) {
+            payload.put("decisionBoundaryMode", requestInfo.getDecisionBoundaryMode());
+        }
+        if (requestInfo.getRequestedModelId() != null) {
+            payload.put("requestedModelId", requestInfo.getRequestedModelId());
+            payload.put("preferredModel", requestInfo.getRequestedModelId());
+        }
+        if (requestInfo.getRuntimeTemperature() != null) {
+            payload.put("temperature", requestInfo.getRuntimeTemperature());
+        }
+        if (requestInfo.getRuntimeTopP() != null) {
+            payload.put("topP", requestInfo.getRuntimeTopP());
+        }
+        if (requestInfo.getRuntimeSeed() != null) {
+            payload.put("seed", requestInfo.getRuntimeSeed());
+        }
+        if (requestInfo.getRuntimeMaxTokens() != null) {
+            payload.put("maxTokens", requestInfo.getRuntimeMaxTokens());
+        }
+        if (requestInfo.getRuntimeDisableRetries() != null) {
+            payload.put("disableRetries", requestInfo.getRuntimeDisableRetries());
+        }
+        if (requestInfo.getRuntimeDisableOllamaThinking() != null) {
+            payload.put("disableOllamaThinking", requestInfo.getRuntimeDisableOllamaThinking());
+        }
+        if (requestInfo.getSimulatedUserAgentLabel() != null) {
+            payload.put("simulatedUserAgentLabel", requestInfo.getSimulatedUserAgentLabel());
+        }
+        payload.put("isNewSession", requestInfo.getIsNewSession());
+        if (requestInfo.getSessionCreatedAt() != null) {
+            payload.put("sessionCreatedAt", requestInfo.getSessionCreatedAt().toString());
+        }
+        payload.put("isNewUser", requestInfo.getIsNewUser());
+        payload.put("isNewDevice", requestInfo.getIsNewDevice());
+        payload.put("recentRequestCount", requestInfo.getRecentRequestCount());
+        payload.put("failedLoginAttempts", requestInfo.getFailedLoginAttempts());
+        payload.put("baselineConfidence", requestInfo.getBaselineConfidence());
+        payload.put("isSensitiveResource", requestInfo.getIsSensitiveResource());
+        if (requestInfo.getAuthMethod() != null) {
+            payload.put("authMethod", requestInfo.getAuthMethod());
+        }
+        if (requestInfo.getResourceSensitivity() != null) {
+            payload.put("resourceSensitivity", requestInfo.getResourceSensitivity());
+        }
+        if (requestInfo.getResourceBusinessLabel() != null) {
+            payload.put("resourceLabel", requestInfo.getResourceBusinessLabel());
+        }
+        if (requestInfo.getResourceAuthorText() != null) {
+            payload.put("resourceAuthorText", requestInfo.getResourceAuthorText());
+        }
+        if (requestInfo.getResourceScope() != null) {
+            payload.put("resourceScope", requestInfo.getResourceScope());
+        }
+        if (requestInfo.getClaimedRecord() != null) {
+            payload.put("claimedRecord", requestInfo.getClaimedRecord());
+        }
+        if (requestInfo.getRequestItems() != null) {
+            payload.put("requestItems", requestInfo.getRequestItems());
+        }
+        if (requestInfo.getResourceId() != null) {
+            payload.put("resourceId", requestInfo.getResourceId());
+        }
+        if (requestInfo.getTenantId() != null) {
+            payload.put("tenantId", requestInfo.getTenantId());
+        }
+        if (requestInfo.getOrganizationId() != null) {
+            payload.put("organizationId", requestInfo.getOrganizationId());
+        }
+        payload.put("mfaVerified", requestInfo.getMfaVerified());
+        if (requestInfo.getPreviousPath() != null) {
+            payload.put("previousPath", requestInfo.getPreviousPath());
+        }
+        if (requestInfo.getLastRequestIntervalMs() != null) {
+            payload.put("lastRequestIntervalMs", requestInfo.getLastRequestIntervalMs());
+        }
+        payload.put("userRoles", requestInfo.getUserRoles());
+        if (requestInfo.getServletPath() != null) {
+            payload.put("servletPath", requestInfo.getServletPath());
+        }
+        if (requestInfo.getQueryString() != null) {
+            payload.put("queryString", requestInfo.getQueryString());
+        }
+        populateBridgePayload(requestInfo, payload);
+        populateRequestContextHints(requestInfo, payload);
+        populateTestRunMarker(payload);
+
+        if (requestInfo.getGeoCountry() != null) {
+            payload.put("geoCountry", requestInfo.getGeoCountry());
+        }
+        if (requestInfo.getGeoCity() != null) {
+            payload.put("geoCity", requestInfo.getGeoCity());
+        }
+        if (requestInfo.getGeoLatitude() != null) {
+            payload.put("geoLatitude", requestInfo.getGeoLatitude());
+        }
+        if (requestInfo.getGeoLongitude() != null) {
+            payload.put("geoLongitude", requestInfo.getGeoLongitude());
+        }
+        if (Boolean.TRUE.equals(requestInfo.getImpossibleTravel())) {
+            payload.put("impossibleTravel", true);
+        }
+        // The move facts travel whether or not the host also calls the move impossible (W2-13).
+        putIfAbsent(payload, "travelDistanceKm", requestInfo.getTravelDistanceKm());
+        putIfAbsent(payload, "travelElapsedMinutes", requestInfo.getTravelElapsedMinutes());
+        putIfAbsent(payload, "previousLocation", requestInfo.getPreviousLocation());
+        promoteOfficialContextFields(requestInfo, payload);
     }
 
     /**
@@ -525,7 +643,7 @@ public class ZeroTrustEventPublisher {
             Map<String, Object> payload,
             Instant eventTimestamp) {
 
-        Map<String, Object> effectivePayload = CanonicalExecutionEventMetadataSupport.enrich(payload != null ? payload : Map.of());
+        Map<String, Object> effectivePayload = CanonicalExecutionEventMetadataSupport.enrich(consoleFact(payload));
         putAgentAccountability(effectivePayload);
 
         return ZeroTrustSpringEvent.builder(this)
@@ -560,16 +678,19 @@ public class ZeroTrustEventPublisher {
     }
 
     private RequestInfo extractRequestInfoFromContext() {
+        return RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attrs
+                ? requestInfoOf(attrs.getRequest())
+                : null;
+    }
+
+    @Nullable
+    private RequestInfo requestInfoOf(@Nullable HttpServletRequest request) {
         try {
-            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-            if (attrs != null) {
-                HttpServletRequest request = attrs.getRequest();
-                return RequestInfoExtractor.extract(request, getSecurity());
-            }
+            return RequestInfoExtractor.extract(request, getSecurity());
         } catch (Exception e) {
             log.error("Failed to extract request info from context", e);
+            return null;
         }
-        return null;
     }
 
     private void populateBridgePayload(RequestInfo requestInfo, Map<String, Object> payload) {
@@ -878,10 +999,19 @@ public class ZeroTrustEventPublisher {
             return;
         }
         try {
+            // Q-16: a step-up passed in this context is this session's MFA, whoever owns the sign-in: under HOST_OWNED
+            // the application's authentication stays as it was, so nothing else tells the next decision of it.
+            Instant stepUpPassedAt = securityContextDataStore.getChallengeVerifiedAt(ZeroTrustUserKey.person(userId),
+                    textValue(payload.get("contextBindingHash")));
+            if (stepUpPassedAt != null) {
+                payload.put("mfaVerified", true);
+                putIfAbsent(payload, "challengeVerifiedAt", stepUpPassedAt.toString());
+                putIfAbsent(payload, "lastMfaUsedAt", stepUpPassedAt.toString());
+            }
             // The user-level MFA mark is not this session's MFA: another session (or device) may have set it. It
             // is carried as its own fact when this session has no MFA of its own.
             if (!Boolean.TRUE.equals(payload.get("mfaVerified"))) {
-                Instant lastMfaElsewhere = securityContextDataStore.getLastMfaVerifiedAt(userId);
+                Instant lastMfaElsewhere = securityContextDataStore.getLastMfaVerifiedAt(ZeroTrustUserKey.person(userId));
                 if (lastMfaElsewhere != null) {
                     payload.put("recentMfaElsewhereAt", lastMfaElsewhere.toString());
                 }
@@ -896,8 +1026,9 @@ public class ZeroTrustEventPublisher {
                 long windowStart = now - windowMinutes * 60_000L;
                 // The user's own failures only: other users failing from the same address are not this user's.
                 // Unknown stays out of the payload, so the prompt says it is unknown rather than zero.
-                Integer failures = securityContextDataStore.findRecentLoginFailures(userId, windowStart, now);
-                if (failures != null) {
+                Integer failures = securityContextDataStore.findRecentLoginFailures(ZeroTrustUserKey.person(userId),
+                        windowStart, now);
+                if (failures != null && (failures > 0 || failedSignInsReachContexa())) {
                     payload.put("failedLoginAttempts", failures);
                     payload.put("failedLoginWindowMinutes", windowMinutes);
                 }
@@ -905,6 +1036,24 @@ public class ZeroTrustEventPublisher {
         } catch (RuntimeException exception) {
             log.error("Failed to populate stored authentication context: userId={}", userId, exception);
         }
+    }
+
+    /** Whether no failure on record means no failure: Contexa keeps its own sign-ins, the application's reach it by events. */
+    private boolean failedSignInsReachContexa() {
+        return hostSignInEvents == null || hostSignInEvents.reaching();
+    }
+
+    /** An effect the bridge reported stands: it came from the application's own check, which did finish. */
+    private void recordUnfinishedCheck(String checkFailure, Map<String, Object> payload) {
+        payload.put("authorizationCheckFailure", checkFailure);
+        String existingEffect = textValue(payload.get("authorizationEffect"));
+        if (StringUtils.hasText(existingEffect) && !EFFECT_UNKNOWN.equalsIgnoreCase(existingEffect)) {
+            payload.putIfAbsent("bridgeAuthorizationEffect", existingEffect);
+            payload.putIfAbsent("authorizationEffectProvenance", "BRIDGE_AUTHORIZATION_STAMP");
+            return;
+        }
+        payload.put("authorizationEffect", EFFECT_UNKNOWN);
+        payload.put("authorizationEffectProvenance", "METHOD_AUTHORIZATION_UNAVAILABLE");
     }
 
     private void reconcileAuthorizationDecision(boolean granted, Map<String, Object> payload) {
@@ -1203,6 +1352,17 @@ public class ZeroTrustEventPublisher {
     private boolean isClassNameFallback(AuthenticationStamp authenticationStamp, String evidenceStateKey) {
         return BridgeSemanticBoundaryPolicy.CLASS_NAME_FALLBACK.equals(
                 authenticationStamp.attributes().get(evidenceStateKey));
+    }
+
+    /** Q-17: a request of the console's chain says so, as the subject of its event is told from the payload. */
+    private static Map<String, Object> consoleFact(Map<String, Object> payload) {
+        Map<String, Object> given = payload != null ? payload : Map.of();
+        if (!ConsoleSession.current()) {
+            return given;
+        }
+        Map<String, Object> marked = new HashMap<>(given);
+        marked.put("consoleSession", Boolean.TRUE);
+        return marked;
     }
 
     /**

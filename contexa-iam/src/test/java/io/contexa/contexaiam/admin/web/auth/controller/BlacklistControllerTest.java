@@ -15,7 +15,12 @@
  */
 package io.contexa.contexaiam.admin.web.auth.controller;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
+import io.contexa.contexaiam.admin.web.auth.service.UnderOwnBlockException;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
 import org.junit.jupiter.api.AfterEach;
@@ -29,9 +34,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.MessageSource;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextImpl;
 import org.springframework.ui.ConcurrentModel;
@@ -46,6 +53,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -251,7 +259,7 @@ class BlacklistControllerTest {
 
             assertThat(view).isEqualTo("redirect:/contexa/admin/blacklist");
             assertThat(ra.getFlashAttributes().get("message")).asString().contains("deleted");
-            verify(blockedUserService).deleteBlockRecord(1L);
+            verify(blockedUserService).deleteBlockRecord(1L, "admin");
         }
 
         @Test
@@ -259,12 +267,109 @@ class BlacklistControllerTest {
         void error() {
             RedirectAttributes ra = new RedirectAttributesModelMap();
             doThrow(new RuntimeException("Cannot delete active block"))
-                    .when(blockedUserService).deleteBlockRecord(1L);
+                    .when(blockedUserService).deleteBlockRecord(1L, "admin");
 
             String view = controller.deleteBlockRecord(1L, ra);
 
             assertThat(view).isEqualTo("redirect:/contexa/admin/blacklist");
-            assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("Cannot delete active block");
+            assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("The action could not be completed. See the server log.").doesNotContain("Cannot delete active block");
+        }
+
+        @Test
+        @DisplayName("an own record refused says why, as it is")
+        void ownRecordRefused() {
+            RedirectAttributes ra = new RedirectAttributesModelMap();
+            doThrow(new AccessDeniedException("Another administrator lifts it"))
+                    .when(blockedUserService).deleteBlockRecord(1L, "admin");
+
+            assertThat(controller.deleteBlockRecord(1L, ra)).isEqualTo("redirect:/contexa/admin/blacklist");
+            assertThat(ra.getFlashAttributes().get("errorMessage")).isEqualTo("Another administrator lifts it");
+        }
+    }
+
+    @Nested
+    @DisplayName("a session and its own block")
+    class OwnRelease {
+
+        @Test
+        @DisplayName("a refused own release goes back to the record and says why, as it is")
+        void aRefusedRelease() {
+            RedirectAttributes ra = new RedirectAttributesModelMap();
+            doThrow(new AccessDeniedException("Another administrator lifts it"))
+                    .when(blockedUserService).resolveBlockById(anyLong(), anyString(), anyString(), anyString());
+
+            String view = controller.resolveBlock(1L, "ALLOW", "it was me", ra);
+
+            assertThat(view).isEqualTo("redirect:/contexa/admin/blacklist/1");
+            assertThat(ra.getFlashAttributes().get("errorMessage")).isEqualTo("Another administrator lifts it");
+        }
+
+        @Test
+        @DisplayName("a record already lifted, or deleted while in force, says so on the page without an ERROR")
+        void theStateOfTheRecord() {
+            Logger logger = (Logger) LoggerFactory.getLogger(BlacklistController.class);
+            ListAppender<ILoggingEvent> lines = new ListAppender<>();
+            lines.start();
+            logger.addAppender(lines);
+            try {
+                RedirectAttributes resolved = new RedirectAttributesModelMap();
+                doThrow(new IllegalStateException("Already resolved: id=1"))
+                        .when(blockedUserService).resolveBlockById(1L, "admin", "ALLOW", "again");
+                assertThat(controller.resolveBlock(1L, "ALLOW", "again", resolved))
+                        .isEqualTo("redirect:/contexa/admin/blacklist/1");
+                assertThat(resolved.getFlashAttributes().get("errorMessage")).isEqualTo("Already resolved: id=1");
+
+                RedirectAttributes active = new RedirectAttributesModelMap();
+                doThrow(new IllegalStateException("Cannot delete active block. Resolve first: id=1"))
+                        .when(blockedUserService).deleteBlockRecord(1L, "admin");
+                controller.deleteBlockRecord(1L, active);
+                assertThat(active.getFlashAttributes().get("errorMessage"))
+                        .isEqualTo("Cannot delete active block. Resolve first: id=1");
+
+                assertThat(lines.list).noneMatch(line -> line.getLevel() == Level.ERROR);
+            } finally {
+                logger.detachAppender(lines);
+            }
+        }
+
+        @Test
+        @DisplayName("a session under its own BLOCK is not sent back to a page: the refusal goes on to its 403")
+        void aSessionUnderItsOwnBlock() {
+            RedirectAttributes ra = new RedirectAttributesModelMap();
+            UnderOwnBlockException refused = new UnderOwnBlockException("It only reads");
+            doThrow(refused).when(blockedUserService).resolveBlockById(anyLong(), anyString(), anyString(), anyString());
+            doThrow(refused).when(blockedUserService).deleteBlockRecord(anyLong(), anyString());
+            doThrow(refused).when(blockedUserService).releaseChallenge(anyString(), anyString(), anyString());
+
+            assertThatThrownBy(() -> controller.resolveBlock(1L, "ALLOW", "checked", ra)).isSameAs(refused);
+            assertThatThrownBy(() -> controller.deleteBlockRecord(1L, ra)).isSameAs(refused);
+            assertThatThrownBy(() -> controller.releaseChallenge("alice", "checked", ra)).isSameAs(refused);
+            assertThat(ra.getFlashAttributes()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("a refused CHALLENGE release says why, as it is")
+        void aRefusedChallengeRelease() {
+            RedirectAttributes ra = new RedirectAttributesModelMap();
+            doThrow(new AccessDeniedException("Another administrator lifts it"))
+                    .when(blockedUserService).releaseChallenge(anyString(), anyString(), anyString());
+
+            String view = controller.releaseChallenge("console::admin", "it was me", ra);
+
+            assertThat(view).isEqualTo("redirect:/contexa/admin/blacklist");
+            assertThat(ra.getFlashAttributes().get("errorMessage")).isEqualTo("Another administrator lifts it");
+        }
+
+        @Test
+        @DisplayName("the list tells a console session under its own BLOCK where to verify")
+        void theListShowsTheWay() {
+            when(blockedUserService.findBlockedUsers("all", null)).thenReturn(List.of());
+            when(blockedUserService.ownBlockAwaitsVerification("admin")).thenReturn(true);
+            Model model = new ConcurrentModel();
+
+            controller.listBlockedUsers("all", null, model);
+
+            assertThat(model.getAttribute("ownBlockAwaitsVerification")).isEqualTo(true);
         }
     }
 }

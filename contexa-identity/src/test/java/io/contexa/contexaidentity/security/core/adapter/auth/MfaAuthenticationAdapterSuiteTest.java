@@ -55,9 +55,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import io.contexa.contexaidentity.security.filter.OneTimeTokenAddressRefusalFilter;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
+import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
+import org.springframework.security.web.authentication.ott.GenerateOneTimeTokenFilter;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -264,6 +270,10 @@ class MfaAuthenticationAdapterSuiteTest {
 
             when(applicationContext.getBean(ContexaOneTimeTokens.BEAN_NAME, ContexaOneTimeTokens.class))
                     .thenReturn(new ContexaOneTimeTokens(mock(EmailOneTimeTokenService.class)));
+            AuthUrlProvider urls = mock(AuthUrlProvider.class);
+            when(urls.getOttRequestCodeUi()).thenReturn("/mfa/ott/request-code-ui");
+            when(applicationContext.getBean(AuthUrlProvider.class)).thenReturn(urls);
+            when(applicationContext.getBean(AuthResponseWriter.class)).thenReturn(mock(AuthResponseWriter.class));
 
             OneTimeTokenLoginConfigurer<HttpSecurity> mockConfigurer = mock(OneTimeTokenLoginConfigurer.class);
             when(mockConfigurer.defaultSubmitPageUrl(any())).thenReturn(mockConfigurer);
@@ -287,6 +297,7 @@ class MfaAuthenticationAdapterSuiteTest {
             verify(mockConfigurer).defaultSubmitPageUrl("/mfa/ott/submit");
             verify(mockConfigurer).showDefaultSubmitPage(true);
             verify(mockConfigurer).tokenGeneratingUrl("/mfa/ott/generate");
+            verify(httpSecurity).addFilterBefore(any(OneTimeTokenAddressRefusalFilter.class), eq(GenerateOneTimeTokenFilter.class));
         }
     }
 

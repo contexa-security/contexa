@@ -75,9 +75,18 @@ public class DefaultSealedEvidencePackageQueryService implements SealedEvidenceP
         return searchLightweight("user_id", userId.trim(), from, to, pageable);
     }
 
+    /**
+     * Verifies the package as stored, read whole: the hash covers columns a lightweight row leaves out, so on such a row
+     * it could only fail. A package no longer stored is not intact.
+     */
     @Override
     public boolean verifyIntegrity(SealedEvidencePackage evidencePackage) {
-        return lookupService.verifyIntegrity(evidencePackage);
+        if (evidencePackage == null) {
+            return false;
+        }
+        return lookupService.findByPackageId(evidencePackage.getPackageId())
+                .map(lookupService::verifyIntegrity)
+                .orElse(false);
     }
 
     private Page<SealedEvidencePackage> searchLightweight(

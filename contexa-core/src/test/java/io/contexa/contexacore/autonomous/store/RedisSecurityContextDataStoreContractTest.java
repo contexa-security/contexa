@@ -15,16 +15,15 @@
  */
 package io.contexa.contexacore.autonomous.store;
 
+import io.contexa.contexacommon.store.ApplicationNamespace;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.testsupport.RedisTestTemplates;
-import java.net.InetSocketAddress;
-import java.net.Socket;
+import io.contexa.contexacore.testsupport.TestStores;
 import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.api.Disabled;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
@@ -32,31 +31,15 @@ import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 
-@EnabledIf("io.contexa.contexacore.autonomous.store.RedisSecurityContextDataStoreContractTest#isLocalRedisAvailable")
 class RedisSecurityContextDataStoreContractTest extends AbstractSecurityContextDataStoreContractTest {
-
-    private static final String REDIS_HOST =
-            System.getProperty("contexa.test.redis.host",
-                    System.getenv().getOrDefault("CONTEXA_TEST_REDIS_HOST", "localhost"));
-    private static final int REDIS_PORT = Integer.parseInt(
-            System.getProperty("contexa.test.redis.port",
-                    System.getenv().getOrDefault("CONTEXA_TEST_REDIS_PORT", "6379")));
 
     private static LettuceConnectionFactory connectionFactory;
     private static RedisTemplate<String, Object> redisTemplate;
 
-    static boolean isLocalRedisAvailable() {
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(REDIS_HOST, REDIS_PORT), 500);
-            return true;
-        } catch (Exception ex) {
-            return false;
-        }
-    }
-
     @BeforeAll
     static void startRedis() {
-        RedisStandaloneConfiguration config = new RedisStandaloneConfiguration(REDIS_HOST, REDIS_PORT);
+        TestStores.Redis server = TestStores.disposableRedis();
+        RedisStandaloneConfiguration config = new RedisStandaloneConfiguration(server.host(), server.port());
         connectionFactory = new LettuceConnectionFactory(config);
         connectionFactory.afterPropertiesSet();
 
@@ -84,6 +67,13 @@ class RedisSecurityContextDataStoreContractTest extends AbstractSecurityContextD
     }
 
     @Override
+    protected SecurityContextDataStore createStoreWithAllowValidity(Duration validity) {
+        RedisSecurityContextDataStore store = new RedisSecurityContextDataStore(redisTemplate);
+        store.setAllowValidity(validity);
+        return store;
+    }
+
+    @Override
     protected SecurityContextDataStore createStoreWithLoginFailureRetention(Duration retention) {
         RedisSecurityContextDataStore store = new RedisSecurityContextDataStore(redisTemplate);
         store.setLoginFailureRetention(retention);
@@ -95,6 +85,13 @@ class RedisSecurityContextDataStoreContractTest extends AbstractSecurityContextD
         RedisSecurityContextDataStore store = new RedisSecurityContextDataStore(redisTemplate);
         store.setObservationCapacity(capacity);
         return store;
+    }
+
+    /** The process stops: its store stops saying it lives, and the next process reads the same Redis. */
+    @Override
+    protected SecurityContextDataStore storeOfTheNextProcess() {
+        ((RedisSecurityContextDataStore) store).close();
+        return createStore();
     }
 
     @Override
@@ -113,6 +110,13 @@ class RedisSecurityContextDataStoreContractTest extends AbstractSecurityContextD
                 + "end end "
                 + "return 0";
         redisTemplate.execute(new DefaultRedisScript<>(script, Long.class), List.of());
+    }
+
+    @Override
+    protected long heldLoginFailureKeys() {
+        long keys = redisTemplate.keys(ApplicationNamespace.key("security:context:authentication:failure:*")).size();
+        Long ordered = redisTemplate.opsForZSet().zCard(ZeroTrustRedisKeys.authenticationLoginFailureKeys());
+        return Math.max(keys, ordered != null ? ordered : 0);
     }
 
     @Override
