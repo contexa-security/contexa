@@ -50,6 +50,14 @@ The format is based on Keep a Changelog and the project follows semantic version
   `errorMessage` from the answer of a failed MFA request, no longer gets them, and the `message` of a failed MFA
   sign-in no longer names the failing step; read the log instead.
 
+- **The answers of the MFA flow to a state or a request it has no step for no longer name them.** A verified factor
+  that left the flow in a state no step follows was answered with `Unexpected state: ` and the state's name, a flow
+  found in a terminal state that has no answer with `Unknown terminal state: ` and the state, and a request of a kind the
+  flow does not take with `Unsupported request type: ` and the kind's description. They now answer in general words;
+  the state or the kind, the person and the MFA session are in the log. The status codes, the `error` codes
+  (`MFA_PROCESSING_ERROR`, `UNKNOWN_STATE`, `UNSUPPORTED_REQUEST`) and the fields of the answers are as they were.
+  **Check:** a client that matched on the text of the `message` of these answers must match on the `error` code.
+
 - **A session an older node tracked after the references were introduced is turned into its reference when the
   console reads the sessions.** The tracked sessions that a database kept under the value their cookie carries were
   moved to their references once, when the application started. In a rolling upgrade a node not yet upgraded goes on
