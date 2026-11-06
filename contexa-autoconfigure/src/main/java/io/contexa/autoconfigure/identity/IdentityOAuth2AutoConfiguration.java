@@ -93,6 +93,7 @@ import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -495,8 +496,30 @@ public class IdentityOAuth2AutoConfiguration {
                 () -> zeroTrustEnforcing() ? zeroTrustActions.getIfAvailable() : null);
     }
 
+    /**
+     * The token customizer the authorization server finds: Contexa's own checks first, then the application's customizers
+     * (any number, in their order) that {@link HostTokenCustomizerDemotion} took out of the bean type the server looks for.
+     * The server takes one customizer bean; before, a customizer of the application replaced Contexa's and its checks
+     * with it.
+     */
     @Bean(name = "contexaTokenCustomizer")
-    @ConditionalOnMissingBean(OAuth2TokenCustomizer.class)
+    @ConditionalOnMissingBean(name = "contexaTokenCustomizer")
+    public ComposedTokenCustomizer composedTokenCustomizer(
+            ObjectProvider<DelegationRegistry> delegationRegistry,
+            ObjectProvider<AgentClientDirectory> agentClientDirectory,
+            ObjectProvider<AccountTokenGuard> accountGuard,
+            ObjectProvider<HostTokenCustomizer> applicationCustomizers) {
+        return new ComposedTokenCustomizer(tokenCustomizer(delegationRegistry, agentClientDirectory, accountGuard),
+                applicationCustomizers.orderedStream().toList());
+    }
+
+    /** Takes the application's token customizers out of the type the authorization server takes only one of. */
+    @Bean(name = "contexaTokenCustomizerComposition")
+    public static BeanFactoryPostProcessor tokenCustomizerComposition() {
+        return new HostTokenCustomizerDemotion();
+    }
+
+    /** Contexa's own token checks and claims; the bean the server finds is {@link #composedTokenCustomizer}. */
     public OAuth2TokenCustomizer<JwtEncodingContext> tokenCustomizer(
             ObjectProvider<DelegationRegistry> delegationRegistry,
             ObjectProvider<AgentClientDirectory> agentClientDirectory,

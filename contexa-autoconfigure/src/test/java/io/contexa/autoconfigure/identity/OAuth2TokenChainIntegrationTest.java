@@ -39,6 +39,7 @@ import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.resolver.TokenDelegationStampResolver;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.security.subject.AgentClientDirectory;
+import io.contexa.contexacommon.security.subject.AgentClientStatusUnavailableException;
 import io.contexa.contexacore.autonomous.agent.DelegationRegistry;
 import io.contexa.contexacore.autonomous.agent.InMemoryDelegationRegistry;
 import io.contexa.contexaiam.admin.web.agent.controller.AgentDelegationApiController;
@@ -61,6 +62,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.junit.jupiter.api.AfterEach;
@@ -335,11 +337,90 @@ class OAuth2TokenChainIntegrationTest {
         assertThat(claims.hasClaim("cnf")).isFalse();
     }
 
+    /**
+     * The application's own token customizers beside Contexa's: the authorization server, which takes one customizer bean,
+     * still finds exactly one, runs Contexa's checks first and keeps what the application adds.
+     */
+    @Test
+    void anApplicationsTokenCustomizersRunAfterContexasOnTheRealTokenEndpoint() throws Exception {
+        start(true, List.of(), ApplicationTokenCustomizers.class);
+
+        Jwt claims = decode(clientCredentials(null).get("access_token").asText());
+
+        assertThat(claims.getClaimAsString("client_id")).isEqualTo(AGENT_CLIENT);
+        assertThat(claims.getClaimAsString("tenant")).isEqualTo("acme");
+        assertThat(claims.getClaimAsString("saw_client_id")).as("Contexa's claims were there when the application's ran")
+                .isEqualTo(AGENT_CLIENT);
+        assertThat(claims.getClaimAsStringList("trail")).containsExactly("first", "second");
+    }
+
+    @Test
+    void anExchangeBeyondTheScopeOfTheTokenExchangedIsRefusedAlsoWhenTheApplicationCustomizesTokens() throws Exception {
+        start(true, List.of(), ApplicationTokenCustomizers.class);
+
+        MvcResult exchanged = mvc.perform(post("/oauth2/token")
+                        .header("Authorization", basic(AGENT_CLIENT, AGENT_SECRET))
+                        .param("grant_type", TOKEN_EXCHANGE)
+                        .param("subject_token", userToken())
+                        .param("subject_token_type", ACCESS_TOKEN_TYPE)
+                        .param("scope", "reports.write"))
+                .andReturn();
+
+        assertThat(exchanged.getResponse().getStatus()).isEqualTo(400);
+        assertThat(exchanged.getResponse().getContentAsString()).contains("invalid_scope");
+    }
+
+    /**
+     * A suspended agent gets no token whatever the application customizes, and an agent whose suspension cannot be read is
+     * stopped for the time being, at the token endpoint and at the resource server alike, while a person's sign-in and
+     * token go on. The agent is served again once the status can be read.
+     */
+    @Test
+    void anAgentWhoseSuspensionIsKnownOrCannotBeReadIsStoppedAndAPersonIsNot() throws Exception {
+        start(true, List.of(), ApplicationTokenCustomizers.class, SwitchableDirectory.class);
+        DirectoryState state = context.getBean(DirectoryState.class);
+        String agentToken = clientCredentials(null).get("access_token").asText();
+        String userToken = userToken();
+
+        state.suspended = true;
+        MvcResult suspended = agentTokenRequest();
+        assertThat(suspended.getResponse().getStatus()).isEqualTo(400);
+        assertThat(suspended.getResponse().getContentAsString()).contains("unauthorized_client");
+        assertThat(callApi(agentToken)).isEqualTo(401);
+
+        state.suspended = false;
+        state.unreadable = true;
+        MvcResult unreadable = agentTokenRequest();
+        assertThat(unreadable.getResponse().getStatus()).isEqualTo(400);
+        assertThat(unreadable.getResponse().getContentAsString()).contains("temporarily_unavailable")
+                .doesNotContain("secret-host");
+        assertThat(callApi(agentToken)).isEqualTo(401);
+        assertThat(callApi(userToken)).as("a person's token never asks the agent registry").isEqualTo(200);
+        assertThat(decode(userToken()).getClaimAsString("client_id")).as("nor does a person's sign-in")
+                .isEqualTo(INTERNAL_CLIENT);
+
+        state.unreadable = false;
+        assertThat(callApi(agentToken)).isEqualTo(200);
+        assertThat(agentTokenRequest().getResponse().getStatus()).isEqualTo(200);
+    }
+
+    private MvcResult agentTokenRequest() throws Exception {
+        return mvc.perform(post("/oauth2/token")
+                        .header("Authorization", basic(AGENT_CLIENT, AGENT_SECRET))
+                        .param("grant_type", "client_credentials")
+                        .param("scope", "reports.read"))
+                .andReturn();
+    }
+
+    private int callApi(String token) throws Exception {
+        return mvc.perform(get("/api/orders").header("Authorization", "Bearer " + token)).andReturn().getResponse().getStatus();
+    }
+
     private void start(boolean tokenExchange) {
         start(tokenExchange, List.of());
     }
 
-    private void start(boolean tokenExchange, List<String> audiences) {
+    private void start(boolean tokenExchange, List<String> audiences, Class<?>... moreConfiguration) {
         AuthContextProperties properties = new AuthContextProperties();
         properties.getOauth2().setClientSecret(INTERNAL_SECRET);
         properties.getOauth2().setTokenExchangeEnabled(tokenExchange);
@@ -348,6 +429,9 @@ class OAuth2TokenChainIntegrationTest {
         context.setServletContext(new MockServletContext());
         context.addBeanFactoryPostProcessor(beans -> beans.registerSingleton("authContextProperties", properties));
         context.register(ChainConfig.class);
+        if (moreConfiguration.length > 0) {
+            context.register(moreConfiguration);
+        }
         context.refresh();
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
     }
@@ -445,12 +529,19 @@ class OAuth2TokenChainIntegrationTest {
             };
         }
 
+        /** Contexa's token customizer as the auto-configuration builds it: its checks, then the application's customizers. */
+        @Bean(name = "contexaTokenCustomizer")
+        ComposedTokenCustomizer contexaTokenCustomizer(IdentityOAuth2AutoConfiguration contexaOAuth2,
+                                                       ObjectProvider<DelegationRegistry> delegations,
+                                                       ObjectProvider<AgentClientDirectory> agents,
+                                                       ObjectProvider<AccountTokenGuard> accountGuard,
+                                                       ObjectProvider<HostTokenCustomizer> applicationCustomizers) {
+            return contexaOAuth2.composedTokenCustomizer(delegations, agents, accountGuard, applicationCustomizers);
+        }
+
         @Bean
-        OAuth2TokenCustomizer<JwtEncodingContext> tokenCustomizer(IdentityOAuth2AutoConfiguration contexaOAuth2,
-                                                                  ObjectProvider<DelegationRegistry> delegations,
-                                                                  ObjectProvider<AgentClientDirectory> agents,
-                                                                  ObjectProvider<AccountTokenGuard> accountGuard) {
-            return contexaOAuth2.tokenCustomizer(delegations, agents, accountGuard);
+        static BeanFactoryPostProcessor contexaTokenCustomizerComposition() {
+            return IdentityOAuth2AutoConfiguration.tokenCustomizerComposition();
         }
 
         @Bean
@@ -567,6 +658,61 @@ class OAuth2TokenChainIntegrationTest {
         @Bean
         AfterBearerRecorder afterBearerRecorder() {
             return new AfterBearerRecorder();
+        }
+    }
+
+    /** Two customizers of an application: they add claims and note what Contexa's checks had written when they ran. */
+    @Configuration
+    static class ApplicationTokenCustomizers {
+
+        @Bean
+        @Order(2)
+        OAuth2TokenCustomizer<JwtEncodingContext> second() {
+            return context -> {
+                context.getClaims().claim("tenant", "acme");
+                context.getClaims().claim("trail", List.of("first", "second"));
+            };
+        }
+
+        @Bean
+        @Order(1)
+        OAuth2TokenCustomizer<JwtEncodingContext> first() {
+            return context -> context.getClaims().claim("saw_client_id",
+                    context.getClaims().build().getClaims().get("client_id"));
+        }
+    }
+
+    /** What the registry of agents says now. */
+    static class DirectoryState {
+        volatile boolean suspended;
+        volatile boolean unreadable;
+    }
+
+    /** The agent registry of the chain, which can be made to say suspended or to fail. */
+    @Configuration
+    static class SwitchableDirectory {
+
+        @Bean
+        DirectoryState directoryState() {
+            return new DirectoryState();
+        }
+
+        @Bean
+        AgentClientDirectory agentClientDirectory(DirectoryState state) {
+            return new AgentClientDirectory() {
+                @Override
+                public Optional<String> activeAgentForClient(String tenantId, String clientId) {
+                    return AGENT_CLIENT.equals(clientId) ? Optional.of("report-bot") : Optional.empty();
+                }
+
+                @Override
+                public boolean suspendedAgentClient(String tenantId, String clientId) {
+                    if (state.unreadable && AGENT_CLIENT.equals(clientId)) {
+                        throw new AgentClientStatusUnavailableException("cannot read jdbc:postgresql://secret-host/contexa");
+                    }
+                    return state.suspended && AGENT_CLIENT.equals(clientId);
+                }
+            };
         }
     }
 

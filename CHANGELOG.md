@@ -8,6 +8,16 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **A token customizer of your own no longer takes Contexa's token checks away.** The authorization server takes exactly
+  one `OAuth2TokenCustomizer<JwtEncodingContext>` bean and Contexa registered its own only when the application had no
+  customizer (of any token type), so an application that declared one lost the refusal of a suspended agent's token,
+  the account check at the renewal of a person's token and the rules of a token exchange (scope, lifetime, no exchange of
+  an exchanged token), without a word. Contexa's checks now always run first, and the application's customizers (any
+  number, in their `@Order`) run after them: what they add to the claims is kept, a refusal of Contexa's ends the issuance
+  before they run, and one INFO line at the start says that they were composed. **Check:** the application's customizer
+  beans keep their names but are no longer beans of that type (the server finds only Contexa's composed one), so code that
+  injects one of them by that type gets the composed customizer; a bean you name `contexaTokenCustomizer` still replaces
+  Contexa's whole, checks included, as before.
 - **A failing agent registry no longer lifts the suspension of an agent.** When the registry could not be read (its store
   failed, did not answer in time, or all workers of the request path were held), the lookup of a suspension ended as "not
   suspended", so the tokens of a suspended agent were issued and accepted for as long as the outage lasted. The lookup now
