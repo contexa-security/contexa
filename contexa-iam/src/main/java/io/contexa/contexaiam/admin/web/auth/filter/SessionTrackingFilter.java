@@ -17,6 +17,7 @@ package io.contexa.contexaiam.admin.web.auth.filter;
 
 import lombok.extern.slf4j.Slf4j;
 import io.contexa.contexacommon.security.RequestPaths;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexacommon.security.ZeroTrustScreens;
 import io.contexa.contexaiam.admin.web.auth.service.SessionManagementService;
 import io.contexa.contexaiam.domain.entity.ActiveSession;
@@ -39,6 +40,7 @@ import java.io.IOException;
  * On each authenticated request:
  * 1. Checks if session is marked as expired in DB -> forces HTTP session invalidation
  * 2. Tracks session activity for monitoring
+ * The session is found and tracked by its reference, never by the value its cookie carries.
  */
 @RequiredArgsConstructor
 @Slf4j
@@ -66,7 +68,8 @@ public class SessionTrackingFilter extends OncePerRequestFilter {
                 session.setAttribute("_sessionExpireCheck", now);
                 ActiveSession tracked = null;
                 try {
-                    tracked = activeSessionRepository.findById(session.getId()).orElse(null);
+                    tracked = activeSessionRepository.findById(RequestFactRedaction.sessionReference(session.getId()))
+                            .orElse(null);
                 } catch (RuntimeException e) {
                     // the tracked sessions live in Contexa's database: when it cannot be read the session is not forced out for it
                     log.warn("Tracked sessions could not be read; the request goes on: {}", e.toString());
@@ -92,7 +95,7 @@ public class SessionTrackingFilter extends OncePerRequestFilter {
                     session.setAttribute("_sessionTrackTime", nowTrack);
                     try {
                         sessionManagementService.trackSession(
-                                session.getId(),
+                                RequestFactRedaction.sessionReference(session.getId()),
                                 auth.getName(),
                                 auth.getName(),
                                 request.getRemoteAddr(),

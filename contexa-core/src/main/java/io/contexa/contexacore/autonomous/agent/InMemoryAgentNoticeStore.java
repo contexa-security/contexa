@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /** The notices kept in memory (docs/agent A5-3): a deployment without the Contexa database. The latest 10,000 stay. */
 public class InMemoryAgentNoticeStore implements AgentNoticeStore {
@@ -54,6 +55,14 @@ public class InMemoryAgentNoticeStore implements AgentNoticeStore {
                 .sorted(Comparator.comparing(AgentNotice::createdAt).reversed())
                 .limit(Math.max(0, limit))
                 .toList();
+    }
+
+    @Override
+    public synchronized Optional<AgentNotice> find(String recipientId, String kind, String correlationId) {
+        return notices.stream()
+                .filter(notice -> notice.recipientId().equals(recipientId) && notice.kind().equals(kind)
+                        && correlationId != null && correlationId.equals(notice.correlationId()))
+                .max(Comparator.comparing(AgentNotice::createdAt));
     }
 
     @Override

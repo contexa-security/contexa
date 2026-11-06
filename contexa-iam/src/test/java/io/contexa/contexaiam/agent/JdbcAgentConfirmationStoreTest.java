@@ -109,6 +109,36 @@ class JdbcAgentConfirmationStoreTest {
         });
     }
 
+    /** The size of the request's body is kept alike, and so is a size never recorded; the body itself is not kept. */
+    @Test
+    void bothStoresKeepTheSizeOfTheRequestsBody() {
+        for (AgentConfirmationStore store : List.of(new JdbcAgentConfirmationStore(jdbc),
+                new InMemoryAgentConfirmationStore())) {
+            store.save(sized("c-body", 1234L));
+            store.save(sized("c-none", 0L));
+            store.save(sized("c-unseen", AgentConfirmation.BODY_NOT_SEEN));
+            store.save(sized("c-old", null));
+
+            assertThat(store.find("c-body")).map(AgentConfirmation::bodyBytes).as(store.getClass().getSimpleName())
+                    .contains(1234L);
+            assertThat(store.find("c-none")).map(AgentConfirmation::bodyBytes).contains(0L);
+            assertThat(store.find("c-unseen")).map(AgentConfirmation::bodyBytes)
+                    .contains(AgentConfirmation.BODY_NOT_SEEN);
+            assertThat(store.find("c-old")).hasValueSatisfying(old -> assertThat(old.bodyBytes()).isNull());
+            // A decision keeps it.
+            AgentConfirmation approved = store.find("c-body").orElseThrow().decided(AgentConfirmation.Status.APPROVED,
+                    NOW.plusSeconds(5), "alice", null, "ctxa-sig:k1:abc", NOW.plusSeconds(905));
+            store.transition(approved, AgentConfirmation.Status.PENDING);
+            assertThat(store.find("c-body")).map(AgentConfirmation::bodyBytes).contains(1234L);
+        }
+    }
+
+    private static AgentConfirmation sized(String id, Long bodyBytes) {
+        return new AgentConfirmation(id, null, "DELEGATED_AGENT", "alice", "report-agent", null, "alice", "hash-" + id,
+                "POST", "/api/exports", AgentConfirmation.DECISION_CHALLENGE, null, null,
+                AgentConfirmation.Status.PENDING, NOW, NOW.plusSeconds(900), null, null, null, null, null, bodyBytes);
+    }
+
     /**
      * An identifier past its column is never cut, since a cut one names another delegation, agent or person: neither
      * store gets the confirmation, and the request it was asked for is refused alike.
@@ -141,6 +171,10 @@ class JdbcAgentConfirmationStoreTest {
         assertThat(store.find("c-1")).contains(first);
         assertThat(store.latest("alice::agent::report-agent", "hash-1", AgentConfirmation.Status.PENDING))
                 .map(AgentConfirmation::confirmationId).contains("c-2");
+        // Whether a confirmation of the agent waits, of any request: pending and in its time.
+        assertThat(store.waiting("alice::agent::report-agent", NOW.plusSeconds(10))).isTrue();
+        assertThat(store.waiting("carol::agent::report-agent", NOW.plusSeconds(10))).isFalse();
+        assertThat(store.waiting("alice::agent::report-agent", NOW.plusSeconds(902))).isFalse();
         assertThat(store.latest("alice::agent::report-agent", "hash-2", AgentConfirmation.Status.PENDING)).isEmpty();
         assertThat(store.forRecipient("alice", 10)).extracting(AgentConfirmation::confirmationId)
                 .containsExactly("c-2", "c-1");
@@ -166,8 +200,15 @@ class JdbcAgentConfirmationStoreTest {
             assertThat(used.authorizationId()).isEqualTo("ctxa-sig:k1:abc");
         });
 
+        // A decided confirmation waits no more; the other one of the agent still does.
+        assertThat(store.waiting("alice::agent::report-agent", NOW.plusSeconds(10))).isTrue();
+        store.transition(store.find("c-2").orElseThrow().decided(AgentConfirmation.Status.REJECTED, NOW.plusSeconds(50),
+                "alice", null, null, NOW.plusSeconds(901)), AgentConfirmation.Status.PENDING);
+        assertThat(store.waiting("alice::agent::report-agent", NOW.plusSeconds(60))).isFalse();
+        assertThat(store.waiting("bob::agent::report-agent", NOW.plusSeconds(60))).isTrue();
+
         assertThat(store.overdue(NOW.plusSeconds(902), 10)).extracting(AgentConfirmation::confirmationId)
-                .containsExactly("c-2", "c-3");
+                .containsExactly("c-3");
         assertThat(store.overdue(NOW.plusSeconds(10), 10)).isEmpty();
     }
 

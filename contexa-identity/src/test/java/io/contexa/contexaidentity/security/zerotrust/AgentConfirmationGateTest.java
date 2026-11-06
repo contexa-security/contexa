@@ -183,6 +183,35 @@ class AgentConfirmationGateTest {
         assertThat(writer.details.get("confirmationId")).isNotEqualTo(id);
     }
 
+    /**
+     * The person is shown whether the request the gate stopped has a body and how large it is, a form's included; the
+     * body stays bound by its hash and is not kept.
+     */
+    @Test
+    void aStoppedRequestKeepsTheSizeOfItsBodyAndNotTheBody() throws Exception {
+        send(request(BODY), ZeroTrustAction.CHALLENGE);
+        AgentConfirmation withBody = store.find((String) writer.details.get("confirmationId")).orElseThrow();
+        assertThat(withBody.bodyBytes()).isEqualTo((long) BODY.getBytes(StandardCharsets.UTF_8).length);
+        assertThat(withBody.toString()).doesNotContain("documents");
+
+        MockHttpServletRequest bodiless = request("");
+        bodiless.setMethod("DELETE");
+        bodiless.setRequestURI("/api/exports/7");
+        send(bodiless, ZeroTrustAction.CHALLENGE);
+        assertThat(store.find((String) writer.details.get("confirmationId"))).map(AgentConfirmation::bodyBytes)
+                .contains(0L);
+
+        MockHttpServletRequest form = request("");
+        form.setRequestURI("/api/forms");
+        form.setContentType("application/x-www-form-urlencoded");
+        form.setContent("project=HX-310&documents=40".getBytes(StandardCharsets.UTF_8));
+        form.addParameter("project", "HX-310");
+        form.addParameter("documents", "40");
+        send(form, ZeroTrustAction.CHALLENGE);
+        assertThat(store.find((String) writer.details.get("confirmationId"))).map(AgentConfirmation::bodyBytes)
+                .contains(27L);
+    }
+
     /** CF-22: a request with nothing to confirm is bound too (a CHALLENGE decided in it may ask), its body whole. */
     @Test
     void aRequestWithNothingToConfirmPassesWithItsBodyWhole() throws Exception {
@@ -439,10 +468,11 @@ class AgentConfirmationGateTest {
     @Test
     void theConfirmationLinkStartsAtTheConfiguredAddressNeverAtTheHostTheAgentSent() throws Exception {
         List<AgentNotice> mailed = new ArrayList<>();
+        InMemoryAgentNoticeStore kept = new InMemoryAgentNoticeStore();
         AgentConfirmationService mailing = new AgentConfirmationService(store,
                 new SignedAgentConfirmationAuthorizer(HmacEvidenceSigner.of(Map.of("k1", Base64.getEncoder()
                         .encodeToString("0123456789abcdef0123456789abcdef".getBytes())), "k1")),
-                new AgentNotices(new InMemoryAgentNoticeStore(), notice -> {
+                new AgentNotices(kept, notice -> {
                     mailed.add(notice);
                     return "MAIL";
                 }), null, null, Duration.ofMinutes(15), clock);
@@ -456,9 +486,12 @@ class AgentConfirmationGateTest {
         unset.filter(fromAnotherHost("{\"n\":2}"), new MockHttpServletResponse(), new Recording(), subject,
                 ZeroTrustAction.CHALLENGE);
 
-        assertThat(mailed).extracting(AgentNotice::link).satisfiesExactly(
-                link -> assertThat(link).startsWith("https://app.test/ctx/contexa/agent-confirmations/"),
-                link -> assertThat(link).startsWith("/ctx/contexa/agent-confirmations/"));
+        // The second request came while the first waited, so it reached the console only; both links are kept.
+        assertThat(mailed).extracting(AgentNotice::link).singleElement().asString()
+                .startsWith("https://app.test/ctx/contexa/agent-confirmations/");
+        assertThat(kept.forRecipient("alice", 10)).extracting(AgentNotice::link).hasSize(2)
+                .anySatisfy(link -> assertThat(link).startsWith("https://app.test/ctx/contexa/agent-confirmations/"))
+                .anySatisfy(link -> assertThat(link).startsWith("/ctx/contexa/agent-confirmations/"));
     }
 
     private static MockHttpServletRequest fromAnotherHost(String body) {

@@ -835,7 +835,8 @@ create table if not exists ctxa_agent_confirmation
     decided_by       varchar(255),
     decision_note    text,
     authorization_id varchar(512),
-    used_at          timestamp(6)
+    used_at          timestamp(6),
+    body_bytes       bigint
 );
 
 create index if not exists ctxa_idx_agent_confirmation_request
@@ -846,6 +847,10 @@ create index if not exists ctxa_idx_agent_confirmation_recipient
 
 create index if not exists ctxa_idx_agent_confirmation_due
     on ctxa_agent_confirmation (status, expires_at);
+
+-- The size of the confirmed request's body (0 for none, -1 for a body Contexa did not see), shown to the person; the
+-- body itself is never kept. A database installed before it gains the column here at the next start.
+alter table ctxa_agent_confirmation add column if not exists body_bytes bigint;
 
 -- docs/agent A5-4: the narrowed scopes of agents' later requests (AgentScopeStore), one row per agent decision key;
 -- a narrowing only intersects the operations in force and ends at until_at.

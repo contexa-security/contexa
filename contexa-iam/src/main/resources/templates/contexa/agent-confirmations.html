@@ -22,6 +22,8 @@
                         <span style="color: #94a3b8;" th:text="${c.method} + ' ' + ${c.target}"></span>
                         <div th:if="${c.routedPath != null}" class="text-xs font-mono break-all" style="color: #fbbf24;"
                              th:text="#{agent.confirmation.target.routed} + ': ' + ${c.routedPath}"></div>
+                        <div class="text-xs" style="color: #94a3b8;"
+                             th:text="#{agent.confirmation.body} + ': ' + ((${c.bodyBytes} == null) ? #{agent.confirmation.body.unknown} : ((${c.bodyBytes} == 0) ? #{agent.confirmation.body.none} : ((${c.bodyBytes} lt 0) ? #{agent.confirmation.body.unseen} : #{agent.confirmation.body.bytes(${#numbers.formatInteger(c.bodyBytes, 1, 'COMMA')})})))"></div>
                         <div class="text-xs" style="color: #64748b;" th:text="${#temporals.format(c.createdAt, 'yyyy-MM-dd HH:mm')}"></div>
                     </div>
                     <div class="flex items-center gap-3">

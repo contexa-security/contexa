@@ -18,6 +18,7 @@ package io.contexa.contexaiam.admin.web.center.service;
 import io.contexa.contexacommon.entity.*;
 import io.contexa.contexacommon.repository.*;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -57,6 +58,7 @@ class AccessCenterServiceTest {
     @Mock private RoleService roleService;
     @Mock private UserRolePermissionRepository userRolePermissionRepository;
     @Mock private GroupRolePermissionRepository groupRolePermissionRepository;
+    @Mock private LastAdministratorGuard lastAdministratorGuard;
 
     @InjectMocks
     private AccessCenterService service;

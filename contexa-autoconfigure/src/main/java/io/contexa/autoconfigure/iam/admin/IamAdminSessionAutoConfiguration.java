@@ -16,14 +16,19 @@
 package io.contexa.autoconfigure.iam.admin;
 
 import io.contexa.contexaiam.admin.web.auth.controller.SessionManagementController;
+import io.contexa.contexaiam.admin.web.auth.service.ActiveSessionReferences;
 import io.contexa.contexaiam.admin.web.auth.service.SessionManagementService;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
 import io.contexa.contexaiam.repository.ActiveSessionRepository;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.SmartInitializingSingleton;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
+import org.springframework.jdbc.core.JdbcOperations;
 
 @AutoConfiguration
 @Import(IamAdminSessionContexaOwnedConfiguration.class)
@@ -34,6 +39,21 @@ public class IamAdminSessionAutoConfiguration {
     public SessionManagementService sessionManagementService(
             ActiveSessionRepository activeSessionRepository) {
         return new SessionManagementService(activeSessionRepository);
+    }
+
+    /**
+     * The tracked sessions a database kept under their raw identifiers move to their references when the application
+     * starts, before it serves a request; once moved, nothing is left to move.
+     */
+    @Bean(name = "contexaActiveSessionReferences")
+    public SmartInitializingSingleton contexaActiveSessionReferences(
+            @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperations) {
+        return () -> {
+            JdbcOperations jdbc = jdbcOperations.getIfAvailable();
+            if (jdbc != null) {
+                new ActiveSessionReferences(jdbc).atStart();
+            }
+        };
     }
 
     @Bean(name = "contexaSessionManagementController")

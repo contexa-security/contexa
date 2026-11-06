@@ -38,7 +38,7 @@ public class JdbcAgentConfirmationStore implements AgentConfirmationStore {
     private static final String COLUMNS = "confirmation_id, tenant_key, subject_kind, user_id, agent_id, subject_key, "
             + "delegation_id, recipient_id, request_hash, request_method, request_target, trigger_kind, reason, "
             + "correlation_id, status, created_at, expires_at, decided_at, decided_by, decision_note, "
-            + "authorization_id, used_at";
+            + "authorization_id, used_at, body_bytes";
 
     private final JdbcOperations jdbc;
 
@@ -49,7 +49,7 @@ public class JdbcAgentConfirmationStore implements AgentConfirmationStore {
     @Override
     public AgentConfirmation save(AgentConfirmation confirmation) {
         jdbc.update("insert into ctxa_agent_confirmation (" + COLUMNS + ") values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
-                        + "?, ?, ?, ?, ?, ?, ?, ?, ?) on conflict (confirmation_id) do update set "
+                        + "?, ?, ?, ?, ?, ?, ?, ?, ?, ?) on conflict (confirmation_id) do update set "
                         + "status = excluded.status, expires_at = excluded.expires_at, "
                         + "decided_at = excluded.decided_at, decided_by = excluded.decided_by, "
                         + "decision_note = excluded.decision_note, authorization_id = excluded.authorization_id, "
@@ -61,7 +61,7 @@ public class JdbcAgentConfirmationStore implements AgentConfirmationStore {
                 confirmation.reason(), confirmation.correlationId(), confirmation.status().name(),
                 timestamp(confirmation.createdAt()), timestamp(confirmation.expiresAt()),
                 timestamp(confirmation.decidedAt()), confirmation.decidedBy(), confirmation.decisionNote(),
-                confirmation.authorizationId(), timestamp(confirmation.usedAt()));
+                confirmation.authorizationId(), timestamp(confirmation.usedAt()), confirmation.bodyBytes());
         return confirmation;
     }
 
@@ -79,6 +79,13 @@ public class JdbcAgentConfirmationStore implements AgentConfirmationStore {
         return jdbc.query("select " + COLUMNS + " from ctxa_agent_confirmation where subject_key = ? and request_hash = ? "
                         + "and status = ? order by created_at desc limit 1", JdbcAgentConfirmationStore::confirmation,
                 subjectKey, requestHash, status.name()).stream().findFirst();
+    }
+
+    @Override
+    public boolean waiting(String subjectKey, Instant now) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("select exists (select 1 from ctxa_agent_confirmation "
+                        + "where subject_key = ? and status = ? and expires_at > ?)", Boolean.class, subjectKey,
+                AgentConfirmation.Status.PENDING.name(), timestamp(now)));
     }
 
     @Override
@@ -141,7 +148,7 @@ public class JdbcAgentConfirmationStore implements AgentConfirmationStore {
                 instant(row.getTimestamp("created_at")), instant(row.getTimestamp("expires_at")),
                 instant(row.getTimestamp("decided_at")), row.getString("decided_by"),
                 row.getString("decision_note"), row.getString("authorization_id"),
-                instant(row.getTimestamp("used_at")));
+                instant(row.getTimestamp("used_at")), row.getObject("body_bytes", Long.class));
     }
 
     @Nullable

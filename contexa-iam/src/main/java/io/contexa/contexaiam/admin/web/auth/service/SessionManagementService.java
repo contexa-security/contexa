@@ -16,6 +16,7 @@
 package io.contexa.contexaiam.admin.web.auth.service;
 
 import java.util.Locale;
+import io.contexa.contexacore.autonomous.utils.RequestFactRedaction;
 import io.contexa.contexaiam.domain.entity.ActiveSession;
 import io.contexa.contexaiam.repository.ActiveSessionRepository;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +29,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Manages active session tracking, querying, and forced invalidation.
+ * Manages active session tracking, querying, and forced invalidation. A session is kept, shown and invalidated by its
+ * reference ({@link RequestFactRedaction#sessionReference}), the value the audit names it by: the value its cookie
+ * carries is never kept, so no one who reads the console or the database can take the session. An identifier handed
+ * over raw is turned into its reference here; a reference stays as it is.
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -64,7 +68,7 @@ public class SessionManagementService {
 
     @Transactional(transactionManager = "contexaTransactionManager")
     public void invalidateSession(String sessionId) {
-        activeSessionRepository.expireSession(sessionId);
+        activeSessionRepository.expireSession(RequestFactRedaction.sessionReference(sessionId));
     }
 
     @Transactional(transactionManager = "contexaTransactionManager")
@@ -81,7 +85,7 @@ public class SessionManagementService {
                              String clientIp, String userAgent) {
         LocalDateTime now = LocalDateTime.now();
         activeSessionRepository.upsertSession(
-                sessionId,
+                RequestFactRedaction.sessionReference(sessionId),
                 userId,
                 username,
                 clientIp,
@@ -92,7 +96,7 @@ public class SessionManagementService {
 
     @Transactional(transactionManager = "contexaTransactionManager")
     public void updateLastAccessed(String sessionId) {
-        activeSessionRepository.findById(sessionId).ifPresent(session -> {
+        activeSessionRepository.findById(RequestFactRedaction.sessionReference(sessionId)).ifPresent(session -> {
             if (!session.isExpired()) {
                 session.setLastAccessedAt(LocalDateTime.now());
                 activeSessionRepository.save(session);
@@ -102,7 +106,7 @@ public class SessionManagementService {
 
     @Transactional(transactionManager = "contexaTransactionManager")
     public void markExpired(String sessionId) {
-        activeSessionRepository.expireSession(sessionId);
+        activeSessionRepository.expireSession(RequestFactRedaction.sessionReference(sessionId));
     }
 
     /**

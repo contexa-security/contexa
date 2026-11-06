@@ -38,7 +38,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
- * Admin controller for session monitoring and forced invalidation.
+ * Admin controller for session monitoring and forced invalidation. A session is shown, exported and invalidated by its
+ * reference, never by the value its cookie carries.
  */
 @Slf4j
 @Controller
@@ -102,7 +103,7 @@ public class SessionManagementController {
     @GetMapping("/export")
     public void export(HttpServletResponse response) throws IOException {
         List<CsvColumn<ActiveSession>> columns = List.of(
-                new CsvColumn<>("Session ID", s -> s.getSessionId() != null ? s.getSessionId() : ""),
+                new CsvColumn<>("Session Reference", s -> s.getSessionReference() != null ? s.getSessionReference() : ""),
                 new CsvColumn<>("Username", s -> s.getUsername() != null ? s.getUsername() : ""),
                 new CsvColumn<>("User ID", s -> s.getUserId() != null ? s.getUserId() : ""),
                 new CsvColumn<>("IP Address", s -> s.getClientIp() != null ? s.getClientIp() : ""),

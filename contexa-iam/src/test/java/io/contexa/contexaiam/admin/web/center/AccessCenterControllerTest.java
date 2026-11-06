@@ -17,6 +17,7 @@ package io.contexa.contexaiam.admin.web.center;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -43,7 +44,10 @@ import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.repository.UserRolePermissionRepository;
 import io.contexa.contexacommon.repository.UserRoleRepository;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
+import io.contexa.contexaiam.testsupport.I18nTestSupport;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import io.contexa.contexaiam.admin.web.center.service.AccessCenterService;
 import java.util.List;
 import java.util.Optional;
@@ -114,7 +118,9 @@ class AccessCenterControllerTest {
                 permissionRepository,
                 roleService,
                 userRolePermissionRepository,
-                groupRolePermissionRepository
+                groupRolePermissionRepository,
+                new LastAdministratorGuard(userRepository, roleRepository, new RoleHierarchyImpl(),
+                        I18nTestSupport.englishMessageSource())
         );
         controller = new AccessCenterController(accessCenterService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
@@ -250,6 +256,29 @@ class AccessCenterControllerTest {
 
             verify(userRepository).save(user);
             assertThat(user.getUserGroups()).hasSize(1);
+        }
+
+        @Test
+        @DisplayName("a group update that takes the console's last active administrator is a 409 and changes nothing")
+        void updateUserGroupsOfTheLastAdministrator() throws Exception {
+            Role admin = Role.builder().id(1L).roleName("ROLE_ADMIN").build();
+            Group administrators = Group.builder().id(10L).name("Administrators").build();
+            administrators.getGroupRoles().add(GroupRole.builder().group(administrators).role(admin).build());
+            Users root = Users.builder().id(1L).username("root").name("Root").enabled(true).build();
+            root.getUserGroups().add(UserGroup.builder().user(root).group(administrators).build());
+            when(roleRepository.findAll()).thenReturn(List.of(admin));
+            when(userRepository.findById(1L)).thenReturn(Optional.of(root));
+            when(userRepository.countEnabledOwnAccountsHoldingAnyRole(Mockito.eq(1L), any())).thenReturn(0L);
+
+            mockMvc.perform(post("/contexa/admin/access-center/api/users/1/groups")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"groupIds\":[]}"))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.message").value(containsString(
+                            "without an active administrator")));
+
+            Mockito.verify(userRepository, Mockito.never()).save(any());
         }
 
         @Test

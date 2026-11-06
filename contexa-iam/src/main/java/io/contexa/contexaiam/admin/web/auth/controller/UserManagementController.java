@@ -16,6 +16,7 @@
 package io.contexa.contexaiam.admin.web.auth.controller;
 
 import io.contexa.contexaiam.admin.web.auth.service.GroupService;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorException;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.auth.service.UserManagementService;
@@ -33,10 +34,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.security.access.prepost.PreAuthorize;
 
@@ -146,7 +150,9 @@ public class UserManagementController {
 			userDto.setSelectedGroupIds(selectedGroupIds);
 			userManagementService.modifyUser(userDto);
 			ra.addFlashAttribute("message", msg("msg.user.updated", userDto.getUsername()));
-					} catch (Exception e) {
+		} catch (LastAdministratorException e) {
+			throw e;
+		} catch (Exception e) {
 			log.error("Error modifying user: ", e);
 			ra.addFlashAttribute("errorMessage", msg("msg.user.update.error", e.getMessage()));
 			return "redirect:/contexa/admin/users/" + id;
@@ -208,7 +214,9 @@ public class UserManagementController {
 		try {
 			userManagementService.deleteUser(id);
 			ra.addFlashAttribute("message", msg("msg.user.deleted", id));
-					} catch (Exception e) {
+		} catch (LastAdministratorException e) {
+			throw e;
+		} catch (Exception e) {
 			log.error("Error deleting user: ", e);
 			ra.addFlashAttribute("errorMessage", msg("msg.user.delete.error", e.getMessage()));
 		}
@@ -219,5 +227,29 @@ public class UserManagementController {
 	@Transactional(transactionManager = "contexaTransactionManager")
 	public String removeUserGet(@PathVariable Long id, RedirectAttributes ra) {
 		return removeUser(id, ra);
+	}
+
+	/**
+	 * A change of a user that would take the console's last active administrator is refused with a 409: nothing of it
+	 * was kept (the refusal rolls the transaction back), and the list of users says why.
+	 */
+	@ExceptionHandler(LastAdministratorException.class)
+	public ModelAndView lastAdministrator(LastAdministratorException refusal) {
+		ModelAndView view = new ModelAndView("contexa/admin/users");
+		view.setStatus(HttpStatus.CONFLICT);
+		view.addObject("errorMessage", refusal.getMessage());
+		try {
+			Page<UserListDto> page = userManagementService.getUsers(null,
+					PageRequest.of(0, 15, Sort.by(Sort.Direction.DESC, "id")));
+			view.addObject("users", page.getContent());
+			view.addObject("page", page);
+		} catch (RuntimeException e) {
+			log.error("[UserManagement] The users could not be listed with a refusal: {}", e.toString());
+			view.addObject("users", List.of());
+			view.addObject("page", Page.empty());
+		}
+		view.addObject("keyword", null);
+		view.addObject("usersWithoutFactor", usersWithoutFactor());
+		return view;
 	}
 }

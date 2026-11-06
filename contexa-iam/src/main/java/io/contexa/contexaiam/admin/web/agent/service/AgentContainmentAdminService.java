@@ -73,12 +73,15 @@ public class AgentContainmentAdminService {
 
     private BlockedUserService blockedUsers;
 
-    /** Tells a session under its own BLOCK, which reads the stops and acts on none of them. */
+    /** Tells a session under a restriction of its own, which reads the stops and acts on none of them. */
     public void setBlockedUsers(@Nullable BlockedUserService blockedUsers) {
         this.blockedUsers = blockedUsers;
     }
 
-    /** Whether the acting administrator stands under a BLOCK of their own. */
+    /**
+     * Whether the acting administrator stands under a restriction of their own this session has not answered (a BLOCK,
+     * a CHALLENGE or an ESCALATE), as the block list judges it ({@link BlockedUserService#underOwnBlock}).
+     */
     public boolean underOwnBlock(String adminId) {
         return blockedUsers != null && blockedUsers.underOwnBlock(adminId);
     }

@@ -35,6 +35,7 @@ import io.contexa.contexacommon.security.UserAccountDeletedEvent;
 import io.contexa.contexacommon.security.UserAccountDisabledEvent;
 import io.contexa.contexacommon.security.UserAuthoritiesChangedEvent;
 import io.contexa.contexacommon.security.UserPasswordChangedEvent;
+import io.contexa.contexaiam.admin.web.auth.service.LastAdministratorGuard;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
 import lombok.RequiredArgsConstructor;
@@ -76,6 +77,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     private final UserRolePermissionRepository userRolePermissionRepository;
     private final BridgeUserProfileRepository bridgeUserProfileRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final LastAdministratorGuard lastAdministratorGuard;
 
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
@@ -173,6 +175,7 @@ public class UserManagementServiceImpl implements UserManagementService {
 
         boolean disabled = users.isEnabled() && !userDto.isEnabled();
         boolean passwordChanged = StringUtils.hasText(userDto.getPassword());
+        boolean wasActiveAdministrator = lastAdministratorGuard.activeAdministrator(users);
         Set<Long> previousGroupIds = users.getUserGroups().stream()
                 .map(userGroup -> userGroup.getGroup().getId())
                 .collect(Collectors.toSet());
@@ -211,6 +214,7 @@ public class UserManagementServiceImpl implements UserManagementService {
                     .build();
             users.getUserGroups().add(userGroup);
         }
+        lastAdministratorGuard.refuseLosingTheLast(users, wasActiveAdministrator);
 
         userRepository.save(users);
 
@@ -332,6 +336,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Protectable(verificationRequired = false)
     public void deleteUser(Long id) {
         Optional<Users> target = userRepository.findById(id);
+        target.ifPresent(lastAdministratorGuard::refuseDeletingTheLast);
         try {
             String admin = "SYSTEM";
             var auth = SecurityContextHolder.getContext().getAuthentication();

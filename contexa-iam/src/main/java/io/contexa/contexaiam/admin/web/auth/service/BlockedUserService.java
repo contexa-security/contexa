@@ -83,18 +83,40 @@ public class BlockedUserService implements IBlockedUserRecorder {
         this.enforcing = enforcing != null ? enforcing : () -> true;
     }
 
-    /** Whether a console session stands under a BLOCK of its own that it has not answered in this session. */
+    /**
+     * Whether a console session stands under a restriction of its own that a verification in this session answers: a
+     * BLOCK it has not verified, or a CHALLENGE (the console's step-up answers it in this session).
+     */
     public boolean ownBlockAwaitsVerification(String adminId) {
         String ownKey = ownKey(adminId);
-        return ConsoleSession.current() && ownKey != null
-                && actionRedisRepository.getCurrentAction(ownKey) == ZeroTrustAction.BLOCK && !verifiedHere(ownKey);
+        if (!ConsoleSession.current() || ownKey == null) {
+            return false;
+        }
+        ZeroTrustAction own = actionRedisRepository.getCurrentAction(ownKey);
+        return own == ZeroTrustAction.BLOCK && !verifiedHere(ownKey) || own == ZeroTrustAction.CHALLENGE;
     }
 
-    /** Whether the acting administrator stands under a BLOCK of their own, in the console or in the application. */
+    /**
+     * Whether the acting administrator stands under a restriction of their own that this session has not answered, in
+     * the console or in the application: a BLOCK, a CHALLENGE or an ESCALATE in force for this session. The decision is
+     * read for the session's own context, so a CHALLENGE the session answered with its step-up reads ALLOW here while it
+     * still holds for the sessions that did not. Such a session reads the block list and changes nothing: the release
+     * path stands behind no access or CHALLENGE filter, and a stolen session must not lift someone else's restriction
+     * or stop the agents from there.
+     */
     public boolean underOwnBlock(String adminId) {
+        return ownRestriction(adminId) != null;
+    }
+
+    /** The restriction of the acting administrator's own in force for this session, or null. */
+    private ZeroTrustAction ownRestriction(String adminId) {
         String ownKey = ownKey(adminId);
-        return ownKey != null && enforcing.getAsBoolean()
-                && actionRedisRepository.getCurrentAction(ownKey) == ZeroTrustAction.BLOCK;
+        if (ownKey == null || !enforcing.getAsBoolean()) {
+            return null;
+        }
+        ZeroTrustAction own = actionRedisRepository.getCurrentAction(ownKey);
+        return own == ZeroTrustAction.BLOCK || own == ZeroTrustAction.CHALLENGE || own == ZeroTrustAction.ESCALATE
+                ? own : null;
     }
 
     /** Whether the acting administrator may lift what stands against the subject: what {@link #refuseRelease} lets pass. */
@@ -104,16 +126,19 @@ public class BlockedUserService implements IBlockedUserRecorder {
     }
 
     /**
-     * A session under a BLOCK reaches the block list, the one place of the console left open to it, so a stolen session
-     * could stop the agents or lift the BLOCK of an accomplice from there. It reads the list and changes nothing, whatever
-     * it verified: a verification answers its own BLOCK, and once that is lifted the session stands under none.
+     * A session under a restriction of its own reaches the block list, the one place of the console left open to it, so
+     * a stolen session could stop the agents or lift the BLOCK of an accomplice from there. It reads the list and changes
+     * nothing until the restriction is answered: under a BLOCK whatever it verified, as a verification answers its own
+     * BLOCK and once that is lifted the session stands under none; under a CHALLENGE until it passes the step-up in this
+     * session; under an ESCALATE until the decision it waits for is made.
      *
      * @param action   what was asked for, as the audit names it
      * @param resource what it was asked for
      */
     public void refuseUnderOwnBlock(String adminId, String action, String resource) {
-        if (underOwnBlock(adminId)) {
-            auditRefusal(adminId, resource, action, "A change from a session under its own BLOCK");
+        ZeroTrustAction own = ownRestriction(adminId);
+        if (own != null) {
+            auditRefusal(adminId, resource, action, "A change from a session under its own " + own.name(), own);
             throw new UnderOwnBlockException(msg("msg.blacklist.read.only"));
         }
     }
@@ -129,7 +154,8 @@ public class BlockedUserService implements IBlockedUserRecorder {
         if (!isOwn(ownKey, subjectKey)) {
             refuseUnderOwnBlock(adminId, action, subjectKey);
         } else if (!verifiedHere(ownKey)) {
-            auditRefusal(adminId, subjectKey, action, "An administrator's own release without a verification in this session");
+            auditRefusal(adminId, subjectKey, action, "An administrator's own release without a verification in this session",
+                    ZeroTrustAction.BLOCK);
             throw new AccessDeniedException(msg("msg.blacklist.self.release"));
         }
     }
@@ -138,7 +164,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
         return ownKey != null && Objects.equals(ZeroTrustUserKey.of(ownKey), ZeroTrustUserKey.of(subjectKey));
     }
 
-    private void auditRefusal(String adminId, String resource, String action, String reason) {
+    private void auditRefusal(String adminId, String resource, String action, String reason, ZeroTrustAction own) {
         try {
             centralAuditFacade.recordAsync(AuditRecord.builder()
                     .eventCategory(AuditEventCategory.ADMIN_OVERRIDE)
@@ -146,7 +172,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
                     .eventSource("IAM")
                     .resourceIdentifier(resource)
                     .action(action)
-                    .decision(ZeroTrustAction.BLOCK.name())
+                    .decision(own.name())
                     .outcome("REFUSED")
                     .reason(reason)
                     .build());

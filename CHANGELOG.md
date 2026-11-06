@@ -22,6 +22,43 @@ The format is based on Keep a Changelog and the project follows semantic version
 - **An exchanged token gets no scope the exchanged token does not hold.** Spring checked the scopes an exchange asks for against the client only, so an agent holding `reports.write` exchanged a person's `read` token for `reports.write`. A scope beyond the scopes both the client and the exchanged token hold is now refused with `invalid_scope`. **Check:** a scope an agent asks for in a person's name must be one `contexa.auth.oauth2.scope` gives the person's tokens (it is `read` by default), and the internal client keeps the scopes of its first start.
 - **A suspended agent registered in a tenant no longer gets tokens.** A token Contexa issues names no tenant, and the token endpoint and the resource server looked such a client up in the single-tenant deployment only, so an agent registered with a `tenantId` went on getting its own tokens and exchanged ones after it was stopped, and the delegation it held was not read at the exchange. A token that names no tenant is now refused when the client is suspended in any tenant, a token that names a tenant also when the single-tenant registration is suspended, and the token endpoint reads the agent and its delegations in the tenant that registered the client. The in-memory and database registries answer alike.
 - **An exchanged token no longer outlives the person's sign-in.** An agent could exchange the token it got by exchange again, as often as it liked, and keep speaking in the person's name after the person signed out. A token issued by token exchange is now refused as the subject of another exchange (`invalid_grant`), an exchanged token ends no later than the token it was exchanged from, and a person's sign-out ends the tokens agents got by exchanging the person's tokens, unless a delegation the person gave that agent holds: the delegation then governs them, as it does every request of the agent. An agent that signs out its exchanged token ends that token only. A forced sign-out (a password change, a disabled account, a risk signal) ends every token of the person as before.
+- **An agent holding an administrator's token can no longer use the console.** The console's pages and API under
+  `/contexa/admin/**` now answer `403 AGENT_NOT_ALLOWED` to every request the bridge reads as an agent's, before any of
+  them acts: the agents' stops and releases, the kill switch, agent registrations and their secrets, learning, users and
+  policies answered such a request as they answer its administrator. A person's request with the same account is
+  unchanged. **Check:** an integration that let an agent call the console's API calls it with a person's sign-in or with
+  a client that is no agent.
+- **A console session under a CHALLENGE or an ESCALATE of its own only reads the block list.** The block list and the
+  agents' stops stay open to every console session so that a restriction can be lifted, and only a BLOCK kept a session
+  to reading there: a session under a CHALLENGE or an ESCALATE of its own could lift someone else's BLOCK or CHALLENGE,
+  release agents and use the kill switch. Such a session now reads and changes nothing, and the refusal is audited, until
+  it passes the console's step-up (`/contexa/admin/blacklist/step-up`), which answers its CHALLENGE in that session only,
+  or until the ESCALATE is decided. **Check:** an administrator under a CHALLENGE passes the step-up before changing
+  anything there.
+- **A change of a user no longer takes the console's last administrator.** Changing a user's groups or direct roles,
+  disabling the user or deleting it, on the user's page or in the access center, is refused with 409 and nothing of it
+  is kept when the user is the last enabled account of Contexa's own holding `ROLE_ADMIN` (directly, through a group or
+  through the role hierarchy). Changes of roles, groups or the hierarchy themselves are not checked. **Check:** a console
+  left without an administrator is recovered by setting `contexa.iam.seed.admin.password` with a
+  `contexa.iam.seed.admin.username` and `contexa.iam.seed.admin.email` that no account has and restarting: the start
+  creates that administrator in the administrators group and never changes an existing account.
+- **The console no longer shows or keeps the value a session's cookie carries.** The tracked sessions
+  (`ctxa_active_sessions`) kept each session under its raw identifier, and the session list showed it in full, wrote it
+  to the CSV export and invalidated by it, so an administrator could take another person's session. A session is now
+  kept, shown, exported and invalidated by its reference (`sid-` and 24 hexadecimal digits, as the audit names it). The
+  rows of an existing database move to their references at the next start, and a session forced out before stays out.
+  **Check:** the CSV column `Session ID` is now `Session Reference`; a call that invalidates a session by its raw
+  identifier still works.
+- **A waiting agent mails its person once.** While a confirmation of an agent waits for its accountable person, a further
+  request of the same agent, stopped by the gate or asked by the agent itself, waits as before but reaches the person on
+  the confirmations page and the console only, and so does its refusal when no one answers it in time. Within its call
+  limits an agent could otherwise send a mail per request, up to 120 a minute for a delegation.
+- The confirmation page and its list now say whether the agent's request has a body and how large it is, or that the
+  agent named a body by its hash only; the body itself is never kept. The size is kept in
+  `ctxa_agent_confirmation.body_bytes`, which an existing database gains at the next start. **Check:** a database whose
+  Contexa schema is managed by its own migrations adds
+  `alter table ctxa_agent_confirmation add column if not exists body_bytes bigint;`. A confirmation kept before shows its
+  size as not recorded.
 - A confirmation is no longer asked for an agent whose tenant, user, agent or delegation identifier is longer than a confirmation keeps (255, 255, 255 and 64 characters): the database refused such a confirmation with an error while memory kept it. An identifier is never cut, since a cut one names another delegation or agent and a report would stop the wrong one, so both stores now ask no one: the gate answers `413 AGENT_CONFIRMATION_UNBINDABLE`, the agent's own ask 400.
 - An agent's ask for a confirmation whose target carries, as written, a space, a control character, a line break or a character that turns the text around (no request line carries one) is answered 400, so an agent cannot write a sentence of its own where the person reads the request. Written escaped, the same characters are asked as before.
 - A request of an agent whose path and query are longer than a confirmation keeps (2048 characters, as a person reads them) no longer asks its accountable person to confirm a request they would read cut: it is refused with `413 AGENT_CONFIRMATION_UNBINDABLE`, as a body too large to bind is. Decided in the request itself, it gets the plain answer to a CHALLENGE and asks no one either.
