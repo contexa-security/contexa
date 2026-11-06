@@ -600,6 +600,11 @@ public class SynchronousProtectableDecisionService {
         if (!zeroTrustEventListener.shouldPublishAuthorizationEvent(event)) {
             return answerInForce(event, gateContext);
         }
+        if (signInDecisionLands(event, gateContext)) {
+            // The sign-in of this context asked the model and the decision it reached answers the call: it takes no
+            // place in the person's decisions of a new context, as the sign-in took its own.
+            return answerInForce(event, gateContext);
+        }
         if (newContextDecisionLimit != null && !newContextDecisionLimit.take(decisionKey(event, event.getUserId()),
                 NewContextDecisionLimit.Kind.CHANGED_CONTEXT)) {
             mine.pastTheLimit = true;
@@ -624,6 +629,42 @@ public class SynchronousProtectableDecisionService {
             return AsyncProtectableGate.restricted(verdict);
         }
         return withoutItsVerdict(event, gateContext);
+    }
+
+    /**
+     * Waits for the decision of the sign-in this call follows. A call from the context the person has just signed in
+     * from comes before the sign-in's decision is stored, and the context on record is still the old one, so the call
+     * reads as a changed context and would ask the model the question the sign-in has asked. When this server handed
+     * that sign-in to the analysis a moment ago, the call waits for the decision, for the time a request waits while the
+     * analysis is behind and no longer, and is then answered by what is in force, a restriction among it. A decision that
+     * does not come in that time leaves the call to be decided as it was, and nothing is waited for while a store is
+     * down, as no decision could be stored.
+     *
+     * @return whether a decision of the call's context landed, or a decision for it is being kept back
+     */
+    private boolean signInDecisionLands(ZeroTrustSpringEvent event, String gateContext) {
+        if (!zeroTrustEventListener.signInDecisionOnItsWay(event, gateContext)) {
+            return false;
+        }
+        long until = System.nanoTime() + behindWait.toNanos();
+        while (!contexaStores.anyDown()) {
+            if (!zeroTrustEventListener.shouldPublishAuthorizationEvent(event)) {
+                return true;
+            }
+            long left = until - System.nanoTime();
+            if (left <= 0L) {
+                break;
+            }
+            try {
+                TimeUnit.MILLISECONDS.sleep(Math.min(VERDICT_POLL_MS, TimeUnit.NANOSECONDS.toMillis(left) + 1L));
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        log.debug("[ZeroTrust] The decision of the sign-in did not come before the first call: userId={}",
+                event.getUserId());
+        return false;
     }
 
     /**

@@ -22,22 +22,36 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustSubject;
 import io.contexa.contexacore.autonomous.service.NewContextDecisionLimit;
 import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
+import io.contexa.contexacore.autonomous.store.ExpiringKeySpace;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
 public class ZeroTrustEventListener {
 
+    /**
+     * How long a sign-in counts as a decision still on its way. A sign-in's decision is a matter of seconds; a call of
+     * the same context that comes later is not waiting for it.
+     */
+    private static final Duration SIGN_IN_DECISION_ON_ITS_WAY = Duration.ofSeconds(30);
+    /** The sign-ins kept at once; past it those whose time ends first are forgotten first, and their calls are decided. */
+    private static final int SIGN_INS_KEPT = 10_000;
+
     private final SecurityEventPublisher securityEventPublisher;
     private final ZeroTrustActionRepository actionRepository;
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
     private UnanalysedRequestRecorder unanalysedRequestRecorder;
     private NewContextDecisionLimit newContextDecisionLimit;
+    /** The sign-ins this server handed to the analysis, one for each person and context. */
+    private final ExpiringKeySpace<Boolean> signInsAsked = ExpiringKeySpace.<Boolean>builder(Clock.systemUTC())
+            .ttl(SIGN_IN_DECISION_ON_ITS_WAY).bound(SIGN_INS_KEPT).build();
 
     public ZeroTrustEventListener(
             SecurityEventPublisher securityEventPublisher,
@@ -125,6 +139,28 @@ public class ZeroTrustEventListener {
         return true;
     }
 
+    /**
+     * Whether a sign-in of the call's person from this context was handed to the analysis a moment ago on this server.
+     * Its decision may not be stored yet, and a call of the same context that comes before it is the question the
+     * sign-in asked: the caller may wait for that decision instead of asking the model again. A sign-in the person's
+     * decisions of a new context did not allow was not handed on, so it is not on its way. The answer is this server's;
+     * on several servers a call that reaches another one is decided as it was.
+     *
+     * @param call              the call's event
+     * @param contextBindingHash the context of the call
+     */
+    public boolean signInDecisionOnItsWay(ZeroTrustSpringEvent call, String contextBindingHash) {
+        if (call == null || contextBindingHash == null || contextBindingHash.isBlank()) {
+            return false;
+        }
+        String key = decisionKey(call);
+        return key != null && !key.isBlank() && signInsAsked.containsKey(signInKey(key, contextBindingHash));
+    }
+
+    private static String signInKey(String decisionKey, String contextBindingHash) {
+        return decisionKey + '\u0000' + contextBindingHash;
+    }
+
     public String generateAuthorizationContextBindingHash(ZeroTrustSpringEvent event) {
         if (event == null) {
             return null;
@@ -144,7 +180,20 @@ public class ZeroTrustEventListener {
         if (signInPastTheLimit(event)) {
             return;
         }
+        rememberSignIn(event);
         securityEventPublisher.publishGenericSecurityEvent(event);
+    }
+
+    /** Notes a sign-in before it is handed on, so that a call that follows at once finds it. */
+    private void rememberSignIn(ZeroTrustSpringEvent event) {
+        if (!ZeroTrustSpringEvent.TYPE_AUTHENTICATION_SUCCESS.equals(event.getEventType())) {
+            return;
+        }
+        String key = decisionKey(event);
+        String context = generateAuthorizationContextBindingHash(event);
+        if (key != null && !key.isBlank() && context != null && !context.isBlank()) {
+            signInsAsked.put(signInKey(key, context), Boolean.TRUE);
+        }
     }
 
     /**

@@ -635,6 +635,19 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Changed
 
+- **The first protected call after a sign-in waits for the sign-in's decision instead of asking the model again.** A
+  call from the context a person has just signed in from can come before the sign-in's decision is stored. The context
+  on record was still the old one, so the call read as a changed context and asked the model the question the sign-in
+  had already asked: one more model call, and its wait, after each sign-in from a new context. The call now waits for
+  that decision, for the time a request waits while the analysis is behind (3 seconds) and no longer, and is answered
+  by it: a BLOCK or CHALLENGE of the sign-in is the call's answer too, and the call takes no place in the person's
+  decisions of a new context, as the sign-in took its own. A decision that does not come in that time leaves the call
+  to be decided as it was, and nothing is waited for while a store is down. The wait is for a sign-in this server
+  handed to the analysis; on several servers a call that reaches another server is decided as before. There is no
+  setting. **Check:** a sign-in from a new context now costs one model call instead of two where the first call used
+  to come first; a first call that comes while a slow sign-in decision is still being reached waits for it, up to 3
+  seconds, before it is decided itself.
+
 - **An ALLOW now lasts 15 minutes instead of 15 seconds.** The 15 seconds were a value for fast tests. Set
   `contexa.security.zerotrust.allow-validity` to change it; production belongs between 10 and 20 minutes, and a time
   outside that range is kept and said once at the start. A time that is not positive reads as the default, because a
