@@ -16,6 +16,8 @@
 package io.contexa.contexaiam.admin.web.agent.controller;
 
 import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacore.autonomous.agent.AgentDelegation;
 import io.contexa.contexacore.autonomous.agent.AgentDelegationRequest;
 import io.contexa.contexacore.autonomous.agent.AgentLearningControl;
@@ -36,11 +38,14 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.http.HttpStatus;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.context.support.StaticMessageSource;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.ui.ExtendedModelMap;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
 import java.time.Duration;
@@ -49,6 +54,7 @@ import java.util.Map;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -231,14 +237,35 @@ class AgentAdminControllerTest {
         assertThat((List<DelegationView>) model.get("delegations")).extracting(DelegationView::delegationId)
                 .containsExactly(given.delegationId());
         RedirectAttributesModelMap redirect = new RedirectAttributesModelMap();
-        String view = controller.revokeDelegation("agent-7", null, given.delegationId(), "agent hijacked", redirect);
+        String view = controller.revokeDelegation("agent-7", null, given.delegationId(), "agent hijacked",
+                new MockHttpServletRequest(), redirect);
 
         assertThat(view).isEqualTo("redirect:/contexa/admin/agents/detail");
         assertThat(redirect.getFlashAttributes()).containsKey("message");
         assertThat(delegationRegistry.find(given.delegationId()).orElseThrow().revokedBy()).isEqualTo("admin-1");
         RedirectAttributesModelMap noReason = new RedirectAttributesModelMap();
-        controller.revokeDelegation("agent-7", null, given.delegationId(), " ", noReason);
+        controller.revokeDelegation("agent-7", null, given.delegationId(), " ", new MockHttpServletRequest(), noReason);
         assertThat(noReason.getFlashAttributes()).containsKey("errorMessage");
+    }
+
+    /** The console takes a delegation back as the admin API does, so it refuses an agent as the admin API does. */
+    @Test
+    void anAgentHoldingAnAdministratorsTokenRevokesNoDelegationOnTheConsole() {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("admin-1", null, List.of()));
+        AgentDelegation given = delegationRegistry.record(new AgentDelegationRequest(null, "carol", "agent-7", null,
+                "REPORTING", "Weekly report", List.of("READ"), List.of("HX-310"), null, null, null, null,
+                Instant.now().plus(Duration.ofDays(1)), null, null));
+        MockHttpServletRequest fromAgent = new MockHttpServletRequest();
+        fromAgent.setAttribute(BridgeRequestAttributes.DELEGATION_STAMP, new DelegationStamp("admin-1", "report-bot",
+                true, null, null, null, List.of(), List.of(), null, null, null, null, Map.of()));
+
+        assertThatThrownBy(() -> controller.revokeDelegation("agent-7", null, given.delegationId(), "taken back",
+                fromAgent, new RedirectAttributesModelMap()))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        refused -> assertThat(refused.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+
+        assertThat(delegationRegistry.find(given.delegationId()).orElseThrow().revokedAt()).isNull();
     }
 
     @AfterEach

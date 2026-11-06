@@ -8,6 +8,7 @@ The format is based on Keep a Changelog and the project follows semantic version
 
 ### Security
 
+- **An agent holding an administrator's token no longer writes or takes back a person's delegation.** The admin API of delegations (`/contexa/admin/api/agent-delegations`) and the console's revocation (`/contexa/admin/agents/delegations/revoke`) now answer 403 to a request the bridge reads as an agent's, as the person's own delegation API already did. An administrator's own requests, and an integration whose client is no agent, work as before.
 - A value in a CSV export that a spreadsheet would run as a formula now stays text: users write the names and browsers in those files, and an administrator opens them. A cell that starts with `=`, `+`, `-` or `@` and is no plain number gets a leading quote.
 - A one-time code asked for a name with no account leaves nothing in the log, and the mail shows a name as text, never as markup.
 - **A sign-in by code no longer mails any address a stranger types.** Before a sign-in the name of a code request is what

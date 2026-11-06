@@ -36,7 +36,7 @@ import java.util.Optional;
  * Records and revokes delegations for the delegation API, the admin API and the console (docs/agent OC-1), and audits
  * every change. A person records only their own delegations; an agent never records one (a delegation is the person's
  * word, OWASP ASI03, attack map AT-28): a token acting for a person ({@code act}), a client's own token and an agent's
- * own account are refused here, and any request the bridge stamped as an agent's by the delegation API.
+ * own account are refused here, and any request the bridge stamped as an agent's by the delegation APIs and the console.
  */
 public class AgentDelegationService {
 

@@ -170,22 +170,24 @@ class AgentDelegationApiControllerTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void anAdministratorRecordsForAPersonAsTheRecordsStateItAndRevokesWithAReason() {
         DelegationBody imported = new DelegationBody("t-1", "alice", "agent-7", "OBJ-1", "REPORTING",
                 "Weekly report", List.of("READ"), List.of("HX-310"), false, null, null, NOW.minusSeconds(3600),
                 NOW.plusSeconds(3600), "hr-system", NOW.minusSeconds(7200));
 
-        DelegationView view = (DelegationView) admin.record(imported, person("admin-1")).getBody();
+        DelegationView view = (DelegationView) admin.record(imported, person("admin-1"),
+                new MockHttpServletRequest()).getBody();
 
         assertThat(view.delegatorId()).isEqualTo("alice");
         assertThat(view.recordedBy()).isEqualTo("hr-system");
         assertThat(view.recordedAt()).isEqualTo(NOW.minusSeconds(7200));
-        assertThat(admin.list("t-1", null, "agent-7", 50)).extracting(DelegationView::delegationId)
-                .containsExactly(view.delegationId());
-        assertThat(admin.revoke(view.delegationId(), new RevokeBody(" "), person("admin-1")).getStatusCode())
-                .isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat((List<DelegationView>) admin.list("t-1", null, "agent-7", 50, new MockHttpServletRequest())
+                .getBody()).extracting(DelegationView::delegationId).containsExactly(view.delegationId());
+        assertThat(admin.revoke(view.delegationId(), new RevokeBody(" "), person("admin-1"),
+                new MockHttpServletRequest()).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(((DelegationView) admin.revoke(view.delegationId(), new RevokeBody("hijacked"),
-                person("admin-1")).getBody()).revokedBy()).isEqualTo("admin-1");
+                person("admin-1"), new MockHttpServletRequest()).getBody()).revokedBy()).isEqualTo("admin-1");
     }
 
     /** RL-6: a delegation states its quantity limits in the body, and the view returns them. */
@@ -195,14 +197,46 @@ class AgentDelegationApiControllerTest {
                 List.of("READ", "EXPORT"), List.of("HX-310"), false, null, null, NOW.minusSeconds(3600),
                 NOW.plusSeconds(3600), "hr-system", NOW.minusSeconds(7200), 40, 1200);
 
-        DelegationView view = (DelegationView) admin.record(limited, person("admin-1")).getBody();
+        DelegationView view = (DelegationView) admin.record(limited, person("admin-1"),
+                new MockHttpServletRequest()).getBody();
 
         assertThat(view.maxItemsPerRequest()).isEqualTo(40);
         assertThat(view.maxItemsTotal()).isEqualTo(1200);
         // A limit below one is refused like any other incomplete delegation.
         assertThat(admin.record(new DelegationBody("t-1", "alice", "agent-8", null, "REPORTING", null, List.of("READ"),
                 List.of("HX-310"), false, null, null, NOW.minusSeconds(60), NOW.plusSeconds(3600), null, null, 0, null),
-                person("admin-1")).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+                person("admin-1"), new MockHttpServletRequest()).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    /**
+     * An agent holding an administrator's token in the administrator's name, read as the bridge reads it. A delegation
+     * is a person's word, so the admin API writes and takes back none for it, as the person's API refuses it.
+     */
+    @Test
+    void anAgentHoldingAnAdministratorsTokenRecordsAndRevokesNoDelegation() {
+        AgentDelegation alices = alicesDelegation();
+
+        for (Authentication agent : adminTokensAnAgentHolds()) {
+            MockHttpServletRequest fromAgent = stamped(agent);
+            assertThat(fromAgent.getAttribute(BridgeRequestAttributes.DELEGATION_STAMP)).as("the bridge reads an agent")
+                    .isNotNull();
+
+            assertThat(admin.record(body("alice", "report-bot"), agent, fromAgent).getStatusCode())
+                    .isEqualTo(HttpStatus.FORBIDDEN);
+            assertThat(admin.revoke(alices.delegationId(), new RevokeBody("taken back"), agent, fromAgent)
+                    .getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        }
+
+        assertThat(registry.list(null, "alice", null, 10)).extracting(AgentDelegation::agentId)
+                .containsExactly("agent-7");
+        assertThat(registry.find(alices.delegationId()).orElseThrow().revokedAt()).isNull();
+        verify(audit, never()).recordAsync(any());
+        // The administrator's token through an ordinary client names no agent, and works as before.
+        Authentication portal = jwt("admin-1", Map.of("client_id", "portal"));
+        assertThat(admin.record(body("alice", "report-bot"), portal, stamped(portal)).getStatusCode())
+                .isEqualTo(HttpStatus.CREATED);
+        assertThat(admin.revoke(alices.delegationId(), new RevokeBody("taken back"), portal, stamped(portal))
+                .getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
     @Test
@@ -211,6 +245,21 @@ class AgentDelegationApiControllerTest {
                 .isEqualTo("isAuthenticated()");
         assertThat(AgentDelegationAdminApiController.class.getAnnotation(PreAuthorize.class).value())
                 .isEqualTo("hasAuthority('ROLE_ADMIN')");
+    }
+
+    private AgentDelegation alicesDelegation() {
+        return registry.record(new AgentDelegationRequest(null, "alice", "agent-7", null, "REPORTING",
+                "Weekly HX-310 report", List.of("READ"), List.of("HX-310"), false, null, null, NOW.minusSeconds(60),
+                NOW.plusSeconds(3600), "alice", null));
+    }
+
+    private static List<Authentication> adminTokensAnAgentHolds() {
+        return List.of(
+                jwt("admin-1", Map.of("client_id", "report-bot-client")),
+                jwt("admin-1", Map.of("azp", "report-bot-client")),
+                jwt("admin-1", Map.of("agent_id", "report-bot")),
+                jwt("admin-1", Map.of("execution_mode", "DELEGATED_AGENT", "client_id", "report-bot-client")),
+                jwt("admin-1", Map.of("act", Map.of("sub", "report-bot-client"), "client_id", "report-bot-client")));
     }
 
     private static DelegationBody body(String delegator, String agent) {

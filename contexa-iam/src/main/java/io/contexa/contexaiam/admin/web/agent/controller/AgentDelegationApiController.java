@@ -111,13 +111,19 @@ public class AgentDelegationApiController {
 
     /**
      * A request the bridge stamped as an agent's is refused, as on the confirmation pages: an agent can hold a token in
-     * the person's name that no claim the service reads gives away, and only the bridge reads every form of one.
+     * the person's name that no claim the service reads gives away, and only the bridge reads every form of one. The
+     * admin API and the console refuse it by the same reading, whatever the token's account may do.
      */
-    private static void refuseAnAgent(HttpServletRequest request) {
-        if (request.getAttribute(BridgeRequestAttributes.DELEGATION_STAMP) instanceof DelegationStamp stamp
-                && StringUtils.hasText(stamp.agentId())) {
+    static void refuseAnAgent(HttpServletRequest request) {
+        if (fromAnAgent(request)) {
             throw new AgentDelegationService.AgentCallerException();
         }
+    }
+
+    /** Whether the bridge stamped the request as an agent's. */
+    static boolean fromAnAgent(HttpServletRequest request) {
+        return request.getAttribute(BridgeRequestAttributes.DELEGATION_STAMP) instanceof DelegationStamp stamp
+                && StringUtils.hasText(stamp.agentId());
     }
 
     static ResponseEntity<Map<String, String>> error(HttpStatus status, String message) {
